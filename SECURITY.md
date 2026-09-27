@@ -58,7 +58,102 @@ Filenames and paths derived from user input are passed to external processes.
 invoke `spawn`/`execFile` with argument arrays, never a shell string built by
 concatenating user input — so there is no shell to inject into.
 
+## apps/api
+
+Unlike `apps/web`, this is a multi-tenant network service (the hosted sync backend
+from `spec/sync.md`), so its threat model is different: it has to defend against
+other accounts, not just other browser tabs.
+
+### Authentication: no passwords, hashed everything
+
+Accounts are email + a six-digit code, never a password. `src/server/auth/AuthService.ts`:
+
+- Codes are 6 digits, expire after 10 minutes, allow at most 5 wrong guesses, and are
+  invalidated the moment a newer one is issued. Only `sha256(code + AUTH_PEPPER)` is
+  stored (`auth_codes.codeHash`) — never the code itself.
+- A successful code exchange mints an opaque 32-byte random device token. Only
+  `sha256(token + TOKEN_PEPPER)` is stored (`devices.tokenHash`) — never the token
+  itself. Losing the database does not hand out anyone's password or token.
+- `AUTH_PEPPER`/`TOKEN_PEPPER` are required in production; `src/server/config/env.ts`
+  falls back to a fixed, insecure development value and prints a loud startup warning
+  if they're unset, so this can't fail silently on a real deployment.
+- Revoking a device (`DELETE /v1/devices/:id`) is scoped to the caller's own `userId`,
+  so one account can never revoke another's device.
+
+### Per-user scoping on every query
+
+Every table that isn't global (`devices`, `releases`, `files`) carries a `userId`
+column, and every read/write in `AuthService`, `ReleaseSyncService`,
+`ReleaseFilesService`, and `QuotaService` filters by it. A release id is looked up
+without a `userId` filter exactly once — to detect whether it belongs to someone
+else — and if it does, the response is a plain 404, identical to "doesn't exist":
+`spec/sync.md` requires that a release id's ownership never leak across accounts
+(see `ReleaseSyncService.getOwned`/`upsert`/`tombstone`).
+
+### Input validation
+
+- Release ids and device ids are UUIDs, validated with zod (`shared/types.ts`)
+  before ever reaching a query.
+- File names (track files, covers) are validated against path separators, a
+  200-character limit, and an extension allowlist (`mp3`, `m4a`, `jpg`, `jpeg`,
+  `png`) — see `fileNameSchema`. This applies both to file names embedded in a
+  release record and to the two file routes' own `name` inputs.
+- Every request body is parsed through a zod schema (`server/http/validation.ts`);
+  a schema mismatch or unparseable JSON becomes a `ValidationError` (400) with a
+  message safe to show the client, never a raw zod/parse error.
+
+### Storage keys are never client input
+
+`POST /v1/releases/:id/files` accepts a file *name*, never a storage path. The
+actual storage key (`users/<userId>/releases/<releaseId>/<name>`) is built
+server-side in `ReleaseFilesService`/`storageKeyFor`, from the authenticated
+`userId`, the already-ownership-checked `releaseId`, and the already-validated
+`name` — a client can never point storage at another user's or release's path.
+
+### Signed URLs for file transfer
+
+Clients upload and download file bytes directly against object storage, never
+through the API function itself (`spec/sync.md`: Vercel functions cap request
+bodies at 4.5 MB). In production this is Vercel Blob's own signed-URL mechanism
+(`VercelBlobFileStore`, via `issueSignedToken`/`presignUrl`, each scoped to one
+pathname/content-type/size and expiring in 5 minutes). In local development
+(`LocalFileStore`), the same contract is implemented for real: an HMAC-SHA256
+signature over `key:expiry`, keyed off `TOKEN_PEPPER` with domain separation
+(never the pepper bytes directly), verified with `crypto.timingSafeEqual` and an
+expiry check before either `/v1/internal/local-upload/*` or
+`/v1/internal/local-download/*` touches disk.
+
+### Rate limiting
+
+`POST /v1/auth/code` and `POST /v1/auth/verify` are both rate-limited per email
+and per IP with an in-memory sliding window (`server/ratelimit/`), on top of the
+per-code 5-attempt cap inside `AuthService.verify` itself.
+
+### CORS
+
+`src/proxy.ts` adds CORS headers only for origins in `ALLOWED_ORIGINS` (default:
+any `localhost`/`127.0.0.1` port, for the Mac web app in development). The iOS
+app is not a browser and is unaffected either way. Auth here is a bearer token
+the client attaches explicitly — never an ambient credential like a cookie — so
+there is no CSRF surface to guard the way `apps/web`'s `proxy.ts` has to.
+
+### The cron endpoint
+
+`GET /v1/internal/cleanup` (deletes old tombstones' files and expired auth codes)
+requires `Authorization: Bearer <CRON_SECRET>` whenever `CRON_SECRET` is set,
+which must be true in production. It's deliberately left open when unset, which
+only happens in local development (`.env.example` leaves it blank on purpose),
+so it can be exercised directly with curl.
+
+### Env vars
+
+See `apps/api/.env.example` for the full list (`DATABASE_URL`, `AUTH_PEPPER`,
+`TOKEN_PEPPER`, `FILE_STORE`, `BLOB_READ_WRITE_TOKEN`, `MAILER`,
+`RESEND_API_KEY`, `MAIL_FROM`, `CRON_SECRET`, `ALLOWED_ORIGINS`,
+`PUBLIC_BASE_URL`), each with a working, insecure-by-design local default.
+
 ## Reporting
 
-This is a local single-user tool with no network service beyond localhost. If you find
-an issue, open an issue in this repository describing the reproduction steps.
+`apps/web` is a local single-user tool with no network service beyond localhost.
+`apps/api` is a small hosted multi-tenant service. If you find an issue in either,
+open an issue in this repository describing the reproduction steps.

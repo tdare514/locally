@@ -12,8 +12,9 @@ and API contract.
 ```
 apps/web/   # the Mac/desktop web app (Next.js); paths in the map below are relative to it
 apps/ios/   # the iOS companion app (SwiftUI, XcodeGen project); plan in docs/ios-plan.md
+apps/api/   # the hosted sync service (Next.js, API-only); see apps/api/README.md and spec/sync.md
 docs/       # ADRs and product plans (web-plan.md, ios-plan.md)
-spec/       # metadata model shared by both apps
+spec/       # metadata model shared by both apps, and the sync service contract (sync.md)
 scripts/    # make-fixtures.sh: test audio and covers into ./fixtures
 ```
 

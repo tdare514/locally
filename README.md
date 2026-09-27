@@ -4,6 +4,10 @@ A companion web app for managing local audio files with metadata that Spotify's 
 
 Spotify's public API has no upload endpoint, so this desktop companion is the only way to add cover art and metadata to local files that Spotify will recognize. Non-mp3 formats are automatically converted to 320 kbps mp3, since Spotify's Local Files feature only reads mp3 and mp4 locally.
 
+This is a monorepo: `apps/web` (below) is the Mac/desktop app, `apps/ios` is the
+iOS companion, and `apps/api` is the hosted sync service that lets the two
+mirror each other's libraries — see `apps/api/README.md` and `spec/sync.md`.
+
 ## Requirements
 
 - Node.js 20+
