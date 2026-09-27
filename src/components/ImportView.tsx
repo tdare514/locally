@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { ImportMeta, Release, ReleaseKind } from "../lib/types";
+import type { ImportMeta, Release, ReleaseKind } from "../shared/types";
 import { importRelease, inspectFiles } from "../lib/api-client";
 import Field from "./Field";
 import TrackList, { type EditableTrack } from "./TrackList";

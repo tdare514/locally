@@ -38,7 +38,22 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Project Layout
 
-- `src/app/api/` — API route handlers (import, settings, library, releases, cover management)
-- `src/lib/` — Server-side logic (file paths, settings, library index, metadata tags, audio conversion, file utilities)
-- `src/components/` — Reusable React UI components
-- `src/app/` — Layout, main page, and global styles
+```
+src/shared/            # types + error classes shared by client and server
+src/server/
+  config/              # SettingsStore interface + JSON-file implementation
+  storage/              # LibraryRepository interface + JSON-file implementation
+  audio/                # AudioConverter (ffmpeg) and TagService (ID3) interfaces + implementations
+  releases/              # ReleaseLayout (pure path rules), ReleaseService, InspectService
+  fs/                    # FileSystem interface + node:fs implementation
+  http/                  # error responses, upload validation, request → DTO parsing
+  container.ts           # builds and memoises the service singletons
+src/app/api/**/route.ts # thin HTTP handlers built on the services above
+src/proxy.ts            # loopback-only + CSRF guard (Next middleware)
+src/lib/api-client.ts   # client-side typed fetch wrappers
+src/components/         # reusable React UI components
+tests/unit/             # vitest unit tests, no real disk/network/ffmpeg
+docs/adr/               # architecture decision records
+```
+
+See `AGENTS.md` for the full architecture map and the project's non-negotiable rules.

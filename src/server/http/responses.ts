@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import type { ApiError } from "./types";
-import { ValidationError, NotFoundError, PublicError } from "./errors";
+import type { ApiError } from "../../shared/types";
+import { ValidationError, NotFoundError, PublicError } from "../../shared/errors";
 
 /** Build a JSON error response, logging the underlying error server-side. */
 export function errorResponse(err: unknown): NextResponse<ApiError> {
@@ -15,7 +15,10 @@ export function errorResponse(err: unknown): NextResponse<ApiError> {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
   // Unknown errors may embed filesystem paths or tool output: never echo them.
-  return NextResponse.json({ error: "Internal server error. Check the terminal running the app for details." }, { status: 500 });
+  return NextResponse.json(
+    { error: "Internal server error. Check the terminal running the app for details." },
+    { status: 500 }
+  );
 }
 
 export function badRequest(message: string): NextResponse<ApiError> {

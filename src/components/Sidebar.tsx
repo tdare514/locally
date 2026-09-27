@@ -1,6 +1,6 @@
 "use client";
 
-import type { Release } from "../lib/types";
+import type { Release } from "../shared/types";
 import { coverUrl } from "../lib/api-client";
 import type { View } from "./AppShell";
 

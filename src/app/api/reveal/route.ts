@@ -1,8 +1,8 @@
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { NextRequest, NextResponse } from "next/server";
-import { readSettings } from "../../../lib/settings";
-import { badRequest, errorResponse } from "../../../lib/http";
+import { getServices } from "../../../server/container";
+import { badRequest, errorResponse } from "../../../server/http/responses";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,16 +20,14 @@ export async function POST(request: NextRequest) {
       // Empty body is fine; defaults to libraryDir.
     }
 
-    const settings = await readSettings();
+    const services = getServices();
+    const settings = await services.settings.get();
     const libraryDir = path.resolve(settings.libraryDir);
 
-    const target = typeof body.path === "string" && body.path.trim().length > 0
-      ? path.resolve(body.path)
-      : libraryDir;
+    const target =
+      typeof body.path === "string" && body.path.trim().length > 0 ? path.resolve(body.path) : libraryDir;
 
-    const relative = path.relative(libraryDir, target);
-    const isInside = relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-    if (!isInside) {
+    if (!services.fs.isInside(libraryDir, target)) {
       return badRequest("path must be inside the library directory");
     }
 

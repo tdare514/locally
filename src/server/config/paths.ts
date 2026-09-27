@@ -20,17 +20,3 @@ export function settingsFilePath(): string {
 export function libraryFilePath(libraryDir: string): string {
   return path.join(libraryDir, "library.json");
 }
-
-/**
- * Sanitize a single path segment (artist/album/track name) for safe use as a
- * file or directory name. Strips characters that are illegal or troublesome
- * across common filesystems, trims whitespace/dots, and falls back to
- * "Unknown" if the result is empty.
- */
-export function sanitizeSegment(segment: string | null | undefined): string {
-  const raw = (segment ?? "").toString();
-  const stripped = raw.replace(/[/\\:*?"<>|]/g, "").trim();
-  // Remove trailing dots/spaces (problematic on Windows, harmless elsewhere).
-  const cleaned = stripped.replace(/[.\s]+$/g, "").trim();
-  return cleaned.length > 0 ? cleaned : "Unknown";
-}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Release, UpdateReleaseMeta } from "../lib/types";
+import type { Release, UpdateReleaseMeta } from "../shared/types";
 import {
   coverUrl,
   deleteRelease,

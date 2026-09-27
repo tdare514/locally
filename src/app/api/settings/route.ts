@@ -1,15 +1,15 @@
 import os from "node:os";
 import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
-import { readSettings, writeSettings } from "../../../lib/settings";
-import { badRequest, errorResponse } from "../../../lib/http";
+import { getServices } from "../../../server/container";
+import { badRequest, errorResponse } from "../../../server/http/responses";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const settings = await readSettings();
+    const settings = await getServices().settings.get();
     return NextResponse.json(settings);
   } catch (err) {
     return errorResponse(err);
@@ -31,7 +31,7 @@ export async function PUT(request: NextRequest) {
     if (dir === path.parse(dir).root || dir === os.homedir()) {
       return badRequest("libraryDir must be a dedicated folder, not your home folder or the filesystem root");
     }
-    const settings = await writeSettings({ libraryDir: dir });
+    const settings = await getServices().settings.set({ libraryDir: dir });
     return NextResponse.json(settings);
   } catch (err) {
     return errorResponse(err);

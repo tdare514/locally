@@ -1,6 +1,6 @@
 /**
  * Typed fetch wrappers for the Spotify Local Import API.
- * See PLAN.md "API" section for the contract; shapes come from ./types.
+ * See PLAN.md "API" section for the contract; shapes come from ../shared/types.
  */
 import type {
   Settings,
@@ -9,7 +9,7 @@ import type {
   ImportMeta,
   UpdateReleaseMeta,
   ApiError,
-} from "./types";
+} from "../shared/types";
 
 /** Response shape for POST /api/inspect (per-file prefill data). Not a persisted entity, so it
  * isn't declared in types.ts, but it mirrors the PLAN.md spec exactly. */

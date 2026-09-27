@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
-import { readSettings } from "../../../lib/settings";
-import { readLibrary } from "../../../lib/library";
-import { errorResponse } from "../../../lib/http";
+import { getServices } from "../../../server/container";
+import { errorResponse } from "../../../server/http/responses";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const settings = await readSettings();
-    const library = await readLibrary(settings.libraryDir);
-    return NextResponse.json(library);
+    const services = getServices();
+    const settings = await services.settings.get();
+    const releases = await services.library.list(settings.libraryDir);
+    return NextResponse.json({ version: 1, releases });
   } catch (err) {
     return errorResponse(err);
   }

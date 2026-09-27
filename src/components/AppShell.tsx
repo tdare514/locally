@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Library, Release } from "../lib/types";
+import type { Library, Release } from "../shared/types";
 import { getLibrary } from "../lib/api-client";
 import Sidebar from "./Sidebar";
 import ImportView from "./ImportView";
