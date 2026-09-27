@@ -3,7 +3,7 @@
 ## Setup
 
 ```bash
-npm install
+cd apps/web && npm install
 ```
 
 You'll also need `ffmpeg` on PATH (`brew install ffmpeg` on macOS) for real conversions;

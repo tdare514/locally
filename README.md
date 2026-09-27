@@ -14,7 +14,7 @@ Spotify's public API has no upload endpoint, so this desktop companion is the on
 ## Run
 
 ```bash
-npm install
+cd apps/web && npm install
 npm run dev
 ```
 

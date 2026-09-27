@@ -4,10 +4,20 @@
 
 A local-only Next.js app that imports audio files, tags them with ID3v2 metadata
 (converting non-mp3 to 320k mp3 via ffmpeg), and stores them in a library folder that
-Spotify's "Show Local Files" feature can read. See `PLAN.md` for the full product spec
+Spotify's "Show Local Files" feature can read. See `docs/web-plan.md` for the full product spec
 and API contract.
 
-## Architecture map
+## Repo layout
+
+```
+apps/web/   # the Mac/desktop web app (Next.js); paths in the map below are relative to it
+apps/ios/   # the iOS companion app (SwiftUI, XcodeGen project); plan in docs/ios-plan.md
+docs/       # ADRs and product plans (web-plan.md, ios-plan.md)
+spec/       # metadata model shared by both apps
+scripts/    # make-fixtures.sh: test audio and covers into ./fixtures
+```
+
+## Architecture map (apps/web)
 
 ```
 src/shared/            # imported by both client and server; NO node imports
