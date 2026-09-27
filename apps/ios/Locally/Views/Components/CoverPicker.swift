@@ -29,6 +29,7 @@ struct CoverPicker: View {
     let onPickFromFiles: () -> Void
 
     @State private var photosItem: PhotosPickerItem?
+    @State private var isPhotosPresented = false
     @State private var pendingCrop: Data?
 
     var body: some View {
@@ -39,11 +40,23 @@ struct CoverPicker: View {
             case .compact: compactBody
             }
         }
+        // The Photos picker is attached here, to a view that stays in the
+        // hierarchy, not to the `Menu` item that asks for it: a `PhotosPicker`
+        // placed inside a `Menu` is torn down with the menu when it closes,
+        // so the picker never appears. Hanging it off a hidden background
+        // also keeps it clear of the crop `.sheet` below (one presentation
+        // modifier per view node).
+        .background {
+            Color.clear
+                .photosPicker(isPresented: $isPhotosPresented, selection: $photosItem, matching: .images)
+        }
         .task(id: photosItem) {
             guard let photosItem else { return }
             if let data = try? await photosItem.loadTransferable(type: Data.self) {
                 pendingCrop = data
             }
+            // Clear the selection so picking the same photo again re-triggers.
+            self.photosItem = nil
         }
         .onChange(of: rawPick) { _, newValue in
             guard let newValue else { return }
@@ -67,7 +80,7 @@ struct CoverPicker: View {
 
     @ViewBuilder
     private var menuItems: some View {
-        PhotosPicker(selection: $photosItem, matching: .images) {
+        Button { isPhotosPresented = true } label: {
             Label("Photos", systemImage: "photo.on.rectangle")
         }
         Button(action: onPickFromFiles) {
