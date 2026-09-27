@@ -22,11 +22,14 @@ spec = importlib.util.spec_from_file_location("marks", os.path.join(ROOT, "scrip
 marks = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(marks)
 
-# The mark's geometry spans roughly y 170..1100 in its 1024 box (the neck runs off the
-# bottom). Scale it down and centre it so the head sits comfortably in the icon.
-SCALE = 0.88
+# The mark's geometry spans roughly y 170..1100 in its 1024 box. Scale it down and centre it
+# so the head sits comfortably in the icon with the neck ending inside the tile.
+SCALE = 0.76
 OFFSET_X = 512 - 512 * SCALE + 10
-OFFSET_Y = 30
+# Where the neck stops, in mark space; the mark is placed so this lands on the tile's
+# bottom edge (a few px past it, so no hairline gap shows after scaling).
+NECK_END = 1040
+OFFSET_Y = 1030 - NECK_END * SCALE
 
 
 def icon_svg(style, accent):
@@ -39,7 +42,7 @@ def icon_svg(style, accent):
         w = 24
         body = (f'<path d="{g["hair"]}" fill="none" stroke="{ink}" stroke-width="{w}" stroke-linejoin="round" stroke-linecap="round"/>'
                 f'<path d="{g["face"]}" fill="none" stroke="{ink}" stroke-width="{w}" stroke-linejoin="round" stroke-linecap="round"/>'
-                f'<path d="M {nl[0]} {nl[1]} L {nl[0] - 30} 1400 M {nr[0]} {nr[1]} L {nr[0] + 30} 1400" fill="none" stroke="{ink}" stroke-width="{w}"/>'
+                f'<path d="M {nl[0]} {nl[1]} L {nl[0] - 30} {NECK_END} M {nr[0]} {nr[1]} L {nr[0] + 30} {NECK_END}" fill="none" stroke="{ink}" stroke-width="{w}"/>'
                 f'<path d="{g["band"]}" fill="none" stroke="{ink}" stroke-width="{w * 2.3}" stroke-linecap="round"/>'
                 f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="{ink}"/>'
                 f'<rect x="{cx - r * .5}" y="{cy - r * .16}" width="{r}" height="{r * .32}" rx="{r * .16}" fill="{a}"/>'
@@ -49,7 +52,7 @@ def icon_svg(style, accent):
         arm = r * 0.5
         bar = r * 0.16
         body = (f'<path d="{g["hair"]}{face_tail} Z" fill="{ink}"/>'
-                f'<path d="M {nl[0]} {nl[1]} L {nl[0] - 30} 1400 L {nr[0] + 30} 1400 L {nr[0]} {nr[1]} Z" fill="{ink}"/>'
+                f'<path d="M {nl[0]} {nl[1]} L {nl[0] - 30} {NECK_END} L {nr[0] + 30} {NECK_END} L {nr[0]} {nr[1]} Z" fill="{ink}"/>'
                 f'<path d="{g["band"]}" fill="none" stroke="{ground}" stroke-width="66" stroke-linecap="round"/>'
                 f'<path d="{g["band"]}" fill="none" stroke="{a}" stroke-width="42" stroke-linecap="round"/>'
                 f'<circle cx="{cx}" cy="{cy}" r="{r + 16}" fill="{ground}"/>'

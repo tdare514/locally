@@ -12,10 +12,19 @@ struct RootView: View {
     /// stored, so the user actually sees the "Connected" confirmation.
     @State private var hasFinishedOnboarding = false
 
-    /// The selected tab index, shared with `LibraryView` so its sticky
-    /// "Add a song" footer button can switch to the Add a song tab (the
-    /// `TabView` has no other shared selection to hook into).
-    @State private var selectedTab = 0
+    /// The selected tab index, shared with `LibraryView` so its "Add a song"
+    /// actions can switch to the Import tab (the `TabView` has no other
+    /// shared selection to hook into). Library is tab 0: it is the home of
+    /// the app, and its empty state is the first-run onboarding.
+    @State private var selectedTab = Tab.library
+
+    /// Set by the library's empty state so the Import tab opens on the flow
+    /// the user chose (single or album). `ImportView` clears it once applied.
+    @State private var requestedImportKind: ImportKind?
+
+    enum Tab: Int {
+        case library = 0, importSong = 1, settings = 2
+    }
 
     /// Runs `SyncEngine.reconcile()` immediately, then every 30 seconds while
     /// the app is in the foreground, per `spec/sync.md` ("on foreground,
@@ -29,17 +38,17 @@ struct RootView: View {
                 OnboardingView { hasFinishedOnboarding = true }
             } else {
                 TabView(selection: $selectedTab) {
-                    ImportView()
-                        .tabItem { Label(Copy.Import.title, systemImage: "plus.circle") }
-                        .tag(0)
-
-                    LibraryView(selectedTab: $selectedTab)
+                    LibraryView(selectedTab: $selectedTab, requestedImportKind: $requestedImportKind)
                         .tabItem { Label(Copy.Library.title, systemImage: "music.note.list") }
-                        .tag(1)
+                        .tag(Tab.library)
+
+                    ImportView(requestedKind: $requestedImportKind)
+                        .tabItem { Label(Copy.Import.title, systemImage: "plus.circle") }
+                        .tag(Tab.importSong)
 
                     SettingsView()
                         .tabItem { Label(Copy.Settings.title, systemImage: "gearshape") }
-                        .tag(2)
+                        .tag(Tab.settings)
                 }
                 .tint(Theme.accent)
             }

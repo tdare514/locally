@@ -1,14 +1,17 @@
 import SwiftUI
 
-/// Lists everything sent to Spotify so far, newest first. Tapping a row
-/// opens `ReleaseDetailView` (`Views/Library/ReleaseDetailView.swift`) to
-/// edit or delete it.
+/// The home tab. Lists everything sent to Spotify so far, newest first;
+/// tapping a row opens `ReleaseDetailView` to edit or delete it. With no
+/// releases it becomes the onboarding: a diagram of files moving from
+/// Locally into Spotify and the two first-import actions.
 struct LibraryView: View {
     @Environment(\.appContainer) private var container
 
-    /// Shared with `RootView`'s `TabView` so the sticky "Add a song" footer
-    /// button can switch tabs.
-    @Binding var selectedTab: Int
+    /// Shared with `RootView`'s `TabView` so the "Add a song" actions can
+    /// switch to the Import tab.
+    @Binding var selectedTab: RootView.Tab
+    /// Tells the Import tab which flow to open (single or album).
+    @Binding var requestedImportKind: ImportKind?
 
     @State private var releases: [Release] = []
     @State private var errorMessage: String?
@@ -23,18 +26,10 @@ struct LibraryView: View {
                 Theme.background.ignoresSafeArea()
 
                 if releases.isEmpty {
-                    VStack(spacing: 20) {
-                        Image("ListenerLine")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(height: 150)
-                            .accessibilityHidden(true)
-                        Text(Copy.Library.empty)
-                            .font(Theme.Font.body)
-                            .foregroundStyle(Theme.secondaryText)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(.horizontal, Theme.Spacing.listPagePadding)
+                    LibraryEmptyState(
+                        onAddSingle: { startImport(.single) },
+                        onMakeAlbum: { startImport(.album) }
+                    )
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
@@ -56,10 +51,17 @@ struct LibraryView: View {
             // after a save/delete re-reads the store and reflects it here.
             .onAppear { load() }
             .stickyFooter {
-                Button(Copy.Library.addASong) { selectedTab = 0 }
-                    .buttonStyle(PrimaryPillButtonStyle())
+                if !releases.isEmpty {
+                    Button(Copy.Library.addASong) { startImport(nil) }
+                        .buttonStyle(PrimaryPillButtonStyle())
+                }
             }
         }
+    }
+
+    private func startImport(_ kind: ImportKind?) {
+        requestedImportKind = kind
+        selectedTab = .importSong
     }
 
     private var header: some View {
@@ -157,5 +159,99 @@ private struct LibraryRowButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .background(configuration.isPressed ? Theme.rowHover : Color.clear)
+    }
+}
+
+/// The empty library, which is also the first thing a new user sees after
+/// connecting Spotify's folder: a small diagram (the app icon, an arrow,
+/// Spotify) over a title, one line of explanation, and the two ways to
+/// start. The icon tile shows whichever app icon the user picked.
+private struct LibraryEmptyState: View {
+    let onAddSingle: () -> Void
+    let onMakeAlbum: () -> Void
+
+    private var iconName: String {
+        "IconPreview-" + (UIApplication.shared.alternateIconName ?? "AppIcon")
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+
+            diagram
+                .padding(.bottom, 36)
+
+            VStack(spacing: 8) {
+                Text(Copy.Library.emptyEyebrow).eyebrow()
+                Text(Copy.Library.emptyTitle)
+                    .font(Theme.Font.pageTitle)
+                    .foregroundStyle(Theme.primaryText)
+                Text(Copy.Library.emptyBody)
+                    .font(Theme.Font.body)
+                    .foregroundStyle(Theme.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(3)
+                    .padding(.top, 4)
+            }
+
+            Spacer(minLength: 0)
+
+            VStack(spacing: 12) {
+                Button(Copy.Library.addFirstSingle, action: onAddSingle)
+                    .buttonStyle(PrimaryPillButtonStyle())
+                Button(Copy.Library.makeAnAlbum, action: onMakeAlbum)
+                    .buttonStyle(SecondaryPillButtonStyle())
+            }
+            .padding(.bottom, 8)
+        }
+        .padding(.horizontal, Theme.Spacing.pagePadding)
+        .padding(.top, 24)
+        .padding(.bottom, 16)
+    }
+
+    /// Locally tile, a dotted accent arrow, Spotify tile. Spotify is drawn
+    /// as a neutral tile with a note, never its logo (the app is independent).
+    private var diagram: some View {
+        HStack(alignment: .top, spacing: 18) {
+            tile(caption: Copy.Library.diagramLocally) {
+                Image(iconName)
+                    .resizable()
+                    .scaledToFill()
+            }
+
+            HStack(spacing: 5) {
+                ForEach(0..<3, id: \.self) { _ in
+                    Circle().fill(Theme.accent).frame(width: 5, height: 5)
+                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(Theme.accent)
+            }
+            .frame(height: 68)
+            .accessibilityHidden(true)
+
+            tile(caption: Copy.Library.diagramSpotify) {
+                Image(systemName: "music.note")
+                    .font(.system(size: 26, weight: .semibold))
+                    .foregroundStyle(Theme.primaryText)
+            }
+        }
+    }
+
+    private func tile<Content: View>(caption: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Theme.elevated)
+                .frame(width: 68, height: 68)
+                .overlay { content() }
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Theme.border, lineWidth: 1)
+                )
+            Text(caption)
+                .font(Theme.Font.rowSubtitle)
+                .foregroundStyle(Theme.secondaryText)
+        }
     }
 }

@@ -86,8 +86,6 @@ enum Copy {
         /// The header row's title, replacing the generic nav title in-content.
         static let allMusic = "All music"
         static let title = "Your library"
-        /// Verbatim from `docs/design.md`'s "Empty state" component.
-        static let empty = "No releases yet. Import your first track or album to get started."
         static let single = "Single"
         static let album = "Album"
         /// The header row's right-aligned meta, e.g. "7 tracks".
@@ -96,6 +94,17 @@ enum Copy {
         }
         /// The sticky-footer button that switches to the Add a song tab.
         static let addASong = "Add a song"
+
+        /// The empty library doubles as onboarding: it explains what Locally
+        /// does (files go from here into Spotify) and offers the first import.
+        static let emptyEyebrow = "Your library"
+        static let emptyTitle = "Nothing here yet"
+        static let emptyBody = "Songs you add here are tagged with your cover and details, then sent into Spotify's Local Files."
+        static let addFirstSingle = "Add your first single"
+        static let makeAnAlbum = "Make an album"
+        /// Captions under the two tiles in the empty state's diagram.
+        static let diagramLocally = "Locally"
+        static let diagramSpotify = "Spotify"
     }
 
     enum Detail {

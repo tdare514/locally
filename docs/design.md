@@ -143,7 +143,11 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
   (primary, 24 by 10).
 - **Kind badge** (SINGLE / ALBUM): `elevated` pill, badge type.
 - **Errors**: `danger` 12 text under the field or button that failed.
-- **Empty state**: `text-muted` 14, "No releases yet. Import your first track or album to get
-  started."
+- **Empty state (mobile library, the home tab)**: doubles as onboarding. A diagram of two 68 pt
+  `elevated` tiles, radius 16, 1 px `border`: the app icon the user picked (captioned "Locally"),
+  three accent dots and a chevron, a note icon (captioned "Spotify"; never Spotify's logo). Below:
+  eyebrow "YOUR LIBRARY", title "Nothing here yet" (24 bold), one line of `text-muted` 14 body,
+  then a primary "Add your first single" and a secondary "Make an album" pinned low. Desktop keeps
+  the `text-muted` 14 line "No releases yet. Import your first track or album to get started."
 - **Web sidebar**: unchanged from the current web app (nav pills, LIBRARY eyebrow, rows, brand
   mark), on `card`. The MagicPath sidebar is not used.

@@ -6,10 +6,18 @@ import SwiftUI
 /// each child view supplies only its own content, never its own stack or
 /// `.fileImporter` conflicting with the other's, since only one is in the
 /// tree at a time.
+/// Which import flow the Import tab shows; `RootView` passes a requested
+/// value from the library's empty state.
+enum ImportKind: Hashable {
+    case single, album
+}
+
 struct ImportView: View {
-    private enum Kind: Hashable {
-        case single, album
-    }
+    private typealias Kind = ImportKind
+
+    /// Set by the library's empty state ("Add your first single" / "Make an
+    /// album"); applied and cleared when the tab appears.
+    @Binding var requestedKind: ImportKind?
 
     @Environment(\.appContainer) private var container
     @Environment(\.scenePhase) private var scenePhase
@@ -91,6 +99,7 @@ struct ImportView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .onAppear {
+            applyRequestedKind()
             refreshInbox()
             if !inboxFiles.isEmpty, dismissedCount != inboxFiles.count { showToast() }
             if !syncStatus.pendingFromMac.isEmpty, syncDismissedCount != syncStatus.pendingFromMac.count { showSyncToast() }
@@ -98,6 +107,13 @@ struct ImportView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active { refreshInbox() }
         }
+        .onChange(of: requestedKind) { _, _ in applyRequestedKind() }
+    }
+
+    private func applyRequestedKind() {
+        guard let requestedKind else { return }
+        kind = requestedKind
+        self.requestedKind = nil
     }
 
     private var header: some View {
