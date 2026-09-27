@@ -37,6 +37,7 @@ matters, never hidden.
 - [x] An m4a (converted from wav on the phone) tagged via AVFoundation shows in Spotify with artwork and artist (confirmed 27 Sep 2026).
 - [ ] Local files show and play on a Premium account after reopen.
 - [x] A third-party app can pick that folder and later write into it from a stored bookmark (confirmed 27 Sep 2026).
+- [x] The share extension delivers a file from another app into Locally and on to Spotify (confirmed 27 Sep 2026 on an iPhone 12 Pro).
 - [x] Re-tagging in place works. Spotify picks up a new cover immediately but keeps the old title until Local Files is switched off and on in its settings (confirmed 27 Sep 2026). Files keep their names, so playlists keep the track.
 
 ## Architecture

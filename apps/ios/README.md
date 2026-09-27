@@ -174,14 +174,21 @@ foregrounding the app produced the exact banner copy, and "Add as singles" corre
 real fixture file (via the production `LocalFileImporter`/`AVAsset` tag reading), prefilled the
 form, and removed the file from the Inbox. The extension also appears correctly as "Locally" in
 the system share sheet for an audio file (confirming the activation rule), and launches when
-tapped; in this simulator session the actual `NSItemProvider.loadFileRepresentation` hand-off for
-a file living in another app's `UIFileSharingEnabled` folder failed with a low-level
-`libxpc.dylib` assertion surfaced as "no such file" — the extension's own error handling caught it
-and showed a one-line message rather than crashing, but the transfer itself didn't complete. This
-looks like Simulator-specific XPC flakiness for that particular source (another app's exposed
-Documents folder) rather than a bug in `ShareViewController`; re-test on a real device, or share a
-file from a plain Files location (On My iPhone, iCloud Drive) rather than another app's own
-folder, before concluding otherwise.
+tapped.
+
+**Verified on an iPhone 12 Pro (iOS 18.7, 27 Sep 2026)**: sharing an audio file from Files to
+Locally shows "Saved to Locally", the app's banner offers it, "Add as singles" prefills the form,
+and Send delivers it to Spotify. Two bugs were found and fixed on the way, both worth knowing:
+
+- `loadFileRepresentation` hands the extension a temporary URL that iOS deletes as soon as the
+  completion handler returns. Copying into the Inbox must happen inside that handler; resuming a
+  continuation and copying afterwards fails with "The file ... doesn't exist". (An earlier
+  simulator failure attributed to XPC flakiness was this bug.)
+- The import view models delete an inbox file right after staging it, so they must keep the
+  staged copy's URL for Send, never the inbox URL they were handed.
+
+The app's own Documents folder ("On My iPhone > Locally" in Files) is scanned as a second inbox,
+because "Save to Files" naturally lands there. Tracks already in the library are never offered.
 
 ### One-time purchase (StoreKit 2)
 
