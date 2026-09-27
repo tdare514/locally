@@ -72,7 +72,12 @@ enum Copy {
         static let afterEdit = "Updated. Spotify shows a new cover right away, but keeps the old name until it rescans. In Spotify, open Settings, then Local Files, switch it off and on again, and the new details appear."
         static let kindSingle = "Single"
         static let kindAlbum = "Album"
-        static let noTracksYet = "No tracks yet."
+        static let noTracksYet = "No tracks yet"
+        /// The line under `noTracksYet` in the empty-tracks silhouette.
+        static let noTracksHint = "Add audio files above and they'll appear here."
+        /// Shown under the Tracks header once there are 2+ rows to reorder;
+        /// `.onMove` supports long-press drag without an Edit mode on iOS 16+.
+        static let reorderHint = "Hold and drag a track to reorder."
         static let track = "Track"
 
         static func taggingProgress(done: Int, total: Int) -> String {

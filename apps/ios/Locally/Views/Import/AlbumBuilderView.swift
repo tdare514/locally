@@ -109,12 +109,19 @@ struct AlbumBuilderView: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
                 .listRowInsets(EdgeInsets(top: 0, leading: Theme.Spacing.pagePadding, bottom: 2, trailing: Theme.Spacing.pagePadding))
-                if model.rows.isEmpty {
-                    Text(Copy.Import.noTracksYet)
-                        .font(Theme.Font.body)
-                        .foregroundStyle(Theme.secondaryText)
+                if model.rows.count >= 2 {
+                    Text(Copy.Import.reorderHint)
+                        .font(Theme.Font.dropZoneHint)
+                        .foregroundStyle(Theme.textDim)
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 0, leading: Theme.Spacing.pagePadding, bottom: 6, trailing: Theme.Spacing.pagePadding))
+                }
+                if model.rows.isEmpty {
+                    TrackListSilhouette(rows: 3)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: Theme.Spacing.pagePadding, bottom: Theme.Spacing.rowGap, trailing: Theme.Spacing.pagePadding))
                 } else {
                     ForEach(Array(model.rows.enumerated()), id: \.element.id) { index, row in
                         FileRow(
@@ -150,11 +157,6 @@ struct AlbumBuilderView: View {
         .listSectionSpacing(.custom(Theme.Spacing.sectionGap))
         .scrollContentBackground(.hidden)
         .background(Theme.background)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                EditButton()
-            }
-        }
         .stickyFooter {
             Button {
                 Task { await model.send() }
@@ -213,8 +215,9 @@ struct AlbumBuilderView: View {
                     .font(Theme.Font.dropZoneLine)
                     .foregroundStyle(Theme.primaryText)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 20)
+            .frame(maxWidth: .infinity, minHeight: 80)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 24)
         }
         .buttonStyle(.plain)
         .dropZone()

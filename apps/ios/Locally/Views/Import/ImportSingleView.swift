@@ -93,6 +93,8 @@ struct ImportSingleView: View {
                             .font(Theme.Font.rowSubtitle)
                             .foregroundStyle(Theme.danger)
                     }
+                } else {
+                    TrackListSilhouette(rows: 1)
                 }
             }
             .padding(Theme.Spacing.pagePadding)
@@ -158,7 +160,7 @@ struct ImportSingleView: View {
                 }
             }
             .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 80)
             .padding(.horizontal, 12)
             .padding(.vertical, 24)
         }

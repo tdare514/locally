@@ -116,7 +116,14 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
   (iOS: "Tap to choose a cover") and the hint "Square artwork works best".
 - **Audio drop zone**: a `card` block, min height 128, dashed border as above, an upload-cloud
   icon (26), "Drop audio files here, or click to choose" (iOS: "Tap to choose a file") and the
-  hint "Singles are one file. Switch to Album for multiple."
+  hint "Singles are one file. Switch to Album for multiple." Below it, before any track exists,
+  a faint silhouette of empty `FileRow`-shaped blocks (`card` at 50% opacity, a `border` stroke,
+  no text or icon) stands in for the Tracks list, with a centred `text-muted` blurb ("No tracks
+  yet" / "Add audio files above and they'll appear here."): three rows in the album builder, one
+  row in the single-track flow while no file is chosen. Once there are 2 or more tracks, a
+  `text-dim` 12 pt line under the Tracks header reads "Hold and drag a track to reorder." — the
+  album builder's list supports long-press drag-to-reorder without an Edit mode on iOS 16+, so
+  there is no toolbar Edit button any more (it only mismatched the Single/Album layouts).
 - **Desktop import layout**: two columns, 240 cover column and the form; fields in a two-column
   grid; the audio drop zone full width; a footer row with a 1 px `border` on top holding a
   `text-dim` note "Your files stay on this device." on the left and the primary button on the

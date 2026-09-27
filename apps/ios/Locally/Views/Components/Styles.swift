@@ -233,6 +233,43 @@ struct FileRow: View {
     }
 }
 
+// MARK: - Track list silhouette
+
+/// A faint placeholder shown before any tracks exist, so the Tracks section
+/// doesn't collapse to a single line of text: `rows` empty `FileRow`-shaped
+/// blocks (same size and radius, `card` at 50% opacity, a `border` stroke, no
+/// text or icon) with a centred blurb explaining what will appear there.
+/// Used by the album builder (3 rows) and, while no file is chosen, the
+/// single-track flow (1 row) — see `docs/design.md`'s Tracks section notes.
+struct TrackListSilhouette: View {
+    var rows: Int = 3
+
+    var body: some View {
+        ZStack {
+            VStack(spacing: Theme.Spacing.rowGap) {
+                ForEach(0..<rows, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: Theme.Radius.fileRow)
+                        .fill(Theme.card.opacity(0.5))
+                        .frame(minHeight: 64)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.Radius.fileRow)
+                                .stroke(Theme.border, lineWidth: 1)
+                        )
+                }
+            }
+
+            VStack(spacing: 4) {
+                Text(Copy.Import.noTracksYet)
+                Text(Copy.Import.noTracksHint)
+            }
+            .font(Theme.Font.body)
+            .foregroundStyle(Theme.secondaryText)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 24)
+        }
+    }
+}
+
 // MARK: - Kind badge
 
 /// SINGLE / ALBUM badge: an `elevated` pill in the badge text style.
