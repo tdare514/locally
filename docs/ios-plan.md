@@ -24,16 +24,16 @@ matters, never hidden.
 | No Spotify API for local files | Files on disk only; user makes playlists in Spotify, app pre-names/orders tracks |
 | Apps cannot write into another app's storage | User picks Spotify's folder once in the system folder picker; app keeps a security-scoped bookmark |
 | Spotify iOS reads mp3/m4a only; iOS has no mp3 encoder | Convert to AAC m4a via AVAssetExportSession |
-| Spotify scans on open | Done screen says "Open Spotify"; no deep link |
+| Spotify scans its folder itself; on the test phone a new file appeared while Spotify was already open | Done screen says "Open Spotify"; no deep link |
 | Spotify caches tags | Re-tag in place; guide says fully close and reopen Spotify |
 | No album page for local files | Album = shared cover + album tag + guided "make it a playlist" step |
 | App Store brand rules | Own name/icon, no Spotify green, trademark line in About |
 
 ## Assumptions to verify on a phone in phase 1
-- [x] With Local Files on, a Spotify folder appears under On My iPhone in Files (confirmed 27 Sep 2026 on an iPhone 14). Still to confirm: a file dropped there shows in Spotify after reopen.
-- [ ] m4a with AVFoundation tags + artwork shows with artwork/artist/album in Spotify; same for mp3 with ID3v2.4 APIC.
+- [x] With Local Files on, a Spotify folder appears under On My iPhone in Files, and a file the app writes there shows in Spotify (confirmed 27 Sep 2026 on an iPhone 14, without restarting Spotify).
+- [x] A tagged file shows in Spotify with its artwork and artist (confirmed 27 Sep 2026). Still to confirm separately for each path: m4a via AVFoundation and mp3 via the ID3v2.4 writer.
 - [ ] Local files show and play on a Premium account after reopen.
-- [ ] A third-party app can pick that folder and later write into it from a stored bookmark.
+- [x] A third-party app can pick that folder and later write into it from a stored bookmark (confirmed 27 Sep 2026).
 - [ ] Re-tagging in place refreshes in Spotify after a full close/reopen.
 
 ## Architecture
