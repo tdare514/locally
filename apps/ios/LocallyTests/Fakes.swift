@@ -21,9 +21,14 @@ final class FakeTagWriter: TagWriter {
 
     private(set) var calls: [Call] = []
     var errorToThrow: Error?
+    /// When set alongside `errorToThrow`, only the call with this 1-based
+    /// number fails; every other call succeeds and is recorded. Leaving
+    /// this `nil` (the default) fails every call, as before.
+    var failOnCallNumber: Int?
 
     func write(_ tags: TagSet, cover: Data?, to url: URL) async throws {
-        if let errorToThrow {
+        let callNumber = calls.count + 1
+        if let errorToThrow, failOnCallNumber == nil || failOnCallNumber == callNumber {
             throw errorToThrow
         }
         calls.append(Call(tags: tags, cover: cover, url: url))
@@ -71,8 +76,35 @@ final class FakeSpotifyFolder: SpotifyFolderAccess {
         return try body(directory)
     }
 
+    func withAccess<T>(_ body: (URL) async throws -> T) async throws -> T {
+        guard connected else { throw LocallyError.folderNotConnected }
+        return try await body(directory)
+    }
+
     func disconnect() {
         connected = false
+    }
+}
+
+/// In-memory `CoverStore` fake — no disk I/O, just a dictionary, so tests
+/// can assert on what was saved/deleted without touching Application
+/// Support.
+final class FakeCoverStore: CoverStore {
+    private var storage: [UUID: Data] = [:]
+    private(set) var deletedIds: [UUID] = []
+
+    func save(_ data: Data, for id: UUID) throws -> String {
+        storage[id] = data
+        return "fake-cover-\(id.uuidString)"
+    }
+
+    func load(_ id: UUID) -> Data? {
+        storage[id]
+    }
+
+    func delete(_ id: UUID) throws {
+        storage.removeValue(forKey: id)
+        deletedIds.append(id)
     }
 }
 

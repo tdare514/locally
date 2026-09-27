@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Lists everything sent to Spotify so far. Editing is phase 2; this list
-/// and its detail are read-only for now.
+/// Lists everything sent to Spotify so far, newest first. Tapping a row
+/// opens `ReleaseDetailView` (`Views/Library/ReleaseDetailView.swift`) to
+/// edit or delete it.
 struct LibraryView: View {
     @Environment(\.appContainer) private var container
 
@@ -30,7 +31,9 @@ struct LibraryView: View {
             .navigationDestination(for: Release.self) { release in
                 ReleaseDetailView(release: release)
             }
-            .task { load() }
+            // `.onAppear` (not `.task`) so returning from `ReleaseDetailView`
+            // after a save/delete re-reads the store and reflects it here.
+            .onAppear { load() }
         }
     }
 
@@ -64,7 +67,9 @@ struct LibraryView: View {
             .fill(Theme.panel)
             .frame(width: 44, height: 44)
             .overlay {
-                if let coverPath = release.coverPath, let uiImage = UIImage(contentsOfFile: coverPath) {
+                if let coverStore = container?.coverStore,
+                   let data = coverStore.load(release.id),
+                   let uiImage = UIImage(data: data) {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
@@ -84,33 +89,5 @@ struct LibraryView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
-    }
-}
-
-/// Read-only detail for a release (editing arrives in phase 2).
-struct ReleaseDetailView: View {
-    let release: Release
-
-    var body: some View {
-        List {
-            Section {
-                LabeledContent(Copy.Import.fieldTitle, value: release.title)
-                LabeledContent(Copy.Import.fieldArtist, value: release.artist)
-                if let year = release.year { LabeledContent(Copy.Import.fieldYear, value: year) }
-                if let genre = release.genre { LabeledContent(Copy.Import.fieldGenre, value: genre) }
-            }
-            .listRowBackground(Theme.panel)
-
-            Section("Tracks") {
-                ForEach(release.tracks) { track in
-                    Text("\(track.trackNumber). \(track.title)")
-                        .foregroundStyle(Theme.primaryText)
-                }
-            }
-            .listRowBackground(Theme.panel)
-        }
-        .scrollContentBackground(.hidden)
-        .background(Theme.background)
-        .navigationTitle(release.title)
     }
 }

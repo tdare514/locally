@@ -88,10 +88,14 @@ These are manual, on-device checks for phase 1; nothing in the codebase gates on
 ```
 Locally/
   App/            AppContainer (composes services; forTesting(...) for fakes), LocallyApp (@main)
-  Domain/         Release/Track/TagSet models, LocallyError, ReleaseLayout (naming/sanitising)
-  Services/       FileImporter, Transcoder, TagWriter (+ M4A/ID3 writers), SpotifyFolder, LibraryStore
-  Coordinator/    ReleaseCoordinator — the one place that sequences stage → transcode → tag → move → index
-  Views/          Onboarding, Import, Library, Settings, and shared Components
+  Domain/         Release/Track/AlbumDraft/ReleaseChanges/TagSet models, LocallyError, ReleaseLayout
+  Services/       FileImporter, Transcoder, TagWriter (+ M4A/ID3 writers), SpotifyFolder,
+                  LibraryStore, CoverStore (+ FileCoverStore)
+  Coordinator/    ReleaseCoordinator — the one place that sequences stage → transcode → tag → move →
+                  index for import (single or album), rewrites tags in place for edits, and removes
+                  files + store entry for deletes
+  Views/          Onboarding, Import (single + album builder), Library (+ release detail/edit),
+                  Settings, and shared Components
   Resources/      Copy.swift (all user-facing strings), Theme.swift (dark palette), Assets.xcassets
 LocallyTests/     Swift Testing suites, with fakes for every Services protocol
 ```
@@ -99,6 +103,36 @@ LocallyTests/     Swift Testing suites, with fakes for every Services protocol
 Every service is a protocol with one production implementation; `ReleaseCoordinator` and
 the views depend only on the protocols, so tests substitute fakes (see
 `LocallyTests/Fakes.swift`) without touching disk, AVFoundation, or a real SwiftData store.
+
+## Phase 2 features
+
+Building on phase 1's single-track import:
+
+- **Album import** (`Views/Import/AlbumBuilderView.swift`, `AlbumBuilderViewModel`): pick several
+  audio files at once, give each an editable, tag-prefilled title, reorder and remove them, then
+  send them as one album — `ReleaseCoordinator.importAlbum` numbers tracks by position, shares the
+  album/artist/year/genre/cover tags across every file, and reports "tagging and moving N of M"
+  progress as each one lands. A failed track rolls back every file that call already moved into
+  Spotify's folder and leaves the library untouched.
+- **Edit in place** (`Views/Library/ReleaseDetailView.swift`, `ReleaseDetailViewModel`): change a
+  release's title/artist/year/genre/cover and each track's title/order; `ReleaseCoordinator.updateRelease`
+  rewrites every track file's tags in place (never renaming or moving them, so playlists keep the
+  track) and updates the library index.
+  Save is disabled until something actually changed.
+- **Delete** (`ReleaseDetailView`, two-step `confirmationDialog`): removes every track file from
+  Spotify's folder (a file already missing there is not an error) and the library entry.
+  `ReleaseCoordinator.deleteRelease` refuses — and deletes nothing — if a track's recorded path
+  doesn't resolve to somewhere inside the connected folder (`ReleaseLayout.isInside`).
+- **Cover thumbnails**: covers are saved once per release under the app's own Application Support
+  directory via `CoverStore`/`FileCoverStore` (`<releaseId>.jpg` or `.png`, chosen by the image's
+  magic bytes), separately from the Spotify folder, and read back for `LibraryView`'s thumbnails.
+- The Import tab now has a `Single | Album` segmented control (`Views/Import/ImportView.swift`);
+  `ImportSingleView` is unchanged apart from moving its `NavigationStack`/title up into `ImportView`.
+
+`SpotifyFolderAccess.withAccess` gained an `async` overload (alongside the original synchronous
+one) so a track can be re-tagged in place — via `M4ATagWriter`'s `async` `AVAssetExportSession`
+export, or `ID3TagWriter`'s synchronous rewrite — while the security-scoped access to Spotify's
+folder is still open.
 
 ## Installing on a physical iPhone from the command line
 

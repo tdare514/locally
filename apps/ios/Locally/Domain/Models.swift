@@ -86,6 +86,76 @@ struct Release: Identifiable, Codable, Hashable {
     }
 }
 
+/// One track's user-entered title within an `AlbumDraft`, matched to its
+/// source file by position — the Nth `TrackDraft` in `AlbumDraft.tracks`
+/// corresponds to the Nth URL in the `files` array passed alongside it to
+/// `ReleaseCoordinator.importAlbum`.
+struct TrackDraft: Identifiable, Hashable {
+    var id: UUID = UUID()
+    var title: String
+
+    init(id: UUID = UUID(), title: String) {
+        self.id = id
+        self.title = title
+    }
+}
+
+/// The album-level metadata and ordered track titles collected by
+/// `AlbumBuilderView`, handed to `ReleaseCoordinator.importAlbum` alongside
+/// the picked files in the same order as `tracks`.
+struct AlbumDraft {
+    var title: String
+    var artist: String
+    var year: String?
+    var genre: String?
+    var tracks: [TrackDraft]
+
+    init(title: String, artist: String, year: String? = nil, genre: String? = nil, tracks: [TrackDraft]) {
+        self.title = title
+        self.artist = artist
+        self.year = year
+        self.genre = genre
+        self.tracks = tracks
+    }
+}
+
+/// Partial edits to an existing `Release`, applied in place by
+/// `ReleaseCoordinator.updateRelease`. `nil` on `title`/`artist`/`year`/
+/// `genre`/`cover` means "keep the current value"; for `year`/`genre`, an
+/// empty string clears the field (there is no separate way to distinguish
+/// "leave alone" from "set to empty" other than via `nil` vs `""`).
+/// `trackTitles` maps a track's `id` to its new title — tracks whose id is
+/// absent keep their current title. `trackOrder`, if given, is the full new
+/// track order by id; any known track id missing from it is appended after,
+/// so a caller can't accidentally drop a track by leaving it out.
+struct ReleaseChanges {
+    var title: String?
+    var artist: String?
+    var year: String?
+    var genre: String?
+    var cover: Data?
+    var trackTitles: [UUID: String]
+    var trackOrder: [UUID]?
+
+    init(
+        title: String? = nil,
+        artist: String? = nil,
+        year: String? = nil,
+        genre: String? = nil,
+        cover: Data? = nil,
+        trackTitles: [UUID: String] = [:],
+        trackOrder: [UUID]? = nil
+    ) {
+        self.title = title
+        self.artist = artist
+        self.year = year
+        self.genre = genre
+        self.cover = cover
+        self.trackTitles = trackTitles
+        self.trackOrder = trackOrder
+    }
+}
+
 /// The user-editable tag fields for a single track, as collected by the
 /// import UI and handed to a `TagWriter`. Kept separate from `Release`
 /// because it describes one file's tags, not the library record.

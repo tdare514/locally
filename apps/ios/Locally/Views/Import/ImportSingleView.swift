@@ -1,8 +1,10 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Phase 1's only import flow: pick one audio file, edit its tags, pick a
+/// The single-track import flow: pick one audio file, edit its tags, pick a
 /// cover, and send it to Spotify's folder. Shows `DoneView` on success.
+/// Embedded as one segment of `ImportView`, which owns the surrounding
+/// `NavigationStack` and title.
 struct ImportSingleView: View {
     @Environment(\.appContainer) private var container
 
@@ -17,19 +19,16 @@ struct ImportSingleView: View {
     @State private var isPickerPresented = false
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Theme.background.ignoresSafeArea()
+        ZStack {
+            Theme.background.ignoresSafeArea()
 
-                if let model, model.completedRelease != nil {
-                    DoneView(kind: .single) {
-                        model.reset()
-                    }
-                } else if let model {
-                    form(model)
+            if let model, model.completedRelease != nil {
+                DoneView(kind: .single) {
+                    model.reset()
                 }
+            } else if let model {
+                form(model)
             }
-            .navigationTitle(Copy.Import.title)
         }
         .task {
             if model == nil, let container {
@@ -105,32 +104,6 @@ struct ImportSingleView: View {
             case nil:
                 break
             }
-        }
-    }
-}
-
-/// The confirmation screen shown after a successful send, with the exact
-/// copy for a single or an album (phase 2) release.
-struct DoneView: View {
-    enum Kind { case single, album }
-
-    let kind: Kind
-    let onAddAnother: () -> Void
-
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(Theme.accent)
-
-            Text(kind == .single ? Copy.Import.doneSingle : Copy.Import.doneAlbum)
-                .foregroundStyle(Theme.primaryText)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-
-            Button(Copy.Import.addAnother, action: onAddAnother)
-                .buttonStyle(.bordered)
-                .tint(Theme.accent)
         }
     }
 }

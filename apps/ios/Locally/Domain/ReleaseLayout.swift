@@ -33,6 +33,22 @@ struct ReleaseLayout {
         return "\(a) - \(al) - \(n) - \(t).\(ext)"
     }
 
+    /// Whether `path` names a location strictly inside `folder` (a proper
+    /// descendant). Resolves `.`/`..` components lexically via
+    /// `standardizedFileURL` — no disk access, so it works for paths that no
+    /// longer exist — meaning a traversal like `<folder>/../elsewhere`
+    /// correctly reports `false` even though the raw string starts with
+    /// the folder's path. The folder itself is not "inside" itself: this
+    /// exists to gate deletes/rewrites of *tracks*, and a track path should
+    /// never equal the folder that contains it.
+    func isInside(folder: URL, path: String) -> Bool {
+        let folderPath = folder.standardizedFileURL.path
+        let targetPath = URL(fileURLWithPath: path).standardizedFileURL.path
+        guard targetPath != folderPath else { return false }
+        let prefix = folderPath.hasSuffix("/") ? folderPath : folderPath + "/"
+        return targetPath.hasPrefix(prefix)
+    }
+
     private func pad2(_ n: Int) -> String {
         n < 10 ? "0\(n)" : "\(n)"
     }

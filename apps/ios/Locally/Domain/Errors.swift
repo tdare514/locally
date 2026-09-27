@@ -17,6 +17,12 @@ enum LocallyError: LocalizedError {
     case folderNotConnected
     /// Reading or writing the on-device library index failed.
     case libraryFailed(String)
+    /// A track's file is no longer at its recorded path (e.g. removed
+    /// outside the app) when an edit tries to re-tag it in place.
+    case fileMissing(String)
+    /// A track's recorded path resolved to somewhere outside the connected
+    /// Spotify folder; refused rather than deleting or rewriting it.
+    case pathOutsideFolder
 
     var errorDescription: String? {
         switch self {
@@ -32,6 +38,10 @@ enum LocallyError: LocalizedError {
             return "Connect Spotify's folder first."
         case .libraryFailed(let detail):
             return "Couldn't update your library. \(detail)"
+        case .fileMissing(let name):
+            return "Couldn't find \"\(name)\" any more. It may have been moved or deleted outside Locally."
+        case .pathOutsideFolder:
+            return "That file isn't inside Spotify's folder."
         }
     }
 }

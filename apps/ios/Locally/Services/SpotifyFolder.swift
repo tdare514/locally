@@ -9,6 +9,12 @@ protocol SpotifyFolderAccess {
     var isConnected: Bool { get }
     func connect(url: URL) throws
     func withAccess<T>(_ body: (URL) throws -> T) throws -> T
+    /// Same contract as the synchronous `withAccess`, but keeps the
+    /// security scope open across an `async` body — needed to re-tag a
+    /// track file in place, since `M4ATagWriter` re-tags via an `async`
+    /// `AVAssetExportSession` export that must run while the Spotify
+    /// folder's scope is still active.
+    func withAccess<T>(_ body: (URL) async throws -> T) async throws -> T
     func disconnect()
 }
 
@@ -76,6 +82,36 @@ final class UserDefaultsSpotifyFolder: SpotifyFolderAccess {
         }
 
         return try body(url)
+    }
+
+    func withAccess<T>(_ body: (URL) async throws -> T) async throws -> T {
+        guard let bookmark = defaults.data(forKey: Self.bookmarkKey) else {
+            throw LocallyError.folderNotConnected
+        }
+
+        var isStale = false
+        let url: URL
+        do {
+            url = try URL(
+                resolvingBookmarkData: bookmark,
+                options: [],
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            )
+        } catch {
+            throw LocallyError.folderLost
+        }
+
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+
+        if isStale {
+            if let refreshed = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil) {
+                defaults.set(refreshed, forKey: Self.bookmarkKey)
+            }
+        }
+
+        return try await body(url)
     }
 
     func disconnect() {

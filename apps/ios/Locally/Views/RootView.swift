@@ -16,7 +16,7 @@ struct RootView: View {
                 OnboardingView { hasFinishedOnboarding = true }
             } else {
                 TabView {
-                    ImportSingleView()
+                    ImportView()
                         .tabItem { Label(Copy.Import.title, systemImage: "plus.circle") }
 
                     LibraryView()

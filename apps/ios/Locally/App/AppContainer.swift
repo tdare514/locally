@@ -24,6 +24,7 @@ final class AppContainer {
     let library: LibraryStore
     let importer: FileImporter
     let coordinator: ReleaseCoordinator
+    let coverStore: CoverStore
     let folderStatus: FolderStatus
     let modelContainer: ModelContainer
 
@@ -32,12 +33,14 @@ final class AppContainer {
         library: LibraryStore,
         importer: FileImporter,
         coordinator: ReleaseCoordinator,
+        coverStore: CoverStore,
         modelContainer: ModelContainer
     ) {
         self.folder = folder
         self.library = library
         self.importer = importer
         self.coordinator = coordinator
+        self.coverStore = coverStore
         self.modelContainer = modelContainer
         self.folderStatus = FolderStatus(isConnected: folder.isConnected)
     }
@@ -65,15 +68,17 @@ final class AppContainer {
         let library = SwiftDataLibraryStore(context: modelContainer.mainContext)
         let importer = LocalFileImporter()
         let transcoder = AVTranscoder()
+        let coverStore = FileCoverStore()
         let coordinator = ReleaseCoordinator(
             importer: importer,
             transcoder: transcoder,
             m4aTagWriter: M4ATagWriter(),
             id3TagWriter: ID3TagWriter(),
             folder: folder,
-            library: library
+            library: library,
+            coverStore: coverStore
         )
-        return AppContainer(folder: folder, library: library, importer: importer, coordinator: coordinator, modelContainer: modelContainer)
+        return AppContainer(folder: folder, library: library, importer: importer, coordinator: coordinator, coverStore: coverStore, modelContainer: modelContainer)
     }
 
     /// Builds an `AppContainer` from fakes, for previews and tests. Every
@@ -85,7 +90,8 @@ final class AppContainer {
         importer: FileImporter,
         transcoder: Transcoder,
         m4aTagWriter: TagWriter,
-        id3TagWriter: TagWriter
+        id3TagWriter: TagWriter,
+        coverStore: CoverStore
     ) -> AppContainer {
         let modelContainer = Self.makeModelContainer(inMemory: true)
         let coordinator = ReleaseCoordinator(
@@ -94,9 +100,10 @@ final class AppContainer {
             m4aTagWriter: m4aTagWriter,
             id3TagWriter: id3TagWriter,
             folder: folder,
-            library: library
+            library: library,
+            coverStore: coverStore
         )
-        return AppContainer(folder: folder, library: library, importer: importer, coordinator: coordinator, modelContainer: modelContainer)
+        return AppContainer(folder: folder, library: library, importer: importer, coordinator: coordinator, coverStore: coverStore, modelContainer: modelContainer)
     }
 
     private static func makeModelContainer(inMemory: Bool) -> ModelContainer {

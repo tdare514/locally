@@ -23,9 +23,11 @@ enum Copy {
     enum Import {
         static let title = "Add a song"
         static let pickFile = "Choose a file"
+        static let chooseFiles = "Choose files"
         static let fieldTitle = "Title"
         static let fieldArtist = "Artist"
         static let fieldAlbum = "Album"
+        static let fieldAlbumTitle = "Album title"
         static let albumPlaceholder = "Same as track title"
         static let fieldYear = "Year"
         static let fieldGenre = "Genre"
@@ -39,6 +41,14 @@ enum Copy {
         static let albumExplainer = "Spotify can't create albums from your own files, so we'll set these up to become a playlist. They'll share this cover, artist and album name."
         static let albumCoverPrompt = "Pick the cover that'll be applied to all of these tracks."
         static let afterEdit = "Updated. Spotify will show the new details next time it opens. If they don't appear, close Spotify fully and open it again."
+        static let kindSingle = "Single"
+        static let kindAlbum = "Album"
+        static let noTracksYet = "No tracks yet."
+        static let track = "Track"
+
+        static func taggingProgress(done: Int, total: Int) -> String {
+            "Tagging and moving \(done) of \(total)"
+        }
     }
 
     enum Library {
@@ -46,6 +56,17 @@ enum Copy {
         static let empty = "Nothing added yet."
         static let single = "Single"
         static let album = "Album"
+    }
+
+    enum Detail {
+        static let saveChanges = "Save changes"
+        static let saving = "Saving…"
+        static let replaceCover = "Replace cover"
+        static let delete = "Delete"
+        static let deleteConfirmTitle = "Delete this release?"
+        static let deleteConfirmAction = "Delete release"
+        static let deleteConfirmCancel = "Cancel"
+        static let makeItAPlaylist = "Make it a playlist"
     }
 
     enum Settings {
