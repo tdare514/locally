@@ -79,27 +79,34 @@ final class ShareViewController: UIViewController {
             throw ShareError.notAudio
         }
 
-        let sourceURL: URL = try await withCheckedThrowingContinuation { continuation in
-            provider.loadFileRepresentation(forTypeIdentifier: audioType) { url, error in
-                if let url {
-                    continuation.resume(returning: url)
-                } else {
-                    continuation.resume(throwing: error ?? ShareError.notAudio)
-                }
-            }
-        }
-
         guard let inboxDirectory = Self.inboxDirectory() else {
             throw ShareError.noAppGroup
         }
         try FileManager.default.createDirectory(at: inboxDirectory, withIntermediateDirectories: true)
 
-        let destinationName = InboxFileNaming.fileName(id: UUID(), originalName: sourceURL.lastPathComponent)
-        let destination = inboxDirectory.appendingPathComponent(destinationName)
-        // `loadFileRepresentation` hands us a URL into a location the
-        // system cleans up once this method returns, so copy — never move
-        // — it out immediately.
-        try FileManager.default.copyItem(at: sourceURL, to: destination)
+        // `loadFileRepresentation` hands us a temporary URL that the system
+        // deletes as soon as this completion handler returns. Copying after
+        // resuming a continuation is therefore too late ("file doesn't
+        // exist"), so the copy into the Inbox happens inside the handler
+        // and only the destination URL leaves it.
+        _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
+            provider.loadFileRepresentation(forTypeIdentifier: audioType) { url, error in
+                guard let url else {
+                    continuation.resume(throwing: error ?? ShareError.notAudio)
+                    return
+                }
+                let accessed = url.startAccessingSecurityScopedResource()
+                defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+                let destinationName = InboxFileNaming.fileName(id: UUID(), originalName: url.lastPathComponent)
+                let destination = inboxDirectory.appendingPathComponent(destinationName)
+                do {
+                    try FileManager.default.copyItem(at: url, to: destination)
+                    continuation.resume(returning: destination)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 
     private static func inboxDirectory() -> URL? {
