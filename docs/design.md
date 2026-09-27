@@ -24,10 +24,22 @@ and both apps follow.
 | text-dim | #777777 | chevrons, footnotes, breadcrumb eyebrows |
 | text-hint | #888888 | hint lines under drop zones |
 | danger | #F15E6C | errors, delete |
-| accent | web: #1DB954 (hover #1ED760). iOS: #FF7A00 placeholder | eyebrows, primary buttons, selected segment, focus ring, accent icons |
+| accent | #1E7DF0 (hover #3B8EF5) on both platforms, decided 27 Sep 2026 | eyebrows, primary buttons, selected segment, focus ring, accent icons, the shimmer on the app icon |
 
-The iOS app must not ship Spotify's green (#1DB954) or a near-green as its accent (App Store
-branding rule in `docs/ios-plan.md`). Every other token is identical on both platforms.
+The accent is the same on both platforms. It replaced the web app's Spotify green and the iOS
+orange placeholder; never reintroduce a green near #1DB954 (App Store branding rule in
+`docs/ios-plan.md`).
+
+## Mark and app icon
+
+The mark is a plus sign cast in chrome, with a shimmer band running across it off-centre
+(42 % across, tilted 34°), corners eased to radius 27 of a 240-wide bar. The main app icon is
+the chrome plus on black with the shimmer tinted by the accent. Four alternates ship as
+user-selectable icons: accent-coloured metal on black, gunmetal on the accent, chrome on the
+card grey, and accent metal on the accent. All are rendered by `scripts/make-app-icons.py`
+(`--accent 1E7DF0 --corner 27 --shimmer 42 --tilt 34`); the studies that led here are the
+"Locally Mark Studies" page. In small uses (tab bar, sidebar) the mark is a plain plus in a
+circle, accent when selected.
 
 ## Type
 

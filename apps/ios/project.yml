@@ -28,6 +28,9 @@ targets:
         # "AppIcon", which fails asset-catalog compilation when no such
         # icon set exists.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # User-selectable alternates, rendered by scripts/make-app-icons.py.
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Accent AppIcon-Gunmetal AppIcon-Card AppIcon-Tone"
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         TARGETED_DEVICE_FAMILY: "1"
         MARKETING_VERSION: "1.0"

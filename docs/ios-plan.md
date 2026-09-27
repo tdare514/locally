@@ -52,7 +52,7 @@ implementation and one fake for tests.
 1. Single to Spotify (weeks 1-2): scaffold, onboarding, folder link, one file tagged and sent. Gate: first TestFlight build, a song plays in Spotify.
 2. Albums and library (weeks 3-4): album builder, playlist guide, edit in place, delete. Gate: 5 testers, no blockers.
 3. Polish and submit (weeks 5-6): share extension, copy pass, one-time purchase (unlocks nothing yet), App Store review.
-   The app icon in the asset catalog is a placeholder from `scripts/make-app-icon.py`; a design session will replace it before submission.
+   App icon decided 27 Sep 2026: the metallic plus (see `docs/design.md`, rendered by `scripts/make-app-icons.py`), with four user-selectable alternates.
 
 ## In-app copy (excerpt)
 - Welcome: "Add your own songs to Spotify with the cover and details you choose. This app is independent and is not made by or connected to Spotify."
