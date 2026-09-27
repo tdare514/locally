@@ -59,10 +59,45 @@ struct AlbumBuilderView: View {
         List {
             Section {
                 fileChooser
-                    .listRowInsets(EdgeInsets())
+                    .listRowInsets(EdgeInsets(top: 0, leading: Theme.Spacing.pagePadding, bottom: 0, trailing: Theme.Spacing.pagePadding))
                     .listRowSeparator(.hidden)
             }
             .listRowBackground(Color.clear)
+
+            // Cover first, compact, beside the album title and artist (the Mac
+            // layout), then the rest of the metadata; the tracks follow.
+            Section {
+                HStack(alignment: .top, spacing: 16) {
+                    CoverPicker(
+                        imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 }),
+                        rawPick: $rawCoverPick,
+                        style: .compact
+                    ) {
+                        activePicker = .cover
+                        isPickerPresented = true
+                    }
+                    VStack(alignment: .leading, spacing: Theme.Spacing.fieldGap) {
+                        Field(Copy.Import.fieldAlbumTitle, text: Binding(get: { model.albumTitle }, set: { model.albumTitle = $0 }))
+                        Field(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }))
+                    }
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: Theme.Spacing.pagePadding, bottom: Theme.Spacing.rowGap, trailing: Theme.Spacing.pagePadding))
+                Text(Copy.Import.albumExplainer)
+                    .font(Theme.Font.rowSubtitle)
+                    .foregroundStyle(Theme.secondaryText)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: Theme.Spacing.pagePadding, bottom: Theme.Spacing.rowGap, trailing: Theme.Spacing.pagePadding))
+                HStack(spacing: 12) {
+                    Field(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }), keyboardType: .numberPad)
+                    Field(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }))
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: Theme.Spacing.pagePadding, bottom: Theme.Spacing.rowGap, trailing: Theme.Spacing.pagePadding))
+            }
 
             Section {
                 // A row, not a `header:`: `.plain` lists pin section headers while
@@ -73,7 +108,7 @@ struct AlbumBuilderView: View {
                 }
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 0, leading: 2, bottom: 2, trailing: 2))
+                .listRowInsets(EdgeInsets(top: 0, leading: Theme.Spacing.pagePadding, bottom: 2, trailing: Theme.Spacing.pagePadding))
                 if model.rows.isEmpty {
                     Text(Copy.Import.noTracksYet)
                         .font(Theme.Font.body)
@@ -90,51 +125,11 @@ struct AlbumBuilderView: View {
                         )
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: 2, bottom: Theme.Spacing.rowGap, trailing: 2))
+                        .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: Theme.Spacing.pagePadding, bottom: Theme.Spacing.rowGap, trailing: Theme.Spacing.pagePadding))
                     }
                     .onMove(perform: model.moveRows)
                     .onDelete(perform: model.removeRows)
                 }
-            }
-
-            Section {
-                Field(Copy.Import.fieldAlbumTitle, text: Binding(get: { model.albumTitle }, set: { model.albumTitle = $0 }))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: 2, bottom: Theme.Spacing.rowGap, trailing: 2))
-                Field(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: 2, bottom: Theme.Spacing.rowGap, trailing: 2))
-                HStack(spacing: 12) {
-                    Field(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }), keyboardType: .numberPad)
-                    Field(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }))
-                }
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: 2, bottom: Theme.Spacing.rowGap, trailing: 2))
-            }
-
-            Section {
-                CoverPicker(
-                    imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 }),
-                    rawPick: $rawCoverPick
-                ) {
-                    activePicker = .cover
-                    isPickerPresented = true
-                }
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
-                Text(Copy.Import.albumCoverPrompt)
-                    .font(Theme.Font.rowSubtitle)
-                    .foregroundStyle(Theme.secondaryText)
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                Text(Copy.Import.albumExplainer)
-                    .font(Theme.Font.rowSubtitle)
-                    .foregroundStyle(Theme.secondaryText)
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
             }
 
             if let errorMessage = model.errorMessage {

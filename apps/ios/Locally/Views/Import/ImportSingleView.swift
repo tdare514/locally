@@ -62,21 +62,30 @@ struct ImportSingleView: View {
 
                 if model.pickedURL != nil {
                     VStack(alignment: .leading, spacing: Theme.Spacing.fieldGap) {
-                        Field(Copy.Import.fieldTitle, text: Binding(get: { model.title }, set: { model.title = $0 }))
-                        Field(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }))
+                        // Cover first, compact, beside Title and Artist: the Mac
+                        // layout, so the cover is in view while typing.
+                        HStack(alignment: .top, spacing: 16) {
+                            CoverPicker(
+                                imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 }),
+                                rawPick: $rawCoverPick,
+                                style: .compact
+                            ) {
+                                activePicker = .cover
+                                isPickerPresented = true
+                            }
+                            VStack(alignment: .leading, spacing: Theme.Spacing.fieldGap) {
+                                Field(Copy.Import.fieldTitle, text: Binding(get: { model.title }, set: { model.title = $0 }))
+                                Field(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }))
+                            }
+                        }
+                        Text(Copy.Import.coverHint)
+                            .font(Theme.Font.dropZoneHint)
+                            .foregroundStyle(Theme.textHint)
                         Field(Copy.Import.fieldAlbum, placeholder: Copy.Import.albumPlaceholder, text: Binding(get: { model.album }, set: { model.album = $0 }))
                         HStack(spacing: 12) {
                             Field(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }), keyboardType: .numberPad)
                             Field(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }))
                         }
-                    }
-
-                    CoverPicker(
-                        imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 }),
-                        rawPick: $rawCoverPick
-                    ) {
-                        activePicker = .cover
-                        isPickerPresented = true
                     }
 
                     if let errorMessage = model.errorMessage {

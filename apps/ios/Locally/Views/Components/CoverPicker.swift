@@ -15,7 +15,7 @@ import UniformTypeIdentifiers
 struct CoverPicker: View {
     /// Which of the two presentations to draw. See `docs/design.md`'s
     /// "Cover drop zone" and "Editor / release detail" components.
-    enum Style { case dropZone, hero }
+    enum Style { case dropZone, hero, compact }
 
     @Binding var imageData: Data?
     /// The parent owns the file importer: SwiftUI honours only one
@@ -36,6 +36,7 @@ struct CoverPicker: View {
             switch style {
             case .dropZone: dropZoneBody
             case .hero: heroBody
+            case .compact: compactBody
             }
         }
         .task(id: photosItem) {
@@ -106,6 +107,38 @@ struct CoverPicker: View {
                 .font(Theme.Font.dropZoneHint)
                 .foregroundStyle(Theme.textHint)
         }
+    }
+
+    // MARK: - Compact square (beside the Title and Artist fields)
+
+    /// A fixed 120 pt square that sits to the left of the first fields, so
+    /// the cover is visible from the start without taking the whole row.
+    private var compactBody: some View {
+        Menu {
+            menuItems
+        } label: {
+            Group {
+                if let imageData, let uiImage = UIImage(data: imageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    VStack(spacing: 6) {
+                        Image(systemName: "photo.badge.plus")
+                            .font(.system(size: 24))
+                            .foregroundStyle(Theme.secondaryText)
+                        Text(Copy.Import.cover)
+                            .font(Theme.Font.rowSubtitle)
+                            .foregroundStyle(Theme.secondaryText)
+                    }
+                }
+            }
+            .frame(width: 120, height: 120)
+            .clipped()
+        }
+        .buttonStyle(.plain)
+        .dropZone()
+        .accessibilityLabel(Copy.Import.coverCaption)
     }
 
     /// The chosen image once one exists, otherwise an image-plus icon and

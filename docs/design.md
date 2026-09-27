@@ -38,8 +38,18 @@ the chrome plus on black with the shimmer tinted by the accent. Four alternates 
 user-selectable icons: accent-coloured metal on black, gunmetal on the accent, chrome on the
 card grey, and accent metal on the accent. All are rendered by `scripts/make-app-icons.py`
 (`--accent 1E7DF0 --corner 27 --shimmer 42 --tilt 34`); the studies that led here are the
-"Locally Mark Studies" page. In small uses (tab bar, sidebar) the mark is a plain plus in a
-circle, accent when selected.
+"Locally Mark Studies" page. In the tab bar the mark is a plain plus in a circle, accent when selected.
+
+## Listener mark
+
+The app's character, from the owner's sketches: a scalloped cloud of hair, the headphone band
+over the crown, the cup with its inner ring where the ear sits, a soft profile with a small nose
+and a round cartoon chin (no mouth), and the neck running out of the frame. Two versions,
+rendered by `scripts/make-brand-marks.py` from the geometry settled on the "Locally Mark
+Studies" page: **solid** (white silhouette, accent cup, negative-space band) for the iOS welcome
+screen and the web sidebar's empty state; **line** (white line, accent cup) for the iOS empty
+library and the web sidebar's brand mark. A later design session may revise the shape; only the
+script changes.
 
 ## Type
 

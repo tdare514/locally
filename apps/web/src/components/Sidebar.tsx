@@ -56,9 +56,14 @@ export default function Sidebar({
         </p>
         {loading && <p className="px-2 text-sm text-text-muted">Loading…</p>}
         {!loading && sorted.length === 0 && (
-          <p className="px-2 text-sm text-text-muted">
-            No releases yet. Import your first track or album to get started.
-          </p>
+          <div className="px-2">
+            {/* The listener mark, from the owner's sketch; scripts/make-brand-marks.py renders it. */}
+            {/* eslint-disable-next-line @next/next/no-img-element -- static SVG, no optimisation needed */}
+            <img src="/brand/listener-solid.svg" alt="" className="mb-3 h-24 w-24" />
+            <p className="text-sm text-text-muted">
+              No releases yet. Import your first track or album to get started.
+            </p>
+          </div>
         )}
         {sorted.map((r) => {
           const active = view.type === "release" && view.id === r.id;
@@ -97,7 +102,9 @@ export default function Sidebar({
         })}
       </div>
 
-      <div className="hidden shrink-0 border-t border-border px-4 py-3 md:block">
+      <div className="hidden shrink-0 items-center gap-2 border-t border-border px-4 py-3 md:flex">
+        {/* eslint-disable-next-line @next/next/no-img-element -- static SVG, no optimisation needed */}
+        <img src="/brand/listener-line.svg" alt="" className="h-6 w-6" />
         <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-dim">
           Locally
         </span>

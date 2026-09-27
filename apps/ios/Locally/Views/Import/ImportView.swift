@@ -20,6 +20,9 @@ struct ImportView: View {
     /// back to the foreground, since the share extension can only add to
     /// the inbox while this app isn't running.
     @State private var inboxFiles: [InboxFile] = []
+    /// How many waiting files the user last dismissed the toast for; it
+    /// comes back only when the count changes (new songs arrived).
+    @State private var dismissedCount: Int?
     @State private var singleQueue: [InboxFile] = []
     @State private var albumQueue: [InboxFile] = []
 
@@ -29,10 +32,6 @@ struct ImportView: View {
                 header
                     .padding(.horizontal, Theme.Spacing.pagePadding)
                     .padding(.top, 8)
-
-                if !inboxFiles.isEmpty {
-                    inboxBanner
-                }
 
                 SegmentedPill(
                     options: [(Kind.single, Copy.Import.kindSingle), (Kind.album, Copy.Import.kindAlbum)],
@@ -51,6 +50,17 @@ struct ImportView: View {
                 }
             }
             .background(Theme.background.ignoresSafeArea())
+            // Waiting songs surface as a floating toast rather than a block in
+            // the layout, so the form never shifts and the note reads as a
+            // notification. Dismissed until the count changes.
+            .overlay(alignment: .top) {
+                if !inboxFiles.isEmpty, dismissedCount != inboxFiles.count {
+                    inboxToast
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(duration: 0.35), value: inboxFiles.count)
+            .animation(.spring(duration: 0.35), value: dismissedCount)
             // The in-content eyebrow + title above already shows "Add a
             // song"; an empty nav title avoids repeating it in the system
             // bar while keeping that bar's black, minimal chrome.
@@ -72,37 +82,55 @@ struct ImportView: View {
         }
     }
 
-    private var inboxBanner: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(Copy.Inbox.waitingBanner(count: inboxFiles.count))
-                .font(Theme.Font.body)
-                .foregroundStyle(Theme.primaryText)
-
-            HStack(spacing: 16) {
-                Button(Copy.Inbox.addAsSingles) {
-                    singleQueue = inboxFiles
-                    inboxFiles = []
-                    kind = .single
+    private var inboxToast: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(Copy.Inbox.waitingBanner(count: inboxFiles.count))
+                    .font(Theme.Font.body.weight(.semibold))
+                    .foregroundStyle(Theme.primaryText)
+                HStack(spacing: 14) {
+                    Button(Copy.Inbox.addAsSingles) {
+                        singleQueue = inboxFiles
+                        inboxFiles = []
+                        kind = .single
+                    }
+                    Button(Copy.Inbox.makeAnAlbum) {
+                        albumQueue = inboxFiles
+                        inboxFiles = []
+                        kind = .album
+                    }
                 }
-                Button(Copy.Inbox.makeAnAlbum) {
-                    albumQueue = inboxFiles
-                    inboxFiles = []
-                    kind = .album
-                }
+                .font(Theme.Font.rowSubtitle.weight(.medium))
+                .foregroundStyle(Theme.accent)
+                .buttonStyle(.plain)
             }
-            .font(Theme.Font.body.weight(.semibold))
-            .foregroundStyle(Theme.accent)
+            Spacer(minLength: 0)
+            Button {
+                dismissedCount = inboxFiles.count
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.secondaryText)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Copy.Inbox.dismiss)
         }
-        .padding(12)
+        .padding(.leading, 14)
+        .padding(.trailing, 6)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.card)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.dropZone))
+        .background(.ultraThinMaterial)
+        .background(Theme.card.opacity(0.85))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.dropZone)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Theme.border, lineWidth: 1)
         )
+        .shadow(color: .black.opacity(0.45), radius: 18, y: 8)
         .padding(.horizontal, Theme.Spacing.pagePadding)
-        .padding(.top, 12)
+        .padding(.top, 6)
     }
 
     private func refreshInbox() {

@@ -23,11 +23,18 @@ struct LibraryView: View {
                 Theme.background.ignoresSafeArea()
 
                 if releases.isEmpty {
-                    Text(Copy.Library.empty)
-                        .font(Theme.Font.body)
-                        .foregroundStyle(Theme.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, Theme.Spacing.listPagePadding)
+                    VStack(spacing: 20) {
+                        Image("ListenerLine")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 150)
+                            .accessibilityHidden(true)
+                        Text(Copy.Library.empty)
+                            .font(Theme.Font.body)
+                            .foregroundStyle(Theme.secondaryText)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.horizontal, Theme.Spacing.listPagePadding)
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {

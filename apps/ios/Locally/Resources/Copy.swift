@@ -150,10 +150,9 @@ enum Copy {
 
     enum Inbox {
         static func waitingBanner(count: Int) -> String {
-            count == 1
-                ? "1 song is waiting to be tagged. Songs you share to Locally or save into its folder in Files show up here."
-                : "\(count) songs are waiting to be tagged. Songs you share to Locally or save into its folder in Files show up here."
+            count == 1 ? "1 song is waiting to be tagged." : "\(count) songs are waiting to be tagged."
         }
+        static let dismiss = "Dismiss"
         static let addAsSingles = "Add as singles"
         static let makeAnAlbum = "Make an album"
     }

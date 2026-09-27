@@ -61,6 +61,12 @@ struct OnboardingView: View {
 
     private var welcomeStep: some View {
         VStack(spacing: 16) {
+            Image("ListenerSolid")
+                .resizable()
+                .scaledToFit()
+                .frame(height: 220)
+                .accessibilityHidden(true)
+                .padding(.bottom, 8)
             Text(Copy.Onboarding.welcomeTitle)
                 .font(Theme.Font.pageTitle)
                 .foregroundStyle(Theme.primaryText)
