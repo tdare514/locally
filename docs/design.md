@@ -1,77 +1,122 @@
 # Locally design language
 
-Shared by the Mac app (`apps/web`, the reference implementation) and the iOS app (`apps/ios`).
-The web app is the source of truth for how things look; this file names the choices so the iOS
-app can match them without copying markup. When the design session produces new decisions, this
-file changes first and both apps follow.
+Shared by the Mac app (`apps/web`) and the iOS app (`apps/ios`). Version 2, 27 Sep 2026: the
+first version was distilled from the web app; this one folds in the owner's MagicPath designs
+("Desktop Dashboard", "Desktop Crop Overlay", "Mobile Library", "Mobile Editor"), except the
+desktop sidebar, which is deliberately not adopted because its icon set reads as Spotify's. The
+web app keeps its own sidebar. When the design session changes anything, this file changes first
+and both apps follow.
 
 ## Tokens
 
 | Token | Value | Use |
 | --- | --- | --- |
-| bg | #121212 | page background |
-| panel | #181818 | sidebar, cards |
-| elevated | #282828 | inputs, secondary buttons, segmented control track, badges, drop zones, cover placeholder |
-| elevated-hover | #3A3A3A | hover on elevated surfaces |
+| bg | #000000 | page background |
+| card | #121212 | cards, list containers, drop zones, dialogs, cover placeholder, web sidebar |
+| elevated | #282828 | inputs, segmented control track, secondary buttons, badges, icon tiles |
+| elevated-hover | #3A3A3A | hover on elevated surfaces (web) |
+| row-hover | #1C1C1C | pressed/hovered list rows |
+| border | #282828 | 1 px borders on cards, rows, inputs (mobile), footers |
+| border-dashed | #3E3E3E | dashed borders on drop zones (accent on hover) |
+| dialog-border | #303030 | the crop dialog's border |
 | text | #FFFFFF | primary text |
-| text-muted | #B3B3B3 | labels, secondary text, placeholders (at 60% for placeholders) |
-| border | #2A2A2A | 1 px borders on inputs and panels |
+| text-muted | #B3B3B3 | secondary text, metadata on the right of headers |
+| text-dim | #777777 | chevrons, footnotes, breadcrumb eyebrows |
+| text-hint | #888888 | hint lines under drop zones |
 | danger | #F15E6C | errors, delete |
-| accent | web: #1DB954 (hover #1ED760). iOS: #FF7A00 placeholder | primary buttons, selected segment, focus ring |
+| accent | web: #1DB954 (hover #1ED760). iOS: #FF7A00 placeholder | eyebrows, primary buttons, selected segment, focus ring, accent icons |
 
-The iOS app must not ship Spotify's green (#1DB954) or any near-green as its accent: the plan's
-App Store branding rule. Every other token is identical on both platforms.
+The iOS app must not ship Spotify's green (#1DB954) or a near-green as its accent (App Store
+branding rule in `docs/ios-plan.md`). Every other token is identical on both platforms.
 
 ## Type
 
-System font on both platforms. Sizes are points on iOS, px on web.
+System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide on eyebrows.
 
-| Role | Size | Weight | Colour |
-| --- | --- | --- | --- |
-| Page title | 24 | bold | text |
-| Section eyebrow (e.g. LIBRARY) | 12 | semibold, uppercase, tracking wide | text-muted |
-| Field label | 14 | medium | text-muted |
-| Body and inputs | 14 | regular | text |
-| Row title | 14 | medium | text |
-| Row subtitle and captions | 12 | regular | text-muted |
-| Badge | 10 | semibold, uppercase, tracking wide | text-muted |
-| Primary button | 14 | bold | black on accent |
+| Role | Size | Weight | Colour | Tracking |
+| --- | --- | --- | --- | --- |
+| Page title, desktop | 36 | bold | text | -0.02em |
+| Page title, mobile | 24 | bold | text | -0.03em |
+| Page subtitle (desktop, under the title) | 16 | regular | text-muted | |
+| Section title (Metadata, Tracks) | 22 / 18 | bold | text | -0.03em |
+| Eyebrow (LOCAL LIBRARY, YOUR COLLECTION, DETAILS) | 11 (12 desktop) | bold | accent | 0.18em, uppercase |
+| Breadcrumb eyebrow (LIBRARY / SINGLE) | 12 | semibold | text-dim | 0.17em, uppercase |
+| Header meta, right-aligned (7 tracks, Tap to edit) | 12 to 14 | regular | text-muted | |
+| Field label | 11 (12 desktop) | bold | text-muted | 0.14em, uppercase |
+| Input text | 16 mobile, 14 desktop | regular | text | |
+| Row title | 15 mobile, 14 desktop | semibold | text | |
+| Row subtitle | 14 mobile, 12 desktop | regular | text-muted | |
+| Drop-zone line / hint | 14 medium / 12 | | #D7D7D7 / text-hint | |
+| Nav title (mobile top bar) | 18 | bold | text | |
+| Badge | 10 | semibold | text-muted | 0.1em, uppercase |
+| Primary button | 15 mobile, 14 desktop | bold | black on accent | |
 
 ## Shape and spacing
 
-- Corner radius: inputs, thumbnails and cards 6; drop zones and the cover placeholder 8; buttons,
-  segmented control and badges fully rounded (pill).
-- Section gap 24. Gap between a label and its input 6. Gap between rows in a list 4.
-- Input padding 12 horizontal, 8 vertical. Primary button padding 24 horizontal, 10 vertical.
-- Page padding 24 on narrow screens, 40 on wide. Content column max width 768.
-- Borders are 1 px `border`; inputs switch the border to `accent` on focus, nothing else changes.
+- Radius: inputs and thumbnails 6; drop zones, cards and file rows 8; list containers 12; the
+  editor's big cover 10; dialogs 9; buttons, pills and badges fully rounded.
+- Page padding: mobile 16 (list) to 20 (forms); desktop 40 to 64, content max width 896 (desktop
+  form) or 920 (desktop release page).
+- Section gap 32 (mobile editor sections 28). Label to input 8. Between fields 16. List rows
+  have no gap; a 1 px `border` separates them inside the container.
+- Inputs: padding 16 horizontal, 12 vertical; mobile min height 48. Focus shows a 2 px `accent`
+  ring, no border colour change. Mobile inputs also carry a 1 px `border`; desktop inputs none.
+- Primary button padding 32 horizontal, 12 vertical; on mobile it is full width, 48 tall, in a
+  sticky footer. Press feedback: scale to 0.95. Disabled: 50 % opacity.
+- Big cover on the mobile editor has a soft shadow (0 12 36, black at 45 %).
 
 ## Components
 
-- **Segmented control** (Single | Album): a pill track in `elevated` with 4 padding; the selected
-  segment is an `accent` pill with black semibold text, the others `text-muted` text on nothing.
-- **Primary button** ("Import to Spotify", "Send to Spotify"): `accent` pill, black bold text.
-  Disabled: 40% opacity, no colour change.
-- **Secondary button / nav item** ("Settings"): `elevated` pill or block, `text` label.
-- **Text field**: `elevated` background, 1 px `border`, placeholder `text-muted` at 60%, label
-  above in the field-label style.
-- **Cover picker**: a square `elevated` block with a 2 px dashed `border` (about 160 on web, 120 on phone) with centred
-  `text-muted` caption "Click or drop an image" (iOS: "Tap to choose a cover"); once chosen, the
-  image fills the square with radius 8.
-- **Drop zone / file chooser**: an `elevated` block with a 2 px dashed `border`, radius 8, centred `text` line
-  ("Drop audio files here, or click to choose") and a `text-muted` 12 pt hint under it
-  ("Singles are one file. Switch to Album for multiple."). iOS: "Tap to choose a file".
+- **Page header**: eyebrow in `accent`, then the title; on desktop a `text-muted` subtitle under
+  it ("Add a song or album to your Spotify library."). Section headers use the same eyebrow +
+  title on the left with a `text-muted` meta on the right ("7 tracks", "Tap to edit", "1 file").
+- **Segmented pill** (Single | Album): `elevated` track with 4 padding, selected segment an
+  `accent` pill with black semibold text and a faint shadow, others `text-muted` (white on hover).
+- **Primary button**: `accent` pill, black bold text. **Secondary**: `elevated` pill, white text.
+  **Outline**: transparent with a `text-dim` border, white text. **Text button** (Cancel):
+  `text-muted`, white on hover, no background.
+- **Sticky footer CTA (mobile)**: fixed to the bottom, `bg` at 95 % with blur, 1 px `border` on
+  top, padding 16 horizontal and 12 to 16 vertical plus the safe-area inset, containing one
+  full-width primary button. Library: "+ New Import" (Locally: "Add a song"). Editor: the send or
+  save action. Content scrolls under it with bottom padding so nothing hides behind it.
+- **Mobile top bar**: 64 tall, `bg` at 90 % with blur, sticky; back chevron (28) at the left when
+  there is a parent; title 18 bold; an optional trailing icon button (search, more). iOS keeps the
+  system navigation bar and tab bar and styles them to match.
+- **Text field**: `elevated`, radius 6, label above in field-label style, placeholder at
+  `text-muted` 60 %. Year and Genre sit side by side in a two-column grid.
+- **Cover drop zone** (import): a square `card` block with a 1 px dashed `border-dashed` (accent
+  on hover), an image-plus icon (30, `text-muted`, accent on hover), "Click or drop an image"
+  (iOS: "Tap to choose a cover") and the hint "Square artwork works best".
+- **Audio drop zone**: a `card` block, min height 128, dashed border as above, an upload-cloud
+  icon (26), "Drop audio files here, or click to choose" (iOS: "Tap to choose a file") and the
+  hint "Singles are one file. Switch to Album for multiple."
+- **Desktop import layout**: two columns, 240 cover column and the form; fields in a two-column
+  grid; the audio drop zone full width; a footer row with a 1 px `border` on top holding a
+  `text-dim` note "Your files stay on this device." on the left and the primary button on the
+  right.
+- **Library list (mobile)**: one `card` container, radius 12, 1 px `border`; rows 78 min height
+  with 12 padding, 56 square art radius 6 (or an `elevated` tile with a muted note icon), title
+  and subtitle, a `text-dim` chevron at the right; rows separated by 1 px `border`; press
+  background `row-hover`. Header above: eyebrow "YOUR COLLECTION", title "All music", meta
+  "N tracks". Desktop keeps the current sidebar rows.
+- **Editor / release detail (mobile)**: top bar with back and "Edit Metadata" (Locally: the
+  release title); a full-width square cover, radius 10, shadow, with an "Edit" pill overlay
+  bottom-right (`bg` at 80 % with blur, pencil icon 14, 14 semibold text); then the DETAILS
+  eyebrow + "Metadata" + "Tap to edit"; the fields; then "Tracks" (18 bold) + "N files" and one
+  file row per track: `card` with 1 px `border`, radius 8, min height 64, a 36 `elevated` tile
+  holding an accent file-music icon, filename 14 medium, "Audio file" 12 muted, chevron; sticky
+  footer with the save action.
+- **Desktop release page**: breadcrumb eyebrow "LIBRARY / SINGLE", title 36, "artist · year" in
+  `text-muted`, then a 180 cover beside the fields.
+- **Crop dialog**: `card` with `dialog-border`, radius 9, padding 20 to 24, title "Crop cover"
+  19 bold; the preview on #050505 with the image, an outer white 25 % border, centre lines at
+  white 10 %, and an inner frame inset 12 at white 60 %; under it a centred Square | Original
+  segmented pill (padding 2, segments 20 by 6, 14 pt), the hint "Spotify shows covers as a
+  square." centred in `text-muted`, and a right-aligned row of Cancel (text button) and Done
+  (primary, 24 by 10).
 - **Kind badge** (SINGLE / ALBUM): `elevated` pill, badge type.
-- **Library row**: 40 square thumbnail radius 6 (or an `elevated` square with a muted note icon),
-  title in row-title style, artist in row-subtitle style, badge on the right, single line each,
-  truncated.
-- **Empty state**: `text-muted` 14 pt, "No releases yet. Import your first track or album to get
+- **Errors**: `danger` 12 text under the field or button that failed.
+- **Empty state**: `text-muted` 14, "No releases yet. Import your first track or album to get
   started."
-- **Sidebar** (web only): 256 wide `panel`, 1 px `border` on the right, nav pills at the top,
-  LIBRARY eyebrow, release rows, a small brand mark bottom-left. iOS keeps the system tab bar
-  instead; the same rows and empty state live in the Library tab.
-- **Track list** (album): numbered rows with an editable title field per row, reorder controls at
-  the right, `elevated` inputs, 4 gap between rows.
-- **Errors**: `danger` 12 pt text under the field or button that failed.
-- **Toasts / after-edit note** (web bottom-right, iOS a banner under the form): `elevated` card,
-  `text` message, radius 6.
+- **Web sidebar**: unchanged from the current web app (nav pills, LIBRARY eyebrow, rows, brand
+  mark), on `card`. The MagicPath sidebar is not used.
