@@ -1,42 +1,36 @@
 # Sync between the Mac app and the iOS app
 
-Decided 27 Sep 2026. Both apps share one folder in the user's iCloud Drive. No server, no
-account, nothing leaves the user's devices except through Apple's own iCloud sync.
+Decided 27 Sep 2026 (revised the same day): a small hosted sync service with accounts, run by
+us. The first draft used a shared iCloud Drive folder; it was dropped because customers cannot
+be assumed to pay for iCloud storage. The record shape and the reconcile rules from that draft
+carry over unchanged; only the transport is different.
 
-## Why a folder, why iCloud Drive
-
-- The Mac app is a local web app; it can read and write any folder, including
-  `~/Library/Mobile Documents/com~apple~CloudDocs/`, which macOS syncs.
-- The iOS app runs on a free Personal Team, which cannot use an iCloud container. It can,
-  however, hold a security-scoped bookmark to any folder the user picks in the Files app,
-  including one in iCloud Drive. This is the same mechanism it already uses for Spotify's folder,
-  so it is proven on a phone.
-- A hosted service would add accounts, storage cost and a privacy story; none of that is needed
-  for one person's two devices. It stays an option for a later "paid plans" discussion.
-
-## The folder
-
-Default `iCloud Drive/Locally` (on the Mac: `~/Library/Mobile Documents/com~apple~CloudDocs/Locally`).
-Either app creates it. Layout:
+## Shape of the system
 
 ```
-Locally/
-  releases/
-    <releaseId>/
-      release.json          the record below
-      cover.jpg | cover.png the cover, if any
-      01 - Title.mp3        one file per track, already tagged, named "<NN> - <Title>.<ext>"
+apps/api      the sync service: accounts, release records, file storage. Deployed on Vercel.
+apps/web      the Mac app: signs in, pushes what it tags, pulls what the phone tagged.
+apps/ios      the phone app: same, the other way round.
 ```
 
-Tracks are the finished, tagged files: whatever device made them has already converted and
-tagged them, so the other device only copies them into its own Spotify folder. Track file
-names inside a release folder never change after they are written (Spotify playlists depend
-on names; both apps re-tag in place).
+- **Accounts** are email plus a six-digit code sent by email. No passwords, no third-party
+  identity provider (Sign in with Apple needs a paid developer account; this works on a free
+  team and on the web). A successful code exchange returns a long-lived **device token**; each
+  device has its own, revocable from the account.
+- **Release records** are the `release.json` document below, stored per user with a version
+  number. Last writer wins by `updatedAt`.
+- **Files** (tracks, covers) are stored in private object storage. Clients upload directly to
+  storage with a short-lived upload URL from the API, and download with a short-lived download
+  URL, so audio never passes through the API function (Vercel functions cap request bodies at
+  4.5 MB).
+- **Quotas**: every account gets 1 GB of storage free. Paid plans raise it later; the limit is
+  a per-user number in the database, nothing more, so the purchase work can flip it.
 
-## release.json
+## Record
 
-The shared metadata model (`spec/metadata.md`) plus sync fields. Written whole, atomically
-(temp file then rename).
+Identical to the shared metadata model plus sync fields. `tracks[].file` names the stored
+object; the name never changes after upload (Spotify playlists depend on file names on both
+devices, and both apps re-tag in place).
 
 ```json
 {
@@ -49,7 +43,7 @@ The shared metadata model (`spec/metadata.md`) plus sync fields. Written whole, 
   "genre": null,
   "cover": "cover.jpg",
   "tracks": [
-    { "id": "…", "title": "Intro", "trackNumber": 1, "file": "01 - Intro.mp3", "durationSec": 61.2 }
+    { "id": "…", "title": "Intro", "trackNumber": 1, "file": "01 - Intro.mp3", "bytes": 5120000, "durationSec": 61.2 }
   ],
   "origin": "mac" | "ios",
   "originDevice": "Toby's MacBook",
@@ -59,54 +53,62 @@ The shared metadata model (`spec/metadata.md`) plus sync fields. Written whole, 
 }
 ```
 
-- `id` is the release id on the device that created it; the receiving device keeps the same id
-  so edits and deletes match up.
-- `updatedAt` rises on every metadata change. A device that sees a newer `updatedAt` than its
-  local copy re-tags its own files in place from the record (title, artist, album, year, genre,
-  track titles and numbers, cover) and updates its index. It never renames.
-- `deleted: true` is a tombstone. The receiving device removes its files and index entry, then
-  leaves the tombstone in place (the sync folder keeps tombstones for 30 days, after which
-  either app may remove the folder).
-- Track files and the cover are written before `release.json`, so a reader that sees the record
-  can rely on the files being complete. Partially uploaded iCloud files are handled on the
-  reader's side (below).
+Server-side each record also carries `userId`, `version` (integer, bumped on every write) and
+`serverUpdatedAt`; clients page by `version`.
 
-## What each app does
+## API (`apps/api`, JSON, `Authorization: Bearer <device token>` except auth)
 
-**Mac app (`apps/web`)**
-- Setting `syncDir` (default above; can be turned off). Settings page shows the state.
-- On import, update, replace cover and delete: mirror into `syncDir/releases/<id>/` as above
-  (`origin: "mac"`). This is a copy; the Mac's own library folder is unchanged.
-- A watcher on `syncDir/releases` (polling every 10 s is enough; iCloud changes arrive in
-  batches): a new release with `origin: "ios"` not yet in the local index is imported into the
-  Mac library and Spotify folder using the existing import path but skipping conversion and
-  tagging when the file is already an mp3 (m4a from the phone is converted to mp3 as usual,
-  since Spotify desktop reads mp3). Newer `updatedAt` re-tags in place; tombstones delete.
-- The sidebar shows "From your phone" rows while a release is being imported.
+| Method and path | Body / query | Returns |
+| --- | --- | --- |
+| POST `/v1/auth/code` | `{ email }` | `{ ok: true }`; sends a six-digit code, valid 10 minutes, 5 tries |
+| POST `/v1/auth/verify` | `{ email, code, deviceName, platform: "mac" \| "ios" }` | `{ token, user: { id, email }, device: { id, name } }` |
+| GET `/v1/me` | | `{ user, device, quota: { usedBytes, limitBytes }, devices: [...] }` |
+| DELETE `/v1/devices/:id` | | revokes that device's token |
+| GET `/v1/releases?sinceVersion=N` | | `{ releases: [record + version], nextVersion }` (tombstones included) |
+| PUT `/v1/releases/:id` | the record | `{ version }`; 409 if the stored `updatedAt` is newer |
+| DELETE `/v1/releases/:id` | | tombstone; `{ version }` |
+| POST `/v1/releases/:id/files` | `{ files: [{ name, bytes, contentType }] }` | `{ uploads: [{ name, url, method, headers }] }`; enforces quota and 200 MB per file |
+| GET `/v1/releases/:id/files/:name` | | `{ url, expiresAt }` download URL |
 
-**iOS app (`apps/ios`)**
-- Settings: "Connect your Mac library" opens the folder picker (the user picks
-  `iCloud Drive/Locally`); a bookmark is stored like Spotify's. The onboarding does not require
-  it.
-- On foreground and on the Add a song tab's refresh: read `releases/*/release.json`. Records with
-  `origin: "mac"` not in the local index are shown as waiting ("From your Mac"), with one action:
-  Send to Spotify. Sending copies the tracks into Spotify's folder (no conversion or tagging
-  needed), stores the cover, records the release with the same id. iCloud placeholders are
-  downloaded first with `FileManager.startDownloadingUbiquitousItem` inside an
-  `NSFileCoordinator` read, with a progress state.
-- On every send, edit, cover replace and delete the phone did itself: mirror into the sync folder
-  (`origin: "ios"`) the same way.
-- Newer `updatedAt` from the Mac re-tags the phone's files in place; tombstones delete.
+Rules: every path is scoped to the token's user; a release id belongs to the user that first
+wrote it; tombstones keep their files for 30 days then a cron deletes the objects; codes and
+tokens are stored hashed; auth endpoints are rate-limited per email and per IP.
 
-## Conflicts
+## Storage and providers
 
-Last writer wins by `updatedAt`. Both apps write `updatedAt` from their own clock in UTC; a
-one-off difference of seconds does not matter for a single person's devices. A release is only
-ever created by one device, so ids never collide.
+Behind interfaces so local development needs no accounts:
+
+| Concern | Interface | Local (dev, tests) | Production |
+| --- | --- | --- | --- |
+| Database | Drizzle ORM over libSQL | a SQLite file | Turso (libSQL), provisioned through the Vercel Marketplace |
+| Files | `FileStore` | a folder on disk served by the API with signed paths | Vercel Blob, private, direct client uploads |
+| Email | `Mailer` | prints the code to the API log | Resend through the Vercel Marketplace |
+
+One dialect (libSQL) everywhere keeps the schema and tests identical between laptop and cloud.
+
+## What each client does
+
+Both clients keep the same local library they have today; the service is a mirror, not the
+source of truth.
+
+- **Sign in** (Settings): email → code → signed in as a device. Signing out revokes the device.
+- **Push**: after a successful import, update, cover replace or delete, upload any new files
+  (direct to storage), then `PUT` the record (`origin` = this platform). Failures never fail the
+  user's action; the next reconcile retries.
+- **Pull / reconcile** (on foreground, on a timer while the app is open, and on "Sync now"):
+  `GET /releases?sinceVersion=<last seen>`. For each record: not in the local library and from
+  the other platform → offered in the inbox as "N from your Mac / phone" with one action, Send to
+  Spotify, which downloads the files into the local Spotify folder (unique names, no
+  conversion or tagging; the Mac converts m4a from the phone to mp3 because Spotify desktop
+  reads mp3), stores the cover and records the release with the same id. Newer `updatedAt` than
+  the local copy → re-tag in place from the record and update the index. Tombstone → delete
+  locally. Local releases never pushed → push (back-fill after signing in).
+- **Conflicts**: last writer wins by `updatedAt`; a `409` from `PUT` means pull first, then
+  re-apply the local change on top if it is still wanted.
 
 ## Not in this phase
 
-- Playlists (Spotify has no API for local files on either platform).
-- Merging two existing libraries: a release that exists on both devices before sync is turned on
-  is treated as two releases. The Settings page says so.
-- Anything that needs an iCloud container or a paid Developer account.
+- Playlists (Spotify has no API for local files).
+- Merging libraries that existed on both devices before sign-in: each side's releases are
+  pushed as they are, so a song tagged twice is two releases. Settings says so.
+- Sharing between accounts, web playback, and anything that needs a paid developer account.
