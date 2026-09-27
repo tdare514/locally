@@ -13,6 +13,9 @@ struct ReleaseDetailView: View {
     @State private var model: ReleaseDetailViewModel?
     @State private var isPresentingCoverPicker = false
     @State private var isPresentingDeleteConfirm = false
+    /// Raw bytes from the Files cover pick, handed to `CoverPicker` to
+    /// crop; see `CoverPicker.rawPick`.
+    @State private var rawCoverPick: Data?
 
     var body: some View {
         Group {
@@ -41,7 +44,10 @@ struct ReleaseDetailView: View {
             .listRowBackground(Theme.panel)
 
             Section {
-                CoverPicker(imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 })) {
+                CoverPicker(
+                    imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 }),
+                    rawPick: $rawCoverPick
+                ) {
                     isPresentingCoverPicker = true
                 }
             }
@@ -125,7 +131,7 @@ struct ReleaseDetailView: View {
             guard case .success(let url) = result else { return }
             let accessed = url.startAccessingSecurityScopedResource()
             defer { if accessed { url.stopAccessingSecurityScopedResource() } }
-            model.coverData = try? Data(contentsOf: url)
+            rawCoverPick = try? Data(contentsOf: url)
         }
         .confirmationDialog(
             Copy.Detail.deleteConfirmTitle,

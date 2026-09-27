@@ -18,6 +18,9 @@ struct AlbumBuilderView: View {
     @State private var model: AlbumBuilderViewModel?
     @State private var activePicker: Picker?
     @State private var isPickerPresented = false
+    /// Raw bytes from the Files cover pick, handed to `CoverPicker` to
+    /// crop; see `CoverPicker.rawPick`.
+    @State private var rawCoverPick: Data?
 
     var body: some View {
         ZStack {
@@ -83,7 +86,10 @@ struct AlbumBuilderView: View {
             .listRowBackground(Theme.panel)
 
             Section {
-                CoverPicker(imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 })) {
+                CoverPicker(
+                    imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 }),
+                    rawPick: $rawCoverPick
+                ) {
                     activePicker = .cover
                     isPickerPresented = true
                 }
@@ -145,7 +151,7 @@ struct AlbumBuilderView: View {
                 guard case .success(let urls) = result, let url = urls.first else { return }
                 let accessed = url.startAccessingSecurityScopedResource()
                 defer { if accessed { url.stopAccessingSecurityScopedResource() } }
-                model.coverData = try? Data(contentsOf: url)
+                rawCoverPick = try? Data(contentsOf: url)
             case nil:
                 break
             }

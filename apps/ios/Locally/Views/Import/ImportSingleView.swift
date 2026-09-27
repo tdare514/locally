@@ -17,6 +17,9 @@ struct ImportSingleView: View {
     /// Separate from `activePicker`: SwiftUI flips this false before the
     /// completion handler runs, so the kind must survive the dismissal.
     @State private var isPickerPresented = false
+    /// Raw bytes from the Files cover pick, handed to `CoverPicker` to
+    /// crop; see `CoverPicker.rawPick`.
+    @State private var rawCoverPick: Data?
 
     var body: some View {
         ZStack {
@@ -60,7 +63,10 @@ struct ImportSingleView: View {
                     Field(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }), keyboardType: .numberPad)
                     Field(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }))
 
-                    CoverPicker(imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 })) {
+                    CoverPicker(
+                        imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 }),
+                        rawPick: $rawCoverPick
+                    ) {
                         activePicker = .cover
                         isPickerPresented = true
                     }
@@ -100,7 +106,7 @@ struct ImportSingleView: View {
             case .cover:
                 let accessed = url.startAccessingSecurityScopedResource()
                 defer { if accessed { url.stopAccessingSecurityScopedResource() } }
-                model.coverData = try? Data(contentsOf: url)
+                rawCoverPick = try? Data(contentsOf: url)
             case nil:
                 break
             }

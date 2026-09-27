@@ -69,6 +69,15 @@ enum Copy {
         static let makeItAPlaylist = "Make it a playlist"
     }
 
+    enum Cover {
+        static let cropTitle = "Frame your cover"
+        static let square = "Square"
+        static let original = "Original"
+        static let squareHint = "Spotify shows covers as a square."
+        static let done = "Done"
+        static let cancel = "Cancel"
+    }
+
     enum Settings {
         static let title = "Settings"
         static let folderConnected = "Spotify's folder is connected."
