@@ -38,11 +38,31 @@ struct ImportSingleViewModelInboxTests {
         let model = ImportSingleViewModel(importer: importer, coordinator: makeCoordinator(), inbox: inbox)
         await model.startInboxQueue([inboxFile])
 
-        #expect(model.pickedURL == url)
+        // The form now points at the staged copy, not the inbox original.
+        #expect(model.pickedURL != url)
+        #expect(FileManager.default.fileExists(atPath: model.pickedURL?.path ?? ""))
+        #expect(model.pickedName == "shared.mp3")
         #expect(model.title == "Shared Title")
         #expect(model.artist == "Shared Artist")
         #expect(inbox.removed.map(\.url) == [url])
         #expect(inbox.files.isEmpty)
+    }
+
+    /// The real inbox store deletes the original once staged, so Send has
+    /// to work from the staged copy alone.
+    @Test func sendSucceedsAfterTheInboxOriginalIsGone() async throws {
+        let url = try makeAudioFile(named: "shared.mp3")
+        let inboxFile = InboxFile(url: url, originalName: "shared.mp3", createdAt: Date())
+        let inbox = FakeInboxStore(files: [inboxFile])
+        let model = ImportSingleViewModel(importer: FakeFileImporter(), coordinator: makeCoordinator(), inbox: inbox)
+
+        await model.startInboxQueue([inboxFile])
+        try FileManager.default.removeItem(at: url)
+        model.artist = "Someone"
+        await model.send()
+
+        #expect(model.errorMessage == nil)
+        #expect(model.completedRelease != nil)
     }
 
     @Test func startingTheInboxQueueWithSeveralFilesKeepsTheRestPending() async throws {
@@ -55,7 +75,7 @@ struct ImportSingleViewModelInboxTests {
         let model = ImportSingleViewModel(importer: FakeFileImporter(), coordinator: makeCoordinator(), inbox: inbox)
         await model.startInboxQueue([firstFile, secondFile])
 
-        #expect(model.pickedURL == firstURL)
+        #expect(model.pickedName == "first.mp3")
         #expect(model.pendingInboxQueue.map(\.url) == [secondURL])
         // Only the file actually staged so far is removed from the inbox.
         #expect(inbox.removed.map(\.url) == [firstURL])

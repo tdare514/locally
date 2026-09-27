@@ -63,7 +63,7 @@ struct ImportSingleView: View {
                     isPickerPresented = true
                 } label: {
                     Label(
-                        model.pickedURL?.lastPathComponent ?? Copy.Import.pickFile,
+                        model.pickedName ?? Copy.Import.pickFile,
                         systemImage: "waveform"
                     )
                 }

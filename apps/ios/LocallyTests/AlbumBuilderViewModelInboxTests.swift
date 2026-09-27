@@ -43,4 +43,25 @@ struct AlbumBuilderViewModelInboxTests {
         #expect(inbox.files.isEmpty)
         #expect(Set(inbox.removed.map(\.url)) == Set([firstURL, secondURL]))
     }
+
+    /// The inbox originals are deleted once staged, so the album send must
+    /// work from the staged copies the rows keep.
+    @Test func sendSucceedsAfterTheInboxOriginalsAreGone() async throws {
+        let firstURL = try makeAudioFile(named: "one.mp3")
+        let secondURL = try makeAudioFile(named: "two.mp3")
+        let firstFile = InboxFile(url: firstURL, originalName: "one.mp3", createdAt: Date())
+        let secondFile = InboxFile(url: secondURL, originalName: "two.mp3", createdAt: Date())
+        let inbox = FakeInboxStore(files: [firstFile, secondFile])
+        let model = AlbumBuilderViewModel(importer: FakeFileImporter(), coordinator: makeCoordinator(), inbox: inbox)
+
+        await model.addFiles(fromInbox: [firstFile, secondFile])
+        try FileManager.default.removeItem(at: firstURL)
+        try FileManager.default.removeItem(at: secondURL)
+        model.albumTitle = "Album"
+        model.artist = "Someone"
+        await model.send()
+
+        #expect(model.errorMessage == nil)
+        #expect(model.completedRelease?.tracks.count == 2)
+    }
 }

@@ -51,17 +51,21 @@ final class AlbumBuilderViewModel {
         defer { isLoadingTags = false }
 
         for (index, url) in urls.enumerated() {
-            let fallbackTitle = url.deletingPathExtension().lastPathComponent
-            var title = fallbackTitle
-            if let staged = try? await importer.stage([url]),
-               let file = staged.first,
-               let tags = file.existingTags,
-               !tags.title.isEmpty {
-                title = tags.title
+            let inboxFile = index < inboxFiles.count ? inboxFiles[index] : nil
+            let shownName = inboxFile?.originalName ?? url.lastPathComponent
+            var title = (shownName as NSString).deletingPathExtension
+            var rowURL = url
+            if let staged = try? await importer.stage([url]), let file = staged.first {
+                // Rows keep the staged copy: an inbox original is deleted
+                // right after, and a picker URL's security scope may lapse.
+                rowURL = file.url
+                if let tags = file.existingTags, !tags.title.isEmpty {
+                    title = tags.title
+                }
             }
-            rows.append(TrackRow(url: url, title: title))
-            if index < inboxFiles.count {
-                try? inbox?.remove(inboxFiles[index])
+            rows.append(TrackRow(url: rowURL, title: title))
+            if let inboxFile {
+                try? inbox?.remove(inboxFile)
             }
         }
     }

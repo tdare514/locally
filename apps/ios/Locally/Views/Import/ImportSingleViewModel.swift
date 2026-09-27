@@ -11,6 +11,9 @@ final class ImportSingleViewModel {
     private let inbox: InboxStore?
 
     var pickedURL: URL?
+    /// What the file chip shows: the name the user knows the file by, which
+    /// for a shared file is its original name rather than the inbox copy's.
+    var pickedName: String?
     var title: String = ""
     var artist: String = ""
     var album: String = ""
@@ -43,6 +46,7 @@ final class ImportSingleViewModel {
     /// is now the only one that matters.
     func pick(url: URL, inboxFile: InboxFile? = nil) async {
         pickedURL = url
+        pickedName = inboxFile?.originalName ?? url.lastPathComponent
         errorMessage = nil
         isLoadingTags = true
         defer { isLoadingTags = false }
@@ -57,9 +61,12 @@ final class ImportSingleViewModel {
                 year = tags.year ?? ""
                 genre = tags.genre ?? ""
             } else if title.isEmpty {
-                title = url.deletingPathExtension().lastPathComponent
+                title = ((pickedName ?? "") as NSString).deletingPathExtension
             }
             if let inboxFile {
+                // The inbox original is deleted below, so Send must read the
+                // staged copy, never the URL we were handed.
+                pickedURL = file.url
                 try? inbox?.remove(inboxFile)
             }
         } catch {
@@ -107,6 +114,7 @@ final class ImportSingleViewModel {
     /// through everything that was shared in, one at a time.
     func reset() {
         pickedURL = nil
+        pickedName = nil
         title = ""
         artist = ""
         album = ""

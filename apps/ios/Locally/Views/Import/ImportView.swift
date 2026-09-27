@@ -87,6 +87,9 @@ struct ImportView: View {
 
     private func refreshInbox() {
         guard let container else { return }
-        inboxFiles = container.inbox.pendingFiles()
+        // Files already sent to Spotify are never "waiting", even when the
+        // connected folder happens to be one the inbox also scans.
+        let knownPaths = Set(((try? container.library.all()) ?? []).flatMap { $0.tracks.map(\.filePath) })
+        inboxFiles = container.inbox.pendingFiles().filter { !knownPaths.contains($0.url.path) }
     }
 }
