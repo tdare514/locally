@@ -92,6 +92,14 @@ enum Copy {
         static func trackCount(_ count: Int) -> String {
             count == 1 ? "1 track" : "\(count) tracks"
         }
+        /// Section labels for the split list, with the item count.
+        static let singlesSection = "Singles"
+        static let albumsSection = "Albums"
+        static func sectionCount(_ count: Int) -> String { "\(count)" }
+        /// Album row subtitle: "artist · 4 tracks".
+        static func albumSubtitle(artist: String, tracks: Int) -> String {
+            "\(artist) · \(trackCount(tracks))"
+        }
         /// The sticky-footer button that switches to the Add a song tab.
         static let addASong = "Add a song"
 

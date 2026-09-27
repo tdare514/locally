@@ -123,9 +123,12 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
   right.
 - **Library list (mobile)**: one `card` container, radius 12, 1 px `border`; rows 78 min height
   with 12 padding, 56 square art radius 6 (or an `elevated` tile with a muted note icon), title
-  and subtitle, a `text-dim` chevron at the right; rows separated by 1 px `border`; press
-  background `row-hover`. Header above: eyebrow "YOUR COLLECTION", title "All music", meta
-  "N tracks". Desktop keeps the current sidebar rows.
+  and subtitle (albums: "artist · N tracks"), a `text-dim` chevron at the right; rows separated by
+  1 px `border`; press background `row-hover`. Header above: eyebrow "YOUR COLLECTION", title
+  "All music", meta "N tracks". The list is split into two sections, **Singles** then
+  **Albums**, each with an 18 bold label and its count in `text-dim`, separated by a 1 px
+  `border-dashed` rule (dash 4/4). A section with nothing in it is not shown. Desktop keeps the
+  current sidebar rows.
 - **Editor / release detail (mobile)**: top bar with back and "Edit Metadata" (Locally: the
   release title); a full-width square cover, radius 10, shadow, with an "Edit" pill overlay
   bottom-right (`bg` at 80 % with blur, pencil icon 14, 14 semibold text); then the DETAILS

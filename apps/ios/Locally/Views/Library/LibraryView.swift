@@ -20,6 +20,9 @@ struct LibraryView: View {
         releases.reduce(0) { $0 + $1.tracks.count }
     }
 
+    private var singles: [Release] { releases.filter { $0.kind == .single } }
+    private var albums: [Release] { releases.filter { $0.kind == .album } }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -34,7 +37,15 @@ struct LibraryView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
                             header
-                            list
+                            if !singles.isEmpty {
+                                section(label: Copy.Library.singlesSection, items: singles)
+                            }
+                            if !singles.isEmpty, !albums.isEmpty {
+                                sectionDivider
+                            }
+                            if !albums.isEmpty {
+                                section(label: Copy.Library.albumsSection, items: albums)
+                            }
                         }
                         .padding(.horizontal, Theme.Spacing.listPagePadding)
                         .padding(.top, 12)
@@ -79,21 +90,42 @@ struct LibraryView: View {
         }
     }
 
-    /// One `cardContainer`, rows separated by a 1 pt `border`.
-    private var list: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(releases.enumerated()), id: \.element.id) { index, release in
-                NavigationLink(value: release) {
-                    row(for: release)
-                }
-                .buttonStyle(LibraryRowButtonStyle())
+    /// A section label with its count, then one `cardContainer` of rows
+    /// separated by a 1 pt `border`. Singles come first, then albums.
+    private func section(label: String, items: [Release]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(label)
+                    .font(Theme.Font.sectionTitle)
+                    .foregroundStyle(Theme.primaryText)
+                Text(Copy.Library.sectionCount(items.count))
+                    .font(Theme.Font.meta)
+                    .foregroundStyle(Theme.textDim)
+                Spacer()
+            }
+            .padding(.horizontal, 4)
 
-                if index < releases.count - 1 {
-                    Rectangle().fill(Theme.border).frame(height: 1)
+            VStack(spacing: 0) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, release in
+                    NavigationLink(value: release) {
+                        row(for: release)
+                    }
+                    .buttonStyle(LibraryRowButtonStyle())
+
+                    if index < items.count - 1 {
+                        Rectangle().fill(Theme.border).frame(height: 1)
+                    }
                 }
             }
+            .cardContainer()
         }
-        .cardContainer()
+    }
+
+    /// The subtle dashed rule between the Singles and Albums sections.
+    private var sectionDivider: some View {
+        DashedRule()
+            .padding(.vertical, 4)
+            .accessibilityHidden(true)
     }
 
     private func row(for release: Release) -> some View {
@@ -105,7 +137,9 @@ struct LibraryView: View {
                     .font(Theme.Font.rowTitle)
                     .foregroundStyle(Theme.primaryText)
                     .lineLimit(1)
-                Text(release.artist)
+                Text(release.kind == .album
+                     ? Copy.Library.albumSubtitle(artist: release.artist, tracks: release.tracks.count)
+                     : release.artist)
                     .font(Theme.Font.rowSubtitle)
                     .foregroundStyle(Theme.secondaryText)
                     .lineLimit(1)
@@ -253,5 +287,23 @@ private struct LibraryEmptyState: View {
                 .font(Theme.Font.rowSubtitle)
                 .foregroundStyle(Theme.secondaryText)
         }
+    }
+}
+
+/// A 1 pt horizontal dashed line in `borderDashed`, used between library sections.
+private struct DashedRule: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(height: 1)
+            .overlay {
+                GeometryReader { geo in
+                    Path { p in
+                        p.move(to: CGPoint(x: 0, y: 0.5))
+                        p.addLine(to: CGPoint(x: geo.size.width, y: 0.5))
+                    }
+                    .stroke(Theme.borderDashed, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                }
+            }
     }
 }
