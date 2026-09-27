@@ -99,3 +99,19 @@ LocallyTests/     Swift Testing suites, with fakes for every Services protocol
 Every service is a protocol with one production implementation; `ReleaseCoordinator` and
 the views depend only on the protocols, so tests substitute fakes (see
 `LocallyTests/Fakes.swift`) without touching disk, AVFoundation, or a real SwiftData store.
+
+## Installing on a physical iPhone from the command line
+
+After the first run from Xcode (which creates the certificate and registers the phone), later
+builds can go straight to the device. Find the device id with `xcrun devicectl list devices`.
+
+```bash
+xcodegen generate
+xcodebuild -project Locally.xcodeproj -scheme Locally -configuration Debug \
+  -destination 'generic/platform=iOS' -derivedDataPath DerivedData \
+  -allowProvisioningUpdates DEVELOPMENT_TEAM=<your team id> build
+xcrun devicectl device install app --device <device id> DerivedData/Build/Products/Debug-iphoneos/Locally.app
+xcrun devicectl device process launch --device <device id> com.tdare.locally
+```
+
+The team id is the ten-character code shown next to your name under Xcode, Settings, Accounts.

@@ -30,7 +30,7 @@ matters, never hidden.
 | App Store brand rules | Own name/icon, no Spotify green, trademark line in About |
 
 ## Assumptions to verify on a phone in phase 1
-- [ ] With Local Files on, a Spotify folder appears under On My iPhone in Files; an mp3 dropped there shows in Spotify after reopen.
+- [x] With Local Files on, a Spotify folder appears under On My iPhone in Files (confirmed 27 Sep 2026 on an iPhone 14). Still to confirm: a file dropped there shows in Spotify after reopen.
 - [ ] m4a with AVFoundation tags + artwork shows with artwork/artist/album in Spotify; same for mp3 with ID3v2.4 APIC.
 - [ ] Local files show and play on a Premium account after reopen.
 - [ ] A third-party app can pick that folder and later write into it from a stored bookmark.
