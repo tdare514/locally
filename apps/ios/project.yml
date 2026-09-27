@@ -23,13 +23,10 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tdare.locally
         SWIFT_VERSION: "5.10"
-        # No AppIcon set yet (added before App Store submission in phase 3);
-        # explicitly cleared because XcodeGen otherwise defaults this to
-        # "AppIcon", which fails asset-catalog compilation when no such
-        # icon set exists.
+        # The listener mark, rendered by scripts/make-listener-icons.py.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        # User-selectable alternates, rendered by scripts/make-app-icons.py.
-        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Accent AppIcon-Gunmetal AppIcon-Card AppIcon-Tone"
+        # User-selectable alternate, rendered by scripts/make-listener-icons.py.
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Line"
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         TARGETED_DEVICE_FAMILY: "1"

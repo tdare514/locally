@@ -32,13 +32,18 @@ orange placeholder; never reintroduce a green near #1DB954 (App Store branding r
 
 ## Mark and app icon
 
-The mark is a plus sign cast in chrome, with a shimmer band running across it off-centre
-(42 % across, tilted 34°), corners eased to radius 27 of a 240-wide bar. The main app icon is
-the chrome plus on black with the shimmer tinted by the accent. Four alternates ship as
-user-selectable icons: accent-coloured metal on black, gunmetal on the accent, chrome on the
-card grey, and accent metal on the accent. All are rendered by `scripts/make-app-icons.py`
-(`--accent 1E7DF0 --corner 27 --shimmer 42 --tilt 34`); the studies that led here are the
-"Locally Mark Studies" page. In the tab bar the mark is a plain plus in a circle, accent when selected.
+The app icon is the listener mark (next section) on a black ground, decided 27 Sep 2026 over
+the earlier metallic plus. Two icons ship, both rendered by `scripts/make-listener-icons.py`
+from the same geometry as the brand marks:
+
+- **AppIcon** (main): "Solid, plus in the cup". White silhouette, accent band with a thin black
+  outline where it crosses the hair, accent cup with the plus cut out in black.
+- **AppIcon-Line** (alternate, user-selectable): "Line art, profile". White line work, white
+  headphones, white cup with an accent plus.
+
+The web app uses the main icon for `icon.png` and `apple-icon.png`. In the tab bar the mark is a
+plain plus in a circle, accent when selected. The metallic plus studies remain in
+`scripts/make-app-icons.py` for reference but are no longer in the asset catalog.
 
 ## Listener mark
 

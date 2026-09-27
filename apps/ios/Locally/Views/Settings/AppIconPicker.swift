@@ -5,10 +5,10 @@ import UIKit
 /// `AppIcon`; the alternates are declared in `project.yml`
 /// (`ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES`) and previewed here via
 /// the `IconPreview-*` image sets, because app icon sets themselves cannot be
-/// loaded with `UIImage(named:)`. All five are rendered by
-/// `scripts/make-app-icons.py`.
+/// loaded with `UIImage(named:)`. Both are rendered by
+/// `scripts/make-listener-icons.py`.
 struct AppIconPicker: View {
-    static let icons = ["AppIcon", "AppIcon-Accent", "AppIcon-Gunmetal", "AppIcon-Card", "AppIcon-Tone"]
+    static let icons = ["AppIcon", "AppIcon-Line"]
 
     @State private var selected: String = UIApplication.shared.alternateIconName ?? "AppIcon"
     @State private var errorMessage: String?

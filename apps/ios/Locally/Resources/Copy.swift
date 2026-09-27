@@ -134,11 +134,8 @@ enum Copy {
         static let appIcon = "App icon"
         static let appIconHint = "Pick the icon shown on your Home Screen."
         static let iconNames: [String: String] = [
-            "AppIcon": "Chrome",
-            "AppIcon-Accent": "Blue metal",
-            "AppIcon-Gunmetal": "Gunmetal",
-            "AppIcon-Card": "Card",
-            "AppIcon-Tone": "Tone on tone",
+            "AppIcon": "Solid",
+            "AppIcon-Line": "Line art",
         ]
         static let appIconFailed = "Couldn't change the icon. Try again."
         static let title = "Settings"
