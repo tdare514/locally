@@ -59,3 +59,17 @@ Spotify-like dark theme (#121212 bg, #1DB954 accent, Inter/system font). Layout:
 - Agent "frontend": `src/app/page.tsx`, `src/app/layout.tsx`, `src/app/globals.css`, `src/components/**`, `src/lib/api-client.ts`.
 - Agent "docs": `README.md`, `.claude/launch.json`, `.gitignore` additions, `scripts/make-fixtures.sh` (ffmpeg-generated test tones).
 - Reviewer (Fable): integration test in browser, fixes.
+
+## Security model (local tool, but it writes to disk)
+- `src/proxy.ts`: loopback-only Host check (blocks LAN exposure + DNS rebinding); mutating `/api/*` calls
+  must come from a loopback Origin (blocks cross-site request forgery from other tabs); hardening headers.
+- Every path derived from user input (`libraryDir`, artist/album/title segments, `reveal` path, cover
+  file) is sanitised and resolved, then checked to be inside the library dir before use.
+- Upload limits: cover ≤ 10 MB, audio ≤ 500 MB per file, only whitelisted extensions; mime sniffed for covers.
+- ffmpeg/open are invoked via `spawn`/`execFile` with argument arrays, never a shell string.
+- Library index and settings are plain JSON in the user's home dir; nothing leaves the machine.
+
+## Scalability notes
+- `src/lib/library.ts` is the only module that knows the index format; swap for SQLite later behind the same functions.
+- Release/track ids are UUIDs so a future sync or multi-library feature has stable keys.
+- Conversion is one ffmpeg process per file, sequential; a job queue can slot in at `releases.ts` without API changes.
