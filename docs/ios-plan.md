@@ -14,7 +14,8 @@ matters, never hidden.
 - Assume Spotify Premium; Free-account support explored after launch.
 - Conversion: AAC 256 kbps m4a for wav/flac/aiff; mp3 and m4a pass through.
 - Edits re-tag the file in place and keep its name, so playlists keep the track.
-- Independent from the Mac app for v1; Mac-phone cloud sync is the next phase.
+- Independent from the Mac app for v1. Sync phase (decided 27 Sep 2026): a shared iCloud Drive
+  folder, no server or account; see `spec/sync.md`.
 - Pricing (decided 27 Sep 2026): everything built so far is free with unlimited sends. A one-time
   purchase, Locally Full, exists from phase 3 but unlocks nothing yet; features agreed later are
   gated behind it. Paid plans are a later discussion. No network, no analytics, no account: privacy label "Data Not Collected".
