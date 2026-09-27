@@ -26,7 +26,7 @@ identically in Spotify's Local Files.
 | id | UUID string | |
 | title | string | |
 | trackNumber | int, 1-based | |
-| filePath | path | current file, renamed on edit only on the Mac; the iOS app keeps names fixed |
+| filePath | path | the file as imported; never renamed on edit in either app, because Spotify playlists reference local tracks by path |
 | originalName | string | name the user imported |
 | durationSec | number or null | |
 

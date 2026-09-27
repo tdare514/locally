@@ -32,7 +32,7 @@ this is the only mechanism that works; it mirrors how Apple Music's local import
 - `POST /api/import` multipart: `meta` (JSON `ImportMeta`), `cover` (optional image), `audio` (1..n files, order = meta.tracks) → `Release`
 - `POST /api/inspect` multipart: `audio` (1..n) → `{ files: { name, title, artist, album, year, genre, durationSec, hasCover }[] }` (prefill from existing tags; do not store anything)
 - `GET  /api/releases/[id]` → `Release`
-- `PATCH /api/releases/[id]` body `UpdateReleaseMeta` → `Release` (rewrites tags in every track; renames files/folders if artist/album/title changed)
+- `PATCH /api/releases/[id]` body `UpdateReleaseMeta` → `Release` (rewrites tags in every track in place; files and folders are never renamed, so Spotify playlists keep the track)
 - `PUT  /api/releases/[id]/cover` multipart `cover` → `Release` (replaces cover.jpg and re-embeds APIC in all tracks)
 - `DELETE /api/releases/[id]` → `{ ok: true }` (deletes the release folder + index entry)
 - `GET  /api/releases/[id]/cover` → image bytes (404 if none)

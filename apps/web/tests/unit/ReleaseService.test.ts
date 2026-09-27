@@ -137,7 +137,7 @@ describe("ReleaseService", () => {
     expect(first.folderPath).not.toBe(second.folderPath);
   });
 
-  it("swapping two track numbers on update renames files without collision", async () => {
+  it("swapping two track numbers on update keeps file names and rewrites the track tags", async () => {
     const release = await service.import(
       {
         kind: "album",
@@ -163,8 +163,13 @@ describe("ReleaseService", () => {
     const byId = new Map(updated.tracks.map((t) => [t.id, t]));
     expect(byId.get(t1.id)?.trackNumber).toBe(2);
     expect(byId.get(t2.id)?.trackNumber).toBe(1);
-    expect(path.basename(byId.get(t1.id)!.filePath)).toBe("02 - First.mp3");
-    expect(path.basename(byId.get(t2.id)!.filePath)).toBe("01 - Second.mp3");
+    // Names never change on edit: Spotify playlists reference local tracks by path.
+    expect(byId.get(t1.id)!.filePath).toBe(t1.filePath);
+    expect(byId.get(t2.id)!.filePath).toBe(t2.filePath);
+    const lastWrites = tags.writes.slice(-2);
+    const writeFor = (p: string) => lastWrites.find((w) => w.filePath === p)?.input;
+    expect(writeFor(t1.filePath)?.trackNumber).toBe(2);
+    expect(writeFor(t2.filePath)?.trackNumber).toBe(1);
 
     for (const t of updated.tracks) {
       const exists = await fs

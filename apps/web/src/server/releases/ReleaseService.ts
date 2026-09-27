@@ -146,7 +146,13 @@ export class ReleaseService {
     }
   }
 
-  /** Update release metadata; rewrites tags for every track, and renames files/folders as needed. */
+  /**
+   * Update release metadata by rewriting the tags in every track file IN PLACE.
+   * Files and folders are never renamed or moved on edit: Spotify playlists reference
+   * local tracks by path, so a rename would silently drop the track from every playlist.
+   * The folder and file names therefore reflect the metadata at import time, and
+   * `Track.filePath` stays stable for the life of the release.
+   */
   async update(id: string, patch: UpdateReleaseMeta): Promise<Release> {
     const settings = await this.settings.get();
     const libraryDir = settings.libraryDir;
@@ -173,47 +179,8 @@ export class ReleaseService {
     });
     updatedTracks.sort((a, b) => a.trackNumber - b.trackNumber);
 
-    const artistChanged = newArtist !== existing.artist;
-    const albumChanged = newTitle !== existing.title;
-
-    let folderPath = existing.folderPath;
-    let coverPath = existing.coverPath;
-
-    if (artistChanged || albumChanged) {
-      const desiredFolderPath = this.layout.folderFor(libraryDir, newArtist, newTitle);
-
-      if (desiredFolderPath !== existing.folderPath) {
-        const newFolderPath = await this.fs.uniqueDir(desiredFolderPath);
-        await this.fs.mkdirp(path.dirname(newFolderPath));
-        await this.fs.safeMove(existing.folderPath, newFolderPath);
-        folderPath = newFolderPath;
-        if (existing.coverPath) {
-          coverPath = path.join(newFolderPath, path.basename(existing.coverPath));
-        }
-        // Track paths need to be re-based onto the new folder.
-        for (const t of updatedTracks) {
-          t.filePath = path.join(newFolderPath, path.basename(t.filePath));
-        }
-      }
-    }
-
-    // Rename track files if title/number changed. Two phases (via temp names) so that
-    // reordering tracks can never collide with a file that has not moved yet.
-    const renames = updatedTracks
-      .map((t) => ({ t, to: path.join(folderPath, this.layout.trackFileName(t.trackNumber, t.title)) }))
-      .filter(({ t, to }) => to !== t.filePath);
-    if (renames.length > 0) {
-      const staged: { t: Track; tmp: string; to: string }[] = [];
-      for (const { t, to } of renames) {
-        const tmp = path.join(folderPath, `.${t.id}.tmp.mp3`);
-        await this.fs.safeMove(t.filePath, tmp);
-        staged.push({ t, tmp, to });
-      }
-      for (const { t, tmp, to } of staged) {
-        await this.fs.safeMove(tmp, to);
-        t.filePath = to;
-      }
-    }
+    const folderPath = existing.folderPath;
+    const coverPath = existing.coverPath;
 
     const trackTotal = updatedTracks.length;
     for (const t of updatedTracks) {
