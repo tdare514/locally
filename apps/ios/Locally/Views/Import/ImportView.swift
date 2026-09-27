@@ -23,6 +23,10 @@ struct ImportView: View {
     /// How many waiting files the user last dismissed the toast for; it
     /// comes back only when the count changes (new songs arrived).
     @State private var dismissedCount: Int?
+    /// The toast shows for a few seconds when songs arrive, then tucks into
+    /// the "N waiting" chip in the header; tapping the chip brings it back.
+    @State private var toastVisible = false
+    @State private var hideTask: Task<Void, Never>?
     @State private var singleQueue: [InboxFile] = []
     @State private var albumQueue: [InboxFile] = []
 
@@ -54,20 +58,25 @@ struct ImportView: View {
             // the layout, so the form never shifts and the note reads as a
             // notification. Dismissed until the count changes.
             .overlay(alignment: .top) {
-                if !inboxFiles.isEmpty, dismissedCount != inboxFiles.count {
+                if !inboxFiles.isEmpty, toastVisible {
                     inboxToast
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
-            .animation(.spring(duration: 0.35), value: inboxFiles.count)
-            .animation(.spring(duration: 0.35), value: dismissedCount)
+            .animation(.spring(duration: 0.35), value: toastVisible)
+            .onChange(of: inboxFiles.count) { _, count in
+                if count > 0, dismissedCount != count { showToast() } else { toastVisible = false }
+            }
             // The in-content eyebrow + title above already shows "Add a
             // song"; an empty nav title avoids repeating it in the system
             // bar while keeping that bar's black, minimal chrome.
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
         }
-        .onAppear { refreshInbox() }
+        .onAppear {
+            refreshInbox()
+            if !inboxFiles.isEmpty, dismissedCount != inboxFiles.count { showToast() }
+        }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active { refreshInbox() }
         }
@@ -75,10 +84,37 @@ struct ImportView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(Copy.Import.eyebrow).eyebrow()
+            HStack(spacing: 10) {
+                Text(Copy.Import.eyebrow).eyebrow()
+                if !inboxFiles.isEmpty, !toastVisible {
+                    Button {
+                        showToast(autoHide: false)
+                    } label: {
+                        Text(Copy.Inbox.waitingChip(count: inboxFiles.count))
+                            .font(Theme.Font.badge)
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Theme.accent, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.scale.combined(with: .opacity))
+                }
+            }
             Text(Copy.Import.title)
                 .font(Theme.Font.pageTitle)
                 .foregroundStyle(Theme.primaryText)
+        }
+        .animation(.spring(duration: 0.3), value: toastVisible)
+    }
+
+    private func showToast(autoHide: Bool = true) {
+        hideTask?.cancel()
+        toastVisible = true
+        guard autoHide else { return }
+        hideTask = Task {
+            try? await Task.sleep(for: .seconds(6))
+            if !Task.isCancelled { toastVisible = false }
         }
     }
 
@@ -107,6 +143,7 @@ struct ImportView: View {
             Spacer(minLength: 0)
             Button {
                 dismissedCount = inboxFiles.count
+                toastVisible = false
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .semibold))

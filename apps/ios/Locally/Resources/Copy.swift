@@ -153,6 +153,7 @@ enum Copy {
             count == 1 ? "1 song is waiting to be tagged." : "\(count) songs are waiting to be tagged."
         }
         static let dismiss = "Dismiss"
+        static func waitingChip(count: Int) -> String { "\(count) waiting" }
         static let addAsSingles = "Add as singles"
         static let makeAnAlbum = "Make an album"
     }
