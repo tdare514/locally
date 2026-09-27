@@ -52,11 +52,16 @@ export default function SettingsView({ onToast }: SettingsViewProps) {
   }
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8 pb-16">
-      <h1 className="text-2xl font-bold">Settings</h1>
+    <div className="mx-auto flex max-w-4xl flex-col gap-8 pb-16">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">
+          Local Library
+        </p>
+        <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">Settings</h1>
+      </div>
 
-      <section className="flex flex-col gap-3">
-        <p className="text-sm font-medium text-text-muted">Library folder</p>
+      <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
+        <p className="text-sm font-bold text-text">Library folder</p>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1">
             <Field
@@ -72,14 +77,14 @@ export default function SettingsView({ onToast }: SettingsViewProps) {
               type="button"
               onClick={handleSave}
               disabled={saving || loading}
-              className="rounded-full bg-accent px-5 py-2.5 text-sm font-bold text-black transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-full bg-accent px-6 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {saving ? "Saving…" : "Save"}
             </button>
             <button
               type="button"
               onClick={handleReveal}
-              className="rounded-full border border-border px-5 py-2.5 text-sm font-medium text-text transition-colors hover:border-text"
+              className="rounded-full border border-text-dim px-6 py-3 text-sm font-medium text-text transition-colors hover:border-text"
             >
               Show in Finder
             </button>
@@ -87,7 +92,7 @@ export default function SettingsView({ onToast }: SettingsViewProps) {
         </div>
       </section>
 
-      <section className="flex flex-col gap-3 rounded-lg bg-panel p-5">
+      <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
         <p className="text-sm font-semibold text-text">Connect to Spotify</p>
         <ol className="flex flex-col gap-2 text-sm text-text-muted">
           {STEPS.map((step, i) => (
@@ -101,7 +106,7 @@ export default function SettingsView({ onToast }: SettingsViewProps) {
         </ol>
       </section>
 
-      <section className="flex flex-col gap-2 rounded-lg border border-border p-5 text-sm text-text-muted">
+      <section className="flex flex-col gap-2 rounded-lg border border-border bg-card p-6 text-sm text-text-muted">
         <p>
           Spotify caches local-file metadata. After editing an existing track here,{" "}
           <strong className="text-text">restart Spotify</strong> to see the changes.

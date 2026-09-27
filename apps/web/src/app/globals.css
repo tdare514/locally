@@ -1,28 +1,41 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #121212;
-  --panel: #181818;
+  --bg: #000000;
+  --card: #121212;
+  /* Legacy alias — kept so any code still referencing --panel/bg-panel keeps working. */
+  --panel: var(--card);
   --elevated: #282828;
   --elevated-hover: #3a3a3a;
+  --row-hover: #1c1c1c;
   --text: #ffffff;
   --text-muted: #b3b3b3;
+  --text-dim: #777777;
+  --text-hint: #888888;
   --accent: #1db954;
   --accent-hover: #1ed760;
-  --border: #2a2a2a;
+  --border: #282828;
+  --border-dashed: #3e3e3e;
+  --dialog-border: #303030;
   --danger: #f15e6c;
 }
 
 @theme inline {
   --color-bg: var(--bg);
+  --color-card: var(--card);
   --color-panel: var(--panel);
   --color-elevated: var(--elevated);
   --color-elevated-hover: var(--elevated-hover);
+  --color-row-hover: var(--row-hover);
   --color-text: var(--text);
   --color-text-muted: var(--text-muted);
+  --color-text-dim: var(--text-dim);
+  --color-text-hint: var(--text-hint);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-border: var(--border);
+  --color-border-dashed: var(--border-dashed);
+  --color-dialog-border: var(--dialog-border);
   --color-danger: var(--danger);
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;

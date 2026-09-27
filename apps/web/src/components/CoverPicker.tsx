@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import CoverCropDialog from "./CoverCropDialog";
+import { ImagePlusIcon, PencilIcon } from "./Icons";
 
 interface CoverPickerProps {
   /** A freshly-chosen (not yet uploaded) cover file, if any. */
@@ -10,14 +11,21 @@ interface CoverPickerProps {
   existingUrl?: string | null;
   onChange: (file: File) => void;
   disabled?: boolean;
+  /** Side of the square, in px. Import's drop zone uses the default 240; the release page's
+   * cover uses 180. */
+  size?: number;
 }
 
-/** Square cover art preview. Click to choose a file, or drag one in. */
+/** Square cover art preview. Click to choose a file, or drag one in.
+ * Empty: a dashed drop zone with an image-plus icon. Filled: the image with an "Edit"
+ * pill overlay in the bottom-right corner (used both for a freshly-picked cover and an
+ * already-stored one on the release page). */
 export default function CoverPicker({
   file,
   existingUrl,
   onChange,
   disabled,
+  size = 240,
 }: CoverPickerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -64,20 +72,37 @@ export default function CoverPicker({
         }}
         role="button"
         tabIndex={0}
-        className={`relative flex aspect-square w-40 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-md border-2 border-dashed bg-elevated text-center text-xs text-text-muted transition-colors ${
-          dragOver ? "border-accent bg-elevated-hover" : "border-border"
+        style={{ width: size, height: size }}
+        className={`relative flex shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-card text-center transition-colors ${
+          previewUrl
+            ? dragOver
+              ? "ring-2 ring-accent"
+              : ""
+            : `border border-dashed ${dragOver ? "border-accent" : "border-border-dashed"}`
         } ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
       >
         {previewUrl ? (
-          // Object URLs / local API image routes aren't compatible with next/image's optimizer.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={previewUrl}
-            alt="Cover art preview"
-            className="h-full w-full object-cover"
-          />
+          <>
+            {/* Object URLs / local API image routes aren't compatible with next/image's optimizer. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewUrl}
+              alt="Cover art preview"
+              className="h-full w-full object-cover"
+            />
+            <span className="absolute bottom-2 right-2 flex items-center gap-1.5 rounded-full bg-black/80 px-3 py-1.5 text-sm font-semibold text-white backdrop-blur-sm">
+              <PencilIcon className="h-3.5 w-3.5" />
+              Edit
+            </span>
+          </>
         ) : (
-          <span className="px-3">Click or drop an image</span>
+          <div className="flex flex-col items-center gap-2 px-4">
+            <ImagePlusIcon
+              className={`h-[30px] w-[30px] ${dragOver ? "text-accent" : "text-text-muted"}`}
+            />
+            <p className="text-sm font-medium text-[#D7D7D7]">Click or drop an image</p>
+            <p className="text-xs text-text-hint">Square artwork works best</p>
+          </div>
         )}
         <input
           ref={inputRef}

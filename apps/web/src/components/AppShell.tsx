@@ -70,7 +70,7 @@ export default function AppShell() {
         onImportClick={() => setView({ type: "import" })}
         onSettingsClick={() => setView({ type: "settings" })}
       />
-      <main className="flex-1 overflow-y-auto p-6 md:p-10">
+      <main className="flex-1 overflow-y-auto p-6 md:p-10 lg:p-16">
         {view.type === "import" && (
           <ImportView onImported={handleImported} onToast={showToast} />
         )}

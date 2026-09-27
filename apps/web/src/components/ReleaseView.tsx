@@ -172,33 +172,60 @@ export default function ReleaseView({
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 pb-16">
-      <div className="flex flex-col gap-4 sm:flex-row">
-        <CoverPicker
-          file={null}
-          existingUrl={
-            release.coverPath ? coverUrl(release.id, release.updatedAt) : null
-          }
-          onChange={handleReplaceCover}
-          disabled={replacingCover}
-        />
-        <div className="flex flex-1 flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <span className="rounded-full bg-elevated px-3 py-1 text-xs font-semibold uppercase tracking-wide text-text-muted">
+    <div className="mx-auto flex max-w-[920px] flex-col gap-8 pb-16">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.17em] text-text-dim">
+          Library / {release.kind === "single" ? "Single" : "Album"}
+        </p>
+        <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">
+          {release.title || release.artist}
+        </h1>
+        <p className="mt-2 text-base text-text-muted">
+          {release.artist}
+          {release.year ? ` · ${release.year}` : ""}
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <div className="flex items-baseline justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">Details</p>
+            <h2 className="mt-1 text-lg font-bold tracking-[-0.03em] text-text">Metadata</h2>
+          </div>
+          <p className="text-sm text-text-muted">Tap to edit</p>
+        </div>
+
+        <div className="flex flex-col gap-4 sm:flex-row">
+          <CoverPicker
+            file={null}
+            existingUrl={
+              release.coverPath ? coverUrl(release.id, release.updatedAt) : null
+            }
+            onChange={handleReplaceCover}
+            disabled={replacingCover}
+            size={180}
+          />
+          <div className="flex flex-1 flex-col gap-4">
+            <span className="w-fit rounded-full bg-elevated px-3 py-1 text-xs font-semibold uppercase tracking-wide text-text-muted">
               {release.kind === "single" ? "Single" : "Album"}
             </span>
-          </div>
-          <Field label="Title" value={title} onChange={setTitle} />
-          <Field label="Artist" value={artist} onChange={setArtist} />
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Year" value={year} onChange={setYear} />
-            <Field label="Genre" value={genre} onChange={setGenre} />
+            <Field label="Title" value={title} onChange={setTitle} />
+            <Field label="Artist" value={artist} onChange={setArtist} />
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Year" value={year} onChange={setYear} />
+              <Field label="Genre" value={genre} onChange={setGenre} />
+            </div>
           </div>
         </div>
       </div>
 
-      <div>
-        <p className="mb-2 text-sm font-medium text-text-muted">Tracks</p>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold tracking-[-0.03em] text-text">Tracks</h2>
+          <p className="text-xs text-text-muted">
+            {tracks.length} track{tracks.length === 1 ? "" : "s"}
+          </p>
+        </div>
         <TrackList tracks={tracks} onChange={handleTracksChange} />
       </div>
 
@@ -207,14 +234,14 @@ export default function ReleaseView({
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="rounded-full bg-accent px-6 py-2.5 text-sm font-bold text-black transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-full bg-accent px-8 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {saving ? "Saving…" : "Save changes"}
         </button>
         <button
           type="button"
           onClick={handleReveal}
-          className="rounded-full border border-border px-5 py-2.5 text-sm font-medium text-text transition-colors hover:border-text"
+          className="rounded-full border border-text-dim px-6 py-3 text-sm font-medium text-text transition-colors hover:border-text"
         >
           Show in Finder
         </button>
@@ -241,7 +268,7 @@ export default function ReleaseView({
           <button
             type="button"
             onClick={handleDelete}
-            className="rounded-full border border-border px-5 py-2.5 text-sm font-medium text-danger transition-colors hover:border-danger"
+            className="px-2 py-3 text-sm font-semibold text-danger transition-colors hover:opacity-80"
           >
             Delete
           </button>

@@ -24,8 +24,8 @@ interface CoverCropDialogProps {
 const VIEWPORT_MAX = 320;
 
 function segmentClass(active: boolean): string {
-  return `rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-    active ? "bg-accent text-black" : "text-text-muted hover:text-text"
+  return `rounded-full px-5 py-1.5 text-sm font-medium transition-colors ${
+    active ? "bg-accent text-black shadow-sm" : "text-text-muted hover:text-text"
   }`;
 }
 
@@ -197,14 +197,14 @@ export default function CoverCropDialog({
   return (
     <dialog
       ref={dialogRef}
-      className="m-auto max-w-none overflow-visible rounded-lg border border-border bg-panel p-0 text-text backdrop:bg-black/70"
+      className="m-auto max-w-none overflow-visible rounded-[9px] border border-dialog-border bg-card p-0 text-text backdrop:bg-black/70"
     >
-      <div className="flex w-[360px] flex-col gap-4 p-5">
-        <h2 className="text-lg font-bold">Crop cover</h2>
+      <div className="flex w-[360px] flex-col gap-4 p-6">
+        <h2 className="text-[19px] font-bold">Crop cover</h2>
 
         <div
           ref={viewportRef}
-          className="relative mx-auto touch-none select-none overflow-hidden rounded-md bg-black"
+          className="relative mx-auto touch-none select-none overflow-hidden rounded-md bg-[#050505]"
           style={{
             width: viewportWidth,
             height: viewportHeight,
@@ -216,29 +216,40 @@ export default function CoverCropDialog({
           onPointerCancel={handlePointerUp}
         >
           {imgSrc && (
-            // Object URLs aren't compatible with next/image's optimizer.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={imgSrc}
-              alt=""
-              draggable={false}
-              onLoad={handleImgLoad}
-              className="absolute left-0 top-0 max-w-none select-none"
-              style={
-                rect && imageSize
-                  ? {
-                      width: imageSize.width * imageScale,
-                      height: imageSize.height * imageScale,
-                      transform: `translate(${-rect.x * imageScale}px, ${-rect.y * imageScale}px)`,
-                    }
-                  : { visibility: "hidden" }
-              }
-            />
+            <>
+              {/* Object URLs aren't compatible with next/image's optimizer. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imgSrc}
+                alt=""
+                draggable={false}
+                onLoad={handleImgLoad}
+                className="absolute left-0 top-0 max-w-none select-none"
+                style={
+                  rect && imageSize
+                    ? {
+                        width: imageSize.width * imageScale,
+                        height: imageSize.height * imageScale,
+                        transform: `translate(${-rect.x * imageScale}px, ${-rect.y * imageScale}px)`,
+                      }
+                    : { visibility: "hidden" }
+                }
+              />
+              {/* Framing overlay: outer border, centre crosshair, and an inset guide frame —
+                  purely decorative, so it must never intercept the pan/zoom pointer events
+                  above. */}
+              <div className="pointer-events-none absolute inset-0">
+                <div className="absolute inset-0 border border-white/25" />
+                <div className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white/10" />
+                <div className="absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-white/10" />
+                <div className="absolute inset-3 border border-white/60" />
+              </div>
+            </>
           )}
         </div>
 
         <div className="flex flex-col items-center gap-1.5">
-          <div className="inline-flex rounded-full bg-elevated p-1">
+          <div className="inline-flex rounded-full bg-elevated p-0.5">
             <button
               type="button"
               onClick={() => handleRatioChange("square")}
@@ -263,7 +274,7 @@ export default function CoverCropDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-full px-5 py-2 text-sm font-medium text-text-muted transition-colors hover:text-text"
+            className="rounded-full px-4 py-2 text-sm font-medium text-text-muted transition-colors hover:text-text"
           >
             Cancel
           </button>
@@ -271,7 +282,7 @@ export default function CoverCropDialog({
             type="button"
             onClick={handleDone}
             disabled={!rect || cropping}
-            className="rounded-full bg-accent px-6 py-2 text-sm font-bold text-black transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-full bg-accent px-6 py-2.5 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {cropping ? "Cropping…" : "Done"}
           </button>

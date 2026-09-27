@@ -6,6 +6,7 @@ import { importRelease, inspectFiles } from "../lib/api-client";
 import Field from "./Field";
 import TrackList, { type EditableTrack } from "./TrackList";
 import CoverPicker from "./CoverPicker";
+import { UploadCloudIcon } from "./Icons";
 
 interface ImportViewProps {
   onImported: (release: Release) => void;
@@ -25,8 +26,8 @@ function stripExtension(name: string): string {
 }
 
 function segmentClass(active: boolean): string {
-  return `rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-    active ? "bg-accent text-black" : "text-text-muted hover:text-text"
+  return `rounded-full px-5 py-1.5 text-sm font-medium transition-colors ${
+    active ? "bg-accent text-black shadow-sm" : "text-text-muted hover:text-text"
   }`;
 }
 
@@ -169,8 +170,16 @@ export default function ImportView({ onImported, onToast }: ImportViewProps) {
   }
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 pb-16">
-      <h1 className="text-2xl font-bold">Import</h1>
+    <div className="mx-auto flex max-w-4xl flex-col gap-8 pb-16">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">
+          Local Library
+        </p>
+        <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">Import</h1>
+        <p className="mt-2 text-base text-text-muted">
+          Add a song or album to your Spotify library.
+        </p>
+      </div>
 
       <div className="inline-flex w-fit rounded-full bg-elevated p-1">
         <button
@@ -189,9 +198,9 @@ export default function ImportView({ onImported, onToast }: ImportViewProps) {
         </button>
       </div>
 
-      <div className="flex flex-col gap-4 sm:flex-row">
+      <div className="flex flex-col gap-6 sm:flex-row">
         <CoverPicker file={coverFile} onChange={setCoverFile} />
-        <div className="flex flex-1 flex-col gap-3">
+        <div className="flex flex-1 flex-col gap-4">
           <Field
             label="Title"
             value={title}
@@ -199,15 +208,15 @@ export default function ImportView({ onImported, onToast }: ImportViewProps) {
             placeholder={kind === "single" ? "Same as track title" : "Album title"}
           />
           <Field label="Artist" value={artist} onChange={setArtist} placeholder="Artist name" />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <Field label="Year" value={year} onChange={setYear} placeholder="2024" />
             <Field label="Genre" value={genre} onChange={setGenre} placeholder="Genre" />
           </div>
         </div>
       </div>
 
-      <div>
-        <p className="mb-2 text-sm font-medium text-text-muted">Audio files</p>
+      <div className="flex flex-col gap-3">
+        <p className="text-sm font-bold text-text">Audio files</p>
         <div
           onClick={() => audioInputRef.current?.click()}
           onDragOver={(e) => {
@@ -222,17 +231,22 @@ export default function ImportView({ onImported, onToast }: ImportViewProps) {
           }}
           role="button"
           tabIndex={0}
-          className={`flex cursor-pointer flex-col items-center gap-1 rounded-md border-2 border-dashed px-4 py-8 text-center transition-colors ${
-            dragOver ? "border-accent bg-elevated-hover" : "border-border bg-elevated"
+          className={`flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-card px-4 py-10 text-center transition-colors ${
+            dragOver ? "border-accent" : "border-border-dashed"
           }`}
         >
-          <p className="text-sm text-text">Drop audio files here, or click to choose</p>
+          <UploadCloudIcon
+            className={`h-[26px] w-[26px] ${dragOver ? "text-accent" : "text-text-muted"}`}
+          />
+          <p className="text-sm font-medium text-[#D7D7D7]">
+            Drop audio files here, or click to choose
+          </p>
           {kind === "single" ? (
-            <p className="text-xs text-text-muted">
+            <p className="text-xs text-text-hint">
               Singles are one file. Switch to Album for multiple.
             </p>
           ) : (
-            <p className="text-xs text-text-muted">You can select or drop multiple files.</p>
+            <p className="text-xs text-text-hint">You can select or drop multiple files.</p>
           )}
           <input
             ref={audioInputRef}
@@ -249,10 +263,15 @@ export default function ImportView({ onImported, onToast }: ImportViewProps) {
       </div>
 
       {entries.length > 0 && (
-        <div>
-          <p className="mb-2 text-sm font-medium text-text-muted">
-            Tracks{inspecting ? " · reading tags…" : ""}
-          </p>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-bold text-text">Tracks</p>
+            <p className="text-xs text-text-muted">
+              {inspecting
+                ? "Reading tags…"
+                : `${entries.length} file${entries.length === 1 ? "" : "s"}`}
+            </p>
+          </div>
           <TrackList
             tracks={entries.map((e) => ({ key: e.key, title: e.title }))}
             onChange={handleTracksChange}
@@ -261,14 +280,17 @@ export default function ImportView({ onImported, onToast }: ImportViewProps) {
         </div>
       )}
 
-      <button
-        type="button"
-        disabled={!canSubmit}
-        onClick={handleSubmit}
-        className="self-start rounded-full bg-accent px-6 py-2.5 text-sm font-bold text-black transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {importing ? "Importing…" : "Import to Spotify"}
-      </button>
+      <div className="flex items-center justify-between gap-4 border-t border-border pt-6">
+        <p className="text-sm text-text-dim">Your files stay on this device.</p>
+        <button
+          type="button"
+          disabled={!canSubmit}
+          onClick={handleSubmit}
+          className="rounded-full bg-accent px-8 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {importing ? "Importing…" : "Import to Spotify"}
+        </button>
+      </div>
     </div>
   );
 }
