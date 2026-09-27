@@ -250,7 +250,7 @@ describe2("ReleaseService import rollback", () => {
     const repo: LR = {
       list: async () => store,
       find: async (_d, id) => store.find((r) => r.id === id) ?? null,
-      upsert: async (_d, r) => { store.push(r); },
+      upsert: async (_d, r) => { store.push(r); return r; },
       remove: async (_d, id) => { const i = store.findIndex((r) => r.id === id); return i >= 0 ? store.splice(i, 1)[0] : null; },
     };
     const svc = new RS(
