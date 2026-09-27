@@ -5,8 +5,8 @@ import UniformTypeIdentifiers
 /// Lets the user pick a cover image from Photos or from Files, showing a
 /// thumbnail once one is chosen. Used by both the single-track and album
 /// import flows (`.dropZone`, a square drop-zone card) and the release
-/// detail's cover replacer (`.hero`, the full-width editor cover with an
-/// "Edit" pill overlay).
+/// detail's cover replacer (`.thumb`, a 112 pt square beside the title with
+/// a pencil badge; `.hero` is the older full-width editor cover).
 ///
 /// Neither pick path writes `imageData` directly: both first land in
 /// `pendingCrop`, which presents `CoverCropView` so the user frames the
@@ -15,7 +15,7 @@ import UniformTypeIdentifiers
 struct CoverPicker: View {
     /// Which of the two presentations to draw. See `docs/design.md`'s
     /// "Cover drop zone" and "Editor / release detail" components.
-    enum Style { case dropZone, hero, compact }
+    enum Style { case dropZone, hero, compact, thumb }
 
     @Binding var imageData: Data?
     /// The parent owns the file importer: SwiftUI honours only one
@@ -38,6 +38,7 @@ struct CoverPicker: View {
             case .dropZone: dropZoneBody
             case .hero: heroBody
             case .compact: compactBody
+            case .thumb: thumbBody
             }
         }
         // The Photos picker is attached here, to a view that stays in the
@@ -173,6 +174,54 @@ struct CoverPicker: View {
                     .foregroundStyle(Theme.primaryText.opacity(0.85))
             }
         }
+    }
+
+    // MARK: - Thumb (release detail header)
+
+    /// A 112 pt square cover beside the release title, radius 10, with a
+    /// small circular pencil badge bottom-right that opens the same
+    /// Photos/Files menu. Replaces the full-width hero on the release page.
+    private var thumbBody: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Group {
+                if let imageData, let uiImage = UIImage(data: imageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    ZStack {
+                        Theme.card
+                        Image(systemName: "music.note")
+                            .font(.system(size: 28))
+                            .foregroundStyle(Theme.secondaryText)
+                    }
+                }
+            }
+            .frame(width: 112, height: 112)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.bigCover))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radius.bigCover)
+                    .stroke(Theme.border, lineWidth: 1)
+            )
+
+            Menu {
+                menuItems
+            } label: {
+                Image(systemName: "pencil")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.primaryText)
+                    .frame(width: 28, height: 28)
+                    .background {
+                        Circle()
+                            .fill(.black.opacity(0.8))
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+            }
+            .buttonStyle(.plain)
+            .padding(6)
+            .accessibilityLabel(Copy.Detail.edit)
+        }
+        .frame(width: 112, height: 112)
     }
 
     // MARK: - Hero (release detail editor)

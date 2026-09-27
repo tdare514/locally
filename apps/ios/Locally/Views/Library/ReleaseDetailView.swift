@@ -37,27 +37,37 @@ struct ReleaseDetailView: View {
     private func content(_ model: ReleaseDetailViewModel) -> some View {
         List {
             Section {
-                CoverPicker(
-                    imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 }),
-                    rawPick: $rawCoverPick,
-                    style: .hero
-                ) {
-                    isPresentingCoverPicker = true
+                HStack(alignment: .top, spacing: 12) {
+                    CoverPicker(
+                        imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 }),
+                        rawPick: $rawCoverPick,
+                        style: .thumb
+                    ) {
+                        isPresentingCoverPicker = true
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        KindBadge(text: model.kind == .single ? Copy.Library.single : Copy.Library.album)
+                        Text(model.title)
+                            .font(Theme.Font.pageTitle)
+                            .foregroundStyle(Theme.primaryText)
+                            .lineLimit(2)
+                        Text(model.artist)
+                            .font(Theme.Font.rowSubtitle)
+                            .foregroundStyle(Theme.secondaryText)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
                 }
                 .listRowInsets(EdgeInsets(top: 8, leading: 2, bottom: 0, trailing: 2))
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
-            }
 
-            Section {
                 metadataHeader
                     .listRowInsets(EdgeInsets(top: 12, leading: 2, bottom: 4, trailing: 2))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
 
-                KindBadge(text: model.kind == .single ? Copy.Library.single : Copy.Library.album)
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
                 Field(Copy.Import.fieldTitle, text: Binding(get: { model.title }, set: { model.title = $0 }))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
@@ -77,9 +87,18 @@ struct ReleaseDetailView: View {
 
             Section {
                 tracksHeader(model.trackRows.count)
-                    .listRowInsets(EdgeInsets(top: 12, leading: 2, bottom: 4, trailing: 2))
+                    .listRowInsets(EdgeInsets(top: 12, leading: 2, bottom: model.trackRows.count >= 2 ? 2 : 4, trailing: 2))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
+
+                if model.trackRows.count >= 2 {
+                    Text(Copy.Detail.reorderHint)
+                        .font(Theme.Font.dropZoneHint)
+                        .foregroundStyle(Theme.textDim)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 2, bottom: 4, trailing: 2))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
 
                 ForEach(Array(model.trackRows.enumerated()), id: \.element.id) { index, row in
                     // A single's only track takes its title from the Title
@@ -89,6 +108,7 @@ struct ReleaseDetailView: View {
                         index: index + 1,
                         title: model.kind == .single ? model.title : row.title,
                         isEditable: model.kind == .album,
+                        isCompact: true,
                         onTitleChange: { newValue in setTitle(newValue, for: row, in: model) }
                     )
                     .listRowBackground(Color.clear)
@@ -152,11 +172,6 @@ struct ReleaseDetailView: View {
         .background(Theme.background)
         .navigationTitle(model.title)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                EditButton()
-            }
-        }
         .stickyFooter {
             Button {
                 Task { await model.save() }
@@ -193,12 +208,7 @@ struct ReleaseDetailView: View {
 
     private var metadataHeader: some View {
         HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(Copy.Detail.detailsEyebrow).eyebrow()
-                Text(Copy.Detail.metadata)
-                    .font(Theme.Font.sectionTitle)
-                    .foregroundStyle(Theme.primaryText)
-            }
+            Text(Copy.Detail.detailsEyebrow).eyebrow()
             Spacer()
             Text(Copy.Detail.tapToEdit)
                 .font(Theme.Font.meta)

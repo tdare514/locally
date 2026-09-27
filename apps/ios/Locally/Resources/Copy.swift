@@ -129,6 +129,9 @@ enum Copy {
         static let tapToEdit = "Tap to edit"
         /// The pill overlay on the release detail's big cover.
         static let edit = "Edit"
+        /// Hint under the Tracks header when there are 2+ tracks, since the
+        /// compact layout dropped the Edit-mode toolbar button.
+        static let reorderHint = "Hold and drag a track to reorder."
         static let saveChanges = "Save changes"
         static let saving = "Saving…"
         static let replaceCover = "Replace cover"

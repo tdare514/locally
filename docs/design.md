@@ -136,12 +136,16 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
   **Albums**, each with an 18 bold label and its count in `text-dim`, separated by a 1 px
   `border-dashed` rule (dash 4/4). A section with nothing in it is not shown. Desktop keeps the
   current sidebar rows.
-- **Editor / release detail (mobile)**: top bar with back and "Edit Metadata" (Locally: the
-  release title); a full-width square cover, radius 10, shadow, with an "Edit" pill overlay
-  bottom-right (`bg` at 80 % with blur, pencil icon 14, 14 semibold text); then the DETAILS
-  eyebrow + "Metadata" + "Tap to edit"; the fields; then "Tracks" (18 bold) + "N files" and one
-  file row per track: `card` with 1 px `border`, radius 8, min height 64, a 36 `elevated` tile
-  holding an accent file-music icon, filename 14 medium, "Audio file" 12 muted, chevron; sticky
+- **Editor / release detail (mobile)**: a slim, sleek layout rather than a full-width hero. Top
+  bar with back and the release title. Below it a header row: a 112 pt square cover, radius 10,
+  1 px `border`, with a 28 pt circular pencil badge bottom-right (`bg` at 80 % with blur, icon
+  12 semibold) that opens the Photos/Files menu, beside a column holding the kind badge, the title in page-title style (2 lines max) and the
+  artist in row-subtitle muted text. Then the DETAILS eyebrow + "Tap to edit" (no "Metadata"
+  title); Title and Artist fields full width, Year and Genre side by side. Then "Tracks" (18
+  bold) + "N files", a `text-dim` 12 pt hint "Hold and drag a track to reorder." when there are
+  2+ tracks, and one compact file row per track: `card` with 1 px `border`, radius 8, min height
+  52, a 30 pt `elevated` tile holding an accent file-music icon, filename 14 medium, "Audio file"
+  12 muted, chevron. No Edit-mode toolbar button; reordering is a plain long-press drag. Sticky
   footer with the save action.
 - **Desktop release page**: breadcrumb eyebrow "LIBRARY / SINGLE", title 36, "artist · year" in
   `text-muted`, then a 180 cover beside the fields.

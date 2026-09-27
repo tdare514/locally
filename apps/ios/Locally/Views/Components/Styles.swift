@@ -184,6 +184,10 @@ struct FileRow: View {
     let index: Int
     let title: String
     var isEditable: Bool = false
+    /// A denser variant (52 pt min height, 30 pt tile) used by the release
+    /// detail's compact Tracks section; the default 64 pt / 36 pt sizing is
+    /// unchanged for the album builder.
+    var isCompact: Bool = false
     var onTitleChange: (String) -> Void = { _ in }
 
     var body: some View {
@@ -199,7 +203,7 @@ struct FileRow: View {
                 Image(systemName: "music.note")
                     .foregroundStyle(Theme.accent)
             }
-            .frame(width: 36, height: 36)
+            .frame(width: isCompact ? 30 : 36, height: isCompact ? 30 : 36)
 
             VStack(alignment: .leading, spacing: 2) {
                 if isEditable {
@@ -223,7 +227,7 @@ struct FileRow: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)
-        .frame(minHeight: 64)
+        .frame(minHeight: isCompact ? 52 : 64)
         .background(Theme.card)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.fileRow))
         .overlay(
