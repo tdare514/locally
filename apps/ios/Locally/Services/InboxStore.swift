@@ -25,41 +25,41 @@ protocol InboxStore {
     func remove(_ file: InboxFile) throws
 }
 
-/// Production `InboxStore`: the `Inbox` folder inside the App Group
-/// container both this app and `LocallyShare` can reach.
+/// Production `InboxStore`. Two places count as "waiting":
+/// - the `Inbox` folder inside the App Group container, written by the
+///   "Send to Locally" share extension (names carry a uuid prefix);
+/// - the app's own Documents folder, which iOS shows in Files as
+///   "On My iPhone > Locally". People drop audio there with "Save to Files"
+///   or by copying in Files, and expect the app to notice.
 final class AppGroupInboxStore: InboxStore {
     private let inboxDirectory: URL?
+    private let documentsDirectory: URL?
 
-    /// Resolves the Inbox folder via the App Group container.
+    /// Resolves the Inbox folder via the App Group container and the app's
+    /// Documents folder via `FileManager`.
     init(appGroupIdentifier: String = AppGroup.identifier) {
         self.inboxDirectory = FileManager.default
             .containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)?
             .appendingPathComponent("Inbox", isDirectory: true)
+        self.documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
     }
 
-    /// Testing seam: point directly at a directory instead of resolving one
+    /// Testing seam: point directly at directories instead of resolving them
     /// through an App Group container (unavailable to a plain unit test).
-    init(directory: URL) {
+    init(directory: URL, documentsDirectory: URL? = nil) {
         self.inboxDirectory = directory
+        self.documentsDirectory = documentsDirectory
     }
 
     func pendingFiles() -> [InboxFile] {
-        guard let inboxDirectory else { return [] }
-        let fm = FileManager.default
-        guard let names = try? fm.contentsOfDirectory(atPath: inboxDirectory.path) else { return [] }
-
         var files: [InboxFile] = []
-        for name in names {
-            guard !name.hasPrefix("."),
-                  let originalName = InboxFileNaming.originalName(fromInboxFileName: name) else { continue }
-
-            let url = inboxDirectory.appendingPathComponent(name)
-            let type = UTType(filenameExtension: url.pathExtension)
-            guard let type, type.conforms(to: .audio) else { continue }
-
-            let attributes = try? fm.attributesOfItem(atPath: url.path)
-            let createdAt = (attributes?[.creationDate] as? Date) ?? .distantPast
-            files.append(InboxFile(url: url, originalName: originalName, createdAt: createdAt))
+        if let inboxDirectory {
+            files += Self.audioFiles(in: inboxDirectory) { name in
+                InboxFileNaming.originalName(fromInboxFileName: name)
+            }
+        }
+        if let documentsDirectory {
+            files += Self.audioFiles(in: documentsDirectory) { name in name }
         }
         return files.sorted { $0.createdAt < $1.createdAt }
     }
@@ -67,5 +67,25 @@ final class AppGroupInboxStore: InboxStore {
     func remove(_ file: InboxFile) throws {
         guard FileManager.default.fileExists(atPath: file.url.path) else { return }
         try FileManager.default.removeItem(at: file.url)
+    }
+
+    /// Top-level audio files in `directory`, skipping hidden files and any
+    /// name `originalName` rejects (returns nil for).
+    private static func audioFiles(in directory: URL, originalName: (String) -> String?) -> [InboxFile] {
+        let fm = FileManager.default
+        guard let names = try? fm.contentsOfDirectory(atPath: directory.path) else { return [] }
+        var files: [InboxFile] = []
+        for name in names {
+            guard !name.hasPrefix("."), let original = originalName(name) else { continue }
+            let url = directory.appendingPathComponent(name)
+            var isDirectory: ObjCBool = false
+            guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory), !isDirectory.boolValue else { continue }
+            let type = UTType(filenameExtension: url.pathExtension)
+            guard let type, type.conforms(to: .audio) else { continue }
+            let attributes = try? fm.attributesOfItem(atPath: url.path)
+            let createdAt = (attributes?[.creationDate] as? Date) ?? .distantPast
+            files.append(InboxFile(url: url, originalName: original, createdAt: createdAt))
+        }
+        return files
     }
 }

@@ -84,4 +84,22 @@ struct AppGroupInboxStoreTests {
 
         try store.remove(file)
     }
+
+    /// Files people drop into "On My iPhone > Locally" (the app's Documents
+    /// folder) count as waiting too, under their own names.
+    @Test func pendingFilesIncludesAudioDroppedInTheDocumentsFolder() throws {
+        let (_, inboxDir) = makeStore()
+        let docs = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: docs, withIntermediateDirectories: true)
+        try Data([0xFF, 0xFB, 1, 2]).write(to: docs.appendingPathComponent("2 far from this.mp3"))
+        try Data([1, 2, 3]).write(to: docs.appendingPathComponent("notes.txt"))
+        try FileManager.default.createDirectory(at: docs.appendingPathComponent("folder.mp3"), withIntermediateDirectories: true)
+        let store = AppGroupInboxStore(directory: inboxDir, documentsDirectory: docs)
+
+        let files = store.pendingFiles()
+
+        #expect(files.map(\.originalName) == ["2 far from this.mp3"])
+        try store.remove(files[0])
+        #expect(store.pendingFiles().isEmpty)
+    }
 }
