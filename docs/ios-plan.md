@@ -31,7 +31,8 @@ matters, never hidden.
 
 ## Assumptions to verify on a phone in phase 1
 - [x] With Local Files on, a Spotify folder appears under On My iPhone in Files, and a file the app writes there shows in Spotify (confirmed 27 Sep 2026 on an iPhone 14, without restarting Spotify).
-- [x] A tagged file shows in Spotify with its artwork and artist (confirmed 27 Sep 2026). Still to confirm separately for each path: m4a via AVFoundation and mp3 via the ID3v2.4 writer.
+- [x] An mp3 tagged by the ID3v2.4 writer shows in Spotify with its artwork and artist (confirmed 27 Sep 2026).
+- [ ] An m4a (converted from wav) tagged via AVFoundation shows in Spotify with artwork and artist. Not yet sent from a phone.
 - [ ] Local files show and play on a Premium account after reopen.
 - [x] A third-party app can pick that folder and later write into it from a stored bookmark (confirmed 27 Sep 2026).
 - [ ] Re-tagging in place refreshes in Spotify after a full close/reopen.
