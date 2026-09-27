@@ -11,6 +11,9 @@ struct OnboardingView: View {
     @Environment(\.appContainer) private var container
     @Environment(FolderStatus.self) private var folderStatus
 
+    /// Called when the user taps "Get started" on the confirmation screen.
+    let onFinished: () -> Void
+
     @State private var step: Step = .welcome
     @State private var isPresentingFolderPicker = false
     @State private var isConfirmed = false
@@ -117,10 +120,7 @@ struct OnboardingView: View {
     @ViewBuilder
     private var actionButton: some View {
         if isConfirmed {
-            Button(Copy.Onboarding.getStarted) {
-                // RootView switches to the main tabs automatically once
-                // `folderStatus.isConnected` flips to true; nothing to do here.
-            }
+            Button(Copy.Onboarding.getStarted, action: onFinished)
             .buttonStyle(.borderedProminent)
             .tint(Theme.accent)
         } else if step == .folder {

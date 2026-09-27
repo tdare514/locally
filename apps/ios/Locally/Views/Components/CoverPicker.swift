@@ -7,9 +7,12 @@ import UniformTypeIdentifiers
 /// (phase 2) album import flows.
 struct CoverPicker: View {
     @Binding var imageData: Data?
+    /// The parent owns the file importer: SwiftUI honours only one
+    /// `.fileImporter` per presentation context, so a nested one here
+    /// would never present while the parent also has one for audio.
+    let onPickFromFiles: () -> Void
 
     @State private var photosItem: PhotosPickerItem?
-    @State private var isPresentingFileImporter = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -24,9 +27,7 @@ struct CoverPicker: View {
                     PhotosPicker(selection: $photosItem, matching: .images) {
                         Label("Photos", systemImage: "photo.on.rectangle")
                     }
-                    Button {
-                        isPresentingFileImporter = true
-                    } label: {
+                    Button(action: onPickFromFiles) {
                         Label("Files", systemImage: "folder")
                     }
                 }
@@ -38,12 +39,6 @@ struct CoverPicker: View {
             if let data = try? await photosItem.loadTransferable(type: Data.self) {
                 imageData = data
             }
-        }
-        .fileImporter(isPresented: $isPresentingFileImporter, allowedContentTypes: [.image]) { result in
-            guard case .success(let url) = result else { return }
-            let accessed = url.startAccessingSecurityScopedResource()
-            defer { if accessed { url.stopAccessingSecurityScopedResource() } }
-            imageData = try? Data(contentsOf: url)
         }
     }
 

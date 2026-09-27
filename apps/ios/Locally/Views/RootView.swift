@@ -6,10 +6,14 @@ import SwiftUI
 struct RootView: View {
     @Environment(FolderStatus.self) private var folderStatus
 
+    /// Onboarding ends on "Get started", not the moment the bookmark is
+    /// stored, so the user actually sees the "Connected" confirmation.
+    @State private var hasFinishedOnboarding = false
+
     var body: some View {
         Group {
-            if !folderStatus.isConnected {
-                OnboardingView()
+            if !folderStatus.isConnected || !hasFinishedOnboarding {
+                OnboardingView { hasFinishedOnboarding = true }
             } else {
                 TabView {
                     ImportSingleView()
@@ -25,5 +29,9 @@ struct RootView: View {
             }
         }
         .background(Theme.background)
+        .onAppear {
+            // A returning user with a stored bookmark skips onboarding entirely.
+            if folderStatus.isConnected { hasFinishedOnboarding = true }
+        }
     }
 }

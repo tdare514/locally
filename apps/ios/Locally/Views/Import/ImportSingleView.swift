@@ -6,8 +6,15 @@ import UniformTypeIdentifiers
 struct ImportSingleView: View {
     @Environment(\.appContainer) private var container
 
+    /// Which of the two document pickers is showing. One `.fileImporter`
+    /// serves both because SwiftUI presents only one per view.
+    private enum Picker { case audio, cover }
+
     @State private var model: ImportSingleViewModel?
-    @State private var isPresentingFilePicker = false
+    @State private var activePicker: Picker?
+    /// Separate from `activePicker`: SwiftUI flips this false before the
+    /// completion handler runs, so the kind must survive the dismissal.
+    @State private var isPickerPresented = false
 
     var body: some View {
         NavigationStack {
@@ -36,7 +43,8 @@ struct ImportSingleView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 Button {
-                    isPresentingFilePicker = true
+                    activePicker = .audio
+                    isPickerPresented = true
                 } label: {
                     Label(
                         model.pickedURL?.lastPathComponent ?? Copy.Import.pickFile,
@@ -53,7 +61,10 @@ struct ImportSingleView: View {
                     Field(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }), keyboardType: .numberPad)
                     Field(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }))
 
-                    CoverPicker(imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 }))
+                    CoverPicker(imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 })) {
+                        activePicker = .cover
+                        isPickerPresented = true
+                    }
 
                     if let errorMessage = model.errorMessage {
                         Text(errorMessage)
@@ -77,9 +88,23 @@ struct ImportSingleView: View {
             }
             .padding(20)
         }
-        .fileImporter(isPresented: $isPresentingFilePicker, allowedContentTypes: [.audio]) { result in
+        .fileImporter(
+            isPresented: $isPickerPresented,
+            allowedContentTypes: activePicker == .cover ? [.image] : [.audio]
+        ) { result in
+            let picker = activePicker
+            activePicker = nil
             guard case .success(let url) = result else { return }
-            Task { await model.pick(url: url) }
+            switch picker {
+            case .audio:
+                Task { await model.pick(url: url) }
+            case .cover:
+                let accessed = url.startAccessingSecurityScopedResource()
+                defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+                model.coverData = try? Data(contentsOf: url)
+            case nil:
+                break
+            }
         }
     }
 }

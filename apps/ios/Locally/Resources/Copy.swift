@@ -8,14 +8,14 @@ enum Copy {
     enum Onboarding {
         static let welcomeTitle = "Welcome to Locally"
         static let welcomeBody = "Add your own songs to Spotify with the cover and details you choose. This app is independent and is not made by or connected to Spotify."
-        static let premium = "This works with Spotify Premium. Free-account support is being explored."
+        static let premium = "This app works with Spotify Premium on iPhone. Sign in to Spotify on this phone before you continue."
         static let localFilesTitle = "Turn on Local Files"
         static let localFilesBody = "To save songs into Spotify, turn on Local Files: open Spotify, tap Settings, then Local Files, then switch it on. Spotify will create a folder for them in your Files app."
         static let folderAccessTitle = "Connect Spotify's folder"
         static let folderAccessBody = "Allow us to move the songs you tag here into that folder. Pick On My iPhone, then Spotify, then tap Open. You only do this once."
         static let chooseFolder = "Choose folder"
-        static let confirmationTitle = "You're set"
-        static let confirmationBody = "Spotify's folder is connected. You can start adding songs."
+        static let confirmationTitle = "Connected"
+        static let confirmationBody = "Connected. Songs you send from here will appear in Spotify under Your Library, then Local Files."
         static let next = "Next"
         static let getStarted = "Get started"
     }
