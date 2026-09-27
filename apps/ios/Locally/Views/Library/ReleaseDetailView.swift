@@ -47,20 +47,23 @@ struct ReleaseDetailView: View {
             }
             .listRowBackground(Theme.panel)
 
-            Section("Tracks") {
-                ForEach(Array(model.trackRows.enumerated()), id: \.element.id) { index, row in
-                    HStack(spacing: 10) {
-                        Text("\(index + 1)")
-                            .font(.caption)
-                            .foregroundStyle(Theme.secondaryText)
-                            .frame(width: 24, alignment: .trailing)
-                        TextField(Copy.Import.track, text: titleBinding(for: row, in: model))
-                            .foregroundStyle(Theme.primaryText)
+            // A single's only track takes its title from the Title field above.
+            if model.kind == .album {
+                Section("Tracks") {
+                    ForEach(Array(model.trackRows.enumerated()), id: \.element.id) { index, row in
+                        HStack(spacing: 10) {
+                            Text("\(index + 1)")
+                                .font(.caption)
+                                .foregroundStyle(Theme.secondaryText)
+                                .frame(width: 24, alignment: .trailing)
+                            TextField(Copy.Import.track, text: titleBinding(for: row, in: model))
+                                .foregroundStyle(Theme.primaryText)
+                        }
                     }
+                    .onMove(perform: model.moveTracks)
                 }
-                .onMove(perform: model.moveTracks)
+                .listRowBackground(Theme.panel)
             }
-            .listRowBackground(Theme.panel)
 
             if model.kind == .album {
                 Section {

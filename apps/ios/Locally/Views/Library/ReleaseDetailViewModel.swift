@@ -101,6 +101,11 @@ final class ReleaseDetailViewModel {
         for row in trackRows {
             trackTitles[row.id] = row.title
         }
+        // A single has one title: what the user edits as "Title" is what
+        // Spotify shows for the track, so the track tag follows it.
+        if kind == .single, let only = trackRows.first {
+            trackTitles[only.id] = title
+        }
 
         let changes = ReleaseChanges(
             title: title,
