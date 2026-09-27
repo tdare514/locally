@@ -337,6 +337,61 @@ struct SyncEngineTests {
         #expect(stored.syncedUpdatedAt != nil)
     }
 
+    @Test func reconcileRePushesAReleaseEditedSinceItsLastCompletePush() async throws {
+        let h = makeHarness()
+        let tags = TagSet(title: "Edited", artist: "Artist", album: "Edited")
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: nil)
+        // As if an earlier push completed, then a local edit's push failed.
+        var edited = release
+        edited.syncedUpdatedAt = release.updatedAt.addingTimeInterval(-60)
+        try h.library.upsert(edited)
+
+        await h.engine.reconcile()
+
+        #expect(h.api.putCalls.map(\.id) == [release.id.uuidString])
+        let stored = try #require(h.library.all().first { $0.id == release.id })
+        #expect(stored.syncedUpdatedAt == stored.updatedAt)
+    }
+
+    /// The record `PUT` lands, the upload after it fails, and on the next
+    /// pull the server hands this phone its own record back with a newer
+    /// `updatedAt` (what the 409 path's re-`PUT` produces). That echo must
+    /// not count as "synced", or the files would never be retried.
+    @Test func aPushWhoseUploadFailedIsRetriedEvenAfterItsOwnRecordEchoesBack() async throws {
+        let h = makeHarness()
+        let tags = TagSet(title: "Dropped", artist: "Artist", album: "Dropped")
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: nil)
+        let fileName = (release.tracks[0].filePath as NSString).lastPathComponent
+        h.api.uploadFailCountRemaining[fileName] = 1
+
+        await h.engine.push(release)
+        #expect(h.engine.status.lastError != nil)
+        #expect(h.api.uploadedFileNames.isEmpty)
+        let afterFailure = try #require(h.library.all().first { $0.id == release.id })
+        #expect(afterFailure.syncedUpdatedAt == nil)
+
+        var echoed = try #require(h.api.putCalls.last)
+        echoed.updatedAt = release.updatedAt.addingTimeInterval(60)
+        h.api.seed(echoed)
+        let tagCallsBefore = h.tagWriter.calls.count
+
+        // Back-fill runs first: its PUT (and the retry after the 409, whose
+        // fresh `updatedAt` is still older than the echo) is rejected, so the
+        // upload isn't reached. Then the echo is pulled.
+        await h.engine.reconcile()
+        let afterEcho = try #require(h.library.all().first { $0.id == release.id })
+        #expect(afterEcho.updatedAt == echoed.updatedAt, "catches up to the server's timestamp")
+        #expect(afterEcho.syncedUpdatedAt == nil, "an own echo is not a completed push")
+        #expect(h.tagWriter.calls.count == tagCallsBefore, "own content: nothing to re-tag")
+
+        await h.engine.reconcile()
+        #expect(h.api.uploadedFileNames == [fileName])
+        let synced = try #require(h.library.all().first { $0.id == release.id })
+        #expect(synced.syncedUpdatedAt == synced.updatedAt)
+        #expect(h.api.putCalls.last?.updatedAt == echoed.updatedAt, "re-pushed with the caught-up timestamp, no conflict")
+        #expect(h.engine.status.lastError == nil)
+    }
+
     @Test func aSecondReconcileRunIsANoOp() async throws {
         let h = makeHarness()
         let tags = TagSet(title: "Song", artist: "Artist", album: "Song")

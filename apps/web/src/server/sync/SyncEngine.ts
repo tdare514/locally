@@ -241,12 +241,23 @@ export class SyncEngine implements ReleaseSyncHooks {
       delete state.pendingFromPhone[record.id];
       if (record.updatedAt > local.updatedAt) {
         await this.releases.applyRemote(record);
-        state.pushedUpdatedAt[record.id] = record.updatedAt;
+        // A record this Mac wrote itself, back newer than its local copy, is
+        // a push whose `PUT` landed but whose uploads then failed. Leaving
+        // `pushedUpdatedAt` behind makes the back-fill below finish that
+        // push (only files not in `uploadedFiles` go up again); marking it
+        // pushed here would strand those files for good.
+        if (!this.isOwnEcho(record)) {
+          state.pushedUpdatedAt[record.id] = record.updatedAt;
+        }
       }
     }
 
     await this.syncState.set(state);
     await this.bumpLastVersion(nextVersion);
+  }
+
+  private isOwnEcho(record: SyncRecord): boolean {
+    return record.origin === "mac" && record.originDevice === this.deviceName();
   }
 
   /**

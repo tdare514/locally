@@ -398,6 +398,28 @@ describe("SyncEngine", () => {
     expect(api.createUploadsCalls).toHaveLength(1);
   });
 
+  it("finishes a push whose own record comes back newer, instead of treating it as synced", async () => {
+    const release = await importOne();
+    await engine.push(release);
+    const putsAfterPush = api.putCalls.length;
+
+    // What the server hands back after a re-PUT whose uploads then failed.
+    const echo = toSyncRecord(release, "mac", "Toby's MacBook");
+    echo.updatedAt = new Date(Date.now() + 5_000).toISOString();
+    api.seedRemoteRecord(echo);
+
+    await engine.reconcile();
+
+    const local = await releaseService.get(release.id);
+    expect(local?.updatedAt).toBe(echo.updatedAt);
+    expect(api.putCalls.length).toBe(putsAfterPush + 1);
+    expect(api.putCalls.at(-1)?.updatedAt).toBe(echo.updatedAt);
+
+    const putsAfterRetry = api.putCalls.length;
+    await engine.reconcile();
+    expect(api.putCalls.length).toBe(putsAfterRetry);
+  });
+
   it("does nothing new on a second reconcile with no changes", async () => {
     await importOne();
     await engine.reconcile();

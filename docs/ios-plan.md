@@ -18,7 +18,9 @@ matters, never hidden.
   with email-code accounts, because customers cannot be assumed to pay for iCloud storage; see
   `spec/sync.md`. Verified 27 Sep 2026 end to end on an iPhone 12 Pro against the service
   running on the Mac: sign-in on both devices, a song tagged on the Mac appeared on the phone
-  and was sent to Spotify there.
+  and was sent to Spotify there. Phone to Mac: in progress (a push whose uploads fail is now
+  retried until it completes on both apps; the phone re-uploads every file of that release on
+  a retry, so tracking uploaded files per release, as the Mac does, is a follow-up).
 - Pricing (decided 27 Sep 2026): everything built so far is free with unlimited sends. A one-time
   purchase, Locally Full, exists from phase 3 but unlocks nothing yet; features agreed later are
   gated behind it. Paid plans are a later discussion. No network, no analytics, no account: privacy label "Data Not Collected".

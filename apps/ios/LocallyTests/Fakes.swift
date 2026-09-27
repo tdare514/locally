@@ -315,6 +315,11 @@ final class FakeSyncApi: SyncApi {
         if conflictOnNextPut.remove(record.id) != nil {
             throw SyncApiError.conflict(serverUpdatedAt: storage[record.id]?.updatedAt)
         }
+        // The real service 409s when the stored copy is strictly newer
+        // (last writer wins by `updatedAt`, `spec/sync.md`).
+        if let stored = storage[record.id], stored.updatedAt > record.updatedAt {
+            throw SyncApiError.conflict(serverUpdatedAt: stored.updatedAt)
+        }
         currentVersion += 1
         var stored = record
         stored.version = currentVersion
@@ -362,7 +367,16 @@ final class FakeSyncApi: SyncApi {
         }
     }
 
+    /// How many times a given file name's `uploadFile` fails before it
+    /// starts succeeding — simulates a push whose record `PUT` landed but
+    /// whose uploads then dropped (e.g. the phone lost the network).
+    var uploadFailCountRemaining: [String: Int] = [:]
+
     func uploadFile(_ fileURL: URL, to upload: SyncUpload) async throws {
+        if let remaining = uploadFailCountRemaining[upload.name], remaining > 0 {
+            uploadFailCountRemaining[upload.name] = remaining - 1
+            throw SyncApiError.network("Upload dropped (simulated).")
+        }
         uploadedFileNames.append(upload.name)
         if let data = try? Data(contentsOf: fileURL) {
             fileContents[upload.name] = data

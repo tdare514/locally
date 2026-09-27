@@ -311,7 +311,20 @@ final class SyncEngine: ReleaseSyncHook {
         }
 
         if let existingLocal {
-            if record.updatedAt > existingLocal.updatedAt {
+            guard record.updatedAt > existingLocal.updatedAt else { return }
+            if isOwnEcho(record) {
+                // This device's own record coming back newer than its local
+                // copy: the re-`PUT` after a 409 landed (with a fresh
+                // `updatedAt`) but the file uploads after it failed, so
+                // `markPushed` never ran. The content is already ours, so
+                // there is nothing to re-tag; catch `updatedAt` up and leave
+                // `syncedUpdatedAt` alone, so `backfillUnpushed` retries the
+                // files. Treating it as a remote update would mark it synced
+                // and strand the files on this phone for good.
+                var caughtUp = existingLocal
+                caughtUp.updatedAt = record.updatedAt
+                try? library.upsert(caughtUp)
+            } else {
                 _ = try? await coordinator.applyRemoteUpdate(record)
             }
             return
@@ -325,14 +338,28 @@ final class SyncEngine: ReleaseSyncHook {
         }
     }
 
-    /// Pushes every local release that has never been pushed (`syncedUpdatedAt
-    /// == nil`) — the "songs already on this phone before you signed in"
-    /// back-fill `spec/sync.md` describes.
+    /// Pushes every local release that has never been fully pushed (see
+    /// `needsPush`) — the "songs already on this phone before you signed in"
+    /// back-fill `spec/sync.md` describes, and the retry for pushes that
+    /// failed part-way.
     private func backfillUnpushed() async {
         let localReleases = (try? library.all()) ?? []
-        for release in localReleases where release.syncedUpdatedAt == nil {
+        for release in localReleases where Self.needsPush(release) {
             await push(release)
         }
+    }
+
+    /// Never pushed, or changed since the last push that fully completed
+    /// (record and files). A push that failed part-way leaves
+    /// `syncedUpdatedAt` behind `updatedAt`, which is what makes it retry.
+    static func needsPush(_ release: Release) -> Bool {
+        guard let synced = release.syncedUpdatedAt else { return true }
+        return synced < release.updatedAt
+    }
+
+    /// A record this very device wrote, seen again on a pull.
+    private func isOwnEcho(_ record: SyncRecord) -> Bool {
+        record.origin == "ios" && record.originDevice == deviceName()
     }
 
     // MARK: - Accept from Mac
