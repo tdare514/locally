@@ -9,7 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "music-metadata": "^11.16.1",
     "next": "16.3.6",
+    "node-id3": "^0.2.9",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
