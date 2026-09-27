@@ -33,8 +33,64 @@ export interface Library {
   releases: Release[];
 }
 
+/** Default sync service base URL, used before the user has ever set one. */
+export const DEFAULT_SYNC_BASE_URL = "http://localhost:4000";
+
+/**
+ * Persisted sync configuration. `deviceToken` is a secret: it lives only in
+ * `Settings` as read/written by the server-side `SettingsStore`, and is never
+ * sent to the browser (see `SettingsResponse`/`SyncStatusSummary` below).
+ */
+export interface SyncSettings {
+  baseUrl: string;
+  deviceToken: string | null;
+  email: string | null;
+  lastVersion: number;
+}
+
 export interface Settings {
   libraryDir: string;    // where tagged files are written; Spotify should be pointed at this folder
+  sync: SyncSettings | null;
+}
+
+/** The `sync` field as returned to the browser by GET/PUT /api/settings: no token. */
+export interface SyncStatusSummary {
+  baseUrl: string;
+  email: string | null;
+  signedIn: boolean;
+  lastVersion: number;
+}
+
+/** Shape actually returned by GET/PUT /api/settings (never carries the device token). */
+export interface SettingsResponse {
+  libraryDir: string;
+  sync: SyncStatusSummary;
+}
+
+/** One release from the phone that hasn't been imported into the local library yet. */
+export interface PendingFromPhone {
+  id: string;
+  title: string;
+  artist: string;
+  kind: ReleaseKind;
+  trackCount: number;
+}
+
+export interface SyncQuota {
+  usedBytes: number;
+  limitBytes: number;
+}
+
+/** Response shape for GET /api/sync/status. */
+export interface SyncStatus {
+  signedIn: boolean;
+  email: string | null;
+  baseUrl: string;
+  deviceName: string | null;
+  lastRunAt: string | null;
+  lastError: string | null;
+  pendingFromPhone: PendingFromPhone[];
+  quota: SyncQuota | null;
 }
 
 /** Metadata sent by the client when importing. Sent as a JSON string in the `meta` form field. */

@@ -20,3 +20,8 @@ export function settingsFilePath(): string {
 export function libraryFilePath(libraryDir: string): string {
   return path.join(libraryDir, "library.json");
 }
+
+/** Full path to the sync bookkeeping file (push/pending state, not secrets). */
+export function syncStateFilePath(): string {
+  return path.join(settingsDir(), "sync-state.json");
+}

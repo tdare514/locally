@@ -10,6 +10,8 @@ import type { TagService } from "../audio/TagService";
 import type { FileSystem } from "../fs/FileSystem";
 import { ReleaseLayout } from "./ReleaseLayout";
 import { sniffImageMime } from "../http/validation";
+import { NoopReleaseSyncHooks, type ReleaseSyncHooks } from "./ReleaseSyncHooks";
+import type { SyncRecord } from "../sync/SyncRecord";
 
 /**
  * Core release lifecycle: import, edit, re-cover, delete, and look up. All
@@ -18,6 +20,8 @@ import { sniffImageMime } from "../http/validation";
  * service) against a real temp directory via `NodeFileSystem`.
  */
 export class ReleaseService {
+  private syncHooks: ReleaseSyncHooks = new NoopReleaseSyncHooks();
+
   constructor(
     private readonly settings: SettingsStore,
     private readonly repo: LibraryRepository,
@@ -26,6 +30,15 @@ export class ReleaseService {
     private readonly fs: FileSystem,
     private readonly layout: ReleaseLayout = new ReleaseLayout()
   ) {}
+
+  /**
+   * Wire in the real sync engine after construction (see `ReleaseSyncHooks`
+   * for why this isn't a constructor parameter). Existing callers (tests,
+   * `InspectService`) that never call this keep the default no-op hooks.
+   */
+  setSyncHooks(hooks: ReleaseSyncHooks): void {
+    this.syncHooks = hooks;
+  }
 
   /** Import a new release (single or album). */
   async import(meta: ImportMeta, coverFile: File | null, audioFiles: File[]): Promise<Release> {
@@ -130,6 +143,7 @@ export class ReleaseService {
       };
 
       await this.repo.upsert(libraryDir, release);
+      this.syncHooks.onImported(release);
       return release;
     } catch (err) {
       // Roll back the partially written release folder so a failed conversion
@@ -210,6 +224,7 @@ export class ReleaseService {
     };
 
     await this.repo.upsert(libraryDir, updated);
+    this.syncHooks.onUpdated(updated);
     return updated;
   }
 
@@ -254,6 +269,7 @@ export class ReleaseService {
       updatedAt: new Date().toISOString(),
     };
     await this.repo.upsert(libraryDir, updated);
+    this.syncHooks.onCoverReplaced(updated);
     return updated;
   }
 
@@ -275,6 +291,7 @@ export class ReleaseService {
     }
     await this.repo.remove(libraryDir, id);
     await this.fs.removeRecursive(existing.folderPath);
+    this.syncHooks.onDeleted(existing);
   }
 
   async get(id: string): Promise<Release | null> {
@@ -285,5 +302,162 @@ export class ReleaseService {
   async list(): Promise<Release[]> {
     const settings = await this.settings.get();
     return this.repo.list(settings.libraryDir);
+  }
+
+  /**
+   * Import a release that came from the sync service (originally created on
+   * the phone), keeping the SAME id so it's recognised as the same release on
+   * every device from then on. `dir` already holds the downloaded track/cover
+   * files, named exactly as `record.tracks[].file`/`record.cover`. mp3 tracks
+   * pass through untouched; anything else (m4a from iOS) is converted with
+   * the same `AudioConverter` used for normal imports. Never pushed back to
+   * sync by this method itself - the caller (`SyncEngine`) owns that bookkeeping.
+   */
+  async importSynced(record: SyncRecord, dir: string): Promise<Release> {
+    const settings = await this.settings.get();
+    const libraryDir = settings.libraryDir;
+
+    const desiredFolder = this.layout.folderFor(libraryDir, record.artist, record.title);
+    const folderPath = await this.fs.uniqueDir(desiredFolder);
+    await this.fs.mkdirp(folderPath);
+
+    try {
+      let coverPath: string | null = null;
+      if (record.cover) {
+        const srcCover = path.join(dir, record.cover);
+        const name = this.layout.coverFileName(record.cover);
+        coverPath = path.join(folderPath, name);
+        await this.fs.safeMove(srcCover, coverPath);
+      }
+
+      const sortedTracks = [...record.tracks].sort((a, b) => a.trackNumber - b.trackNumber);
+      const trackTotal = sortedTracks.length;
+      const tracks: Track[] = [];
+
+      for (const t of sortedTracks) {
+        const srcPath = path.join(dir, t.file);
+        const ext = path.extname(t.file).toLowerCase();
+        const destFileName = this.layout.trackFileName(t.trackNumber, t.title);
+        const destPath = path.join(folderPath, destFileName);
+
+        if (ext === ".mp3") {
+          await this.fs.safeMove(srcPath, destPath);
+        } else {
+          const tempOutput = path.join(dir, `conv-${t.id}.mp3`);
+          await this.converter.toMp3(srcPath, tempOutput);
+          await this.fs.safeMove(tempOutput, destPath);
+        }
+
+        await this.tags.write(destPath, {
+          title: t.title,
+          artist: record.artist,
+          albumArtist: record.artist,
+          album: record.title,
+          year: record.year,
+          genre: record.genre,
+          trackNumber: t.trackNumber,
+          trackTotal,
+          coverPath,
+        });
+
+        let durationSec: number | null = t.durationSec;
+        if (durationSec == null) {
+          try {
+            durationSec = (await this.tags.read(destPath)).durationSec;
+          } catch {
+            durationSec = null;
+          }
+        }
+
+        tracks.push({
+          id: t.id,
+          title: t.title,
+          trackNumber: t.trackNumber,
+          filePath: destPath,
+          originalName: t.file,
+          durationSec,
+        });
+      }
+
+      const release: Release = {
+        id: record.id,
+        kind: record.kind,
+        title: record.title,
+        artist: record.artist,
+        year: record.year,
+        genre: record.genre,
+        coverPath,
+        folderPath,
+        tracks,
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt,
+      };
+
+      await this.repo.upsert(libraryDir, release);
+      return release;
+    } catch (err) {
+      await this.fs.removeRecursive(folderPath).catch(() => undefined);
+      throw err;
+    }
+  }
+
+  /**
+   * Apply a newer remote edit to an already-local release: rewrites tags in
+   * place from the record's metadata, matching tracks by id. Like `update()`,
+   * this NEVER renames or moves files - Spotify playlists reference tracks by
+   * local path. Tracks the record doesn't mention are left untouched (this
+   * phase doesn't support adding/removing tracks from an existing release via
+   * sync). Throws `NotFoundError` if the release isn't local (the caller
+   * should use `importSynced` for that case instead).
+   */
+  async applyRemote(record: SyncRecord): Promise<Release> {
+    const settings = await this.settings.get();
+    const libraryDir = settings.libraryDir;
+
+    const existing = await this.repo.find(libraryDir, record.id);
+    if (!existing) {
+      throw new NotFoundError(`Release ${record.id} not found`);
+    }
+
+    const patchById = new Map(record.tracks.map((t) => [t.id, t]));
+    const updatedTracks: Track[] = existing.tracks.map((t) => {
+      const p = patchById.get(t.id);
+      if (!p) return { ...t };
+      return {
+        ...t,
+        title: p.title,
+        trackNumber: p.trackNumber,
+        durationSec: p.durationSec ?? t.durationSec,
+      };
+    });
+    updatedTracks.sort((a, b) => a.trackNumber - b.trackNumber);
+
+    const trackTotal = updatedTracks.length;
+    for (const t of updatedTracks) {
+      await this.tags.write(t.filePath, {
+        title: t.title,
+        artist: record.artist,
+        albumArtist: record.artist,
+        album: record.title,
+        year: record.year,
+        genre: record.genre,
+        trackNumber: t.trackNumber,
+        trackTotal,
+        coverPath: existing.coverPath,
+      });
+    }
+
+    const updated: Release = {
+      ...existing,
+      title: record.title,
+      artist: record.artist,
+      year: record.year,
+      genre: record.genre,
+      tracks: updatedTracks,
+      updatedAt: record.updatedAt,
+    };
+
+    await this.repo.upsert(libraryDir, updated);
+    return updated;
   }
 }

@@ -1,10 +1,23 @@
 import fs from "node:fs/promises";
-import type { Settings } from "../../shared/types";
+import type { Settings, SyncSettings } from "../../shared/types";
 import { defaultLibraryDir, settingsDir, settingsFilePath } from "./paths";
 import type { SettingsStore } from "./SettingsStore";
 
 async function ensureDirExists(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true });
+}
+
+/** Narrow an arbitrary JSON value into `SyncSettings`, or `null` if it doesn't look right. */
+function parseSyncSettings(raw: unknown): SyncSettings | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Partial<SyncSettings>;
+  if (typeof r.baseUrl !== "string" || r.baseUrl.trim().length === 0) return null;
+  return {
+    baseUrl: r.baseUrl,
+    deviceToken: typeof r.deviceToken === "string" ? r.deviceToken : null,
+    email: typeof r.email === "string" ? r.email : null,
+    lastVersion: typeof r.lastVersion === "number" && Number.isFinite(r.lastVersion) ? r.lastVersion : 0,
+  };
 }
 
 /**
@@ -23,11 +36,11 @@ export class FileSettingsStore implements SettingsStore {
         typeof parsed.libraryDir === "string" && parsed.libraryDir.trim().length > 0
           ? parsed.libraryDir
           : defaultLibraryDir();
-      return { libraryDir };
+      return { libraryDir, sync: parseSyncSettings(parsed.sync) };
     } catch (err) {
       const code = (err as NodeJS.ErrnoException)?.code;
       if (code === "ENOENT") {
-        const defaults: Settings = { libraryDir: defaultLibraryDir() };
+        const defaults: Settings = { libraryDir: defaultLibraryDir(), sync: null };
         await this.set(defaults);
         return defaults;
       }

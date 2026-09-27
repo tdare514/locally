@@ -72,4 +72,9 @@ export class NodeFileSystem implements FileSystem {
       return false;
     }
   }
+
+  async statSize(filePath: string): Promise<number> {
+    const stat = await fs.stat(filePath);
+    return stat.size;
+  }
 }

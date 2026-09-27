@@ -29,4 +29,6 @@ export interface FileSystem {
   readFile(filePath: string): Promise<Buffer>;
   /** True if a path exists on disk. */
   exists(target: string): Promise<boolean>;
+  /** Size in bytes of a file on disk, without reading its contents. */
+  statSize(filePath: string): Promise<number>;
 }

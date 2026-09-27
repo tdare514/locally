@@ -3,12 +3,13 @@
  * See PLAN.md "API" section for the contract; shapes come from ../shared/types.
  */
 import type {
-  Settings,
+  SettingsResponse,
   Library,
   Release,
   ImportMeta,
   UpdateReleaseMeta,
   ApiError,
+  SyncStatus,
 } from "../shared/types";
 
 /** Response shape for POST /api/inspect (per-file prefill data). Not a persisted entity, so it
@@ -44,18 +45,65 @@ async function handle<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function getSettings(): Promise<Settings> {
+export async function getSettings(): Promise<SettingsResponse> {
   const res = await fetch("/api/settings");
-  return handle<Settings>(res);
+  return handle<SettingsResponse>(res);
 }
 
-export async function putSettings(libraryDir: string): Promise<Settings> {
+export async function putSettings(libraryDir: string): Promise<SettingsResponse> {
   const res = await fetch("/api/settings", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ libraryDir }),
   });
-  return handle<Settings>(res);
+  return handle<SettingsResponse>(res);
+}
+
+export async function putSyncBaseUrl(baseUrl: string): Promise<SettingsResponse> {
+  const res = await fetch("/api/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sync: { baseUrl } }),
+  });
+  return handle<SettingsResponse>(res);
+}
+
+export async function getSyncStatus(): Promise<SyncStatus> {
+  const res = await fetch("/api/sync/status");
+  return handle<SyncStatus>(res);
+}
+
+export async function requestSyncCode(email: string): Promise<{ ok: true }> {
+  const res = await fetch("/api/sync/code", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  return handle<{ ok: true }>(res);
+}
+
+export async function verifySyncCode(email: string, code: string): Promise<SettingsResponse> {
+  const res = await fetch("/api/sync/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, code }),
+  });
+  return handle<SettingsResponse>(res);
+}
+
+export async function signOutSync(): Promise<{ ok: true }> {
+  const res = await fetch("/api/sync/signout", { method: "POST" });
+  return handle<{ ok: true }>(res);
+}
+
+export async function syncNow(): Promise<SyncStatus> {
+  const res = await fetch("/api/sync/reconcile", { method: "POST" });
+  return handle<SyncStatus>(res);
+}
+
+export async function acceptFromPhone(id: string): Promise<{ ok: true; release: Release }> {
+  const res = await fetch(`/api/sync/accept/${encodeURIComponent(id)}`, { method: "POST" });
+  return handle<{ ok: true; release: Release }>(res);
 }
 
 export async function getLibrary(): Promise<Library> {

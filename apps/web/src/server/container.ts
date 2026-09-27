@@ -11,6 +11,10 @@ import type { FileSystem } from "./fs/FileSystem";
 import { ReleaseLayout } from "./releases/ReleaseLayout";
 import { ReleaseService } from "./releases/ReleaseService";
 import { InspectService } from "./releases/InspectService";
+import { FileSyncStateStore } from "./sync/FileSyncStateStore";
+import type { SyncStateStore } from "./sync/SyncState";
+import { HttpSyncApi } from "./sync/SyncApi";
+import { SyncEngine, type SyncApiFactory } from "./sync/SyncEngine";
 
 export interface Services {
   settings: SettingsStore;
@@ -21,6 +25,9 @@ export interface Services {
   layout: ReleaseLayout;
   releases: ReleaseService;
   inspect: InspectService;
+  syncState: SyncStateStore;
+  syncApiFactory: SyncApiFactory;
+  syncEngine: SyncEngine;
 }
 
 function buildServices(): Services {
@@ -30,6 +37,19 @@ function buildServices(): Services {
   const tags = new Id3TagService();
   const fs = new NodeFileSystem();
   const layout = new ReleaseLayout();
+  const releases = new ReleaseService(settings, library, converter, tags, fs, layout);
+  const syncState = new FileSyncStateStore();
+  const syncApiFactory: SyncApiFactory = (baseUrl, token) => new HttpSyncApi(baseUrl, token);
+  const syncEngine = new SyncEngine(settings, syncState, releases, fs, syncApiFactory);
+
+  // Late-wire the engine as ReleaseService's sync hooks (see ReleaseSyncHooks
+  // for why this can't be a constructor parameter: SyncEngine itself depends
+  // on this same ReleaseService instance).
+  releases.setSyncHooks(syncEngine);
+  // Reconcile with the sync service every 30s while signed in; reconcile()
+  // itself is a cheap no-op when signed out. `buildServices()` only runs once
+  // per process (memoised below), so this only starts one timer.
+  syncEngine.startPolling();
 
   return {
     settings,
@@ -38,8 +58,11 @@ function buildServices(): Services {
     tags,
     fs,
     layout,
-    releases: new ReleaseService(settings, library, converter, tags, fs, layout),
+    releases,
     inspect: new InspectService(tags, fs),
+    syncState,
+    syncApiFactory,
+    syncEngine,
   };
 }
 

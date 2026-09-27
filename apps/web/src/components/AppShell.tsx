@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Library, Release } from "../shared/types";
-import { getLibrary } from "../lib/api-client";
+import type { Library, Release, SyncStatus } from "../shared/types";
+import { acceptFromPhone, getLibrary, getSyncStatus } from "../lib/api-client";
 import Sidebar from "./Sidebar";
 import ImportView from "./ImportView";
 import ReleaseView from "./ReleaseView";
@@ -18,6 +18,7 @@ export default function AppShell() {
   const [view, setView] = useState<View>({ type: "import" });
   const [library, setLibrary] = useState<Library | null>(null);
   const [loadingLibrary, setLoadingLibrary] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const nextToastId = useRef(0);
 
@@ -50,6 +51,24 @@ export default function AppShell() {
     refreshLibrary();
   }, [refreshLibrary]);
 
+  const refreshSyncStatus = useCallback(() => {
+    return getSyncStatus()
+      .then((status) => setSyncStatus(status))
+      .catch(() => {
+        // Sync status is a nice-to-have on Settings/Sidebar; don't toast for it.
+      });
+  }, []);
+
+  useEffect(() => {
+    refreshSyncStatus();
+  }, [refreshSyncStatus]);
+
+  useEffect(() => {
+    if (!syncStatus?.signedIn) return;
+    const id = setInterval(refreshSyncStatus, 15000);
+    return () => clearInterval(id);
+  }, [syncStatus?.signedIn, refreshSyncStatus]);
+
   function handleImported(release: Release) {
     refreshLibrary();
     setView({ type: "release", id: release.id });
@@ -60,12 +79,24 @@ export default function AppShell() {
     setView({ type: "import" });
   }
 
+  async function handleAcceptFromPhone(id: string) {
+    try {
+      await acceptFromPhone(id);
+      showToast("success", "Added to your library");
+      await Promise.all([refreshLibrary(), refreshSyncStatus()]);
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "Failed to import from your phone");
+    }
+  }
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden md:flex-row">
       <Sidebar
         releases={library?.releases ?? []}
         loading={loadingLibrary}
         view={view}
+        pendingFromPhone={syncStatus?.pendingFromPhone ?? []}
+        onAcceptFromPhone={handleAcceptFromPhone}
         onSelectRelease={(id) => setView({ type: "release", id })}
         onImportClick={() => setView({ type: "import" })}
         onSettingsClick={() => setView({ type: "settings" })}
@@ -83,7 +114,13 @@ export default function AppShell() {
             onToast={showToast}
           />
         )}
-        {view.type === "settings" && <SettingsView onToast={showToast} />}
+        {view.type === "settings" && (
+          <SettingsView
+            onToast={showToast}
+            syncStatus={syncStatus}
+            onSyncStatusChange={refreshSyncStatus}
+          />
+        )}
       </main>
       <Toast toasts={toasts} onDismiss={dismissToast} />
     </div>

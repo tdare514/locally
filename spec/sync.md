@@ -92,9 +92,11 @@ Both clients keep the same local library they have today; the service is a mirro
 source of truth.
 
 - **Sign in** (Settings): email → code → signed in as a device. Signing out revokes the device.
-- **Push**: after a successful import, update, cover replace or delete, upload any new files
-  (direct to storage), then `PUT` the record (`origin` = this platform). Failures never fail the
-  user's action; the next reconcile retries.
+- **Push**: after a successful import, update, cover replace or delete: `PUT` the record first
+  (`origin` = this platform; the API only issues upload URLs for a release it knows), then upload
+  any new files direct to storage. A record can therefore be visible before its files have
+  finished uploading: a client that cannot yet download a listed file leaves that release
+  pending and retries on the next reconcile. Failures never fail the user's action.
 - **Pull / reconcile** (on foreground, on a timer while the app is open, and on "Sync now"):
   `GET /releases?sinceVersion=<last seen>`. For each record: not in the local library and from
   the other platform → offered in the inbox as "N from your Mac / phone" with one action, Send to
