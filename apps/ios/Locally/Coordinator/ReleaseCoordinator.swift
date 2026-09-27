@@ -489,6 +489,17 @@ final class ReleaseCoordinator {
         return release
     }
 
+    /// Runs `body` with every track of `release` resolved to a readable URL
+    /// while access to Spotify's folder is held. Anything that reads track
+    /// files (sizes, uploads) must go through here: outside the folder's
+    /// security scope a stat fails silently and an upload reads nothing.
+    func withTrackFiles<T>(of release: Release, _ body: ([(track: Track, url: URL)]) async throws -> T) async throws -> T {
+        try await folder.withAccess { folderURL in
+            let files = release.tracks.map { (track: $0, url: Self.resolvedFileURL(for: $0, in: folderURL)) }
+            return try await body(files)
+        }
+    }
+
     /// The track's file as it is reachable now. The stored path is absolute,
     /// but Spotify's container moves when Spotify is reinstalled, so when
     /// that path no longer exists the file is looked up by name inside the

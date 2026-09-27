@@ -177,38 +177,42 @@ final class SyncEngine: ReleaseSyncHook {
     }
 
     private func pushInternal(_ release: Release) async throws {
-        let fileBytes = Self.fileBytes(for: release)
-        var record = release.toSyncRecord(origin: "ios", originDevice: deviceName(), fileBytes: fileBytes)
+        // Sizes and uploads read the track files inside Spotify's folder, which
+        // needs the folder's security scope open for the whole push.
+        try await coordinator.withTrackFiles(of: release) { files in
+            var fileBytes: [UUID: Int] = [:]
+            for entry in files { fileBytes[entry.track.id] = Self.fileSize(at: entry.url) }
+            var record = release.toSyncRecord(origin: "ios", originDevice: deviceName(), fileBytes: fileBytes)
 
-        do {
-            try await api.putRelease(record)
-        } catch SyncApiError.conflict {
-            await reconcile()
-            record.updatedAt = Date()
-            try await api.putRelease(record)
+            do {
+                try await api.putRelease(record)
+            } catch SyncApiError.conflict {
+                await reconcile()
+                record.updatedAt = Date()
+                try await api.putRelease(record)
+            }
+
+            try await uploadFiles(for: release, record: record, files: files)
+            markPushed(release, at: record.updatedAt)
         }
-
-        try await uploadFiles(for: release, record: record)
-
-        markPushed(release, at: record.updatedAt)
     }
 
-    private func uploadFiles(for release: Release, record: SyncRecord) async throws {
+    private func uploadFiles(for release: Release, record: SyncRecord, files: [(track: Track, url: URL)]) async throws {
         var localPathByName: [String: URL] = [:]
-        for track in release.tracks {
-            localPathByName[(track.filePath as NSString).lastPathComponent] = URL(fileURLWithPath: track.filePath)
-        }
-        var requests = release.tracks.map { track in
-            SyncFileUploadRequest(
-                name: (track.filePath as NSString).lastPathComponent,
-                bytes: Self.fileSize(atPath: track.filePath),
-                contentType: Self.contentType(forExtension: (track.filePath as NSString).pathExtension)
-            )
+        var requests: [SyncFileUploadRequest] = []
+        for entry in files {
+            let name = entry.url.lastPathComponent
+            localPathByName[name] = entry.url
+            requests.append(SyncFileUploadRequest(
+                name: name,
+                bytes: Self.fileSize(at: entry.url),
+                contentType: Self.contentType(forExtension: entry.url.pathExtension)
+            ))
         }
         if let coverName = record.cover, let coverPath = release.coverPath {
-            let bytes = Self.fileSize(atPath: coverPath)
-            localPathByName[coverName] = URL(fileURLWithPath: coverPath)
-            requests.append(SyncFileUploadRequest(name: coverName, bytes: bytes, contentType: Self.contentType(forExtension: (coverName as NSString).pathExtension)))
+            let coverURL = URL(fileURLWithPath: coverPath)
+            localPathByName[coverName] = coverURL
+            requests.append(SyncFileUploadRequest(name: coverName, bytes: Self.fileSize(at: coverURL), contentType: Self.contentType(forExtension: (coverName as NSString).pathExtension)))
         }
 
         guard !requests.isEmpty else { return }
@@ -384,16 +388,8 @@ final class SyncEngine: ReleaseSyncHook {
 
     // MARK: - Helpers
 
-    private static func fileBytes(for release: Release) -> [UUID: Int] {
-        var result: [UUID: Int] = [:]
-        for track in release.tracks {
-            result[track.id] = fileSize(atPath: track.filePath)
-        }
-        return result
-    }
-
-    private static func fileSize(atPath path: String) -> Int {
-        (try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? Int ?? 0
+    private static func fileSize(at url: URL) -> Int {
+        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int ?? 0
     }
 
     private static func contentType(forExtension ext: String) -> String {
