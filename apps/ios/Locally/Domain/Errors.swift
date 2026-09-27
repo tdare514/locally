@@ -23,6 +23,8 @@ enum LocallyError: LocalizedError {
     /// A track's recorded path resolved to somewhere outside the connected
     /// Spotify folder; refused rather than deleting or rewriting it.
     case pathOutsideFolder
+    /// StoreKit couldn't complete a purchase, restore, or product load.
+    case purchaseFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -42,6 +44,8 @@ enum LocallyError: LocalizedError {
             return "Couldn't find \"\(name)\" any more. It may have been moved or deleted outside Locally."
         case .pathOutsideFolder:
             return "That file isn't inside Spotify's folder."
+        case .purchaseFailed(let detail):
+            return "Couldn't complete that purchase. \(detail)"
         }
     }
 }

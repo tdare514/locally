@@ -74,7 +74,7 @@ struct ReleaseDetailView: View {
             if model.kind == .album {
                 Section {
                     DisclosureGroup(Copy.Detail.makeItAPlaylist) {
-                        Text(Copy.Import.doneAlbum)
+                        Text(Copy.Import.doneAlbum(albumTitle: model.title))
                             .font(.footnote)
                             .foregroundStyle(Theme.secondaryText)
                     }

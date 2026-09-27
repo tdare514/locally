@@ -9,6 +9,9 @@ struct DoneView: View {
 
     let kind: Kind
     var trackTitles: [String] = []
+    /// Named in the `.album` done copy so the "make it a playlist" step tells the
+    /// user exactly what to call the new playlist. Unused for `.single`.
+    var albumTitle: String = ""
     let onAddAnother: () -> Void
 
     var body: some View {
@@ -18,7 +21,7 @@ struct DoneView: View {
                     .font(.system(size: 48))
                     .foregroundStyle(Theme.accent)
 
-                Text(kind == .single ? Copy.Import.doneSingle : Copy.Import.doneAlbum)
+                Text(kind == .single ? Copy.Import.doneSingle : Copy.Import.doneAlbum(albumTitle: albumTitle))
                     .foregroundStyle(Theme.primaryText)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)

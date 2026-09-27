@@ -5,8 +5,10 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.appContainer) private var container
     @Environment(FolderStatus.self) private var folderStatus
+    @Environment(PurchaseStatus.self) private var purchaseStatus
 
     @State private var isPresentingFolderPicker = false
+    @State private var isPresentingPaywall = false
     @State private var errorMessage: String?
 
     private var appVersion: String {
@@ -43,6 +45,26 @@ struct SettingsView: View {
                 }
                 .listRowBackground(Theme.panel)
 
+                Section {
+                    if purchaseStatus.isFullUnlocked {
+                        LabeledContent(Copy.Purchase.rowTitle, value: Copy.Purchase.unlocked)
+                            .foregroundStyle(Theme.primaryText)
+                    } else {
+                        Button {
+                            isPresentingPaywall = true
+                        } label: {
+                            HStack {
+                                Text(Copy.Purchase.rowTitle)
+                                    .foregroundStyle(Theme.primaryText)
+                                Spacer()
+                                Text(Copy.Purchase.buy)
+                                    .foregroundStyle(Theme.secondaryText)
+                            }
+                        }
+                    }
+                }
+                .listRowBackground(Theme.panel)
+
                 Section(Copy.Settings.about) {
                     Text(Copy.Settings.trademarkLine)
                         .font(.footnote)
@@ -58,6 +80,9 @@ struct SettingsView: View {
         }
         .fileImporter(isPresented: $isPresentingFolderPicker, allowedContentTypes: [.folder]) { result in
             handleFolderPick(result)
+        }
+        .sheet(isPresented: $isPresentingPaywall) {
+            PaywallView()
         }
     }
 

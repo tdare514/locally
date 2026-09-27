@@ -12,6 +12,16 @@ final class FolderStatus {
     init(isConnected: Bool) { self.isConnected = isConnected }
 }
 
+/// Observable purchase status, for the same reason `FolderStatus` exists:
+/// `PurchaseService.isFullUnlocked` is a plain, non-observable property, so
+/// `SettingsView` binds to this instead and `AppContainer` keeps it in sync
+/// after a purchase, a restore, or a startup refresh.
+@Observable
+final class PurchaseStatus {
+    var isFullUnlocked: Bool
+    init(isFullUnlocked: Bool) { self.isFullUnlocked = isFullUnlocked }
+}
+
 /// Composes every production service and the one coordinator that ties
 /// them together, mirroring the web app's `container.ts`. Built once in
 /// `LocallyApp` and injected into the view tree via `.environment`;
@@ -25,7 +35,10 @@ final class AppContainer {
     let importer: FileImporter
     let coordinator: ReleaseCoordinator
     let coverStore: CoverStore
+    let inbox: InboxStore
+    let purchase: PurchaseService
     let folderStatus: FolderStatus
+    let purchaseStatus: PurchaseStatus
     let modelContainer: ModelContainer
 
     init(
@@ -34,6 +47,8 @@ final class AppContainer {
         importer: FileImporter,
         coordinator: ReleaseCoordinator,
         coverStore: CoverStore,
+        inbox: InboxStore,
+        purchase: PurchaseService,
         modelContainer: ModelContainer
     ) {
         self.folder = folder
@@ -41,8 +56,11 @@ final class AppContainer {
         self.importer = importer
         self.coordinator = coordinator
         self.coverStore = coverStore
+        self.inbox = inbox
+        self.purchase = purchase
         self.modelContainer = modelContainer
         self.folderStatus = FolderStatus(isConnected: folder.isConnected)
+        self.purchaseStatus = PurchaseStatus(isFullUnlocked: purchase.isFullUnlocked)
     }
 
     /// Marks the folder connected after a successful `SpotifyFolderAccess.connect`,
@@ -62,6 +80,14 @@ final class AppContainer {
         folderStatus.isConnected = folder.isConnected
     }
 
+    /// Re-checks the purchase's current entitlement and syncs
+    /// `purchaseStatus`, so `SettingsView` reflects a purchase or restore
+    /// made just now, or one that happened on another device.
+    func refreshPurchaseStatus() async {
+        await purchase.refreshEntitlement()
+        purchaseStatus.isFullUnlocked = purchase.isFullUnlocked
+    }
+
     static func production() -> AppContainer {
         let modelContainer = Self.makeModelContainer(inMemory: false)
         let folder = UserDefaultsSpotifyFolder()
@@ -69,6 +95,8 @@ final class AppContainer {
         let importer = LocalFileImporter()
         let transcoder = AVTranscoder()
         let coverStore = FileCoverStore()
+        let inbox = AppGroupInboxStore()
+        let purchase = StoreKitPurchaseService()
         let coordinator = ReleaseCoordinator(
             importer: importer,
             transcoder: transcoder,
@@ -78,7 +106,18 @@ final class AppContainer {
             library: library,
             coverStore: coverStore
         )
-        return AppContainer(folder: folder, library: library, importer: importer, coordinator: coordinator, coverStore: coverStore, modelContainer: modelContainer)
+        let container = AppContainer(
+            folder: folder,
+            library: library,
+            importer: importer,
+            coordinator: coordinator,
+            coverStore: coverStore,
+            inbox: inbox,
+            purchase: purchase,
+            modelContainer: modelContainer
+        )
+        Task { await container.refreshPurchaseStatus() }
+        return container
     }
 
     /// Builds an `AppContainer` from fakes, for previews and tests. Every
@@ -91,7 +130,9 @@ final class AppContainer {
         transcoder: Transcoder,
         m4aTagWriter: TagWriter,
         id3TagWriter: TagWriter,
-        coverStore: CoverStore
+        coverStore: CoverStore,
+        inbox: InboxStore,
+        purchase: PurchaseService
     ) -> AppContainer {
         let modelContainer = Self.makeModelContainer(inMemory: true)
         let coordinator = ReleaseCoordinator(
@@ -103,7 +144,16 @@ final class AppContainer {
             library: library,
             coverStore: coverStore
         )
-        return AppContainer(folder: folder, library: library, importer: importer, coordinator: coordinator, coverStore: coverStore, modelContainer: modelContainer)
+        return AppContainer(
+            folder: folder,
+            library: library,
+            importer: importer,
+            coordinator: coordinator,
+            coverStore: coverStore,
+            inbox: inbox,
+            purchase: purchase,
+            modelContainer: modelContainer
+        )
     }
 
     private static func makeModelContainer(inMemory: Bool) -> ModelContainer {

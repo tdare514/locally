@@ -16,6 +16,7 @@ final class AlbumBuilderViewModel {
 
     private let importer: FileImporter
     private let coordinator: ReleaseCoordinator
+    private let inbox: InboxStore?
 
     var rows: [TrackRow] = []
     var albumTitle: String = ""
@@ -31,21 +32,25 @@ final class AlbumBuilderViewModel {
     var errorMessage: String?
     var completedRelease: Release?
 
-    init(importer: FileImporter, coordinator: ReleaseCoordinator) {
+    init(importer: FileImporter, coordinator: ReleaseCoordinator, inbox: InboxStore? = nil) {
         self.importer = importer
         self.coordinator = coordinator
+        self.inbox = inbox
     }
 
     /// Appends a row for each newly picked file, prefilling its title from
     /// whatever tags the file already carries (falling back to the
-    /// filename), same as the single-import flow.
-    func addFiles(_ urls: [URL]) async {
+    /// filename), same as the single-import flow. When `inboxFiles` is
+    /// given (files shared in from other apps rather than picked), the
+    /// matching file — by position — is removed from the inbox as soon as
+    /// its staging copy succeeds.
+    func addFiles(_ urls: [URL], inboxFiles: [InboxFile] = []) async {
         guard !urls.isEmpty else { return }
         errorMessage = nil
         isLoadingTags = true
         defer { isLoadingTags = false }
 
-        for url in urls {
+        for (index, url) in urls.enumerated() {
             let fallbackTitle = url.deletingPathExtension().lastPathComponent
             var title = fallbackTitle
             if let staged = try? await importer.stage([url]),
@@ -55,7 +60,16 @@ final class AlbumBuilderViewModel {
                 title = tags.title
             }
             rows.append(TrackRow(url: url, title: title))
+            if index < inboxFiles.count {
+                try? inbox?.remove(inboxFiles[index])
+            }
         }
+    }
+
+    /// Convenience for `AlbumBuilderView`'s "Make an album" inbox action:
+    /// adds every shared file as a row, in the order they were shared.
+    func addFiles(fromInbox files: [InboxFile]) async {
+        await addFiles(files.map(\.url), inboxFiles: files)
     }
 
     func removeRows(at offsets: IndexSet) {

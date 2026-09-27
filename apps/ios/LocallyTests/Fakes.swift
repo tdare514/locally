@@ -110,15 +110,86 @@ final class FakeCoverStore: CoverStore {
 
 /// `FileImporter` fake that copies a fixed set of already-on-disk URLs into
 /// a fresh tmp directory, mirroring the shape (but not the security scope)
-/// of the production importer.
+/// of the production importer. Optionally reports tags for a given URL, so
+/// tests can exercise the tag-prefill path the production `FileImporter`
+/// drives from `AVAsset` metadata.
 final class FakeFileImporter: FileImporter {
+    var tagsByURL: [URL: TagSet] = [:]
+
     func stage(_ urls: [URL]) async throws -> [StagedFile] {
         try urls.map { url in
             let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let dest = dir.appendingPathComponent(url.lastPathComponent)
             try FileManager.default.copyItem(at: url, to: dest)
-            return StagedFile(url: dest, originalName: url.lastPathComponent, existingTags: nil)
+            return StagedFile(url: dest, originalName: url.lastPathComponent, existingTags: tagsByURL[url])
         }
+    }
+}
+
+/// In-memory `InboxStore` fake — no App Group container, just an array — so
+/// tests can seed pending files and assert on what got removed.
+final class FakeInboxStore: InboxStore {
+    private(set) var files: [InboxFile]
+    private(set) var removed: [InboxFile] = []
+
+    init(files: [InboxFile] = []) {
+        self.files = files
+    }
+
+    func pendingFiles() -> [InboxFile] {
+        files
+    }
+
+    func remove(_ file: InboxFile) throws {
+        files.removeAll { $0.url == file.url }
+        removed.append(file)
+    }
+}
+
+/// `PurchaseService` fake — no StoreKit, just settable results — so tests
+/// can drive `PaywallView`-adjacent logic without a network or a StoreKit
+/// test session.
+final class FakePurchaseService: PurchaseService {
+    private(set) var isFullUnlocked: Bool
+    var productToReturn: PurchaseProduct?
+    var purchaseResult: Result<Bool, Error> = .success(true)
+    var restoreResult: Result<Bool, Error> = .success(true)
+    private(set) var purchaseCallCount = 0
+    private(set) var restoreCallCount = 0
+    private(set) var refreshCallCount = 0
+
+    init(isFullUnlocked: Bool = false) {
+        self.isFullUnlocked = isFullUnlocked
+    }
+
+    func loadProduct() async throws -> PurchaseProduct? {
+        productToReturn
+    }
+
+    func purchase() async throws -> Bool {
+        purchaseCallCount += 1
+        switch purchaseResult {
+        case .success(let unlocked):
+            if unlocked { isFullUnlocked = true }
+            return unlocked
+        case .failure(let error):
+            throw error
+        }
+    }
+
+    func restore() async throws -> Bool {
+        restoreCallCount += 1
+        switch restoreResult {
+        case .success(let unlocked):
+            if unlocked { isFullUnlocked = true }
+            return unlocked
+        case .failure(let error):
+            throw error
+        }
+    }
+
+    func refreshEntitlement() async {
+        refreshCallCount += 1
     }
 }

@@ -12,6 +12,7 @@ struct LocallyApp: App {
             RootView()
                 .environment(\.appContainer, container)
                 .environment(container.folderStatus)
+                .environment(container.purchaseStatus)
                 .preferredColorScheme(.dark)
         }
     }

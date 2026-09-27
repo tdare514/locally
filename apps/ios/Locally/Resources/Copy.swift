@@ -35,8 +35,13 @@ enum Copy {
         static let send = "Send to Spotify"
         static let sending = "Sending…"
         static let doneSingle = "Sent. Open Spotify, then Your Library, then Local Files to play it."
-        static let doneAlbum = "Sent. To hear it as an album, make it a playlist: in Spotify open Local Files, select these tracks, then Add to playlist, New playlist, and name it the album title."
         static let openSpotify = "Open Spotify"
+
+        /// Matches `docs/ios-plan.md`'s "Done (album)" copy verbatim, naming the actual
+        /// album title rather than the generic phrase a plain constant would need.
+        static func doneAlbum(albumTitle: String) -> String {
+            "Sent. To hear it as an album, make it a playlist: in Spotify open Local Files, select these tracks, then Add to playlist, New playlist, and name it \(albumTitle)."
+        }
         static let addAnother = "Add another"
         static let albumExplainer = "Spotify can't create albums from your own files, so we'll set these up to become a playlist. They'll share this cover, artist and album name."
         static let albumCoverPrompt = "Pick the cover that'll be applied to all of these tracks."
@@ -87,5 +92,30 @@ enum Copy {
         static let about = "About"
         static let trademarkLine = "Locally is an independent app. Spotify is a trademark of Spotify AB. This app is not affiliated with, endorsed by or sponsored by Spotify."
         static let version = "Version"
+    }
+
+    enum Inbox {
+        static func waitingBanner(count: Int) -> String {
+            count == 1
+                ? "1 song shared from other apps is waiting."
+                : "\(count) songs shared from other apps are waiting."
+        }
+        static let addAsSingles = "Add as singles"
+        static let makeAnAlbum = "Make an album"
+    }
+
+    enum Purchase {
+        static let title = "Locally Full"
+        static let body = "A one-time purchase, no subscription. It supports development and unlocks upcoming features as they arrive."
+        static let rowTitle = "Locally Full"
+        static let unlocked = "Unlocked"
+        static let buy = "Buy"
+        static let restore = "Restore purchase"
+        static let close = "Close"
+
+        static func buyLabel(price: String?) -> String {
+            guard let price else { return buy }
+            return "\(buy) – \(price)"
+        }
     }
 }

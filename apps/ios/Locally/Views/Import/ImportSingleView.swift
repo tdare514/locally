@@ -8,6 +8,15 @@ import UniformTypeIdentifiers
 struct ImportSingleView: View {
     @Environment(\.appContainer) private var container
 
+    /// Files shared in from other apps to work through, one at a time, as
+    /// soon as the model exists. Passed down from `ImportView`'s "Add as
+    /// singles" action; empty for a normal visit to this tab.
+    var inboxQueue: [InboxFile] = []
+    /// Called once `inboxQueue` has been handed to the model, so the parent
+    /// can clear its copy and not re-offer the same files if this view is
+    /// recreated (e.g. after switching to Album and back).
+    var onInboxQueueConsumed: () -> Void = {}
+
     /// Which of the two document pickers is showing. One `.fileImporter`
     /// serves both because SwiftUI presents only one per view.
     private enum Picker { case audio, cover }
@@ -35,8 +44,13 @@ struct ImportSingleView: View {
         }
         .task {
             if model == nil, let container {
-                model = ImportSingleViewModel(importer: container.importer, coordinator: container.coordinator)
+                model = ImportSingleViewModel(importer: container.importer, coordinator: container.coordinator, inbox: container.inbox)
             }
+        }
+        .task(id: inboxQueue) {
+            guard !inboxQueue.isEmpty, let model else { return }
+            await model.startInboxQueue(inboxQueue)
+            onInboxQueueConsumed()
         }
     }
 

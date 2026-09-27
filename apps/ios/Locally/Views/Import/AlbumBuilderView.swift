@@ -9,6 +9,14 @@ import UniformTypeIdentifiers
 struct AlbumBuilderView: View {
     @Environment(\.appContainer) private var container
 
+    /// Files shared in from other apps to seed the album with, from
+    /// `ImportView`'s "Make an album" action; empty for a normal visit.
+    var inboxFiles: [InboxFile] = []
+    /// Called once `inboxFiles` has been handed to the model, so the parent
+    /// can clear its copy and not re-offer the same files if this view is
+    /// recreated (e.g. after switching to Single and back).
+    var onInboxFilesConsumed: () -> Void = {}
+
     /// Which of the two document pickers is showing. One `.fileImporter`
     /// serves both — SwiftUI presents only one per view — and the kind
     /// lives here rather than in `isPickerPresented`, since SwiftUI flips
@@ -27,7 +35,7 @@ struct AlbumBuilderView: View {
             Theme.background.ignoresSafeArea()
 
             if let model, model.completedRelease != nil {
-                DoneView(kind: .album, trackTitles: model.orderedTrackTitles) {
+                DoneView(kind: .album, trackTitles: model.orderedTrackTitles, albumTitle: model.albumTitle) {
                     model.reset()
                 }
             } else if let model {
@@ -36,8 +44,13 @@ struct AlbumBuilderView: View {
         }
         .task {
             if model == nil, let container {
-                model = AlbumBuilderViewModel(importer: container.importer, coordinator: container.coordinator)
+                model = AlbumBuilderViewModel(importer: container.importer, coordinator: container.coordinator, inbox: container.inbox)
             }
+        }
+        .task(id: inboxFiles) {
+            guard !inboxFiles.isEmpty, let model else { return }
+            await model.addFiles(fromInbox: inboxFiles)
+            onInboxFilesConsumed()
         }
     }
 

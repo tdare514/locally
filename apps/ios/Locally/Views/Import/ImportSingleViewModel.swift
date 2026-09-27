@@ -8,6 +8,7 @@ import Foundation
 final class ImportSingleViewModel {
     private let importer: FileImporter
     private let coordinator: ReleaseCoordinator
+    private let inbox: InboxStore?
 
     var pickedURL: URL?
     var title: String = ""
@@ -22,14 +23,25 @@ final class ImportSingleViewModel {
     var errorMessage: String?
     var completedRelease: Release?
 
-    init(importer: FileImporter, coordinator: ReleaseCoordinator) {
+    /// Files shared in from other apps, still waiting after the one
+    /// currently loaded in the form. Populated by `startInboxQueue`;
+    /// `reset()` advances to the next one automatically so "Add another"
+    /// walks through the whole share in order.
+    private(set) var pendingInboxQueue: [InboxFile] = []
+
+    init(importer: FileImporter, coordinator: ReleaseCoordinator, inbox: InboxStore? = nil) {
         self.importer = importer
         self.coordinator = coordinator
+        self.inbox = inbox
     }
 
     /// Records the picked file and prefills the fields from whatever tags
     /// it already carries (falling back to the filename for the title).
-    func pick(url: URL) async {
+    /// When `inboxFile` is given (the file came from the share inbox
+    /// rather than a document picker), it's removed from the inbox as soon
+    /// as staging copies it out — the copy in the app's own tmp directory
+    /// is now the only one that matters.
+    func pick(url: URL, inboxFile: InboxFile? = nil) async {
         pickedURL = url
         errorMessage = nil
         isLoadingTags = true
@@ -47,9 +59,21 @@ final class ImportSingleViewModel {
             } else if title.isEmpty {
                 title = url.deletingPathExtension().lastPathComponent
             }
+            if let inboxFile {
+                try? inbox?.remove(inboxFile)
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Starts working through files shared in from other apps: loads the
+    /// first into the form (prefilled, same as any picked file) and keeps
+    /// the rest queued for `reset()` to advance through one at a time.
+    func startInboxQueue(_ files: [InboxFile]) async {
+        guard let first = files.first else { return }
+        pendingInboxQueue = Array(files.dropFirst())
+        await pick(url: first.url, inboxFile: first)
     }
 
     /// Sends the picked file to Spotify's folder with the current field
@@ -77,7 +101,10 @@ final class ImportSingleViewModel {
         }
     }
 
-    /// Resets all fields so the view can be reused for another import.
+    /// Resets all fields so the view can be reused for another import. If a
+    /// share queue is still waiting (`startInboxQueue`), loads the next
+    /// file instead of leaving the form blank, so "Add another" walks
+    /// through everything that was shared in, one at a time.
     func reset() {
         pickedURL = nil
         title = ""
@@ -88,6 +115,10 @@ final class ImportSingleViewModel {
         coverData = nil
         completedRelease = nil
         errorMessage = nil
+
+        guard !pendingInboxQueue.isEmpty else { return }
+        let next = pendingInboxQueue.removeFirst()
+        Task { await pick(url: next.url, inboxFile: next) }
     }
 
     var canSend: Bool {
