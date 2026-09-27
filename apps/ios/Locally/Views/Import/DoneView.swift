@@ -59,7 +59,7 @@ struct DoneView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .panelCard()
+        .cardContainer()
         .padding(.horizontal, Theme.Spacing.pagePadding)
     }
 }

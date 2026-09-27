@@ -58,24 +58,22 @@ struct AlbumBuilderView: View {
     private func form(_ model: AlbumBuilderViewModel) -> some View {
         List {
             Section {
-                Button {
-                    activePicker = .files
-                    isPickerPresented = true
-                } label: {
-                    Text(Copy.Import.chooseFiles)
-                        .font(Theme.Font.body)
-                        .foregroundStyle(Theme.primaryText)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                }
-                .buttonStyle(.plain)
-                .dropZone()
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
+                fileChooser
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
             }
             .listRowBackground(Color.clear)
 
             Section {
+                // A row, not a `header:`: `.plain` lists pin section headers while
+                // scrolling, and the pinned eyebrow overlapped the first track row.
+                HStack {
+                    Text(Copy.Import.tracks).eyebrow()
+                    Spacer()
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 0, leading: 2, bottom: 2, trailing: 2))
                 if model.rows.isEmpty {
                     Text(Copy.Import.noTracksYet)
                         .font(Theme.Font.body)
@@ -84,41 +82,37 @@ struct AlbumBuilderView: View {
                         .listRowSeparator(.hidden)
                 } else {
                     ForEach(Array(model.rows.enumerated()), id: \.element.id) { index, row in
-                        HStack(spacing: 10) {
-                            Text("\(index + 1)")
-                                .font(Theme.Font.body)
-                                .foregroundStyle(Theme.secondaryText)
-                                .frame(width: 20, alignment: .trailing)
-                            TextField(Copy.Import.track, text: titleBinding(for: row, in: model))
-                                .font(Theme.Font.body)
-                                .foregroundStyle(Theme.primaryText)
-                        }
-                        .padding(.horizontal, Theme.Spacing.inputPaddingH)
-                        .padding(.vertical, Theme.Spacing.inputPaddingV)
-                        .listRowBackground(Theme.elevated)
+                        FileRow(
+                            index: index + 1,
+                            title: row.title,
+                            isEditable: true,
+                            onTitleChange: { newValue in setTitle(newValue, for: row, in: model) }
+                        )
+                        .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16))
+                        .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: 2, bottom: Theme.Spacing.rowGap, trailing: 2))
                     }
                     .onMove(perform: model.moveRows)
                     .onDelete(perform: model.removeRows)
                 }
-            } header: {
-                Text("Tracks").eyebrow()
             }
 
             Section {
                 Field(Copy.Import.fieldAlbumTitle, text: Binding(get: { model.albumTitle }, set: { model.albumTitle = $0 }))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: 2, bottom: Theme.Spacing.rowGap, trailing: 2))
                 Field(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: 2, bottom: Theme.Spacing.rowGap, trailing: 2))
                 HStack(spacing: 12) {
                     Field(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }), keyboardType: .numberPad)
                     Field(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }))
                 }
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: 2, bottom: Theme.Spacing.rowGap, trailing: 2))
             }
 
             Section {
@@ -143,42 +137,47 @@ struct AlbumBuilderView: View {
                     .listRowSeparator(.hidden)
             }
 
-            Section {
-                if let errorMessage = model.errorMessage {
+            if let errorMessage = model.errorMessage {
+                Section {
                     Text(errorMessage)
                         .font(Theme.Font.rowSubtitle)
                         .foregroundStyle(Theme.danger)
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                 }
-
-                Button {
-                    Task { await model.send() }
-                } label: {
-                    if model.isSending {
-                        VStack(spacing: 4) {
-                            ProgressView().tint(.black)
-                            Text(Copy.Import.taggingProgress(done: model.progressDone, total: model.progressTotal))
-                                .font(Theme.Font.rowSubtitle)
-                        }
-                        .frame(maxWidth: .infinity)
-                    } else {
-                        Text(Copy.Import.send)
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-                .buttonStyle(PrimaryPillButtonStyle())
-                .disabled(!model.canSend)
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
             }
         }
+        // `.plain` (rather than the default `.insetGrouped`) so sections
+        // don't get a rounded-corner card clip — every row's own background
+        // is drawn by hand via `.cardContainer()`/`FileRow`, and the system
+        // corner clip was cutting into the first row's leading glyph.
+        .listStyle(.plain)
+        .listSectionSpacing(.custom(Theme.Spacing.sectionGap))
         .scrollContentBackground(.hidden)
         .background(Theme.background)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 EditButton()
             }
+        }
+        .stickyFooter {
+            Button {
+                Task { await model.send() }
+            } label: {
+                if model.isSending {
+                    VStack(spacing: 4) {
+                        ProgressView().tint(.black)
+                        Text(Copy.Import.taggingProgress(done: model.progressDone, total: model.progressTotal))
+                            .font(Theme.Font.rowSubtitle)
+                    }
+                    .frame(maxWidth: .infinity)
+                } else {
+                    Text(Copy.Import.send)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .buttonStyle(PrimaryPillButtonStyle())
+            .disabled(!model.canSend)
         }
         .fileImporter(
             isPresented: $isPickerPresented,
@@ -202,16 +201,35 @@ struct AlbumBuilderView: View {
         }
     }
 
+    /// A `card` drop-zone block with a dashed border and an upload icon,
+    /// matching `docs/design.md`'s "Audio drop zone" component. Kept
+    /// captioned "Choose files" (rather than the singular "Tap to choose a
+    /// file") since this picker takes multiple files at once.
+    private var fileChooser: some View {
+        Button {
+            activePicker = .files
+            isPickerPresented = true
+        } label: {
+            VStack(spacing: 8) {
+                Image(systemName: "icloud.and.arrow.up")
+                    .font(.system(size: 26))
+                    .foregroundStyle(Theme.secondaryText)
+                Text(Copy.Import.chooseFiles)
+                    .font(Theme.Font.dropZoneLine)
+                    .foregroundStyle(Theme.primaryText)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 20)
+        }
+        .buttonStyle(.plain)
+        .dropZone()
+    }
+
     /// A title binding by row id (not index), so it stays correct while
     /// `.onMove`/`.onDelete` change positions.
-    private func titleBinding(for row: AlbumBuilderViewModel.TrackRow, in model: AlbumBuilderViewModel) -> Binding<String> {
-        Binding(
-            get: { model.rows.first(where: { $0.id == row.id })?.title ?? row.title },
-            set: { newValue in
-                if let index = model.rows.firstIndex(where: { $0.id == row.id }) {
-                    model.rows[index].title = newValue
-                }
-            }
-        )
+    private func setTitle(_ newValue: String, for row: AlbumBuilderViewModel.TrackRow, in model: AlbumBuilderViewModel) {
+        if let index = model.rows.firstIndex(where: { $0.id == row.id }) {
+            model.rows[index].title = newValue
+        }
     }
 }

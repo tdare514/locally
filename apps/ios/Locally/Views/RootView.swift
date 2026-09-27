@@ -10,20 +10,28 @@ struct RootView: View {
     /// stored, so the user actually sees the "Connected" confirmation.
     @State private var hasFinishedOnboarding = false
 
+    /// The selected tab index, shared with `LibraryView` so its sticky
+    /// "Add a song" footer button can switch to the Add a song tab (the
+    /// `TabView` has no other shared selection to hook into).
+    @State private var selectedTab = 0
+
     var body: some View {
         Group {
             if !folderStatus.isConnected || !hasFinishedOnboarding {
                 OnboardingView { hasFinishedOnboarding = true }
             } else {
-                TabView {
+                TabView(selection: $selectedTab) {
                     ImportView()
                         .tabItem { Label(Copy.Import.title, systemImage: "plus.circle") }
+                        .tag(0)
 
-                    LibraryView()
+                    LibraryView(selectedTab: $selectedTab)
                         .tabItem { Label(Copy.Library.title, systemImage: "music.note.list") }
+                        .tag(1)
 
                     SettingsView()
                         .tabItem { Label(Copy.Settings.title, systemImage: "gearshape") }
+                        .tag(2)
                 }
                 .tint(Theme.accent)
             }

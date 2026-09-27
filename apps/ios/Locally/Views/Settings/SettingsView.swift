@@ -45,7 +45,7 @@ struct SettingsView: View {
                             .foregroundStyle(Theme.danger)
                     }
                 }
-                .listRowBackground(Theme.panel)
+                .listRowBackground(Theme.card)
 
                 Section {
                     if purchaseStatus.isFullUnlocked {
@@ -68,7 +68,15 @@ struct SettingsView: View {
                         }
                     }
                 }
-                .listRowBackground(Theme.panel)
+                .listRowBackground(Theme.card)
+
+                Section {
+                    AppIconPicker()
+                        .listRowSeparator(.hidden)
+                } header: {
+                    Text(Copy.Settings.appIcon).eyebrow()
+                }
+                .listRowBackground(Theme.card)
 
                 Section {
                     Text(Copy.Settings.trademarkLine)
@@ -80,7 +88,7 @@ struct SettingsView: View {
                 } header: {
                     Text(Copy.Settings.about).eyebrow()
                 }
-                .listRowBackground(Theme.panel)
+                .listRowBackground(Theme.card)
             }
             .scrollContentBackground(.hidden)
             .background(Theme.background)

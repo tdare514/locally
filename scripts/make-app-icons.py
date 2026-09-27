@@ -118,6 +118,18 @@ def write_set(name, png_bytes_path):
                    "info": {"author": "xcode", "version": 1}}, f, indent=2)
 
 
+def write_preview_set(name, svg_path):
+    """A 256 px image set the app can load with UIImage(named:) for the icon picker;
+    app icon sets themselves are not loadable at runtime."""
+    d = os.path.join(CATALOG, f"IconPreview-{name}.imageset")
+    os.makedirs(d, exist_ok=True)
+    subprocess.run(["rsvg-convert", "-w", "256", "-h", "256", "-o", os.path.join(d, "preview.png"), svg_path], check=True)
+    with open(os.path.join(d, "Contents.json"), "w") as f:
+        json.dump({"images": [{"filename": "preview.png", "idiom": "universal", "scale": "1x"},
+                              {"idiom": "universal", "scale": "2x"}, {"idiom": "universal", "scale": "3x"}],
+                   "info": {"author": "xcode", "version": 1}}, f, indent=2)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--accent", required=True, help="hex without #, e.g. 1E7DF0")
@@ -138,6 +150,7 @@ def main():
             os.makedirs(args.preview, exist_ok=True)
             subprocess.run(["rsvg-convert", "-w", "256", "-h", "256", "-o", os.path.join(args.preview, f"{name}.png"), svg_path], check=True)
         write_set(name, png_path)
+        write_preview_set(name, svg_path)
         print("wrote", name)
 
 

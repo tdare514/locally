@@ -17,9 +17,7 @@ struct Field: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.labelGap) {
-            Text(label)
-                .font(Theme.Font.fieldLabel)
-                .foregroundStyle(Theme.secondaryText)
+            Text(label).fieldLabelStyle()
             TextField(placeholder, text: $text)
                 .keyboardType(keyboardType)
                 .fieldStyle()

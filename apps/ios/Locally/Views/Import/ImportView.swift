@@ -26,6 +26,10 @@ struct ImportView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 0) {
+                header
+                    .padding(.horizontal, Theme.Spacing.pagePadding)
+                    .padding(.top, 8)
+
                 if !inboxFiles.isEmpty {
                     inboxBanner
                 }
@@ -35,7 +39,7 @@ struct ImportView: View {
                     selection: $kind
                 )
                 .padding(.horizontal, Theme.Spacing.pagePadding)
-                .padding(.top, 12)
+                .padding(.top, 16)
 
                 Group {
                     switch kind {
@@ -47,11 +51,24 @@ struct ImportView: View {
                 }
             }
             .background(Theme.background.ignoresSafeArea())
-            .navigationTitle(Copy.Import.title)
+            // The in-content eyebrow + title above already shows "Add a
+            // song"; an empty nav title avoids repeating it in the system
+            // bar while keeping that bar's black, minimal chrome.
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
         }
         .onAppear { refreshInbox() }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active { refreshInbox() }
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(Copy.Import.eyebrow).eyebrow()
+            Text(Copy.Import.title)
+                .font(Theme.Font.pageTitle)
+                .foregroundStyle(Theme.primaryText)
         }
     }
 
@@ -78,10 +95,14 @@ struct ImportView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.elevated)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+        .background(Theme.card)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.dropZone))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.dropZone)
+                .stroke(Theme.border, lineWidth: 1)
+        )
         .padding(.horizontal, Theme.Spacing.pagePadding)
-        .padding(.top, 8)
+        .padding(.top, 12)
     }
 
     private func refreshInbox() {

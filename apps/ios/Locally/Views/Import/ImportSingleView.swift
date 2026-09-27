@@ -61,12 +61,14 @@ struct ImportSingleView: View {
                 fileChooser(model)
 
                 if model.pickedURL != nil {
-                    Field(Copy.Import.fieldTitle, text: Binding(get: { model.title }, set: { model.title = $0 }))
-                    Field(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }))
-                    Field(Copy.Import.fieldAlbum, placeholder: Copy.Import.albumPlaceholder, text: Binding(get: { model.album }, set: { model.album = $0 }))
-                    HStack(spacing: 12) {
-                        Field(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }), keyboardType: .numberPad)
-                        Field(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }))
+                    VStack(alignment: .leading, spacing: Theme.Spacing.fieldGap) {
+                        Field(Copy.Import.fieldTitle, text: Binding(get: { model.title }, set: { model.title = $0 }))
+                        Field(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }))
+                        Field(Copy.Import.fieldAlbum, placeholder: Copy.Import.albumPlaceholder, text: Binding(get: { model.album }, set: { model.album = $0 }))
+                        HStack(spacing: 12) {
+                            Field(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }), keyboardType: .numberPad)
+                            Field(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }))
+                        }
                     }
 
                     CoverPicker(
@@ -77,30 +79,29 @@ struct ImportSingleView: View {
                         isPickerPresented = true
                     }
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        if let errorMessage = model.errorMessage {
-                            Text(errorMessage)
-                                .font(Theme.Font.rowSubtitle)
-                                .foregroundStyle(Theme.danger)
-                        }
-
-                        Button {
-                            Task { await model.send() }
-                        } label: {
-                            if model.isSending {
-                                ProgressView().tint(.black)
-                            } else {
-                                Text(Copy.Import.send)
-                            }
-                        }
-                        .buttonStyle(PrimaryPillButtonStyle())
-                        .disabled(!model.canSend)
+                    if let errorMessage = model.errorMessage {
+                        Text(errorMessage)
+                            .font(Theme.Font.rowSubtitle)
+                            .foregroundStyle(Theme.danger)
                     }
                 }
             }
             .padding(Theme.Spacing.pagePadding)
         }
         .background(Theme.background)
+        .stickyFooter {
+            Button {
+                Task { await model.send() }
+            } label: {
+                if model.isSending {
+                    ProgressView().tint(.black)
+                } else {
+                    Text(Copy.Import.send)
+                }
+            }
+            .buttonStyle(PrimaryPillButtonStyle())
+            .disabled(!model.canSend)
+        }
         .fileImporter(
             isPresented: $isPickerPresented,
             allowedContentTypes: activePicker == .cover ? [.image] : [.audio]
@@ -121,25 +122,30 @@ struct ImportSingleView: View {
         }
     }
 
-    /// A `panel` drop-zone block: once a file is picked, shows its name;
-    /// otherwise the muted caption and hint. Matches `docs/design.md`'s
-    /// "Drop zone / file chooser" component (iOS has no drag-and-drop, so
-    /// tapping is the only way in).
+    /// A `card` drop-zone block with a dashed border: once a file is picked,
+    /// shows its name; otherwise an upload icon, the caption and hint.
+    /// Matches `docs/design.md`'s "Audio drop zone" component (iOS has no
+    /// drag-and-drop, so tapping is the only way in).
     private func fileChooser(_ model: ImportSingleViewModel) -> some View {
         Button {
             activePicker = .audio
             isPickerPresented = true
         } label: {
-            VStack(spacing: 4) {
+            VStack(spacing: 8) {
+                if model.pickedName == nil {
+                    Image(systemName: "icloud.and.arrow.up")
+                        .font(.system(size: 26))
+                        .foregroundStyle(Theme.secondaryText)
+                }
                 Text(model.pickedName ?? Copy.Import.fileCaption)
-                    .font(Theme.Font.body)
+                    .font(Theme.Font.dropZoneLine)
                     .foregroundStyle(Theme.primaryText)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 if model.pickedName == nil {
                     Text(Copy.Import.singleFileHint)
-                        .font(Theme.Font.rowSubtitle)
-                        .foregroundStyle(Theme.secondaryText)
+                        .font(Theme.Font.dropZoneHint)
+                        .foregroundStyle(Theme.textHint)
                 }
             }
             .multilineTextAlignment(.center)

@@ -8,7 +8,9 @@ import SwiftUI
 ///
 /// The selection frame never moves: gestures update `cropRect` (in image
 /// space) via `CropGeometry`, and the image is drawn scaled/offset so that
-/// `cropRect` always exactly fills the frame — the usual iOS crop UX.
+/// `cropRect` always exactly fills the frame — the usual iOS crop UX. The
+/// whole sheet is styled as `docs/design.md`'s "Crop dialog" component: a
+/// `card` surface with a `dialog-border`, floating on the black background.
 struct CoverCropView: View {
     let imageData: Data
     let onDone: (Data) -> Void
@@ -21,49 +23,54 @@ struct CoverCropView: View {
     @State private var gestureStartRect: CGRect = .zero
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 16) {
-                Picker("", selection: $ratio) {
-                    ForEach(CoverRatio.allCases, id: \.self) { ratio in
-                        Text(ratio.displayName).tag(ratio)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 20)
-                .padding(.top, 12)
-                .onChange(of: ratio) { _, newValue in
-                    resetCropRect(CropGeometry.initialRect(imageSize: imageSize, ratio: newValue))
-                }
+        ZStack {
+            Theme.background.ignoresSafeArea()
 
-                Text(Copy.Cover.squareHint)
-                    .font(.footnote)
-                    .foregroundStyle(Theme.secondaryText)
-                    .opacity(ratio == .square ? 1 : 0)
-                    .padding(.horizontal, 20)
-
-                cropCanvas
-                    .padding(.horizontal, 20)
-
-                Spacer()
-            }
-            .background(Theme.background.ignoresSafeArea())
-            .navigationTitle(Copy.Cover.cropTitle)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(Copy.Cover.cancel, action: onCancel)
-                        .foregroundStyle(Theme.secondaryText)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(Copy.Cover.done, action: process)
-                        .disabled(uiImage == nil)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Theme.accent)
-                        .opacity(uiImage == nil ? 0.4 : 1)
-                }
-            }
+            dialog
+                .padding(20)
         }
         .task { loadImage() }
+    }
+
+    private var dialog: some View {
+        VStack(spacing: 16) {
+            Text(Copy.Cover.cropTitle)
+                .font(.system(size: 19, weight: .bold))
+                .foregroundStyle(Theme.primaryText)
+
+            cropCanvas
+
+            SegmentedPill(
+                options: [(CoverRatio.square, Copy.Cover.square), (CoverRatio.original, Copy.Cover.original)],
+                selection: $ratio,
+                isCompact: true
+            )
+            .onChange(of: ratio) { _, newValue in
+                resetCropRect(CropGeometry.initialRect(imageSize: imageSize, ratio: newValue))
+            }
+
+            Text(Copy.Cover.squareHint)
+                .font(.footnote)
+                .foregroundStyle(Theme.secondaryText)
+                .multilineTextAlignment(.center)
+                .opacity(ratio == .square ? 1 : 0)
+
+            HStack(spacing: 20) {
+                Spacer()
+                Button(Copy.Cover.cancel, action: onCancel)
+                    .buttonStyle(TextButtonStyle())
+                Button(Copy.Cover.done, action: process)
+                    .buttonStyle(PrimaryPillButtonStyle(isFullWidth: false))
+                    .disabled(uiImage == nil)
+            }
+        }
+        .padding(20)
+        .background(Theme.card)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.dialog))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Radius.dialog)
+                .stroke(Theme.dialogBorder, lineWidth: 1)
+        )
     }
 
     private var cropCanvas: some View {
@@ -84,8 +91,8 @@ struct CoverCropView: View {
             .gesture(panGesture(containerSize: proxy.size))
             .simultaneousGesture(zoomGesture())
         }
-        .frame(height: 320)
-        .background(Theme.panel)
+        .frame(height: 280)
+        .background(Color(red: 0x05 / 255, green: 0x05 / 255, blue: 0x05 / 255))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -141,6 +148,10 @@ struct CoverCropView: View {
         return CGRect(origin: origin, size: displayedSize)
     }
 
+    /// Matches `docs/design.md`'s "Crop dialog" preview: an outer white 25%
+    /// border around the viewfinder, centre guide lines at white 10%, and an
+    /// inner frame inset 12 pt at white 60%, over a dimmed surround so the
+    /// selection reads clearly against the rest of the image.
     private func selectionOverlay(containerSize: CGSize) -> some View {
         let viewfinder = viewfinderRect(containerSize: containerSize)
         return ZStack {
@@ -151,8 +162,21 @@ struct CoverCropView: View {
             .fill(Color.black.opacity(0.55), style: FillStyle(eoFill: true))
 
             Rectangle()
-                .stroke(Theme.accent, lineWidth: 2)
+                .stroke(Color.white.opacity(0.25), lineWidth: 1)
                 .frame(width: viewfinder.width, height: viewfinder.height)
+                .position(x: viewfinder.midX, y: viewfinder.midY)
+
+            Path { path in
+                path.move(to: CGPoint(x: viewfinder.midX, y: viewfinder.minY))
+                path.addLine(to: CGPoint(x: viewfinder.midX, y: viewfinder.maxY))
+                path.move(to: CGPoint(x: viewfinder.minX, y: viewfinder.midY))
+                path.addLine(to: CGPoint(x: viewfinder.maxX, y: viewfinder.midY))
+            }
+            .stroke(Color.white.opacity(0.10), lineWidth: 1)
+
+            Rectangle()
+                .stroke(Color.white.opacity(0.60), lineWidth: 1)
+                .frame(width: max(viewfinder.width - 24, 0), height: max(viewfinder.height - 24, 0))
                 .position(x: viewfinder.midX, y: viewfinder.midY)
         }
         .allowsHitTesting(false)

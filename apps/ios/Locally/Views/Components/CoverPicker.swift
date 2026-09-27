@@ -3,14 +3,20 @@ import PhotosUI
 import UniformTypeIdentifiers
 
 /// Lets the user pick a cover image from Photos or from Files, showing a
-/// thumbnail once one is chosen. Used by both the single-track and
-/// (phase 2) album import flows, plus the release detail's cover replacer.
+/// thumbnail once one is chosen. Used by both the single-track and album
+/// import flows (`.dropZone`, a square drop-zone card) and the release
+/// detail's cover replacer (`.hero`, the full-width editor cover with an
+/// "Edit" pill overlay).
 ///
 /// Neither pick path writes `imageData` directly: both first land in
 /// `pendingCrop`, which presents `CoverCropView` so the user frames the
 /// square (or original) Spotify will show. Only Done writes `imageData`;
 /// Cancel leaves it untouched.
 struct CoverPicker: View {
+    /// Which of the two presentations to draw. See `docs/design.md`'s
+    /// "Cover drop zone" and "Editor / release detail" components.
+    enum Style { case dropZone, hero }
+
     @Binding var imageData: Data?
     /// The parent owns the file importer: SwiftUI honours only one
     /// `.fileImporter` per presentation context, so a nested one here
@@ -19,28 +25,18 @@ struct CoverPicker: View {
     /// once it has raw bytes from that picker; `CoverPicker` consumes it
     /// (setting it back to `nil`) and presents the crop sheet for it.
     @Binding var rawPick: Data?
+    var style: Style = .dropZone
     let onPickFromFiles: () -> Void
 
     @State private var photosItem: PhotosPickerItem?
     @State private var pendingCrop: Data?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.labelGap) {
-            Text(Copy.Import.cover)
-                .font(Theme.Font.fieldLabel)
-                .foregroundStyle(Theme.secondaryText)
-
-            Menu {
-                PhotosPicker(selection: $photosItem, matching: .images) {
-                    Label("Photos", systemImage: "photo.on.rectangle")
-                }
-                Button(action: onPickFromFiles) {
-                    Label("Files", systemImage: "folder")
-                }
-            } label: {
-                panel
+        Group {
+            switch style {
+            case .dropZone: dropZoneBody
+            case .hero: heroBody
             }
-            .buttonStyle(.plain)
         }
         .task(id: photosItem) {
             guard let photosItem else { return }
@@ -68,25 +64,112 @@ struct CoverPicker: View {
         }
     }
 
-    /// A 120 pt square `panel` block: the chosen image once one exists,
-    /// otherwise a centred muted caption. Matches `docs/design.md`'s
-    /// "Cover picker" component.
     @ViewBuilder
-    private var panel: some View {
-        Group {
-            if let imageData, let uiImage = UIImage(data: imageData) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                Text(Copy.Import.coverCaption)
-                    .font(Theme.Font.body)
+    private var menuItems: some View {
+        PhotosPicker(selection: $photosItem, matching: .images) {
+            Label("Photos", systemImage: "photo.on.rectangle")
+        }
+        Button(action: onPickFromFiles) {
+            Label("Files", systemImage: "folder")
+        }
+    }
+
+    // MARK: - Drop zone (import screens)
+
+    private var dropZoneBody: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.labelGap) {
+            Text(Copy.Import.cover).fieldLabelStyle()
+
+            // `Menu` sizes its label to its own intrinsic content and
+            // ignores a `.frame`/`.aspectRatio` applied directly to it (or
+            // to its label) when the surrounding proposed height is
+            // unbounded, as it is inside this `ScrollView` — the label
+            // silently renders oversized instead of a full-width square.
+            // Sizing a plain `Color.clear` first, then overlaying the
+            // interactive `Menu` on its already-resolved, finite frame,
+            // sidesteps that ambiguity.
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .frame(maxWidth: .infinity)
+                .overlay {
+                    Menu {
+                        menuItems
+                    } label: {
+                        dropZonePanel
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .dropZone()
+
+            Text(Copy.Import.coverHint)
+                .font(Theme.Font.dropZoneHint)
+                .foregroundStyle(Theme.textHint)
+        }
+    }
+
+    /// The chosen image once one exists, otherwise an image-plus icon and
+    /// the caption. Sizing and the `card`/dashed-border chrome are applied
+    /// by the caller, to the `Menu` itself.
+    @ViewBuilder
+    private var dropZonePanel: some View {
+        if let imageData, let uiImage = UIImage(data: imageData) {
+            Image(uiImage: uiImage)
+                .resizable()
+                .scaledToFill()
+        } else {
+            VStack(spacing: 8) {
+                Image(systemName: "photo.badge.plus")
+                    .font(.system(size: 28))
                     .foregroundStyle(Theme.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .padding(12)
+                Text(Copy.Import.coverCaption)
+                    .font(Theme.Font.dropZoneLine)
+                    .foregroundStyle(Theme.primaryText.opacity(0.85))
             }
         }
-        .frame(width: 120, height: 120)
-        .dropZone()
+    }
+
+    // MARK: - Hero (release detail editor)
+
+    /// A full-width square cover, radius 10 with a soft shadow, and a small
+    /// "Edit" pill overlay bottom-right that opens the same Photos/Files menu.
+    private var heroBody: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Group {
+                if let imageData, let uiImage = UIImage(data: imageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    ZStack {
+                        Theme.card
+                        Image(systemName: "music.note")
+                            .font(.system(size: 40))
+                            .foregroundStyle(Theme.secondaryText)
+                    }
+                }
+            }
+            .aspectRatio(1, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.bigCover))
+            .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 12)
+
+            Menu {
+                menuItems
+            } label: {
+                Label(Copy.Detail.edit, systemImage: "pencil")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Theme.primaryText)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background {
+                        Capsule()
+                            .fill(.black.opacity(0.8))
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+            }
+            .buttonStyle(.plain)
+            .padding(12)
+        }
     }
 }

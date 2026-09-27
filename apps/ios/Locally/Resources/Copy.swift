@@ -22,6 +22,9 @@ enum Copy {
 
     enum Import {
         static let title = "Add a song"
+        /// The eyebrow shown above the title on the Add a song screen, per
+        /// `docs/design.md`'s "Page header" component.
+        static let eyebrow = "Local library"
         static let pickFile = "Choose a file"
         static let chooseFiles = "Choose files"
         static let fieldTitle = "Title"
@@ -35,12 +38,21 @@ enum Copy {
         /// The cover picker panel's caption before an image is chosen. Matches
         /// `docs/design.md`'s "Cover picker" component, iOS wording.
         static let coverCaption = "Tap to choose a cover"
+        /// The hint under the cover drop zone, verbatim from `docs/design.md`'s
+        /// "Cover drop zone" component.
+        static let coverHint = "Square artwork works best"
         /// The file chooser panel's caption before a file is chosen. Matches
         /// `docs/design.md`'s "Drop zone / file chooser" component, iOS wording.
         static let fileCaption = "Tap to choose a file"
         /// The muted hint under the single-track file chooser, verbatim from
         /// `docs/design.md`'s "Drop zone / file chooser" component.
         static let singleFileHint = "Singles are one file. Switch to Album for multiple."
+        /// The section title over an album's track rows, and the release
+        /// detail's Tracks section.
+        static let tracks = "Tracks"
+        /// A file row's caption under its title, per `docs/design.md`'s
+        /// "Editor / release detail" component.
+        static let audioFile = "Audio file"
         static let send = "Send to Spotify"
         static let sending = "Sending…"
         static let doneSingle = "Sent. Open Spotify, then Your Library, then Local Files to play it."
@@ -66,14 +78,32 @@ enum Copy {
     }
 
     enum Library {
+        /// The header row's eyebrow, per `docs/design.md`'s "Library list" component.
+        static let eyebrow = "Your collection"
+        /// The header row's title, replacing the generic nav title in-content.
+        static let allMusic = "All music"
         static let title = "Your library"
         /// Verbatim from `docs/design.md`'s "Empty state" component.
         static let empty = "No releases yet. Import your first track or album to get started."
         static let single = "Single"
         static let album = "Album"
+        /// The header row's right-aligned meta, e.g. "7 tracks".
+        static func trackCount(_ count: Int) -> String {
+            count == 1 ? "1 track" : "\(count) tracks"
+        }
+        /// The sticky-footer button that switches to the Add a song tab.
+        static let addASong = "Add a song"
     }
 
     enum Detail {
+        /// The eyebrow over the release detail's metadata section.
+        static let detailsEyebrow = "Details"
+        /// The metadata section's title.
+        static let metadata = "Metadata"
+        /// The metadata section's right-aligned meta.
+        static let tapToEdit = "Tap to edit"
+        /// The pill overlay on the release detail's big cover.
+        static let edit = "Edit"
         static let saveChanges = "Save changes"
         static let saving = "Saving…"
         static let replaceCover = "Replace cover"
@@ -82,10 +112,14 @@ enum Copy {
         static let deleteConfirmAction = "Delete release"
         static let deleteConfirmCancel = "Cancel"
         static let makeItAPlaylist = "Make it a playlist"
+        /// The Tracks section's right-aligned meta, e.g. "1 file".
+        static func fileCount(_ count: Int) -> String {
+            count == 1 ? "1 file" : "\(count) files"
+        }
     }
 
     enum Cover {
-        static let cropTitle = "Frame your cover"
+        static let cropTitle = "Crop cover"
         static let square = "Square"
         static let original = "Original"
         static let squareHint = "Spotify shows covers as a square."
@@ -94,6 +128,16 @@ enum Copy {
     }
 
     enum Settings {
+        static let appIcon = "App icon"
+        static let appIconHint = "Pick the icon shown on your Home Screen."
+        static let iconNames: [String: String] = [
+            "AppIcon": "Chrome",
+            "AppIcon-Accent": "Blue metal",
+            "AppIcon-Gunmetal": "Gunmetal",
+            "AppIcon-Card": "Card",
+            "AppIcon-Tone": "Tone on tone",
+        ]
+        static let appIconFailed = "Couldn't change the icon. Try again."
         static let title = "Settings"
         static let folderConnected = "Spotify's folder is connected."
         static let folderNotConnected = "Spotify's folder isn't connected."

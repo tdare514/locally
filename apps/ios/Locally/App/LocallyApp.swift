@@ -7,6 +7,10 @@ import SwiftUI
 struct LocallyApp: App {
     @State private var container = AppContainer.production()
 
+    init() {
+        Theme.applyChrome()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
