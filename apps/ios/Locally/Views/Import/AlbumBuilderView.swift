@@ -62,41 +62,64 @@ struct AlbumBuilderView: View {
                     activePicker = .files
                     isPickerPresented = true
                 } label: {
-                    Label(Copy.Import.chooseFiles, systemImage: "waveform")
+                    Text(Copy.Import.chooseFiles)
+                        .font(Theme.Font.body)
+                        .foregroundStyle(Theme.primaryText)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
                 }
-                .buttonStyle(.bordered)
-                .tint(Theme.accent)
+                .buttonStyle(.plain)
+                .dropZone()
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
             }
-            .listRowBackground(Theme.panel)
+            .listRowBackground(Color.clear)
 
-            Section("Tracks") {
+            Section {
                 if model.rows.isEmpty {
                     Text(Copy.Import.noTracksYet)
+                        .font(Theme.Font.body)
                         .foregroundStyle(Theme.secondaryText)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                 } else {
                     ForEach(Array(model.rows.enumerated()), id: \.element.id) { index, row in
                         HStack(spacing: 10) {
                             Text("\(index + 1)")
-                                .font(.caption)
+                                .font(Theme.Font.body)
                                 .foregroundStyle(Theme.secondaryText)
-                                .frame(width: 24, alignment: .trailing)
+                                .frame(width: 20, alignment: .trailing)
                             TextField(Copy.Import.track, text: titleBinding(for: row, in: model))
+                                .font(Theme.Font.body)
                                 .foregroundStyle(Theme.primaryText)
                         }
+                        .padding(.horizontal, Theme.Spacing.inputPaddingH)
+                        .padding(.vertical, Theme.Spacing.inputPaddingV)
+                        .listRowBackground(Theme.elevated)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16))
                     }
                     .onMove(perform: model.moveRows)
                     .onDelete(perform: model.removeRows)
                 }
+            } header: {
+                Text("Tracks").eyebrow()
             }
-            .listRowBackground(Theme.panel)
 
             Section {
                 Field(Copy.Import.fieldAlbumTitle, text: Binding(get: { model.albumTitle }, set: { model.albumTitle = $0 }))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 Field(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }))
-                Field(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }), keyboardType: .numberPad)
-                Field(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                HStack(spacing: 12) {
+                    Field(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }), keyboardType: .numberPad)
+                    Field(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }))
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
-            .listRowBackground(Theme.panel)
 
             Section {
                 CoverPicker(
@@ -106,20 +129,27 @@ struct AlbumBuilderView: View {
                     activePicker = .cover
                     isPickerPresented = true
                 }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
                 Text(Copy.Import.albumCoverPrompt)
-                    .font(.footnote)
+                    .font(Theme.Font.rowSubtitle)
                     .foregroundStyle(Theme.secondaryText)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 Text(Copy.Import.albumExplainer)
-                    .font(.footnote)
+                    .font(Theme.Font.rowSubtitle)
                     .foregroundStyle(Theme.secondaryText)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
-            .listRowBackground(Theme.panel)
 
             Section {
                 if let errorMessage = model.errorMessage {
                     Text(errorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                        .font(Theme.Font.rowSubtitle)
+                        .foregroundStyle(Theme.danger)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                 }
 
                 Button {
@@ -127,9 +157,9 @@ struct AlbumBuilderView: View {
                 } label: {
                     if model.isSending {
                         VStack(spacing: 4) {
-                            ProgressView().tint(.white)
+                            ProgressView().tint(.black)
                             Text(Copy.Import.taggingProgress(done: model.progressDone, total: model.progressTotal))
-                                .font(.caption2)
+                                .font(Theme.Font.rowSubtitle)
                         }
                         .frame(maxWidth: .infinity)
                     } else {
@@ -137,13 +167,14 @@ struct AlbumBuilderView: View {
                             .frame(maxWidth: .infinity)
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.accent)
+                .buttonStyle(PrimaryPillButtonStyle())
                 .disabled(!model.canSend)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
-            .listRowBackground(Theme.panel)
         }
         .scrollContentBackground(.hidden)
+        .background(Theme.background)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 EditButton()

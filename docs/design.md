@@ -10,8 +10,8 @@ file changes first and both apps follow.
 | Token | Value | Use |
 | --- | --- | --- |
 | bg | #121212 | page background |
-| panel | #181818 | sidebar, cards, drop zones, cover placeholder |
-| elevated | #282828 | inputs, secondary buttons, segmented control track, badges |
+| panel | #181818 | sidebar, cards |
+| elevated | #282828 | inputs, secondary buttons, segmented control track, badges, drop zones, cover placeholder |
 | elevated-hover | #3A3A3A | hover on elevated surfaces |
 | text | #FFFFFF | primary text |
 | text-muted | #B3B3B3 | labels, secondary text, placeholders (at 60% for placeholders) |
@@ -55,10 +55,10 @@ System font on both platforms. Sizes are points on iOS, px on web.
 - **Secondary button / nav item** ("Settings"): `elevated` pill or block, `text` label.
 - **Text field**: `elevated` background, 1 px `border`, placeholder `text-muted` at 60%, label
   above in the field-label style.
-- **Cover picker**: a square `panel` block (about 128 on web, 120 on phone) with centred
+- **Cover picker**: a square `elevated` block with a 2 px dashed `border` (about 160 on web, 120 on phone) with centred
   `text-muted` caption "Click or drop an image" (iOS: "Tap to choose a cover"); once chosen, the
   image fills the square with radius 8.
-- **Drop zone / file chooser**: a `panel` block with radius 8, centred `text` line
+- **Drop zone / file chooser**: an `elevated` block with a 2 px dashed `border`, radius 8, centred `text` line
   ("Drop audio files here, or click to choose") and a `text-muted` 12 pt hint under it
   ("Singles are one file. Switch to Album for multiple."). iOS: "Tap to choose a file".
 - **Kind badge** (SINGLE / ALBUM): `elevated` pill, badge type.

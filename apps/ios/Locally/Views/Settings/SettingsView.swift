@@ -23,24 +23,26 @@ struct SettingsView: View {
                         Image(systemName: folderStatus.isConnected ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                             .foregroundStyle(folderStatus.isConnected ? Theme.accent : .yellow)
                         Text(folderStatus.isConnected ? Copy.Settings.folderConnected : Copy.Settings.folderNotConnected)
+                            .font(Theme.Font.body)
                             .foregroundStyle(Theme.primaryText)
                     }
 
                     if !folderStatus.isConnected {
                         Text(Copy.Settings.folderLost)
-                            .font(.footnote)
+                            .font(Theme.Font.rowSubtitle)
                             .foregroundStyle(Theme.secondaryText)
                     }
 
                     Button(Copy.Settings.reconnect) {
                         isPresentingFolderPicker = true
                     }
-                    .foregroundStyle(Theme.accent)
+                    .buttonStyle(SecondaryPillButtonStyle())
+                    .listRowSeparator(.hidden)
 
                     if let errorMessage {
                         Text(errorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.red)
+                            .font(Theme.Font.rowSubtitle)
+                            .foregroundStyle(Theme.danger)
                     }
                 }
                 .listRowBackground(Theme.panel)
@@ -48,6 +50,7 @@ struct SettingsView: View {
                 Section {
                     if purchaseStatus.isFullUnlocked {
                         LabeledContent(Copy.Purchase.rowTitle, value: Copy.Purchase.unlocked)
+                            .font(Theme.Font.body)
                             .foregroundStyle(Theme.primaryText)
                     } else {
                         Button {
@@ -55,9 +58,11 @@ struct SettingsView: View {
                         } label: {
                             HStack {
                                 Text(Copy.Purchase.rowTitle)
+                                    .font(Theme.Font.body)
                                     .foregroundStyle(Theme.primaryText)
                                 Spacer()
                                 Text(Copy.Purchase.buy)
+                                    .font(Theme.Font.body)
                                     .foregroundStyle(Theme.secondaryText)
                             }
                         }
@@ -65,12 +70,15 @@ struct SettingsView: View {
                 }
                 .listRowBackground(Theme.panel)
 
-                Section(Copy.Settings.about) {
+                Section {
                     Text(Copy.Settings.trademarkLine)
-                        .font(.footnote)
+                        .font(Theme.Font.rowSubtitle)
                         .foregroundStyle(Theme.secondaryText)
                     LabeledContent(Copy.Settings.version, value: appVersion)
+                        .font(Theme.Font.body)
                         .foregroundStyle(Theme.primaryText)
+                } header: {
+                    Text(Copy.Settings.about).eyebrow()
                 }
                 .listRowBackground(Theme.panel)
             }

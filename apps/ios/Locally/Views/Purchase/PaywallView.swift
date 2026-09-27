@@ -23,44 +23,44 @@ struct PaywallView: View {
                     .foregroundStyle(Theme.accent)
 
                 Text(Copy.Purchase.title)
-                    .font(.title2.bold())
+                    .font(Theme.Font.pageTitle)
                     .foregroundStyle(Theme.primaryText)
 
                 Text(Copy.Purchase.body)
+                    .font(Theme.Font.body)
                     .foregroundStyle(Theme.secondaryText)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, Theme.Spacing.pagePadding)
 
                 if let errorMessage {
                     Text(errorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                        .font(Theme.Font.rowSubtitle)
+                        .foregroundStyle(Theme.danger)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
+                        .padding(.horizontal, Theme.Spacing.pagePadding)
                 }
 
                 Button {
                     Task { await buy() }
                 } label: {
                     if isPurchasing {
-                        ProgressView().tint(.white)
+                        ProgressView().tint(.black)
                     } else {
                         Text(Copy.Purchase.buyLabel(price: product?.displayPrice))
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.accent)
+                .buttonStyle(PrimaryPillButtonStyle())
                 .disabled(isPurchasing || isRestoring || product == nil)
 
                 Button(Copy.Purchase.restore) {
                     Task { await restore() }
                 }
-                .foregroundStyle(Theme.accent)
+                .buttonStyle(SecondaryPillButtonStyle())
                 .disabled(isPurchasing || isRestoring)
 
                 Spacer()
             }
-            .padding(24)
+            .padding(Theme.Spacing.pagePadding)
             .frame(maxWidth: .infinity)
             .background(Theme.background.ignoresSafeArea())
             .navigationTitle(Copy.Purchase.title)
@@ -68,7 +68,7 @@ struct PaywallView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(Copy.Purchase.close) { dismiss() }
-                        .foregroundStyle(Theme.primaryText)
+                        .foregroundStyle(Theme.secondaryText)
                 }
             }
         }

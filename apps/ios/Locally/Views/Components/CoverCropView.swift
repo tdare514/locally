@@ -52,12 +52,14 @@ struct CoverCropView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(Copy.Cover.cancel, action: onCancel)
-                        .foregroundStyle(Theme.primaryText)
+                        .foregroundStyle(Theme.secondaryText)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(Copy.Cover.done, action: process)
                         .disabled(uiImage == nil)
-                        .tint(Theme.accent)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Theme.accent)
+                        .opacity(uiImage == nil ? 0.4 : 1)
                 }
             }
         }

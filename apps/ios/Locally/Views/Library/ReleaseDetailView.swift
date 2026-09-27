@@ -36,6 +36,9 @@ struct ReleaseDetailView: View {
     private func content(_ model: ReleaseDetailViewModel) -> some View {
         List {
             Section {
+                KindBadge(text: model.kind == .single ? Copy.Library.single : Copy.Library.album)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
                 Field(Copy.Import.fieldTitle, text: Binding(get: { model.title }, set: { model.title = $0 }))
                 Field(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }))
                 Field(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }), keyboardType: .numberPad)
@@ -55,29 +58,37 @@ struct ReleaseDetailView: View {
 
             // A single's only track takes its title from the Title field above.
             if model.kind == .album {
-                Section("Tracks") {
+                Section {
                     ForEach(Array(model.trackRows.enumerated()), id: \.element.id) { index, row in
                         HStack(spacing: 10) {
                             Text("\(index + 1)")
-                                .font(.caption)
+                                .font(Theme.Font.body)
                                 .foregroundStyle(Theme.secondaryText)
-                                .frame(width: 24, alignment: .trailing)
+                                .frame(width: 20, alignment: .trailing)
                             TextField(Copy.Import.track, text: titleBinding(for: row, in: model))
+                                .font(Theme.Font.body)
                                 .foregroundStyle(Theme.primaryText)
                         }
+                        .padding(.horizontal, Theme.Spacing.inputPaddingH)
+                        .padding(.vertical, Theme.Spacing.inputPaddingV)
+                        .listRowBackground(Theme.elevated)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16))
                     }
                     .onMove(perform: model.moveTracks)
+                } header: {
+                    Text("Tracks").eyebrow()
                 }
-                .listRowBackground(Theme.panel)
             }
 
             if model.kind == .album {
                 Section {
                     DisclosureGroup(Copy.Detail.makeItAPlaylist) {
                         Text(Copy.Import.doneAlbum(albumTitle: model.title))
-                            .font(.footnote)
+                            .font(Theme.Font.rowSubtitle)
                             .foregroundStyle(Theme.secondaryText)
                     }
+                    .font(Theme.Font.body)
                     .foregroundStyle(Theme.primaryText)
                 }
                 .listRowBackground(Theme.panel)
@@ -86,13 +97,17 @@ struct ReleaseDetailView: View {
             Section {
                 if let statusMessage = model.statusMessage {
                     Text(statusMessage)
-                        .font(.footnote)
+                        .font(Theme.Font.rowSubtitle)
                         .foregroundStyle(Theme.accent)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                 }
                 if let errorMessage = model.errorMessage {
                     Text(errorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                        .font(Theme.Font.rowSubtitle)
+                        .foregroundStyle(Theme.danger)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                 }
 
                 Button {
@@ -104,20 +119,22 @@ struct ReleaseDetailView: View {
                         Text(Copy.Detail.saveChanges)
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.accent)
+                .buttonStyle(PrimaryPillButtonStyle())
                 .disabled(!model.canSave)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
-            .listRowBackground(Theme.panel)
 
             Section {
-                Button(role: .destructive) {
+                Button {
                     isPresentingDeleteConfirm = true
                 } label: {
                     Text(Copy.Detail.delete)
                 }
+                .buttonStyle(SecondaryPillButtonStyle(isDestructive: true))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             }
-            .listRowBackground(Theme.panel)
         }
         .scrollContentBackground(.hidden)
         .background(Theme.background)

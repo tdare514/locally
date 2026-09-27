@@ -32,6 +32,15 @@ enum Copy {
         static let fieldYear = "Year"
         static let fieldGenre = "Genre"
         static let cover = "Cover"
+        /// The cover picker panel's caption before an image is chosen. Matches
+        /// `docs/design.md`'s "Cover picker" component, iOS wording.
+        static let coverCaption = "Tap to choose a cover"
+        /// The file chooser panel's caption before a file is chosen. Matches
+        /// `docs/design.md`'s "Drop zone / file chooser" component, iOS wording.
+        static let fileCaption = "Tap to choose a file"
+        /// The muted hint under the single-track file chooser, verbatim from
+        /// `docs/design.md`'s "Drop zone / file chooser" component.
+        static let singleFileHint = "Singles are one file. Switch to Album for multiple."
         static let send = "Send to Spotify"
         static let sending = "Sending…"
         static let doneSingle = "Sent. Open Spotify, then Your Library, then Local Files to play it."
@@ -58,7 +67,8 @@ enum Copy {
 
     enum Library {
         static let title = "Your library"
-        static let empty = "Nothing added yet."
+        /// Verbatim from `docs/design.md`'s "Empty state" component.
+        static let empty = "No releases yet. Import your first track or album to get started."
         static let single = "Single"
         static let album = "Album"
     }

@@ -16,16 +16,13 @@ struct Field: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.labelGap) {
             Text(label)
-                .font(.caption)
+                .font(Theme.Font.fieldLabel)
                 .foregroundStyle(Theme.secondaryText)
             TextField(placeholder, text: $text)
                 .keyboardType(keyboardType)
-                .foregroundStyle(Theme.primaryText)
-                .padding(10)
-                .background(Theme.panel)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .fieldStyle()
         }
     }
 }

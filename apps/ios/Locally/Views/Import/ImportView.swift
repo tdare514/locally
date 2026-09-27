@@ -25,17 +25,16 @@ struct ImportView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
                 if !inboxFiles.isEmpty {
                     inboxBanner
                 }
 
-                Picker("", selection: $kind) {
-                    Text(Copy.Import.kindSingle).tag(Kind.single)
-                    Text(Copy.Import.kindAlbum).tag(Kind.album)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 20)
+                SegmentedPill(
+                    options: [(Kind.single, Copy.Import.kindSingle), (Kind.album, Copy.Import.kindAlbum)],
+                    selection: $kind
+                )
+                .padding(.horizontal, Theme.Spacing.pagePadding)
                 .padding(.top, 12)
 
                 Group {
@@ -59,7 +58,7 @@ struct ImportView: View {
     private var inboxBanner: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(Copy.Inbox.waitingBanner(count: inboxFiles.count))
-                .font(.footnote)
+                .font(Theme.Font.body)
                 .foregroundStyle(Theme.primaryText)
 
             HStack(spacing: 16) {
@@ -74,14 +73,14 @@ struct ImportView: View {
                     kind = .album
                 }
             }
-            .font(.subheadline)
+            .font(Theme.Font.body.weight(.semibold))
             .foregroundStyle(Theme.accent)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.panel)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .padding(.horizontal, 20)
+        .background(Theme.elevated)
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+        .padding(.horizontal, Theme.Spacing.pagePadding)
         .padding(.top, 8)
     }
 

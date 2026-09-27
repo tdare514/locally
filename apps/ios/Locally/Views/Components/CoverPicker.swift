@@ -25,24 +25,22 @@ struct CoverPicker: View {
     @State private var pendingCrop: Data?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.labelGap) {
             Text(Copy.Import.cover)
-                .font(.caption)
+                .font(Theme.Font.fieldLabel)
                 .foregroundStyle(Theme.secondaryText)
 
-            HStack(spacing: 12) {
-                thumbnail
-
-                VStack(alignment: .leading, spacing: 8) {
-                    PhotosPicker(selection: $photosItem, matching: .images) {
-                        Label("Photos", systemImage: "photo.on.rectangle")
-                    }
-                    Button(action: onPickFromFiles) {
-                        Label("Files", systemImage: "folder")
-                    }
+            Menu {
+                PhotosPicker(selection: $photosItem, matching: .images) {
+                    Label("Photos", systemImage: "photo.on.rectangle")
                 }
-                .foregroundStyle(Theme.accent)
+                Button(action: onPickFromFiles) {
+                    Label("Files", systemImage: "folder")
+                }
+            } label: {
+                panel
             }
+            .buttonStyle(.plain)
         }
         .task(id: photosItem) {
             guard let photosItem else { return }
@@ -70,22 +68,25 @@ struct CoverPicker: View {
         }
     }
 
+    /// A 120 pt square `panel` block: the chosen image once one exists,
+    /// otherwise a centred muted caption. Matches `docs/design.md`'s
+    /// "Cover picker" component.
     @ViewBuilder
-    private var thumbnail: some View {
-        RoundedRectangle(cornerRadius: 8)
-            .fill(Theme.panel)
-            .frame(width: 64, height: 64)
-            .overlay {
-                if let imageData, let uiImage = UIImage(data: imageData) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 64, height: 64)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                } else {
-                    Image(systemName: "music.note")
-                        .foregroundStyle(Theme.secondaryText)
-                }
+    private var panel: some View {
+        Group {
+            if let imageData, let uiImage = UIImage(data: imageData) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Text(Copy.Import.coverCaption)
+                    .font(Theme.Font.body)
+                    .foregroundStyle(Theme.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .padding(12)
             }
+        }
+        .frame(width: 120, height: 120)
+        .dropZone()
     }
 }

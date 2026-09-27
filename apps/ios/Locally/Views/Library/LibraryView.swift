@@ -16,7 +16,10 @@ struct LibraryView: View {
 
                 if releases.isEmpty {
                     Text(Copy.Library.empty)
+                        .font(Theme.Font.body)
                         .foregroundStyle(Theme.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, Theme.Spacing.pagePadding)
                 } else {
                     List(releases) { release in
                         NavigationLink(value: release) {
@@ -41,31 +44,29 @@ struct LibraryView: View {
         HStack(spacing: 12) {
             coverThumbnail(for: release)
 
-            VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(release.title)
+                    .font(Theme.Font.rowTitle)
                     .foregroundStyle(Theme.primaryText)
+                    .lineLimit(1)
                 Text(release.artist)
-                    .font(.subheadline)
+                    .font(Theme.Font.rowSubtitle)
                     .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(1)
             }
 
             Spacer()
 
-            Text(release.kind == .single ? Copy.Library.single : Copy.Library.album)
-                .font(.caption2)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Theme.accent.opacity(0.2))
-                .foregroundStyle(Theme.accent)
-                .clipShape(Capsule())
+            KindBadge(text: release.kind == .single ? Copy.Library.single : Copy.Library.album)
         }
+        .padding(.vertical, 2)
     }
 
     @ViewBuilder
     private func coverThumbnail(for release: Release) -> some View {
-        RoundedRectangle(cornerRadius: 6)
-            .fill(Theme.panel)
-            .frame(width: 44, height: 44)
+        RoundedRectangle(cornerRadius: Theme.Radius.thumbnail)
+            .fill(Theme.elevated)
+            .frame(width: 40, height: 40)
             .overlay {
                 if let coverStore = container?.coverStore,
                    let data = coverStore.load(release.id),
@@ -73,8 +74,8 @@ struct LibraryView: View {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 44, height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .frame(width: 40, height: 40)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.thumbnail))
                 } else {
                     Image(systemName: "music.note")
                         .foregroundStyle(Theme.secondaryText)

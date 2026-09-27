@@ -16,45 +16,50 @@ struct DoneView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(spacing: Theme.Spacing.sectionGap) {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 48))
                     .foregroundStyle(Theme.accent)
 
                 Text(kind == .single ? Copy.Import.doneSingle : Copy.Import.doneAlbum(albumTitle: albumTitle))
+                    .font(Theme.Font.body)
                     .foregroundStyle(Theme.primaryText)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, Theme.Spacing.pagePadding)
 
                 if kind == .album, !trackTitles.isEmpty {
                     trackList
                 }
 
                 Button(Copy.Import.addAnother, action: onAddAnother)
-                    .buttonStyle(.bordered)
-                    .tint(Theme.accent)
+                    .buttonStyle(PrimaryPillButtonStyle())
             }
-            .padding(.vertical, 20)
+            .padding(.vertical, Theme.Spacing.sectionGap)
         }
+        .background(Theme.background)
     }
 
     private var trackList: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Theme.Spacing.rowGap) {
             ForEach(Array(trackTitles.enumerated()), id: \.offset) { index, title in
                 HStack(spacing: 10) {
                     Text("\(index + 1)")
-                        .font(.caption)
+                        .font(Theme.Font.body)
                         .foregroundStyle(Theme.secondaryText)
                         .frame(width: 20, alignment: .trailing)
                     Text(title)
+                        .font(Theme.Font.body)
                         .foregroundStyle(Theme.primaryText)
                 }
+                .padding(.horizontal, Theme.Spacing.inputPaddingH)
+                .padding(.vertical, Theme.Spacing.inputPaddingV)
+                .background(Theme.elevated)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.input))
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.panel)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, 24)
+        .panelCard()
+        .padding(.horizontal, Theme.Spacing.pagePadding)
     }
 }
