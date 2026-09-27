@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Spotify Local Import",
+  title: "Locally",
   description:
     "Import local audio files, tag them, and organise them for Spotify's Local Files.",
 };
