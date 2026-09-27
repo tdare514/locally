@@ -14,8 +14,10 @@ matters, never hidden.
 - Assume Spotify Premium; Free-account support explored after launch.
 - Conversion: AAC 256 kbps m4a for wav/flac/aiff; mp3 and m4a pass through.
 - Edits re-tag the file in place and keep its name, so playlists keep the track.
-- Independent from the Mac app for v1; Mac-phone cloud sync is the next phase; one-time purchase
-  first, paid plans later. No network, no analytics, no account: privacy label "Data Not Collected".
+- Independent from the Mac app for v1; Mac-phone cloud sync is the next phase.
+- Pricing (decided 27 Sep 2026): everything built so far is free with unlimited sends. A one-time
+  purchase, Locally Full, exists from phase 3 but unlocks nothing yet; features agreed later are
+  gated behind it. Paid plans are a later discussion. No network, no analytics, no account: privacy label "Data Not Collected".
 - Validation happens on a real phone during phase 1, not as a separate gate.
 
 ## Constraints and how each is handled
@@ -48,7 +50,7 @@ implementation and one fake for tests.
 ## Phases
 1. Single to Spotify (weeks 1-2): scaffold, onboarding, folder link, one file tagged and sent. Gate: first TestFlight build, a song plays in Spotify.
 2. Albums and library (weeks 3-4): album builder, playlist guide, edit in place, delete. Gate: 5 testers, no blockers.
-3. Polish and submit (weeks 5-6): share extension, copy pass, one-time purchase, App Store review.
+3. Polish and submit (weeks 5-6): share extension, copy pass, one-time purchase (unlocks nothing yet), App Store review.
    The app icon in the asset catalog is a placeholder from `scripts/make-app-icon.py`; a design session will replace it before submission.
 
 ## In-app copy (excerpt)
