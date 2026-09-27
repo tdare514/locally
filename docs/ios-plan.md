@@ -16,7 +16,9 @@ matters, never hidden.
 - Edits re-tag the file in place and keep its name, so playlists keep the track.
 - Independent from the Mac app for v1. Sync phase (decided 27 Sep 2026): a hosted sync service
   with email-code accounts, because customers cannot be assumed to pay for iCloud storage; see
-  `spec/sync.md`.
+  `spec/sync.md`. Verified 27 Sep 2026 end to end on an iPhone 12 Pro against the service
+  running on the Mac: sign-in on both devices, a song tagged on the Mac appeared on the phone
+  and was sent to Spotify there.
 - Pricing (decided 27 Sep 2026): everything built so far is free with unlimited sends. A one-time
   purchase, Locally Full, exists from phase 3 but unlocks nothing yet; features agreed later are
   gated behind it. Paid plans are a later discussion. No network, no analytics, no account: privacy label "Data Not Collected".
