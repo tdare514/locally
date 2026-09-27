@@ -309,8 +309,17 @@ export class SyncEngine implements ReleaseSyncHooks {
     try {
       const names = [...record.tracks.map((t) => t.file), ...(record.cover ? [record.cover] : [])];
       for (const name of names) {
-        const { url } = await api.downloadUrl(id, name);
-        await api.downloadFile(url, path.join(dir, name));
+        try {
+          const { url } = await api.downloadUrl(id, name);
+          await api.downloadFile(url, path.join(dir, name));
+        } catch (err) {
+          // A record can be visible before the phone finishes uploading its files (spec/sync.md).
+          const message = err instanceof Error ? err.message : "";
+          if (/not found|404/i.test(message)) {
+            throw new PublicError("Your phone hasn't finished uploading this song yet. Try again in a moment.");
+          }
+          throw err;
+        }
       }
 
       const release = await this.releases.importSynced(record, dir);

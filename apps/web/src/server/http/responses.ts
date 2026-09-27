@@ -4,15 +4,16 @@ import { ValidationError, NotFoundError, PublicError } from "../../shared/errors
 
 /** Build a JSON error response, logging the underlying error server-side. */
 export function errorResponse(err: unknown): NextResponse<ApiError> {
-  if (err instanceof ValidationError) {
-    return NextResponse.json({ error: err.message }, { status: 400 });
+  const name = err instanceof Error ? err.name : "";
+  if (err instanceof ValidationError || name === "ValidationError") {
+    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
   }
-  if (err instanceof NotFoundError) {
-    return NextResponse.json({ error: err.message }, { status: 404 });
+  if (err instanceof NotFoundError || name === "NotFoundError") {
+    return NextResponse.json({ error: (err as Error).message }, { status: 404 });
   }
   console.error(err);
-  if (err instanceof PublicError) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  if (err instanceof PublicError || name === "PublicError") {
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
   }
   // Unknown errors may embed filesystem paths or tool output: never echo them.
   return NextResponse.json(
