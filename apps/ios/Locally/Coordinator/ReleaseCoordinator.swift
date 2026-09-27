@@ -14,6 +14,12 @@ final class ReleaseCoordinator {
     private let coverStore: CoverStore
     private let layout: ReleaseLayout
 
+    /// Set by `AppContainer` after both this coordinator and `SyncEngine`
+    /// exist (see `ReleaseSyncHook`'s doc comment for why it isn't a
+    /// constructor parameter). `nil` in every test that doesn't care about
+    /// sync, so none of them need to know it exists.
+    var syncHook: ReleaseSyncHook?
+
     init(
         importer: FileImporter,
         transcoder: Transcoder,
@@ -91,6 +97,7 @@ final class ReleaseCoordinator {
             throw LocallyError.libraryFailed(error.localizedDescription)
         }
 
+        syncHook?.pushAfterChange(release)
         return release
     }
 
@@ -188,6 +195,7 @@ final class ReleaseCoordinator {
             throw LocallyError.libraryFailed(error.localizedDescription)
         }
 
+        syncHook?.pushAfterChange(release)
         return release
     }
 
@@ -271,6 +279,7 @@ final class ReleaseCoordinator {
             throw LocallyError.libraryFailed(error.localizedDescription)
         }
 
+        syncHook?.pushAfterChange(updated)
         return updated
     }
 
@@ -279,6 +288,19 @@ final class ReleaseCoordinator {
     /// Refuses — and deletes nothing — if any track's recorded path
     /// resolves to somewhere outside the connected folder.
     func deleteRelease(_ id: UUID) async throws {
+        try await performDelete(id)
+        syncHook?.pushTombstone(id)
+    }
+
+    /// Applies a tombstone `SyncEngine.reconcile()` pulled from the server
+    /// (the Mac, or another device, deleted this release): the same local
+    /// cleanup as `deleteRelease`, but without pushing a tombstone back —
+    /// the server already has one, since that's where this came from.
+    func applyTombstone(_ id: UUID) async throws {
+        try await performDelete(id)
+    }
+
+    private func performDelete(_ id: UUID) async throws {
         let releases = try library.all()
         guard let existing = releases.first(where: { $0.id == id }) else {
             try library.delete(id: id)
@@ -304,6 +326,167 @@ final class ReleaseCoordinator {
         } catch {
             throw LocallyError.libraryFailed(error.localizedDescription)
         }
+    }
+
+    // MARK: - Sync
+
+    /// Applies a record `SyncEngine.reconcile()` found newer than the local
+    /// copy: re-tags every locally-matched track in place (title, per-track
+    /// title, track number, album fields) without renaming or moving
+    /// anything, and without touching the cover — a text-only edit made on
+    /// the Mac doesn't imply the cover changed, and re-tagging always
+    /// re-embeds whatever cover bytes are already saved locally, exactly as
+    /// `updateRelease` does for a local edit that also doesn't touch the
+    /// cover. A track only present in the remote record (not found locally)
+    /// is skipped — accepting a wholly new track happens through
+    /// `importSynced`, not this path.
+    func applyRemoteUpdate(_ record: SyncRecord) async throws -> Release {
+        guard let releaseId = UUID(uuidString: record.id) else {
+            throw LocallyError.libraryFailed("That release's id from sync wasn't valid.")
+        }
+        let releases = try library.all()
+        guard let existing = releases.first(where: { $0.id == releaseId }) else {
+            throw LocallyError.libraryFailed("Couldn't find that release.")
+        }
+
+        let tracksById = Dictionary(uniqueKeysWithValues: existing.tracks.map { ($0.id, $0) })
+        let coverForWrite: Data? = existing.coverPath != nil ? coverStore.load(releaseId) : nil
+        let totalTracks = record.tracks.count
+        var updatedTracks = existing.tracks
+
+        try await folder.withAccess { folderURL in
+            for syncTrack in record.tracks {
+                guard let trackId = UUID(uuidString: syncTrack.id), let track = tracksById[trackId] else {
+                    continue
+                }
+
+                let fileURL = Self.resolvedFileURL(for: track, in: folderURL)
+                guard self.layout.isInside(folder: folderURL, path: fileURL.path) else {
+                    throw LocallyError.pathOutsideFolder
+                }
+                guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                    throw LocallyError.fileMissing(track.title)
+                }
+
+                let tags = TagSet(
+                    title: syncTrack.title,
+                    artist: record.artist,
+                    album: record.title,
+                    trackNumber: syncTrack.trackNumber,
+                    totalTracks: totalTracks,
+                    year: record.year,
+                    genre: record.genre
+                )
+                let writer = self.writer(for: fileURL.pathExtension.lowercased())
+                try await writer.write(tags, cover: coverForWrite, to: fileURL)
+
+                if let index = updatedTracks.firstIndex(where: { $0.id == trackId }) {
+                    updatedTracks[index].title = syncTrack.title
+                    updatedTracks[index].trackNumber = syncTrack.trackNumber
+                }
+            }
+        }
+
+        let updated = Release(
+            id: existing.id,
+            kind: existing.kind,
+            title: record.title,
+            artist: record.artist,
+            year: record.year,
+            genre: record.genre,
+            coverPath: existing.coverPath,
+            folderPath: existing.folderPath,
+            tracks: updatedTracks,
+            createdAt: existing.createdAt,
+            updatedAt: record.updatedAt,
+            syncedUpdatedAt: record.updatedAt
+        )
+
+        do {
+            try library.upsert(updated)
+        } catch {
+            throw LocallyError.libraryFailed(error.localizedDescription)
+        }
+
+        return updated
+    }
+
+    /// Applies a record `SyncEngine.acceptFromMac` decided to bring onto this
+    /// device: every file `record` names must already sit in `dir` (a temp
+    /// directory `SyncEngine` downloaded into). Each is copied — never
+    /// moved, `dir` isn't this coordinator's to consume — into Spotify's
+    /// folder under a unique name (never overwriting), with no conversion or
+    /// re-tagging (the file already carries the tags the other platform
+    /// wrote). The cover is saved to `CoverStore`. The resulting `Release`
+    /// keeps the record's own id, so a later edit on either platform matches
+    /// the same release.
+    func importSynced(_ record: SyncRecord, dir: URL) async throws -> Release {
+        guard let releaseId = UUID(uuidString: record.id) else {
+            throw LocallyError.libraryFailed("That release's id from sync wasn't valid.")
+        }
+        guard let kind = ReleaseKind(rawValue: record.kind) else {
+            throw LocallyError.libraryFailed("That release's kind from sync wasn't recognised.")
+        }
+
+        var tracks: [Track] = []
+        var movedURLs: [URL] = []
+
+        do {
+            for syncTrack in record.tracks {
+                let sourceURL = dir.appendingPathComponent(syncTrack.file)
+                guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+                    throw LocallyError.importFailed("\"\(syncTrack.file)\" didn't download.")
+                }
+                let destinationURL = try folder.withAccess { folderURL -> URL in
+                    let dest = Self.uniqueDestination(in: folderURL, fileName: syncTrack.file)
+                    try FileManager.default.copyItem(at: sourceURL, to: dest)
+                    return dest
+                }
+                movedURLs.append(destinationURL)
+                tracks.append(Track(
+                    id: UUID(uuidString: syncTrack.id) ?? UUID(),
+                    title: syncTrack.title,
+                    trackNumber: syncTrack.trackNumber,
+                    filePath: destinationURL.path,
+                    originalName: syncTrack.file,
+                    durationSec: syncTrack.durationSec
+                ))
+            }
+        } catch {
+            removeMovedFiles(movedURLs)
+            throw error
+        }
+
+        var coverPath: String?
+        if let coverName = record.cover {
+            let coverSource = dir.appendingPathComponent(coverName)
+            if let data = try? Data(contentsOf: coverSource) {
+                coverPath = try? coverStore.save(data, for: releaseId)
+            }
+        }
+
+        let release = Release(
+            id: releaseId,
+            kind: kind,
+            title: record.title,
+            artist: record.artist,
+            year: record.year,
+            genre: record.genre,
+            coverPath: coverPath,
+            folderPath: movedURLs.first?.deletingLastPathComponent().path ?? "",
+            tracks: tracks,
+            createdAt: record.createdAt,
+            updatedAt: record.updatedAt,
+            syncedUpdatedAt: record.updatedAt
+        )
+
+        do {
+            try library.upsert(release)
+        } catch {
+            throw LocallyError.libraryFailed(error.localizedDescription)
+        }
+
+        return release
     }
 
     /// The track's file as it is reachable now. The stored path is absolute,

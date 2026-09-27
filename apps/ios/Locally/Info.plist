@@ -26,6 +26,13 @@
 	<string>public.app-category.music</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Locally uses your local network to sync with the sync server on your Mac during development.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Pick a cover image for your songs.</string>
 	<key>UIFileSharingEnabled</key>

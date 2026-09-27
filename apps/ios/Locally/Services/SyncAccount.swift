@@ -1,0 +1,137 @@
+import Foundation
+import Security
+
+/// Everything the sync feature needs to remember about the signed-in
+/// account and this device: where the service lives, who's signed in, the
+/// device's bearer token, and how far reconcile has read. Kept as a
+/// protocol (mirroring every other service in the app) so `SyncEngine` and
+/// the Settings UI never touch `UserDefaults`/Keychain directly, and tests
+/// can substitute an in-memory fake.
+protocol SyncAccountStore: AnyObject {
+    /// Where the sync service lives. Defaults to `http://localhost:4000`
+    /// (the API's own dev default — see `apps/api/src/server/config/env.ts`);
+    /// a Settings field (development builds only) lets the owner point this
+    /// at the Mac's LAN address instead, since a physical phone can't reach
+    /// the Mac's `localhost`.
+    var baseURL: URL { get set }
+    /// The signed-in account's email, or `nil` when signed out.
+    var email: String? { get }
+    /// This device's bearer token, or `nil` when signed out. Stored in the
+    /// Keychain, never in `UserDefaults`.
+    var deviceToken: String? { get }
+    /// This device's id, as returned by `POST /v1/auth/verify`, used to
+    /// revoke it from `DELETE /v1/devices/:id` on sign-out.
+    var deviceId: String? { get }
+    /// The last `version` reconcile saw from `GET /v1/releases`, so the next
+    /// call only pages in what changed since. `0` before the first sync.
+    var lastVersion: Int { get set }
+
+    /// Records a successful `POST /v1/auth/verify`, making `email`,
+    /// `deviceId` and `deviceToken` non-nil.
+    func save(email: String, deviceToken: String, deviceId: String)
+    /// Signs this device out locally (does not itself call the server —
+    /// `SyncEngine.signOut` revokes the device first, then calls this).
+    func clear()
+}
+
+/// Production `SyncAccountStore`: the device token lives in the Keychain
+/// (`KeychainTokenStore`); everything else — none of it a secret — lives in
+/// `UserDefaults`, same pattern as `UserDefaultsSpotifyFolder`.
+final class UserDefaultsSyncAccountStore: SyncAccountStore {
+    static let defaultBaseURL = URL(string: "http://localhost:4000")!
+
+    private enum Key {
+        static let baseURL = "com.tdare.locally.sync.baseURL"
+        static let email = "com.tdare.locally.sync.email"
+        static let deviceId = "com.tdare.locally.sync.deviceId"
+        static let lastVersion = "com.tdare.locally.sync.lastVersion"
+    }
+
+    private let defaults: UserDefaults
+    private let tokenStore: KeychainTokenStore
+
+    init(defaults: UserDefaults = .standard, tokenStore: KeychainTokenStore = SecKeychainTokenStore()) {
+        self.defaults = defaults
+        self.tokenStore = tokenStore
+    }
+
+    var baseURL: URL {
+        get {
+            if let stored = defaults.string(forKey: Key.baseURL), let url = URL(string: stored) {
+                return url
+            }
+            return Self.defaultBaseURL
+        }
+        set { defaults.set(newValue.absoluteString, forKey: Key.baseURL) }
+    }
+
+    var email: String? { defaults.string(forKey: Key.email) }
+    var deviceId: String? { defaults.string(forKey: Key.deviceId) }
+    var deviceToken: String? { tokenStore.load() }
+
+    var lastVersion: Int {
+        get { defaults.integer(forKey: Key.lastVersion) }
+        set { defaults.set(newValue, forKey: Key.lastVersion) }
+    }
+
+    func save(email: String, deviceToken: String, deviceId: String) {
+        defaults.set(email, forKey: Key.email)
+        defaults.set(deviceId, forKey: Key.deviceId)
+        tokenStore.save(deviceToken)
+    }
+
+    func clear() {
+        defaults.removeObject(forKey: Key.email)
+        defaults.removeObject(forKey: Key.deviceId)
+        defaults.removeObject(forKey: Key.lastVersion)
+        tokenStore.delete()
+    }
+}
+
+/// The narrow Keychain seam `UserDefaultsSyncAccountStore` uses for the
+/// device token, so tests can substitute an in-memory fake if the simulator
+/// keychain isn't available in a given test environment.
+protocol KeychainTokenStore {
+    func load() -> String?
+    func save(_ token: String)
+    func delete()
+}
+
+/// Production `KeychainTokenStore`: one generic password item, accessible
+/// after first unlock (not tied to biometrics/passcode — a background sync
+/// needs to read it before the user has unlocked the phone).
+final class SecKeychainTokenStore: KeychainTokenStore {
+    private let service = "com.tdare.locally.sync"
+    private let account = "deviceToken"
+
+    func load() -> String? {
+        var query = baseQuery()
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess, let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    func save(_ token: String) {
+        delete()
+        var query = baseQuery()
+        query[kSecValueData as String] = Data(token.utf8)
+        query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        SecItemAdd(query as CFDictionary, nil)
+    }
+
+    func delete() {
+        SecItemDelete(baseQuery() as CFDictionary)
+    }
+
+    private func baseQuery() -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+    }
+}

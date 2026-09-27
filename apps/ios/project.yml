@@ -42,6 +42,12 @@ targets:
         LSSupportsOpeningDocumentsInPlace: true
         UIFileSharingEnabled: true
         NSPhotoLibraryUsageDescription: "Pick a cover image for your songs."
+        # Sync (spec/sync.md) talks to a dev server on the Mac's LAN address
+        # during development — plain HTTP, not loopback, so it needs both an
+        # ATS carve-out and the local-network permission prompt.
+        NSLocalNetworkUsageDescription: "Locally uses your local network to sync with the sync server on your Mac during development."
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         UILaunchScreen: {}
         CFBundleDisplayName: Locally
         CFBundleShortVersionString: "$(MARKETING_VERSION)"

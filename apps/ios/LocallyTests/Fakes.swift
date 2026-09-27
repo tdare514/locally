@@ -193,3 +193,203 @@ final class FakePurchaseService: PurchaseService {
         refreshCallCount += 1
     }
 }
+
+/// In-memory `SyncAccountStore` fake — no `UserDefaults`/Keychain — so tests
+/// can drive sign-in state directly (`save`/`clear`) and inspect `lastVersion`.
+final class InMemorySyncAccountStore: SyncAccountStore {
+    var baseURL = URL(string: "http://localhost:4000")!
+    private(set) var email: String?
+    private(set) var deviceToken: String?
+    private(set) var deviceId: String?
+    var lastVersion: Int = 0
+
+    func save(email: String, deviceToken: String, deviceId: String) {
+        self.email = email
+        self.deviceToken = deviceToken
+        self.deviceId = deviceId
+    }
+
+    func clear() {
+        email = nil
+        deviceToken = nil
+        deviceId = nil
+        lastVersion = 0
+    }
+}
+
+/// In-memory `KeychainTokenStore` fake, for environments where the simulator
+/// keychain isn't reliably available to a test bundle (see
+/// `SyncAccountStoreTests`'s note on `SecKeychainTokenStore`).
+final class InMemoryKeychainTokenStore: KeychainTokenStore {
+    private var token: String?
+
+    func load() -> String? { token }
+    func save(_ newToken: String) { token = newToken }
+    func delete() { token = nil }
+}
+
+/// `ReleaseSyncHook` fake — records what `ReleaseCoordinator` pushed/tombstoned,
+/// without needing a real `SyncEngine`.
+final class FakeReleaseSyncHook: ReleaseSyncHook {
+    private(set) var pushedReleases: [Release] = []
+    private(set) var tombstonedIds: [UUID] = []
+
+    func pushAfterChange(_ release: Release) {
+        pushedReleases.append(release)
+    }
+
+    func pushTombstone(_ id: UUID) {
+        tombstonedIds.append(id)
+    }
+
+    func reset() {
+        pushedReleases.removeAll()
+        tombstonedIds.removeAll()
+    }
+}
+
+/// `SyncApi` fake with an in-memory "server": a version-stamped release
+/// store (so `releases(sinceVersion:)` behaves like the real paging
+/// contract) and a settable set of file names each release already "has",
+/// so `requestUploads` only returns tickets for the rest — exactly the
+/// "upload missing files" behaviour `SyncEngine.push` relies on.
+final class FakeSyncApi: SyncApi {
+    private(set) var requestCodeCalls: [String] = []
+    private(set) var verifyCalls: [(email: String, code: String, deviceName: String, platform: String)] = []
+    var verifyResult: Result<SyncVerifyResult, Error> = .success(
+        SyncVerifyResult(token: "test-token", userId: "user-1", email: "test@example.com", deviceId: "device-1", deviceName: "Test Device")
+    )
+    var meResult: Result<SyncMeResult, Error> = .success(
+        SyncMeResult(email: "test@example.com", deviceId: "device-1", deviceName: "Test Device", quota: SyncQuota(usedBytes: 0, limitBytes: 1_073_741_824))
+    )
+    private(set) var revokedDeviceIds: [String] = []
+
+    /// Release id -> stored record, each carrying the version it was last
+    /// written at. `nil` records never existed; a tombstone stays in this
+    /// dictionary with `deleted == true`, same as the real service.
+    private var storage: [String: SyncRecord] = [:]
+    private var currentVersion = 0
+
+    /// Release id -> file names the fake "server" already has, so
+    /// `requestUploads` omits them from the returned tickets.
+    var existingFileNames: [String: Set<String>] = [:]
+    private(set) var uploadedFileNames: [String] = []
+    private(set) var requestUploadsCalls: [(releaseId: String, files: [SyncFileUploadRequest])] = []
+    /// Bytes `downloadFile` writes for a given file name, so a test can hand
+    /// `acceptFromMac` something to actually copy into the Spotify folder.
+    var fileContents: [String: Data] = [:]
+
+    /// Release ids whose *next* `putRelease` throws `.conflict` once, then
+    /// succeeds normally — simulating "someone else wrote this first".
+    var conflictOnNextPut: Set<String> = []
+    private(set) var putCalls: [SyncRecord] = []
+    private(set) var deleteCalls: [String] = []
+
+    func requestCode(email: String) async throws {
+        requestCodeCalls.append(email)
+    }
+
+    func verify(email: String, code: String, deviceName: String, platform: String) async throws -> SyncVerifyResult {
+        verifyCalls.append((email, code, deviceName, platform))
+        return try verifyResult.get()
+    }
+
+    func me() async throws -> SyncMeResult {
+        try meResult.get()
+    }
+
+    func revokeDevice(_ id: String) async throws {
+        revokedDeviceIds.append(id)
+    }
+
+    func releases(sinceVersion: Int) async throws -> SyncReleasesPage {
+        let matching = storage.values
+            .filter { ($0.version ?? 0) > sinceVersion }
+            .sorted { ($0.version ?? 0) < ($1.version ?? 0) }
+        return SyncReleasesPage(releases: matching, nextVersion: currentVersion)
+    }
+
+    @discardableResult
+    func putRelease(_ record: SyncRecord) async throws -> Int {
+        putCalls.append(record)
+        if conflictOnNextPut.remove(record.id) != nil {
+            throw SyncApiError.conflict(serverUpdatedAt: storage[record.id]?.updatedAt)
+        }
+        currentVersion += 1
+        var stored = record
+        stored.version = currentVersion
+        storage[record.id] = stored
+        return currentVersion
+    }
+
+    @discardableResult
+    func deleteRelease(_ id: String) async throws -> Int {
+        deleteCalls.append(id)
+        currentVersion += 1
+        var stored = storage[id] ?? SyncRecord(
+            id: id, kind: "single", title: "", artist: "", tracks: [],
+            origin: "ios", originDevice: "", createdAt: Date(), updatedAt: Date()
+        )
+        stored.deleted = true
+        stored.version = currentVersion
+        storage[id] = stored
+        return currentVersion
+    }
+
+    /// Bytes to fail with, and how many times, before a given file name's
+    /// `downloadFile` starts succeeding — simulates a Mac release that's
+    /// visible (already `PUT`) before its files finish uploading, which
+    /// `SyncEngine.acceptFromMac`/`reconcile` must tolerate by retrying
+    /// rather than failing outright.
+    var downloadFailCountRemaining: [String: Int] = [:]
+
+    func requestUploads(releaseId: String, files: [SyncFileUploadRequest]) async throws -> [SyncUpload] {
+        requestUploadsCalls.append((releaseId, files))
+        // The real service 404s until the release record has been `PUT`
+        // (see `spec/sync.md`), so this fake enforces the same order:
+        // `SyncEngine.push` must `PUT` before it asks for upload tickets.
+        guard storage[releaseId] != nil else {
+            throw SyncApiError.network("No such release (PUT it before requesting uploads).")
+        }
+        let existing = existingFileNames[releaseId] ?? []
+        return files.filter { !existing.contains($0.name) }.map { file in
+            SyncUpload(
+                name: file.name,
+                url: URL(string: "https://fake-storage.example.com/\(releaseId)/\(file.name)")!,
+                method: "PUT",
+                headers: [:]
+            )
+        }
+    }
+
+    func uploadFile(_ fileURL: URL, to upload: SyncUpload) async throws {
+        uploadedFileNames.append(upload.name)
+        if let data = try? Data(contentsOf: fileURL) {
+            fileContents[upload.name] = data
+        }
+    }
+
+    func downloadURL(releaseId: String, fileName: String) async throws -> URL {
+        URL(string: "https://fake-storage.example.com/\(releaseId)/\(fileName)")!
+    }
+
+    func downloadFile(from url: URL, to destination: URL) async throws {
+        let name = url.lastPathComponent
+        if let remaining = downloadFailCountRemaining[name], remaining > 0 {
+            downloadFailCountRemaining[name] = remaining - 1
+            throw SyncApiError.network("Not found yet (simulated upload-in-progress).")
+        }
+        let data = fileContents[name] ?? Data([0xFF, 0xFB, 1, 2, 3, 4])
+        try data.write(to: destination)
+    }
+
+    /// Test helper: seeds the fake "server" with `record` directly (as if
+    /// another device had already `PUT` it), bumping the version so
+    /// `releases(sinceVersion:)` returns it.
+    func seed(_ record: SyncRecord) {
+        currentVersion += 1
+        var stored = record
+        stored.version = currentVersion
+        storage[record.id] = stored
+    }
+}

@@ -26,8 +26,10 @@ final class ReleaseRecord {
     var tracksData: Data
     var createdAt: Date
     var updatedAt: Date
+    /// Mirrors `Release.syncedUpdatedAt`; `nil` until the first successful push.
+    var syncedUpdatedAt: Date?
 
-    init(id: UUID, kindRaw: String, title: String, artist: String, year: String?, genre: String?, coverPath: String?, folderPath: String, tracksData: Data, createdAt: Date, updatedAt: Date) {
+    init(id: UUID, kindRaw: String, title: String, artist: String, year: String?, genre: String?, coverPath: String?, folderPath: String, tracksData: Data, createdAt: Date, updatedAt: Date, syncedUpdatedAt: Date? = nil) {
         self.id = id
         self.kindRaw = kindRaw
         self.title = title
@@ -39,6 +41,7 @@ final class ReleaseRecord {
         self.tracksData = tracksData
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.syncedUpdatedAt = syncedUpdatedAt
     }
 }
 
@@ -71,6 +74,7 @@ final class SwiftDataLibraryStore: LibraryStore {
             existing.folderPath = release.folderPath
             existing.tracksData = tracksData
             existing.updatedAt = release.updatedAt
+            existing.syncedUpdatedAt = release.syncedUpdatedAt
         } else {
             let record = ReleaseRecord(
                 id: release.id,
@@ -83,7 +87,8 @@ final class SwiftDataLibraryStore: LibraryStore {
                 folderPath: release.folderPath,
                 tracksData: tracksData,
                 createdAt: release.createdAt,
-                updatedAt: release.updatedAt
+                updatedAt: release.updatedAt,
+                syncedUpdatedAt: release.syncedUpdatedAt
             )
             context.insert(record)
         }
@@ -115,7 +120,8 @@ final class SwiftDataLibraryStore: LibraryStore {
             folderPath: record.folderPath,
             tracks: tracks,
             createdAt: record.createdAt,
-            updatedAt: record.updatedAt
+            updatedAt: record.updatedAt,
+            syncedUpdatedAt: record.syncedUpdatedAt
         )
     }
 }

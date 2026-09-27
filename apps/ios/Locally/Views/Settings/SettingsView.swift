@@ -47,6 +47,8 @@ struct SettingsView: View {
                 }
                 .listRowBackground(Theme.card)
 
+                SyncSettingsSection()
+
                 Section {
                     if purchaseStatus.isFullUnlocked {
                         LabeledContent(Copy.Purchase.rowTitle, value: Copy.Purchase.unlocked)

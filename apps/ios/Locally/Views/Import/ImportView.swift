@@ -13,6 +13,7 @@ struct ImportView: View {
 
     @Environment(\.appContainer) private var container
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(SyncStatus.self) private var syncStatus
 
     @State private var kind: Kind = .single
     /// Files currently waiting in the share inbox, shown as a banner above
@@ -29,6 +30,11 @@ struct ImportView: View {
     @State private var hideTask: Task<Void, Never>?
     @State private var singleQueue: [InboxFile] = []
     @State private var albumQueue: [InboxFile] = []
+    /// Mirrors `toastVisible`/`dismissedCount` for the sync source: songs
+    /// waiting on the Mac, offered separately from the share inbox above.
+    @State private var syncToastVisible = false
+    @State private var syncDismissedCount: Int?
+    @State private var syncHideTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -42,7 +48,7 @@ struct ImportView: View {
                     selection: $kind
                 )
                 .padding(.horizontal, Theme.Spacing.pagePadding)
-                .padding(.top, 16)
+                .padding(.top, 24)
 
                 Group {
                     switch kind {
@@ -52,18 +58,29 @@ struct ImportView: View {
                         AlbumBuilderView(inboxFiles: albumQueue) { albumQueue = [] }
                     }
                 }
+                .padding(.top, 24)
             }
             .background(Theme.background.ignoresSafeArea())
             // Waiting songs surface as a floating toast rather than a block in
             // the layout, so the form never shifts and the note reads as a
             // notification. Dismissed until the count changes.
             .overlay(alignment: .top) {
-                if !inboxFiles.isEmpty, toastVisible {
-                    inboxToast
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                VStack(spacing: 8) {
+                    if !inboxFiles.isEmpty, toastVisible {
+                        inboxToast
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
+                    if !syncStatus.pendingFromMac.isEmpty, syncToastVisible {
+                        syncToast
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                    }
                 }
             }
             .animation(.spring(duration: 0.35), value: toastVisible)
+            .animation(.spring(duration: 0.35), value: syncToastVisible)
+            .onChange(of: syncStatus.pendingFromMac.count) { _, count in
+                if count > 0, syncDismissedCount != count { showSyncToast() } else { syncToastVisible = false }
+            }
             .onChange(of: inboxFiles.count) { _, count in
                 if count > 0, dismissedCount != count { showToast() } else { toastVisible = false }
             }
@@ -76,6 +93,7 @@ struct ImportView: View {
         .onAppear {
             refreshInbox()
             if !inboxFiles.isEmpty, dismissedCount != inboxFiles.count { showToast() }
+            if !syncStatus.pendingFromMac.isEmpty, syncDismissedCount != syncStatus.pendingFromMac.count { showSyncToast() }
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active { refreshInbox() }
@@ -100,12 +118,30 @@ struct ImportView: View {
                     .buttonStyle(.plain)
                     .transition(.scale.combined(with: .opacity))
                 }
+                if !syncStatus.pendingFromMac.isEmpty, !syncToastVisible {
+                    Button {
+                        showSyncToast(autoHide: false)
+                    } label: {
+                        Text(Copy.Sync.pendingFromMac(count: syncStatus.pendingFromMac.count))
+                            .font(Theme.Font.badge)
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Theme.accent, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.scale.combined(with: .opacity))
+                }
             }
             Text(Copy.Import.title)
                 .font(Theme.Font.pageTitle)
                 .foregroundStyle(Theme.primaryText)
+            Text(Copy.Import.subtitle)
+                .font(Theme.Font.body)
+                .foregroundStyle(Theme.secondaryText)
         }
         .animation(.spring(duration: 0.3), value: toastVisible)
+        .animation(.spring(duration: 0.3), value: syncToastVisible)
     }
 
     private func showToast(autoHide: Bool = true) {
@@ -115,6 +151,16 @@ struct ImportView: View {
         hideTask = Task {
             try? await Task.sleep(for: .seconds(6))
             if !Task.isCancelled { toastVisible = false }
+        }
+    }
+
+    private func showSyncToast(autoHide: Bool = true) {
+        syncHideTask?.cancel()
+        syncToastVisible = true
+        guard autoHide else { return }
+        syncHideTask = Task {
+            try? await Task.sleep(for: .seconds(6))
+            if !Task.isCancelled { syncToastVisible = false }
         }
     }
 
@@ -168,6 +214,93 @@ struct ImportView: View {
         .shadow(color: .black.opacity(0.45), radius: 18, y: 8)
         .padding(.horizontal, Theme.Spacing.pagePadding)
         .padding(.top, 6)
+    }
+
+    /// The Mac source's own toast, listing each pending release with its own
+    /// "Send to Spotify" action (a spinner while `SyncStatus.acceptingIds`
+    /// includes it) plus "Send all" when there's more than one.
+    private var syncToast: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                Text(Copy.Sync.pendingFromMac(count: syncStatus.pendingFromMac.count))
+                    .font(Theme.Font.body.weight(.semibold))
+                    .foregroundStyle(Theme.primaryText)
+                Spacer(minLength: 0)
+                if syncStatus.pendingFromMac.count > 1 {
+                    Button(Copy.Sync.sendAll) {
+                        Task { await container?.syncEngine.acceptAllFromMac() }
+                    }
+                    .font(Theme.Font.rowSubtitle.weight(.medium))
+                    .foregroundStyle(Theme.accent)
+                    .buttonStyle(.plain)
+                }
+                Button {
+                    syncDismissedCount = syncStatus.pendingFromMac.count
+                    syncToastVisible = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.secondaryText)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Copy.Inbox.dismiss)
+            }
+
+            VStack(spacing: 6) {
+                ForEach(syncStatus.pendingFromMac, id: \.id) { record in
+                    syncPendingRow(record)
+                }
+            }
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 6)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial)
+        .background(Theme.card.opacity(0.85))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Theme.border, lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.45), radius: 18, y: 8)
+        .padding(.horizontal, Theme.Spacing.pagePadding)
+        .padding(.top, 6)
+    }
+
+    private func syncPendingRow(_ record: SyncRecord) -> some View {
+        let isAccepting = syncStatus.acceptingIds.contains(record.id)
+        return HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(record.title)
+                    .font(Theme.Font.rowSubtitle.weight(.medium))
+                    .foregroundStyle(Theme.primaryText)
+                    .lineLimit(1)
+                Text(record.artist)
+                    .font(Theme.Font.rowSubtitle)
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Button {
+                Task { await container?.syncEngine.acceptFromMac(record.id) }
+            } label: {
+                if isAccepting {
+                    HStack(spacing: 6) {
+                        ProgressView().tint(Theme.accent)
+                        Text(Copy.Sync.downloading)
+                    }
+                } else {
+                    Text(Copy.Sync.sendToSpotify)
+                }
+            }
+            .font(Theme.Font.rowSubtitle.weight(.medium))
+            .foregroundStyle(Theme.accent)
+            .buttonStyle(.plain)
+            .disabled(isAccepting)
+        }
     }
 
     private func refreshInbox() {

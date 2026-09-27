@@ -17,6 +17,7 @@ struct LocallyApp: App {
                 .environment(\.appContainer, container)
                 .environment(container.folderStatus)
                 .environment(container.purchaseStatus)
+                .environment(container.syncStatus)
                 .preferredColorScheme(.dark)
         }
     }

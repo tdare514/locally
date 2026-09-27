@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import SwiftUI
+import UIKit
 
 /// Observable connection status for Spotify's folder, so SwiftUI views
 /// (`RootView`, `SettingsView`) can react to onboarding/reconnect without
@@ -37,9 +38,17 @@ final class AppContainer {
     let coverStore: CoverStore
     let inbox: InboxStore
     let purchase: PurchaseService
+    let syncAccount: SyncAccountStore
+    let syncApi: SyncApi
+    let syncEngine: SyncEngine
     let folderStatus: FolderStatus
     let purchaseStatus: PurchaseStatus
     let modelContainer: ModelContainer
+
+    /// What Settings and the Import tab bind to for sync — same object as
+    /// `syncEngine.status`, exposed here so views don't need to reach
+    /// through the engine just to read it.
+    var syncStatus: SyncStatus { syncEngine.status }
 
     init(
         folder: SpotifyFolderAccess,
@@ -49,6 +58,9 @@ final class AppContainer {
         coverStore: CoverStore,
         inbox: InboxStore,
         purchase: PurchaseService,
+        syncAccount: SyncAccountStore,
+        syncApi: SyncApi,
+        syncEngine: SyncEngine,
         modelContainer: ModelContainer
     ) {
         self.folder = folder
@@ -58,9 +70,13 @@ final class AppContainer {
         self.coverStore = coverStore
         self.inbox = inbox
         self.purchase = purchase
+        self.syncAccount = syncAccount
+        self.syncApi = syncApi
+        self.syncEngine = syncEngine
         self.modelContainer = modelContainer
         self.folderStatus = FolderStatus(isConnected: folder.isConnected)
         self.purchaseStatus = PurchaseStatus(isFullUnlocked: purchase.isFullUnlocked)
+        coordinator.syncHook = syncEngine
     }
 
     /// Marks the folder connected after a successful `SpotifyFolderAccess.connect`,
@@ -106,6 +122,15 @@ final class AppContainer {
             library: library,
             coverStore: coverStore
         )
+        let syncAccount = UserDefaultsSyncAccountStore()
+        let syncApi = HttpSyncApi(account: syncAccount)
+        let syncEngine = SyncEngine(
+            api: syncApi,
+            account: syncAccount,
+            library: library,
+            coordinator: coordinator,
+            deviceName: { UIDevice.current.name }
+        )
         let container = AppContainer(
             folder: folder,
             library: library,
@@ -114,6 +139,9 @@ final class AppContainer {
             coverStore: coverStore,
             inbox: inbox,
             purchase: purchase,
+            syncAccount: syncAccount,
+            syncApi: syncApi,
+            syncEngine: syncEngine,
             modelContainer: modelContainer
         )
         Task { await container.refreshPurchaseStatus() }
@@ -132,7 +160,10 @@ final class AppContainer {
         id3TagWriter: TagWriter,
         coverStore: CoverStore,
         inbox: InboxStore,
-        purchase: PurchaseService
+        purchase: PurchaseService,
+        syncAccount: SyncAccountStore,
+        syncApi: SyncApi,
+        deviceName: @escaping () -> String = { "Test Device" }
     ) -> AppContainer {
         let modelContainer = Self.makeModelContainer(inMemory: true)
         let coordinator = ReleaseCoordinator(
@@ -144,6 +175,13 @@ final class AppContainer {
             library: library,
             coverStore: coverStore
         )
+        let syncEngine = SyncEngine(
+            api: syncApi,
+            account: syncAccount,
+            library: library,
+            coordinator: coordinator,
+            deviceName: deviceName
+        )
         return AppContainer(
             folder: folder,
             library: library,
@@ -152,6 +190,9 @@ final class AppContainer {
             coverStore: coverStore,
             inbox: inbox,
             purchase: purchase,
+            syncAccount: syncAccount,
+            syncApi: syncApi,
+            syncEngine: syncEngine,
             modelContainer: modelContainer
         )
     }

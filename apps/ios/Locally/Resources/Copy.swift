@@ -21,8 +21,11 @@ enum Copy {
     }
 
     enum Import {
-        static let title = "Add a song"
-        /// The eyebrow shown above the title on the Add a song screen, per
+        static let title = "Import"
+        /// The page subtitle shown under the title, per `docs/design.md`'s
+        /// "Page header" component — matches the web app's Import view.
+        static let subtitle = "Add a song or album to your Spotify library."
+        /// The eyebrow shown above the title on the Import screen, per
         /// `docs/design.md`'s "Page header" component.
         static let eyebrow = "Local library"
         static let pickFile = "Choose a file"
@@ -171,5 +174,40 @@ enum Copy {
             guard let price else { return buy }
             return "\(buy) – \(price)"
         }
+    }
+
+    enum Sync {
+        static let cardTitle = "Sync with your Mac"
+        static let cardBody = "Keep this phone's library and your Mac's Locally library in step."
+        static let emailFieldLabel = "Email"
+        static let emailPlaceholder = "you@example.com"
+        static let sendCode = "Send code"
+        static let sending = "Sending…"
+        static let codeFieldLabel = "Code"
+        static let codePlaceholder = "6-digit code"
+        static let codeSentTo = "We sent a 6-digit code to"
+        static let useDifferentEmail = "Use a different email"
+        static let signIn = "Sign in"
+        static let signingIn = "Signing in…"
+        static let signOut = "Sign out"
+        static let syncNow = "Sync now"
+        static let syncing = "Syncing…"
+        static let deviceLabel = "Device"
+        static let storageLabel = "Storage"
+        static let mergeNotice = "Songs already on both your Mac and this phone before you signed in are kept as two separate releases, not merged."
+        static let serverAddress = "Server address (development)"
+        static let serverAddressHint = "Point this at your Mac's address on the same network, e.g. http://192.168.1.23:4000, so this simulator or phone can reach it."
+
+        static func lastSynced(_ relativeTime: String) -> String { "Last synced \(relativeTime)." }
+        static let neverSynced = "Not synced yet."
+
+        static func quota(usedMB: Int, limitMB: Int) -> String { "\(usedMB) MB of \(limitMB) MB used" }
+
+        static func pendingFromMac(count: Int) -> String {
+            count == 1 ? "1 song from your Mac" : "\(count) songs from your Mac"
+        }
+        static let sendToSpotify = "Send to Spotify"
+        static let sendAll = "Send all"
+        static let downloading = "Downloading…"
     }
 }

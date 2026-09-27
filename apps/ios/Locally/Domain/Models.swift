@@ -58,6 +58,11 @@ struct Release: Identifiable, Codable, Hashable {
     var tracks: [Track]
     var createdAt: Date
     var updatedAt: Date
+    /// The `updatedAt` this release had the last time it was successfully
+    /// pushed to the sync service, or `nil` if it has never been pushed.
+    /// `SyncEngine` back-fills any release where this is `nil` after sign-in,
+    /// and re-pushes one whenever `updatedAt` moves past it.
+    var syncedUpdatedAt: Date?
 
     init(
         id: UUID = UUID(),
@@ -70,7 +75,8 @@ struct Release: Identifiable, Codable, Hashable {
         folderPath: String,
         tracks: [Track],
         createdAt: Date = Date(),
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        syncedUpdatedAt: Date? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -83,6 +89,7 @@ struct Release: Identifiable, Codable, Hashable {
         self.tracks = tracks
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.syncedUpdatedAt = syncedUpdatedAt
     }
 }
 
