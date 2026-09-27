@@ -25,7 +25,7 @@ matters, never hidden.
 | Apps cannot write into another app's storage | User picks Spotify's folder once in the system folder picker; app keeps a security-scoped bookmark |
 | Spotify iOS reads mp3/m4a only; iOS has no mp3 encoder | Convert to AAC m4a via AVAssetExportSession |
 | Spotify scans its folder itself; on the test phone a new file appeared while Spotify was already open | Done screen says "Open Spotify"; no deep link |
-| Spotify caches tags | Re-tag in place; guide says fully close and reopen Spotify |
+| Spotify caches tags: a new cover shows at once, a new title only after a rescan | Re-tag in place; the after-edit guide says to switch Local Files off and on in Spotify settings |
 | No album page for local files | Album = shared cover + album tag + guided "make it a playlist" step |
 | App Store brand rules | Own name/icon, no Spotify green, trademark line in About |
 
@@ -35,7 +35,7 @@ matters, never hidden.
 - [x] An m4a (converted from wav on the phone) tagged via AVFoundation shows in Spotify with artwork and artist (confirmed 27 Sep 2026).
 - [ ] Local files show and play on a Premium account after reopen.
 - [x] A third-party app can pick that folder and later write into it from a stored bookmark (confirmed 27 Sep 2026).
-- [ ] Re-tagging in place refreshes in Spotify after a full close/reopen.
+- [x] Re-tagging in place works. Spotify picks up a new cover immediately but keeps the old title until Local Files is switched off and on in its settings (confirmed 27 Sep 2026). Files keep their names, so playlists keep the track.
 
 ## Architecture
 SwiftUI app + Share Extension. One `ReleaseCoordinator` (import, update, delete) calls four
@@ -58,7 +58,7 @@ implementation and one fake for tests.
 - Cover (album): "Pick the cover that'll be applied to all of these tracks."
 - Done (single): "Sent. Open Spotify, then Your Library, then Local Files to play it."
 - Done (album): "Sent. To hear it as an album, make it a playlist: in Spotify open Local Files, select these tracks, then Add to playlist, New playlist, and name it <album title>."
-- After an edit: "Updated. Spotify will show the new details next time it opens. If they don't appear, close Spotify fully and open it again."
+- After an edit: "Updated. Spotify shows a new cover right away, but keeps the old name until it rescans. In Spotify, open Settings, then Local Files, switch it off and on again, and the new details appear."
 - Folder lost: "We can't reach Spotify's folder any more. This happens after Spotify is reinstalled or Local Files is turned off. Tap to reconnect."
 - About: "<App name> is an independent app. Spotify is a trademark of Spotify AB. This app is not affiliated with, endorsed by or sponsored by Spotify."
 Tone: second person, present tense, one idea per sentence, no exclamation marks; say "Spotify can't" when the limit is Spotify's.

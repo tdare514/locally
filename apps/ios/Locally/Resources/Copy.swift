@@ -40,7 +40,7 @@ enum Copy {
         static let addAnother = "Add another"
         static let albumExplainer = "Spotify can't create albums from your own files, so we'll set these up to become a playlist. They'll share this cover, artist and album name."
         static let albumCoverPrompt = "Pick the cover that'll be applied to all of these tracks."
-        static let afterEdit = "Updated. Spotify will show the new details next time it opens. If they don't appear, close Spotify fully and open it again."
+        static let afterEdit = "Updated. Spotify shows a new cover right away, but keeps the old name until it rescans. In Spotify, open Settings, then Local Files, switch it off and on again, and the new details appear."
         static let kindSingle = "Single"
         static let kindAlbum = "Album"
         static let noTracksYet = "No tracks yet."
