@@ -10,16 +10,22 @@ const TICKET_LIFETIME_MS = 5 * 60 * 1000;
  * `@vercel/blob`'s `presignUrl` re-reads the pathname it signed into the
  * token by base64-decoding with `atob`, which yields Latin-1, so a key with
  * any non-ASCII character (a curly apostrophe in "It's Over", accents,
- * CJK) comes back as mojibake and the SDK rejects its own token with
- * "Blob path does not match the signed token scope". Percent-encoding every
- * byte outside printable ASCII (space through `~`; plus `%` itself, so the
- * mapping can't collide) keeps the path the SDK sees pure ASCII while
- * leaving every key that already uploaded fine unchanged. The mapping is one-way
- * and applied at every call site here, so the `storageKey` persisted in the
- * database stays the readable, un-encoded key.
+ * CJK, emoji) comes back as mojibake and the SDK rejects its own token with
+ * "Blob path does not match the signed token scope". So the path the SDK
+ * sees must be pure ASCII. Percent-escapes are not an option either: the
+ * presigned URL carries the pathname as a query parameter and Blob
+ * normalises `%XX` in it before checking the delegation, answering 403
+ * "pathname does not match delegation". Each code point outside printable
+ * ASCII (space through `~`) is therefore written as its UTF-8 bytes in the
+ * form `~XX`, with a literal `~` written as `~7E` so the mapping can't
+ * collide. Every key that already uploaded fine is unchanged. The mapping
+ * is one-way and applied at every call site here, so the `storageKey`
+ * persisted in the database stays the readable, un-encoded key.
  */
 export function blobPathname(key: string): string {
-  return key.replace(/[^\x20-\x7e]|%/g, (ch) => encodeURIComponent(ch));
+  return key.replace(/[^\x20-\x7e]|~/gu, (ch) =>
+    Array.from(new TextEncoder().encode(ch), (b) => "~" + b.toString(16).toUpperCase().padStart(2, "0")).join("")
+  );
 }
 
 /**
