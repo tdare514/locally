@@ -81,6 +81,17 @@ struct UserDefaultsSyncAccountStoreTests {
         #expect(store.deviceToken == nil)
         #expect(store.deviceId == nil)
         #expect(store.lastVersion == 0)
+        #expect(store.deviceName == nil)
+    }
+
+    @Test func deviceNamePersistsAcrossStoreInstances() {
+        let suiteName = "com.tdare.locally.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let tokenStore = InMemoryKeychainTokenStore()
+        let first = UserDefaultsSyncAccountStore(defaults: defaults, tokenStore: tokenStore)
+        first.deviceName = "iPhone 14"
+        let second = UserDefaultsSyncAccountStore(defaults: defaults, tokenStore: tokenStore)
+        #expect(second.deviceName == "iPhone 14")
     }
 
     @Test func lastVersionPersistsAcrossReads() {
@@ -100,6 +111,7 @@ struct UserDefaultsSyncAccountStoreTests {
         #expect(store.deviceToken == nil)
         #expect(store.deviceId == nil)
         #expect(store.lastVersion == 0)
+        #expect(store.deviceName == nil)
         #expect(store.baseURL == URL(string: "http://192.168.1.23:4000")!)
     }
 

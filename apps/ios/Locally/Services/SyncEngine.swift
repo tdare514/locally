@@ -154,6 +154,7 @@ final class SyncEngine: ReleaseSyncHook {
         self.deviceName = deviceName
         status.signedIn = account.deviceToken != nil
         status.email = account.email
+        status.deviceName = account.deviceName
     }
 
     var isSignedIn: Bool { account.deviceToken != nil }
@@ -173,6 +174,7 @@ final class SyncEngine: ReleaseSyncHook {
     func verify(email: String, code: String) async throws {
         let result = try await api.verify(email: email, code: code, deviceName: deviceName(), platform: "ios")
         try account.save(email: result.email, deviceToken: result.token, deviceId: result.deviceId)
+        account.deviceName = result.deviceName
         status.signedIn = true
         status.email = result.email
         status.deviceName = result.deviceName
@@ -218,9 +220,10 @@ final class SyncEngine: ReleaseSyncHook {
         return true
     }
 
-    /// The local half of signing out: clears the stored account, the
-    /// outbox, `status`, and every release's sync markers (`signOut` and
-    /// `deleteAccount` both end here). Never talks to the server.
+    /// The local half of signing out: clears the stored account (including
+    /// the persisted device name), the outbox, `status`, and every release's
+    /// sync markers (`signOut` and `deleteAccount` both end here). Never
+    /// talks to the server.
     private func clearLocalAccountState() {
         account.clear()
         try? outbox.removeAll()
@@ -534,6 +537,10 @@ final class SyncEngine: ReleaseSyncHook {
 
             if let me = try? await api.me() {
                 status.quota = me.quota
+                if account.deviceName == nil {
+                    account.deviceName = me.deviceName
+                    status.deviceName = me.deviceName
+                }
             }
 
             status.lastRunAt = Date()
