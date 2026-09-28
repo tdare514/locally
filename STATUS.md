@@ -40,12 +40,12 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Every response carries x-request-id; 4xx/5xx, rate-limit, quota and auth failures log one JSON line (request ID, route, status, duration, user ID); the daily cron logs total stored bytes, warning past STORAGE_ALERT_BYTES (#29)
 - Device tokens expire after a year unused (the account itself never expires) (lastSeenAt refreshed at most daily); a cross-user test matrix shows another account gets 404 on every release, file and device route (#33)
 - SQLite (libSQL) via Drizzle, migrated automatically on first request
-- Deployed to https://locally-sync-api.vercel.app (Vercel project locally-sync-api: Turso database, private Blob store, Resend sandbox sender); both clients default to it; sign-in code delivery verified 28 Sep (#3)
+- Deployed to https://locally-sync-api.vercel.app (Vercel project locally-sync-api: Turso database, private Blob store, Resend); both clients default to it; smoke-tested end to end 28 Sep from a Mac and an iPhone 14: sign-in, push each way, tombstone (#3 closed). Resend still uses the sandbox sender, which only delivers to the owner's address: verify a domain and set MAIL_FROM before anyone else signs up
 
 ## In progress
 - Security hardening from the Sep 27 review: web origin check, zod validation, HTTPS-only sync, sign-out on base URL change, Keychain hardening and the iOS privacy manifest landed (#11 closed); the medium/low backlog is done on web (symlink-aware inside checks, index schema, ffmpeg watchdog, settings file perms, decoded CSRF path); its iOS items remain (#12)
 - Security review of apps/api (#20): findings fixed 28 Sep; auth rate limits now live in the shared libSQL database, so they hold across Vercel instances
-- Deploying apps/api to Vercel with libSQL, Blob and Resend behind the existing interfaces (#3): live with mail working and both clients pointing at it; remaining: end-to-end smoke test from a Mac and a phone, and a verified sending domain in Resend (the sandbox sender only delivers to the owner's address). Note: the project's ignored-build-step cancels `vercel redeploy`, so env changes need `vercel deploy --prod --archive=tgz` from the repo root or a push touching apps/api
+- Sync API operations: the Vercel project's ignored-build-step cancels `vercel redeploy`, so an env change needs a push touching apps/api or `vercel deploy --prod --archive=tgz` from a repo root linked to locally-sync-api
 
 ## Known issues
 - Share extension can't be provisioned for a device build on the project's Personal team; simulator-only for now (see apps/ios/README.md)
