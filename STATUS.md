@@ -6,7 +6,7 @@ Git history holds the past.
 Last updated: 2026-09-28
 
 ## Current focus
-Hardening from the Sep 27 security review across web, iOS and the new sync API, then deploying the API so both clients sync against a real URL. Repo-health and agent-readiness gaps (#13, #22 to #25) are being closed alongside.
+Hardening from the Sep 27 security review across web, iOS and the new sync API, then deploying the API so both clients sync against a real URL. Agent-readiness gaps (#22 to #25) are being closed alongside.
 
 ## What works
 ### Web (apps/web)
@@ -60,7 +60,6 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Remaining iOS restructure items: on-device checks of the import silhouette and drag reorder (#6)
 - Mac library development: search, sort, bulk actions, playlist-aware grouping; plan-only: conversion job queue, SQLite index, multi-library (#7)
 - Architecture review for multiple users (docs/reviews/2026-09-28-architecture.md): atomic sync version #28 first, then async email and deletes #31; owner decisions on Mac packaging #35 and privacy/terms #36
-- Repo health: CI workflows, an all-rights-reserved LICENSE and root-doc fixes landed; still open are the vitest .mts rename, apps/ios/README stale references, and the test gaps (#13)
 
 ## Architecture decisions
 See docs/adr/. Product plans: docs/web-plan.md, docs/ios-plan.md. Sync contract: spec/sync.md.
