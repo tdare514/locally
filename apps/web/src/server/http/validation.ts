@@ -1,4 +1,5 @@
 import path from "node:path";
+import { z } from "zod";
 import type { ImportMeta, UpdateReleaseMeta } from "../../shared/types";
 import { SUPPORTED_AUDIO_EXT, SUPPORTED_IMAGE_EXT } from "../../shared/types";
 import { ValidationError } from "../../shared/errors";
@@ -6,6 +7,9 @@ import { ValidationError } from "../../shared/errors";
 /** Input limits shared by the upload routes. */
 export const MAX_COVER_BYTES = 10 * 1024 * 1024;
 export const MAX_AUDIO_BYTES = 500 * 1024 * 1024;
+/** Longest title/name accepted; `ReleaseLayout.sanitizeSegment` caps at the same length. */
+export const MAX_TEXT_LENGTH = 200;
+export const MAX_TRACKS = 200;
 
 /** True if `name`'s extension (lowercased) is one of `exts`. */
 export function hasExt(name: string, exts: readonly string[]): boolean {
@@ -32,6 +36,91 @@ export async function sniffImageMime(file: File): Promise<"image/jpeg" | "image/
   return null;
 }
 
+// U+0000–U+001F and U+007F are never part of a real title, and NUL/newline are
+// significant to the OS or a terminal. A loop rather than a regex: eslint's
+// no-control-regex flags the escapes, and this reads just as clearly.
+function hasControlChar(s: string): boolean {
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c < 0x20 || c === 0x7f) return true;
+  }
+  return false;
+}
+
+/** A trimmed, length-capped, control-character-free text field. */
+function text() {
+  return z
+    .string({ error: "must be a string" })
+    .trim()
+    .max(MAX_TEXT_LENGTH, `must be at most ${MAX_TEXT_LENGTH} characters`)
+    .refine((s) => !hasControlChar(s), "must not contain control characters");
+}
+
+const kindSchema = z.enum(["single", "album"], { error: "must be 'single' or 'album'" });
+
+// `Release.year` is a string ("2024"), so a 4-digit string it is; a number is rejected.
+const yearSchema = z.string({ error: "must be a 4-digit year" }).trim().regex(/^\d{4}$/, "must be a 4-digit year");
+
+// Anything but a small positive integer would stringify into a track file name that
+// isn't a plain number (see `ReleaseLayout.trackFileName`).
+const TRACK_NUMBER_MSG = "must be an integer between 1 and 999";
+const trackNumberSchema = z
+  .number({ error: TRACK_NUMBER_MSG })
+  .int(TRACK_NUMBER_MSG)
+  .min(1, TRACK_NUMBER_MSG)
+  .max(999, TRACK_NUMBER_MSG);
+
+const importMetaSchema = z.object(
+  {
+    kind: kindSchema,
+    // Optional for singles: the server falls back to the first track's title.
+    title: text().default(""),
+    artist: text().min(1, "is required"),
+    year: yearSchema.optional(),
+    genre: text().optional(),
+    tracks: z
+      .array(z.object({ title: text(), trackNumber: trackNumberSchema }, { error: "must be an object" }), {
+        error: "must be a non-empty array",
+      })
+      .min(1, "must be a non-empty array")
+      .max(MAX_TRACKS, `must have at most ${MAX_TRACKS} tracks`),
+  },
+  { error: "must be a JSON object" }
+);
+
+const updateMetaSchema = z.object(
+  {
+    title: text().optional(),
+    artist: text().optional(),
+    year: yearSchema.nullable().optional(),
+    genre: text().nullable().optional(),
+    tracks: z
+      .array(
+        z.object(
+          {
+            id: text().min(1, "is required"),
+            title: text().optional(),
+            trackNumber: trackNumberSchema.optional(),
+          },
+          { error: "must be an object" }
+        ),
+        { error: "must be an array" }
+      )
+      .max(MAX_TRACKS, `must have at most ${MAX_TRACKS} entries`)
+      .optional(),
+  },
+  { error: "Request body must be a JSON object" }
+);
+
+/** "meta.tracks[2].trackNumber must be ..." from a zod issue, so the client sees which field failed. */
+function describeIssue(root: string, issue: z.ZodIssue): string {
+  let where = root;
+  for (const seg of issue.path) {
+    where = typeof seg === "number" ? `${where}[${seg}]` : where ? `${where}.${String(seg)}` : String(seg);
+  }
+  return where ? `${where} ${issue.message}` : issue.message;
+}
+
 export interface ParsedImport {
   meta: ImportMeta;
   audioFiles: File[];
@@ -50,22 +139,18 @@ export async function parseImportMeta(form: FormData): Promise<ParsedImport> {
     throw new ValidationError("meta field (JSON string) is required");
   }
 
-  let meta: ImportMeta;
+  let json: unknown;
   try {
-    meta = JSON.parse(metaRaw) as ImportMeta;
+    json = JSON.parse(metaRaw);
   } catch {
     throw new ValidationError("meta field must be valid JSON");
   }
 
-  if (meta.kind !== "single" && meta.kind !== "album") {
-    throw new ValidationError("meta.kind must be 'single' or 'album'");
+  const parsed = importMetaSchema.safeParse(json);
+  if (!parsed.success) {
+    throw new ValidationError(describeIssue("meta", parsed.error.issues[0]));
   }
-  if (typeof meta.artist !== "string" || meta.artist.trim().length === 0) {
-    throw new ValidationError("meta.artist is required");
-  }
-  if (!Array.isArray(meta.tracks) || meta.tracks.length === 0) {
-    throw new ValidationError("meta.tracks must be a non-empty array");
-  }
+  const meta: ImportMeta = parsed.data;
 
   const audioFiles = form.getAll("audio").filter((v): v is File => v instanceof File);
   if (audioFiles.length === 0) {
@@ -139,58 +224,11 @@ export function parseInspectAudio(form: FormData): File[] {
   return audioFiles;
 }
 
-function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-
 /** Validate and narrow the JSON body of `PATCH /api/releases/[id]` into `UpdateReleaseMeta`. */
 export function parseUpdateMeta(body: unknown): UpdateReleaseMeta {
-  if (!isPlainObject(body)) {
-    throw new ValidationError("Request body must be a JSON object");
+  const parsed = updateMetaSchema.safeParse(body);
+  if (!parsed.success) {
+    throw new ValidationError(describeIssue("", parsed.error.issues[0]));
   }
-  const { title, artist, year, genre, tracks } = body as Record<string, unknown>;
-
-  if (title !== undefined && typeof title !== "string") {
-    throw new ValidationError("title must be a string");
-  }
-  if (artist !== undefined && typeof artist !== "string") {
-    throw new ValidationError("artist must be a string");
-  }
-  if (year !== undefined && year !== null && typeof year !== "string") {
-    throw new ValidationError("year must be a string or null");
-  }
-  if (genre !== undefined && genre !== null && typeof genre !== "string") {
-    throw new ValidationError("genre must be a string or null");
-  }
-
-  let parsedTracks: UpdateReleaseMeta["tracks"];
-  if (tracks !== undefined) {
-    if (!Array.isArray(tracks)) {
-      throw new ValidationError("tracks must be an array");
-    }
-    parsedTracks = tracks.map((t) => {
-      if (!isPlainObject(t) || typeof t.id !== "string") {
-        throw new ValidationError("Each track patch must have a string id");
-      }
-      if (t.title !== undefined && typeof t.title !== "string") {
-        throw new ValidationError("track title must be a string");
-      }
-      if (t.trackNumber !== undefined && typeof t.trackNumber !== "number") {
-        throw new ValidationError("track trackNumber must be a number");
-      }
-      return {
-        id: t.id,
-        title: t.title as string | undefined,
-        trackNumber: t.trackNumber as number | undefined,
-      };
-    });
-  }
-
-  return {
-    title: title as string | undefined,
-    artist: artist as string | undefined,
-    year: year as string | null | undefined,
-    genre: genre as string | null | undefined,
-    tracks: parsedTracks,
-  };
+  return parsed.data;
 }

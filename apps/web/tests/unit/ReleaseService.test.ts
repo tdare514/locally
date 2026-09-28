@@ -12,6 +12,7 @@ import type { LibraryRepository } from "../../src/server/storage/LibraryReposito
 import type { AudioConverter } from "../../src/server/audio/AudioConverter";
 import type { ReadTagsResult, TagService, WriteTagsInput } from "../../src/server/audio/TagService";
 import type { Release, Settings } from "../../src/shared/types";
+import type { SyncRecord } from "../../src/server/sync/SyncRecord";
 
 /** In-memory `SettingsStore` fake so tests never touch `~/.spotify-local-import`. */
 class FakeSettingsStore implements SettingsStore {
@@ -273,5 +274,296 @@ describe2("ReleaseService import rollback", () => {
     expect2(entries).toEqual([]);
     expect2(store).toHaveLength(0);
     await fs2.rm(libraryDir, { recursive: true, force: true });
+  });
+});
+
+const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]);
+
+describe("ReleaseService never writes outside the library", () => {
+  let libraryDir: string;
+  let repo: InMemoryLibraryRepository;
+  let tags: RecordingTagService;
+
+  const exists = (p: string) =>
+    fs.access(p).then(
+      () => true,
+      () => false
+    );
+
+  function build(layout = new ReleaseLayout()): ReleaseService {
+    return new ReleaseService(
+      new FakeSettingsStore({ libraryDir, sync: null }),
+      repo,
+      new CopyingConverter(),
+      tags,
+      new NodeFileSystem(),
+      layout
+    );
+  }
+
+  function rogueRelease(folderPath: string, trackFilePath: string): Release {
+    const now = new Date().toISOString();
+    return {
+      id: "rogue",
+      kind: "single",
+      title: "One",
+      artist: "A",
+      year: null,
+      genre: null,
+      coverPath: null,
+      folderPath,
+      tracks: [{ id: "t1", title: "T", trackNumber: 1, filePath: trackFilePath, originalName: "v.mp3", durationSec: null }],
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  beforeEach(async () => {
+    libraryDir = await fs.mkdtemp(path.join(os.tmpdir(), "sli-inside-"));
+    repo = new InMemoryLibraryRepository();
+    tags = new RecordingTagService();
+  });
+
+  afterEach(async () => {
+    await fs.rm(libraryDir, { recursive: true, force: true });
+  });
+
+  it("rejects a track number that would escape the release folder and rolls back", async () => {
+    await expect(
+      build().import(
+        { kind: "single", artist: "A", title: "One", tracks: [{ title: "T", trackNumber: "../../../escaped" }] } as never,
+        null,
+        [audioFile("a.mp3")]
+      )
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(await fs.readdir(libraryDir)).toEqual([]);
+    expect(tags.writes).toHaveLength(0);
+    expect(await repo.list(libraryDir)).toEqual([]);
+  });
+
+  it("refuses even if the layout handed back an escaping file name", async () => {
+    // The hostile name points at a sibling of the temp library dir; unique per run so a
+    // stale file from an earlier failure can't mask a regression.
+    const escapedName = `escaped-${path.basename(libraryDir)}.mp3`;
+    const escapedPath = path.join(path.dirname(libraryDir), escapedName);
+    class HostileLayout extends ReleaseLayout {
+      override trackFileName(): string {
+        return path.join("..", "..", "..", escapedName);
+      }
+    }
+    await expect(
+      build(new HostileLayout()).import(
+        { kind: "single", artist: "A", title: "One", tracks: [{ title: "T", trackNumber: 1 }] },
+        null,
+        [audioFile("a.mp3")]
+      )
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(await exists(escapedPath)).toBe(false);
+    expect(await fs.readdir(libraryDir)).toEqual([]);
+    expect(tags.writes).toHaveLength(0);
+  });
+
+  it("refuses to rewrite tags on a track the index points outside the library", async () => {
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "sli-outside-"));
+    try {
+      await repo.upsert(libraryDir, rogueRelease(path.join(libraryDir, "A", "One"), path.join(outside, "victim.mp3")));
+      await expect(build().update("rogue", { title: "Renamed" })).rejects.toBeInstanceOf(ValidationError);
+      expect(tags.writes).toHaveLength(0);
+    } finally {
+      await fs.rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses to write a cover into a folder the index points outside the library", async () => {
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), "sli-outside-"));
+    try {
+      await repo.upsert(libraryDir, rogueRelease(outside, path.join(outside, "victim.mp3")));
+      const cover = new File([JPEG], "cover.jpg", { type: "image/jpeg" });
+      await expect(build().replaceCover("rogue", cover)).rejects.toBeInstanceOf(ValidationError);
+      expect(await fs.readdir(outside)).toEqual([]);
+      expect(tags.writes).toHaveLength(0);
+    } finally {
+      await fs.rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("still imports a normal album, with '..' names sanitised to plain children", async () => {
+    const release = await build().import(
+      {
+        kind: "album",
+        artist: "A",
+        title: "..foo",
+        tracks: [
+          { title: "..bar", trackNumber: 1 },
+          { title: "Two", trackNumber: 2 },
+        ],
+      },
+      null,
+      [audioFile("a.mp3"), audioFile("b.mp3")]
+    );
+    expect(path.basename(release.folderPath)).toBe("foo");
+    expect(release.tracks.map((t) => path.basename(t.filePath))).toEqual(["01 - bar.mp3", "02 - Two.mp3"]);
+    const nfs = new NodeFileSystem();
+    for (const t of release.tracks) {
+      expect(nfs.isInside(libraryDir, t.filePath)).toBe(true);
+      expect(await exists(t.filePath)).toBe(true);
+    }
+    expect(tags.writes).toHaveLength(2);
+  });
+});
+
+describe("ReleaseService.importSynced never reads outside the download dir", () => {
+  let sandbox: string;
+  let libraryDir: string;
+  let dl: string;
+  let repo: InMemoryLibraryRepository;
+  let tags: RecordingTagService;
+
+  const exists = (p: string) =>
+    fs.access(p).then(
+      () => true,
+      () => false
+    );
+
+  function build(): ReleaseService {
+    return new ReleaseService(
+      new FakeSettingsStore({ libraryDir, sync: null }),
+      repo,
+      new CopyingConverter(),
+      tags,
+      new NodeFileSystem()
+    );
+  }
+
+  /** A record exactly as `parseSyncRecord` would accept it off the wire. */
+  function syncRecord(overrides: Partial<SyncRecord> = {}): SyncRecord {
+    const now = "2026-09-27T10:00:00.000Z";
+    return {
+      syncVersion: 1,
+      id: "r1",
+      kind: "album",
+      title: "T",
+      artist: "A",
+      year: null,
+      genre: null,
+      cover: null,
+      tracks: [],
+      origin: "ios",
+      originDevice: "phone",
+      createdAt: now,
+      updatedAt: now,
+      deleted: false,
+      ...overrides,
+    };
+  }
+
+  const track = (id: string, n: number, file: string): SyncRecord["tracks"][number] => ({
+    id,
+    title: `T${n}`,
+    trackNumber: n,
+    file,
+    bytes: 8,
+    durationSec: null,
+  });
+
+  beforeEach(async () => {
+    // One temp sandbox holds the library, the download dir the sync engine would hand
+    // over, and - as its siblings - the files a traversal would reach.
+    sandbox = await fs.mkdtemp(path.join(os.tmpdir(), "sli-synced-"));
+    libraryDir = path.join(sandbox, "lib");
+    dl = path.join(sandbox, "dl");
+    await fs.mkdir(libraryDir);
+    await fs.mkdir(dl);
+    repo = new InMemoryLibraryRepository();
+    tags = new RecordingTagService();
+  });
+
+  afterEach(async () => {
+    await fs.rm(sandbox, { recursive: true, force: true });
+  });
+
+  it("rejects '../' track and cover names before anything is created, leaving their targets untouched", async () => {
+    const victims = ["victim.txt", "victim.mp3", "victim.jpg"];
+    for (const v of victims) {
+      await fs.writeFile(path.join(sandbox, v), `original ${v}`);
+    }
+    const hostile = syncRecord({
+      cover: "../victim.jpg",
+      tracks: [track("t1", 1, "../victim.txt"), track("t2", 2, "../victim.mp3")],
+    });
+
+    await expect(build().importSynced(hostile, dl)).rejects.toBeInstanceOf(ValidationError);
+
+    for (const v of victims) {
+      expect(await fs.readFile(path.join(sandbox, v), "utf8")).toBe(`original ${v}`);
+    }
+    expect(await fs.readdir(libraryDir)).toEqual([]);
+    expect(await fs.readdir(dl)).toEqual([]);
+    expect(tags.writes).toHaveLength(0);
+    expect(await repo.list(libraryDir)).toEqual([]);
+  });
+
+  it.each(["/etc/hosts", "sub/track.mp3", "..", ".hidden.mp3"])(
+    "rejects a track file name that is not a plain child: %s",
+    async (file) => {
+      await expect(build().importSynced(syncRecord({ tracks: [track("t1", 1, file)] }), dl)).rejects.toBeInstanceOf(
+        ValidationError
+      );
+      expect(await fs.readdir(libraryDir)).toEqual([]);
+    }
+  );
+
+  it("rejects a cover name that is not a plain child even when every track is fine", async () => {
+    await fs.writeFile(path.join(dl, "01 - One.mp3"), "mp3 bytes");
+    await expect(
+      build().importSynced(syncRecord({ cover: "../../cover.jpg", tracks: [track("t1", 1, "01 - One.mp3")] }), dl)
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(await fs.readdir(libraryDir)).toEqual([]);
+    expect(await exists(path.join(dl, "01 - One.mp3"))).toBe(true);
+  });
+
+  it("names the conversion scratch file by position, so a track id with separators cannot reach outside", async () => {
+    await fs.writeFile(path.join(dl, "song.m4a"), "m4a bytes");
+    const victim = path.join(sandbox, "esc.mp3");
+    await fs.writeFile(victim, "original");
+
+    const release = await build().importSynced(syncRecord({ tracks: [track("x/../../esc", 1, "song.m4a")] }), dl);
+
+    expect(release.tracks[0].id).toBe("x/../../esc");
+    expect(await fs.readFile(victim, "utf8")).toBe("original");
+    expect(await fs.readFile(release.tracks[0].filePath, "utf8")).toBe("m4a bytes");
+  });
+
+  it("still imports a well-formed record: mp3 moved as-is, m4a converted, cover moved, id kept", async () => {
+    await fs.writeFile(path.join(dl, "01 - One.mp3"), "mp3 bytes");
+    await fs.writeFile(path.join(dl, "02 - Two.m4a"), "m4a bytes");
+    await fs.writeFile(path.join(dl, "cover.jpg"), "jpg bytes");
+
+    const release = await build().importSynced(
+      syncRecord({
+        id: "ios-release-1",
+        cover: "cover.jpg",
+        tracks: [track("t2", 2, "02 - Two.m4a"), track("t1", 1, "01 - One.mp3")],
+      }),
+      dl
+    );
+
+    expect(release.id).toBe("ios-release-1");
+    expect(release.tracks.map((t) => path.basename(t.filePath))).toEqual(["01 - T1.mp3", "02 - T2.mp3"]);
+    expect(await fs.readFile(release.tracks[0].filePath, "utf8")).toBe("mp3 bytes");
+    expect(await fs.readFile(release.tracks[1].filePath, "utf8")).toBe("m4a bytes");
+    const coverPath = path.join(release.folderPath, "cover.jpg");
+    expect(release.coverPath).toBe(coverPath);
+    expect(await fs.readFile(coverPath, "utf8")).toBe("jpg bytes");
+
+    const nfs = new NodeFileSystem();
+    for (const p of [release.folderPath, coverPath, ...release.tracks.map((t) => t.filePath)]) {
+      expect(nfs.isInside(libraryDir, p)).toBe(true);
+    }
+    // The mp3 and the cover were moved, not copied, out of the download dir.
+    expect(await exists(path.join(dl, "01 - One.mp3"))).toBe(false);
+    expect(await exists(path.join(dl, "cover.jpg"))).toBe(false);
+    expect(tags.writes).toHaveLength(2);
+    expect((await repo.list(libraryDir)).map((r) => r.id)).toEqual(["ios-release-1"]);
   });
 });

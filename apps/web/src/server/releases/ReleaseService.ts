@@ -60,6 +60,8 @@ export class ReleaseService {
 
     const desiredFolder = this.layout.folderFor(libraryDir, meta.artist, albumTitle);
     const folderPath = await this.fs.uniqueDir(desiredFolder);
+    // Checked before anything is created, so the rollback below never touches an outside path.
+    this.assertInsideLibrary(libraryDir, folderPath);
 
     await this.fs.mkdirp(folderPath);
 
@@ -70,6 +72,7 @@ export class ReleaseService {
       if (coverFile) {
         const name = this.layout.coverFileName((await sniffImageMime(coverFile)) ?? coverFile.type);
         coverPath = path.join(folderPath, name);
+        this.assertInsideLibrary(libraryDir, coverPath);
         const tempCover = path.join(tempDir, name);
         await this.fs.saveWebFile(coverFile, tempCover);
         await this.fs.safeMove(tempCover, coverPath);
@@ -90,6 +93,7 @@ export class ReleaseService {
 
         const destFileName = this.layout.trackFileName(trackNumber, title);
         const destPath = path.join(folderPath, destFileName);
+        this.assertInsideLibrary(libraryDir, destPath);
         const tempOutput = path.join(tempDir, `out-${i}.mp3`);
 
         await this.converter.toMp3(tempInput, tempOutput);
@@ -195,6 +199,10 @@ export class ReleaseService {
 
     const folderPath = existing.folderPath;
     const coverPath = existing.coverPath;
+    // These paths come from the index on disk; never touch a file it points outside the library.
+    this.assertInsideLibrary(libraryDir, folderPath);
+    if (coverPath) this.assertInsideLibrary(libraryDir, coverPath);
+    for (const t of updatedTracks) this.assertInsideLibrary(libraryDir, t.filePath);
 
     const trackTotal = updatedTracks.length;
     for (const t of updatedTracks) {
@@ -240,9 +248,14 @@ export class ReleaseService {
 
     const name = this.layout.coverFileName((await sniffImageMime(file)) ?? file.type);
     const newCoverPath = path.join(existing.folderPath, name);
+    // Same rule as update(): the index on disk is not trusted to point inside the library.
+    this.assertInsideLibrary(libraryDir, existing.folderPath);
+    this.assertInsideLibrary(libraryDir, newCoverPath);
+    for (const t of existing.tracks) this.assertInsideLibrary(libraryDir, t.filePath);
 
     // Remove old cover if it has a different name/extension than the new one.
     if (existing.coverPath && existing.coverPath !== newCoverPath) {
+      this.assertInsideLibrary(libraryDir, existing.coverPath);
       await this.fs.removeRecursive(existing.coverPath);
     }
 
@@ -271,6 +284,16 @@ export class ReleaseService {
     await this.repo.upsert(libraryDir, updated);
     this.syncHooks.onCoverReplaced(updated);
     return updated;
+  }
+
+  /**
+   * Every write/delete target must sit strictly beneath the library dir, however it was
+   * derived (sanitised names, or the index on disk). Same shape as the guard in `delete()`.
+   */
+  private assertInsideLibrary(libraryDir: string, target: string): void {
+    if (!this.fs.isInside(libraryDir, target) || path.resolve(target) === path.resolve(libraryDir)) {
+      throw new ValidationError("Refusing to write outside the library directory");
+    }
   }
 
   /** Delete a release: removes its folder from disk and the library index entry. */
@@ -308,42 +331,54 @@ export class ReleaseService {
    * Import a release that came from the sync service (originally created on
    * the phone), keeping the SAME id so it's recognised as the same release on
    * every device from then on. `dir` already holds the downloaded track/cover
-   * files, named exactly as `record.tracks[].file`/`record.cover`. mp3 tracks
-   * pass through untouched; anything else (m4a from iOS) is converted with
-   * the same `AudioConverter` used for normal imports. Never pushed back to
-   * sync by this method itself - the caller (`SyncEngine`) owns that bookkeeping.
+   * files, named exactly as `record.tracks[].file`/`record.cover`. Those names
+   * came off the network, so each is accepted only as a plain child of `dir`
+   * (`ReleaseLayout.assertPlainFileName`, then `isInside`) - a `../x` there
+   * would otherwise read, and via `safeMove` destroy, a file outside the
+   * download dir. mp3 tracks pass through untouched; anything else (m4a from
+   * iOS) is converted with the same `AudioConverter` used for normal imports.
+   * Never pushed back to sync by this method itself - the caller
+   * (`SyncEngine`) owns that bookkeeping.
    */
   async importSynced(record: SyncRecord, dir: string): Promise<Release> {
     const settings = await this.settings.get();
     const libraryDir = settings.libraryDir;
 
+    // Resolve every source first, so a hostile record fails before anything is created.
+    const srcCover = record.cover ? this.syncedSource(dir, record.cover) : null;
+    const sortedTracks = [...record.tracks].sort((a, b) => a.trackNumber - b.trackNumber);
+    const sources = sortedTracks.map((t) => this.syncedSource(dir, t.file));
+
     const desiredFolder = this.layout.folderFor(libraryDir, record.artist, record.title);
     const folderPath = await this.fs.uniqueDir(desiredFolder);
+    this.assertInsideLibrary(libraryDir, folderPath);
     await this.fs.mkdirp(folderPath);
 
     try {
       let coverPath: string | null = null;
-      if (record.cover) {
-        const srcCover = path.join(dir, record.cover);
+      if (srcCover && record.cover) {
         const name = this.layout.coverFileName(record.cover);
         coverPath = path.join(folderPath, name);
+        this.assertInsideLibrary(libraryDir, coverPath);
         await this.fs.safeMove(srcCover, coverPath);
       }
 
-      const sortedTracks = [...record.tracks].sort((a, b) => a.trackNumber - b.trackNumber);
       const trackTotal = sortedTracks.length;
       const tracks: Track[] = [];
 
-      for (const t of sortedTracks) {
-        const srcPath = path.join(dir, t.file);
+      for (let i = 0; i < sortedTracks.length; i++) {
+        const t = sortedTracks[i];
+        const srcPath = sources[i];
         const ext = path.extname(t.file).toLowerCase();
         const destFileName = this.layout.trackFileName(t.trackNumber, t.title);
         const destPath = path.join(folderPath, destFileName);
+        this.assertInsideLibrary(libraryDir, destPath);
 
         if (ext === ".mp3") {
           await this.fs.safeMove(srcPath, destPath);
         } else {
-          const tempOutput = path.join(dir, `conv-${t.id}.mp3`);
+          // Named by position, not `t.id`: the id is network-supplied and could carry separators.
+          const tempOutput = path.join(dir, `conv-${i}.mp3`);
           await this.converter.toMp3(srcPath, tempOutput);
           await this.fs.safeMove(tempOutput, destPath);
         }
@@ -399,6 +434,20 @@ export class ReleaseService {
       await this.fs.removeRecursive(folderPath).catch(() => undefined);
       throw err;
     }
+  }
+
+  /**
+   * Where a file the sync service named (`record.cover`, `tracks[].file`) was
+   * downloaded to under `dir`. Only a plain child name is accepted - the same
+   * two-step rule (`ReleaseLayout`, then `isInside`) every other user-derived
+   * path in this class goes through.
+   */
+  private syncedSource(dir: string, name: string): string {
+    const target = path.join(dir, this.layout.assertPlainFileName(name));
+    if (!this.fs.isInside(dir, target) || path.resolve(target) === path.resolve(dir)) {
+      throw new ValidationError("Refusing to read a synced file from outside its download directory");
+    }
+    return target;
   }
 
   /**

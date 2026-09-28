@@ -53,7 +53,11 @@ export class NodeFileSystem implements FileSystem {
 
   isInside(base: string, target: string): boolean {
     const rel = path.relative(path.resolve(base), path.resolve(target));
-    return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+    // "" is base itself; callers that must exclude it (delete) do so explicitly.
+    if (rel === "") return true;
+    // Absolute means a different drive (Windows). Otherwise only a leading ".." segment
+    // escapes: a plain prefix test would wrongly reject a child named "..foo".
+    return !path.isAbsolute(rel) && rel.split(path.sep)[0] !== "..";
   }
 
   async mkdirp(dir: string): Promise<void> {
