@@ -12,7 +12,10 @@ const CODE_TTL_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 const TOKEN_BYTES = 32;
 const DAY_MS = 24 * 60 * 60 * 1000;
-/** A device token unused for this long stops working; the device must sign in again. */
+/**
+ * A device token unused for this long stops working; the device signs in again with an email
+ * code (the account never expires). Tentative: the owner hasn't settled the window (#33).
+ */
 export const TOKEN_IDLE_TTL_MS = 90 * DAY_MS;
 /** `lastSeenAt` is refreshed at most this often, so authenticating isn't a write per request. */
 export const LAST_SEEN_REFRESH_MS = DAY_MS;

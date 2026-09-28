@@ -38,7 +38,7 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Quota enforcement and signed, expiring file URLs (local store and Vercel Blob)
 - Rate limiting, CORS, daily cleanup cron
 - Every response carries x-request-id; 4xx/5xx, rate-limit, quota and auth failures log one JSON line (request ID, route, status, duration, user ID); the daily cron logs total stored bytes, warning past STORAGE_ALERT_BYTES (#29)
-- Device tokens expire after 90 days unused (lastSeenAt refreshed at most daily); a cross-user test matrix shows another account gets 404 on every release, file and device route (#33)
+- Device tokens expire after 90 days unused (tentative window, owner to confirm; the account itself never expires) (lastSeenAt refreshed at most daily); a cross-user test matrix shows another account gets 404 on every release, file and device route (#33)
 - SQLite (libSQL) via Drizzle, migrated automatically on first request
 - Deployed to https://locally-sync-api.vercel.app (Vercel project locally-sync-api: Turso database, private Blob store, Resend sandbox sender); both clients default to it; sign-in code delivery verified 28 Sep (#3)
 

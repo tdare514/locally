@@ -17,7 +17,8 @@ apps/ios      the phone app: same, the other way round.
   identity provider (Sign in with Apple needs a paid developer account; this works on a free
   team and on the web). A successful code exchange returns a **device token**; each
   device has its own, revocable from the account. A token unused for 90 days expires and
-  returns 401 like a revoked one; the client signs in again. `lastSeenAt` is refreshed at most
+  returns 401 like a revoked one; the client signs in again with a new email code (the account
+  itself never expires or locks). The 90-day window is tentative, pending the owner's call (#33). `lastSeenAt` is refreshed at most
   once a day, so it is accurate to the day.
 - **Release records** are the `release.json` document below, stored per user with a version
   number. Last writer wins by `updatedAt`.
