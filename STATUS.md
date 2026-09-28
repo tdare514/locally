@@ -17,6 +17,7 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Import and update requests validated with zod; every write checked inside the library dir
 - Loopback-only server (127.0.0.1) with a full-origin CSRF check
 - Sync client: email-code sign-in, push, reconcile, "From your phone"
+- One-time "Spotify can't see this yet" prompt on the release page: copy path, open Spotify settings, dismiss; hidden once Spotify's local-files index lists the library folder
 
 ### iOS (apps/ios)
 - Onboarding picks the Spotify Local Files folder via a security-scoped bookmark
@@ -39,13 +40,12 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Security hardening from the Sep 27 review: web origin check and zod validation landed; HTTPS-only sync, token reset on baseUrl change and the medium/low backlog remain (#11, #12)
 - Security review of apps/api, the same treatment web and iOS got; gates the deploy (#20)
 - Deploying apps/api to Vercel with libSQL, Blob and Resend behind the existing interfaces (#3)
-- Finishing the metallic-plus icon rollout: device check, favicon.ico, Open Graph image, stale docs (#5)
-- Mac prompt to add the library folder as a Spotify Local Files source (#4)
+- Listener icon rollout: favicon.ico, Open Graph image and docs landed; the on-device check of the icon and its alternate remains (#5)
 
 ## Known issues
 - iOS crash in `SyncEngine.backfillUnpushed` when a delete overlaps the 30s reconcile loop; the delete is lost (#19)
 - Share extension can't be provisioned for a device build on the project's Personal team; simulator-only for now (see apps/ios/README.md)
-- App Store submission checklist still open: screenshots not captured, and the README's placeholder-icon note is stale now the icon shipped (#5)
+- App Store submission checklist still open: screenshots not captured (#5)
 - Sync: a cover replaced on one device never updates on the other; plan in docs/plans/26-sync-cover-hash.md (#26)
 - Spotify caches local-file metadata; restart Spotify to see edits to an already-imported track
 

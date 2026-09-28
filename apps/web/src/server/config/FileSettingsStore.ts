@@ -36,7 +36,9 @@ export class FileSettingsStore implements SettingsStore {
         typeof parsed.libraryDir === "string" && parsed.libraryDir.trim().length > 0
           ? parsed.libraryDir
           : defaultLibraryDir();
-      return { libraryDir, sync: parseSyncSettings(parsed.sync) };
+      const spotifySourceDismissed =
+        typeof parsed.spotifySourceDismissed === "boolean" ? parsed.spotifySourceDismissed : false;
+      return { libraryDir, sync: parseSyncSettings(parsed.sync), spotifySourceDismissed };
     } catch (err) {
       const code = (err as NodeJS.ErrnoException)?.code;
       if (code === "ENOENT") {

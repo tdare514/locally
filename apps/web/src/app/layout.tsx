@@ -5,6 +5,12 @@ export const metadata: Metadata = {
   title: "Locally",
   description:
     "Import local audio files, tag them, and organise them for Spotify's Local Files.",
+  openGraph: {
+    title: "Locally",
+    description:
+      "Import local audio files, tag them, and organise them for Spotify's Local Files.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

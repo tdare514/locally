@@ -15,6 +15,8 @@ import { FileSyncStateStore } from "./sync/FileSyncStateStore";
 import type { SyncStateStore } from "./sync/SyncState";
 import { HttpSyncApi } from "./sync/SyncApi";
 import { SyncEngine, type SyncApiFactory } from "./sync/SyncEngine";
+import { LocalFilesIndexDetector } from "./spotify/SpotifySourceDetector";
+import type { SpotifySourceDetector } from "./spotify/SpotifySourceDetector";
 
 export interface Services {
   settings: SettingsStore;
@@ -28,6 +30,7 @@ export interface Services {
   syncState: SyncStateStore;
   syncApiFactory: SyncApiFactory;
   syncEngine: SyncEngine;
+  spotify: SpotifySourceDetector;
 }
 
 function buildServices(): Services {
@@ -63,6 +66,7 @@ function buildServices(): Services {
     syncState,
     syncApiFactory,
     syncEngine,
+    spotify: new LocalFilesIndexDetector(),
   };
 }
 

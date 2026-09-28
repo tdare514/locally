@@ -235,9 +235,9 @@ flips to "Unlocked"; "Restore purchase" should do the same after a fresh install
   `CFBundleShortVersionString`/`CFBundleVersion` at `MARKETING_VERSION` (`1.0`) /
   `CURRENT_PROJECT_VERSION` (`2`) so the extension's version always matches the app's (Xcode
   otherwise warns, and refuses to submit, if they differ).
-- Submission checklist still open: the App Store icon is a placeholder from
-  `scripts/make-app-icon.py` pending a real design pass (see `docs/ios-plan.md`); export
-  compliance is answered by `ITSAppUsesNonExemptEncryption: false` above; screenshots need
+- Submission checklist still open: the App Store icon is the listener mark rendered by
+  `scripts/make-listener-icons.py` (main `AppIcon`, alternate `AppIcon-Line`, picker in Settings);
+  export compliance is answered by `ITSAppUsesNonExemptEncryption: false` above; screenshots need
   capturing for onboarding, single import, album import, the library, and the paywall, at whatever
   device sizes App Store Connect requires.
 

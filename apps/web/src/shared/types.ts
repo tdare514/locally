@@ -51,6 +51,7 @@ export interface SyncSettings {
 export interface Settings {
   libraryDir: string;    // where tagged files are written; Spotify should be pointed at this folder
   sync: SyncSettings | null;
+  spotifySourceDismissed?: boolean;  // user clicked "Done, I added it" on the Spotify source prompt
 }
 
 /** The `sync` field as returned to the browser by GET/PUT /api/settings: no token. */
@@ -111,6 +112,13 @@ export interface UpdateReleaseMeta {
   year?: string | null;
   genre?: string | null;
   tracks?: { id: string; title?: string; trackNumber?: number }[];
+}
+
+/** Response shape for GET /api/spotify/source and POST /api/spotify/source/dismiss. */
+export interface SpotifySourceStatus {
+  libraryDir: string;
+  watching: boolean;
+  dismissed: boolean;
 }
 
 export interface ApiError { error: string }

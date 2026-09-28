@@ -113,4 +113,18 @@ describe("PUT /api/settings", () => {
     const res = await PUT(putRequest({}));
     expect(res.status).toBe(400);
   });
+
+  it("resets spotifySourceDismissed to false when libraryDir changes, but preserves it when only sync.baseUrl changes", async () => {
+    settingsValue = { libraryDir: "/tmp/lib", sync: null, spotifySourceDismissed: true };
+
+    const changedDir = await PUT(putRequest({ libraryDir: "/tmp/new-lib" }));
+    expect(changedDir.status).toBe(200);
+    expect(settingsValue.spotifySourceDismissed).toBe(false);
+
+    settingsValue = { libraryDir: "/tmp/lib", sync: null, spotifySourceDismissed: true };
+
+    const changedSync = await PUT(putRequest({ sync: { baseUrl: "http://localhost:9999" } }));
+    expect(changedSync.status).toBe(200);
+    expect(settingsValue.spotifySourceDismissed).toBe(true);
+  });
 });

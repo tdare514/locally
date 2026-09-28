@@ -29,6 +29,7 @@ export async function PUT(request: NextRequest) {
     const current = await services.settings.get();
 
     let libraryDir = current.libraryDir;
+    let spotifySourceDismissed = current.spotifySourceDismissed;
     if (body.libraryDir !== undefined) {
       if (typeof body.libraryDir !== "string" || body.libraryDir.trim().length === 0) {
         return badRequest("libraryDir is required and must be a non-empty string");
@@ -42,6 +43,9 @@ export async function PUT(request: NextRequest) {
       if (dir === path.parse(dir).root || dir === os.homedir()) {
         return badRequest("libraryDir must be a dedicated folder, not your home folder or the filesystem root");
       }
+      // A new folder needs to be added to Spotify again, so the one-time
+      // prompt should reappear.
+      if (dir !== current.libraryDir) spotifySourceDismissed = false;
       libraryDir = dir;
     }
 
@@ -66,7 +70,7 @@ export async function PUT(request: NextRequest) {
       return badRequest("Nothing to update: pass libraryDir and/or sync.baseUrl");
     }
 
-    const settings = await services.settings.set({ libraryDir, sync });
+    const settings = await services.settings.set({ ...current, libraryDir, sync, spotifySourceDismissed });
     return NextResponse.json(toSettingsResponse(settings));
   } catch (err) {
     return errorResponse(err);

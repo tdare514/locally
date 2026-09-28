@@ -13,12 +13,14 @@ import {
 import Field from "./Field";
 import TrackList, { type EditableTrack } from "./TrackList";
 import CoverPicker from "./CoverPicker";
+import SpotifySourceBanner from "./SpotifySourceBanner";
 
 interface ReleaseViewProps {
   releaseId: string;
   onDeleted: () => void;
   onUpdated: () => void;
   onToast: (kind: "success" | "error", text: string) => void;
+  onOpenSettings: () => void;
 }
 
 export default function ReleaseView({
@@ -26,6 +28,7 @@ export default function ReleaseView({
   onDeleted,
   onUpdated,
   onToast,
+  onOpenSettings,
 }: ReleaseViewProps) {
   const [release, setRelease] = useState<Release | null>(null);
   const [loading, setLoading] = useState(true);
@@ -173,6 +176,8 @@ export default function ReleaseView({
 
   return (
     <div className="mx-auto flex max-w-[920px] flex-col gap-8 pb-16">
+      <SpotifySourceBanner onOpenSettings={onOpenSettings} onToast={onToast} />
+
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.17em] text-text-dim">
           Library / {release.kind === "single" ? "Single" : "Album"}

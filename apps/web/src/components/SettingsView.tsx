@@ -5,6 +5,7 @@ import type { SyncStatus } from "../shared/types";
 import { DEFAULT_SYNC_BASE_URL } from "../shared/types";
 import {
   getSettings,
+  getSpotifySource,
   putSettings,
   putSyncBaseUrl,
   requestSyncCode,
@@ -60,6 +61,15 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
   const [verifying, setVerifying] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [spotifyWatching, setSpotifyWatching] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    getSpotifySource()
+      .then((status) => setSpotifyWatching(status.watching))
+      .catch(() => {
+        // Nice-to-have status line; stay hidden on error.
+      });
+  }, []);
 
   useEffect(() => {
     getSettings()
@@ -365,6 +375,13 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
 
       <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
         <p className="text-sm font-semibold text-text">Connect to Spotify</p>
+        {spotifyWatching !== null && (
+          <p className={`text-sm ${spotifyWatching ? "text-accent" : "text-text-muted"}`}>
+            {spotifyWatching
+              ? "Spotify is watching your library folder."
+              : "Spotify isn't watching your library folder yet."}
+          </p>
+        )}
         <ol className="flex flex-col gap-2 text-sm text-text-muted">
           {STEPS.map((step, i) => (
             <li key={i} className="flex gap-3">

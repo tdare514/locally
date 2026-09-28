@@ -6,13 +6,14 @@
   AppIcon-Line   "Line art, profile": white line work, white headphones, accent plus in the cup
 
 Writes the 1024 px app icon sets and 256 px picker previews into the iOS asset catalog,
-and the web icon.png (512) / apple-icon.png (180). Requires `rsvg-convert`
-(brew install librsvg). Reuses the geometry from make-brand-marks.py.
+the web icon.png (512) / apple-icon.png (180) / favicon.ico (16/32/48) / opengraph-image.png (1200x630).
+Requires `rsvg-convert` (brew install librsvg) and Pillow 12+ for favicon/opengraph.
+Reuses the geometry from make-brand-marks.py.
 
 Usage:
   scripts/make-listener-icons.py [--accent 1E7DF0] [--preview DIR]
 """
-import argparse, importlib.util, json, os, subprocess, sys
+import argparse, importlib.util, json, os, subprocess, sys, tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CATALOG = os.path.join(ROOT, "apps/ios/Locally/Resources/Assets.xcassets")
@@ -87,6 +88,41 @@ def write_preview_set(name, svg_path):
                    "info": {"author": "xcode", "version": 1}}, f, indent=2)
 
 
+def write_favicon(svg_path):
+    try:
+        from PIL import Image
+    except ImportError:
+        print("error: Pillow required for favicon.ico; install with: pip install pillow", file=sys.stderr)
+        sys.exit(1)
+
+    # Render once at 48 px; Pillow downsamples for the 16 and 32 px entries.
+    with tempfile.TemporaryDirectory() as tmp:
+        png_path = os.path.join(tmp, "favicon-48.png")
+        rsvg(svg_path, png_path, 48)
+        # Next.js (Turbopack) rejects an ICO whose embedded PNGs are not RGBA.
+        img = Image.open(png_path).convert("RGBA")
+        img.save(os.path.join(WEB_APP, "favicon.ico"), format="ICO", sizes=[(16, 16), (32, 32), (48, 48)])
+
+
+def write_opengraph_image(svg_path):
+    try:
+        from PIL import Image
+    except ImportError:
+        print("error: Pillow required for opengraph-image.png; install with: pip install pillow", file=sys.stderr)
+        sys.exit(1)
+
+    # The 512 px icon (own rounded black ground) centred on a 1200x630 black canvas.
+    with tempfile.TemporaryDirectory() as tmp:
+        png_path = os.path.join(tmp, "og-512.png")
+        rsvg(svg_path, png_path, 512)
+        icon_img = Image.open(png_path)
+        og_img = Image.new("RGB", (1200, 630), color="#000000")
+        origin = ((1200 - 512) // 2, (630 - 512) // 2)
+        mask = icon_img.split()[3] if icon_img.mode == "RGBA" else None
+        og_img.paste(icon_img.convert("RGB"), origin, mask)
+        og_img.save(os.path.join(WEB_APP, "opengraph-image.png"))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--accent", default="1E7DF0")
@@ -101,6 +137,8 @@ def main():
         if name == "AppIcon":
             rsvg(svg_path, os.path.join(WEB_APP, "icon.png"), 512)
             rsvg(svg_path, os.path.join(WEB_APP, "apple-icon.png"), 180)
+            write_favicon(svg_path)
+            write_opengraph_image(svg_path)
         if args.preview:
             os.makedirs(args.preview, exist_ok=True)
             rsvg(svg_path, os.path.join(args.preview, f"{name}.png"), 512)

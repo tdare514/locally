@@ -112,6 +112,7 @@ export default function AppShell() {
             onDeleted={handleDeleted}
             onUpdated={refreshLibrary}
             onToast={showToast}
+            onOpenSettings={() => setView({ type: "settings" })}
           />
         )}
         {view.type === "settings" && (

@@ -10,6 +10,7 @@ import type {
   UpdateReleaseMeta,
   ApiError,
   SyncStatus,
+  SpotifySourceStatus,
 } from "../shared/types";
 
 /** Response shape for POST /api/inspect (per-file prefill data). Not a persisted entity, so it
@@ -168,6 +169,21 @@ export async function deleteRelease(id: string): Promise<{ ok: true }> {
   const res = await fetch(`/api/releases/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
+  return handle<{ ok: true }>(res);
+}
+
+export async function getSpotifySource(): Promise<SpotifySourceStatus> {
+  const res = await fetch("/api/spotify/source");
+  return handle<SpotifySourceStatus>(res);
+}
+
+export async function dismissSpotifySource(): Promise<SpotifySourceStatus> {
+  const res = await fetch("/api/spotify/source/dismiss", { method: "POST" });
+  return handle<SpotifySourceStatus>(res);
+}
+
+export async function openSpotifySettings(): Promise<{ ok: true }> {
+  const res = await fetch("/api/spotify/open", { method: "POST" });
   return handle<{ ok: true }>(res);
 }
 
