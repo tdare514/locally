@@ -26,6 +26,32 @@ interface ReleaseViewProps {
   onOpenSettings: () => void;
 }
 
+/** Copies `text` from a user gesture: the async Clipboard API first, then the
+ * legacy `execCommand("copy")` path for hosts that deny `clipboard-write`. */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // fall through to the legacy path
+  }
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.opacity = "0";
+  document.body.appendChild(area);
+  area.select();
+  let ok = false;
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    ok = false;
+  }
+  area.remove();
+  return ok;
+}
+
 export default function ReleaseView({
   releaseId,
   justImported = false,
@@ -56,9 +82,7 @@ export default function ReleaseView({
 
   const handleCopyTitle = useCallback(async () => {
     if (!release) return;
-    try {
-      await navigator.clipboard.writeText(release.title);
-    } catch {
+    if (!(await copyText(release.title))) {
       onToast("error", "Couldn't copy the name");
       return;
     }
