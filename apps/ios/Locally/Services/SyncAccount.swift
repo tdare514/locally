@@ -49,9 +49,9 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
     static let defaultBaseURL = UserDefaultsSyncAccountStore.productionBaseURL
     #endif
 
-    /// Placeholder until the sync API is deployed (issue #3). Must stay
-    /// `https://` — release builds refuse to sync over plain http (issue #11).
-    static let productionBaseURL = URL(string: "https://sync.locally.app")!
+    /// The deployed sync API (issue #3). Must stay `https://` — release
+    /// builds refuse to sync over plain http (issue #11).
+    static let productionBaseURL = URL(string: "https://locally-sync-api.vercel.app")!
 
     private enum Key {
         static let baseURL = "com.tdare.locally.sync.baseURL"

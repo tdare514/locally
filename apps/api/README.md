@@ -80,7 +80,10 @@ console mailer.
 ## Deploying to Vercel
 
 The production service runs on Vercel with a Turso (libSQL) database, a
-private Vercel Blob store and Resend for the sign-in email (#3).
+private Vercel Blob store and Resend for the sign-in email (#3). The live
+origin is `https://locally-sync-api.vercel.app` (Vercel project
+`locally-sync-api`); the Mac app's default `sync.baseUrl` and the iOS
+release build's `productionBaseURL` both point at it.
 
 1. **Project.** Import the repo into Vercel with **Root Directory**
    `apps/api`; the framework preset is Next.js. `vercel.ts` adds the daily

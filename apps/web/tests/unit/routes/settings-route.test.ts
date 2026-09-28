@@ -42,7 +42,7 @@ describe("GET /api/settings", () => {
     const body = (await res.json()) as { libraryDir: string; sync: Record<string, unknown> };
     expect(body.libraryDir).toBe("/tmp/lib");
     expect(body.sync).toEqual({
-      baseUrl: "http://localhost:4000",
+      baseUrl: "https://locally-sync-api.vercel.app",
       email: null,
       signedIn: false,
       lastVersion: 0,

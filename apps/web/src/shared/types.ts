@@ -33,8 +33,13 @@ export interface Library {
   releases: Release[];
 }
 
-/** Default sync service base URL, used before the user has ever set one. */
-export const DEFAULT_SYNC_BASE_URL = "http://localhost:4000";
+/**
+ * Default sync service base URL, used before the user has ever set one: the
+ * deployed sync API (issue #3). Point Settings at `http://localhost:4000`
+ * to develop against a local `apps/api`; only https and loopback pass
+ * validation (issue #11).
+ */
+export const DEFAULT_SYNC_BASE_URL = "https://locally-sync-api.vercel.app";
 
 /**
  * Persisted sync configuration. `deviceToken` is a secret: it lives only in
