@@ -354,10 +354,21 @@ final class FakeSyncApi: SyncApi {
     /// test can simulate the network being down for a delete without it
     /// ever reaching the fake "server".
     var deleteError: Error?
-    /// Awaited at the top of `releases(sinceVersion:)`, so a test can hold a
-    /// `reconcile()` run open mid-flight (e.g. to make a local change while
-    /// it's suspended) before letting the fetch proceed.
+    /// Awaited at the top of `releases(sinceVersion:limit:)`, so a test can
+    /// hold a `reconcile()` run open mid-flight (e.g. to make a local change
+    /// while it's suspended) before letting the fetch proceed.
     var releasesGate: (() async -> Void)?
+    /// When set, `releases(sinceVersion:limit:)` returns this exact page
+    /// instead of computing one from `storage` — the guard test's way of
+    /// making the fake "server" misbehave with a `hasMore: true` page whose
+    /// `nextVersion` doesn't advance past `sinceVersion`.
+    var releasesOverride: SyncReleasesPage?
+    /// 1-based count of `releases(sinceVersion:limit:)` calls made so far.
+    private(set) var releasesCallCount = 0
+    /// When set, the call numbered `callNumber` (1-based, per
+    /// `releasesCallCount`) throws `error` instead of returning a page —
+    /// simulates the network dropping partway through a multi-page pull.
+    var releasesFailOnCall: (callNumber: Int, error: Error)?
 
     func requestCode(email: String) async throws {
         requestCodeCalls.append(email)
@@ -388,12 +399,23 @@ final class FakeSyncApi: SyncApi {
         deleteAccountCalls.append(email)
     }
 
-    func releases(sinceVersion: Int) async throws -> SyncReleasesPage {
+    func releases(sinceVersion: Int, limit: Int) async throws -> SyncReleasesPage {
+        releasesCallCount += 1
         if let releasesGate { await releasesGate() }
+        if let releasesFailOnCall, releasesFailOnCall.callNumber == releasesCallCount {
+            throw releasesFailOnCall.error
+        }
+        if let releasesOverride { return releasesOverride }
         let matching = storage.values
             .filter { ($0.version ?? 0) > sinceVersion }
             .sorted { ($0.version ?? 0) < ($1.version ?? 0) }
-        return SyncReleasesPage(releases: matching, nextVersion: currentVersion)
+        let page = Array(matching.prefix(limit))
+        let truncated = page.count < matching.count
+        return SyncReleasesPage(
+            releases: page,
+            nextVersion: truncated ? (page.last?.version ?? currentVersion) : currentVersion,
+            hasMore: truncated
+        )
     }
 
     @discardableResult

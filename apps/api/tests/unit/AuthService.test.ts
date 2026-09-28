@@ -200,19 +200,19 @@ describe("AuthService", () => {
         platform: "mac",
       });
 
-      const [initial] = await auth.listDevices(user.id);
+      const [initial] = (await auth.listDevices(user.id)).devices;
       const initialLastSeen = initial!.lastSeenAt;
 
       // Authenticate again an hour later: well under the refresh interval.
       clock += 60 * 60 * 1000;
       await auth.authenticate(token);
-      const [afterHour] = await auth.listDevices(user.id);
+      const [afterHour] = (await auth.listDevices(user.id)).devices;
       expect(afterHour!.lastSeenAt).toBe(initialLastSeen);
 
       // Push past a full day since the original lastSeenAt: now it updates.
       clock = Date.UTC(2026, 0, 1) + LAST_SEEN_REFRESH_MS + 1;
       await auth.authenticate(token);
-      const [afterDay] = await auth.listDevices(user.id);
+      const [afterDay] = (await auth.listDevices(user.id)).devices;
       expect(afterDay!.lastSeenAt).not.toBe(initialLastSeen);
       expect(new Date(afterDay!.lastSeenAt).getTime()).toBe(clock);
     });

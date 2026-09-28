@@ -87,10 +87,10 @@ sync at runtime.
 | --- | --- | --- |
 | POST `/v1/auth/code` | `{ email }` | `{ ok: true }`; sends a six-digit code, valid 10 minutes, 5 tries |
 | POST `/v1/auth/verify` | `{ email, code, deviceName, platform: "mac" \| "ios" }` | `{ token, user: { id, email }, device: { id, name } }` |
-| GET `/v1/me` | | `{ user, device, quota: { usedBytes, limitBytes }, devices: [...] }` |
+| GET `/v1/me` | | `{ user, device, quota: { usedBytes, limitBytes }, devices: [...], devicesHasMore }`; `devices` holds at most the 50 most recently created devices (newest first); `devicesHasMore` is true when older ones were left out |
 | DELETE `/v1/devices/:id` | | revokes that device's token |
 | DELETE `/v1/me` | `{ email }` (must match the account) | `{ ok: true }`; deletes the account, its devices, releases and files; blobs are removed by the cleanup cron within a day; every device token becomes invalid |
-| GET `/v1/releases?sinceVersion=N` | | `{ releases: [record + version], nextVersion }` (tombstones included) |
+| GET `/v1/releases?sinceVersion=N&limit=N` | `limit` (optional, integer, 1 to 200; above 200 clamps to 200, below 1 or non-integer is a 400 like a bad `sinceVersion`; default 200) | `{ releases: [record + version], nextVersion, hasMore }` (tombstones included). Releases come back in ascending `version` order, at most `limit` of them, and the page stops early once its serialized records reach 2 MiB; a page always holds at least one release when any exist (a single record is at most 1 MiB by the PUT body cap, so one always fits under Vercel's 4.5 MB response limit). `hasMore: true` means more releases exist above the last one returned, and `nextVersion` is then the `version` of the last release in this page; `hasMore: false` means the page reached the end, and `nextVersion` is the user's counter, exactly as today (it can be above the last row's version, because a rewritten release moves to a new version and its old number disappears). In both cases `nextVersion` is the value to send as `sinceVersion` next, and it never runs ahead of a release this response left out (the #28 invariant). |
 | PUT `/v1/releases/:id` | the record (at most 500 tracks) | `{ version }`; 409 if the stored `updatedAt` is newer; stored files the record no longer references are deleted |
 | DELETE `/v1/releases/:id` | | tombstone; `{ version }` |
 | POST `/v1/releases/:id/files` | `{ files: [{ name, bytes, contentType }] }` | `{ uploads: [{ name, url, method, headers }] }`; enforces quota, 200 MB per file, and that `contentType` matches the name's extension |
@@ -135,15 +135,17 @@ source of truth.
   differs from the local cover's, download the cover first and embed the new bytes in every
   track (a cover that cannot be downloaded yet leaves the release pending for the next
   reconcile, like a track). Tombstone → delete locally. Local releases never pushed → push (back-fill after signing in).
+  Repeat the request with `sinceVersion = nextVersion` until `hasMore` is false, saving
+  `nextVersion` after each page is applied.
 - **Conflicts**: last writer wins by `updatedAt`; a `409` from `PUT` means pull first, then
   re-apply the local change on top if it is still wanted. A `PUT` whose `updatedAt` equals the
   stored one is accepted (it bumps the version), so a client can re-send the same record to
   finish a push whose file uploads failed.
-
-## Not in this phase
 - **Account deletion**: the deleting client calls `DELETE /v1/me`, then clears its own token,
   cursor and per-release sync markers exactly as sign-out does; local music files are never
   touched. Other devices learn about the deletion by receiving a 401 on their next reconcile.
+
+## Not in this phase
 
 - Playlists (Spotify has no API for local files).
 - Merging libraries that existed on both devices before sign-in: each side's releases are

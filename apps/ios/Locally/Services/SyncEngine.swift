@@ -547,17 +547,39 @@ final class SyncEngine: ReleaseSyncHook {
         }
     }
 
-    /// Fetches one page of remote changes since `account.lastVersion` and
-    /// applies each (see `process(_:)`), advancing `account.lastVersion`.
-    /// Split out of `reconcile()` so `pushInternal`'s 409 path can pull in
-    /// the conflicting change without going through `reconcile()` itself —
-    /// that would otherwise wait on the very drain that's calling it.
+    /// The most pages `fetchRemoteChanges` pulls in one `reconcile()`, as a
+    /// guard against a misbehaving or hostile server whose `nextVersion`
+    /// never advances while it keeps claiming `hasMore` — see
+    /// `docs/plans/30-sync-pagination.md`.
+    private static let maxReleasePagesPerReconcile = 100
+
+    /// Fetches every page of remote changes since `account.lastVersion` and
+    /// applies each (see `process(_:)`), advancing `account.lastVersion`
+    /// after every page so an interruption resumes from the last one
+    /// applied. Split out of `reconcile()` so `pushInternal`'s 409 path can
+    /// pull in the conflicting change without going through `reconcile()`
+    /// itself — that would otherwise wait on the very drain that's calling
+    /// it.
     private func fetchRemoteChanges() async throws {
-        let page = try await api.releases(sinceVersion: account.lastVersion)
-        for record in page.releases {
-            await process(record)
+        var cursor = account.lastVersion
+        for _ in 0..<Self.maxReleasePagesPerReconcile {
+            let page = try await api.releases(sinceVersion: cursor, limit: syncReleasesPageLimit)
+            for record in page.releases {
+                await process(record)
+            }
+            // Only a pulled page's `nextVersion` may write `lastVersion`
+            // (the #37 invariant); persisted after every page, not just the
+            // last, so a later interruption resumes from here with whatever
+            // was already applied.
+            account.lastVersion = page.nextVersion
+
+            guard page.hasMore else { return }
+            if page.nextVersion <= cursor {
+                throw SyncApiError.network("Sync pull stalled: the server reported more releases without advancing the cursor.")
+            }
+            cursor = page.nextVersion
         }
-        account.lastVersion = page.nextVersion
+        throw SyncApiError.network("Sync pull did not finish after \(Self.maxReleasePagesPerReconcile) pages; stopping this reconcile.")
     }
 
     /// Retries `acceptFromMac` for every record a previous attempt couldn't

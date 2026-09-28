@@ -999,6 +999,98 @@ struct SyncEngineTests {
         let stored = try h.library.all().first { $0.id == release.id }
         #expect(stored?.syncedUpdatedAt != nil)
     }
+
+    // MARK: - Pagination (#30)
+
+    /// A minimal remote record with no local counterpart and a non-"mac"
+    /// origin, so `process(_:)` is a no-op (see its `guard record.origin ==
+    /// "mac"` branch) — these tests are about the paging loop advancing
+    /// `account.lastVersion`, not about applying content.
+    private func makeRemoteRecordRequest(title: String) -> SyncRecord {
+        SyncRecord(
+            id: UUID().uuidString,
+            kind: "single",
+            title: title,
+            artist: "Artist",
+            tracks: [],
+            origin: "ios",
+            originDevice: "Some Other Device",
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+    }
+
+    /// Seeds `count` releases directly into the fake "server" via
+    /// `putRelease`, so each gets a distinct, increasing `version`.
+    private func seedRemoteReleases(_ count: Int, in api: FakeSyncApi) async throws {
+        for i in 0..<count {
+            _ = try await api.putRelease(makeRemoteRecordRequest(title: "Release \(i)"))
+        }
+    }
+
+    @Test func reconcilePullsALargeRemoteLibraryCompletelyInOneReconcile() async throws {
+        let h = makeHarness()
+        try await seedRemoteReleases(450, in: h.api)
+
+        await h.engine.reconcile()
+
+        #expect(h.engine.status.lastError == nil)
+        #expect(h.account.lastVersion == 450)
+        // 200 + 200 + 50, per `syncReleasesPageLimit`.
+        #expect(h.api.releasesCallCount == 3)
+    }
+
+    @Test func reconcileAppliesThePriorPagesAndResumesFromThereAfterAMidPullFailure() async throws {
+        let h = makeHarness()
+        try await seedRemoteReleases(450, in: h.api)
+        h.api.releasesFailOnCall = (callNumber: 2, error: SyncApiError.network("offline"))
+
+        await h.engine.reconcile()
+
+        #expect(h.engine.status.lastError != nil)
+        // Page 1 (versions 1...200) was applied and persisted before page 2
+        // failed; `lastVersion` stops there rather than staying at 0.
+        #expect(h.account.lastVersion == 200)
+
+        // The next reconcile resumes from `lastVersion`, unaffected by the
+        // one-shot failure already consumed above.
+        await h.engine.reconcile()
+
+        #expect(h.engine.status.lastError == nil)
+        #expect(h.account.lastVersion == 450)
+    }
+
+    @Test func reconcileTreatsAPageWithoutHasMoreAsTheLastPage() async throws {
+        let h = makeHarness()
+        try await seedRemoteReleases(450, in: h.api)
+        // Simulates decoding an older server's response, where a missing
+        // `hasMore` key becomes `false` (see `HttpSyncApi.releases`):  a
+        // single page that claims to be final even though more exist.
+        h.api.releasesOverride = SyncReleasesPage(
+            releases: [makeRemoteRecordRequest(title: "Only one")],
+            nextVersion: 999,
+            hasMore: false
+        )
+
+        await h.engine.reconcile()
+
+        #expect(h.engine.status.lastError == nil)
+        #expect(h.account.lastVersion == 999)
+        // The loop stopped after the one page instead of fetching another.
+        #expect(h.api.releasesCallCount == 1)
+    }
+
+    @Test func reconcileStopsAndSetsLastErrorOnANonAdvancingCursor() async throws {
+        let h = makeHarness()
+        h.api.releasesOverride = SyncReleasesPage(releases: [], nextVersion: 0, hasMore: true)
+
+        await h.engine.reconcile()
+
+        #expect(h.engine.status.lastError != nil)
+        #expect(h.account.lastVersion == 0)
+        // Stopped after the first (non-advancing) page rather than looping.
+        #expect(h.api.releasesCallCount == 1)
+    }
 }
 
 /// A two-stage gate for suspending an async call mid-flight and resuming it

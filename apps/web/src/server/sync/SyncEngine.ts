@@ -9,11 +9,14 @@ import type { FileSystem } from "../fs/FileSystem";
 import type { ReleaseService } from "../releases/ReleaseService";
 import type { ReleaseSyncHooks } from "../releases/ReleaseSyncHooks";
 import { fromSyncRecord, toSyncRecord, type SyncRecord } from "./SyncRecord";
-import { SyncConflictError, type SyncApi, type SyncFileToUpload } from "./SyncApi";
+import { RELEASE_PAGE_LIMIT, SyncConflictError, type SyncApi, type SyncFileToUpload } from "./SyncApi";
 import type { SyncStateStore } from "./SyncState";
 
 /** Builds a `SyncApi` for a given base URL/token; a factory (not a singleton) because both can change while the app runs. */
 export type SyncApiFactory = (baseUrl: string, token: string | null) => SyncApi;
+
+/** Guard against a misbehaving or hostile server: a `pullOnce` reconcile stops after this many pages. */
+export const MAX_PULL_PAGES_PER_RECONCILE = 100;
 
 function pendingSummary(record: SyncRecord): PendingFromPhone {
   const meta = fromSyncRecord(record);
@@ -245,97 +248,119 @@ export class SyncEngine implements ReleaseSyncHooks {
     const settings = await this.settings.get();
     if (!settings.sync) return;
 
-    const { releases: remoteRecords, nextVersion } = await api.listReleases(settings.sync.lastVersion);
-    if (remoteRecords.length === 0) {
-      await this.bumpLastVersion(nextVersion);
-      return;
-    }
+    // A local cursor, not a re-read of `settings.sync.lastVersion`, drives each
+    // iteration: only a pulled page's `nextVersion` ever advances `lastVersion`
+    // (issue #37 — pushes must never advance it), and reading it back from
+    // settings each time would just reproduce the value this loop already has.
+    let cursor = settings.sync.lastVersion;
 
-    const state = await this.syncState.get();
+    for (let page = 0; page < MAX_PULL_PAGES_PER_RECONCILE; page++) {
+      const { releases: remoteRecords, nextVersion, hasMore } = await api.listReleases(cursor, RELEASE_PAGE_LIMIT);
 
-    for (const record of remoteRecords) {
-      if (record.deleted) {
-        const local = await this.releases.get(record.id);
-        if (local) {
-          await this.releases.delete(record.id);
+      if (remoteRecords.length === 0) {
+        await this.bumpLastVersion(nextVersion);
+        if (!hasMore) return;
+        if (nextVersion <= cursor) {
+          throw new Error("Sync pull stalled: the server reported more releases without advancing the cursor.");
         }
-        delete state.pushedUpdatedAt[record.id];
-        delete state.uploadedFiles[record.id];
-        delete state.coverHash[record.id];
-        delete state.pendingFromPhone[record.id];
+        cursor = nextVersion;
         continue;
       }
 
-      const local = await this.releases.get(record.id);
-      if (!local) {
-        if (record.origin !== "mac") {
-          state.pendingFromPhone[record.id] = record;
-        }
-        continue;
-      }
+      const state = await this.syncState.get();
 
-      delete state.pendingFromPhone[record.id];
-      if (record.updatedAt > local.updatedAt) {
-        // A v1 record (no `coverHash` key) or one without a cover carries no
-        // change signal, so the cover is left alone as before.
-        const coverName = record.cover;
-        const coverHash = typeof record.coverHash === "string" ? record.coverHash : null;
-        let coverChanged = false;
-        if (coverName && coverHash) {
-          const localCoverHash = local.coverPath ? await sha256File(this.fs, local.coverPath) : null;
-          coverChanged = localCoverHash !== coverHash;
-        }
-
-        if (coverChanged && coverName && coverHash) {
-          const dir = await this.fs.makeTempDir("sli-sync-cover-");
-          try {
-            try {
-              const { url } = await api.downloadUrl(record.id, coverName);
-              await api.downloadFile(url, path.join(dir, coverName));
-            } catch (err) {
-              // A record can be visible before the other device finishes
-              // uploading its cover (spec/sync.md), same as
-              // acceptFromPhone's downloads. Throw rather than falling back
-              // to a text-only update: the error propagates out of
-              // pullOnce uncaught, so this run's `syncState.set` and
-              // `bumpLastVersion` never happen and the whole record - cover
-              // included - is retried in full on the next reconcile.
-              const message = err instanceof Error ? err.message : "";
-              if (/not found|404/i.test(message)) {
-                throw new PublicError(
-                  "The other device hasn't finished uploading this cover yet. It will retry on the next sync."
-                );
-              }
-              throw err;
-            }
-            await this.releases.applyRemote(record, { newCoverPath: path.join(dir, coverName) });
-            state.coverHash[record.id] = coverHash;
-            // The Mac just downloaded these bytes from remote storage, so they're
-            // already there - record the cover as uploaded to avoid re-uploading
-            // what was just pulled down.
-            const already = new Set(state.uploadedFiles[record.id] ?? []);
-            already.add(coverName);
-            state.uploadedFiles[record.id] = [...already];
-          } finally {
-            await this.fs.removeRecursive(dir);
+      for (const record of remoteRecords) {
+        if (record.deleted) {
+          const local = await this.releases.get(record.id);
+          if (local) {
+            await this.releases.delete(record.id);
           }
-        } else {
-          await this.releases.applyRemote(record);
+          delete state.pushedUpdatedAt[record.id];
+          delete state.uploadedFiles[record.id];
+          delete state.coverHash[record.id];
+          delete state.pendingFromPhone[record.id];
+          continue;
         }
 
-        // A record this Mac wrote itself, back newer than its local copy, is
-        // a push whose `PUT` landed but whose uploads then failed. Leaving
-        // `pushedUpdatedAt` behind makes the back-fill below finish that
-        // push (only files not in `uploadedFiles` go up again); marking it
-        // pushed here would strand those files for good.
-        if (!this.isOwnEcho(record)) {
-          state.pushedUpdatedAt[record.id] = record.updatedAt;
+        const local = await this.releases.get(record.id);
+        if (!local) {
+          if (record.origin !== "mac") {
+            state.pendingFromPhone[record.id] = record;
+          }
+          continue;
+        }
+
+        delete state.pendingFromPhone[record.id];
+        if (record.updatedAt > local.updatedAt) {
+          // A v1 record (no `coverHash` key) or one without a cover carries no
+          // change signal, so the cover is left alone as before.
+          const coverName = record.cover;
+          const coverHash = typeof record.coverHash === "string" ? record.coverHash : null;
+          let coverChanged = false;
+          if (coverName && coverHash) {
+            const localCoverHash = local.coverPath ? await sha256File(this.fs, local.coverPath) : null;
+            coverChanged = localCoverHash !== coverHash;
+          }
+
+          if (coverChanged && coverName && coverHash) {
+            const dir = await this.fs.makeTempDir("sli-sync-cover-");
+            try {
+              try {
+                const { url } = await api.downloadUrl(record.id, coverName);
+                await api.downloadFile(url, path.join(dir, coverName));
+              } catch (err) {
+                // A record can be visible before the other device finishes
+                // uploading its cover (spec/sync.md), same as
+                // acceptFromPhone's downloads. Throw rather than falling back
+                // to a text-only update: the error propagates out of
+                // pullOnce uncaught, so this run's `syncState.set` and
+                // `bumpLastVersion` never happen and the whole record - cover
+                // included - is retried in full on the next reconcile.
+                const message = err instanceof Error ? err.message : "";
+                if (/not found|404/i.test(message)) {
+                  throw new PublicError(
+                    "The other device hasn't finished uploading this cover yet. It will retry on the next sync."
+                  );
+                }
+                throw err;
+              }
+              await this.releases.applyRemote(record, { newCoverPath: path.join(dir, coverName) });
+              state.coverHash[record.id] = coverHash;
+              // The Mac just downloaded these bytes from remote storage, so they're
+              // already there - record the cover as uploaded to avoid re-uploading
+              // what was just pulled down.
+              const already = new Set(state.uploadedFiles[record.id] ?? []);
+              already.add(coverName);
+              state.uploadedFiles[record.id] = [...already];
+            } finally {
+              await this.fs.removeRecursive(dir);
+            }
+          } else {
+            await this.releases.applyRemote(record);
+          }
+
+          // A record this Mac wrote itself, back newer than its local copy, is
+          // a push whose `PUT` landed but whose uploads then failed. Leaving
+          // `pushedUpdatedAt` behind makes the back-fill below finish that
+          // push (only files not in `uploadedFiles` go up again); marking it
+          // pushed here would strand those files for good.
+          if (!this.isOwnEcho(record)) {
+            state.pushedUpdatedAt[record.id] = record.updatedAt;
+          }
         }
       }
+
+      await this.syncState.set(state);
+      await this.bumpLastVersion(nextVersion);
+
+      if (!hasMore) return;
+      if (nextVersion <= cursor) {
+        throw new Error("Sync pull stalled: the server reported more releases without advancing the cursor.");
+      }
+      cursor = nextVersion;
     }
 
-    await this.syncState.set(state);
-    await this.bumpLastVersion(nextVersion);
+    throw new Error(`Sync pull did not finish after ${MAX_PULL_PAGES_PER_RECONCILE} pages; stopping this reconcile.`);
   }
 
   private isOwnEcho(record: SyncRecord): boolean {

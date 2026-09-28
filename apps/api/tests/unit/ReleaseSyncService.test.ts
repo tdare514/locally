@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createDb, migrateDb, type Db } from "../../src/db/client";
-import { ReleaseSyncService } from "../../src/server/releases/ReleaseSyncService";
+import { RELEASE_PAGE_MAX_BYTES, ReleaseSyncService } from "../../src/server/releases/ReleaseSyncService";
 import { ConflictError, NotFoundError } from "../../src/shared/errors";
 import { makeReleaseRecord } from "../support/fixtures";
 
@@ -156,5 +156,100 @@ describe("ReleaseSyncService", () => {
 
     const stored = await service.getOwned(userA, record.id);
     expect(stored.title).toBe("T5");
+  });
+
+  describe("pagination (#30)", () => {
+    it("pages by limit, and nextVersion is the cursor for the next request", async () => {
+      const records = Array.from({ length: 5 }, () => makeReleaseRecord());
+      for (const record of records) {
+        await service.upsert(userA, record.id, record);
+      }
+
+      const page1 = await service.listSince(userA, 0, 2);
+      expect(page1.releases.map((r) => r.version)).toEqual([1, 2]);
+      expect(page1.hasMore).toBe(true);
+      expect(page1.nextVersion).toBe(2);
+
+      const page2 = await service.listSince(userA, page1.nextVersion, 2);
+      expect(page2.releases.map((r) => r.version)).toEqual([3, 4]);
+      expect(page2.hasMore).toBe(true);
+      expect(page2.nextVersion).toBe(4);
+
+      const page3 = await service.listSince(userA, page2.nextVersion, 2);
+      expect(page3.releases.map((r) => r.version)).toEqual([5]);
+      expect(page3.hasMore).toBe(false);
+      expect(page3.nextVersion).toBe(5); // the user's counter
+    });
+
+    it("a release rewritten between pages reappears later at its new version; nothing is skipped", async () => {
+      const records = Array.from({ length: 5 }, () => makeReleaseRecord());
+      for (const record of records) {
+        await service.upsert(userA, record.id, record);
+      }
+
+      const page1 = await service.listSince(userA, 0, 2); // versions [1, 2]
+      expect(page1.hasMore).toBe(true);
+
+      // Rewrite the release that was already returned in page 1.
+      const rewritten = {
+        ...records[0]!,
+        title: "Rewritten",
+        updatedAt: new Date(Date.parse(records[0]!.updatedAt) + 1000).toISOString(),
+      };
+      await service.upsert(userA, rewritten.id, rewritten); // -> version 6
+
+      let cursor = page1.nextVersion;
+      const seen: number[] = [];
+      let hasMore = page1.hasMore;
+      while (hasMore) {
+        const page = await service.listSince(userA, cursor, 2);
+        seen.push(...page.releases.map((r) => r.version));
+        cursor = page.nextVersion;
+        hasMore = page.hasMore;
+      }
+
+      expect(seen).toEqual([3, 4, 5, 6]);
+      expect(cursor).toBe(6); // final nextVersion equals the counter
+    });
+
+    it("stops the page at the 2 MiB byte budget, always keeping the first record alone", async () => {
+      // Three ~1 MiB records: the page should stop after two.
+      const big = "x".repeat(1_000_000);
+      const records = Array.from({ length: 3 }, () => makeReleaseRecord({ title: big }));
+      for (const record of records) {
+        await service.upsert(userA, record.id, record);
+      }
+
+      const page = await service.listSince(userA, 0, 200);
+      expect(page.releases).toHaveLength(2);
+      expect(page.hasMore).toBe(true);
+      const totalBytes = page.releases.reduce((sum, r) => sum + JSON.stringify(r).length, 0);
+      expect(totalBytes).toBeLessThanOrEqual(RELEASE_PAGE_MAX_BYTES + big.length);
+
+      // A single oversized record still comes back alone rather than an empty page.
+      const solo = await service.listSince(userA, page.nextVersion, 200);
+      expect(solo.releases.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("pages tombstones like any other row", async () => {
+      const records = Array.from({ length: 3 }, () => makeReleaseRecord());
+      for (const record of records) {
+        await service.upsert(userA, record.id, record);
+      }
+      for (const record of records) {
+        await service.tombstone(userA, record.id);
+      }
+
+      const page1 = await service.listSince(userA, 0, 2);
+      expect(page1.releases.every((r) => r.deleted)).toBe(true);
+      expect(page1.hasMore).toBe(true);
+    });
+
+    it("an empty result has hasMore false and nextVersion at the counter (0 for a new user)", async () => {
+      const result = await service.listSince(userA, 0, 200);
+      expect(result.releases).toEqual([]);
+      expect(result.hasMore).toBe(false);
+      expect(result.nextVersion).toBe(0);
+    });
   });
 });

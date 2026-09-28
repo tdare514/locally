@@ -129,6 +129,7 @@ export interface MeResponse {
   device: { id: string; name: string };
   quota: QuotaSummary;
   devices: DeviceSummary[];
+  devicesHasMore: boolean;
 }
 
 export interface VerifyResponse {

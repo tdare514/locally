@@ -143,10 +143,25 @@ class FakeSyncApi implements SyncApi {
     this.version = 0;
   }
 
-  async listReleases(sinceVersion: number) {
+  /** When set, every `listReleases` call returns this exact page regardless of state, to
+   * simulate a misbehaving/hostile server (a page that never advances the cursor). */
+  private stalledPage: { releases: (SyncRecord & { version: number })[]; nextVersion: number; hasMore: boolean } | null =
+    null;
+  private failListReleasesCallNumber: number | null = null;
+
+  async listReleases(sinceVersion: number, limit: number) {
     this.listReleasesCallCount++;
-    const releases = [...this.serverRecords.values()].filter((r) => r.version > sinceVersion);
-    return { releases, nextVersion: this.version };
+    if (this.failListReleasesCallNumber === this.listReleasesCallCount) {
+      throw new Error(`FakeSyncApi: injected failure on listReleases call #${this.listReleasesCallCount}`);
+    }
+    if (this.stalledPage) return this.stalledPage;
+    const all = [...this.serverRecords.values()]
+      .filter((r) => r.version > sinceVersion)
+      .sort((a, b) => a.version - b.version);
+    const page = all.slice(0, limit);
+    const hasMore = page.length < all.length;
+    const nextVersion = hasMore ? page[page.length - 1].version : this.version;
+    return { releases: page, nextVersion, hasMore };
   }
 
   async putRelease(record: SyncRecord): Promise<{ version: number }> {
@@ -226,6 +241,17 @@ class FakeSyncApi implements SyncApi {
 
   failNextPutWithConflict(id: string): void {
     this.conflictOnce.add(id);
+  }
+
+  /** Throws on the given 1-based `listReleases` call number (e.g. `2` fails the second page). */
+  failListReleasesOnCall(callNumber: number): void {
+    this.failListReleasesCallNumber = callNumber;
+  }
+
+  /** Makes every subsequent `listReleases` call return a page that reports more data without
+   * advancing past `sinceVersion`, as a hostile or buggy server might. */
+  stallNonAdvancing(record: SyncRecord & { version: number }, sinceVersion: number): void {
+    this.stalledPage = { releases: [record], nextVersion: sinceVersion, hasMore: true };
   }
 }
 
@@ -735,5 +761,88 @@ describe("SyncEngine", () => {
     expect(api.putCalls.length).toBeGreaterThan(1);
     const status = await engine.status();
     expect(status.lastError).toBeNull();
+  });
+
+  describe("paginated pull (#30)", () => {
+    function phoneRecord(id: string): SyncRecord {
+      return {
+        syncVersion: 1,
+        id,
+        kind: "single",
+        title: `Phone Song ${id}`,
+        artist: "Phone Artist",
+        year: null,
+        genre: null,
+        cover: null,
+        tracks: [],
+        origin: "ios",
+        originDevice: "Toby's iPhone",
+        createdAt: "2026-09-27T10:00:00.000Z",
+        updatedAt: "2026-09-27T10:00:00.000Z",
+        deleted: false,
+      };
+    }
+
+    it("pulls a 450-release remote library completely in one reconcile (3 pages)", async () => {
+      for (let i = 0; i < 450; i++) {
+        api.seedRemoteRecord(phoneRecord(`ios-${i}`));
+      }
+
+      await engine.reconcile();
+
+      const status = await engine.status();
+      expect(status.lastError).toBeNull();
+      expect(status.pendingFromPhone).toHaveLength(450);
+      // 200 + 200 + 50 = 3 pages.
+      expect(api.listReleasesCallCount).toBe(3);
+
+      const settings = await settingsStore.get();
+      expect(settings.sync?.lastVersion).toBe(450);
+    });
+
+    it("applies page 1 and stops there when page 2 fails, then resumes on the next reconcile", async () => {
+      for (let i = 0; i < 450; i++) {
+        api.seedRemoteRecord(phoneRecord(`ios-${i}`));
+      }
+      api.failListReleasesOnCall(2);
+
+      await engine.reconcile();
+
+      let status = await engine.status();
+      expect(status.lastError).toMatch(/injected failure/i);
+      expect(status.pendingFromPhone).toHaveLength(200);
+      let settings = await settingsStore.get();
+      expect(settings.sync?.lastVersion).toBe(200);
+
+      // Next reconcile resumes from where it left off and finishes the pull.
+      await engine.reconcile();
+
+      status = await engine.status();
+      expect(status.lastError).toBeNull();
+      expect(status.pendingFromPhone).toHaveLength(450);
+      settings = await settingsStore.get();
+      expect(settings.sync?.lastVersion).toBe(450);
+    });
+
+    it("treats a response without hasMore as the last page", async () => {
+      api.seedRemoteRecord(phoneRecord("ios-only"));
+
+      await engine.reconcile();
+
+      const status = await engine.status();
+      expect(status.lastError).toBeNull();
+      expect(status.pendingFromPhone).toHaveLength(1);
+      expect(api.listReleasesCallCount).toBe(1);
+    });
+
+    it("stops the loop and sets lastError on a non-advancing nextVersion with hasMore true", async () => {
+      const record = { ...phoneRecord("ios-stalled"), version: 1 };
+      api.stallNonAdvancing(record, 0);
+
+      await engine.reconcile();
+
+      const status = await engine.status();
+      expect(status.lastError).toMatch(/stalled|advanc/i);
+    });
   });
 });

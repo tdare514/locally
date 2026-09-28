@@ -7,7 +7,14 @@ import type { ReleaseRecord, ReleaseRecordWithVersion } from "../../shared/types
 export interface ListSinceResult {
   releases: ReleaseRecordWithVersion[];
   nextVersion: number;
+  hasMore: boolean;
 }
+
+/** Default and maximum number of releases returned in one `listSince` page. */
+export const RELEASE_PAGE_MAX = 200;
+
+/** A page's serialized records stop growing past this many bytes. */
+export const RELEASE_PAGE_MAX_BYTES = 2 * 1024 * 1024;
 
 export interface UpsertResult {
   version: number;
@@ -54,8 +61,15 @@ export class ReleaseSyncService {
     };
   }
 
-  /** Releases with `version > sinceVersion` for this user, tombstones included. */
-  async listSince(userId: string, sinceVersion: number): Promise<ListSinceResult> {
+  /**
+   * Releases with `version > sinceVersion` for this user, tombstones
+   * included, paged to at most `limit` rows and `RELEASE_PAGE_MAX_BYTES` of
+   * serialized records (the first row always fits, even alone). `hasMore`
+   * is true when rows were left out; `nextVersion` is then the last kept
+   * row's version, so it never runs ahead of a release this page left out
+   * (the #28 invariant).
+   */
+  async listSince(userId: string, sinceVersion: number, limit: number = RELEASE_PAGE_MAX): Promise<ListSinceResult> {
     // One batch, so the rows and the counter come from the same snapshot and
     // `nextVersion` never runs ahead of a release this response left out.
     const [rows, [counter]] = await this.db.batch([
@@ -63,13 +77,29 @@ export class ReleaseSyncService {
         .select()
         .from(releases)
         .where(and(eq(releases.userId, userId), gt(releases.version, sinceVersion)))
-        .orderBy(releases.version),
+        .orderBy(releases.version)
+        .limit(limit + 1),
       this.db.select().from(userCounters).where(eq(userCounters.userId, userId)),
     ]);
 
+    const kept: ReleaseRow[] = [];
+    let bytes = 0;
+    let hasMore = rows.length > limit;
+    const rowsInBudget = rows.slice(0, limit);
+    for (const row of rowsInBudget) {
+      const size = JSON.stringify(row.record).length;
+      if (kept.length > 0 && bytes + size > RELEASE_PAGE_MAX_BYTES) {
+        hasMore = true;
+        break;
+      }
+      kept.push(row);
+      bytes += size;
+    }
+
     return {
-      releases: rows.map((row) => this.toRecordWithVersion(row)),
-      nextVersion: counter?.version ?? 0,
+      releases: kept.map((row) => this.toRecordWithVersion(row)),
+      nextVersion: hasMore ? (kept[kept.length - 1]?.version ?? sinceVersion) : (counter?.version ?? 0),
+      hasMore,
     };
   }
 

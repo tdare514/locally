@@ -219,6 +219,55 @@ describe("routes (through the exported handler functions, no server)", () => {
     expect(res.status).toBe(400);
   });
 
+  it("GET /v1/releases pages: default limit 200, clamps above 200, 400 on bad limit (#30)", async () => {
+    const { token } = await signIn("pagination-route@example.com");
+    for (let i = 0; i < 201; i++) {
+      const record = makeReleaseRecord();
+      await releaseRoute.PUT(jsonRequest(`http://localhost/v1/releases/${record.id}`, "PUT", record, token), {
+        params: Promise.resolve({ id: record.id }),
+      });
+    }
+
+    const defaultRes = await releasesListRoute.GET(
+      new Request("http://localhost/v1/releases?sinceVersion=0", { headers: { authorization: `Bearer ${token}` } })
+    );
+    const defaultBody = await defaultRes.json();
+    expect(defaultBody.releases).toHaveLength(200);
+    expect(defaultBody.hasMore).toBe(true);
+
+    const clampedRes = await releasesListRoute.GET(
+      new Request("http://localhost/v1/releases?sinceVersion=0&limit=500", { headers: { authorization: `Bearer ${token}` } })
+    );
+    expect((await clampedRes.json()).releases).toHaveLength(200);
+
+    for (const bad of ["0", "-1", "abc"]) {
+      const res = await releasesListRoute.GET(
+        new Request(`http://localhost/v1/releases?sinceVersion=0&limit=${bad}`, { headers: { authorization: `Bearer ${token}` } })
+      );
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it("GET /v1/me caps devices at 50 and reports devicesHasMore (#30)", async () => {
+    const email = "many-devices-route@example.com";
+    let lastToken = "";
+    for (let i = 0; i < 51; i++) {
+      const codeRes = await authCodeRoute.POST(jsonRequest("http://localhost/v1/auth/code", "POST", { email }));
+      expect(codeRes.status).toBe(200);
+      const code = testServices.mailer.codeFor(email);
+      const verifyRes = await authVerifyRoute.POST(
+        jsonRequest("http://localhost/v1/auth/verify", "POST", { email, code, deviceName: `Device ${i}`, platform: "mac" })
+      );
+      const body = (await verifyRes.json()) as { token: string };
+      lastToken = body.token;
+    }
+
+    const meRes = await meRoute.GET(new Request("http://localhost/v1/me", { headers: { authorization: `Bearer ${lastToken}` } }));
+    const meBody = await meRes.json();
+    expect(meBody.devices).toHaveLength(50);
+    expect(meBody.devicesHasMore).toBe(true);
+  });
+
   it("DELETE /v1/devices/:id revokes the token used to make future requests", async () => {
     const { token, deviceId } = await signIn("revoke-route@example.com");
 
@@ -231,7 +280,6 @@ describe("routes (through the exported handler functions, no server)", () => {
     const meRes = await meRoute.GET(new Request("http://localhost/v1/me", { headers: { authorization: `Bearer ${token}` } }));
     expect(meRes.status).toBe(401);
   });
-});
 
   it("DELETE /v1/me without a token is 401", async () => {
     const res = await meRoute.DELETE(
@@ -279,3 +327,4 @@ describe("routes (through the exported handler functions, no server)", () => {
     const bobBody = (await bobReleases.json()) as { releases: { id: string }[] };
     expect(bobBody.releases.map((r) => r.id)).toEqual([bobRecord.id]);
   });
+});

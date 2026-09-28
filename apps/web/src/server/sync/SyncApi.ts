@@ -47,12 +47,17 @@ export interface MeResult {
   device: SyncDevice;
   quota: SyncQuota;
   devices: SyncDevice[];
+  devicesHasMore?: boolean;
 }
 
 export interface ListReleasesResult {
   releases: (SyncRecord & { version: number })[];
   nextVersion: number;
+  hasMore: boolean;
 }
+
+/** Page size requested per `listReleases` call (server clamps to this max anyway). */
+export const RELEASE_PAGE_LIMIT = 200;
 
 /** Thrown by `putRelease` on a 409: the server's stored `updatedAt` is newer than ours. */
 export class SyncConflictError extends Error {}
@@ -75,7 +80,7 @@ export interface SyncApi {
   /** `DELETE /v1/me`: deletes the account, its devices, releases and files. Every device token
    * (including this one) is invalid the moment it returns; a 401 keeps throwing `SyncAuthError`. */
   deleteAccount(email: string): Promise<void>;
-  listReleases(sinceVersion: number): Promise<ListReleasesResult>;
+  listReleases(sinceVersion: number, limit: number): Promise<ListReleasesResult>;
   putRelease(record: SyncRecord): Promise<{ version: number }>;
   deleteRelease(id: string): Promise<{ version: number }>;
   createUploads(id: string, files: SyncFileToUpload[]): Promise<{ uploads: SyncUploadTarget[] }>;
@@ -170,17 +175,20 @@ export class HttpSyncApi implements SyncApi {
     await this.handle(res);
   }
 
-  async listReleases(sinceVersion: number): Promise<ListReleasesResult> {
-    const res = await fetch(this.url(`/v1/releases?sinceVersion=${encodeURIComponent(String(sinceVersion))}`), {
-      headers: this.headers(false),
-    });
-    const body = await this.handle<{ releases: unknown[]; nextVersion: number }>(res);
+  async listReleases(sinceVersion: number, limit: number): Promise<ListReleasesResult> {
+    const res = await fetch(
+      this.url(
+        `/v1/releases?sinceVersion=${encodeURIComponent(String(sinceVersion))}&limit=${encodeURIComponent(String(limit))}`
+      ),
+      { headers: this.headers(false) }
+    );
+    const body = await this.handle<{ releases: unknown[]; nextVersion: number; hasMore?: unknown }>(res);
     const releases = body.releases.map((raw) => {
       const record = SyncRecordSchema.parse(raw);
       const version = (raw as { version?: unknown }).version;
       return { ...record, version: typeof version === "number" ? version : 0 };
     });
-    return { releases, nextVersion: body.nextVersion };
+    return { releases, nextVersion: body.nextVersion, hasMore: body.hasMore === true };
   }
 
   async putRelease(record: SyncRecord): Promise<{ version: number }> {

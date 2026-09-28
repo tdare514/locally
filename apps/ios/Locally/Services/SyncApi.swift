@@ -26,11 +26,22 @@ struct SyncMeResult: Equatable {
     var quota: SyncQuota
 }
 
-/// One page of `GET /v1/releases?sinceVersion=N`.
+/// One page of `GET /v1/releases?sinceVersion=N&limit=M`.
+///
+/// `hasMore: true` means more releases exist above `nextVersion`; the caller
+/// repeats the request with `sinceVersion = nextVersion` until it sees
+/// `false`. Absent on an older server's response, which decodes as `false`
+/// (see `HttpSyncApi.releases(sinceVersion:limit:)`).
 struct SyncReleasesPage: Equatable {
     var releases: [SyncRecord]
     var nextVersion: Int
+    var hasMore: Bool
 }
+
+/// The page size `SyncEngine` requests from `GET /v1/releases`, per
+/// `docs/plans/30-sync-pagination.md`. The server clamps to this value
+/// anyway; sending it explicitly keeps both sides in agreement.
+let syncReleasesPageLimit = 200
 
 /// One entry of `POST /v1/releases/:id/files`'s request body.
 struct SyncFileUploadRequest: Equatable {
@@ -84,7 +95,7 @@ protocol SyncApi {
     /// server's confirmation check); a bad/deleted token maps to
     /// `.unauthorized` like every other call.
     func deleteAccount(email: String) async throws
-    func releases(sinceVersion: Int) async throws -> SyncReleasesPage
+    func releases(sinceVersion: Int, limit: Int) async throws -> SyncReleasesPage
     /// `PUT /v1/releases/:id`. Returns the new version, or throws
     /// `.conflict` if the stored `updatedAt` is newer.
     @discardableResult
@@ -172,21 +183,26 @@ final class HttpSyncApi: SyncApi {
         _ = try await send(path: "/v1/devices/\(id)", method: "DELETE")
     }
 
-    // MARK: - Releases
-
-    func releases(sinceVersion: Int) async throws -> SyncReleasesPage {
-        let data = try await send(path: "/v1/releases?sinceVersion=\(sinceVersion)", method: "GET")
-        struct Response: Decodable {
-            let releases: [SyncRecord]
-            let nextVersion: Int
-        }
-        let decoded = try decode(Response.self, from: data)
-        return SyncReleasesPage(releases: decoded.releases, nextVersion: decoded.nextVersion)
-    }
     func deleteAccount(email: String) async throws {
         _ = try await send(path: "/v1/me", method: "DELETE", body: ["email": email])
     }
 
+    // MARK: - Releases
+
+    func releases(sinceVersion: Int, limit: Int) async throws -> SyncReleasesPage {
+        let data = try await send(path: "/v1/releases?sinceVersion=\(sinceVersion)&limit=\(limit)", method: "GET")
+        struct Response: Decodable {
+            let releases: [SyncRecord]
+            let nextVersion: Int
+            let hasMore: Bool?
+        }
+        let decoded = try decode(Response.self, from: data)
+        return SyncReleasesPage(
+            releases: decoded.releases,
+            nextVersion: decoded.nextVersion,
+            hasMore: decoded.hasMore ?? false
+        )
+    }
 
     @discardableResult
     func putRelease(_ record: SyncRecord) async throws -> Int {

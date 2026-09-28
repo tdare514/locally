@@ -192,21 +192,26 @@ export class AuthService {
   }
 
   /** List every device for a user, most recently created first. */
-  async listDevices(userId: string): Promise<DeviceSummary[]> {
+  async listDevices(userId: string): Promise<{ devices: DeviceSummary[]; hasMore: boolean }> {
     const rows = await this.db
       .select()
       .from(devices)
       .where(eq(devices.userId, userId))
-      .orderBy(desc(devices.createdAt));
+      .orderBy(desc(devices.createdAt))
+      .limit(51);
 
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      platform: row.platform,
-      createdAt: new Date(row.createdAt).toISOString(),
-      lastSeenAt: new Date(row.lastSeenAt).toISOString(),
-      revoked: row.revokedAt !== null,
-    }));
+    const hasMore = rows.length > 50;
+    return {
+      devices: rows.slice(0, 50).map((row) => ({
+        id: row.id,
+        name: row.name,
+        platform: row.platform,
+        createdAt: new Date(row.createdAt).toISOString(),
+        lastSeenAt: new Date(row.lastSeenAt).toISOString(),
+        revoked: row.revokedAt !== null,
+      })),
+      hasMore,
+    };
   }
 
   /** Revoke a device's token. Scoped to `userId` so one account can't revoke another's device. */
