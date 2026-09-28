@@ -38,12 +38,12 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Quota enforcement and signed, expiring file URLs (local store and Vercel Blob)
 - Rate limiting, CORS, daily cleanup cron
 - SQLite (libSQL) via Drizzle, migrated automatically on first request
-- Deployed to https://locally-sync-api.vercel.app (Vercel project locally-sync-api: Turso database, private Blob store); both clients default to it; fails closed until the Resend key is set (#3)
+- Deployed to https://locally-sync-api.vercel.app (Vercel project locally-sync-api: Turso database, private Blob store, Resend sandbox sender); both clients default to it; sign-in code delivery verified 28 Sep (#3)
 
 ## In progress
 - Security hardening from the Sep 27 review: web origin check, zod validation, HTTPS-only sync, sign-out on base URL change, Keychain hardening and the iOS privacy manifest landed (#11 closed); the medium/low backlog is done on web (symlink-aware inside checks, index schema, ffmpeg watchdog, settings file perms, decoded CSRF path); its iOS items remain (#12)
 - Security review of apps/api (#20): findings fixed 28 Sep; auth rate limits now live in the shared libSQL database, so they hold across Vercel instances
-- Deploying apps/api to Vercel with libSQL, Blob and Resend behind the existing interfaces (#3): live and both clients point at it; waiting on RESEND_API_KEY and MAIL_FROM (owner's Resend account), then the end-to-end smoke test
+- Deploying apps/api to Vercel with libSQL, Blob and Resend behind the existing interfaces (#3): live with mail working and both clients pointing at it; remaining: end-to-end smoke test from a Mac and a phone, and a verified sending domain in Resend (the sandbox sender only delivers to the owner's address). Note: the project's ignored-build-step cancels `vercel redeploy`, so env changes need `vercel deploy --prod --archive=tgz` from the repo root or a push touching apps/api
 
 ## Known issues
 - Share extension can't be provisioned for a device build on the project's Personal team; simulator-only for now (see apps/ios/README.md)
