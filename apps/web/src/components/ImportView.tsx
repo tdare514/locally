@@ -9,6 +9,8 @@ import CoverPicker from "./CoverPicker";
 import { UploadCloudIcon } from "./Icons";
 
 interface ImportViewProps {
+  /** Prefill Single | Album when opened from the library empty-state CTAs. */
+  initialKind?: ReleaseKind;
   onImported: (release: Release) => void;
   onToast: (kind: "success" | "error", text: string) => void;
 }
@@ -31,8 +33,12 @@ function segmentClass(active: boolean): string {
   }`;
 }
 
-export default function ImportView({ onImported, onToast }: ImportViewProps) {
-  const [kind, setKind] = useState<ReleaseKind>("single");
+export default function ImportView({
+  initialKind,
+  onImported,
+  onToast,
+}: ImportViewProps) {
+  const [kind, setKind] = useState<ReleaseKind>(initialKind ?? "single");
   const [entries, setEntries] = useState<Entry[]>([]);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
