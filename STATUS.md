@@ -6,7 +6,7 @@ Git history holds the past.
 Last updated: 2026-09-28
 
 ## Current focus
-Hardening from the Sep 27 security review across web, iOS and the new sync API, then deploying the API so both clients sync against a real URL. Agent-readiness gaps (#22 to #25) are being closed alongside.
+Security hardening leftovers on iOS (#12), Mac library work (#7), and owner decisions on Mac packaging (#35) and privacy/terms (#36). Agent-readiness (#22–#25) and repo health (#13) are done; async email/deletes (#31) and the iOS import silhouette/reorder code (#6) landed.
 
 ## What works
 ### Web (apps/web)
