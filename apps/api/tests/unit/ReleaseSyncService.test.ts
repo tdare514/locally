@@ -115,4 +115,40 @@ describe("ReleaseSyncService", () => {
     expect(forB.releases).toHaveLength(0);
     expect(forB.nextVersion).toBe(0);
   });
+
+  it("gives concurrent writes for one user unique, increasing versions and loses none (#28)", async () => {
+    const records = Array.from({ length: 20 }, () => makeReleaseRecord());
+    const created = await Promise.all(records.map((r) => service.upsert(userA, r.id, r)));
+
+    const edits = records.slice(0, 10).map((r) => ({ ...r, title: "Edited", updatedAt: new Date(Date.parse(r.updatedAt) + 1000).toISOString() }));
+    const updated = await Promise.all([
+      ...edits.map((r) => service.upsert(userA, r.id, r)),
+      ...records.slice(10, 15).map((r) => service.tombstone(userA, r.id)),
+    ]);
+
+    const versions = [...created, ...updated].map((r) => r.version);
+    expect(new Set(versions).size).toBe(versions.length);
+    expect([...versions].sort((a, b) => a - b)).toEqual(Array.from({ length: 35 }, (_, i) => i + 1));
+
+    const all = await service.listSince(userA, 0);
+    expect(all.releases).toHaveLength(20);
+    const listed = all.releases.map((r) => r.version);
+    expect(listed).toEqual([...listed].sort((a, b) => a - b));
+    expect(new Set(listed).size).toBe(listed.length);
+    expect(all.nextVersion).toBe(35);
+    expect(all.releases.filter((r) => r.title === "Edited")).toHaveLength(10);
+    expect(all.releases.filter((r) => r.deleted)).toHaveLength(5);
+  });
+
+  it("keeps only the newest of concurrent writes to the same release", async () => {
+    const record = makeReleaseRecord();
+    await service.upsert(userA, record.id, record);
+
+    const base = Date.parse(record.updatedAt);
+    const writes = Array.from({ length: 5 }, (_, i) => ({ ...record, title: `T${i + 1}`, updatedAt: new Date(base + (i + 1) * 1000).toISOString() }));
+    await Promise.allSettled(writes.map((w) => service.upsert(userA, w.id, w)));
+
+    const stored = await service.getOwned(userA, record.id);
+    expect(stored.title).toBe("T5");
+  });
 });

@@ -45,6 +45,10 @@ tests/unit/**                         # vitest against that graph
   linked issue.
 - **Every query is scoped by the authenticated user.** Routes get `userId` from
   `http/authContext.ts`; never trust a user or device id from the request body.
+- **Sync invariants (#28).** Versions are unique and strictly increasing per user; a pull
+  returns every release above the cursor, and `nextVersion` never runs ahead of the rows it
+  came with. Any multi-step write (e.g. counter bump + release write) runs in one transaction
+  (`db.batch`), with its preconditions repeated in the write's `WHERE`.
 - **Storage keys are server-generated, never client input.** A file name in a release record or
   a files route is a plain child name (#10): `fileNameSchema` rejects path separators, caps it at
   200 characters and allows only `mp3`, `m4a`, `jpg`, `jpeg`, `png`. Files move only through

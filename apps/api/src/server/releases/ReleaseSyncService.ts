@@ -1,4 +1,4 @@
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, lt, sql } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { releases, userCounters } from "../../db/schema";
 import { ConflictError, NotFoundError } from "../../shared/errors";
@@ -28,16 +28,22 @@ export class ReleaseSyncService {
     private readonly now: () => number = () => Date.now()
   ) {}
 
-  /** Atomically bump and return this user's version counter. */
-  private async nextVersion(userId: string): Promise<number> {
-    const [row] = await this.db.select().from(userCounters).where(eq(userCounters.userId, userId));
-    const next = (row?.version ?? 0) + 1;
-    if (row) {
-      await this.db.update(userCounters).set({ version: next }).where(eq(userCounters.userId, userId));
-    } else {
-      await this.db.insert(userCounters).values({ userId, version: next });
-    }
-    return next;
+  /**
+   * Single-statement bump of this user's version counter. Only ever run in the
+   * same `db.batch` (one transaction) as the release write that reads it back
+   * through `currentVersion`, so two writes for one user can never share a
+   * version or land out of version order.
+   */
+  private bumpVersion(userId: string) {
+    return this.db
+      .insert(userCounters)
+      .values({ userId, version: 1 })
+      .onConflictDoUpdate({ target: userCounters.userId, set: { version: sql`${userCounters.version} + 1` } });
+  }
+
+  /** The counter value just written by `bumpVersion`, as a SQL subquery. */
+  private currentVersion(userId: string) {
+    return sql<number>`(select ${userCounters.version} from ${userCounters} where ${userCounters.userId} = ${userId})`;
   }
 
   private toRecordWithVersion(row: ReleaseRow): ReleaseRecordWithVersion {
@@ -50,13 +56,16 @@ export class ReleaseSyncService {
 
   /** Releases with `version > sinceVersion` for this user, tombstones included. */
   async listSince(userId: string, sinceVersion: number): Promise<ListSinceResult> {
-    const rows = await this.db
-      .select()
-      .from(releases)
-      .where(and(eq(releases.userId, userId), gt(releases.version, sinceVersion)))
-      .orderBy(releases.version);
-
-    const [counter] = await this.db.select().from(userCounters).where(eq(userCounters.userId, userId));
+    // One batch, so the rows and the counter come from the same snapshot and
+    // `nextVersion` never runs ahead of a release this response left out.
+    const [rows, [counter]] = await this.db.batch([
+      this.db
+        .select()
+        .from(releases)
+        .where(and(eq(releases.userId, userId), gt(releases.version, sinceVersion)))
+        .orderBy(releases.version),
+      this.db.select().from(userCounters).where(eq(userCounters.userId, userId)),
+    ]);
 
     return {
       releases: rows.map((row) => this.toRecordWithVersion(row)),
@@ -88,29 +97,45 @@ export class ReleaseSyncService {
     const updatedAtMs = Date.parse(record.updatedAt);
     const now = this.now();
 
-    if (existing) {
-      if (updatedAtMs <= existing.updatedAt) {
-        throw new ConflictError("Stored record is newer than the one being written");
-      }
-      const version = await this.nextVersion(userId);
-      await this.db
-        .update(releases)
-        .set({ record, updatedAt: updatedAtMs, deleted: record.deleted, serverUpdatedAt: now, version })
-        .where(eq(releases.id, releaseId));
-      return { version };
+    if (existing && updatedAtMs <= existing.updatedAt) {
+      throw new ConflictError("Stored record is newer than the one being written");
     }
 
-    const version = await this.nextVersion(userId);
-    await this.db.insert(releases).values({
-      id: releaseId,
-      userId,
-      version,
-      record,
-      updatedAt: updatedAtMs,
-      deleted: record.deleted,
-      serverUpdatedAt: now,
-    });
-    return { version };
+    // Bump and write in one transaction. The ownership and last-writer-wins
+    // checks are repeated in the write's WHERE, so a concurrent write that
+    // lands between the read above and this batch can't be overwritten.
+    const version = this.currentVersion(userId);
+    const [, written] = await this.db.batch([
+      this.bumpVersion(userId),
+      this.db
+        .insert(releases)
+        .values({
+          id: releaseId,
+          userId,
+          version,
+          record,
+          updatedAt: updatedAtMs,
+          deleted: record.deleted,
+          serverUpdatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: releases.id,
+          set: { record, updatedAt: updatedAtMs, deleted: record.deleted, serverUpdatedAt: now, version },
+          setWhere: and(eq(releases.userId, userId), lt(releases.updatedAt, updatedAtMs)),
+        })
+        .returning({ version: releases.version }),
+    ]);
+
+    if (!written[0]) {
+      // Lost a race since the read above. The counter bump leaves a gap in
+      // this user's versions, which the protocol allows.
+      const [current] = await this.db.select().from(releases).where(eq(releases.id, releaseId));
+      if (current && current.userId !== userId) {
+        throw new NotFoundError("Release not found");
+      }
+      throw new ConflictError("Stored record is newer than the one being written");
+    }
+    return { version: written[0].version };
   }
 
   /** Mark a release deleted. Throws `NotFoundError` if missing or owned by someone else. */
@@ -122,13 +147,18 @@ export class ReleaseSyncService {
 
     const now = this.now();
     const tombstoned: ReleaseRecord = { ...existing.record, deleted: true, updatedAt: new Date(now).toISOString() };
-    const version = await this.nextVersion(userId);
+    const [, written] = await this.db.batch([
+      this.bumpVersion(userId),
+      this.db
+        .update(releases)
+        .set({ record: tombstoned, updatedAt: now, deleted: true, serverUpdatedAt: now, version: this.currentVersion(userId) })
+        .where(and(eq(releases.id, releaseId), eq(releases.userId, userId)))
+        .returning({ version: releases.version }),
+    ]);
 
-    await this.db
-      .update(releases)
-      .set({ record: tombstoned, updatedAt: now, deleted: true, serverUpdatedAt: now, version })
-      .where(eq(releases.id, releaseId));
-
-    return { version };
+    if (!written[0]) {
+      throw new NotFoundError("Release not found");
+    }
+    return { version: written[0].version };
   }
 }
