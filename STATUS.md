@@ -6,7 +6,7 @@ Git history holds the past.
 Last updated: 2026-09-28
 
 ## Current focus
-Security hardening leftovers on iOS (#12), Mac library work (#7), and the remaining architecture-review items (#28 already closed; #31 next on the API). Agent-readiness (#22–#25) and repo health (#13) are done.
+Security hardening leftovers on iOS (#12), Mac library work (#7), and owner decisions on Mac packaging (#35) and privacy/terms (#36). Agent-readiness (#22–#25) and repo health (#13) are done; async email/deletes (#31) and the iOS import silhouette/reorder code (#6) landed.
 
 ## What works
 ### Web (apps/web)
@@ -63,11 +63,7 @@ Security hardening leftovers on iOS (#12), Mac library work (#7), and the remain
 ## Next
 - On-device confirmation of the import silhouette and long-press drag reorder on a phone (checklist in `apps/ios/README.md`; ViewModel reorder tests landed) (#6)
 - Mac library development: compact release header and import page cleanup next; then search, sort, bulk actions, playlist-aware grouping; plan-only: conversion job queue, SQLite index, multi-library (#7)
-<<<<<<< HEAD
-- Architecture review for multiple users (docs/reviews/2026-09-28-architecture.md): async email and deletes #31; owner decisions on Mac packaging #35 and privacy/terms #36
-=======
 - Architecture review for multiple users (docs/reviews/2026-09-28-architecture.md): owner decisions on Mac packaging #35 and privacy/terms #36
->>>>>>> origin/main
 
 ## Architecture decisions
 See docs/adr/. Product plans: docs/web-plan.md, docs/ios-plan.md. Sync contract: spec/sync.md.
