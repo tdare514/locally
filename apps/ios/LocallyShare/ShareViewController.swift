@@ -107,7 +107,7 @@ final class ShareViewController: UIViewController {
                 defer { if accessed { url.stopAccessingSecurityScopedResource() } }
                 let originalName = url.lastPathComponent
                 guard SupportedAudio.isSupported(fileName: originalName) else {
-                    continuation.resume(throwing: ShareError.unsupportedFormat(extension: url.pathExtension))
+                    continuation.resume(throwing: ShareError.unsupportedFormat(fileExtension: url.pathExtension))
                     return
                 }
                 let destinationName = InboxFileNaming.fileName(id: UUID(), originalName: originalName)
@@ -143,7 +143,7 @@ final class ShareViewController: UIViewController {
     private enum ShareError: LocalizedError {
         case notAudio
         case noAppGroup
-        case unsupportedFormat(extension: String)
+        case unsupportedFormat(fileExtension: String)
 
         var errorDescription: String? {
             switch self {
