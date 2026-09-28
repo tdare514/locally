@@ -2,7 +2,9 @@
 
 import type { PendingFromPhone, Release } from "../shared/types";
 import { coverUrl } from "../lib/api-client";
+import { partitionLibrary } from "../lib/library-sections";
 import type { View } from "./AppShell";
+import { MusicNoteIcon } from "./Icons";
 
 interface SidebarProps {
   releases: Release[];
@@ -11,8 +13,15 @@ interface SidebarProps {
   pendingFromPhone: PendingFromPhone[];
   onAcceptFromPhone: (id: string) => void;
   onSelectRelease: (id: string) => void;
+  onLibraryClick: () => void;
   onImportClick: () => void;
   onSettingsClick: () => void;
+}
+
+function navPillClass(active: boolean): string {
+  return `shrink-0 rounded-full px-4 py-2 text-left text-sm font-semibold transition-colors md:rounded-md ${
+    active ? "bg-accent text-black" : "bg-elevated text-text hover:bg-elevated-hover"
+  }`;
 }
 
 export default function Sidebar({
@@ -22,33 +31,33 @@ export default function Sidebar({
   pendingFromPhone,
   onAcceptFromPhone,
   onSelectRelease,
+  onLibraryClick,
   onImportClick,
   onSettingsClick,
 }: SidebarProps) {
-  const sorted = [...releases].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const { singles, albums } = partitionLibrary(releases);
 
   return (
     <aside className="flex w-full shrink-0 flex-row border-b border-border bg-card md:h-full md:w-64 md:flex-col md:border-b-0 md:border-r">
       <div className="flex items-center gap-2 overflow-x-auto p-3 md:flex-col md:items-stretch md:gap-2 md:overflow-visible md:p-4">
         <button
           type="button"
+          onClick={onLibraryClick}
+          className={navPillClass(view.type === "library")}
+        >
+          Library
+        </button>
+        <button
+          type="button"
           onClick={onImportClick}
-          className={`shrink-0 rounded-full px-4 py-2 text-left text-sm font-semibold transition-colors md:rounded-md ${
-            view.type === "import"
-              ? "bg-accent text-black"
-              : "bg-elevated text-text hover:bg-elevated-hover"
-          }`}
+          className={navPillClass(view.type === "import")}
         >
           + Import
         </button>
         <button
           type="button"
           onClick={onSettingsClick}
-          className={`shrink-0 rounded-full px-4 py-2 text-left text-sm font-semibold transition-colors md:rounded-md ${
-            view.type === "settings"
-              ? "bg-accent text-black"
-              : "bg-elevated text-text hover:bg-elevated-hover"
-          }`}
+          className={navPillClass(view.type === "settings")}
         >
           ⚙ Settings
         </button>
@@ -63,7 +72,7 @@ export default function Sidebar({
             {pendingFromPhone.map((p) => (
               <div key={p.id} className="flex items-center gap-3 rounded-md px-2 py-2">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-elevated text-text-muted">
-                  ♪
+                  <MusicNoteIcon className="h-4 w-4" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-text">
@@ -84,55 +93,41 @@ export default function Sidebar({
             ))}
           </div>
         )}
-        <p className="px-2 py-2 text-xs font-bold uppercase tracking-[0.18em] text-accent">
-          Library
-        </p>
+
         {loading && <p className="px-2 text-sm text-text-muted">Loading…</p>}
-        {!loading && sorted.length === 0 && (
-          <div className="px-2">
-            {/* The listener mark, from the owner's sketch; scripts/make-brand-marks.py renders it. */}
-            {/* eslint-disable-next-line @next/next/no-img-element -- static SVG, no optimisation needed */}
-            <img src="/brand/listener-solid.svg" alt="" className="mb-3 h-24 w-24" />
-            <p className="text-sm text-text-muted">
-              No releases yet. Import your first track or album to get started.
-            </p>
-          </div>
+
+        {!loading && releases.length === 0 && (
+          <p className="px-2 py-2 text-sm text-text-muted">
+            No releases yet. Import your first track or album to get started.
+          </p>
         )}
-        {sorted.map((r) => {
-          const active = view.type === "release" && view.id === r.id;
-          return (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => onSelectRelease(r.id)}
-              className={`flex items-center gap-3 rounded-md px-2 py-2 text-left transition-colors ${
-                active ? "bg-row-hover" : "hover:bg-row-hover"
-              }`}
-            >
-              {r.coverPath ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={coverUrl(r.id, r.updatedAt)}
-                  alt=""
-                  className="h-10 w-10 shrink-0 rounded object-cover"
-                />
-              ) : (
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-elevated text-text-muted">
-                  ♪
-                </span>
-              )}
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-text">
-                  {r.title || r.artist}
-                </span>
-                <span className="block truncate text-xs text-text-muted">{r.artist}</span>
-              </span>
-              <span className="shrink-0 rounded-full bg-elevated px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-                {r.kind === "single" ? "Single" : "Album"}
-              </span>
-            </button>
-          );
-        })}
+
+        {!loading && singles.length > 0 && (
+          <SidebarSection
+            label="Singles"
+            count={singles.length}
+            releases={singles}
+            view={view}
+            onSelectRelease={onSelectRelease}
+          />
+        )}
+
+        {!loading && singles.length > 0 && albums.length > 0 && (
+          <div
+            className="mx-2 my-2 border-t border-dashed border-border-dashed"
+            aria-hidden="true"
+          />
+        )}
+
+        {!loading && albums.length > 0 && (
+          <SidebarSection
+            label="Albums"
+            count={albums.length}
+            releases={albums}
+            view={view}
+            onSelectRelease={onSelectRelease}
+          />
+        )}
       </div>
 
       <div className="hidden shrink-0 items-center gap-2 border-t border-border px-4 py-3 md:flex">
@@ -143,5 +138,62 @@ export default function Sidebar({
         </span>
       </div>
     </aside>
+  );
+}
+
+function SidebarSection({
+  label,
+  count,
+  releases,
+  view,
+  onSelectRelease,
+}: {
+  label: string;
+  count: number;
+  releases: Release[];
+  view: View;
+  onSelectRelease: (id: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-baseline justify-between gap-2 px-2 py-2">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">
+          {label}
+        </p>
+        <span className="text-[10px] text-text-dim">{count}</span>
+      </div>
+      {releases.map((r) => {
+        const active = view.type === "release" && view.id === r.id;
+        return (
+          <button
+            key={r.id}
+            type="button"
+            onClick={() => onSelectRelease(r.id)}
+            className={`flex items-center gap-3 rounded-md px-2 py-2 text-left transition-colors ${
+              active ? "bg-row-hover" : "hover:bg-row-hover"
+            }`}
+          >
+            {r.coverPath ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={coverUrl(r.id, r.updatedAt)}
+                alt=""
+                className="h-10 w-10 shrink-0 rounded object-cover"
+              />
+            ) : (
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-elevated text-text-muted">
+                <MusicNoteIcon className="h-4 w-4" />
+              </span>
+            )}
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium text-text">
+                {r.title || r.artist}
+              </span>
+              <span className="block truncate text-xs text-text-muted">{r.artist}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }

@@ -136,8 +136,8 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
   1 px `border`; press background `row-hover`. Header above: eyebrow "YOUR COLLECTION", title
   "All music", meta "N tracks". The list is split into two sections, **Singles** then
   **Albums**, each with an 18 bold label and its count in `text-dim`, separated by a 1 px
-  `border-dashed` rule (dash 4/4). A section with nothing in it is not shown. Desktop keeps the
-  current sidebar rows.
+  `border-dashed` rule (dash 4/4). A section with nothing in it is not shown. Desktop mirrors the
+  same sectioning in the main Library view (and in the sidebar list).
 - **Editor / release detail (mobile)**: a slim, sleek layout rather than a full-width hero. Top
   bar with back and the release title. Below it a header row: a 112 pt square cover, radius 10,
   1 px `border`, with a 28 pt circular pencil badge bottom-right (`bg` at 80 % with blur, icon
@@ -167,11 +167,15 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
   (primary, 24 by 10).
 - **Kind badge** (SINGLE / ALBUM): `elevated` pill, badge type.
 - **Errors**: `danger` 12 text under the field or button that failed.
-- **Empty state (mobile library, the home tab)**: doubles as onboarding. A diagram of two 68 pt
-  `elevated` tiles, radius 16, 1 px `border`: the app icon the user picked (captioned "Locally"),
-  three accent dots and a chevron, a note icon (captioned "Spotify"; never Spotify's logo). Below:
-  eyebrow "YOUR LIBRARY", title "Nothing here yet" (24 bold), one line of `text-muted` 14 body,
-  then a primary "Add your first single" and a secondary "Make an album" pinned low. Desktop keeps
-  the `text-muted` 14 line "No releases yet. Import your first track or album to get started."
-- **Web sidebar**: unchanged from the current web app (nav pills, LIBRARY eyebrow, rows, brand
-  mark), on `card`. The MagicPath sidebar is not used.
+- **Empty state (library home, both apps)**: doubles as onboarding. A diagram of two 68 pt
+  `elevated` tiles, radius 16, 1 px `border`: the app icon / solid listener mark (captioned
+  "Locally"), three accent dots and a chevron, a note icon (captioned "Spotify"; never Spotify's
+  logo). Below: eyebrow "YOUR LIBRARY", title "Nothing here yet" (24 bold mobile / 36 desktop),
+  one line of `text-muted` 14 body, then a primary "Add your first single" and a secondary "Make
+  an album" pinned low. The web sidebar empty line stays the short `text-muted` hint; the full
+  empty state lives in the main Library view.
+- **Web sidebar**: nav pills (Library, + Import, Settings), Singles then Albums section labels
+  with counts, rows, brand mark, on `card`. The MagicPath sidebar is not used.
+- **Library list (desktop main)**: same sectioning as mobile — YOUR COLLECTION / All music
+  header with track-count meta, Singles then Albums in `card` containers (radius 12), "Add a
+  song" primary below. Sidebar rows stay compact (40 art) for quick jump.
