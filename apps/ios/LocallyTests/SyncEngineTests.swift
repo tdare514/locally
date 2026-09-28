@@ -56,7 +56,7 @@ struct SyncEngineTests {
         let api = FakeSyncApi()
         let account = InMemorySyncAccountStore()
         account.save(email: "toby@example.com", deviceToken: "test-token", deviceId: "device-1")
-        let engine = SyncEngine(api: api, account: account, library: library, coordinator: coordinator, deviceName: { "Toby's iPhone" })
+        let engine = SyncEngine(api: api, account: account, library: library, coordinator: coordinator, coverStore: coverStore, deviceName: { "Toby's iPhone" })
         return Harness(coordinator: coordinator, folder: folder, library: library, tagWriter: tagWriter, coverStore: coverStore, api: api, account: account, engine: engine)
     }
 
@@ -80,6 +80,41 @@ struct SyncEngineTests {
 
         let stored = try h.library.all().first { $0.id == release.id }
         #expect(stored?.syncedUpdatedAt != nil)
+    }
+
+    /// `Release.coverPath` is absolute and can go stale (iOS may move the
+    /// app's data container between installs), so the push resolves the
+    /// cover through the store by id and names it by the file it finds.
+    @Test func pushUploadsTheCoverResolvedByIdEvenWhenCoverPathIsStale() async throws {
+        let h = makeHarness()
+        let tags = TagSet(title: "Covered", artist: "Artist", album: "Covered")
+        let cover = Data([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3])
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: cover)
+        var stale = release
+        stale.coverPath = "/private/var/mobile/Containers/Data/Application/OLD-CONTAINER/Covers/\(release.id.uuidString).jpg"
+        try h.library.upsert(stale)
+
+        await h.engine.push(stale)
+
+        #expect(h.engine.status.lastError == nil)
+        #expect(h.api.putCalls.first?.cover == "cover.jpg")
+        #expect(h.api.uploadedFileNames.contains("cover.jpg"))
+        #expect(h.api.fileContents["cover.jpg"] == cover)
+    }
+
+    @Test func pushLeavesTheCoverOutOfTheRecordWhenItsFileIsGone() async throws {
+        let h = makeHarness()
+        let tags = TagSet(title: "Lost Cover", artist: "Artist", album: "Lost Cover")
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: Data([0xFF, 0xD8, 1]))
+        try h.coverStore.delete(release.id)
+
+        await h.engine.push(release)
+
+        #expect(h.engine.status.lastError == nil, "a missing cover never fails the track's push")
+        #expect(h.api.putCalls.first?.cover == nil, "the other device must not wait for a cover that will never upload")
+        #expect(!h.api.uploadedFileNames.contains("cover.jpg"))
+        let stored = try #require(h.library.all().first { $0.id == release.id })
+        #expect(stored.syncedUpdatedAt != nil)
     }
 
     @Test func pushSkipsFilesTheServerAlreadyHas() async throws {

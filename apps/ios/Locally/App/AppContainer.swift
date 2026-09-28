@@ -129,6 +129,7 @@ final class AppContainer {
             account: syncAccount,
             library: library,
             coordinator: coordinator,
+            coverStore: coverStore,
             deviceName: { UIDevice.current.name }
         )
         let container = AppContainer(
@@ -180,6 +181,7 @@ final class AppContainer {
             account: syncAccount,
             library: library,
             coordinator: coordinator,
+            coverStore: coverStore,
             deviceName: deviceName
         )
         return AppContainer(

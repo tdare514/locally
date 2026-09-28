@@ -75,6 +75,7 @@ final class SyncEngine: ReleaseSyncHook {
     private let account: SyncAccountStore
     private let library: LibraryStore
     private let coordinator: ReleaseCoordinator
+    private let coverStore: CoverStore
     private let deviceName: () -> String
 
     let status: SyncStatus
@@ -87,6 +88,7 @@ final class SyncEngine: ReleaseSyncHook {
         account: SyncAccountStore,
         library: LibraryStore,
         coordinator: ReleaseCoordinator,
+        coverStore: CoverStore,
         status: SyncStatus = SyncStatus(),
         deviceName: @escaping () -> String
     ) {
@@ -94,6 +96,7 @@ final class SyncEngine: ReleaseSyncHook {
         self.account = account
         self.library = library
         self.coordinator = coordinator
+        self.coverStore = coverStore
         self.status = status
         self.deviceName = deviceName
         status.signedIn = account.deviceToken != nil
@@ -183,6 +186,12 @@ final class SyncEngine: ReleaseSyncHook {
             var fileBytes: [UUID: Int] = [:]
             for entry in files { fileBytes[entry.track.id] = Self.fileSize(at: entry.url) }
             var record = release.toSyncRecord(origin: "ios", originDevice: deviceName(), fileBytes: fileBytes)
+            // The cover is resolved by id, not by `coverPath` (see
+            // `CoverStore.fileURL`). A cover the store can't find is left out
+            // of the record rather than failing the push: the other device
+            // would otherwise wait forever for a `cover.jpg` that never lands.
+            let coverURL = release.coverPath != nil ? coverStore.fileURL(release.id) : nil
+            record.cover = coverURL.map { "cover.\($0.pathExtension)" }
 
             do {
                 try await api.putRelease(record)
@@ -192,12 +201,12 @@ final class SyncEngine: ReleaseSyncHook {
                 try await api.putRelease(record)
             }
 
-            try await uploadFiles(for: release, record: record, files: files)
+            try await uploadFiles(record: record, files: files, coverURL: coverURL)
             markPushed(release, at: record.updatedAt)
         }
     }
 
-    private func uploadFiles(for release: Release, record: SyncRecord, files: [(track: Track, url: URL)]) async throws {
+    private func uploadFiles(record: SyncRecord, files: [(track: Track, url: URL)], coverURL: URL?) async throws {
         var localPathByName: [String: URL] = [:]
         var requests: [SyncFileUploadRequest] = []
         for entry in files {
@@ -209,8 +218,7 @@ final class SyncEngine: ReleaseSyncHook {
                 contentType: Self.contentType(forExtension: entry.url.pathExtension)
             ))
         }
-        if let coverName = record.cover, let coverPath = release.coverPath {
-            let coverURL = URL(fileURLWithPath: coverPath)
+        if let coverName = record.cover, let coverURL {
             localPathByName[coverName] = coverURL
             requests.append(SyncFileUploadRequest(name: coverName, bytes: Self.fileSize(at: coverURL), contentType: Self.contentType(forExtension: (coverName as NSString).pathExtension)))
         }

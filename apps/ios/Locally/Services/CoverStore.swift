@@ -9,6 +9,11 @@ protocol CoverStore {
     /// returns the path it was saved to (for `Release.coverPath`).
     func save(_ data: Data, for id: UUID) throws -> String
     func load(_ id: UUID) -> Data?
+    /// Where the cover for `id` currently sits on disk, or `nil` if there is
+    /// none. Callers that need a file (sync uploads) resolve it by id at the
+    /// time of use rather than trusting `Release.coverPath`: that path is
+    /// absolute, and iOS may move the app's data container between installs.
+    func fileURL(_ id: UUID) -> URL?
     func delete(_ id: UUID) throws
 }
 
@@ -48,6 +53,16 @@ final class FileCoverStore: CoverStore {
             let url = directory.appendingPathComponent("\(id.uuidString).\(ext)")
             if let data = try? Data(contentsOf: url) {
                 return data
+            }
+        }
+        return nil
+    }
+
+    func fileURL(_ id: UUID) -> URL? {
+        for ext in Self.extensions {
+            let url = directory.appendingPathComponent("\(id.uuidString).\(ext)")
+            if FileManager.default.fileExists(atPath: url.path) {
+                return url
             }
         }
         return nil

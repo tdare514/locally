@@ -92,18 +92,31 @@ final class FakeSpotifyFolder: SpotifyFolderAccess {
 final class FakeCoverStore: CoverStore {
     private var storage: [UUID: Data] = [:]
     private(set) var deletedIds: [UUID] = []
+    /// Covers also land on disk (in a per-store temp directory) so `fileURL`
+    /// hands sync a real file to upload, as the production store does.
+    private let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("FakeCovers-\(UUID().uuidString)", isDirectory: true)
 
     func save(_ data: Data, for id: UUID) throws -> String {
         storage[id] = data
-        return "fake-cover-\(id.uuidString)"
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("\(id.uuidString).jpg")
+        try data.write(to: url)
+        return url.path
     }
 
     func load(_ id: UUID) -> Data? {
         storage[id]
     }
 
+    func fileURL(_ id: UUID) -> URL? {
+        guard storage[id] != nil else { return nil }
+        return directory.appendingPathComponent("\(id.uuidString).jpg")
+    }
+
     func delete(_ id: UUID) throws {
         storage.removeValue(forKey: id)
+        try? FileManager.default.removeItem(at: directory.appendingPathComponent("\(id.uuidString).jpg"))
         deletedIds.append(id)
     }
 }
