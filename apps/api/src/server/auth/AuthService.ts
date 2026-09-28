@@ -14,9 +14,9 @@ const TOKEN_BYTES = 32;
 const DAY_MS = 24 * 60 * 60 * 1000;
 /**
  * A device token unused for this long stops working; the device signs in again with an email
- * code (the account never expires). Tentative: the owner hasn't settled the window (#33).
+ * code (the account never expires). A year, by the owner's call (#33).
  */
-export const TOKEN_IDLE_TTL_MS = 90 * DAY_MS;
+export const TOKEN_IDLE_TTL_MS = 365 * DAY_MS;
 /** `lastSeenAt` is refreshed at most this often, so authenticating isn't a write per request. */
 export const LAST_SEEN_REFRESH_MS = DAY_MS;
 

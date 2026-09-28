@@ -115,10 +115,9 @@ Accounts are email + a six-digit code, never a password. `src/server/auth/AuthSe
 - A successful code exchange mints an opaque 32-byte random device token. Only
   `sha256(token + TOKEN_PEPPER)` is stored (`devices.tokenHash`) — never the token
   itself. Losing the database does not hand out anyone's password or token.
-- A device token unused for 90 days expires (`TOKEN_IDLE_TTL_MS` in `AuthService`), so a
+- A device token unused for a year (365 days) expires (`TOKEN_IDLE_TTL_MS` in `AuthService`), so a
   token on a lost or sold device stops working even if nobody revokes it. The account is
-  unaffected: the user can sign in again with an email code at any time. The 90-day window
-  is tentative, pending the owner's call (#33). `lastSeenAt` is
+  unaffected: the user can sign in again with an email code at any time. `lastSeenAt` is
   refreshed at most once a day to avoid a write per request.
 - `AUTH_PEPPER`/`TOKEN_PEPPER` are required in production; `src/server/config/env.ts`
   falls back to a fixed, insecure development value outside production (with a loud

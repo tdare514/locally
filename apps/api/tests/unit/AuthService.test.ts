@@ -144,7 +144,7 @@ describe("AuthService", () => {
   });
 
   describe("token idle expiry", () => {
-    it("still authenticates after 89 days of inactivity", async () => {
+    it("still authenticates one day short of TOKEN_IDLE_TTL_MS", async () => {
       await auth.issueCode("idle@example.com");
       const { token } = await auth.verify({
         email: "idle@example.com",
@@ -153,7 +153,7 @@ describe("AuthService", () => {
         platform: "mac",
       });
 
-      clock += 89 * 24 * 60 * 60 * 1000;
+      clock += TOKEN_IDLE_TTL_MS - 24 * 60 * 60 * 1000;
       await expect(auth.authenticate(token)).resolves.toBeDefined();
     });
 
@@ -180,10 +180,10 @@ describe("AuthService", () => {
         platform: "mac",
       });
 
-      // Used every 30 days for over 200 days total; each use refreshes
+      // Used every 60 days for over 700 days total; each use refreshes
       // lastSeenAt, so the token never sits idle long enough to expire even
       // though the total elapsed time far exceeds TOKEN_IDLE_TTL_MS.
-      for (let day = 30; day <= 210; day += 30) {
+      for (let day = 60; day <= 720; day += 60) {
         clock = Date.UTC(2026, 0, 1) + day * 24 * 60 * 60 * 1000;
         await expect(auth.authenticate(token)).resolves.toBeDefined();
       }
