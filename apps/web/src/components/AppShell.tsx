@@ -1,21 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Library, Release, SyncStatus } from "../shared/types";
+import type { Library, Release, ReleaseKind, SyncStatus } from "../shared/types";
 import { acceptFromPhone, getLibrary, getSyncStatus } from "../lib/api-client";
 import Sidebar from "./Sidebar";
+import LibraryView from "./LibraryView";
 import ImportView from "./ImportView";
 import ReleaseView from "./ReleaseView";
 import SettingsView from "./SettingsView";
 import Toast, { type ToastMessage } from "./Toast";
 
 export type View =
-  | { type: "import" }
+  | { type: "library" }
+  | { type: "import"; kind?: ReleaseKind }
   | { type: "release"; id: string; justImported?: boolean }
   | { type: "settings" };
 
 export default function AppShell() {
-  const [view, setView] = useState<View>({ type: "import" });
+  const [view, setView] = useState<View>({ type: "library" });
   const [library, setLibrary] = useState<Library | null>(null);
   const [loadingLibrary, setLoadingLibrary] = useState(true);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
@@ -76,7 +78,11 @@ export default function AppShell() {
 
   function handleDeleted() {
     refreshLibrary();
-    setView({ type: "import" });
+    setView({ type: "library" });
+  }
+
+  function openImport(kind?: ReleaseKind) {
+    setView({ type: "import", kind });
   }
 
   async function handleAcceptFromPhone(id: string) {
@@ -98,12 +104,26 @@ export default function AppShell() {
         pendingFromPhone={syncStatus?.pendingFromPhone ?? []}
         onAcceptFromPhone={handleAcceptFromPhone}
         onSelectRelease={(id) => setView({ type: "release", id })}
-        onImportClick={() => setView({ type: "import" })}
+        onLibraryClick={() => setView({ type: "library" })}
+        onImportClick={() => openImport()}
         onSettingsClick={() => setView({ type: "settings" })}
       />
       <main className="flex-1 overflow-y-auto p-6 md:p-10 lg:p-16">
+        {view.type === "library" && (
+          <LibraryView
+            releases={library?.releases ?? []}
+            loading={loadingLibrary}
+            onSelectRelease={(id) => setView({ type: "release", id })}
+            onImport={openImport}
+          />
+        )}
         {view.type === "import" && (
-          <ImportView onImported={handleImported} onToast={showToast} />
+          <ImportView
+            key={view.kind ?? "any"}
+            initialKind={view.kind}
+            onImported={handleImported}
+            onToast={showToast}
+          />
         )}
         {view.type === "release" && (
           <ReleaseView
