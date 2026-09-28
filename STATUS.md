@@ -40,12 +40,11 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Security hardening from the Sep 27 review: web origin check, zod validation, HTTPS-only sync, sign-out on base URL change, Keychain hardening and the iOS privacy manifest landed (#11 closed); the medium/low backlog remains (#12)
 - Security review of apps/api (#20): findings fixed 28 Sep; the in-memory rate limiter is per instance, so the deploy (#3) needs a shared-store `RateLimiter` before going live
 - Deploying apps/api to Vercel with libSQL, Blob and Resend behind the existing interfaces (#3)
-- Listener icon rollout: favicon.ico, Open Graph image and docs landed; the on-device check of the icon and its alternate remains (#5)
 
 ## Known issues
 - iOS crash in `SyncEngine.backfillUnpushed` when a delete overlaps the 30s reconcile loop; the delete is lost (#19)
 - Share extension can't be provisioned for a device build on the project's Personal team; simulator-only for now (see apps/ios/README.md)
-- App Store submission checklist still open: screenshots not captured (#5)
+- App Store submission checklist still open: screenshots not captured
 - Sync: a cover replaced on one device never updates on the other; plan in docs/plans/26-sync-cover-hash.md (#26)
 - Spotify caches local-file metadata; restart Spotify to see edits to an already-imported track
 
