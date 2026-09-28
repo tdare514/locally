@@ -7,6 +7,18 @@ import CoreMedia
 /// `AVAssetExportPresetPassthrough` and a metadata item list — the audio
 /// itself is copied through untouched, only the metadata track changes.
 final class M4ATagWriter: TagWriter {
+    /// Swaps `replacement` over `original` in place. Injected so tests can
+    /// make the swap fail without touching AVFoundation's export path.
+    typealias ReplaceItem = (_ original: URL, _ replacement: URL) throws -> Void
+
+    private let replaceItem: ReplaceItem
+
+    init(replaceItem: ReplaceItem = { original, replacement in
+        _ = try FileManager.default.replaceItemAt(original, withItemAt: replacement)
+    }) {
+        self.replaceItem = replaceItem
+    }
+
     func write(_ tags: TagSet, cover: Data?, to url: URL) async throws {
         let asset = AVAsset(url: url)
         // `AVAssetExportSession` isn't `Sendable`; the completion handler
@@ -27,23 +39,46 @@ final class M4ATagWriter: TagWriter {
         exportSession.outputFileType = .m4a
         exportSession.metadata = metadataItems(for: tags, cover: cover)
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            exportSession.exportAsynchronously {
-                switch exportSession.status {
-                case .completed:
-                    continuation.resume()
-                case .failed, .cancelled:
-                    let message = exportSession.error?.localizedDescription ?? "Tagging failed."
-                    continuation.resume(throwing: LocallyError.taggingFailed(message))
-                default:
-                    continuation.resume(throwing: LocallyError.taggingFailed("Unexpected export state."))
+        do {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                exportSession.exportAsynchronously {
+                    switch exportSession.status {
+                    case .completed:
+                        continuation.resume()
+                    case .failed, .cancelled:
+                        let message = exportSession.error?.localizedDescription ?? "Tagging failed."
+                        continuation.resume(throwing: LocallyError.taggingFailed(message))
+                    default:
+                        continuation.resume(throwing: LocallyError.taggingFailed("Unexpected export state."))
+                    }
                 }
             }
+        } catch {
+            removeTempOutput(tmpOutput)
+            throw error
         }
 
         // Replace the original in place so callers can keep treating `url`
-        // as the file's final location.
-        _ = try? FileManager.default.replaceItemAt(url, withItemAt: tmpOutput)
+        // as the file's final location. A failed swap is a tagging failure:
+        // the caller must not index a file whose tags never landed.
+        do {
+            try replaceItem(url, tmpOutput)
+        } catch {
+            removeTempOutput(tmpOutput)
+            throw LocallyError.taggingFailed(error.localizedDescription)
+        }
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            removeTempOutput(tmpOutput)
+            throw LocallyError.taggingFailed("The tagged file didn't land in place.")
+        }
+    }
+
+    /// Removes the writer's own temp export, if it exists. Only ever called
+    /// with `tmpOutput`, a file this writer created next to `url`; never
+    /// with `url` itself.
+    private func removeTempOutput(_ tmpOutput: URL) {
+        guard FileManager.default.fileExists(atPath: tmpOutput.path) else { return }
+        try? FileManager.default.removeItem(at: tmpOutput)
     }
 
     private func metadataItems(for tags: TagSet, cover: Data?) -> [AVMetadataItem] {
