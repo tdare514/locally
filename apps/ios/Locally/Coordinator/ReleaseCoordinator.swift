@@ -420,6 +420,22 @@ final class ReleaseCoordinator {
     /// wrote). The cover is saved to `CoverStore`. The resulting `Release`
     /// keeps the record's own id, so a later edit on either platform matches
     /// the same release.
+    /// Where a file the sync service named (`SyncTrack.file`, `SyncRecord.cover`)
+    /// was downloaded to under `dir`. Only a plain child name is accepted, the
+    /// same two-step rule (`ReleaseLayout`, then `isInside`) every other
+    /// user-derived path in this class goes through; the name came off the
+    /// network, so it is refused rather than repaired.
+    private func syncedSource(in dir: URL, name: String) throws -> URL {
+        guard ReleaseLayout.isPlainFileName(name) else {
+            throw LocallyError.importFailed("\"\(name)\" isn't a file name Locally will read.")
+        }
+        let url = dir.appendingPathComponent(name)
+        guard layout.isInside(folder: dir, path: url.path) else {
+            throw LocallyError.pathOutsideFolder
+        }
+        return url
+    }
+
     func importSynced(_ record: SyncRecord, dir: URL) async throws -> Release {
         guard let releaseId = UUID(uuidString: record.id) else {
             throw LocallyError.libraryFailed("That release's id from sync wasn't valid.")
@@ -433,7 +449,7 @@ final class ReleaseCoordinator {
 
         do {
             for syncTrack in record.tracks {
-                let sourceURL = dir.appendingPathComponent(syncTrack.file)
+                let sourceURL = try syncedSource(in: dir, name: syncTrack.file)
                 guard FileManager.default.fileExists(atPath: sourceURL.path) else {
                     throw LocallyError.importFailed("\"\(syncTrack.file)\" didn't download.")
                 }
@@ -459,7 +475,7 @@ final class ReleaseCoordinator {
 
         var coverPath: String?
         if let coverName = record.cover {
-            let coverSource = dir.appendingPathComponent(coverName)
+            let coverSource = try syncedSource(in: dir, name: coverName)
             if let data = try? Data(contentsOf: coverSource) {
                 coverPath = try? coverStore.save(data, for: releaseId)
             }

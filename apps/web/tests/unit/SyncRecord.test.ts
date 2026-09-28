@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   SyncRecordSchema,
   fromSyncRecord,
+  isPlainSyncName,
   parseSyncRecord,
   toSyncRecord,
   type SyncRecord,
@@ -158,5 +159,50 @@ describe("fromSyncRecord", () => {
     });
     const meta = fromSyncRecord(record);
     expect(meta.tracks.map((t) => t.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("SyncRecordSchema refuses names that are not plain file names", () => {
+  const hostile = [
+    "../x.mp3",
+    "..\\x.mp3",
+    "a/b.mp3",
+    "a\\b.mp3",
+    "/etc/passwd",
+    ".",
+    "..",
+    ".hidden.mp3",
+    "",
+    "bad\u0000name.mp3",
+    "bad\nname.mp3",
+    "x".repeat(256),
+  ];
+
+  it.each(hostile)("rejects %j as a track file", (name) => {
+    const record = validRecord({ tracks: [{ ...validRecord().tracks[0], file: name }] });
+    expect(() => parseSyncRecord(record)).toThrow();
+  });
+
+  it.each(hostile)("rejects %j as a cover", (name) => {
+    expect(() => parseSyncRecord(validRecord({ cover: name }))).toThrow();
+  });
+
+  it.each(hostile)("rejects %j as a release id", (name) => {
+    expect(() => parseSyncRecord(validRecord({ id: name }))).toThrow();
+  });
+
+  it.each(hostile)("rejects %j as a track id", (name) => {
+    const record = validRecord({ tracks: [{ ...validRecord().tracks[0], id: name }] });
+    expect(() => parseSyncRecord(record)).toThrow();
+  });
+
+  it("accepts ordinary names from both platforms", () => {
+    expect(isPlainSyncName("01 - Intro.mp3")).toBe(true);
+    expect(isPlainSyncName("Chromatics - Night Drive - 01 - Intro.m4a")).toBe(true);
+    expect(isPlainSyncName("cover.jpg")).toBe(true);
+    expect(isPlainSyncName("3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90")).toBe(true);
+    expect(isPlainSyncName("Étude Nº 3 (live) [2024].mp3")).toBe(true);
+    expect(isPlainSyncName("a".repeat(255))).toBe(true);
+    expect(() => parseSyncRecord(validRecord({ cover: null }))).not.toThrow();
   });
 });

@@ -236,7 +236,10 @@ final class HttpSyncApi: SyncApi {
     }
 
     func downloadURL(releaseId: String, fileName: String) async throws -> URL {
-        let data = try await send(path: "/v1/releases/\(releaseId)/files/\(fileName)", method: "GET")
+        // Names are plain (see `SyncEngine.downloadFile`) but can still hold
+        // characters like `#`, `%` or `&` that would cut or mis-parse the path.
+        let encodedName = fileName.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? fileName
+        let data = try await send(path: "/v1/releases/\(releaseId)/files/\(encodedName)", method: "GET")
         struct Response: Decodable { let url: String; let expiresAt: String }
         let decoded = try decode(Response.self, from: data)
         guard let url = URL(string: decoded.url) else {

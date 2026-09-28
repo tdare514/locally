@@ -5,11 +5,35 @@ import type { Release, ReleaseKind } from "../../shared/types";
 /** Which platform wrote a given version of a release record. */
 export type SyncOrigin = "mac" | "ios";
 
+/** Longest name accepted for a record's file names and ids: the filename limit on every common filesystem. */
+export const MAX_SYNC_NAME_LENGTH = 255;
+
+/**
+ * True only for a name that, joined to any directory, can point at nothing but
+ * a direct child of it: no separators, not `.`/`..` or any other leading-dot
+ * name, no control characters, and within the filesystem length limit.
+ * Record file names and ids are used as path components (`SyncEngine`
+ * downloads to `dir/<file>`, `ReleaseService.importSynced` reads them back),
+ * and they arrive from the network, so anything else is refused at the wire.
+ */
+export function isPlainSyncName(name: string): boolean {
+  if (name.length === 0 || name.length > MAX_SYNC_NAME_LENGTH) return false;
+  if (name.startsWith(".")) return false;
+  if (name !== path.basename(name) || /[/\\]/.test(name)) return false;
+  for (let i = 0; i < name.length; i++) {
+    const c = name.charCodeAt(i);
+    if (c < 0x20 || c === 0x7f) return false;
+  }
+  return true;
+}
+
+const plainName = (what: string) => z.string().refine(isPlainSyncName, `${what} must be a plain file name`);
+
 export const SyncTrackSchema = z.object({
-  id: z.string().min(1),
+  id: plainName("track id"),
   title: z.string(),
   trackNumber: z.number().int().positive(),
-  file: z.string().min(1),
+  file: plainName("track file"),
   bytes: z.number().int().nonnegative(),
   durationSec: z.number().nullable(),
 });
@@ -21,13 +45,13 @@ export const SyncTrackSchema = z.object({
  */
 export const SyncRecordSchema = z.object({
   syncVersion: z.literal(1),
-  id: z.string().min(1),
+  id: plainName("release id"),
   kind: z.enum(["single", "album"]),
   title: z.string(),
   artist: z.string(),
   year: z.string().nullable(),
   genre: z.string().nullable(),
-  cover: z.string().nullable(),
+  cover: plainName("cover").nullable(),
   tracks: z.array(SyncTrackSchema),
   origin: z.enum(["mac", "ios"]),
   originDevice: z.string(),

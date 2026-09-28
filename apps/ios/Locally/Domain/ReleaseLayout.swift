@@ -49,6 +49,27 @@ struct ReleaseLayout {
         return targetPath.hasPrefix(prefix)
     }
 
+    /// Longest name `isPlainFileName` accepts: the filename limit on every common filesystem.
+    static let maxPlainFileNameLength = 255
+
+    /// True only for a name that, appended to any directory, can point at
+    /// nothing but a direct child of it: no separators, not `.`/`..` or any
+    /// other leading-dot name, no control characters, within the length
+    /// limit. Sync record file names (`SyncTrack.file`, `SyncRecord.cover`)
+    /// arrive from the network and are used as path components by
+    /// `SyncEngine` and `ReleaseCoordinator.importSynced`, so anything else is
+    /// refused rather than repaired: the name has to match a stored object.
+    /// Mirrors the Mac app's `isPlainSyncName`.
+    static func isPlainFileName(_ name: String) -> Bool {
+        guard !name.isEmpty, name.utf8.count <= maxPlainFileNameLength else { return false }
+        guard !name.hasPrefix(".") else { return false }
+        for scalar in name.unicodeScalars {
+            if scalar == "/" || scalar == "\\" { return false }
+            if scalar.value < 0x20 || scalar.value == 0x7F { return false }
+        }
+        return true
+    }
+
     private func pad2(_ n: Int) -> String {
         n < 10 ? "0\(n)" : "\(n)"
     }

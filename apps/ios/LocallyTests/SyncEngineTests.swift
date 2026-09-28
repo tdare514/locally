@@ -189,6 +189,36 @@ struct SyncEngineTests {
         #expect(h.tagWriter.calls.isEmpty, "accepted files are placed as-is, never re-tagged")
     }
 
+    /// A record's file names come off the network and are used as path
+    /// components under the download directory, so a `../` name must be
+    /// refused before anything is downloaded: nothing may be written outside
+    /// that directory and nothing may be imported.
+    @Test func acceptFromMacRefusesARecordWhoseFileNameWouldLeaveTheDownloadDirectory() async throws {
+        let h = makeHarness()
+        let hostile = "../escape-\(UUID().uuidString).mp3"
+        let macRecord = SyncRecord(
+            id: UUID().uuidString,
+            kind: "single",
+            title: "Mac Song",
+            artist: "Mac Artist",
+            cover: nil,
+            tracks: [SyncTrack(id: UUID().uuidString, title: "Mac Song", trackNumber: 1, file: hostile, bytes: 6, durationSec: nil)],
+            origin: "mac",
+            originDevice: "Toby's MacBook",
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        h.engine.status.pendingFromMac = [macRecord]
+
+        await h.engine.acceptFromMac(macRecord.id)
+
+        #expect(h.engine.status.lastError != nil)
+        #expect(h.engine.status.failedAcceptIds.contains(macRecord.id))
+        #expect(try h.library.all().isEmpty, "nothing is imported")
+        let escaped = FileManager.default.temporaryDirectory.appendingPathComponent(String(hostile.dropFirst(3)))
+        #expect(!FileManager.default.fileExists(atPath: escaped.path), "nothing is written outside the download directory")
+    }
+
     /// The API returns a release record from the moment it's `PUT`, before
     /// its files necessarily finish uploading (see `SyncEngine.push`'s doc
     /// comment) — so a download can 404 even though the record is legitimate.

@@ -408,9 +408,20 @@ final class SyncEngine: ReleaseSyncHook {
         }
     }
 
+    /// `name` came off the network in a record. It is written under `dir`,
+    /// so only a plain child name is accepted (`ReleaseLayout.isPlainFileName`,
+    /// then `isInside`), or a `../x` would land, and via `downloadFile`'s
+    /// replace, destroy, a file outside the download directory.
     private func downloadFile(releaseId: String, name: String, into dir: URL) async throws {
+        guard ReleaseLayout.isPlainFileName(name) else {
+            throw LocallyError.importFailed("A file in that release has a name Locally won't use.")
+        }
+        let destination = dir.appendingPathComponent(name)
+        guard ReleaseLayout().isInside(folder: dir, path: destination.path) else {
+            throw LocallyError.pathOutsideFolder
+        }
         let url = try await api.downloadURL(releaseId: releaseId, fileName: name)
-        try await api.downloadFile(from: url, to: dir.appendingPathComponent(name))
+        try await api.downloadFile(from: url, to: destination)
     }
 
     // MARK: - Helpers

@@ -46,6 +46,22 @@ is additionally checked with `FileSystem.isInside` (`src/server/fs/NodeFileSyste
 against the current library directory before use — see `ReleaseService.delete` and
 `src/app/api/reveal/route.ts`.
 
+### File names in sync records
+
+A release record fetched from the sync service names its files (`tracks[].file`, `cover`)
+and ids, and both clients use those names as path components: the Mac downloads to
+`<dir>/<file>` and `ReleaseService.importSynced` reads them back; the iPhone does the same in
+`SyncEngine` and `ReleaseCoordinator.importSynced`. A `../x` there would write, and via the
+replace-on-download, destroy, a file outside the download directory.
+
+**Mitigation**: names are accepted only when they are plain child names — no separators, not
+`.`/`..` or any leading-dot name, no control characters, at most 255 bytes — and refused
+rather than repaired, because they have to match an object the service already stores. On the
+Mac that rule lives in `SyncRecordSchema` (`apps/web/src/server/sync/SyncRecord.ts`), which
+guards both the wire and the persisted pending records, and again in
+`ReleaseService.importSynced`; on iOS in `ReleaseLayout.isPlainFileName`, applied before every
+download and every read. Both are followed by the same `isInside` check as every other path.
+
 ### Malicious uploads
 
 An uploaded "cover.jpg" could actually be an arbitrary file (script, executable, huge

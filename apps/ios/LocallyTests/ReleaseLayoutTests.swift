@@ -61,4 +61,22 @@ struct ReleaseLayoutTests {
     @Test func theFolderItselfIsNotInside() {
         #expect(!layout.isInside(folder: folder, path: "/tmp/SpotifyFolder"))
     }
+
+    // MARK: - isPlainFileName (sync record names)
+
+    @Test func plainFileNamesFromBothPlatformsAreAccepted() {
+        #expect(ReleaseLayout.isPlainFileName("01 - Intro.mp3"))
+        #expect(ReleaseLayout.isPlainFileName("Chromatics - Night Drive - 01 - Intro.m4a"))
+        #expect(ReleaseLayout.isPlainFileName("cover.jpg"))
+        #expect(ReleaseLayout.isPlainFileName("Étude Nº 3 (live) [2024].mp3"))
+        #expect(ReleaseLayout.isPlainFileName(String(repeating: "a", count: 255)))
+    }
+
+    @Test(arguments: [
+        "../x.mp3", "..\\x.mp3", "a/b.mp3", "a\\b.mp3", "/etc/passwd", ".", "..", ".hidden.mp3", "",
+        "bad\u{0}name.mp3", "bad\nname.mp3", String(repeating: "a", count: 256),
+    ])
+    func namesThatCouldLeaveTheDirectoryAreRefused(name: String) {
+        #expect(!ReleaseLayout.isPlainFileName(name))
+    }
 }
