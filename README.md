@@ -84,7 +84,7 @@ STATUS.md        # where the project is now
 AGENTS.md        # monorepo map and working rules
 SECURITY.md      # threat model and mitigations
 CONTRIBUTING.md
-LICENSE          # MIT
+LICENSE          # all rights reserved; viewing only
 ```
 
 ## Checks
