@@ -46,10 +46,11 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - iOS crash in `SyncEngine.backfillUnpushed` when a delete overlaps the 30s reconcile loop; the delete is lost (#19)
 - Share extension can't be provisioned for a device build on the project's Personal team; simulator-only for now (see apps/ios/README.md)
 - App Store submission checklist still open: screenshots not captured, and the README's placeholder-icon note is stale now the icon shipped (#5)
+- Sync: a cover replaced on one device never updates on the other; plan in docs/plans/26-sync-cover-hash.md (#26)
 - Spotify caches local-file metadata; restart Spotify to see edits to an already-imported track
 
 ## Next
-- Guided "Make it a playlist" flow on both apps, option B from docs/research/playlists.md (#21)
+- Guided "Make it a playlist" flow on both apps, option B from docs/research/playlists.md; plan in docs/plans/21-make-it-a-playlist.md (#21)
 - Remaining iOS restructure items: on-device checks of the import silhouette and drag reorder (#6)
 - Mac library development: search, sort, bulk actions, playlist-aware grouping; plan-only: conversion job queue, SQLite index, multi-library (#7)
 - Repo health: CI workflows, MIT LICENSE and root-doc fixes landed; still open are the vitest .mts rename, apps/ios/README stale references, and the test gaps (#13)
