@@ -56,17 +56,25 @@ final class ShareViewController: UIViewController {
         }
 
         var savedCount = 0
+        var unsupportedCount = 0
         var lastError: String?
         for provider in providers {
             do {
                 try await save(provider)
                 savedCount += 1
+            } catch let error as ShareError {
+                if case .unsupportedFormat = error {
+                    unsupportedCount += 1
+                }
+                lastError = error.errorDescription
             } catch {
                 lastError = error.localizedDescription
             }
         }
 
-        if savedCount > 0 {
+        if savedCount > 0, unsupportedCount > 0 {
+            showResult(message: "Saved \(savedCount) to Locally, skipped \(unsupportedCount) it can't import. Open Locally to tag and send.")
+        } else if savedCount > 0 {
             showResult(message: "Saved to Locally. Open Locally to tag and send.")
         } else {
             showResult(message: lastError ?? "Couldn't save that file.")
@@ -97,12 +105,18 @@ final class ShareViewController: UIViewController {
                 }
                 let accessed = url.startAccessingSecurityScopedResource()
                 defer { if accessed { url.stopAccessingSecurityScopedResource() } }
-                let destinationName = InboxFileNaming.fileName(id: UUID(), originalName: url.lastPathComponent)
+                let originalName = url.lastPathComponent
+                guard SupportedAudio.isSupported(fileName: originalName) else {
+                    continuation.resume(throwing: ShareError.unsupportedFormat(extension: url.pathExtension))
+                    return
+                }
+                let destinationName = InboxFileNaming.fileName(id: UUID(), originalName: originalName)
                 let destination = inboxDirectory.appendingPathComponent(destinationName)
                 do {
                     try FileManager.default.copyItem(at: url, to: destination)
                     continuation.resume(returning: destination)
                 } catch {
+                    try? FileManager.default.removeItem(at: destination)
                     continuation.resume(throwing: error)
                 }
             }
@@ -129,11 +143,18 @@ final class ShareViewController: UIViewController {
     private enum ShareError: LocalizedError {
         case notAudio
         case noAppGroup
+        case unsupportedFormat(extension: String)
 
         var errorDescription: String? {
             switch self {
             case .notAudio: return "That file isn't audio."
             case .noAppGroup: return "Couldn't reach Locally's shared storage."
+            case .unsupportedFormat(let ext):
+                let trimmed = ext.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty {
+                    return "Locally can't import that file. Share \(SupportedAudio.readableList)."
+                }
+                return "Locally can't import .\(trimmed.lowercased()) files. Share \(SupportedAudio.readableList)."
             }
         }
     }
