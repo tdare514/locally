@@ -1,6 +1,7 @@
 import path from "node:path";
 import { createDb, migrateDb, type Db } from "../db/client";
 import { loadEnv } from "./config/env";
+import { AccountService } from "./account/AccountService";
 import { AuthService } from "./auth/AuthService";
 import { ReleaseSyncService } from "./releases/ReleaseSyncService";
 import { QuotaService } from "./quota/QuotaService";
@@ -20,6 +21,7 @@ export interface Services {
   mailer: Mailer;
   fileStore: FileStore;
   auth: AuthService;
+  account: AccountService;
   releases: ReleaseSyncService;
   quota: QuotaService;
   files: ReleaseFilesService;
@@ -57,6 +59,7 @@ async function buildServices(): Promise<Services> {
     mailer,
     fileStore,
     auth: new AuthService(db, mailer, env.authPepper, env.tokenPepper),
+    account: new AccountService(db),
     releases: new ReleaseSyncService(db),
     quota,
     files: new ReleaseFilesService(db, fileStore, quota),

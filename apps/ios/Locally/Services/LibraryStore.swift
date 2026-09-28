@@ -16,6 +16,11 @@ protocol LibraryStore {
     /// for the in-memory fake; `SwiftDataLibraryStore` does it atomically.
     @discardableResult
     func updateIfPresent(_ release: Release) throws -> Bool
+    /// Clears `syncedUpdatedAt` and `uploadedFileNames` on every release, in
+    /// one save. Used after a sign-out or account deletion so a later
+    /// sign-in to a different account re-pushes everything instead of
+    /// believing it's already on the server; touches no file on disk.
+    func clearSyncMarkers() throws
 }
 
 extension LibraryStore {
@@ -107,6 +112,18 @@ final class SwiftDataLibraryStore: LibraryStore {
                 context.delete(existing)
                 try context.save()
             }
+        }
+    }
+
+    func clearSyncMarkers() throws {
+        try onMain {
+            let emptyFileNamesData = try JSONEncoder().encode([String]())
+            let records = try context.fetch(FetchDescriptor<ReleaseRecord>())
+            for record in records {
+                record.syncedUpdatedAt = nil
+                record.uploadedFileNamesData = emptyFileNamesData
+            }
+            try context.save()
         }
     }
 

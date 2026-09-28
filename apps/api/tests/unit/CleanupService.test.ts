@@ -1,13 +1,15 @@
 import crypto from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createDb, migrateDb, type Db } from "../../src/db/client";
-import { authCodes, files, rateLimits, releases, userCounters, users } from "../../src/db/schema";
+import { authCodes, files, pendingDeletes, rateLimits, releases, userCounters, users } from "../../src/db/schema";
 import { CleanupService } from "../../src/server/cleanup/CleanupService";
 import type { FileStore } from "../../src/server/files/FileStore";
 import { makeReleaseRecord } from "../support/fixtures";
 
 class RecordingFileStore implements FileStore {
   public deleted: string[] = [];
+  /** Keys that throw on `delete` instead of succeeding, e.g. to test a failed drain attempt. */
+  public failing = new Set<string>();
   async createUpload(): ReturnType<FileStore["createUpload"]> {
     throw new Error("not used in this test");
   }
@@ -15,6 +17,9 @@ class RecordingFileStore implements FileStore {
     throw new Error("not used in this test");
   }
   async delete(key: string): Promise<void> {
+    if (this.failing.has(key)) {
+      throw new Error(`simulated failure deleting ${key}`);
+    }
     this.deleted.push(key);
   }
 }
@@ -153,5 +158,78 @@ describe("CleanupService", () => {
     const remaining = await db.select().from(rateLimits);
     expect(remaining).toHaveLength(1);
     expect(remaining[0]?.key).toBe("code:email:fresh@example.com");
+  });
+
+  describe("pending_deletes (account deletion's blob queue)", () => {
+    const keyA1 = `users/${crypto.randomUUID()}/releases/r1/01.mp3`;
+    const keyA2 = `users/${crypto.randomUUID()}/releases/r2/01.mp3`;
+    const keyB1 = `users/${crypto.randomUUID()}/releases/r3/01.mp3`;
+
+    it("run() drains every queued key oldest-first and empties the queue", async () => {
+      await db.insert(pendingDeletes).values([
+        { storageKey: keyA1, enqueuedAt: clock - 2000, attempts: 0 },
+        { storageKey: keyA2, enqueuedAt: clock - 1000, attempts: 0 },
+        { storageKey: keyB1, enqueuedAt: clock, attempts: 0 },
+      ]);
+
+      const cleanup = new CleanupService(db, fileStore, () => clock);
+      const result = await cleanup.run();
+
+      expect(result.drainedPendingDeletes).toBe(3);
+      expect(fileStore.deleted).toEqual([keyA1, keyA2, keyB1]);
+      expect(await db.select().from(pendingDeletes)).toHaveLength(0);
+    });
+
+    it("leaves only the failing key queued, with attempts bumped, and finishes it on the next run", async () => {
+      fileStore.failing.add(keyA1);
+      await db.insert(pendingDeletes).values([
+        { storageKey: keyA1, enqueuedAt: clock - 1000, attempts: 0 },
+        { storageKey: keyB1, enqueuedAt: clock, attempts: 0 },
+      ]);
+
+      const cleanup = new CleanupService(db, fileStore, () => clock);
+      const firstRun = await cleanup.run();
+
+      expect(firstRun.drainedPendingDeletes).toBe(1);
+      expect(fileStore.deleted).toEqual([keyB1]);
+      const stillQueued = await db.select().from(pendingDeletes);
+      expect(stillQueued).toHaveLength(1);
+      expect(stillQueued[0]?.storageKey).toBe(keyA1);
+      expect(stillQueued[0]?.attempts).toBe(1);
+
+      fileStore.failing.delete(keyA1);
+      const secondRun = await cleanup.run();
+      expect(secondRun.drainedPendingDeletes).toBe(1);
+      expect(await db.select().from(pendingDeletes)).toHaveLength(0);
+    });
+
+    it("run() drains past one page, skipping a failing key at the head of the queue", async () => {
+      const keys = Array.from({ length: 450 }, (_, i) => `users/u/releases/r/${String(i).padStart(3, "0")}.mp3`);
+      fileStore.failing.add(keys[0]!);
+      await db.insert(pendingDeletes).values(keys.map((storageKey, i) => ({ storageKey, enqueuedAt: clock + i, attempts: 0 })));
+
+      const cleanup = new CleanupService(db, fileStore, () => clock);
+      const result = await cleanup.run();
+
+      expect(result.drainedPendingDeletes).toBe(449);
+      const remaining = await db.select().from(pendingDeletes);
+      expect(remaining.map((r) => r.storageKey)).toEqual([keys[0]]);
+    });
+
+    it("drainPendingDeletes drains only the given keys, leaving the rest of the queue for the cron", async () => {
+      await db.insert(pendingDeletes).values([
+        { storageKey: keyA1, enqueuedAt: clock, attempts: 0 },
+        { storageKey: keyA2, enqueuedAt: clock, attempts: 0 },
+        { storageKey: keyB1, enqueuedAt: clock, attempts: 0 },
+      ]);
+
+      const cleanup = new CleanupService(db, fileStore, () => clock);
+      const drained = await cleanup.drainPendingDeletes([keyA1, keyA2]);
+
+      expect(drained).toBe(2);
+      expect(fileStore.deleted.sort()).toEqual([keyA1, keyA2].sort());
+      const remaining = await db.select().from(pendingDeletes);
+      expect(remaining.map((r) => r.storageKey)).toEqual([keyB1]);
+    });
   });
 });

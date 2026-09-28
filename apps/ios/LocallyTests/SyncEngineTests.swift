@@ -920,6 +920,85 @@ struct SyncEngineTests {
 
         #expect(try h.outbox.all().isEmpty)
     }
+
+    @Test func signOutClearsEveryReleasesSyncMarkers() async throws {
+        let h = makeHarness()
+        let tags = TagSet(title: "My Song", artist: "My Artist", album: "My Album")
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: nil)
+        await h.engine.push(release)
+        #expect(try h.library.all().first?.syncedUpdatedAt != nil)
+
+        await h.engine.signOut()
+
+        let stored = try h.library.all().first { $0.id == release.id }
+        #expect(stored?.syncedUpdatedAt == nil)
+        #expect(stored?.uploadedFileNames.isEmpty == true)
+    }
+
+    // MARK: - Delete account
+
+    @Test func deleteAccountCallsTheApiWithTheStoredEmailAndClearsLocalState() async throws {
+        let h = makeHarness()
+        try h.outbox.enqueue(UUID(), .push)
+        let tags = TagSet(title: "My Song", artist: "My Artist", album: "My Album")
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: nil)
+        await h.engine.push(release)
+        let filesBefore = try FileManager.default.contentsOfDirectory(atPath: h.folder.directory.path)
+
+        let deleted = await h.engine.deleteAccount()
+
+        #expect(deleted)
+        #expect(h.api.deleteAccountCalls == ["toby@example.com"])
+        #expect(h.account.email == nil)
+        #expect(h.account.deviceToken == nil)
+        #expect(try h.outbox.all().isEmpty)
+        #expect(h.engine.status.signedIn == false)
+        #expect(h.engine.status.email == nil)
+        #expect(h.engine.status.lastError == nil)
+        let stored = try h.library.all().first { $0.id == release.id }
+        #expect(stored?.syncedUpdatedAt == nil)
+        #expect(stored?.uploadedFileNames.isEmpty == true)
+        let filesAfter = try FileManager.default.contentsOfDirectory(atPath: h.folder.directory.path)
+        #expect(Set(filesAfter) == Set(filesBefore))
+    }
+
+    @Test func deleteAccountUnauthorizedClearsLocallyLikeSuccess() async throws {
+        let h = makeHarness()
+        h.api.deleteAccountError = SyncApiError.unauthorized
+        try h.outbox.enqueue(UUID(), .push)
+        let tags = TagSet(title: "My Song", artist: "My Artist", album: "My Album")
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: nil)
+        await h.engine.push(release)
+
+        let deleted = await h.engine.deleteAccount()
+
+        #expect(deleted)
+        #expect(h.account.email == nil)
+        #expect(try h.outbox.all().isEmpty)
+        #expect(h.engine.status.signedIn == false)
+        let stored = try h.library.all().first { $0.id == release.id }
+        #expect(stored?.syncedUpdatedAt == nil)
+    }
+
+    @Test func deleteAccountNetworkFailureKeepsTheAccountOutboxAndMarkers() async throws {
+        let h = makeHarness()
+        h.api.deleteAccountError = SyncApiError.network("offline")
+        try h.outbox.enqueue(UUID(), .push)
+        let tags = TagSet(title: "My Song", artist: "My Artist", album: "My Album")
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: nil)
+        await h.engine.push(release)
+        let outboxCountBefore = try h.outbox.all().count
+
+        let deleted = await h.engine.deleteAccount()
+
+        #expect(deleted == false)
+        #expect(h.account.email == "toby@example.com")
+        #expect(try h.outbox.all().count == outboxCountBefore)
+        #expect(h.engine.status.signedIn == true)
+        #expect(h.engine.status.lastError != nil)
+        let stored = try h.library.all().first { $0.id == release.id }
+        #expect(stored?.syncedUpdatedAt != nil)
+    }
 }
 
 /// A two-stage gate for suspending an async call mid-flight and resuming it

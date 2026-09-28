@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createDb, migrateDb } from "../../src/db/client";
+import { AccountService } from "../../src/server/account/AccountService";
 import { AuthService } from "../../src/server/auth/AuthService";
 import { CleanupService } from "../../src/server/cleanup/CleanupService";
 import type { Services } from "../../src/server/container";
@@ -56,6 +57,7 @@ export async function createTestServices(): Promise<TestServices> {
     fileStore,
     fileStoreDir,
     auth: new AuthService(db, mailer, "test-auth-pepper", "test-token-pepper"),
+    account: new AccountService(db),
     releases: new ReleaseSyncService(db),
     quota,
     files: new ReleaseFilesService(db, fileStore, quota),

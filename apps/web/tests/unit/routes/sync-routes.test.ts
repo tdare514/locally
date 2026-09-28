@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Settings, Release, SyncStatus } from "../../../src/shared/types";
 import type { Services } from "../../../src/server/container";
-import type { MeResult, SyncApi, VerifyCodeResult } from "../../../src/server/sync/SyncApi";
+import { SyncAuthError, type MeResult, type SyncApi, type VerifyCodeResult } from "../../../src/server/sync/SyncApi";
 import { NotFoundError } from "../../../src/shared/errors";
 import { emptySyncState, type SyncState, type SyncStateStore } from "../../../src/server/sync/SyncState";
 import type { SyncRecord } from "../../../src/server/sync/SyncRecord";
@@ -22,6 +22,7 @@ vi.mock("../../../src/server/container", () => ({
 import { POST as codePOST } from "../../../src/app/api/sync/code/route";
 import { POST as verifyPOST } from "../../../src/app/api/sync/verify/route";
 import { POST as signoutPOST } from "../../../src/app/api/sync/signout/route";
+import { DELETE as deleteAccountDELETE } from "../../../src/app/api/sync/account/route";
 import { GET as statusGET } from "../../../src/app/api/sync/status/route";
 import { POST as reconcilePOST } from "../../../src/app/api/sync/reconcile/route";
 import { POST as acceptPOST } from "../../../src/app/api/sync/accept/[id]/route";
@@ -41,6 +42,8 @@ class FakeSettingsStore {
 let requestCodeCalls: string[];
 let verifyCodeCalls: { email: string; code: string }[];
 let revokeDeviceCalls: string[];
+let deleteAccountCalls: string[];
+let deleteAccountBehavior: "ok" | "authError" | "networkError";
 
 class FakeSyncApi implements Partial<SyncApi> {
   async requestCode(email: string): Promise<void> {
@@ -60,6 +63,15 @@ class FakeSyncApi implements Partial<SyncApi> {
   }
   async revokeDevice(deviceId: string): Promise<void> {
     revokeDeviceCalls.push(deviceId);
+  }
+  async deleteAccount(email: string): Promise<void> {
+    deleteAccountCalls.push(email);
+    if (deleteAccountBehavior === "authError") {
+      throw new SyncAuthError("Sync sign-in has expired; please sign in again");
+    }
+    if (deleteAccountBehavior === "networkError") {
+      throw new Error("network unreachable");
+    }
   }
 }
 
@@ -109,6 +121,8 @@ beforeEach(() => {
   requestCodeCalls = [];
   verifyCodeCalls = [];
   revokeDeviceCalls = [];
+  deleteAccountCalls = [];
+  deleteAccountBehavior = "ok";
   syncEngine = {
     status: vi.fn().mockResolvedValue(fixedStatus),
     reconcile: vi.fn().mockResolvedValue(undefined),
@@ -201,6 +215,69 @@ describe("POST /api/sync/signout", () => {
     const state = await syncState.get();
     expect(state.pushedUpdatedAt).toEqual({});
     expect(state.pendingFromPhone).toEqual({});
+  });
+});
+
+describe("DELETE /api/sync/account", () => {
+  beforeEach(() => {
+    settingsValue = {
+      libraryDir: "/tmp/lib",
+      sync: { baseUrl: "http://localhost:4000", deviceToken: "tok-123", email: "a@b.com", lastVersion: 5 },
+    };
+  });
+
+  it("deletes the account and clears local state on success", async () => {
+    await syncState.set({
+      pushedUpdatedAt: { "rel-1": "2026-01-01T00:00:00.000Z" },
+      uploadedFiles: {},
+      coverHash: {},
+      pendingFromPhone: { "rel-2": {} as SyncRecord },
+    });
+
+    const res = await deleteAccountDELETE();
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as { sync: { signedIn: boolean; email: string | null }; ok: boolean };
+    expect(body.sync.signedIn).toBe(false);
+    expect(body.sync.email).toBeNull();
+    expect((body as Record<string, unknown>).deviceToken).toBeUndefined();
+    expect(body.ok).toBe(true);
+
+    expect(deleteAccountCalls).toEqual(["a@b.com"]);
+    expect(settingsValue.sync?.deviceToken).toBeNull();
+    expect(settingsValue.sync?.email).toBeNull();
+    expect(settingsValue.sync?.lastVersion).toBe(0);
+
+    const state = await syncState.get();
+    expect(state.pushedUpdatedAt).toEqual({});
+    expect(state.pendingFromPhone).toEqual({});
+  });
+
+  it("is 400 when not signed in", async () => {
+    settingsValue = { libraryDir: "/tmp/lib", sync: null };
+    const res = await deleteAccountDELETE();
+    expect(res.status).toBe(400);
+    expect(deleteAccountCalls).toEqual([]);
+  });
+
+  it("changes nothing and returns an error on a network failure", async () => {
+    deleteAccountBehavior = "networkError";
+    const res = await deleteAccountDELETE();
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(settingsValue.sync?.deviceToken).toBe("tok-123");
+    expect(settingsValue.sync?.email).toBe("a@b.com");
+  });
+
+  it("clears local state and flags alreadySignedOut when the token is already invalid", async () => {
+    deleteAccountBehavior = "authError";
+    const res = await deleteAccountDELETE();
+    expect(res.status).toBe(200);
+
+    const body = (await res.json()) as { alreadySignedOut?: boolean };
+    expect(body.alreadySignedOut).toBe(true);
+
+    expect(settingsValue.sync?.deviceToken).toBeNull();
+    expect(settingsValue.sync?.email).toBeNull();
   });
 });
 

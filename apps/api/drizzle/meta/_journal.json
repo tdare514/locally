@@ -15,6 +15,13 @@
       "when": 1790604579716,
       "tag": "0001_military_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790627446325,
+      "tag": "0002_powerful_betty_ross",
+      "breakpoints": true
     }
   ]
 }

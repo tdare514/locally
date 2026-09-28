@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { SyncStatus } from "../shared/types";
 import { DEFAULT_SYNC_BASE_URL } from "../shared/types";
 import {
+  deleteSyncAccount,
   getSettings,
   getSpotifySource,
   putSettings,
@@ -60,6 +61,8 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
   const [sendingCode, setSendingCode] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [confirmingDeleteAccount, setConfirmingDeleteAccount] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [spotifyWatching, setSpotifyWatching] = useState<boolean | null>(null);
 
@@ -162,6 +165,25 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
       onToast("error", e instanceof Error ? e.message : "Failed to sign out");
     } finally {
       setSigningOut(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    if (!confirmingDeleteAccount) {
+      setConfirmingDeleteAccount(true);
+      return;
+    }
+    setDeletingAccount(true);
+    try {
+      await deleteSyncAccount();
+      onToast("success", "Sync account deleted");
+      setEmail("");
+      setConfirmingDeleteAccount(false);
+      onSyncStatusChange();
+    } catch (e) {
+      onToast("error", e instanceof Error ? e.message : "Failed to delete sync account");
+    } finally {
+      setDeletingAccount(false);
     }
   }
 
@@ -363,6 +385,43 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
                 {signingOut ? "Signing out…" : "Sign out"}
               </button>
             </div>
+
+            {confirmingDeleteAccount ? (
+              <div className="flex flex-col gap-2 rounded-lg border border-danger/40 bg-danger/5 p-4">
+                <p className="text-sm font-bold text-text">Delete your sync account?</p>
+                <p className="text-sm text-text-muted">
+                  This removes your account and every release and file Locally has stored in the
+                  cloud for it. Your music on this Mac and on your iPhone stays where it is. Other
+                  devices signed in to this account are signed out.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDeleteAccount}
+                    disabled={deletingAccount}
+                    className="rounded-full bg-danger px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    {deletingAccount ? "Deleting…" : "Delete account"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingDeleteAccount(false)}
+                    disabled={deletingAccount}
+                    className="rounded-full px-4 py-2 text-sm text-text-muted hover:text-text"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                className="w-fit px-2 py-1 text-sm font-semibold text-danger transition-colors hover:opacity-80"
+              >
+                Delete sync account…
+              </button>
+            )}
           </div>
         )}
 

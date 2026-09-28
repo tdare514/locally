@@ -126,6 +126,16 @@ Accounts are email + a six-digit code, never a password. `src/server/auth/AuthSe
   deployment.
 - Revoking a device (`DELETE /v1/devices/:id`) is scoped to the caller's own `userId`,
   so one account can never revoke another's device.
+- Deleting an account (`DELETE /v1/me`, `AccountService`) requires a valid device token
+  and the account's own email echoed in the body as an explicit confirmation (compared
+  against the stored email, never used to look anything up); a mismatch is a 400 that
+  deletes nothing. Every row scoped to the user — devices, releases, files, the counter,
+  open auth codes — is removed in one transaction, so there is no window where the
+  account is gone but a token or a release still resolves. Blobs are never deleted
+  inline: their storage keys are queued in `pending_deletes` inside that same
+  transaction and drained afterward (the account route's background pass, then the
+  daily cleanup cron as the guarantee). Logs for this route carry the user id and row
+  counts, never the email.
 
 ### Per-user scoping on every query
 

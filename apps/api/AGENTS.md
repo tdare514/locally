@@ -22,6 +22,7 @@ src/app/v1/
   internal/local-upload|download/[...key]  # dev-only stand-in for signed object storage
 src/proxy.ts                          # CORS for the Mac web app
 src/server/
+  account/       AccountService: delete a user and queue its blobs
   auth/          AuthService: issue/verify codes, mint/revoke device tokens
   releases/      ReleaseSyncService: scoped list/upsert/tombstone, last-writer-wins
   files/         FileStore interface, Local/VercelBlob impls, ReleaseFilesService
@@ -61,6 +62,8 @@ tests/unit/**                         # vitest against that graph
   migration committed under `drizzle/`.
 - **Provider swaps** (file store, mailer, rate limiter, db) implement the existing interface and
   are wired in `container.ts`; services depend on interfaces only, never a concrete impl.
+- **Account deletion is one transaction plus the `pending_deletes` queue; never delete blobs
+  inline in a request.**
 - **Tests use `tests/support/testServices.ts`** (in-memory or temp-dir implementations) — no
   network, no real Blob, no real mail.
 

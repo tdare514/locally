@@ -97,6 +97,11 @@ export async function signOutSync(): Promise<{ ok: true }> {
   return handle<{ ok: true }>(res);
 }
 
+export async function deleteSyncAccount(): Promise<SettingsResponse & { alreadySignedOut?: boolean }> {
+  const res = await fetch("/api/sync/account", { method: "DELETE" });
+  return handle<SettingsResponse & { alreadySignedOut?: boolean }>(res);
+}
+
 export async function syncNow(): Promise<SyncStatus> {
   const res = await fetch("/api/sync/reconcile", { method: "POST" });
   return handle<SyncStatus>(res);

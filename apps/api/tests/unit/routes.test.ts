@@ -232,3 +232,50 @@ describe("routes (through the exported handler functions, no server)", () => {
     expect(meRes.status).toBe(401);
   });
 });
+
+  it("DELETE /v1/me without a token is 401", async () => {
+    const res = await meRoute.DELETE(
+      jsonRequest("http://localhost/v1/me", "DELETE", { email: "nobody@example.com" })
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("DELETE /v1/me with a body missing email is 400", async () => {
+    const { token } = await signIn("delete-me-missing-email@example.com");
+    const res = await meRoute.DELETE(new Request("http://localhost/v1/me", { method: "DELETE", headers: { authorization: `Bearer ${token}` } }));
+    expect(res.status).toBe(400);
+  });
+
+  it("DELETE /v1/me with the account's token and email deletes the account; B is unaffected", async () => {
+    const alice = await signIn("delete-me-alice@example.com");
+    const record = makeReleaseRecord();
+    await releaseRoute.PUT(jsonRequest(`http://localhost/v1/releases/${record.id}`, "PUT", record, alice.token), {
+      params: Promise.resolve({ id: record.id }),
+    });
+
+    const bob = await signIn("delete-me-bob@example.com");
+    const bobRecord = makeReleaseRecord();
+    await releaseRoute.PUT(jsonRequest(`http://localhost/v1/releases/${bobRecord.id}`, "PUT", bobRecord, bob.token), {
+      params: Promise.resolve({ id: bobRecord.id }),
+    });
+
+    const deleteRes = await meRoute.DELETE(
+      jsonRequest("http://localhost/v1/me", "DELETE", { email: "delete-me-alice@example.com" }, alice.token)
+    );
+    expect(deleteRes.status).toBe(200);
+    expect(await deleteRes.json()).toEqual({ ok: true });
+
+    // The same token is now invalid.
+    const meAfterDelete = await meRoute.GET(new Request("http://localhost/v1/me", { headers: { authorization: `Bearer ${alice.token}` } }));
+    expect(meAfterDelete.status).toBe(401);
+
+    // B's token and release list are unaffected.
+    const bobMe = await meRoute.GET(new Request("http://localhost/v1/me", { headers: { authorization: `Bearer ${bob.token}` } }));
+    expect(bobMe.status).toBe(200);
+    const bobReleases = await releasesListRoute.GET(
+      new Request("http://localhost/v1/releases?sinceVersion=0", { headers: { authorization: `Bearer ${bob.token}` } })
+    );
+    expect(bobReleases.status).toBe(200);
+    const bobBody = (await bobReleases.json()) as { releases: { id: string }[] };
+    expect(bobBody.releases.map((r) => r.id)).toEqual([bobRecord.id]);
+  });

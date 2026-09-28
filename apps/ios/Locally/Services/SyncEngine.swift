@@ -190,8 +190,41 @@ final class SyncEngine: ReleaseSyncHook {
         if let deviceId = account.deviceId {
             try? await api.revokeDevice(deviceId)
         }
+        clearLocalAccountState()
+    }
+
+    /// `DELETE /v1/me`, confirmed by the settings UI beforehand. On success,
+    /// or on `.unauthorized` (the account or this device's token is already
+    /// gone), the account is treated as deleted: local state is cleared the
+    /// same way `signOut` clears it, and every release's sync markers are
+    /// reset so a later sign-in to a different account re-pushes everything
+    /// rather than believing the server already has it. Any other failure
+    /// (offline, server error) leaves the account, outbox and markers in
+    /// place and surfaces on `status.lastError`, like any other sync
+    /// failure. Returns whether the account was deleted.
+    @discardableResult
+    func deleteAccount() async -> Bool {
+        guard let email = account.email else { return false }
+        do {
+            try await api.deleteAccount(email: email)
+        } catch SyncApiError.unauthorized {
+            clearLocalAccountState()
+            return true
+        } catch {
+            status.lastError = error.localizedDescription
+            return false
+        }
+        clearLocalAccountState()
+        return true
+    }
+
+    /// The local half of signing out: clears the stored account, the
+    /// outbox, `status`, and every release's sync markers (`signOut` and
+    /// `deleteAccount` both end here). Never talks to the server.
+    private func clearLocalAccountState() {
         account.clear()
         try? outbox.removeAll()
+        try? library.clearSyncMarkers()
         status.signedIn = false
         status.email = nil
         status.deviceName = nil

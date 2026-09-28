@@ -16,6 +16,8 @@ struct SyncSettingsSection: View {
     @State private var isSyncingNow = false
     @State private var formError: String?
     @State private var serverAddressText = ""
+    @State private var isDeletingAccount = false
+    @State private var showDeleteAccountConfirm = false
 
     var body: some View {
         Section {
@@ -134,12 +136,33 @@ struct SyncSettingsSection: View {
                 .buttonStyle(SecondaryPillButtonStyle(isDestructive: true))
             }
 
+            Button(role: .destructive) {
+                showDeleteAccountConfirm = true
+            } label: {
+                if isDeletingAccount {
+                    ProgressView().tint(Theme.danger)
+                } else {
+                    Text(Copy.Sync.deleteAccountButton)
+                }
+            }
+            .buttonStyle(TextButtonStyle())
+            .foregroundStyle(Theme.danger)
+            .disabled(isDeletingAccount)
+
             #if DEBUG
             developmentServerField
             #endif
         }
         .font(Theme.Font.body)
         .foregroundStyle(Theme.primaryText)
+        .alert(Copy.Sync.deleteAccountTitle, isPresented: $showDeleteAccountConfirm) {
+            Button(Copy.Sync.deleteAccountConfirm, role: .destructive) {
+                Task { await deleteAccount() }
+            }
+            Button(Copy.Sync.deleteAccountCancel, role: .cancel) {}
+        } message: {
+            Text(Copy.Sync.deleteAccountMessage)
+        }
     }
 
     private var syncLastRunText: String {
@@ -202,5 +225,12 @@ struct SyncSettingsSection: View {
         isSyncingNow = true
         defer { isSyncingNow = false }
         await container.syncEngine.reconcile()
+    }
+
+    private func deleteAccount() async {
+        guard let container else { return }
+        isDeletingAccount = true
+        defer { isDeletingAccount = false }
+        await container.syncEngine.deleteAccount()
     }
 }

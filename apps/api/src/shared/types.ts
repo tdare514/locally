@@ -80,6 +80,9 @@ export interface ReleaseRecordWithVersion extends ReleaseRecord {
 
 export const emailRequestSchema = z.object({ email: emailSchema });
 
+/** Body of `DELETE /v1/me`: the account email, echoed as an explicit confirmation. */
+export const deleteMeRequestSchema = z.object({ email: emailSchema });
+
 export const verifyRequestSchema = z.object({
   email: emailSchema,
   code: z.string().regex(/^\d{6}$/, "Code must be 6 digits"),

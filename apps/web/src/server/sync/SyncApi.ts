@@ -72,6 +72,9 @@ export interface SyncApi {
   verifyCode(email: string, code: string, deviceName: string, platform: SyncPlatform): Promise<VerifyCodeResult>;
   me(): Promise<MeResult>;
   revokeDevice(deviceId: string): Promise<void>;
+  /** `DELETE /v1/me`: deletes the account, its devices, releases and files. Every device token
+   * (including this one) is invalid the moment it returns; a 401 keeps throwing `SyncAuthError`. */
+  deleteAccount(email: string): Promise<void>;
   listReleases(sinceVersion: number): Promise<ListReleasesResult>;
   putRelease(record: SyncRecord): Promise<{ version: number }>;
   deleteRelease(id: string): Promise<{ version: number }>;
@@ -154,6 +157,15 @@ export class HttpSyncApi implements SyncApi {
     const res = await fetch(this.url(`/v1/devices/${encodeURIComponent(deviceId)}`), {
       method: "DELETE",
       headers: this.headers(false),
+    });
+    await this.handle(res);
+  }
+
+  async deleteAccount(email: string): Promise<void> {
+    const res = await fetch(this.url("/v1/me"), {
+      method: "DELETE",
+      headers: this.headers(true),
+      body: JSON.stringify({ email }),
     });
     await this.handle(res);
   }

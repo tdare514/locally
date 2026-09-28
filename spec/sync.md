@@ -89,6 +89,7 @@ sync at runtime.
 | POST `/v1/auth/verify` | `{ email, code, deviceName, platform: "mac" \| "ios" }` | `{ token, user: { id, email }, device: { id, name } }` |
 | GET `/v1/me` | | `{ user, device, quota: { usedBytes, limitBytes }, devices: [...] }` |
 | DELETE `/v1/devices/:id` | | revokes that device's token |
+| DELETE `/v1/me` | `{ email }` (must match the account) | `{ ok: true }`; deletes the account, its devices, releases and files; blobs are removed by the cleanup cron within a day; every device token becomes invalid |
 | GET `/v1/releases?sinceVersion=N` | | `{ releases: [record + version], nextVersion }` (tombstones included) |
 | PUT `/v1/releases/:id` | the record (at most 500 tracks) | `{ version }`; 409 if the stored `updatedAt` is newer; stored files the record no longer references are deleted |
 | DELETE `/v1/releases/:id` | | tombstone; `{ version }` |
@@ -98,7 +99,8 @@ sync at runtime.
 Rules: every path is scoped to the token's user; a release id belongs to the user that first
 wrote it; tombstones keep their files for 30 days then a cron deletes the objects; codes and
 tokens are stored hashed; auth endpoints are rate-limited per email and per IP; JSON request
-bodies are capped at 1 MiB (400 when exceeded).
+bodies are capped at 1 MiB (400 when exceeded). The daily cron (`GET /v1/internal/cleanup`) also
+drains `pending_deletes` (blobs of deleted accounts), oldest first.
 
 ## Storage and providers
 
@@ -139,6 +141,9 @@ source of truth.
   finish a push whose file uploads failed.
 
 ## Not in this phase
+- **Account deletion**: the deleting client calls `DELETE /v1/me`, then clears its own token,
+  cursor and per-release sync markers exactly as sign-out does; local music files are never
+  touched. Other devices learn about the deletion by receiving a 401 on their next reconcile.
 
 - Playlists (Spotify has no API for local files).
 - Merging libraries that existed on both devices before sign-in: each side's releases are

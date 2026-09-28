@@ -136,6 +136,13 @@ class FakeSyncApi implements SyncApi {
 
   async revokeDevice(): Promise<void> {}
 
+  /** Mirrors the real server: the account, its releases and its version counter are gone;
+   * signing in again with the same email starts a fresh, empty account. */
+  async deleteAccount(): Promise<void> {
+    this.serverRecords.clear();
+    this.version = 0;
+  }
+
   async listReleases(sinceVersion: number) {
     this.listReleasesCallCount++;
     const releases = [...this.serverRecords.values()].filter((r) => r.version > sinceVersion);
@@ -697,5 +704,36 @@ describe("SyncEngine", () => {
     expect(state.coverHash[release.id]).toBe(newHash);
     const statusAfterRetry = await engine.status();
     expect(statusAfterRetry.lastError).toBeNull();
+  });
+
+  it("re-pushes a release after the account is deleted and signed back in", async () => {
+    const release = await importOne();
+    await engine.push(release);
+    expect(api.putCalls).toHaveLength(1);
+
+    // Same local-state reset `DELETE /api/sync/account` performs: clear the
+    // stored token/email/version and empty the sync state, the way sign-out
+    // and account deletion both do.
+    const settingsBeforeDelete = await settingsStore.get();
+    await settingsStore.set({
+      ...settingsBeforeDelete,
+      sync: settingsBeforeDelete.sync ? { ...settingsBeforeDelete.sync, deviceToken: null, email: null, lastVersion: 0 } : null,
+    });
+    await syncState.set(emptySyncState());
+
+    // Sign back in to a new, empty account (same email, new token).
+    const settingsAfterDelete = await settingsStore.get();
+    await settingsStore.set({
+      ...settingsAfterDelete,
+      sync: { baseUrl: "http://fake", deviceToken: "tok-2", email: "a@b.com", lastVersion: 0 },
+    });
+
+    await engine.reconcile();
+
+    const pushedIds = api.putCalls.map((r) => r.id);
+    expect(pushedIds).toContain(release.id);
+    expect(api.putCalls.length).toBeGreaterThan(1);
+    const status = await engine.status();
+    expect(status.lastError).toBeNull();
   });
 });

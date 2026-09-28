@@ -80,6 +80,10 @@ protocol SyncApi {
     func verify(email: String, code: String, deviceName: String, platform: String) async throws -> SyncVerifyResult
     func me() async throws -> SyncMeResult
     func revokeDevice(_ id: String) async throws
+    /// `DELETE /v1/me`. `email` must be the account's own email (the
+    /// server's confirmation check); a bad/deleted token maps to
+    /// `.unauthorized` like every other call.
+    func deleteAccount(email: String) async throws
     func releases(sinceVersion: Int) async throws -> SyncReleasesPage
     /// `PUT /v1/releases/:id`. Returns the new version, or throws
     /// `.conflict` if the stored `updatedAt` is newer.
@@ -179,6 +183,10 @@ final class HttpSyncApi: SyncApi {
         let decoded = try decode(Response.self, from: data)
         return SyncReleasesPage(releases: decoded.releases, nextVersion: decoded.nextVersion)
     }
+    func deleteAccount(email: String) async throws {
+        _ = try await send(path: "/v1/me", method: "DELETE", body: ["email": email])
+    }
+
 
     @discardableResult
     func putRelease(_ record: SyncRecord) async throws -> Int {

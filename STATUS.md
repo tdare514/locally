@@ -17,6 +17,7 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Import and update requests validated with zod; every write checked inside the library dir
 - Loopback-only server (127.0.0.1) with a full-origin CSRF check
 - Sync client: email-code sign-in, push, reconcile, "From your phone"; a cover replaced on either device follows via the record's coverHash (#26)
+- "Delete sync account…" in Settings deletes the cloud account after a confirm and signs this Mac out; music files stay (#34)
 - Guided "Make it a playlist" disclosure on album release pages: Copy button for the title, per-track Mac steps and a fallback line; opens expanded on the page an album import lands on (#21)
 - One-time "Spotify can't see this yet" prompt on the release page: copy path, open Spotify settings, dismiss; hidden once Spotify's local-files index lists the library folder
 
@@ -28,6 +29,7 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - StoreKit one-time purchase wired up but gates no feature yet
 - Library is the home tab, split into Singles and Albums sections with counts
 - Sync client: Keychain account, push, reconcile, "From your Mac"; cover replacements follow via coverHash (#26)
+- "Delete sync account…" in Settings (App Store 5.1.1(v)) deletes the cloud account and signs the phone out; sign-out and delete both clear per-release sync markers so a new account re-pushes everything (#34)
 - Sync pushes and deletes queue in a persistent outbox, retried each reconcile until the server confirms; a delete during reconcile or offline is no longer lost (#19)
 - Each release records which files the server holds, so a push retry after a partial failure uploads only what's missing and a cover replace re-uploads only the cover (#27)
 - "Make it a playlist" guide on the album done screen and release page: Copy button for the title, per-track iPhone steps and a fallback line (#21)
@@ -39,6 +41,7 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Rate limiting, CORS, daily cleanup cron
 - Every response carries x-request-id; 4xx/5xx, rate-limit, quota and auth failures log one JSON line (request ID, route, status, duration, user ID); the daily cron logs total stored bytes, warning past STORAGE_ALERT_BYTES (#29)
 - Device tokens expire after a year unused (the account itself never expires) (lastSeenAt refreshed at most daily); a cross-user test matrix shows another account gets 404 on every release, file and device route (#33)
+- DELETE /v1/me deletes an account (email echoed as confirmation) in one transaction; its blobs are queued in pending_deletes and drained right after, with the daily cron as the guarantee (#34)
 - SQLite (libSQL) via Drizzle, migrated automatically on first request
 - Deployed to https://locally-sync-api.vercel.app (Vercel project locally-sync-api: Turso database, private Blob store, Resend); both clients default to it; smoke-tested end to end 28 Sep from a Mac and an iPhone 14: sign-in, push each way, tombstone (#3 closed). Resend still uses the sandbox sender, which only delivers to the owner's address: verify a domain and set MAIL_FROM before anyone else signs up
 
@@ -55,7 +58,7 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 ## Next
 - Remaining iOS restructure items: on-device checks of the import silhouette and drag reorder (#6)
 - Mac library development: search, sort, bulk actions, playlist-aware grouping; plan-only: conversion job queue, SQLite index, multi-library (#7)
-- Architecture review for multiple users (docs/reviews/2026-09-28-architecture.md): atomic sync version #28 first, then async email and deletes #31; plans written for pagination (#30, docs/plans/30-sync-pagination.md) and account deletion (#34, docs/plans/34-account-deletion.md), both to implement after the iOS sync lane and #3; owner decisions on Mac packaging #35 and privacy/terms #36
+- Architecture review for multiple users (docs/reviews/2026-09-28-architecture.md): atomic sync version #28 first, then async email and deletes #31; plans written for pagination (#30, docs/plans/30-sync-pagination.md), to implement after the iOS sync lane and #3; owner decisions on Mac packaging #35 and privacy/terms #36
 - Repo health: CI workflows, an all-rights-reserved LICENSE and root-doc fixes landed; still open are the vitest .mts rename, apps/ios/README stale references, and the test gaps (#13)
 
 ## Architecture decisions

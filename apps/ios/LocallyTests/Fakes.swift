@@ -51,6 +51,15 @@ final class InMemoryLibraryStore: LibraryStore {
     func delete(id: UUID) throws {
         storage.removeValue(forKey: id)
     }
+
+    func clearSyncMarkers() throws {
+        for (id, release) in storage {
+            var cleared = release
+            cleared.syncedUpdatedAt = nil
+            cleared.uploadedFileNames = []
+            storage[id] = cleared
+        }
+    }
 }
 
 /// In-memory `SyncOutbox` fake — no SwiftData, just a dictionary — following
@@ -365,6 +374,18 @@ final class FakeSyncApi: SyncApi {
 
     func revokeDevice(_ id: String) async throws {
         revokedDeviceIds.append(id)
+    }
+
+    private(set) var deleteAccountCalls: [String] = []
+    /// When set, thrown by `deleteAccount` instead of recording the call —
+    /// e.g. `.unauthorized` (already deleted/revoked) or a network error.
+    var deleteAccountError: Error?
+
+    func deleteAccount(email: String) async throws {
+        if let deleteAccountError {
+            throw deleteAccountError
+        }
+        deleteAccountCalls.append(email)
     }
 
     func releases(sinceVersion: Int) async throws -> SyncReleasesPage {

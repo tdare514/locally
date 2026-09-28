@@ -83,6 +83,21 @@ export const rateLimits = sqliteTable("rate_limits", {
   count: integer("count").notNull(),
 });
 
+/**
+ * A blob queued for deletion because its account was deleted (`AccountService`).
+ * `storageKey` values are copied from `files.storageKey` inside the same
+ * transaction that removes the account's rows, so the queue is the
+ * complete, durable list of blobs still owed a delete. Drained by the
+ * account route's background pass and, as the guarantee, by
+ * `CleanupService`'s daily cron step (see spec/sync.md, "Account deletion").
+ */
+export const pendingDeletes = sqliteTable("pending_deletes", {
+  storageKey: text("storage_key").primaryKey(),
+  enqueuedAt: integer("enqueued_at").notNull(),
+  /** Bumped on a failed delete attempt, for logging only — never gates a retry. */
+  attempts: integer("attempts").notNull().default(0),
+});
+
 // Re-exported so callers that only need the `sql` tag for a raw expression
 // (e.g. QuotaService's SUM) don't need a second import from drizzle-orm.
 export { sql };
