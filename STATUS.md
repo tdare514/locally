@@ -17,6 +17,7 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Import and update requests validated with zod; every write checked inside the library dir
 - Loopback-only server (127.0.0.1) with a full-origin CSRF check
 - Sync client: email-code sign-in, push, reconcile, "From your phone"; a cover replaced on either device follows via the record's coverHash (#26)
+- Guided "Make it a playlist" disclosure on album release pages: Copy button for the title, per-track Mac steps and a fallback line; opens expanded on the page an album import lands on (#21)
 - One-time "Spotify can't see this yet" prompt on the release page: copy path, open Spotify settings, dismiss; hidden once Spotify's local-files index lists the library folder
 
 ### iOS (apps/ios)
@@ -27,6 +28,7 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - StoreKit one-time purchase wired up but gates no feature yet
 - Library is the home tab, split into Singles and Albums sections with counts
 - Sync client: Keychain account, push, reconcile, "From your Mac"; cover replacements follow via coverHash (#26)
+- "Make it a playlist" guide on the album done screen and release page: Copy button for the title, per-track iPhone steps and a fallback line (#21)
 - Share extension verified on an iPhone 12 Pro (iOS 18.7) and sync verified end to end on a phone, both 27 Sep 2026
 
 ### Sync API (apps/api)
@@ -48,7 +50,6 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Spotify caches local-file metadata; restart Spotify to see edits to an already-imported track
 
 ## Next
-- Guided "Make it a playlist" flow on both apps, option B from docs/research/playlists.md; plan in docs/plans/21-make-it-a-playlist.md (#21)
 - Remaining iOS restructure items: on-device checks of the import silhouette and drag reorder (#6)
 - Mac library development: search, sort, bulk actions, playlist-aware grouping; plan-only: conversion job queue, SQLite index, multi-library (#7)
 - Repo health: CI workflows, an all-rights-reserved LICENSE and root-doc fixes landed; still open are the vitest .mts rename, apps/ios/README stale references, and the test gaps (#13)

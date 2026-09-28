@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// The confirmation screen shown after a successful send, with the exact
-/// copy for a single or an album release. For an album, also lists the
-/// tracks in their final order so the user can tick them off while building
-/// the Spotify playlist the done-album copy walks them through.
+/// copy for a single or an album release. For an album, also shows the
+/// shared `PlaylistGuide` (album title, copy button, steps) above the track
+/// list, so the user can tick tracks off while building the playlist.
 struct DoneView: View {
     enum Kind { case single, album }
 
@@ -21,11 +21,15 @@ struct DoneView: View {
                     .font(.system(size: 48))
                     .foregroundStyle(Theme.accent)
 
-                Text(kind == .single ? Copy.Import.doneSingle : Copy.Import.doneAlbum(albumTitle: albumTitle))
+                Text(kind == .single ? Copy.Import.doneSingle : Copy.Import.doneAlbum)
                     .font(Theme.Font.body)
                     .foregroundStyle(Theme.primaryText)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, Theme.Spacing.pagePadding)
+
+                if kind == .album {
+                    playlistGuide
+                }
 
                 if kind == .album, !trackTitles.isEmpty {
                     trackList
@@ -37,6 +41,14 @@ struct DoneView: View {
             .padding(.vertical, Theme.Spacing.sectionGap)
         }
         .background(Theme.background)
+    }
+
+    private var playlistGuide: some View {
+        PlaylistGuide(albumTitle: albumTitle)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .cardContainer()
+            .padding(.horizontal, Theme.Spacing.pagePadding)
     }
 
     private var trackList: some View {

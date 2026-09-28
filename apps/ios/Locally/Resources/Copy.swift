@@ -61,11 +61,10 @@ enum Copy {
         static let doneSingle = "Sent. Open Spotify, then Your Library, then Local Files to play it."
         static let openSpotify = "Open Spotify"
 
-        /// Matches `docs/ios-plan.md`'s "Done (album)" copy verbatim, naming the actual
-        /// album title rather than the generic phrase a plain constant would need.
-        static func doneAlbum(albumTitle: String) -> String {
-            "Sent. To hear it as an album, make it a playlist: in Spotify open Local Files, select these tracks, then Add to playlist, New playlist, and name it \(albumTitle)."
-        }
+        /// The done screen's heading after an album send; the playlist steps that
+        /// follow it come from `Copy.Detail` so the done screen and the release
+        /// page's "Make it a playlist" disclosure cannot drift (issue #21).
+        static let doneAlbum = "Sent. To hear it as an album, make it a playlist in Spotify."
         static let addAnother = "Add another"
         static let albumExplainer = "Spotify can't create albums from your own files, so we'll set these up to become a playlist. They'll share this cover, artist and album name."
         static let albumCoverPrompt = "Pick the cover that'll be applied to all of these tracks."
@@ -140,6 +139,20 @@ enum Copy {
         static let deleteConfirmAction = "Delete release"
         static let deleteConfirmCancel = "Cancel"
         static let makeItAPlaylist = "Make it a playlist"
+        /// The iPhone steps under "Make it a playlist". Per-track, because Local
+        /// Files on iPhone has no multi-select as far as we know: UNVERIFIED as of
+        /// 2026-09-28 against a real phone (docs/plans/21-make-it-a-playlist.md,
+        /// "Check first" 2). If multi-select is confirmed, shorten this to a single
+        /// select-then-Add-to-playlist instruction and note the iOS/Spotify version here.
+        static func makeItAPlaylistSteps(albumTitle: String) -> String {
+            "Open Spotify, then Your Library, then Local Files. On the first track tap the three dots, Add to playlist, New playlist, paste the name. For each other track: three dots, Add to playlist, \(albumTitle)."
+        }
+        /// Always shown under the steps.
+        static let makeItAPlaylistFallback = "If Add to playlist is missing, update Spotify and open it again."
+        /// The button that copies the album title to the pasteboard, and its
+        /// two-second confirmation.
+        static let copyTitle = "Copy"
+        static let copied = "Copied"
         /// The Tracks section's right-aligned meta, e.g. "1 file".
         static func fileCount(_ count: Int) -> String {
             count == 1 ? "1 file" : "\(count) files"

@@ -121,9 +121,7 @@ struct ReleaseDetailView: View {
             if model.kind == .album {
                 Section {
                     DisclosureGroup(Copy.Detail.makeItAPlaylist) {
-                        Text(Copy.Import.doneAlbum(albumTitle: model.title))
-                            .font(Theme.Font.rowSubtitle)
-                            .foregroundStyle(Theme.secondaryText)
+                        PlaylistGuide(albumTitle: model.title)
                     }
                     .font(Theme.Font.body)
                     .foregroundStyle(Theme.primaryText)

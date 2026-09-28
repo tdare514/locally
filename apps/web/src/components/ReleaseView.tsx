@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Release, UpdateReleaseMeta } from "../shared/types";
 import {
   coverUrl,
@@ -14,9 +14,12 @@ import Field from "./Field";
 import TrackList, { type EditableTrack } from "./TrackList";
 import CoverPicker from "./CoverPicker";
 import SpotifySourceBanner from "./SpotifySourceBanner";
+import { ChevronRightIcon, CopyIcon } from "./Icons";
+import { COPIED_LABEL, COPY_LABEL, PLAYLIST_FALLBACK, playlistSteps } from "../lib/playlist-copy";
 
 interface ReleaseViewProps {
   releaseId: string;
+  justImported?: boolean;
   onDeleted: () => void;
   onUpdated: () => void;
   onToast: (kind: "success" | "error", text: string) => void;
@@ -25,6 +28,7 @@ interface ReleaseViewProps {
 
 export default function ReleaseView({
   releaseId,
+  justImported = false,
   onDeleted,
   onUpdated,
   onToast,
@@ -41,6 +45,27 @@ export default function ReleaseView({
   const [replacingCover, setReplacingCover] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const copiedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimeout.current) clearTimeout(copiedTimeout.current);
+    };
+  }, []);
+
+  const handleCopyTitle = useCallback(async () => {
+    if (!release) return;
+    try {
+      await navigator.clipboard.writeText(release.title);
+    } catch {
+      onToast("error", "Couldn't copy the name");
+      return;
+    }
+    setCopied(true);
+    if (copiedTimeout.current) clearTimeout(copiedTimeout.current);
+    copiedTimeout.current = setTimeout(() => setCopied(false), 2000);
+  }, [release, onToast]);
 
   const applyRelease = useCallback((r: Release) => {
     setRelease(r);
@@ -233,6 +258,33 @@ export default function ReleaseView({
         </div>
         <TrackList tracks={tracks} onChange={handleTracksChange} />
       </div>
+
+      {release.kind === "album" && (
+        <details
+          open={justImported}
+          className="group rounded-[9px] border border-border bg-card p-5"
+        >
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-base font-bold tracking-[-0.02em] text-text [&::-webkit-details-marker]:hidden">
+            <ChevronRightIcon className="h-4 w-4 text-text-muted transition-transform group-open:rotate-90" />
+            Make it a playlist
+          </summary>
+          <div className="mt-4 flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm font-semibold text-text">{release.title}</span>
+              <button
+                type="button"
+                onClick={handleCopyTitle}
+                className="inline-flex items-center gap-1.5 rounded-full border border-text-dim px-4 py-1.5 text-xs font-medium text-text transition-colors hover:border-text"
+              >
+                <CopyIcon className="h-3.5 w-3.5" />
+                {copied ? COPIED_LABEL : COPY_LABEL}
+              </button>
+            </div>
+            <p className="text-sm text-text-muted">{playlistSteps(release.title, tracks.length)}</p>
+            <p className="text-xs text-text-dim">{PLAYLIST_FALLBACK}</p>
+          </div>
+        </details>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <button

@@ -69,7 +69,10 @@ implementation and one fake for tests.
 - Album explainer: "Spotify can't create albums from your own files, so we'll set these up to become a playlist. They'll share this cover, artist and album name."
 - Cover (album): "Pick the cover that'll be applied to all of these tracks."
 - Done (single): "Sent. Open Spotify, then Your Library, then Local Files to play it."
-- Done (album): "Sent. To hear it as an album, make it a playlist: in Spotify open Local Files, select these tracks, then Add to playlist, New playlist, and name it <album title>."
+- Done (album): "Sent. To hear it as an album, make it a playlist in Spotify." followed by the album title with a Copy button, the steps and the fallback line below.
+- Make it a playlist (done screen and release page): "Open Spotify, then Your Library, then Local Files. On the first track tap the three dots, Add to playlist, New playlist, paste the name. For each other track: three dots, Add to playlist, <album title>."
+- Fallback under the steps: "If Add to playlist is missing, update Spotify and open it again."
+- Copy button: "Copy", then "Copied" for two seconds.
 - After an edit: "Updated. Spotify shows a new cover right away, but keeps the old name until it rescans. In Spotify, open Settings, then Local Files, switch it off and on again, and the new details appear."
 - Folder lost: "We can't reach Spotify's folder any more. This happens after Spotify is reinstalled or Local Files is turned off. Tap to reconnect."
 - About: "<App name> is an independent app. Spotify is a trademark of Spotify AB. This app is not affiliated with, endorsed by or sponsored by Spotify."

@@ -11,7 +11,7 @@ import Toast, { type ToastMessage } from "./Toast";
 
 export type View =
   | { type: "import" }
-  | { type: "release"; id: string }
+  | { type: "release"; id: string; justImported?: boolean }
   | { type: "settings" };
 
 export default function AppShell() {
@@ -71,7 +71,7 @@ export default function AppShell() {
 
   function handleImported(release: Release) {
     refreshLibrary();
-    setView({ type: "release", id: release.id });
+    setView({ type: "release", id: release.id, justImported: release.kind === "album" });
   }
 
   function handleDeleted() {
@@ -109,6 +109,7 @@ export default function AppShell() {
           <ReleaseView
             key={view.id}
             releaseId={view.id}
+            justImported={view.justImported ?? false}
             onDeleted={handleDeleted}
             onUpdated={refreshLibrary}
             onToast={showToast}

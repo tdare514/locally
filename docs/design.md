@@ -149,6 +149,14 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
   footer with the save action.
 - **Desktop release page**: breadcrumb eyebrow "LIBRARY / SINGLE", title 36, "artist · year" in
   `text-muted`, then a 180 cover beside the fields.
+- **Make it a playlist (album release pages, both apps)**: a disclosure between the Tracks
+  section and the action row, `card` with 1 px `border`, radius 9, padding 20, title "Make it a
+  playlist" with a chevron that rotates open. Body: the album title beside a small secondary /
+  outline "Copy" button (copy icon, reads "Copied" for two seconds after a click), the
+  per-platform steps in `text-muted` 14, and the fallback line "If Add to playlist is missing,
+  update Spotify and open it again." in `text-dim` 12. Open by default on the release page an
+  album import lands on; collapsed when opened from the library. iOS renders the same body in
+  the existing `DisclosureGroup` and on the done screen after an album send.
 - **Crop dialog**: `card` with `dialog-border`, radius 9, padding 20 to 24, title "Crop cover"
   19 bold; the preview on #050505 with the image, an outer white 25 % border, centre lines at
   white 10 %, and an inner frame inset 12 at white 60 %; under it a centred Square | Original
