@@ -29,11 +29,24 @@ export function isPlainSyncName(name: string): boolean {
 
 const plainName = (what: string) => z.string().refine(isPlainSyncName, `${what} must be a plain file name`);
 
+/** The extensions the API accepts for `tracks[].file` and `cover` (`SUPPORTED_FILE_EXT` in apps/api). */
+export const SYNC_FILE_EXTENSIONS = ["mp3", "m4a", "jpg", "jpeg", "png"] as const;
+
+const SYNC_FILE_EXTENSION_RE = /\.(mp3|m4a|jpg|jpeg|png)$/i;
+
+/** True when `name` ends in one of `SYNC_FILE_EXTENSIONS`, compared case-insensitively, as the API checks it. */
+export function hasSyncFileExtension(name: string): boolean {
+  return SYNC_FILE_EXTENSION_RE.test(name);
+}
+
+const syncFileName = (what: string) =>
+  plainName(what).refine(hasSyncFileExtension, `${what} must end in one of: ${SYNC_FILE_EXTENSIONS.join(", ")}`);
+
 export const SyncTrackSchema = z.object({
   id: plainName("track id"),
   title: z.string(),
   trackNumber: z.number().int().positive(),
-  file: plainName("track file"),
+  file: syncFileName("track file"),
   bytes: z.number().int().nonnegative(),
   durationSec: z.number().nullable(),
 });
@@ -42,6 +55,7 @@ export const SyncTrackSchema = z.object({
  * The `release.json`-shaped document from `spec/sync.md`. This is the exact
  * wire shape clients PUT/GET; server-only bookkeeping (`userId`, `version`,
  * `serverUpdatedAt`) is layered on by the API and isn't part of this schema.
+ * Track files and cover names must be plain child names with an allowed extension.
  */
 /** Lowercase hex sha256 of the cover's bytes: the only signal that `cover.<ext>` changed, since its name never does. */
 export const CoverHashSchema = z.string().regex(/^[0-9a-f]{64}$/);
@@ -55,7 +69,7 @@ export const SyncRecordSchema = z.object({
   artist: z.string(),
   year: z.string().nullable(),
   genre: z.string().nullable(),
-  cover: plainName("cover").nullable(),
+  cover: syncFileName("cover").nullable(),
   /** Absent on a `syncVersion` 1 record (no signal, leave the cover alone); `null` on a v2 record with no cover. */
   coverHash: CoverHashSchema.nullable().optional(),
   tracks: z.array(SyncTrackSchema),

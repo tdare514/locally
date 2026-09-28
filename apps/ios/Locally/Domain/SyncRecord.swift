@@ -61,6 +61,28 @@ extension JSONEncoder {
     }
 }
 
+/// The extensions the API accepts for `tracks[].file` and `cover`
+/// (`SUPPORTED_FILE_EXT` in apps/api). Mirrors the Mac app's `SYNC_FILE_EXTENSIONS`.
+enum SyncFileName {
+    static let supportedExtensions = ["mp3", "m4a", "jpg", "jpeg", "png"]
+
+    /// True when `name` ends in `.` + one of `supportedExtensions`, compared
+    /// in lower case, exactly as the API's `/\.(mp3|m4a|jpg|jpeg|png)$/i` does.
+    static func hasSupportedExtension(_ name: String) -> Bool {
+        let lower = name.lowercased()
+        return supportedExtensions.contains { lower.hasSuffix("." + $0) }
+    }
+}
+
+/// Thrown by `SyncRecord.init(from:)` for a record that has the right shape
+/// but names a file this app will not use (see `SyncFileName`). Distinct from
+/// `DecodingError` so a page decoder can skip the one record and keep the rest.
+struct SyncRecordRejected: Error, Equatable {
+    /// `"cover"` or `"tracks[<index>].file"`.
+    let field: String
+    let name: String
+}
+
 /// One track inside a `SyncRecord`, matching `spec/sync.md`'s `tracks[]`
 /// shape and the API's `trackRecordSchema`. `file` is the name the track's
 /// bytes are stored under in the sync service's object storage — fixed once
@@ -177,6 +199,34 @@ struct SyncRecord: Codable, Hashable {
         case origin, originDevice, createdAt, updatedAt, deleted, version
     }
 
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        syncVersion = try container.decode(Int.self, forKey: .syncVersion)
+        id = try container.decode(String.self, forKey: .id)
+        kind = try container.decode(String.self, forKey: .kind)
+        title = try container.decode(String.self, forKey: .title)
+        artist = try container.decode(String.self, forKey: .artist)
+        year = try container.decodeIfPresent(String.self, forKey: .year)
+        genre = try container.decodeIfPresent(String.self, forKey: .genre)
+        cover = try container.decodeIfPresent(String.self, forKey: .cover)
+        coverHash = try container.decodeIfPresent(String.self, forKey: .coverHash)
+        tracks = try container.decode([SyncTrack].self, forKey: .tracks)
+        origin = try container.decode(String.self, forKey: .origin)
+        originDevice = try container.decode(String.self, forKey: .originDevice)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        deleted = try container.decode(Bool.self, forKey: .deleted)
+        version = try container.decodeIfPresent(Int.self, forKey: .version)
+
+        for (index, track) in tracks.enumerated()
+        where !SyncFileName.hasSupportedExtension(track.file) {
+            throw SyncRecordRejected(field: "tracks[\(index)].file", name: track.file)
+        }
+        if let cover, !SyncFileName.hasSupportedExtension(cover) {
+            throw SyncRecordRejected(field: "cover", name: cover)
+        }
+    }
+
     /// Same reasoning as `SyncTrack.encode(to:)`: `year`, `genre` and
     /// `cover` are all `.nullable()` (key required, `null` allowed) on the
     /// server, not `.optional()` (key may be absent), so the synthesized
@@ -203,6 +253,22 @@ struct SyncRecord: Codable, Hashable {
         try container.encode(updatedAt, forKey: .updatedAt)
         try container.encode(deleted, forKey: .deleted)
         try container.encodeIfPresent(version, forKey: .version)
+    }
+}
+
+/// One element of a decoded `GET /v1/releases` page. `record` is `nil` when
+/// `SyncRecord.init(from:)` threw `SyncRecordRejected`, so a single refused
+/// record skips that release instead of failing the whole page; any other
+/// decoding error still propagates and fails the page as before.
+struct SyncRecordPageElement: Decodable {
+    let record: SyncRecord?
+
+    init(from decoder: Decoder) throws {
+        do {
+            record = try SyncRecord(from: decoder)
+        } catch is SyncRecordRejected {
+            record = nil
+        }
     }
 }
 

@@ -33,7 +33,10 @@ apps/ios      the phone app: same, the other way round.
 
 Identical to the shared metadata model plus sync fields. `tracks[].file` names the stored
 object; the name never changes after upload (Spotify playlists depend on file names on both
-devices, and both apps re-tag in place).
+devices, and both apps re-tag in place). `tracks[].file` and `cover` end in one of `mp3`,
+`m4a`, `jpg`, `jpeg`, `png` (case-insensitive: the name's last `.`-suffix, compared in lower
+case). The API refuses any other name with a 400, and both clients refuse such a record before
+using any file name in it.
 
 ```json
 {
@@ -73,9 +76,8 @@ Server-side each record also carries `userId`, `version` (integer, bumped on eve
 file name prefix says what every reader must do with it:
 
 - `valid-*`: every app parses it.
-- `invalid-*`: every app rejects it (the API with a 400, clients before using any file name).
-- `invalid-api-*`: the API rejects it. Clients only ever receive records the API accepted, so
-  their parsers are not required to reject these (today they don't check file extensions).
+- `invalid-*`: every app rejects it (the API with a 400, clients before using any file name in
+  it).
 
 Any change to the record, or to what a reader accepts, updates the fixtures in the same change,
 so that a record defined differently in one app fails that app's tests instead of failing a

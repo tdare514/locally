@@ -192,13 +192,13 @@ final class HttpSyncApi: SyncApi {
     func releases(sinceVersion: Int, limit: Int) async throws -> SyncReleasesPage {
         let data = try await send(path: "/v1/releases?sinceVersion=\(sinceVersion)&limit=\(limit)", method: "GET")
         struct Response: Decodable {
-            let releases: [SyncRecord]
+            let releases: [SyncRecordPageElement]
             let nextVersion: Int
             let hasMore: Bool?
         }
         let decoded = try decode(Response.self, from: data)
         return SyncReleasesPage(
-            releases: decoded.releases,
+            releases: decoded.releases.compactMap(\.record),
             nextVersion: decoded.nextVersion,
             hasMore: decoded.hasMore ?? false
         )

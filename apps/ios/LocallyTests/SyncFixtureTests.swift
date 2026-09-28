@@ -4,10 +4,9 @@ import Testing
 
 /// Loads `spec/fixtures/sync/*.json`, the shared record fixtures every app's
 /// tests parse (see `spec/sync.md`'s "Fixtures" section). File name prefix
-/// says what this app must do with it: `valid-*` must be accepted, `invalid-*`
-/// (but not `invalid-api-*`) must be rejected, and `invalid-api-*` is the
-/// API's problem only — the client parser doesn't check file extensions, so
-/// those fixtures are skipped here entirely.
+/// says what this app must do with it: `valid-*` must be accepted, every
+/// `invalid-*` must be rejected. The client parser checks extensions at
+/// decode time, so every `invalid-*` fixture must fail `SyncRecord` decoding.
 struct SyncFixtureTests {
     private static let fixturesDir: URL = {
         var url = URL(fileURLWithPath: #filePath)
@@ -30,7 +29,7 @@ struct SyncFixtureTests {
     }
 
     private static var invalidFixtureNames: [String] {
-        allFixtureNames.filter { $0.hasPrefix("invalid-") && !$0.hasPrefix("invalid-api-") }
+        allFixtureNames.filter { $0.hasPrefix("invalid-") }
     }
 
     /// The client acceptance test SyncEngine actually applies to an incoming
@@ -53,8 +52,7 @@ struct SyncFixtureTests {
     @Test func fixturesDirectoryHasFilesMatchingKnownPrefixes() {
         #expect(!Self.allFixtureNames.isEmpty)
         #expect(!Self.validFixtureNames.isEmpty)
-        let invalidApiCount = Self.allFixtureNames.filter { $0.hasPrefix("invalid-api-") }.count
-        #expect(Self.invalidFixtureNames.count + invalidApiCount > 0)
+        #expect(Self.invalidFixtureNames.count > 0)
         for name in Self.allFixtureNames {
             #expect(
                 name.hasPrefix("valid-") || name.hasPrefix("invalid-"),
