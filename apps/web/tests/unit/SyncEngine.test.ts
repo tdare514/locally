@@ -391,6 +391,39 @@ describe("SyncEngine", () => {
     expect(api.putCalls).toHaveLength(0);
   });
 
+  it("still pulls a phone record written between this Mac's last pull and its own push or delete", async () => {
+    const phoneRecord = (id: string): SyncRecord => ({
+      syncVersion: 1,
+      id,
+      kind: "single",
+      title: "Phone Song",
+      artist: "Phone Artist",
+      year: null,
+      genre: null,
+      cover: null,
+      tracks: [],
+      origin: "ios",
+      originDevice: "Toby's iPhone",
+      createdAt: "2026-09-27T10:00:00.000Z",
+      updatedAt: "2026-09-27T10:00:00.000Z",
+      deleted: false,
+    });
+
+    // The phone writes version 1 while this Mac has seen nothing; the Mac's
+    // own push then lands at version 2.
+    api.seedRemoteRecord(phoneRecord("ios-before-push"));
+    await engine.push(await importOne("Mac Artist", "Mac Track"));
+    // Same again around a delete: phone at version 3, tombstone at version 4.
+    const toDelete = await importOne("Other Artist", "Other Track");
+    api.seedRemoteRecord(phoneRecord("ios-before-delete"));
+    await engine.tombstone(toDelete.id);
+
+    await engine.reconcile();
+
+    const status = await engine.status();
+    expect(status.pendingFromPhone.map((p) => p.id).sort()).toEqual(["ios-before-delete", "ios-before-push"]);
+  });
+
   it("deletes a release locally when the remote record is a tombstone", async () => {
     const release = await importOne();
     await engine.push(release);

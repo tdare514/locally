@@ -127,7 +127,7 @@ export class SyncEngine implements ReleaseSyncHooks {
     try {
       const ctx = await this.currentApi();
       if (!ctx) return;
-      const result = await ctx.api.deleteRelease(id);
+      await ctx.api.deleteRelease(id);
 
       const state = await this.syncState.get();
       delete state.pushedUpdatedAt[id];
@@ -136,7 +136,9 @@ export class SyncEngine implements ReleaseSyncHooks {
       delete state.pendingFromPhone[id];
       await this.syncState.set(state);
 
-      await this.bumpLastVersion(result.version);
+      // `lastVersion` only advances on a pull (see `pullOnce`): the version a
+      // write returns can sit above another device's write this Mac hasn't
+      // pulled yet, and jumping to it would skip that write for good.
       this.lastError = null;
     } catch (err) {
       this.lastError = err instanceof Error ? err.message : String(err);
@@ -189,13 +191,12 @@ export class SyncEngine implements ReleaseSyncHooks {
     // belongs to this user once a row exists for it (`POST .../files` 404s
     // otherwise), so the metadata write has to land first. The record can
     // describe files that haven't finished uploading yet without issue.
-    let result: { version: number };
     try {
-      result = await api.putRelease(record);
+      await api.putRelease(record);
     } catch (err) {
       if (err instanceof SyncConflictError) {
         await this.pullOnce(api);
-        result = await api.putRelease(record);
+        await api.putRelease(record);
       } else {
         throw err;
       }
@@ -227,7 +228,8 @@ export class SyncEngine implements ReleaseSyncHooks {
     const afterPut = await this.syncState.get();
     afterPut.pushedUpdatedAt[release.id] = release.updatedAt;
     await this.syncState.set(afterPut);
-    await this.bumpLastVersion(result.version);
+    // No `bumpLastVersion` here, as in `tombstone`: the next pull brings this
+    // record back and `isOwnEcho` handles it.
   }
 
   // --- Pull / reconcile (incoming) --------------------------------------
