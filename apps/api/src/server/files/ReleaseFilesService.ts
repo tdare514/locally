@@ -122,18 +122,26 @@ export class ReleaseFilesService {
    * dropped from the record doesn't linger in storage or against quota.
    * Drizzle's `notInArray` rejects an empty array, so an empty `keepNames`
    * (a release with no files left to keep) instead selects every row for
-   * the release. Returns the number of files pruned. Tombstoned releases
-   * are handled separately, by `CleanupService`.
+   * the release. Blobs go in one `deleteMany`; DB rows in one
+   * `WHERE id IN (...)`. Returns the number of files pruned. Tombstoned
+   * releases are handled separately, by `CleanupService`. The PUT route
+   * runs this after the response (#31), so failures here must be logged by
+   * the caller, never turned into a 500.
    */
   async pruneUnreferenced(userId: string, releaseId: string, keepNames: string[]): Promise<number> {
     const scoped = and(eq(files.userId, userId), eq(files.releaseId, releaseId));
     const condition = keepNames.length > 0 ? and(scoped, notInArray(files.name, keepNames)) : scoped;
 
     const rows = await this.db.select().from(files).where(condition);
-    for (const row of rows) {
-      await this.fileStore.delete(row.storageKey);
-      await this.db.delete(files).where(eq(files.id, row.id));
-    }
+    if (rows.length === 0) return 0;
+
+    await this.fileStore.deleteMany(rows.map((row) => row.storageKey));
+    await this.db.delete(files).where(
+      inArray(
+        files.id,
+        rows.map((row) => row.id)
+      )
+    );
     return rows.length;
   }
 }

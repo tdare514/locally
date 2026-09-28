@@ -24,9 +24,10 @@ describe("AuthService", () => {
   });
 
   it("round-trips a code: issue, verify, and get a device token", async () => {
-    await auth.issueCode("person@example.com");
-    const code = mailer.codeFor("person@example.com");
+    const code = await auth.issueCode("person@example.com");
     expect(code).toMatch(/^\d{6}$/);
+    await auth.sendCode("person@example.com", code);
+    expect(mailer.codeFor("person@example.com")).toBe(code);
 
     const result = await auth.verify({
       email: "person@example.com",
@@ -45,18 +46,18 @@ describe("AuthService", () => {
   });
 
   it("creates the same user on a second sign-in from a different device", async () => {
-    await auth.issueCode("person@example.com");
+    const firstCode = await auth.issueCode("person@example.com");
     const first = await auth.verify({
       email: "person@example.com",
-      code: mailer.codeFor("person@example.com"),
+      code: firstCode,
       deviceName: "Mac",
       platform: "mac",
     });
 
-    await auth.issueCode("person@example.com");
+    const secondCode = await auth.issueCode("person@example.com");
     const second = await auth.verify({
       email: "person@example.com",
-      code: mailer.codeFor("person@example.com"),
+      code: secondCode,
       deviceName: "iPhone",
       platform: "ios",
     });
@@ -66,7 +67,7 @@ describe("AuthService", () => {
   });
 
   it("counts wrong-code attempts and locks out after 5", async () => {
-    await auth.issueCode("person@example.com");
+    const rightCode = await auth.issueCode("person@example.com");
 
     for (let i = 0; i < 5; i++) {
       await expect(
@@ -75,15 +76,13 @@ describe("AuthService", () => {
     }
 
     // The 6th attempt is blocked by the attempt cap, even with the right code.
-    const rightCode = mailer.codeFor("person@example.com");
     await expect(
       auth.verify({ email: "person@example.com", code: rightCode, deviceName: "Mac", platform: "mac" })
     ).rejects.toThrow(/too many attempts/i);
   });
 
   it("rejects an expired code", async () => {
-    await auth.issueCode("person@example.com");
-    const code = mailer.codeFor("person@example.com");
+    const code = await auth.issueCode("person@example.com");
 
     clock += 11 * 60 * 1000; // past the 10-minute expiry
 
@@ -93,8 +92,7 @@ describe("AuthService", () => {
   });
 
   it("invalidates a previous code when a new one is issued", async () => {
-    await auth.issueCode("person@example.com");
-    const staleCode = mailer.codeFor("person@example.com");
+    const staleCode = await auth.issueCode("person@example.com");
 
     await auth.issueCode("person@example.com");
 
@@ -104,10 +102,10 @@ describe("AuthService", () => {
   });
 
   it("rejects authenticate() for a revoked device", async () => {
-    await auth.issueCode("person@example.com");
+    const code = await auth.issueCode("person@example.com");
     const { token, user, device } = await auth.verify({
       email: "person@example.com",
-      code: mailer.codeFor("person@example.com"),
+      code,
       deviceName: "Mac",
       platform: "mac",
     });
@@ -122,18 +120,18 @@ describe("AuthService", () => {
   });
 
   it("does not let one user revoke another user's device", async () => {
-    await auth.issueCode("a@example.com");
+    const aCode = await auth.issueCode("a@example.com");
     const a = await auth.verify({
       email: "a@example.com",
-      code: mailer.codeFor("a@example.com"),
+      code: aCode,
       deviceName: "A's Mac",
       platform: "mac",
     });
 
-    await auth.issueCode("b@example.com");
+    const bCode = await auth.issueCode("b@example.com");
     const b = await auth.verify({
       email: "b@example.com",
-      code: mailer.codeFor("b@example.com"),
+      code: bCode,
       deviceName: "B's Mac",
       platform: "mac",
     });
@@ -145,10 +143,10 @@ describe("AuthService", () => {
 
   describe("token idle expiry", () => {
     it("still authenticates one day short of TOKEN_IDLE_TTL_MS", async () => {
-      await auth.issueCode("idle@example.com");
+      const code = await auth.issueCode("idle@example.com");
       const { token } = await auth.verify({
         email: "idle@example.com",
-        code: mailer.codeFor("idle@example.com"),
+        code,
         deviceName: "Mac",
         platform: "mac",
       });
@@ -159,10 +157,10 @@ describe("AuthService", () => {
 
     it("rejects a token idle for more than TOKEN_IDLE_TTL_MS", async () => {
       const start = clock;
-      await auth.issueCode("idle2@example.com");
+      const code = await auth.issueCode("idle2@example.com");
       const { token } = await auth.verify({
         email: "idle2@example.com",
-        code: mailer.codeFor("idle2@example.com"),
+        code,
         deviceName: "Mac",
         platform: "mac",
       });
@@ -172,10 +170,10 @@ describe("AuthService", () => {
     });
 
     it("keeps working when used regularly, sliding the idle window forward", async () => {
-      await auth.issueCode("active@example.com");
+      const code = await auth.issueCode("active@example.com");
       const { token } = await auth.verify({
         email: "active@example.com",
-        code: mailer.codeFor("active@example.com"),
+        code,
         deviceName: "Mac",
         platform: "mac",
       });
@@ -192,10 +190,10 @@ describe("AuthService", () => {
 
   describe("lastSeenAt refresh throttling", () => {
     it("does not rewrite lastSeenAt within LAST_SEEN_REFRESH_MS, but does after", async () => {
-      await auth.issueCode("refresh@example.com");
+      const code = await auth.issueCode("refresh@example.com");
       const { token, user } = await auth.verify({
         email: "refresh@example.com",
-        code: mailer.codeFor("refresh@example.com"),
+        code,
         deviceName: "Mac",
         platform: "mac",
       });

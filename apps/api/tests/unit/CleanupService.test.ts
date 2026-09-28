@@ -8,7 +8,7 @@ import { makeReleaseRecord } from "../support/fixtures";
 
 class RecordingFileStore implements FileStore {
   public deleted: string[] = [];
-  /** Keys that throw on `delete` instead of succeeding, e.g. to test a failed drain attempt. */
+  /** Keys that throw on `delete` / `deleteMany` instead of succeeding. */
   public failing = new Set<string>();
   async createUpload(): ReturnType<FileStore["createUpload"]> {
     throw new Error("not used in this test");
@@ -21,6 +21,11 @@ class RecordingFileStore implements FileStore {
       throw new Error(`simulated failure deleting ${key}`);
     }
     this.deleted.push(key);
+  }
+  async deleteMany(keys: string[]): Promise<void> {
+    for (const key of keys) {
+      await this.delete(key);
+    }
   }
 }
 

@@ -1,4 +1,4 @@
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, lt, sql } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { authCodes, files, pendingDeletes, rateLimits, releases } from "../../db/schema";
 import type { FileStore } from "../files/FileStore";
@@ -26,6 +26,7 @@ export interface CleanupResult {
  * day stale — a window that old is never read again, since every limiter's
  * `windowMs` is well under 24h. Tombstone rows themselves are kept (clients
  * may not have seen them yet); only the underlying files are removed.
+ * Blob deletes use `FileStore.deleteMany`; DB deletes use `WHERE id IN (...)`.
  */
 export class CleanupService {
   constructor(
@@ -39,8 +40,8 @@ export class CleanupService {
    * stays queued (just `attempts` incremented for logging) so a later run —
    * this one's next page, another account's drain, or the cron — retries
    * it; `FileStore.delete` is safe on an already-missing key, so this never
-   * gets stuck on a key that's actually gone. Shared by the account route's
-   * background drain (`drainPendingDeletes`) and `run`'s own page below.
+   * gets stuck on a key that's actually gone. Used when a batched drain
+   * fails and we fall back per key.
    */
   private async drainOne(storageKey: string): Promise<boolean> {
     try {
@@ -57,6 +58,28 @@ export class CleanupService {
   }
 
   /**
+   * Try a batched blob + DB delete for these keys; on any failure, fall back
+   * to `drainOne` so a single bad key doesn't block the rest of the page.
+   */
+  private async drainKeys(storageKeys: string[]): Promise<{ drained: number; failed: number }> {
+    if (storageKeys.length === 0) return { drained: 0, failed: 0 };
+
+    try {
+      await this.fileStore.deleteMany(storageKeys);
+      await this.db.delete(pendingDeletes).where(inArray(pendingDeletes.storageKey, storageKeys));
+      return { drained: storageKeys.length, failed: 0 };
+    } catch {
+      let drained = 0;
+      let failed = 0;
+      for (const key of storageKeys) {
+        if (await this.drainOne(key)) drained += 1;
+        else failed += 1;
+      }
+      return { drained, failed };
+    }
+  }
+
+  /**
    * Drain exactly these keys, once — the account-deletion route's
    * best-effort background pass right after a delete. Order doesn't matter
    * here (unlike the cron's oldest-first page): this call only ever
@@ -64,11 +87,7 @@ export class CleanupService {
    * `FileStore` failure) stay in `pending_deletes` for the cron.
    */
   async drainPendingDeletes(storageKeys: string[]): Promise<number> {
-    let drained = 0;
-    for (const key of storageKeys) {
-      if (await this.drainOne(key)) drained += 1;
-    }
-    return drained;
+    return (await this.drainKeys(storageKeys)).drained;
   }
 
   /**
@@ -86,10 +105,11 @@ export class CleanupService {
         .orderBy(pendingDeletes.enqueuedAt, pendingDeletes.storageKey)
         .limit(PENDING_DELETE_PAGE_SIZE)
         .offset(failed);
-      for (const row of rows) {
-        if (await this.drainOne(row.storageKey)) drained += 1;
-        else failed += 1;
-      }
+      if (rows.length === 0) return drained;
+
+      const page = await this.drainKeys(rows.map((row) => row.storageKey));
+      drained += page.drained;
+      failed += page.failed;
       if (rows.length < PENDING_DELETE_PAGE_SIZE) return drained;
     }
   }
@@ -105,18 +125,32 @@ export class CleanupService {
       .where(and(eq(releases.deleted, true), lt(releases.serverUpdatedAt, cutoff)));
 
     let deletedFiles = 0;
-    for (const { id: releaseId } of oldTombstones) {
-      const rows = await this.db.select().from(files).where(eq(files.releaseId, releaseId));
-      for (const row of rows) {
-        await this.fileStore.delete(row.storageKey);
-        await this.db.delete(files).where(eq(files.id, row.id));
-        deletedFiles += 1;
+    if (oldTombstones.length > 0) {
+      const releaseIds = oldTombstones.map((row) => row.id);
+      const rows = await this.db.select().from(files).where(inArray(files.releaseId, releaseIds));
+      if (rows.length > 0) {
+        await this.fileStore.deleteMany(rows.map((row) => row.storageKey));
+        await this.db.delete(files).where(
+          inArray(
+            files.id,
+            rows.map((row) => row.id)
+          )
+        );
+        deletedFiles = rows.length;
       }
     }
 
-    const expiredCodes = await this.db.select({ id: authCodes.id }).from(authCodes).where(lt(authCodes.expiresAt, this.now()));
-    for (const { id } of expiredCodes) {
-      await this.db.delete(authCodes).where(eq(authCodes.id, id));
+    const expiredCodes = await this.db
+      .select({ id: authCodes.id })
+      .from(authCodes)
+      .where(lt(authCodes.expiresAt, this.now()));
+    if (expiredCodes.length > 0) {
+      await this.db.delete(authCodes).where(
+        inArray(
+          authCodes.id,
+          expiredCodes.map((row) => row.id)
+        )
+      );
     }
 
     const rateLimitCutoff = this.now() - RATE_LIMIT_RETENTION_MS;

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServices } from "../../../../server/container";
 import { requireAuth } from "../../../../server/http/authContext";
 import { parseJsonBody, parseParam } from "../../../../server/http/validation";
+import { runAfterResponse } from "../../../../server/http/afterResponse";
 import { withObservability } from "../../../../server/http/observe";
 import { releaseRecordSchema, uuidSchema } from "../../../../shared/types";
 import { ValidationError } from "../../../../shared/errors";
@@ -28,7 +29,23 @@ export const PUT = withObservability("/v1/releases/[id]", async (request, obs, {
 
   if (!record.deleted) {
     const keepNames = record.cover ? [...record.tracks.map((t) => t.file), record.cover] : record.tracks.map((t) => t.file);
-    await services.files.pruneUnreferenced(user.id, releaseId, keepNames);
+    const userId = user.id;
+    runAfterResponse(async () => {
+      try {
+        await services.files.pruneUnreferenced(userId, releaseId, keepNames);
+      } catch (err) {
+        console.error(
+          JSON.stringify({
+            level: "error",
+            event: "release_prune_failed",
+            requestId: obs.requestId,
+            userId,
+            releaseId,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        );
+      }
+    });
   }
 
   return NextResponse.json(result);
