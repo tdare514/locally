@@ -29,6 +29,8 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Share extension ("Send to Locally") with an app-group inbox, plus a Documents-folder inbox
 - StoreKit one-time purchase wired up but gates no feature yet
 - Library is the home tab, split into Singles and Albums sections with counts
+- Import Single/Album share one layout; empty Tracks uses `TrackListSilhouette` (1 or 3 rows);
+  2+ tracks show a long-press reorder hint and `.onMove` without an Edit button (#6, #17)
 - Sync client: Keychain account, push, reconcile, "From your Mac"; cover replacements follow via coverHash (#26)
 - "Delete sync account…" in Settings (App Store 5.1.1(v)) deletes the cloud account and signs the phone out; sign-out and delete both clear per-release sync markers so a new account re-pushes everything (#34)
 - Sync pushes and deletes queue in a persistent outbox, retried each reconcile until the server confirms; a delete during reconcile or offline is no longer lost (#19)
@@ -59,7 +61,7 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Spotify caches local-file metadata; restart Spotify to see edits to an already-imported track
 
 ## Next
-- Remaining iOS restructure items: on-device checks of the import silhouette and drag reorder (#6)
+- On-device confirmation of the import silhouette and long-press drag reorder on a phone (checklist in `apps/ios/README.md`; ViewModel reorder tests landed) (#6)
 - Mac library development: compact release header and import page cleanup next; then search, sort, bulk actions, playlist-aware grouping; plan-only: conversion job queue, SQLite index, multi-library (#7)
 - Architecture review for multiple users (docs/reviews/2026-09-28-architecture.md): owner decisions on Mac packaging #35 and privacy/terms #36
 

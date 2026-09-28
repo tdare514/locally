@@ -83,6 +83,28 @@ a real install):
 
 These are manual, on-device checks for phase 1; nothing in the codebase gates on them.
 
+## Mobile restructure device checks (#6)
+
+The Library-as-home restructure (#14–#18) is in code. Two UI details still need a real phone
+(or a signed simulator run) before #6 can close — unit tests cover the reorder ViewModels, not
+the long-press gesture itself:
+
+1. **Import silhouette**
+   - Open **Add a song → Single** with no file chosen: one faint `FileRow`-shaped block under
+     the drop zone, centred "No tracks yet" / "Add audio files above and they'll appear here."
+   - Switch to **Album** with no files: three stacked placeholder blocks with the same blurb,
+     spaced like live track rows (not tighter).
+2. **Long-press drag reorder (no Edit button)**
+   - Album builder with 2+ tracks: "Hold and drag a track to reorder." under Tracks; long-press
+     a row (outside the title field if the field steals the press), drag to a new position,
+     send — Spotify track numbers follow the new order.
+   - Release page for an album with 2+ tracks: same hint and long-press drag; Save stays off
+     until something changes, then persists the new order. Compact rows show a trailing chevron.
+   - With only one track, long-press must not lift the row (move is disabled).
+
+Record the phone model and iOS version next to each item when checked, then tick the matching
+bullets on issue #6.
+
 ## Architecture
 
 ```
