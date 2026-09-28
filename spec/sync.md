@@ -67,6 +67,20 @@ leaves its cover alone, exactly as before. Servers and clients accept both versi
 Server-side each record also carries `userId`, `version` (integer, bumped on every write) and
 `serverUpdatedAt`; clients page by `version`.
 
+### Fixtures
+
+`spec/fixtures/sync/*.json` are example records that the API, web and iOS tests all load. The
+file name prefix says what every reader must do with it:
+
+- `valid-*`: every app parses it.
+- `invalid-*`: every app rejects it (the API with a 400, clients before using any file name).
+- `invalid-api-*`: the API rejects it. Clients only ever receive records the API accepted, so
+  their parsers are not required to reject these (today they don't check file extensions).
+
+Any change to the record, or to what a reader accepts, updates the fixtures in the same change,
+so that a record defined differently in one app fails that app's tests instead of failing a
+sync at runtime.
+
 ## API (`apps/api`, JSON, `Authorization: Bearer <device token>` except auth)
 
 | Method and path | Body / query | Returns |

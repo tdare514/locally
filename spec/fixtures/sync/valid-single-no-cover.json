@@ -1,0 +1,26 @@
+{
+  "syncVersion": 2,
+  "id": "d8b3f4c6-0e5a-4b7c-9d9f-3a4b5c6d7e8f",
+  "kind": "single",
+  "title": "Kill for Love",
+  "artist": "Chromatics",
+  "year": null,
+  "genre": null,
+  "cover": null,
+  "coverHash": null,
+  "tracks": [
+    {
+      "id": "e9c4a5d7-1f6b-4c8d-8e0a-4b5c6d7e8f90",
+      "title": "Voice Memo",
+      "trackNumber": 1,
+      "file": "Voice Memo.m4a",
+      "bytes": 1048576,
+      "durationSec": null
+    }
+  ],
+  "origin": "ios",
+  "originDevice": "iPhone 14",
+  "createdAt": "2026-09-28T08:15:30.123Z",
+  "updatedAt": "2026-09-28T08:15:30.123Z",
+  "deleted": false
+}
