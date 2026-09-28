@@ -13,7 +13,7 @@ import { LocalFileStore } from "./files/LocalFileStore";
 import { VercelBlobFileStore } from "./files/VercelBlobFileStore";
 import { ReleaseFilesService } from "./files/ReleaseFilesService";
 import type { RateLimiter } from "./ratelimit/RateLimiter";
-import { InMemoryRateLimiter } from "./ratelimit/InMemoryRateLimiter";
+import { DbRateLimiter } from "./ratelimit/DbRateLimiter";
 
 export interface Services {
   db: Db;
@@ -64,12 +64,12 @@ async function buildServices(): Promise<Services> {
     allowedOrigins: env.allowedOrigins,
     rateLimiters: {
       // 5 code requests per email / 20 per IP, per 15 minutes.
-      codeByEmail: new InMemoryRateLimiter(5, 15 * 60 * 1000),
-      codeByIp: new InMemoryRateLimiter(20, 15 * 60 * 1000),
+      codeByEmail: new DbRateLimiter(db, 5, 15 * 60 * 1000, "code:email"),
+      codeByIp: new DbRateLimiter(db, 20, 15 * 60 * 1000, "code:ip"),
       // 10 verify attempts per email / 30 per IP, per 15 minutes (on top of the
       // 5-guesses-per-code limit already enforced inside AuthService.verify).
-      verifyByEmail: new InMemoryRateLimiter(10, 15 * 60 * 1000),
-      verifyByIp: new InMemoryRateLimiter(30, 15 * 60 * 1000),
+      verifyByEmail: new DbRateLimiter(db, 10, 15 * 60 * 1000, "verify:email"),
+      verifyByIp: new DbRateLimiter(db, 30, 15 * 60 * 1000, "verify:ip"),
     },
   };
 }

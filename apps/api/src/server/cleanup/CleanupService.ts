@@ -1,21 +1,25 @@
 import { and, eq, lt } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { authCodes, files, releases } from "../../db/schema";
+import { authCodes, files, rateLimits, releases } from "../../db/schema";
 import type { FileStore } from "../files/FileStore";
 
 const TOMBSTONE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+const RATE_LIMIT_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 export interface CleanupResult {
   deletedFiles: number;
   deletedAuthCodes: number;
+  deletedRateLimits: number;
 }
 
 /**
  * The daily cron target (`GET /v1/internal/cleanup`, see `spec/sync.md`):
  * deletes the storage objects of tombstoned releases once they're older than
- * 30 days, and prunes expired auth codes so that table doesn't grow forever.
- * Tombstone rows themselves are kept (clients may not have seen them yet);
- * only the underlying files are removed.
+ * 30 days, prunes expired auth codes so that table doesn't grow forever, and
+ * prunes `rate_limits` rows (see `DbRateLimiter`) whose window is more than a
+ * day stale — a window that old is never read again, since every limiter's
+ * `windowMs` is well under 24h. Tombstone rows themselves are kept (clients
+ * may not have seen them yet); only the underlying files are removed.
  */
 export class CleanupService {
   constructor(
@@ -47,6 +51,12 @@ export class CleanupService {
       await this.db.delete(authCodes).where(eq(authCodes.id, id));
     }
 
-    return { deletedFiles, deletedAuthCodes: expiredCodes.length };
+    const rateLimitCutoff = this.now() - RATE_LIMIT_RETENTION_MS;
+    const staleRateLimits = await this.db
+      .delete(rateLimits)
+      .where(lt(rateLimits.windowStart, rateLimitCutoff))
+      .returning({ key: rateLimits.key });
+
+    return { deletedFiles, deletedAuthCodes: expiredCodes.length, deletedRateLimits: staleRateLimits.length };
   }
 }

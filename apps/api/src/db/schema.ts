@@ -76,6 +76,13 @@ export const files = sqliteTable("files", {
   userIdx: index("files_user_idx").on(table.userId),
 }));
 
+/** Shared-store counters behind `DbRateLimiter` (see `src/server/ratelimit`). */
+export const rateLimits = sqliteTable("rate_limits", {
+  key: text("key").primaryKey(),
+  windowStart: integer("window_start").notNull(),
+  count: integer("count").notNull(),
+});
+
 // Re-exported so callers that only need the `sql` tag for a raw expression
 // (e.g. QuotaService's SUM) don't need a second import from drizzle-orm.
 export { sql };

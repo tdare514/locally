@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createDb, migrateDb, type Db } from "../../src/db/client";
-import { authCodes, files, releases, userCounters, users } from "../../src/db/schema";
+import { authCodes, files, rateLimits, releases, userCounters, users } from "../../src/db/schema";
 import { CleanupService } from "../../src/server/cleanup/CleanupService";
 import type { FileStore } from "../../src/server/files/FileStore";
 import { makeReleaseRecord } from "../support/fixtures";
@@ -130,5 +130,20 @@ describe("CleanupService", () => {
     const remaining = await db.select().from(authCodes);
     expect(remaining).toHaveLength(1);
     expect(remaining[0]?.email).toBe("b@example.com");
+  });
+
+  it("deletes rate limit windows older than 24h but keeps recent ones", async () => {
+    await db.insert(rateLimits).values([
+      { key: "code:email:stale@example.com", windowStart: clock - DAY_MS - 1000, count: 5 },
+      { key: "code:email:fresh@example.com", windowStart: clock - 1000, count: 2 },
+    ]);
+
+    const cleanup = new CleanupService(db, fileStore, () => clock);
+    const result = await cleanup.run();
+
+    expect(result.deletedRateLimits).toBe(1);
+    const remaining = await db.select().from(rateLimits);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]?.key).toBe("code:email:fresh@example.com");
   });
 });

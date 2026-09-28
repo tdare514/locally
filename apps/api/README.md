@@ -77,6 +77,42 @@ without `BLOB_READ_WRITE_TOKEN` or `RESEND_API_KEY` respectively, in any
 environment, instead of silently falling back to local storage or the
 console mailer.
 
+## Deploying to Vercel
+
+The production service runs on Vercel with a Turso (libSQL) database, a
+private Vercel Blob store and Resend for the sign-in email (#3).
+
+1. **Project.** Import the repo into Vercel with **Root Directory**
+   `apps/api`; the framework preset is Next.js. `vercel.ts` adds the daily
+   cleanup cron, nothing else.
+2. **Database.** Create a Turso database and set `DATABASE_URL` to
+   `libsql://<db>-<org>.turso.io?authToken=<token>`. Migrations under
+   `drizzle/` run automatically on the first request of each instance, so a
+   deploy needs no separate migrate step.
+3. **Files.** Create a Blob store (Storage → Blob) and connect it to the
+   project; that sets `BLOB_READ_WRITE_TOKEN`. Set `FILE_STORE=blob`.
+4. **Mail.** Verify a sending domain in Resend, then set `MAILER=resend`,
+   `RESEND_API_KEY` and `MAIL_FROM` (an address on that domain).
+5. **Secrets.** Set `AUTH_PEPPER`, `TOKEN_PEPPER` and `CRON_SECRET` to
+   separate long random strings (`openssl rand -base64 48`). Vercel sends
+   `CRON_SECRET` as the cron's bearer token.
+6. **Origins.** Set `PUBLIC_BASE_URL` to the production origin
+   (`https://<project>.vercel.app` or a custom domain). The default
+   `ALLOWED_ORIGINS` already covers the Mac app's loopback origin.
+
+Set every variable for the Production environment only; preview deployments
+without them fail closed at startup rather than running with dev defaults.
+
+Rate limits on the auth routes are kept in the same database
+(`DbRateLimiter`, table `rate_limits`), so they hold across every serverless
+instance; the cleanup cron prunes windows older than a day.
+
+After the first deploy, smoke-test before pointing the clients at it:
+
+```bash
+curl -s https://<origin>/v1/auth/code -H 'content-type: application/json' -d '{"email":"you@example.com"}'
+```
+
 ## Project layout
 
 ```

@@ -27,7 +27,7 @@ src/server/
   files/         FileStore interface, Local/VercelBlob impls, ReleaseFilesService
   quota/         QuotaService: usage vs per-account limit
   mail/          Mailer interface, Console/Resend impls
-  ratelimit/     RateLimiter interface, in-memory sliding window
+  ratelimit/     RateLimiter interface; DbRateLimiter (libSQL-backed, shared across instances)
   cleanup/       CleanupService: the cron's work
   http/          bearer, responses, validation, authContext, cors, clientIp
   config/env.ts  reads process.env once, with every default

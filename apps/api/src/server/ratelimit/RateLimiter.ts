@@ -1,9 +1,9 @@
 /**
- * A sliding-window rate limiter keyed by an arbitrary string (an email or an
- * IP address). Kept behind an interface so the in-memory implementation —
- * fine for a single Vercel Fluid Compute instance during development, but
- * not shared across instances — can later be swapped for a KV-backed one
- * without touching the routes that call it.
+ * A rate limiter keyed by an arbitrary string (an email or an IP address).
+ * Kept behind an interface so callers never depend on the storage strategy:
+ * `DbRateLimiter`, backed by the app's own libSQL database, is the shared
+ * implementation used in production (safe across Vercel instances);
+ * `InMemoryRateLimiter` is process-local and used in tests and dev.
  */
 export interface RateLimiter {
   /**
