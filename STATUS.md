@@ -36,12 +36,12 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Quota enforcement and signed, expiring file URLs (local store and Vercel Blob)
 - Rate limiting, CORS, daily cleanup cron
 - SQLite (libSQL) via Drizzle, migrated automatically on first request
-- Runs locally only; not deployed yet (#3)
+- Deployed to https://locally-sync-api.vercel.app (Vercel project locally-sync-api: Turso database, private Blob store); fails closed until the Resend key is set (#3)
 
 ## In progress
 - Security hardening from the Sep 27 review: web origin check, zod validation, HTTPS-only sync, sign-out on base URL change, Keychain hardening and the iOS privacy manifest landed (#11 closed); the medium/low backlog remains (#12)
 - Security review of apps/api (#20): findings fixed 28 Sep; auth rate limits now live in the shared libSQL database, so they hold across Vercel instances
-- Deploying apps/api to Vercel with libSQL, Blob and Resend behind the existing interfaces (#3): code-side prep and the README runbook done; waiting on the Vercel project, Turso database, Blob store and Resend domain
+- Deploying apps/api to Vercel with libSQL, Blob and Resend behind the existing interfaces (#3): live; waiting on RESEND_API_KEY and MAIL_FROM, then point both clients at the URL and smoke-test
 
 ## Known issues
 - iOS crash in `SyncEngine.backfillUnpushed` when a delete overlaps the 30s reconcile loop; the delete is lost (#19)
