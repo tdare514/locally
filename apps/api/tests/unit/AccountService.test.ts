@@ -23,17 +23,17 @@ describe("AccountService", () => {
 
     async function seedAccount(email: string): Promise<Account> {
       // Two devices, one of them revoked.
-      await services.auth.issueCode(email);
+      const firstCode = await services.auth.issueCode(email);
       const first = await services.auth.verify({
         email,
-        code: services.mailer.codeFor(email),
+        code: firstCode,
         deviceName: "Device 1",
         platform: "mac",
       });
-      await services.auth.issueCode(email);
+      const secondCode = await services.auth.issueCode(email);
       const second = await services.auth.verify({
         email,
-        code: services.mailer.codeFor(email),
+        code: secondCode,
         deviceName: "Device 2",
         platform: "ios",
       });
@@ -161,10 +161,10 @@ describe("AccountService", () => {
   it("a re-sign-in with the same email creates a fresh, empty account", async () => {
     await services.account.deleteAccount(a.userId, a.email);
 
-    await services.auth.issueCode(a.email);
+    const code = await services.auth.issueCode(a.email);
     const resignedIn = await services.auth.verify({
       email: a.email,
-      code: services.mailer.codeFor(a.email),
+      code,
       deviceName: "New Device",
       platform: "mac",
     });

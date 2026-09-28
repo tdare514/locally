@@ -80,8 +80,12 @@ export class AuthService {
     return { id, email };
   }
 
-  /** Generate and email a fresh six-digit code, invalidating any still-active code for this email. */
-  async issueCode(email: string): Promise<void> {
+  /**
+   * Persist a fresh six-digit code (invalidating any still-active code for
+   * this email) and return the plaintext. The auth route emails it after the
+   * response (#31) so Resend latency never blocks `{ ok: true }`.
+   */
+  async issueCode(email: string): Promise<string> {
     const now = this.now();
     await this.db
       .update(authCodes)
@@ -98,7 +102,11 @@ export class AuthService {
       attempts: 0,
       consumedAt: null,
     });
+    return code;
+  }
 
+  /** Deliver a code issued by `issueCode`. Failures are the caller's to log. */
+  async sendCode(email: string, code: string): Promise<void> {
     await this.mailer.sendCode(email, code);
   }
 

@@ -112,7 +112,12 @@ export class LocalFileStore implements FileStore {
   }
 
   async delete(key: string): Promise<void> {
-    await fs.rm(this.absolutePathFor(key), { force: true });
+    await this.deleteMany([key]);
+  }
+
+  async deleteMany(keys: string[]): Promise<void> {
+    if (keys.length === 0) return;
+    await Promise.all(keys.map((key) => fs.rm(this.absolutePathFor(key), { force: true })));
   }
 
   /**

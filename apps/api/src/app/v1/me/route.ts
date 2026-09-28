@@ -1,7 +1,8 @@
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import type { Services } from "../../../server/container";
 import { getServices } from "../../../server/container";
 import { requireAuth } from "../../../server/http/authContext";
+import { runAfterResponse } from "../../../server/http/afterResponse";
 import type { RequestObs } from "../../../server/http/observe";
 import { withObservability } from "../../../server/http/observe";
 import { parseJsonBody } from "../../../server/http/validation";
@@ -32,15 +33,11 @@ export const GET = withObservability("/v1/me", async (request, obs) => {
 });
 
 /**
- * Deletes the account, then drains its queued blobs right after via
- * `after()`. `after()` needs a Next request scope, which a real deployed
- * request has but a direct handler call (a test, or any future non-Next
- * caller) doesn't — fall back to draining inline rather than silently
- * dropping the pass; the cron is the guarantee either way, and a failure
- * here is logged and left for it.
+ * Drain queued blobs after the response. Failures are logged and left for
+ * the daily cron; never surfaced as a 500 on the delete.
  */
-async function drainInBackground(services: Services, storageKeys: string[], obs: RequestObs): Promise<void> {
-  const run = async (): Promise<void> => {
+function drainInBackground(services: Services, storageKeys: string[], obs: RequestObs): void {
+  runAfterResponse(async () => {
     try {
       await services.cleanup.drainPendingDeletes(storageKeys);
     } catch (err) {
@@ -54,13 +51,7 @@ async function drainInBackground(services: Services, storageKeys: string[], obs:
         })
       );
     }
-  };
-
-  try {
-    after(run);
-  } catch {
-    await run();
-  }
+  });
 }
 
 export const DELETE = withObservability("/v1/me", async (request, obs) => {
@@ -80,7 +71,7 @@ export const DELETE = withObservability("/v1/me", async (request, obs) => {
       deletedFiles: result.deletedFiles,
     })
   );
-  await drainInBackground(services, result.queuedKeys, obs);
+  drainInBackground(services, result.queuedKeys, obs);
 
   return NextResponse.json({ ok: true });
 });

@@ -30,7 +30,7 @@ src/server/
   mail/          Mailer interface, Console/Resend impls
   ratelimit/     RateLimiter interface; DbRateLimiter (libSQL-backed, shared across instances)
   cleanup/       CleanupService: the cron's work
-  http/          bearer, responses, validation, authContext, cors, clientIp
+  http/          bearer, responses, validation, authContext, cors, clientIp, afterResponse
   config/env.ts  reads process.env once, with every default
   container.ts   getServices(): builds and memoises the graph above
 src/db/{client,schema}.ts, drizzle/   # Drizzle over libSQL; migrations run on first request
@@ -66,6 +66,10 @@ tests/unit/**                         # vitest against that graph
   are wired in `container.ts`; services depend on interfaces only, never a concrete impl.
 - **Account deletion is one transaction plus the `pending_deletes` queue; never delete blobs
   inline in a request.**
+- **Email send and release prune run after the response** via `runAfterResponse`
+  (`server/http/afterResponse.ts`, Next `after()`). Failures are logged and never become a
+  500; the user can request a new code if mail fails. Blob deletes go through
+  `FileStore.deleteMany`; matching DB rows use one `WHERE id IN (...)`.
 - **Tests use `tests/support/testServices.ts`** (in-memory or temp-dir implementations) — no
   network, no real Blob, no real mail.
 

@@ -92,6 +92,14 @@ export class VercelBlobFileStore implements FileStore {
   }
 
   async delete(key: string): Promise<void> {
-    await del(blobPathname(key), { token: this.readWriteToken });
+    await this.deleteMany([key]);
+  }
+
+  async deleteMany(keys: string[]): Promise<void> {
+    if (keys.length === 0) return;
+    await del(
+      keys.map((key) => blobPathname(key)),
+      { token: this.readWriteToken }
+    );
   }
 }

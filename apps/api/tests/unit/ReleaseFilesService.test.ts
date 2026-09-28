@@ -15,6 +15,7 @@ import type { DownloadTicket } from "../../src/shared/types";
 /** In-memory `FileStore` fake, so this suite tests only the service's own bookkeeping. */
 class FakeFileStore implements FileStore {
   public created: CreateUploadParams[] = [];
+  public deleted: string[] = [];
 
   async createUpload(params: CreateUploadParams): Promise<UploadTicket> {
     this.created.push(params);
@@ -25,7 +26,13 @@ class FakeFileStore implements FileStore {
     return { url: `https://fake.local/${key}`, expiresAt: new Date(Date.now() + 1000).toISOString() };
   }
 
-  async delete(): Promise<void> {}
+  async delete(key: string): Promise<void> {
+    this.deleted.push(key);
+  }
+
+  async deleteMany(keys: string[]): Promise<void> {
+    this.deleted.push(...keys);
+  }
 }
 
 describe("ReleaseFilesService", () => {

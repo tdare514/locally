@@ -33,6 +33,8 @@ function jsonRequest(url: string, method: string, body?: unknown, token?: string
 async function signIn(email: string, deviceName = "Toby's MacBook"): Promise<{ token: string; userId: string; deviceId: string }> {
   const codeRes = await authCodeRoute.POST(jsonRequest("http://localhost/v1/auth/code", "POST", { email }));
   expect(codeRes.status).toBe(200);
+  // Email send is deferred (#31); flush the fallback microtask so FakeMailer has the code.
+  await new Promise<void>((r) => queueMicrotask(() => r()));
 
   const code = testServices.mailer.codeFor(email);
   const verifyRes = await authVerifyRoute.POST(
@@ -55,6 +57,7 @@ describe("routes (through the exported handler functions, no server)", () => {
 
   it("POST /v1/auth/verify rejects a wrong code with 401", async () => {
     await authCodeRoute.POST(jsonRequest("http://localhost/v1/auth/code", "POST", { email: "wrong-code@example.com" }));
+    await new Promise<void>((r) => queueMicrotask(() => r()));
     const res = await authVerifyRoute.POST(
       jsonRequest("http://localhost/v1/auth/verify", "POST", {
         email: "wrong-code@example.com",
@@ -254,6 +257,7 @@ describe("routes (through the exported handler functions, no server)", () => {
     for (let i = 0; i < 51; i++) {
       const codeRes = await authCodeRoute.POST(jsonRequest("http://localhost/v1/auth/code", "POST", { email }));
       expect(codeRes.status).toBe(200);
+      await new Promise<void>((r) => queueMicrotask(() => r()));
       const code = testServices.mailer.codeFor(email);
       const verifyRes = await authVerifyRoute.POST(
         jsonRequest("http://localhost/v1/auth/verify", "POST", { email, code, deviceName: `Device ${i}`, platform: "mac" })

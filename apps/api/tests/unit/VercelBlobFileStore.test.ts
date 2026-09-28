@@ -60,8 +60,21 @@ describe("VercelBlobFileStore", () => {
     expect(presignUrl).toHaveBeenCalledWith("signed-token", expect.objectContaining({ pathname: encoded, operation: "get" }));
   });
 
-  it("deletes by the encoded pathname", async () => {
+  it("deletes by the encoded pathname (batched through deleteMany)", async () => {
     await store.delete(key);
-    expect(del).toHaveBeenCalledWith(encoded, { token: "rw-token" });
+    expect(del).toHaveBeenCalledWith([encoded], { token: "rw-token" });
+  });
+
+  it("deleteMany encodes every key and calls del once", async () => {
+    await store.deleteMany([key, "users/u1/releases/r1/ascii.mp3"]);
+    expect(del).toHaveBeenCalledWith(
+      [encoded, "users/u1/releases/r1/ascii.mp3"],
+      { token: "rw-token" }
+    );
+  });
+
+  it("deleteMany is a no-op on an empty list", async () => {
+    await store.deleteMany([]);
+    expect(del).not.toHaveBeenCalled();
   });
 });
