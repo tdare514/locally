@@ -20,6 +20,7 @@ Security hardening leftovers on iOS (#12), Mac library work (#7), and the remain
 - "Delete sync account…" in Settings deletes the cloud account after a confirm and signs this Mac out; music files stay (#34)
 - Guided "Make it a playlist" disclosure on album release pages: Copy button for the title, per-track Mac steps and a fallback line; opens expanded on the page an album import lands on (#21)
 - One-time "Spotify can't see this yet" prompt on the release page: copy path, open Spotify settings, dismiss; hidden once Spotify's local-files index lists the library folder
+- Library is the home view: empty state mirrors iOS onboarding (diagram + Add your first single / Make an album); populated library splits Singles and Albums with counts in the main list and the sidebar (#7)
 
 ### iOS (apps/ios)
 - Onboarding picks the Spotify Local Files folder via a security-scoped bookmark
@@ -58,7 +59,7 @@ Security hardening leftovers on iOS (#12), Mac library work (#7), and the remain
 
 ## Next
 - Remaining iOS restructure items: on-device checks of the import silhouette and drag reorder (#6)
-- Mac library development: search, sort, bulk actions, playlist-aware grouping; plan-only: conversion job queue, SQLite index, multi-library (#7)
+- Mac library development: compact release header and import page cleanup next; then search, sort, bulk actions, playlist-aware grouping; plan-only: conversion job queue, SQLite index, multi-library (#7)
 - Architecture review for multiple users (docs/reviews/2026-09-28-architecture.md): async email and deletes #31; owner decisions on Mac packaging #35 and privacy/terms #36
 
 ## Architecture decisions
