@@ -119,7 +119,7 @@ final class SyncEngine: ReleaseSyncHook {
     /// device hasn't pushed yet (see `reconcile`).
     func verify(email: String, code: String) async throws {
         let result = try await api.verify(email: email, code: code, deviceName: deviceName(), platform: "ios")
-        account.save(email: result.email, deviceToken: result.token, deviceId: result.deviceId)
+        try account.save(email: result.email, deviceToken: result.token, deviceId: result.deviceId)
         status.signedIn = true
         status.email = result.email
         status.deviceName = result.deviceName

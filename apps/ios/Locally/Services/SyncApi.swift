@@ -299,6 +299,12 @@ final class HttpSyncApi: SyncApi {
         guard let url = URL(string: urlString) else {
             throw SyncApiError.network("Invalid server address.")
         }
+        #if !DEBUG
+        // Release builds never send the bearer token or user content over plain http (issue #11); DEBUG builds may target a LAN address.
+        guard url.scheme?.lowercased() == "https" else {
+            throw SyncApiError.network("Sync requires an https server address.")
+        }
+        #endif
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

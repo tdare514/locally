@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServices } from "../../../server/container";
 import { toSettingsResponse } from "../../../server/config/settingsView";
 import { badRequest, errorResponse } from "../../../server/http/responses";
+import { applySyncBaseUrlChange } from "../../../server/sync/settings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,16 +55,11 @@ export async function PUT(request: NextRequest) {
       if (typeof body.sync.baseUrl !== "string" || body.sync.baseUrl.trim().length === 0) {
         return badRequest("sync.baseUrl must be a non-empty string");
       }
-      let parsed: URL;
-      try {
-        parsed = new URL(body.sync.baseUrl.trim());
-      } catch {
-        return badRequest("sync.baseUrl must be a valid URL");
+      const result = applySyncBaseUrlChange(current.sync, body.sync.baseUrl);
+      if (!result.ok) {
+        return badRequest(result.error);
       }
-      const baseUrl = parsed.toString().replace(/\/$/, "");
-      sync = sync
-        ? { ...sync, baseUrl }
-        : { baseUrl, deviceToken: null, email: null, lastVersion: 0 };
+      sync = result.sync;
     }
 
     if (body.libraryDir === undefined && body.sync?.baseUrl === undefined) {

@@ -75,22 +75,52 @@ describe("PUT /api/settings", () => {
     expect(res.status).toBe(400);
   });
 
-  it("updates sync.baseUrl without requiring libraryDir, preserving any existing token", async () => {
+  it("changing sync.baseUrl to a new host without requiring libraryDir, signs the Mac out", async () => {
     settingsValue = {
       libraryDir: "/tmp/lib",
       sync: { baseUrl: "http://localhost:4000", deviceToken: "secret-token", email: "a@b.com", lastVersion: 3 },
     };
 
-    const res = await PUT(putRequest({ sync: { baseUrl: "http://example.com:5000" } }));
+    const res = await PUT(putRequest({ sync: { baseUrl: "https://sync.example.com" } }));
     expect(res.status).toBe(200);
 
     expect(settingsValue.libraryDir).toBe("/tmp/lib");
-    expect(settingsValue.sync?.baseUrl).toBe("http://example.com:5000");
-    expect(settingsValue.sync?.deviceToken).toBe("secret-token");
-    expect(settingsValue.sync?.lastVersion).toBe(3);
+    expect(settingsValue.sync).toEqual({
+      baseUrl: "https://sync.example.com",
+      deviceToken: null,
+      email: null,
+      lastVersion: 0,
+    });
 
-    const body = (await res.json()) as { sync: { baseUrl: string } };
-    expect(body.sync.baseUrl).toBe("http://example.com:5000");
+    const body = (await res.json()) as { sync: { baseUrl: string; signedIn: boolean } };
+    expect(body.sync.baseUrl).toBe("https://sync.example.com");
+    expect(body.sync.signedIn).toBe(false);
+  });
+
+  it("re-sending the current sync.baseUrl preserves the token, email, and lastVersion", async () => {
+    settingsValue = {
+      libraryDir: "/tmp/lib",
+      sync: { baseUrl: "http://localhost:4000", deviceToken: "secret-token", email: "a@b.com", lastVersion: 3 },
+    };
+
+    const res = await PUT(putRequest({ sync: { baseUrl: "http://localhost:4000" } }));
+    expect(res.status).toBe(200);
+
+    expect(settingsValue.sync).toEqual({
+      baseUrl: "http://localhost:4000",
+      deviceToken: "secret-token",
+      email: "a@b.com",
+      lastVersion: 3,
+    });
+
+    const body = (await res.json()) as { sync: { baseUrl: string; signedIn: boolean } };
+    expect(body.sync.baseUrl).toBe("http://localhost:4000");
+    expect(body.sync.signedIn).toBe(true);
+  });
+
+  it("rejects a non-loopback http sync.baseUrl", async () => {
+    const res = await PUT(putRequest({ sync: { baseUrl: "http://example.com:5000" } }));
+    expect(res.status).toBe(400);
   });
 
   it("creates a sync settings object from just a baseUrl when none exists yet", async () => {

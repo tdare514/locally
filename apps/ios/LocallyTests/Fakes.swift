@@ -1,4 +1,5 @@
 import Foundation
+import Security
 @testable import Locally
 
 /// Copies the staged file through untouched and reports the extension it
@@ -239,6 +240,14 @@ final class InMemoryKeychainTokenStore: KeychainTokenStore {
     func load() -> String? { token }
     func save(_ newToken: String) { token = newToken }
     func delete() { token = nil }
+}
+
+/// `KeychainTokenStore` fake whose `save` always fails, for asserting that
+/// `UserDefaultsSyncAccountStore` persists nothing when the token can't be stored.
+final class FailingKeychainTokenStore: KeychainTokenStore {
+    func load() -> String? { nil }
+    func save(_ token: String) throws { throw KeychainTokenStoreError.saveFailed(errSecInteractionNotAllowed) }
+    func delete() {}
 }
 
 /// `ReleaseSyncHook` fake — records what `ReleaseCoordinator` pushed/tombstoned,

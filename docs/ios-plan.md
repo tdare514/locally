@@ -25,7 +25,7 @@ matters, never hidden.
   tracking uploaded files per release, as the Mac does, is a follow-up.
 - Pricing (decided 27 Sep 2026): everything built so far is free with unlimited sends. A one-time
   purchase, Locally Full, exists from phase 3 but unlocks nothing yet; features agreed later are
-  gated behind it. Paid plans are a later discussion. No network, no analytics, no account: privacy label "Data Not Collected".
+  gated behind it. Paid plans are a later discussion. Sync (phase 4) adds an optional email-code account and uploads the user's audio files to the sync service, so the privacy label declares Email Address and Audio Data (User Content), linked to identity, used for App Functionality, no tracking; no analytics.
 - Validation happens on a real phone during phase 1, not as a separate gate.
 
 ## Constraints and how each is handled
