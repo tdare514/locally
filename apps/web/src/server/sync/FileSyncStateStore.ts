@@ -17,7 +17,14 @@ export class FileSyncStateStore implements SyncStateStore {
     const file = syncStateFilePath();
     try {
       const raw = await fs.readFile(file, "utf-8");
-      const parsed = SyncStateFileSchema.safeParse(JSON.parse(raw));
+      let json: unknown;
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        // Corrupt bookkeeping is safe to drop: the next reconcile rebuilds it.
+        return emptySyncState();
+      }
+      const parsed = SyncStateFileSchema.safeParse(json);
       if (!parsed.success) return emptySyncState();
       return parsed.data;
     } catch (err) {

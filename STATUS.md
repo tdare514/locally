@@ -6,7 +6,7 @@ Git history holds the past.
 Last updated: 2026-09-28
 
 ## Current focus
-Hardening from the Sep 27 security review across web, iOS and the new sync API, then deploying the API so both clients sync against a real URL. Agent-readiness gaps (#22 to #25) are being closed alongside.
+Security hardening leftovers on iOS (#12), Mac library work (#7), and the remaining architecture-review items (#28 already closed; #31 next on the API). Agent-readiness (#22–#25) and repo health (#13) are done.
 
 ## What works
 ### Web (apps/web)
@@ -59,7 +59,7 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 ## Next
 - Remaining iOS restructure items: on-device checks of the import silhouette and drag reorder (#6)
 - Mac library development: search, sort, bulk actions, playlist-aware grouping; plan-only: conversion job queue, SQLite index, multi-library (#7)
-- Architecture review for multiple users (docs/reviews/2026-09-28-architecture.md): atomic sync version #28 first, then async email and deletes #31; owner decisions on Mac packaging #35 and privacy/terms #36
+- Architecture review for multiple users (docs/reviews/2026-09-28-architecture.md): async email and deletes #31; owner decisions on Mac packaging #35 and privacy/terms #36
 
 ## Architecture decisions
 See docs/adr/. Product plans: docs/web-plan.md, docs/ios-plan.md. Sync contract: spec/sync.md.

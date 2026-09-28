@@ -89,13 +89,15 @@ These are manual, on-device checks for phase 1; nothing in the codebase gates on
 Locally/
   App/            AppContainer (composes services; forTesting(...) for fakes), LocallyApp (@main)
   Domain/         Release/Track/AlbumDraft/ReleaseChanges/TagSet models, LocallyError, ReleaseLayout,
-                  Entitlements (paid-feature gate — see Phase 3)
+                  Entitlements (paid-feature gate — see Phase 3), SyncRecord (wire types shared with apps/web)
   Services/       FileImporter, Transcoder, TagWriter (+ M4A/ID3 writers), SpotifyFolder,
                   LibraryStore, CoverStore (+ FileCoverStore), InboxStore (+ AppGroupInboxStore),
-                  PurchaseService (+ StoreKitPurchaseService)
+                  PurchaseService (+ StoreKitPurchaseService),
+                  SyncAccount (Keychain-backed token), SyncApi / HttpSyncApi, SyncEngine,
+                  SyncOutbox (persistent push/delete queue), ReconcileScheduler
   Coordinator/    ReleaseCoordinator — the one place that sequences stage → transcode → tag → move →
                   index for import (single or album), rewrites tags in place for edits, and removes
-                  files + store entry for deletes
+                  files + store entry for deletes; also the ReleaseSyncHook call site
   Views/          Onboarding, Import (single + album builder), Library (+ release detail/edit),
                   Settings, Purchase (PaywallView), and shared Components
   Resources/      Copy.swift (all user-facing strings), Theme.swift (dark palette), Assets.xcassets,
