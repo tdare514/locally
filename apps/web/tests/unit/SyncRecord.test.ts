@@ -116,7 +116,7 @@ describe("toSyncRecord", () => {
     const record = toSyncRecord(release(), "mac", "Toby's MacBook");
 
     expect(record.id).toBe("rel-1");
-    expect(record.syncVersion).toBe(1);
+    expect(record.syncVersion).toBe(2);
     expect(record.cover).toBe("cover.jpg");
     expect(record.tracks).toHaveLength(1);
     expect(record.tracks[0].file).toBe("01 - Intro.mp3");
@@ -152,6 +152,14 @@ describe("toSyncRecord", () => {
   it("produces a record that validates against the schema", () => {
     expect(() => parseSyncRecord(toSyncRecord(release(), "mac", "dev"))).not.toThrow();
   });
+
+  it("defaults coverHash to null, and includes the hash it is given", () => {
+    expect(toSyncRecord(release(), "mac", "dev").coverHash).toBeNull();
+
+    const hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    const record = toSyncRecord(release(), "mac", "dev", {}, hash);
+    expect(record.coverHash).toBe(hash);
+  });
 });
 
 describe("fromSyncRecord", () => {
@@ -166,6 +174,15 @@ describe("fromSyncRecord", () => {
     expect(meta.cover).toBe("cover.jpg");
     expect(meta.tracks).toHaveLength(1);
     expect(meta.tracks[0]).toMatchObject({ id: "t1", title: "Intro", trackNumber: 1, file: "01 - Intro.mp3" });
+  });
+
+  it("passes coverHash through, and normalises a missing key to null", () => {
+    const hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    expect(fromSyncRecord(validRecord({ syncVersion: 2, coverHash: hash })).coverHash).toBe(hash);
+
+    const withoutKey = validRecord() as Partial<SyncRecord>;
+    delete withoutKey.coverHash;
+    expect(fromSyncRecord(withoutKey as SyncRecord).coverHash).toBeNull();
   });
 
   it("sorts tracks by trackNumber", () => {

@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import type { PendingFromPhone, Release, SyncStatus } from "../../shared/types";
@@ -17,6 +18,17 @@ export type SyncApiFactory = (baseUrl: string, token: string | null) => SyncApi;
 function pendingSummary(record: SyncRecord): PendingFromPhone {
   const meta = fromSyncRecord(record);
   return { id: meta.id, title: meta.title, artist: meta.artist, kind: meta.kind, trackCount: meta.tracks.length };
+}
+
+/**
+ * Lowercase hex sha256 of a file's bytes. Covers are small images, so this
+ * reads the whole file rather than adding a streaming `sha256` method to
+ * `FileSystem` (which already exposes `readFile`) and updating every fake
+ * that implements it.
+ */
+async function sha256File(fs: FileSystem, filePath: string): Promise<string> {
+  const bytes = await fs.readFile(filePath);
+  return crypto.createHash("sha256").update(bytes).digest("hex");
 }
 
 function contentTypeFor(name: string): string {
@@ -120,6 +132,7 @@ export class SyncEngine implements ReleaseSyncHooks {
       const state = await this.syncState.get();
       delete state.pushedUpdatedAt[id];
       delete state.uploadedFiles[id];
+      delete state.coverHash[id];
       delete state.pendingFromPhone[id];
       await this.syncState.set(state);
 
@@ -144,10 +157,18 @@ export class SyncEngine implements ReleaseSyncHooks {
     for (const t of release.tracks) {
       trackBytes[t.id] = await this.fs.statSize(t.filePath);
     }
-    const record = toSyncRecord(release, "mac", this.deviceName(), trackBytes);
+    const coverHash = release.coverPath ? await sha256File(this.fs, release.coverPath) : null;
+    const record = toSyncRecord(release, "mac", this.deviceName(), trackBytes, coverHash);
 
     const state = await this.syncState.get();
     const already = new Set(state.uploadedFiles[release.id] ?? []);
+    // `uploadedFiles` is keyed by name alone, so it can't tell a replaced
+    // cover (same name, new bytes) from a no-op. Treat it as not-yet-uploaded
+    // whenever the hash of what's on disk now differs from what was last
+    // uploaded, regardless of what `uploadedFiles` says.
+    if (record.cover && state.coverHash[release.id] !== record.coverHash) {
+      already.delete(record.cover);
+    }
     const toUpload: { name: string; bytes: number; filePath: string }[] = [];
 
     for (const t of record.tracks) {
@@ -195,6 +216,11 @@ export class SyncEngine implements ReleaseSyncHooks {
       }
       const afterUpload = await this.syncState.get();
       afterUpload.uploadedFiles[release.id] = [...already, ...toUpload.map((f) => f.name)];
+      if (record.coverHash) {
+        afterUpload.coverHash[release.id] = record.coverHash;
+      } else {
+        delete afterUpload.coverHash[release.id];
+      }
       await this.syncState.set(afterUpload);
     }
 
@@ -226,6 +252,7 @@ export class SyncEngine implements ReleaseSyncHooks {
         }
         delete state.pushedUpdatedAt[record.id];
         delete state.uploadedFiles[record.id];
+        delete state.coverHash[record.id];
         delete state.pendingFromPhone[record.id];
         continue;
       }
@@ -240,7 +267,53 @@ export class SyncEngine implements ReleaseSyncHooks {
 
       delete state.pendingFromPhone[record.id];
       if (record.updatedAt > local.updatedAt) {
-        await this.releases.applyRemote(record);
+        // A v1 record (no `coverHash` key) or one without a cover carries no
+        // change signal, so the cover is left alone as before.
+        const coverName = record.cover;
+        const coverHash = typeof record.coverHash === "string" ? record.coverHash : null;
+        let coverChanged = false;
+        if (coverName && coverHash) {
+          const localCoverHash = local.coverPath ? await sha256File(this.fs, local.coverPath) : null;
+          coverChanged = localCoverHash !== coverHash;
+        }
+
+        if (coverChanged && coverName && coverHash) {
+          const dir = await this.fs.makeTempDir("sli-sync-cover-");
+          try {
+            try {
+              const { url } = await api.downloadUrl(record.id, coverName);
+              await api.downloadFile(url, path.join(dir, coverName));
+            } catch (err) {
+              // A record can be visible before the other device finishes
+              // uploading its cover (spec/sync.md), same as
+              // acceptFromPhone's downloads. Throw rather than falling back
+              // to a text-only update: the error propagates out of
+              // pullOnce uncaught, so this run's `syncState.set` and
+              // `bumpLastVersion` never happen and the whole record - cover
+              // included - is retried in full on the next reconcile.
+              const message = err instanceof Error ? err.message : "";
+              if (/not found|404/i.test(message)) {
+                throw new PublicError(
+                  "The other device hasn't finished uploading this cover yet. It will retry on the next sync."
+                );
+              }
+              throw err;
+            }
+            await this.releases.applyRemote(record, { newCoverPath: path.join(dir, coverName) });
+            state.coverHash[record.id] = coverHash;
+            // The Mac just downloaded these bytes from remote storage, so they're
+            // already there - record the cover as uploaded to avoid re-uploading
+            // what was just pulled down.
+            const already = new Set(state.uploadedFiles[record.id] ?? []);
+            already.add(coverName);
+            state.uploadedFiles[record.id] = [...already];
+          } finally {
+            await this.fs.removeRecursive(dir);
+          }
+        } else {
+          await this.releases.applyRemote(record);
+        }
+
         // A record this Mac wrote itself, back newer than its local copy, is
         // a push whose `PUT` landed but whose uploads then failed. Leaving
         // `pushedUpdatedAt` behind makes the back-fill below finish that

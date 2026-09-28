@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -87,6 +88,7 @@ class FakeSyncStateStore implements SyncStateStore {
     return {
       pushedUpdatedAt: { ...this.state.pushedUpdatedAt },
       uploadedFiles: Object.fromEntries(Object.entries(this.state.uploadedFiles).map(([k, v]) => [k, [...v]])),
+      coverHash: { ...this.state.coverHash },
       pendingFromPhone: { ...this.state.pendingFromPhone },
     };
   }
@@ -109,6 +111,7 @@ class FakeSyncApi implements SyncApi {
   deleteCalls: string[] = [];
   listReleasesCallCount = 0;
   meCallCount = 0;
+  downloadUrlCalls: { id: string; name: string }[] = [];
 
   private conflictOnce = new Set<string>();
   private serverRecords = new Map<string, SyncRecord & { version: number }>();
@@ -182,6 +185,7 @@ class FakeSyncApi implements SyncApi {
   }
 
   async downloadUrl(id: string, name: string): Promise<{ url: string; expiresAt: string }> {
+    this.downloadUrlCalls.push({ id, name });
     return { url: `fake://${id}/${name}`, expiresAt: new Date(Date.now() + 60_000).toISOString() };
   }
 
@@ -222,6 +226,16 @@ function audioFile(name: string, content = "fake audio bytes"): File {
   return new File([content], name, { type: "audio/mpeg" });
 }
 
+const JPEG_HEADER = [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46];
+
+function coverFile(extraByte: number): File {
+  return new File([new Uint8Array([...JPEG_HEADER, extraByte])], "cover.jpg", { type: "image/jpeg" });
+}
+
+function sha256Hex(bytes: Buffer): string {
+  return crypto.createHash("sha256").update(bytes).digest("hex");
+}
+
 describe("SyncEngine", () => {
   let libraryDir: string;
   let settingsStore: FakeSettingsStore;
@@ -256,6 +270,14 @@ describe("SyncEngine", () => {
     return releaseService.import(
       { kind: "single", artist, title: "", tracks: [{ title, trackNumber: 1 }] } as never,
       null,
+      [audioFile("in.mp3")]
+    );
+  }
+
+  async function importOneWithCover(extraByte = 1, artist = "Artist", title = "Track"): Promise<Release> {
+    return releaseService.import(
+      { kind: "single", artist, title: "", tracks: [{ title, trackNumber: 1 }] } as never,
+      coverFile(extraByte),
       [audioFile("in.mp3")]
     );
   }
@@ -451,5 +473,146 @@ describe("SyncEngine", () => {
 
     expect(api.putCalls).toHaveLength(0);
     expect(api.listReleasesCallCount).toBe(0);
+  });
+
+  it("push re-uploads the cover after its bytes change even though uploadedFiles already lists it", async () => {
+    const release = await importOneWithCover(1);
+    await engine.push(release);
+    expect(api.uploadCalls.map((u) => u.name)).toContain("cover.jpg");
+
+    const updated = await releaseService.replaceCover(release.id, coverFile(2));
+    await engine.push(updated);
+
+    const coverUploads = api.uploadCalls.filter((u) => u.name === "cover.jpg");
+    expect(coverUploads).toHaveLength(2);
+
+    const expectedHash = sha256Hex(await fs.readFile(updated.coverPath!));
+    const state = await syncState.get();
+    expect(state.coverHash[release.id]).toBe(expectedHash);
+  });
+
+  it("pull downloads and re-embeds a replaced cover when the remote coverHash differs", async () => {
+    const release = await importOneWithCover(1);
+    await engine.push(release);
+
+    const newCoverBytes = Buffer.from([...JPEG_HEADER, 9]);
+    const newHash = sha256Hex(newCoverBytes);
+    const remoteRecord = toSyncRecord(release, "ios", "Toby's iPhone");
+    remoteRecord.updatedAt = new Date(Date.now() + 60_000).toISOString();
+    remoteRecord.coverHash = newHash;
+    api.seedRemoteRecord(remoteRecord);
+    api.seedBlob(release.id, "cover.jpg", newCoverBytes);
+
+    await engine.reconcile();
+
+    const updated = await releaseService.get(release.id);
+    expect(updated?.coverPath).toBeTruthy();
+    const onDisk = await fs.readFile(updated!.coverPath!);
+    expect(onDisk.equals(newCoverBytes)).toBe(true);
+
+    const lastWrite = tags.writes.filter((w) => w.filePath === updated!.tracks[0].filePath).at(-1);
+    expect(lastWrite?.input.coverPath).toBe(updated!.coverPath);
+
+    const state = await syncState.get();
+    expect(state.coverHash[release.id]).toBe(newHash);
+    expect(state.uploadedFiles[release.id]).toContain("cover.jpg");
+
+    const status = await engine.status();
+    expect(status.lastError).toBeNull();
+  });
+
+  it("pull makes no download when the remote coverHash matches the local one", async () => {
+    const release = await importOneWithCover(1);
+    const localHash = sha256Hex(await fs.readFile(release.coverPath!));
+
+    const remoteRecord = toSyncRecord(release, "ios", "Toby's iPhone");
+    remoteRecord.updatedAt = new Date(Date.now() + 60_000).toISOString();
+    remoteRecord.title = "New Title";
+    remoteRecord.coverHash = localHash;
+    api.seedRemoteRecord(remoteRecord);
+    // No blob seeded for "cover.jpg" - a download attempt would fail and surface as lastError.
+
+    await engine.reconcile();
+
+    expect(api.downloadUrlCalls).toHaveLength(0);
+    const updated = await releaseService.get(release.id);
+    expect(updated?.title).toBe("New Title");
+    const status = await engine.status();
+    expect(status.lastError).toBeNull();
+  });
+
+  it("pull leaves the cover alone for a syncVersion 1 record with no coverHash", async () => {
+    const release = await importOneWithCover(1);
+    const originalBytes = await fs.readFile(release.coverPath!);
+
+    const v1Record: SyncRecord = {
+      syncVersion: 1,
+      id: release.id,
+      kind: "single",
+      title: "Retitled",
+      artist: release.artist,
+      year: release.year,
+      genre: release.genre,
+      cover: "cover.jpg",
+      tracks: [
+        {
+          id: release.tracks[0].id,
+          title: release.tracks[0].title,
+          trackNumber: 1,
+          file: path.basename(release.tracks[0].filePath),
+          bytes: 9,
+          durationSec: null,
+        },
+      ],
+      origin: "ios",
+      originDevice: "Toby's iPhone",
+      createdAt: release.createdAt,
+      updatedAt: new Date(Date.now() + 60_000).toISOString(),
+      deleted: false,
+    };
+    api.seedRemoteRecord(v1Record);
+
+    await engine.reconcile();
+
+    expect(api.downloadUrlCalls).toHaveLength(0);
+    const updated = await releaseService.get(release.id);
+    expect(updated?.title).toBe("Retitled");
+    const onDisk = await fs.readFile(updated!.coverPath!);
+    expect(onDisk.equals(originalBytes)).toBe(true);
+    const status = await engine.status();
+    expect(status.lastError).toBeNull();
+  });
+
+  it("retries a failed cover download on the next reconcile, then succeeds", async () => {
+    // Deliberately not pushed first: pushing would upload "cover.jpg" to the fake
+    // API's blob store, and a later download of that same name would then
+    // "succeed" with those (stale) bytes instead of genuinely failing.
+    const release = await importOneWithCover(1);
+
+    const newBytes = Buffer.from([...JPEG_HEADER, 42]);
+    const newHash = sha256Hex(newBytes);
+    const remoteRecord = toSyncRecord(release, "ios", "Toby's iPhone");
+    remoteRecord.updatedAt = new Date(Date.now() + 60_000).toISOString();
+    remoteRecord.coverHash = newHash;
+    api.seedRemoteRecord(remoteRecord);
+    // No blob seeded yet - simulates the phone not having finished uploading the cover.
+
+    await engine.reconcile();
+
+    const afterFail = await releaseService.get(release.id);
+    expect(afterFail?.title).toBe(release.title);
+    const statusAfterFail = await engine.status();
+    expect(statusAfterFail.lastError).toBeTruthy();
+
+    api.seedBlob(release.id, "cover.jpg", newBytes);
+    await engine.reconcile();
+
+    const afterRetry = await releaseService.get(release.id);
+    const onDisk = await fs.readFile(afterRetry!.coverPath!);
+    expect(onDisk.equals(newBytes)).toBe(true);
+    const state = await syncState.get();
+    expect(state.coverHash[release.id]).toBe(newHash);
+    const statusAfterRetry = await engine.status();
+    expect(statusAfterRetry.lastError).toBeNull();
   });
 });

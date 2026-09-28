@@ -138,6 +138,20 @@ struct SyncRecordTests {
         #expect(rebuilt.syncedUpdatedAt == record.updatedAt)
     }
 
+    /// `Release.toSyncRecord` always sends `syncVersion` 2 now that
+    /// `coverHash` exists, regardless of the `SyncRecord.init` default.
+    @Test func toSyncRecordSendsSyncVersion2() throws {
+        let release = Release(
+            kind: .single,
+            title: "T",
+            artist: "A",
+            folderPath: "/tmp",
+            tracks: [Track(title: "T", trackNumber: 1, filePath: "/tmp/t.mp3", originalName: "t.mp3")]
+        )
+        let record = release.toSyncRecord(origin: "ios", originDevice: "Device", fileBytes: [:])
+        #expect(record.syncVersion == 2)
+    }
+
     /// A track's byte count is looked up by id; one missing from the map
     /// (e.g. a `stat` failure) encodes as 0 rather than failing the whole
     /// push — `SyncEngine.push` relies on this to never block on a stat error.

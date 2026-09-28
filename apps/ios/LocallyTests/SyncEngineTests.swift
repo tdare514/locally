@@ -102,6 +102,33 @@ struct SyncEngineTests {
         #expect(h.api.fileContents["cover.jpg"] == cover)
     }
 
+    /// `coverHash` is the change signal the receiving side compares against
+    /// its own local cover, since the wire name (`cover.jpg`) never changes
+    /// on a replace.
+    @Test func pushSendsTheCoversHashMatchingThePushedBytes() async throws {
+        let h = makeHarness()
+        let tags = TagSet(title: "Covered", artist: "Artist", album: "Covered")
+        let cover = Data([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3])
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: cover)
+
+        await h.engine.push(release)
+
+        #expect(h.engine.status.lastError == nil)
+        #expect(h.api.putCalls.first?.coverHash == cover.sha256Hex)
+    }
+
+    @Test func pushSendsNoCoverHashWhenThereIsNoCover() async throws {
+        let h = makeHarness()
+        let tags = TagSet(title: "No Cover", artist: "Artist", album: "No Cover")
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: nil)
+
+        await h.engine.push(release)
+
+        #expect(h.engine.status.lastError == nil)
+        #expect(h.api.putCalls.first?.cover == nil)
+        #expect(h.api.putCalls.first?.coverHash == nil)
+    }
+
     @Test func pushLeavesTheCoverOutOfTheRecordWhenItsFileIsGone() async throws {
         let h = makeHarness()
         let tags = TagSet(title: "Lost Cover", artist: "Artist", album: "Lost Cover")
@@ -328,6 +355,161 @@ struct SyncEngineTests {
         #expect(stored.title == "New Title")
         #expect(stored.tracks[0].filePath == originalPath)
         #expect(h.engine.status.pendingFromMac.isEmpty)
+    }
+
+    /// `coverHash` (`syncVersion` 2) is the change signal that fixes the bug
+    /// this plan exists for: a cover replaced on the Mac never updated on
+    /// the phone because the wire name (`cover.jpg`) never changes and
+    /// `applyRemoteUpdate` used to always re-embed whatever cover was
+    /// already saved locally.
+    @Test func reconcileDownloadsAndReEmbedsAReplacedCoverWhenTheRemoteCoverHashDiffers() async throws {
+        let h = makeHarness()
+        let tags = TagSet(title: "Covered", artist: "Artist", album: "Covered")
+        let oldCover = Data([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3])
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: oldCover)
+        try markSynced(release, in: h.library)
+        let callsBefore = h.tagWriter.calls.count
+
+        let newCover = Data([0xFF, 0xD8, 0xFF, 0xE0, 9, 9, 9])
+        let record = SyncRecord(
+            id: release.id.uuidString,
+            kind: "single",
+            title: release.title,
+            artist: release.artist,
+            cover: "cover.jpg",
+            coverHash: newCover.sha256Hex,
+            tracks: [SyncTrack(id: release.tracks[0].id.uuidString, title: release.title, trackNumber: 1, file: "irrelevant.mp3", bytes: 0, durationSec: nil)],
+            origin: "mac",
+            originDevice: "Toby's MacBook",
+            createdAt: release.createdAt,
+            updatedAt: release.updatedAt.addingTimeInterval(60)
+        )
+        h.api.fileContents["cover.jpg"] = newCover
+        h.api.seed(record)
+
+        await h.engine.reconcile()
+
+        #expect(h.engine.status.lastError == nil)
+        let newCalls = h.tagWriter.calls.suffix(from: callsBefore)
+        #expect(newCalls.count == 1)
+        #expect(newCalls.first?.cover == newCover, "re-embeds the newly downloaded cover, not the stale local one")
+        #expect(h.coverStore.load(release.id) == newCover, "the new cover bytes are saved to the store")
+        #expect(h.engine.status.failedCoverUpdates.isEmpty)
+    }
+
+    @Test func reconcileLeavesTheCoverAloneWhenTheRemoteCoverHashMatchesTheLocalOne() async throws {
+        let h = makeHarness()
+        let tags = TagSet(title: "Covered", artist: "Artist", album: "Covered")
+        let cover = Data([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3])
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: cover)
+        try markSynced(release, in: h.library)
+        let callsBefore = h.tagWriter.calls.count
+
+        let record = SyncRecord(
+            id: release.id.uuidString,
+            kind: "single",
+            title: "Renamed",
+            artist: release.artist,
+            cover: "cover.jpg",
+            coverHash: cover.sha256Hex,
+            tracks: [SyncTrack(id: release.tracks[0].id.uuidString, title: "Renamed", trackNumber: 1, file: "irrelevant.mp3", bytes: 0, durationSec: nil)],
+            origin: "mac",
+            originDevice: "Toby's MacBook",
+            createdAt: release.createdAt,
+            updatedAt: release.updatedAt.addingTimeInterval(60)
+        )
+        h.api.seed(record)
+
+        await h.engine.reconcile()
+
+        #expect(h.engine.status.lastError == nil)
+        #expect(h.api.downloadFileCalls.isEmpty, "the hash already matches, so no cover download is made")
+        let newCalls = h.tagWriter.calls.suffix(from: callsBefore)
+        #expect(newCalls.count == 1)
+        #expect(newCalls.first?.cover == cover, "still re-embeds the unchanged local cover, same as a text-only edit")
+    }
+
+    @Test func reconcileLeavesTheCoverAloneForARecordWithNoCoverHash() async throws {
+        let h = makeHarness()
+        let tags = TagSet(title: "Covered", artist: "Artist", album: "Covered")
+        let cover = Data([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3])
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: cover)
+        try markSynced(release, in: h.library)
+        let callsBefore = h.tagWriter.calls.count
+
+        // A syncVersion 1 sender: carries `cover` but never a `coverHash`.
+        let record = SyncRecord(
+            syncVersion: 1,
+            id: release.id.uuidString,
+            kind: "single",
+            title: "Renamed",
+            artist: release.artist,
+            cover: "cover.jpg",
+            coverHash: nil,
+            tracks: [SyncTrack(id: release.tracks[0].id.uuidString, title: "Renamed", trackNumber: 1, file: "irrelevant.mp3", bytes: 0, durationSec: nil)],
+            origin: "mac",
+            originDevice: "Toby's MacBook",
+            createdAt: release.createdAt,
+            updatedAt: release.updatedAt.addingTimeInterval(60)
+        )
+        h.api.seed(record)
+
+        await h.engine.reconcile()
+
+        #expect(h.engine.status.lastError == nil)
+        #expect(h.api.downloadFileCalls.isEmpty, "a v1 sender's record carries no change signal, so no download is made")
+        let newCalls = h.tagWriter.calls.suffix(from: callsBefore)
+        #expect(newCalls.count == 1)
+        #expect(newCalls.first?.cover == cover, "unchanged behaviour: re-embeds whatever cover is already local")
+    }
+
+    /// Mirrors `aFailedAcceptFromMacIsRetriedAndCompletedOnTheNextReconcile`:
+    /// the cover's own download can 404 while the sender is still uploading,
+    /// and that must retry on the next `reconcile()` rather than being
+    /// dropped, even though `account.lastVersion` has already moved past
+    /// this record's page.
+    @Test func aFailedCoverDownloadIsRetriedAndCompletedOnTheNextReconcile() async throws {
+        let h = makeHarness()
+        let tags = TagSet(title: "Covered", artist: "Artist", album: "Covered")
+        let oldCover = Data([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3])
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: oldCover)
+        try markSynced(release, in: h.library)
+        let callsBefore = h.tagWriter.calls.count
+
+        let newCover = Data([0xFF, 0xD8, 0xFF, 0xE0, 9, 9, 9])
+        let record = SyncRecord(
+            id: release.id.uuidString,
+            kind: "single",
+            title: "New Title",
+            artist: release.artist,
+            cover: "cover.jpg",
+            coverHash: newCover.sha256Hex,
+            tracks: [SyncTrack(id: release.tracks[0].id.uuidString, title: "New Title", trackNumber: 1, file: "irrelevant.mp3", bytes: 0, durationSec: nil)],
+            origin: "mac",
+            originDevice: "Toby's MacBook",
+            createdAt: release.createdAt,
+            updatedAt: release.updatedAt.addingTimeInterval(60)
+        )
+        h.api.fileContents["cover.jpg"] = newCover
+        h.api.downloadFailCountRemaining["cover.jpg"] = 1
+        h.api.seed(record)
+
+        await h.engine.reconcile()
+
+        #expect(h.engine.status.failedCoverUpdates[record.id] != nil, "kept pending after the first, failing download")
+        #expect(h.tagWriter.calls.count == callsBefore, "nothing re-tagged yet")
+        let storedAfterFailure = try #require(h.library.all().first { $0.id == release.id })
+        #expect(storedAfterFailure.title == "Covered", "the text update waits for the cover too, so nothing is half-applied")
+
+        await h.engine.reconcile()
+
+        #expect(h.engine.status.failedCoverUpdates.isEmpty, "the retry at the start of the next reconcile completed it")
+        let newCalls = h.tagWriter.calls.suffix(from: callsBefore)
+        #expect(newCalls.count == 1)
+        #expect(newCalls.first?.cover == newCover)
+        #expect(h.coverStore.load(release.id) == newCover)
+        let storedAfterRetry = try #require(h.library.all().first { $0.id == release.id })
+        #expect(storedAfterRetry.title == "New Title")
     }
 
     @Test func aRemoteUpdateNoNewerThanLocalIsIgnored() async throws {

@@ -567,3 +567,106 @@ describe("ReleaseService.importSynced never reads outside the download dir", () 
     expect((await repo.list(libraryDir)).map((r) => r.id)).toEqual(["ios-release-1"]);
   });
 });
+
+describe("ReleaseService.applyRemote", () => {
+  let libraryDir: string;
+  let settings: FakeSettingsStore;
+  let repo: InMemoryLibraryRepository;
+  let tags: RecordingTagService;
+  let service: ReleaseService;
+
+  beforeEach(async () => {
+    libraryDir = await fs.mkdtemp(path.join(os.tmpdir(), "sli-apply-remote-"));
+    settings = new FakeSettingsStore({ libraryDir, sync: null });
+    repo = new InMemoryLibraryRepository();
+    tags = new RecordingTagService();
+    service = new ReleaseService(settings, repo, new CopyingConverter(), tags, new NodeFileSystem(), new ReleaseLayout());
+  });
+
+  afterEach(async () => {
+    await fs.rm(libraryDir, { recursive: true, force: true });
+  });
+
+  /** A record matching an already-imported release, so `applyRemote`'s track matching succeeds. */
+  function recordFor(release: Release, overrides: Partial<SyncRecord> = {}): SyncRecord {
+    return {
+      syncVersion: 2,
+      id: release.id,
+      kind: release.kind,
+      title: release.title,
+      artist: release.artist,
+      year: release.year,
+      genre: release.genre,
+      cover: release.coverPath ? path.basename(release.coverPath) : null,
+      coverHash: null,
+      tracks: release.tracks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        trackNumber: t.trackNumber,
+        file: path.basename(t.filePath),
+        bytes: 8,
+        durationSec: t.durationSec,
+      })),
+      origin: "ios",
+      originDevice: "phone",
+      createdAt: release.createdAt,
+      updatedAt: new Date(Date.now() + 60_000).toISOString(),
+      deleted: false,
+      ...overrides,
+    };
+  }
+
+  it("with newCoverPath, writes the new cover to every track and updates coverPath", async () => {
+    const release = await service.import(
+      {
+        kind: "album",
+        artist: "A",
+        title: "T",
+        tracks: [
+          { title: "One", trackNumber: 1 },
+          { title: "Two", trackNumber: 2 },
+        ],
+      } as never,
+      new File([JPEG], "cover.jpg", { type: "image/jpeg" }),
+      [audioFile("a.mp3"), audioFile("b.mp3")]
+    );
+    tags.writes = []; // only care about applyRemote's own writes
+
+    const dl = await fs.mkdtemp(path.join(os.tmpdir(), "sli-apply-remote-dl-"));
+    const newCoverBytes = new Uint8Array([...JPEG, 0xaa]);
+    const newCoverPath = path.join(dl, "cover.jpg");
+    await fs.writeFile(newCoverPath, newCoverBytes);
+
+    try {
+      const record = recordFor(release);
+      const updated = await service.applyRemote(record, { newCoverPath });
+
+      expect(updated.coverPath).toBe(release.coverPath);
+      expect(await fs.readFile(updated.coverPath!)).toEqual(Buffer.from(newCoverBytes));
+      expect(tags.writes).toHaveLength(2);
+      for (const w of tags.writes) {
+        expect(w.input.coverPath).toBe(updated.coverPath);
+      }
+    } finally {
+      await fs.rm(dl, { recursive: true, force: true });
+    }
+  });
+
+  it("without newCoverPath, leaves the cover untouched", async () => {
+    const release = await service.import(
+      { kind: "single", artist: "A", title: "T", tracks: [{ title: "One", trackNumber: 1 }] } as never,
+      new File([JPEG], "cover.jpg", { type: "image/jpeg" }),
+      [audioFile("a.mp3")]
+    );
+    const originalBytes = await fs.readFile(release.coverPath!);
+    tags.writes = [];
+
+    const record = recordFor(release, { title: "New Title" });
+    const updated = await service.applyRemote(record);
+
+    expect(updated.coverPath).toBe(release.coverPath);
+    expect(updated.title).toBe("New Title");
+    expect(await fs.readFile(release.coverPath!)).toEqual(originalBytes);
+    expect(tags.writes[0]?.input.coverPath).toBe(release.coverPath);
+  });
+});

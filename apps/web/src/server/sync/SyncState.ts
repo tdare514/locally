@@ -10,6 +10,11 @@ export interface SyncState {
   pushedUpdatedAt: Record<string, string>;
   /** releaseId -> file names already known to exist in remote storage, so pushes don't re-upload them. */
   uploadedFiles: Record<string, string[]>;
+  /**
+   * releaseId -> sha256 of the cover last uploaded (push) or last applied from remote (pull).
+   * `uploadedFiles` alone can't tell a cover replace from a no-op, since the name never changes.
+   */
+  coverHash: Record<string, string>;
   /** releaseId -> the full remote record, offered in the "From your phone" inbox until accepted. */
   pendingFromPhone: Record<string, SyncRecord>;
 }
@@ -21,5 +26,5 @@ export interface SyncStateStore {
 }
 
 export function emptySyncState(): SyncState {
-  return { pushedUpdatedAt: {}, uploadedFiles: {}, pendingFromPhone: {} };
+  return { pushedUpdatedAt: {}, uploadedFiles: {}, coverHash: {}, pendingFromPhone: {} };
 }

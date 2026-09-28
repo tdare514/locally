@@ -76,15 +76,18 @@ export function parseSyncRecord(data: unknown): SyncRecord {
 
 /**
  * Pure conversion from a local `Release` to the wire `SyncRecord` shape.
- * `trackBytesById` supplies each track's on-disk byte size (`toSyncRecord`
- * itself never touches disk, so this stays a pure function); callers that
- * don't have real sizes handy (e.g. tests) may omit it and get `0`.
+ * `trackBytesById` supplies each track's on-disk byte size, and `coverHash`
+ * the sha256 of the cover's current bytes (or `null` with no cover);
+ * `toSyncRecord` itself never touches disk, so this stays a pure function -
+ * callers that don't have real values handy (e.g. tests) may omit them and
+ * get `0`/`null`.
  */
 export function toSyncRecord(
   release: Release,
   origin: SyncOrigin,
   originDevice: string,
-  trackBytesById: Record<string, number> = {}
+  trackBytesById: Record<string, number> = {},
+  coverHash: string | null = null
 ): SyncRecord {
   const tracks = [...release.tracks]
     .sort((a, b) => a.trackNumber - b.trackNumber)
@@ -98,7 +101,7 @@ export function toSyncRecord(
     }));
 
   return {
-    syncVersion: 1,
+    syncVersion: 2,
     id: release.id,
     kind: release.kind,
     title: release.title,
@@ -106,6 +109,7 @@ export function toSyncRecord(
     year: release.year,
     genre: release.genre,
     cover: release.coverPath ? path.basename(release.coverPath) : null,
+    coverHash,
     tracks,
     origin,
     originDevice,
@@ -129,6 +133,8 @@ export interface SyncRecordMeta {
   year: string | null;
   genre: string | null;
   cover: string | null;
+  /** `null` for no cover, or for a `syncVersion` 1 record that carried no `coverHash` at all. */
+  coverHash: string | null;
   tracks: { id: string; title: string; trackNumber: number; file: string; durationSec: number | null }[];
   createdAt: string;
   updatedAt: string;
@@ -144,6 +150,7 @@ export function fromSyncRecord(record: SyncRecord): SyncRecordMeta {
     year: record.year,
     genre: record.genre,
     cover: record.cover,
+    coverHash: record.coverHash ?? null,
     tracks: [...record.tracks]
       .sort((a, b) => a.trackNumber - b.trackNumber)
       .map((t) => ({

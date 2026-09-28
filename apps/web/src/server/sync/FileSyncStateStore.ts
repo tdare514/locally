@@ -7,6 +7,7 @@ import { z } from "zod";
 const SyncStateFileSchema = z.object({
   pushedUpdatedAt: z.record(z.string(), z.string()).default({}),
   uploadedFiles: z.record(z.string(), z.array(z.string())).default({}),
+  coverHash: z.record(z.string(), z.string()).default({}),
   pendingFromPhone: z.record(z.string(), SyncRecordSchema).default({}),
 });
 

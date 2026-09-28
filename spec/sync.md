@@ -34,7 +34,7 @@ devices, and both apps re-tag in place).
 
 ```json
 {
-  "syncVersion": 1,
+  "syncVersion": 2,
   "id": "3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90",
   "kind": "album",
   "title": "Night Drive",
@@ -42,6 +42,7 @@ devices, and both apps re-tag in place).
   "year": "2024",
   "genre": null,
   "cover": "cover.jpg",
+  "coverHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "tracks": [
     { "id": "…", "title": "Intro", "trackNumber": 1, "file": "01 - Intro.mp3", "bytes": 5120000, "durationSec": 61.2 }
   ],
@@ -52,6 +53,13 @@ devices, and both apps re-tag in place).
   "deleted": false
 }
 ```
+
+`coverHash` is the lowercase hex sha256 of the cover's bytes, or `null` when the release has no
+cover. It is the only change signal for the cover, since `cover.<ext>` keeps its name when the
+image is replaced: a receiver downloads and re-embeds the cover only when the remote `coverHash`
+differs from the hash of the cover it already has. `syncVersion` 1 records (from a client that
+predates the field) carry no `coverHash` key at all; every receiver treats that as "no signal" and
+leaves its cover alone, exactly as before. Servers and clients accept both versions.
 
 Server-side each record also carries `userId`, `version` (integer, bumped on every write) and
 `serverUpdatedAt`; clients page by `version`.
@@ -104,8 +112,10 @@ source of truth.
   Spotify, which downloads the files into the local Spotify folder (unique names, no
   conversion or tagging; the Mac converts m4a from the phone to mp3 because Spotify desktop
   reads mp3), stores the cover and records the release with the same id. Newer `updatedAt` than
-  the local copy → re-tag in place from the record and update the index. Tombstone → delete
-  locally. Local releases never pushed → push (back-fill after signing in).
+  the local copy → re-tag in place from the record and update the index; if its `coverHash`
+  differs from the local cover's, download the cover first and embed the new bytes in every
+  track (a cover that cannot be downloaded yet leaves the release pending for the next
+  reconcile, like a track). Tombstone → delete locally. Local releases never pushed → push (back-fill after signing in).
 - **Conflicts**: last writer wins by `updatedAt`; a `409` from `PUT` means pull first, then
   re-apply the local change on top if it is still wanted.
 

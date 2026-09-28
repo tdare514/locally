@@ -137,7 +137,7 @@ struct SyncRecord: Codable, Hashable {
     var version: Int?
 
     init(
-        syncVersion: Int = 1,
+        syncVersion: Int = 2,
         id: String,
         kind: String,
         title: String,
@@ -220,6 +220,7 @@ extension Release {
     /// the stored file's own extension rather than reused from `coverPath`.
     func toSyncRecord(origin: String, originDevice: String, fileBytes: [UUID: Int]) -> SyncRecord {
         SyncRecord(
+            syncVersion: 2,
             id: id.uuidString,
             kind: kind.rawValue,
             title: title,

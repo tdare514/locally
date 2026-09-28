@@ -16,7 +16,7 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Delete, reveal in Finder, settings
 - Import and update requests validated with zod; every write checked inside the library dir
 - Loopback-only server (127.0.0.1) with a full-origin CSRF check
-- Sync client: email-code sign-in, push, reconcile, "From your phone"
+- Sync client: email-code sign-in, push, reconcile, "From your phone"; a cover replaced on either device follows via the record's coverHash (#26)
 - One-time "Spotify can't see this yet" prompt on the release page: copy path, open Spotify settings, dismiss; hidden once Spotify's local-files index lists the library folder
 
 ### iOS (apps/ios)
@@ -26,11 +26,11 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Share extension ("Send to Locally") with an app-group inbox, plus a Documents-folder inbox
 - StoreKit one-time purchase wired up but gates no feature yet
 - Library is the home tab, split into Singles and Albums sections with counts
-- Sync client: Keychain account, push, reconcile, "From your Mac"
+- Sync client: Keychain account, push, reconcile, "From your Mac"; cover replacements follow via coverHash (#26)
 - Share extension verified on an iPhone 12 Pro (iOS 18.7) and sync verified end to end on a phone, both 27 Sep 2026
 
 ### Sync API (apps/api)
-- Email-code accounts, device tokens, versioned releases with last-writer-wins
+- Email-code accounts, device tokens, versioned releases (syncVersion 1 and 2) with last-writer-wins
 - Quota enforcement and signed, expiring file URLs (local store and Vercel Blob)
 - Rate limiting, CORS, daily cleanup cron
 - SQLite (libSQL) via Drizzle, migrated automatically on first request
@@ -45,7 +45,6 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - iOS crash in `SyncEngine.backfillUnpushed` when a delete overlaps the 30s reconcile loop; the delete is lost (#19)
 - Share extension can't be provisioned for a device build on the project's Personal team; simulator-only for now (see apps/ios/README.md)
 - App Store submission checklist still open: screenshots not captured
-- Sync: a cover replaced on one device never updates on the other; plan in docs/plans/26-sync-cover-hash.md (#26)
 - Spotify caches local-file metadata; restart Spotify to see edits to an already-imported track
 
 ## Next

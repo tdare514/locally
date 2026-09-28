@@ -41,6 +41,17 @@ final class SyncStatus {
     /// this; `reconcile()` retries every id in this set automatically, so it
     /// completes on its own once the files are actually there.
     var failedAcceptIds: Set<String> = []
+    /// Records whose cover changed (per `SyncRecord.coverHash`) during
+    /// `process(_:)` but whose download of the new cover bytes failed,
+    /// the same "record visible before its files land" race
+    /// `failedAcceptIds` exists for. Kept here, by record id, because
+    /// `reconcile()` advances `account.lastVersion` past every record in a
+    /// fetched page regardless of a per-record failure, so a record left
+    /// out of this set would never be handed back by
+    /// `GET /v1/releases?sinceVersion=` on its own; this device already
+    /// has the (text) update, just not yet the new cover. Retried directly
+    /// (not re-fetched) by `retryFailedCoverUpdates()` every `reconcile()`.
+    var failedCoverUpdates: [String: SyncRecord] = [:]
     /// Whether a code was just sent, and to which address — drives the
     /// Settings sign-in form's step (email entry vs. code entry).
     var codeSentTo: String?
@@ -192,6 +203,15 @@ final class SyncEngine: ReleaseSyncHook {
             // would otherwise wait forever for a `cover.jpg` that never lands.
             let coverURL = release.coverPath != nil ? coverStore.fileURL(release.id) : nil
             record.cover = coverURL.map { "cover.\($0.pathExtension)" }
+            // The change signal the other side compares against its own
+            // local cover's hash (see `applyRemoteUpdate` below). iOS
+            // already re-uploads the cover on every push regardless (no
+            // "already uploaded" cache like web's `uploadedFiles`), so
+            // this needs no accompanying change to `uploadFiles`.
+            // `try?`: a cover that cannot be read is sent without a hash (no
+            // change signal) rather than failing the whole push, in the same
+            // spirit as the missing-cover case above.
+            record.coverHash = coverURL.flatMap { (try? Data(contentsOf: $0))?.sha256Hex }
 
             do {
                 try await api.putRelease(record)
@@ -270,6 +290,12 @@ final class SyncEngine: ReleaseSyncHook {
             // reflected in the very next fetch below, so `lastVersion`
             // converges in this one pass rather than lagging a cycle.
             await backfillUnpushed()
+            // Retried before the fetch below, not after: a cover download
+            // that fails during this run's own `process(_:)` loop is left
+            // pending for the *next* `reconcile()` (see
+            // `SyncStatus.failedCoverUpdates`), not retried again inside
+            // this same run.
+            await retryFailedCoverUpdates()
 
             let page = try await api.releases(sinceVersion: account.lastVersion)
             for record in page.releases {
@@ -305,6 +331,26 @@ final class SyncEngine: ReleaseSyncHook {
         }
     }
 
+    /// Retries every record `applyRemoteUpdate(_:existingLocal:)` couldn't
+    /// finish because its cover download failed. See
+    /// `SyncStatus.failedCoverUpdates`'s doc comment for why this can't
+    /// just wait for the next `GET /v1/releases` page.
+    private func retryFailedCoverUpdates() async {
+        guard !status.failedCoverUpdates.isEmpty else { return }
+        let pending = status.failedCoverUpdates
+        let localReleases = (try? library.all()) ?? []
+        for (recordId, record) in pending {
+            guard let releaseId = UUID(uuidString: record.id),
+                  let existingLocal = localReleases.first(where: { $0.id == releaseId }) else {
+                // The local release is gone (e.g. deleted since), so there
+                // is nothing left to retry this against.
+                status.failedCoverUpdates.removeValue(forKey: recordId)
+                continue
+            }
+            await applyRemoteUpdate(record, existingLocal: existingLocal)
+        }
+    }
+
     private func process(_ record: SyncRecord) async {
         guard let recordId = UUID(uuidString: record.id) else { return }
         let localReleases = (try? library.all()) ?? []
@@ -333,7 +379,7 @@ final class SyncEngine: ReleaseSyncHook {
                 caughtUp.updatedAt = record.updatedAt
                 try? library.upsert(caughtUp)
             } else {
-                _ = try? await coordinator.applyRemoteUpdate(record)
+                await applyRemoteUpdate(record, existingLocal: existingLocal)
             }
             return
         }
@@ -344,6 +390,65 @@ final class SyncEngine: ReleaseSyncHook {
         } else {
             status.pendingFromMac.append(record)
         }
+    }
+
+    /// Applies a remote text/tag update to `existingLocal`, downloading and
+    /// re-embedding the cover first when `record.coverHash` shows it
+    /// changed from the local copy.
+    ///
+    /// `record.coverHash` is the change signal: `nil` means either a
+    /// `syncVersion` 1 sender or a `syncVersion` 2 record that legitimately
+    /// has no cover, and in both cases `ReleaseCoordinator.applyRemoteUpdate`
+    /// is called without new cover data, leaving the local cover alone
+    /// exactly as before this change. A non-nil hash equal to the local
+    /// cover's own hash (`coverStore.load` re-hashed on demand, `nil` when
+    /// there is no local cover) means the bytes are unchanged, so no
+    /// download is needed either. Only a non-nil hash that differs from the
+    /// local one triggers a download.
+    ///
+    /// If that download fails (e.g. a 404 while the sender is still
+    /// uploading, the same race `acceptFromMac` already tolerates), the
+    /// coordinator is never called, so this release's local `updatedAt`
+    /// stays behind `record.updatedAt` and the record is kept in
+    /// `status.failedCoverUpdates` for `retryFailedCoverUpdates()` to
+    /// retry on the next `reconcile()`, rather than being silently dropped.
+    private func applyRemoteUpdate(_ record: SyncRecord, existingLocal: Release) async {
+        guard let coverName = record.cover, isCoverChanged(record, existingLocal: existingLocal) else {
+            _ = try? await coordinator.applyRemoteUpdate(record)
+            status.failedCoverUpdates.removeValue(forKey: record.id)
+            return
+        }
+
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Locally-Sync-Cover-\(UUID().uuidString)", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+
+            try await downloadFile(releaseId: record.id, name: coverName, into: tempDir)
+            let data = try Data(contentsOf: tempDir.appendingPathComponent(coverName))
+            _ = try await coordinator.applyRemoteUpdate(record, newCoverData: data)
+            status.failedCoverUpdates.removeValue(forKey: record.id)
+            status.lastError = nil
+        } catch {
+            // Keep it pending rather than failing outright: same
+            // upload-in-progress race `acceptFromMac` documents. Retried by
+            // `retryFailedCoverUpdates()`.
+            status.failedCoverUpdates[record.id] = record
+            status.lastError = error.localizedDescription
+        }
+    }
+
+    /// `true` only when `record` carries a cover whose hash differs from
+    /// the release's current local cover. `coverStore.load` is re-hashed
+    /// on demand rather than trusting a stored hash, for the same reason
+    /// there's no new persisted field on `Release`: it's a small file
+    /// that's already read for re-embedding, so nothing is saved by
+    /// caching its hash, and a cached value could drift from the bytes.
+    private func isCoverChanged(_ record: SyncRecord, existingLocal: Release) -> Bool {
+        guard let remoteHash = record.coverHash, record.cover != nil else { return false }
+        let localHash = coverStore.load(existingLocal.id)?.sha256Hex
+        return remoteHash != localHash
     }
 
     /// Pushes every local release that has never been fully pushed (see

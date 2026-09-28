@@ -19,16 +19,18 @@ struct ReleaseCoordinatorUpdateTests {
     /// Builds a coordinator over shared fakes and imports a two-track album
     /// through it, so `updateRelease` has real files at real recorded paths
     /// to re-tag, exactly like the coordinator's own import would leave.
-    private func makeImportedAlbum() async throws -> (
+    private func makeImportedAlbum(cover: Data? = nil) async throws -> (
         coordinator: ReleaseCoordinator,
         folder: FakeSpotifyFolder,
         library: InMemoryLibraryStore,
         tagWriter: FakeTagWriter,
-        release: Release
+        release: Release,
+        coverStore: FakeCoverStore
     ) {
         let folder = makeFolder()
         let library = InMemoryLibraryStore()
         let tagWriter = FakeTagWriter()
+        let coverStore = FakeCoverStore()
         let coordinator = ReleaseCoordinator(
             importer: FakeFileImporter(),
             transcoder: FakeTranscoder(),
@@ -36,7 +38,7 @@ struct ReleaseCoordinatorUpdateTests {
             id3TagWriter: tagWriter,
             folder: folder,
             library: library,
-            coverStore: FakeCoverStore()
+            coverStore: coverStore
         )
 
         let files = try [makeSourceFile(named: "one.mp3"), makeSourceFile(named: "two.mp3")]
@@ -47,12 +49,12 @@ struct ReleaseCoordinatorUpdateTests {
             genre: "Rock",
             tracks: [TrackDraft(title: "Track One"), TrackDraft(title: "Track Two")]
         )
-        let release = try await coordinator.importAlbum(files: files, album: album, cover: nil)
-        return (coordinator, folder, library, tagWriter, release)
+        let release = try await coordinator.importAlbum(files: files, album: album, cover: cover)
+        return (coordinator, folder, library, tagWriter, release, coverStore)
     }
 
     @Test func updateRewritesTagsForEveryTrackAndKeepsFileNames() async throws {
-        let (coordinator, _, library, tagWriter, release) = try await makeImportedAlbum()
+        let (coordinator, _, library, tagWriter, release, _) = try await makeImportedAlbum()
         let originalPaths = Set(release.tracks.map(\.filePath))
         let callsBeforeUpdate = tagWriter.calls.count
 
@@ -73,7 +75,7 @@ struct ReleaseCoordinatorUpdateTests {
     }
 
     @Test func reorderChangesTrackNumbersInTagsAndStore() async throws {
-        let (coordinator, _, library, tagWriter, release) = try await makeImportedAlbum()
+        let (coordinator, _, library, tagWriter, release, _) = try await makeImportedAlbum()
         let trackOne = release.tracks[0]
         let trackTwo = release.tracks[1]
         let callsBeforeUpdate = tagWriter.calls.count
@@ -97,7 +99,7 @@ struct ReleaseCoordinatorUpdateTests {
     }
 
     @Test func trackTitleChangesAreAppliedToTheRightTrack() async throws {
-        let (coordinator, _, _, tagWriter, release) = try await makeImportedAlbum()
+        let (coordinator, _, _, tagWriter, release, _) = try await makeImportedAlbum()
         let trackOne = release.tracks[0]
         let callsBeforeUpdate = tagWriter.calls.count
 
@@ -112,7 +114,7 @@ struct ReleaseCoordinatorUpdateTests {
     }
 
     @Test func missingFileThrowsFileMissing() async throws {
-        let (coordinator, folder, _, _, release) = try await makeImportedAlbum()
+        let (coordinator, folder, _, _, release, _) = try await makeImportedAlbum()
         let trackOne = release.tracks[0]
         try FileManager.default.removeItem(atPath: trackOne.filePath)
         _ = folder // silence unused-binding warning if the compiler flags it
@@ -122,5 +124,66 @@ struct ReleaseCoordinatorUpdateTests {
         await #expect(throws: LocallyError.self) {
             _ = try await coordinator.updateRelease(release.id, changes: changes)
         }
+    }
+
+    // MARK: - applyRemoteUpdate (sync)
+
+    private func remoteUpdateRecord(for release: Release, title: String = "Remote Album") -> SyncRecord {
+        SyncRecord(
+            id: release.id.uuidString,
+            kind: release.kind.rawValue,
+            title: title,
+            artist: release.artist,
+            cover: "cover.jpg",
+            tracks: release.tracks.map {
+                SyncTrack(id: $0.id.uuidString, title: $0.title, trackNumber: $0.trackNumber, file: $0.originalName, bytes: 0, durationSec: nil)
+            },
+            origin: "mac",
+            originDevice: "Toby's MacBook",
+            createdAt: release.createdAt,
+            updatedAt: release.updatedAt.addingTimeInterval(60)
+        )
+    }
+
+    /// `SyncEngine` supplies `newCoverData` only after it has decided (via
+    /// `coverHash`) that the cover actually changed; `applyRemoteUpdate`
+    /// itself doesn't re-check, it just writes what it's given.
+    @Test func applyRemoteUpdateWithNewCoverDataWritesItToEveryTrackAndSavesItInTheCoverStore() async throws {
+        let (coordinator, _, library, tagWriter, release, coverStore) = try await makeImportedAlbum(cover: Data([0xFF, 0xD8, 1, 2, 3]))
+        let callsBefore = tagWriter.calls.count
+        let newCover = Data([0xFF, 0xD8, 9, 9, 9])
+
+        let record = remoteUpdateRecord(for: release)
+        let updated = try await coordinator.applyRemoteUpdate(record, newCoverData: newCover)
+
+        let newCalls = tagWriter.calls.suffix(from: callsBefore)
+        #expect(newCalls.count == release.tracks.count)
+        for call in newCalls {
+            #expect(call.cover == newCover)
+        }
+        #expect(coverStore.load(release.id) == newCover)
+        #expect(updated.coverPath == coverStore.fileURL(release.id)?.path)
+
+        let stored = try #require(library.all().first { $0.id == release.id })
+        #expect(stored.title == "Remote Album")
+    }
+
+    /// With `newCoverData` left `nil`, the cover is untouched: re-tagging
+    /// still re-embeds whatever bytes are already saved locally, and
+    /// nothing new is written to the cover store.
+    @Test func applyRemoteUpdateWithNoNewCoverDataLeavesTheCoverUntouched() async throws {
+        let existingCover = Data([0xFF, 0xD8, 1, 2, 3])
+        let (coordinator, _, _, tagWriter, release, coverStore) = try await makeImportedAlbum(cover: existingCover)
+        let callsBefore = tagWriter.calls.count
+
+        let record = remoteUpdateRecord(for: release)
+        _ = try await coordinator.applyRemoteUpdate(record)
+
+        let newCalls = tagWriter.calls.suffix(from: callsBefore)
+        #expect(newCalls.count == release.tracks.count)
+        for call in newCalls {
+            #expect(call.cover == existingCover, "re-embeds the existing local cover, unchanged")
+        }
+        #expect(coverStore.load(release.id) == existingCover, "the cover store still holds the original bytes")
     }
 }

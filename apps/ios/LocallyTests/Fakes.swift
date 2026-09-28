@@ -405,12 +405,18 @@ final class FakeSyncApi: SyncApi {
         }
     }
 
+    /// File names `downloadFile` was asked to fetch, successful or not.
+    /// Lets a test assert a cover download was (or wasn't) attempted, e.g.
+    /// when the remote and local `coverHash` already match.
+    private(set) var downloadFileCalls: [String] = []
+
     func downloadURL(releaseId: String, fileName: String) async throws -> URL {
         URL(string: "https://fake-storage.example.com/\(releaseId)/\(fileName)")!
     }
 
     func downloadFile(from url: URL, to destination: URL) async throws {
         let name = url.lastPathComponent
+        downloadFileCalls.append(name)
         if let remaining = downloadFailCountRemaining[name], remaining > 0 {
             downloadFailCountRemaining[name] = remaining - 1
             throw SyncApiError.network("Not found yet (simulated upload-in-progress).")

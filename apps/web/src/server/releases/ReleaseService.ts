@@ -453,19 +453,40 @@ export class ReleaseService {
   /**
    * Apply a newer remote edit to an already-local release: rewrites tags in
    * place from the record's metadata, matching tracks by id. Like `update()`,
-   * this NEVER renames or moves files - Spotify playlists reference tracks by
-   * local path. Tracks the record doesn't mention are left untouched (this
-   * phase doesn't support adding/removing tracks from an existing release via
-   * sync). Throws `NotFoundError` if the release isn't local (the caller
-   * should use `importSynced` for that case instead).
+   * this NEVER renames or moves track files - Spotify playlists reference
+   * tracks by local path. Tracks the record doesn't mention are left
+   * untouched (this phase doesn't support adding/removing tracks from an
+   * existing release via sync). Throws `NotFoundError` if the release isn't
+   * local (the caller should use `importSynced` for that case instead).
+   *
+   * The cover is left alone unless `options.newCoverPath` names a file
+   * already downloaded to local disk (the caller, `SyncEngine`, decides when
+   * that's needed by comparing `record.coverHash` to the local cover's hash
+   * and downloads it first) - in that case it's moved into the release
+   * folder, under the name `record.cover` implies, and re-embedded into every
+   * track alongside the metadata.
    */
-  async applyRemote(record: SyncRecord): Promise<Release> {
+  async applyRemote(record: SyncRecord, options: { newCoverPath?: string | null } = {}): Promise<Release> {
     const settings = await this.settings.get();
     const libraryDir = settings.libraryDir;
 
     const existing = await this.repo.find(libraryDir, record.id);
     if (!existing) {
       throw new NotFoundError(`Release ${record.id} not found`);
+    }
+
+    let coverPath = existing.coverPath;
+    if (options.newCoverPath && record.cover) {
+      const name = this.layout.coverFileName(record.cover);
+      const destCoverPath = path.join(existing.folderPath, name);
+      this.assertInsideLibrary(libraryDir, existing.folderPath);
+      this.assertInsideLibrary(libraryDir, destCoverPath);
+      if (existing.coverPath && existing.coverPath !== destCoverPath) {
+        this.assertInsideLibrary(libraryDir, existing.coverPath);
+        await this.fs.removeRecursive(existing.coverPath);
+      }
+      await this.fs.safeMove(options.newCoverPath, destCoverPath);
+      coverPath = destCoverPath;
     }
 
     const patchById = new Map(record.tracks.map((t) => [t.id, t]));
@@ -492,7 +513,7 @@ export class ReleaseService {
         genre: record.genre,
         trackNumber: t.trackNumber,
         trackTotal,
-        coverPath: existing.coverPath,
+        coverPath,
       });
     }
 
@@ -502,6 +523,7 @@ export class ReleaseService {
       artist: record.artist,
       year: record.year,
       genre: record.genre,
+      coverPath,
       tracks: updatedTracks,
       updatedAt: record.updatedAt,
     };

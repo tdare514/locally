@@ -333,14 +333,21 @@ final class ReleaseCoordinator {
     /// Applies a record `SyncEngine.reconcile()` found newer than the local
     /// copy: re-tags every locally-matched track in place (title, per-track
     /// title, track number, album fields) without renaming or moving
-    /// anything, and without touching the cover — a text-only edit made on
-    /// the Mac doesn't imply the cover changed, and re-tagging always
-    /// re-embeds whatever cover bytes are already saved locally, exactly as
-    /// `updateRelease` does for a local edit that also doesn't touch the
-    /// cover. A track only present in the remote record (not found locally)
-    /// is skipped — accepting a wholly new track happens through
-    /// `importSynced`, not this path.
-    func applyRemoteUpdate(_ record: SyncRecord) async throws -> Release {
+    /// anything. A track only present in the remote record (not found
+    /// locally) is skipped, since accepting a wholly new track happens
+    /// through `importSynced`, not this path.
+    ///
+    /// The cover is touched only when the caller (`SyncEngine`, which has
+    /// already compared `record.coverHash` against the local cover's own
+    /// hash) supplies `newCoverData`: those bytes are saved to `coverStore`
+    /// and used for every re-tag in this call, mirroring the "update()
+    /// cover replace" pattern `updateRelease` uses for a local edit. With
+    /// `newCoverData` left `nil` (a text-only edit, a `syncVersion` 1
+    /// sender, or a record that legitimately has no cover), the cover is
+    /// left exactly alone: re-tagging still re-embeds whatever bytes are
+    /// already saved locally, since the tag writers only add a cover when
+    /// handed one.
+    func applyRemoteUpdate(_ record: SyncRecord, newCoverData: Data? = nil) async throws -> Release {
         guard let releaseId = UUID(uuidString: record.id) else {
             throw LocallyError.libraryFailed("That release's id from sync wasn't valid.")
         }
@@ -349,8 +356,13 @@ final class ReleaseCoordinator {
             throw LocallyError.libraryFailed("Couldn't find that release.")
         }
 
+        var newCoverPath = existing.coverPath
+        if let newCoverData {
+            newCoverPath = try? coverStore.save(newCoverData, for: releaseId)
+        }
+
         let tracksById = Dictionary(uniqueKeysWithValues: existing.tracks.map { ($0.id, $0) })
-        let coverForWrite: Data? = existing.coverPath != nil ? coverStore.load(releaseId) : nil
+        let coverForWrite: Data? = newCoverData ?? (existing.coverPath != nil ? coverStore.load(releaseId) : nil)
         let totalTracks = record.tracks.count
         var updatedTracks = existing.tracks
 
@@ -394,7 +406,7 @@ final class ReleaseCoordinator {
             artist: record.artist,
             year: record.year,
             genre: record.genre,
-            coverPath: existing.coverPath,
+            coverPath: newCoverPath,
             folderPath: existing.folderPath,
             tracks: updatedTracks,
             createdAt: existing.createdAt,
