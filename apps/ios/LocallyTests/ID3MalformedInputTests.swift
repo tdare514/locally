@@ -151,4 +151,41 @@ struct ID3MalformedInputTests {
         let result = try Data(contentsOf: url)
         #expect(!result.isEmpty, "the new header/frames were still written")
     }
+
+    @Test func existingID3HeaderLengthMatchesStripForEveryMalformedShape() {
+        #expect(ID3TagWriter.existingID3HeaderLength(prefix: Data(), fileLength: 0) == 0)
+        #expect(ID3TagWriter.existingID3HeaderLength(prefix: Data([0x49, 0x44, 0x33, 0x04]), fileLength: 4) == 0)
+
+        var noMagic: [UInt8] = [0xFF, 0xFB, 0, 0, 0, 0, 0, 0, 0, 0]
+        noMagic.append(contentsOf: (0..<20).map { UInt8($0) })
+        #expect(ID3TagWriter.existingID3HeaderLength(prefix: Data(noMagic.prefix(10)), fileLength: noMagic.count) == 0)
+
+        var oversized: [UInt8] = [0x49, 0x44, 0x33, 0x04, 0x00, 0x00]
+        oversized.append(contentsOf: [0x7F, 0x7F, 0x7F, 0x7F])
+        oversized.append(contentsOf: (0..<10).map { UInt8($0) })
+        #expect(ID3TagWriter.existingID3HeaderLength(prefix: Data(oversized.prefix(10)), fileLength: oversized.count) == 0)
+
+        var exact: [UInt8] = [0x49, 0x44, 0x33, 0x04, 0x00, 0x00]
+        exact.append(contentsOf: [0x00, 0x00, 0x00, 0x05])
+        exact.append(contentsOf: [1, 2, 3, 4, 5])
+        #expect(ID3TagWriter.existingID3HeaderLength(prefix: Data(exact.prefix(10)), fileLength: exact.count) == 15)
+    }
+
+    @Test func writingOverAFileThatIsOnlyAnID3HeaderYieldsANewHeaderAndNoAudio() async throws {
+        var bytes: [UInt8] = [0x49, 0x44, 0x33, 0x04, 0x00, 0x00]
+        bytes.append(contentsOf: [0x00, 0x00, 0x00, 0x05])
+        bytes.append(contentsOf: [1, 2, 3, 4, 5])
+        let url = try makeFile(bytes: bytes)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let writer = ID3TagWriter()
+        let tags = TagSet(title: "T", artist: "A", album: "Al")
+
+        try await writer.write(tags, cover: nil, to: url)
+
+        let result = try Data(contentsOf: url)
+        let resultBytes = [UInt8](result)
+        let S = ID3TagWriter.desynchsafe(Array(resultBytes[6...9]))
+        #expect(result.count == 10 + S)
+        #expect(!result.suffix(5).elementsEqual(Data([1, 2, 3, 4, 5])))
+    }
 }
