@@ -33,6 +33,7 @@ function jsonRequest(url: string, method: string, body?: unknown, token?: string
 async function signIn(email: string, deviceName = "Device"): Promise<{ token: string; userId: string; deviceId: string }> {
   const codeRes = await authCodeRoute.POST(jsonRequest("http://localhost/v1/auth/code", "POST", { email }));
   expect(codeRes.status).toBe(200);
+  await new Promise<void>((r) => queueMicrotask(() => r()));
 
   const code = testServices.mailer.codeFor(email);
   const verifyRes = await authVerifyRoute.POST(

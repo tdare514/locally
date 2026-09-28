@@ -172,11 +172,18 @@ actual storage key (`users/<userId>/releases/<releaseId>/<name>`) is built
 server-side in `ReleaseFilesService`/`storageKeyFor`, from the authenticated
 `userId`, the already-ownership-checked `releaseId`, and the already-validated
 `name` — a client can never point storage at another user's or release's path.
-A successful `PUT /v1/releases/:id` (not a tombstone) also prunes any previously
-registered file no longer referenced by the record's tracks/cover
-(`ReleaseFilesService.pruneUnreferenced`), so a track dropped from a release
-doesn't linger in storage or against quota. Tombstoned releases' files are
-cleaned up separately, on a delay, by `CleanupService`.
+A successful `PUT /v1/releases/:id` (not a tombstone) also schedules a prune of any
+previously registered file no longer referenced by the record's tracks/cover
+(`ReleaseFilesService.pruneUnreferenced`) to run after the response, so a track
+dropped from a release doesn't linger in storage or against quota; prune failures
+are logged and never become a 500. Tombstoned releases' files are cleaned up
+separately, on a delay, by `CleanupService`. Blob deletes are batched through
+`FileStore.deleteMany` (Vercel Blob `del([...])`); the matching `files` rows go
+in one `WHERE id IN (...)`.
+
+`POST /v1/auth/code` persists the code, returns `{ ok: true }`, then emails the
+code after the response. A send failure is logged; the user can request a new
+code (still rate limited).
 
 ### Signed URLs for file transfer
 

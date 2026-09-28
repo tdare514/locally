@@ -29,6 +29,8 @@ Security hardening leftovers on iOS (#12), Mac library work (#7), and the remain
 - Share extension ("Send to Locally") with an app-group inbox, plus a Documents-folder inbox
 - StoreKit one-time purchase wired up but gates no feature yet
 - Library is the home tab, split into Singles and Albums sections with counts
+- Import Single/Album share one layout; empty Tracks uses `TrackListSilhouette` (1 or 3 rows);
+  2+ tracks show a long-press reorder hint and `.onMove` without an Edit button (#6, #17)
 - Sync client: Keychain account, push, reconcile, "From your Mac"; cover replacements follow via coverHash (#26)
 - "Delete sync account…" in Settings (App Store 5.1.1(v)) deletes the cloud account and signs the phone out; sign-out and delete both clear per-release sync markers so a new account re-pushes everything (#34)
 - Sync pushes and deletes queue in a persistent outbox, retried each reconcile until the server confirms; a delete during reconcile or offline is no longer lost (#19)
@@ -43,6 +45,7 @@ Security hardening leftovers on iOS (#12), Mac library work (#7), and the remain
 - Every response carries x-request-id; 4xx/5xx, rate-limit, quota and auth failures log one JSON line (request ID, route, status, duration, user ID); the daily cron logs total stored bytes, warning past STORAGE_ALERT_BYTES (#29)
 - Device tokens expire after a year unused (the account itself never expires) (lastSeenAt refreshed at most daily); a cross-user test matrix shows another account gets 404 on every release, file and device route (#33)
 - DELETE /v1/me deletes an account (email echoed as confirmation) in one transaction; its blobs are queued in pending_deletes and drained right after, with the daily cron as the guarantee (#34)
+- Email send (`POST /v1/auth/code`) and release file prune (`PUT /v1/releases/:id`) run after the response via Next `after()`; blob deletes are batched with `FileStore.deleteMany` (#31)
 - SQLite (libSQL) via Drizzle, migrated automatically on first request
 - Release pulls are paged (#30): at most 200 releases or 2 MiB per `GET /v1/releases` page with `hasMore`; web and iOS loop until the last page, saving the cursor per page (100-page guard); `/v1/me` lists the 50 newest devices with `devicesHasMore`. Shipped clients stay correct and catch up over several reconciles
 - Deployed to https://locally-sync-api.vercel.app (Vercel project locally-sync-api: Turso database, private Blob store, Resend); both clients default to it; smoke-tested end to end 28 Sep from a Mac and an iPhone 14: sign-in, push each way, tombstone (#3 closed). Resend still uses the sandbox sender, which only delivers to the owner's address: verify a domain and set MAIL_FROM before anyone else signs up
@@ -58,9 +61,13 @@ Security hardening leftovers on iOS (#12), Mac library work (#7), and the remain
 - Spotify caches local-file metadata; restart Spotify to see edits to an already-imported track
 
 ## Next
-- Remaining iOS restructure items: on-device checks of the import silhouette and drag reorder (#6)
+- On-device confirmation of the import silhouette and long-press drag reorder on a phone (checklist in `apps/ios/README.md`; ViewModel reorder tests landed) (#6)
 - Mac library development: compact release header and import page cleanup next; then search, sort, bulk actions, playlist-aware grouping; plan-only: conversion job queue, SQLite index, multi-library (#7)
+<<<<<<< HEAD
 - Architecture review for multiple users (docs/reviews/2026-09-28-architecture.md): async email and deletes #31; owner decisions on Mac packaging #35 and privacy/terms #36
+=======
+- Architecture review for multiple users (docs/reviews/2026-09-28-architecture.md): owner decisions on Mac packaging #35 and privacy/terms #36
+>>>>>>> origin/main
 
 ## Architecture decisions
 See docs/adr/. Product plans: docs/web-plan.md, docs/ios-plan.md. Sync contract: spec/sync.md.

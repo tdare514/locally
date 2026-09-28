@@ -98,8 +98,12 @@ struct ReleaseDetailView: View {
                         .listRowInsets(EdgeInsets(top: 0, leading: 2, bottom: 4, trailing: 2))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
+                        .accessibilityIdentifier("reorder-hint")
                 }
 
+                // Long-press drag via `.onMove` without an Edit-mode toolbar
+                // button (iOS 16+). Singles and one-track albums leave move
+                // disabled so the gesture doesn't fight the title field.
                 ForEach(Array(model.trackRows.enumerated()), id: \.element.id) { index, row in
                     // A single's only track takes its title from the Title
                     // field above, so its row shows that live value rather
@@ -115,7 +119,7 @@ struct ReleaseDetailView: View {
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: 2, bottom: Theme.Spacing.rowGap, trailing: 2))
                 }
-                .onMove(perform: model.moveTracks)
+                .onMove(perform: model.trackRows.count >= 2 ? model.moveTracks : nil)
             }
 
             if model.kind == .album {

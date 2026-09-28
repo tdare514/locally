@@ -225,6 +225,15 @@ struct FileRow: View {
             }
 
             Spacer(minLength: 0)
+
+            // Compact release-detail rows carry the trailing chevron from
+            // `docs/design.md`'s Mobile Editor Tracks section.
+            if isCompact {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.textDim)
+                    .accessibilityHidden(true)
+            }
         }
         .padding(.horizontal, 12)
         .frame(minHeight: isCompact ? 52 : 64)
@@ -234,6 +243,8 @@ struct FileRow: View {
             RoundedRectangle(cornerRadius: Theme.Radius.fileRow)
                 .stroke(Theme.border, lineWidth: 1)
         )
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("file-row-\(index)")
     }
 }
 
@@ -245,12 +256,16 @@ struct FileRow: View {
 /// text or icon) with a centred blurb explaining what will appear there.
 /// Used by the album builder (3 rows) and, while no file is chosen, the
 /// single-track flow (1 row) — see `docs/design.md`'s Tracks section notes.
+///
+/// Spacing between placeholder cards is `2 * rowGap` so the empty state
+/// matches the gap between live `FileRow`s in a plain list (each row's top
+/// and bottom `rowGap` insets sit back to back).
 struct TrackListSilhouette: View {
     var rows: Int = 3
 
     var body: some View {
         ZStack {
-            VStack(spacing: Theme.Spacing.rowGap) {
+            VStack(spacing: Theme.Spacing.rowGap * 2) {
                 ForEach(0..<rows, id: \.self) { _ in
                     RoundedRectangle(cornerRadius: Theme.Radius.fileRow)
                         .fill(Theme.card.opacity(0.5))
@@ -271,6 +286,9 @@ struct TrackListSilhouette: View {
             .multilineTextAlignment(.center)
             .padding(.horizontal, 24)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(Copy.Import.noTracksYet). \(Copy.Import.noTracksHint)")
+        .accessibilityIdentifier("track-list-silhouette")
     }
 }
 
