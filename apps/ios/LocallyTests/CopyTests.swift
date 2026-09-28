@@ -32,4 +32,13 @@ struct CopyTests {
             #expect(!string.contains("!"))
         }
     }
+
+    @Test func importSilhouetteAndReorderHintCopyIsStable() {
+        #expect(Copy.Import.noTracksYet == "No tracks yet")
+        #expect(Copy.Import.noTracksHint == "Add audio files above and they'll appear here.")
+        #expect(Copy.Import.reorderHint == "Hold and drag a track to reorder.")
+        #expect(Copy.Detail.reorderHint == Copy.Import.reorderHint)
+        #expect(!Copy.Import.reorderHint.contains("!"))
+        #expect(!Copy.Import.noTracksHint.contains("!"))
+    }
 }

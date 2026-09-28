@@ -116,6 +116,7 @@ struct AlbumBuilderView: View {
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 0, leading: Theme.Spacing.pagePadding, bottom: 6, trailing: Theme.Spacing.pagePadding))
+                        .accessibilityIdentifier("reorder-hint")
                 }
                 if model.rows.isEmpty {
                     TrackListSilhouette(rows: 3)
@@ -123,6 +124,9 @@ struct AlbumBuilderView: View {
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: Theme.Spacing.pagePadding, bottom: Theme.Spacing.rowGap, trailing: Theme.Spacing.pagePadding))
                 } else {
+                    // Long-press drag via `.onMove` without Edit mode (iOS 16+);
+                    // disabled until there are two rows so a lone track isn't
+                    // lift-able. Swipe-to-delete stays available either way.
                     ForEach(Array(model.rows.enumerated()), id: \.element.id) { index, row in
                         FileRow(
                             index: index + 1,
@@ -134,7 +138,7 @@ struct AlbumBuilderView: View {
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: Theme.Spacing.pagePadding, bottom: Theme.Spacing.rowGap, trailing: Theme.Spacing.pagePadding))
                     }
-                    .onMove(perform: model.moveRows)
+                    .onMove(perform: model.rows.count >= 2 ? model.moveRows : nil)
                     .onDelete(perform: model.removeRows)
                 }
             }
