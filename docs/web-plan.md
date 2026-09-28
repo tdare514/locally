@@ -12,7 +12,7 @@ this is the only mechanism that works; it mirrors how Apple Music's local import
 
 ## Conventions
 - Next.js 16 App Router, TypeScript, Tailwind v4. `src/` dir. No import alias (use relative paths).
-- Shared types live in `src/lib/types.ts` — import from there, never redeclare.
+- Shared types live in `src/shared/types.ts` — import from there, never redeclare.
 - Default library dir: `~/Music/Spotify Local Import`. Configurable via settings, persisted in
   `~/.spotify-local-import/settings.json`. Library index persisted at `<libraryDir>/library.json`.
 - Files laid out as `<libraryDir>/<Artist>/<Album>/<NN> - <Title>.mp3` plus `cover.jpg` in the album folder.
@@ -55,7 +55,7 @@ Spotify-like dark theme (#121212 bg, #1DB954 accent, Inter/system font). Layout:
 - Client components only where interactivity is needed. Keep state in React; no extra libraries.
 
 ## Work split
-- Agent "backend": `src/lib/{paths,settings,library,tags,convert,fsutil}.ts` + all `src/app/api/**/route.ts`.
+- Agent "backend": `src/server/**` (`config/`, `storage/`, `audio/`, `releases/`, `fs/`, `http/`, `container.ts`) + all `src/app/api/**/route.ts`.
 - Agent "frontend": `src/app/page.tsx`, `src/app/layout.tsx`, `src/app/globals.css`, `src/components/**`, `src/lib/api-client.ts`.
 - Agent "docs": `README.md`, `.claude/launch.json`, `.gitignore` additions, `scripts/make-fixtures.sh` (ffmpeg-generated test tones).
 - Reviewer (Fable): integration test in browser, fixes.
@@ -70,6 +70,6 @@ Spotify-like dark theme (#121212 bg, #1DB954 accent, Inter/system font). Layout:
 - Library index and settings are plain JSON in the user's home dir; nothing leaves the machine.
 
 ## Scalability notes
-- `src/lib/library.ts` is the only module that knows the index format; swap for SQLite later behind the same functions.
+- `src/server/storage/` (the JSON `LibraryRepository` behind a repository interface) is the only module that knows the index format; swap for SQLite later behind the same functions.
 - Release/track ids are UUIDs so a future sync or multi-library feature has stable keys.
 - Conversion is one ffmpeg process per file, sequential; a job queue can slot in at `releases.ts` without API changes.

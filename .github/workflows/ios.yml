@@ -1,0 +1,43 @@
+name: ios
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/ios/**"
+      - "spec/**"
+      - "docs/design.md"
+      - ".github/workflows/ios.yml"
+  pull_request:
+    paths:
+      - "apps/ios/**"
+      - "spec/**"
+      - "docs/design.md"
+      - ".github/workflows/ios.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - name: Build
+        run: |
+          xcodebuild -project Locally.xcodeproj -scheme Locally -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
+      - name: Test
+        run: |
+          xcodebuild test -project Locally.xcodeproj -scheme Locally \
+            -destination 'platform=iOS Simulator,name=iPhone 16' CODE_SIGNING_ALLOWED=NO

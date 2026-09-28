@@ -52,7 +52,7 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Guided "Make it a playlist" flow on both apps, option B from docs/research/playlists.md (#21)
 - Remaining iOS restructure items: on-device checks of the import silhouette and drag reorder (#6)
 - Mac library development: search, sort, bulk actions, playlist-aware grouping; plan-only: conversion job queue, SQLite index, multi-library (#7)
-- Repo health: CI, LICENSE, docs drift, test gaps (#13)
+- Repo health: CI workflows, MIT LICENSE and root-doc fixes landed; still open are the vitest .mts rename, apps/ios/README stale references, and the test gaps (#13)
 
 ## Architecture decisions
 See docs/adr/. Product plans: docs/web-plan.md, docs/ios-plan.md. Sync contract: spec/sync.md.

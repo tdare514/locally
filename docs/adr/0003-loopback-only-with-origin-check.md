@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-This server writes to the user's disk (imports files, renames folders, deletes releases,
+This server writes to the user's disk (imports files, re-tags tracks in place, deletes releases,
 runs `ffmpeg`/`open`) on behalf of whatever sent it an HTTP request. It has no
 authentication — it's meant to be a local dev-style tool the user runs and opens in
 their own browser, nothing more. That combination (unauthenticated + disk-writing) means

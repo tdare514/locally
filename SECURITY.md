@@ -82,6 +82,23 @@ Filenames and paths derived from user input are passed to external processes.
 invoke `spawn`/`execFile` with argument arrays, never a shell string built by
 concatenating user input — so there is no shell to inject into.
 
+### Request body size
+
+`apps/web/next.config.ts` sets `experimental.proxyClientMaxBodySize` to 4 GB so an album of
+large lossless files can be uploaded through the Next proxy in one request. The proxy buffers
+that body in memory, which is acceptable only because the server is loopback-only and
+single-user. Streaming/chunked upload is tracked in #12.
+
+### Outbound sync client and token storage
+
+The Mac app is also an HTTP client of `apps/api`: `src/server/sync/SyncEngine.ts` and
+`SyncApi.ts` talk to the sync service over the base URL and device token in
+`settings.sync`. The device token is an opaque bearer token, stored alongside the base URL
+in the local settings file managed by `FileSettingsStore`
+(`~/.spotify-local-import/settings.json`), and sent only to that configured base URL as an
+`Authorization: Bearer` header. Requiring HTTPS for non-loopback base URLs and clearing the
+token when the base URL changes are tracked in #11.
+
 ## apps/api
 
 Unlike `apps/web`, this is a multi-tenant network service (the hosted sync backend

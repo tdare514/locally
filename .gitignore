@@ -10,3 +10,4 @@ apps/ios/DerivedData/
 apps/ios/*.xcodeproj/xcuserdata/
 apps/ios/*.xcodeproj/project.xcworkspace/xcuserdata/
 apps/ios/Locally.xcodeproj/
+__pycache__/

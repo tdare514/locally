@@ -29,4 +29,4 @@ vendor API for this exists, so the file itself has to carry the metadata.
   at, not just a database of metadata.
 - Editing metadata later means rewriting tags into the file in place (see `ReleaseService.update`),
   not just updating a row — and Spotify caches what it last read, so users may need to
-  restart the client to see changes (documented in `PLAN.md` and the Settings panel).
+  restart the client to see changes (documented in `docs/web-plan.md` and the Settings panel).

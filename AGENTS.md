@@ -19,6 +19,10 @@ Shared, app-independent material:
 - `docs/adr/` — decisions already made; add an ADR rather than relitigating one.
 - `docs/design.md` — design tokens and components shared by web and iOS.
 - `docs/web-plan.md`, `docs/ios-plan.md` — product plans. `STATUS.md` — where the project is now.
+- `docs/research/` — background research notes (e.g. playlists).
+- `scripts/` — `make-app-icons.py`, `make-listener-icons.py`, `make-brand-marks.py` render the
+  icon and brand assets (Python 3 + librsvg's `rsvg-convert`); `make-fixtures.sh` builds test
+  fixtures.
 
 ## Global invariants (apply in every app)
 

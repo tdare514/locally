@@ -1,21 +1,32 @@
-# Spotify Local Import
+# Locally
 
-A companion web app for managing local audio files with metadata that Spotify's Local Files feature can read. Import audio files (mp3, wav, flac, m4a), add cover art, artist, album, year, and genre information, and organize them as Singles or Albums. The app writes metadata directly into the files as ID3v2 tags and stores them in a library folder. Point Spotify's "Show Local Files" feature at that folder, and your music appears in Spotify with all the metadata you entered—just like Apple Music's local import.
+Locally imports audio files, tags them (cover, artist, album, year, genre, track numbers) and
+delivers them to the folder Spotify's Local Files feature reads, on a Mac and on an iPhone, with
+an optional sync service that mirrors the two libraries.
 
-Spotify's public API has no upload endpoint, so this desktop companion is the only way to add cover art and metadata to local files that Spotify will recognize. Non-mp3 formats are automatically converted to 320 kbps mp3, since Spotify's Local Files feature only reads mp3 and mp4 locally.
+Spotify's public API has no upload endpoint, so writing tags directly into local files is the
+only way to add cover art and metadata that Spotify will recognize. Non-mp3 formats are
+automatically converted to 320 kbps mp3, since Spotify's Local Files feature only reads mp3 and
+mp4 locally.
 
-This is a monorepo: `apps/web` (below) is the Mac/desktop app, `apps/ios` is the
-iOS companion, and `apps/api` is the hosted sync service that lets the two
-mirror each other's libraries — see `apps/api/README.md` and `spec/sync.md`.
+## Apps
 
-## Requirements
+| App | What it is |
+|-----|------------|
+| [`apps/web`](apps/web/AGENTS.md) | Mac/desktop app (Next.js, local-only server on 127.0.0.1). Import mp3/wav/flac/m4a, ID3v2 tagging, cover art, release edit in place. |
+| [`apps/ios`](apps/ios/AGENTS.md) | iPhone companion (SwiftUI, XcodeGen). Onboarding picks the Spotify Local Files folder, single/album import, edit in place, share extension ("Send to Locally"). |
+| [`apps/api`](apps/api/README.md) | Hosted sync service (Next.js, API routes only): email-code accounts, device tokens, versioned releases. Contract in [`spec/sync.md`](spec/sync.md). |
+
+## Run the Mac app
+
+### Requirements
 
 - Node.js 20+
 - ffmpeg on PATH (install with `brew install ffmpeg` on macOS)
 - Spotify desktop app
 - A folder for your library (default: `~/Music/Spotify Local Import`)
 
-## Run
+### Run
 
 ```bash
 cd apps/web && npm install
@@ -23,6 +34,23 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Run the iOS app
+
+```bash
+cd apps/ios && xcodegen generate && open Locally.xcodeproj
+```
+
+See [`apps/ios/README.md`](apps/ios/README.md) for device and share-extension notes.
+
+## Run the sync service
+
+```bash
+cd apps/api && npm install && npm run dev
+```
+
+Runs on port 4000. See [`apps/api/.env.example`](apps/api/.env.example) for the environment
+variables it reads.
 
 ## Connect to Spotify
 
@@ -40,24 +68,29 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 - **Playback on one device**: Local files only play on the device holding the audio files. To listen on other devices, use Spotify's own local-files-on-mobile sync flow.
 - **Finder integration**: The "Show in Finder" feature is macOS-only.
 
-## Project Layout
+## Repository layout
 
 ```
-src/shared/            # types + error classes shared by client and server
-src/server/
-  config/              # SettingsStore interface + JSON-file implementation
-  storage/              # LibraryRepository interface + JSON-file implementation
-  audio/                # AudioConverter (ffmpeg) and TagService (ID3) interfaces + implementations
-  releases/              # ReleaseLayout (pure path rules), ReleaseService, InspectService
-  fs/                    # FileSystem interface + node:fs implementation
-  http/                  # error responses, upload validation, request → DTO parsing
-  container.ts           # builds and memoises the service singletons
-src/app/api/**/route.ts # thin HTTP handlers built on the services above
-src/proxy.ts            # loopback-only + CSRF guard (Next middleware)
-src/lib/api-client.ts   # client-side typed fetch wrappers
-src/components/         # reusable React UI components
-tests/unit/             # vitest unit tests, no real disk/network/ffmpeg
-docs/adr/               # architecture decision records
+apps/            # web, ios, api — see each app's README/AGENTS.md
+spec/            # metadata.md (release/track/tag model), sync.md (sync contract)
+docs/            # adr/ (decisions), design.md (shared design tokens),
+                 # web-plan.md, ios-plan.md (product plans), plans/ (cross-app feature plans),
+                 # research/ (background research notes, e.g. playlists)
+scripts/         # make-app-icons.py, make-listener-icons.py, make-brand-marks.py render the
+                 # icon/brand assets and need Python 3 plus librsvg's rsvg-convert
+                 # (brew install librsvg); make-fixtures.sh builds test fixtures
+fixtures/        # git-ignored, built by scripts/make-fixtures.sh
+STATUS.md        # where the project is now
+AGENTS.md        # monorepo map and working rules
+SECURITY.md      # threat model and mitigations
+CONTRIBUTING.md
+LICENSE          # MIT
 ```
 
-See `apps/web/AGENTS.md` for the full architecture map and the project's non-negotiable rules.
+## Checks
+
+- `apps/web`: `npm run check`
+- `apps/api`: `npm run check`
+- `apps/ios`: `xcodegen generate`, then `xcodebuild` (see `apps/ios/AGENTS.md`)
+
+CI runs the same checks on every push and pull request — see `.github/workflows/`.
