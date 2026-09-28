@@ -53,6 +53,41 @@ final class InMemoryLibraryStore: LibraryStore {
     }
 }
 
+/// In-memory `SyncOutbox` fake — no SwiftData, just a dictionary — following
+/// the same enqueue/remove rules `SyncOutbox`'s doc comment specifies.
+final class InMemorySyncOutbox: SyncOutbox {
+    private var storage: [UUID: SyncOutboxEntry] = [:]
+
+    func all() throws -> [SyncOutboxEntry] {
+        storage.values.sorted { $0.enqueuedAt < $1.enqueuedAt }
+    }
+
+    func enqueue(_ releaseId: UUID, _ operation: SyncOutboxEntry.Operation) throws {
+        if storage[releaseId] != nil {
+            guard operation == .delete else { return }
+            storage[releaseId] = SyncOutboxEntry(releaseId: releaseId, operation: .delete, attempts: 0, lastError: nil, enqueuedAt: Date())
+        } else {
+            storage[releaseId] = SyncOutboxEntry(releaseId: releaseId, operation: operation, attempts: 0, lastError: nil, enqueuedAt: Date())
+        }
+    }
+
+    func recordFailure(_ releaseId: UUID, error: String) throws {
+        guard var entry = storage[releaseId] else { return }
+        entry.attempts += 1
+        entry.lastError = error
+        storage[releaseId] = entry
+    }
+
+    func remove(_ releaseId: UUID, ifOperation operation: SyncOutboxEntry.Operation) throws {
+        guard let entry = storage[releaseId], entry.operation == operation else { return }
+        storage.removeValue(forKey: releaseId)
+    }
+
+    func removeAll() throws {
+        storage.removeAll()
+    }
+}
+
 /// `SpotifyFolderAccess` fake backed by a real temp directory, so
 /// `withAccess` can actually move files on disk the way the production
 /// bookmark-backed implementation does.
@@ -306,6 +341,14 @@ final class FakeSyncApi: SyncApi {
     var conflictOnNextPut: Set<String> = []
     private(set) var putCalls: [SyncRecord] = []
     private(set) var deleteCalls: [String] = []
+    /// When set, thrown by `deleteRelease` before it records the call, so a
+    /// test can simulate the network being down for a delete without it
+    /// ever reaching the fake "server".
+    var deleteError: Error?
+    /// Awaited at the top of `releases(sinceVersion:)`, so a test can hold a
+    /// `reconcile()` run open mid-flight (e.g. to make a local change while
+    /// it's suspended) before letting the fetch proceed.
+    var releasesGate: (() async -> Void)?
 
     func requestCode(email: String) async throws {
         requestCodeCalls.append(email)
@@ -325,6 +368,7 @@ final class FakeSyncApi: SyncApi {
     }
 
     func releases(sinceVersion: Int) async throws -> SyncReleasesPage {
+        if let releasesGate { await releasesGate() }
         let matching = storage.values
             .filter { ($0.version ?? 0) > sinceVersion }
             .sorted { ($0.version ?? 0) < ($1.version ?? 0) }
@@ -351,6 +395,9 @@ final class FakeSyncApi: SyncApi {
 
     @discardableResult
     func deleteRelease(_ id: String) async throws -> Int {
+        if let deleteError {
+            throw deleteError
+        }
         deleteCalls.append(id)
         currentVersion += 1
         var stored = storage[id] ?? SyncRecord(

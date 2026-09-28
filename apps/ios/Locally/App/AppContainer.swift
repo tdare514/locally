@@ -124,12 +124,14 @@ final class AppContainer {
         )
         let syncAccount = UserDefaultsSyncAccountStore()
         let syncApi = HttpSyncApi(account: syncAccount)
+        let outbox = SwiftDataSyncOutbox(context: modelContainer.mainContext)
         let syncEngine = SyncEngine(
             api: syncApi,
             account: syncAccount,
             library: library,
             coordinator: coordinator,
             coverStore: coverStore,
+            outbox: outbox,
             deviceName: { UIDevice.current.name }
         )
         let container = AppContainer(
@@ -164,6 +166,7 @@ final class AppContainer {
         purchase: PurchaseService,
         syncAccount: SyncAccountStore,
         syncApi: SyncApi,
+        outbox: SyncOutbox? = nil,
         deviceName: @escaping () -> String = { "Test Device" }
     ) -> AppContainer {
         let modelContainer = Self.makeModelContainer(inMemory: true)
@@ -176,12 +179,18 @@ final class AppContainer {
             library: library,
             coverStore: coverStore
         )
+        // Callers that don't care about the outbox (most of the existing
+        // `forTesting` call sites) get a real, in-memory-backed one, so
+        // `SyncEngine`'s outbox behaviour still works without every test
+        // needing to know `SyncOutbox` exists.
+        let resolvedOutbox = outbox ?? SwiftDataSyncOutbox(context: modelContainer.mainContext)
         let syncEngine = SyncEngine(
             api: syncApi,
             account: syncAccount,
             library: library,
             coordinator: coordinator,
             coverStore: coverStore,
+            outbox: resolvedOutbox,
             deviceName: deviceName
         )
         return AppContainer(
@@ -202,7 +211,7 @@ final class AppContainer {
     private static func makeModelContainer(inMemory: Bool) -> ModelContainer {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: inMemory)
         // swiftlint:disable:next force_try
-        return try! ModelContainer(for: ReleaseRecord.self, configurations: configuration)
+        return try! ModelContainer(for: ReleaseRecord.self, SyncOutboxRecord.self, configurations: configuration)
     }
 }
 

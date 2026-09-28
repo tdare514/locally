@@ -26,12 +26,6 @@ struct RootView: View {
         case library = 0, importSong = 1, settings = 2
     }
 
-    /// Runs `SyncEngine.reconcile()` immediately, then every 30 seconds while
-    /// the app is in the foreground, per `spec/sync.md` ("on foreground,
-    /// on a timer while the app is open"). `reconcile()` itself no-ops when
-    /// signed out, so this loop is harmless to keep running regardless.
-    @State private var reconcileTask: Task<Void, Never>?
-
     var body: some View {
         Group {
             if !folderStatus.isConnected || !hasFinishedOnboarding {
@@ -57,24 +51,13 @@ struct RootView: View {
         .onAppear {
             // A returning user with a stored bookmark skips onboarding entirely.
             if folderStatus.isConnected { hasFinishedOnboarding = true }
-            startReconcileLoop()
+            container?.syncEngine.startAutoReconcile()
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
-                startReconcileLoop()
+                container?.syncEngine.startAutoReconcile()
             } else {
-                reconcileTask?.cancel()
-            }
-        }
-    }
-
-    private func startReconcileLoop() {
-        guard let container else { return }
-        reconcileTask?.cancel()
-        reconcileTask = Task {
-            while !Task.isCancelled {
-                await container.syncEngine.reconcile()
-                try? await Task.sleep(for: .seconds(30))
+                container?.syncEngine.stopAutoReconcile()
             }
         }
     }

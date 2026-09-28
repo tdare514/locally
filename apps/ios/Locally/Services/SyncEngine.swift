@@ -9,11 +9,15 @@ import Foundation
 /// syncEngine` after both exist, breaking what would otherwise be a
 /// constructor cycle (the engine needs the coordinator too, for
 /// `importSynced`/`applyRemoteUpdate`/`applyTombstone`).
+///
+/// Both methods are `nonisolated` because `ReleaseCoordinator` (and its
+/// caller, a view action) is not itself on `SyncEngine`'s main actor.
 protocol ReleaseSyncHook: AnyObject {
-    /// Fire-and-forget: push `release` if signed in. Never throws — a sync
-    /// failure must never surface as a failure of the user's own action.
+    /// Fire-and-forget: enqueue `release` for push if signed in. Never
+    /// throws — a sync failure must never surface as a failure of the
+    /// user's own action.
     func pushAfterChange(_ release: Release)
-    /// Fire-and-forget: tombstone `id` if signed in.
+    /// Fire-and-forget: enqueue `id` for tombstone if signed in.
     func pushTombstone(_ id: UUID)
 }
 
@@ -77,22 +81,54 @@ final class SyncStatus {
 /// `SyncApi`, `SyncAccountStore` and `ReleaseCoordinator`.
 ///
 /// Every entry point is safe to call when signed out (no-ops) and safe to
-/// call concurrently with itself: `reconcile()` skips an overlapping run,
+/// call concurrently with itself: `reconcile()` and `drainOutbox()` each
+/// await an in-flight run of themselves rather than starting a second one,
 /// and `push`/`tombstone` never throw — every failure lands on
 /// `status.lastError` instead, so a sync problem never blocks or fails the
 /// user's own action.
+///
+/// The engine is `@MainActor`, which is what makes the above safe: every
+/// method runs on the main actor, so `reconcileTask`/`drainTask` and
+/// `SyncStatus`'s mutable state can never be touched from two threads at
+/// once. What actually queues a change is a persistent `SyncOutbox` (#19):
+/// `pushAfterChange`/`pushTombstone` (called from `ReleaseCoordinator`,
+/// which is not itself main-actor-isolated, so they're `nonisolated`) hop to
+/// the main actor, enqueue, and only then start draining — enqueuing first
+/// means the work survives even if the app is killed or the network call
+/// that follows never completes. A delete queued while a push for the same
+/// release is in flight is never clobbered by that push finishing: see
+/// `SyncOutbox`'s doc comment for the enqueue/remove rules that guarantee
+/// that.
+///
+/// `updateIfPresent` is still used everywhere a write follows an `await`
+/// (`markPushed`, the own-echo branch in `process(_:)`): the engine awaits
+/// across user actions (an import, an edit, a delete can all happen while a
+/// push or reconcile is mid-flight), so a write that lands after such an
+/// action finished must never resurrect a release the user just deleted.
+@MainActor
 final class SyncEngine: ReleaseSyncHook {
     private let api: SyncApi
     private let account: SyncAccountStore
     private let library: LibraryStore
     private let coordinator: ReleaseCoordinator
     private let coverStore: CoverStore
+    private let outbox: SyncOutbox
     private let deviceName: () -> String
+    private let reconcileInterval: Duration
+    private let reconcileSleep: @Sendable (Duration) async throws -> Void
 
     let status: SyncStatus
 
-    private var isReconciling = false
-    private var pushingIds: Set<UUID> = []
+    private var reconcileTask: Task<Void, Never>?
+    private var drainTask: Task<Void, Never>?
+
+    /// Runs `reconcile()` on a timer while the app is foregrounded. Built
+    /// lazily so its `tick` closure can capture `self` after the rest of
+    /// `init` has finished.
+    private lazy var scheduler = ReconcileScheduler(
+        interval: reconcileInterval,
+        sleep: reconcileSleep
+    ) { [weak self] in await self?.reconcile() }
 
     init(
         api: SyncApi,
@@ -100,7 +136,10 @@ final class SyncEngine: ReleaseSyncHook {
         library: LibraryStore,
         coordinator: ReleaseCoordinator,
         coverStore: CoverStore,
+        outbox: SyncOutbox,
         status: SyncStatus = SyncStatus(),
+        reconcileInterval: Duration = .seconds(30),
+        reconcileSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         deviceName: @escaping () -> String
     ) {
         self.api = api
@@ -108,7 +147,10 @@ final class SyncEngine: ReleaseSyncHook {
         self.library = library
         self.coordinator = coordinator
         self.coverStore = coverStore
+        self.outbox = outbox
         self.status = status
+        self.reconcileInterval = reconcileInterval
+        self.reconcileSleep = reconcileSleep
         self.deviceName = deviceName
         status.signedIn = account.deviceToken != nil
         status.email = account.email
@@ -141,12 +183,15 @@ final class SyncEngine: ReleaseSyncHook {
 
     /// Revokes this device server-side (best-effort — signing out proceeds
     /// locally even if that call fails, e.g. offline) and clears local
-    /// account state.
+    /// account state, including any queued sync work: a delete or push
+    /// still waiting in the outbox must never go out under a different
+    /// account the user signs into next.
     func signOut() async {
         if let deviceId = account.deviceId {
             try? await api.revokeDevice(deviceId)
         }
         account.clear()
+        try? outbox.removeAll()
         status.signedIn = false
         status.email = nil
         status.deviceName = nil
@@ -156,40 +201,142 @@ final class SyncEngine: ReleaseSyncHook {
         status.lastError = nil
     }
 
+    // MARK: - Auto-reconcile
+
+    func startAutoReconcile() {
+        scheduler.start()
+    }
+
+    func stopAutoReconcile() {
+        scheduler.stop()
+    }
+
     // MARK: - ReleaseSyncHook
 
-    func pushAfterChange(_ release: Release) {
-        Task { [weak self] in await self?.push(release) }
+    nonisolated func pushAfterChange(_ release: Release) {
+        Task { @MainActor [weak self] in
+            guard let self, self.isSignedIn else { return }
+            try? self.outbox.enqueue(release.id, .push)
+            await self.drainOutbox()
+        }
     }
 
-    func pushTombstone(_ id: UUID) {
-        Task { [weak self] in await self?.tombstone(id) }
+    nonisolated func pushTombstone(_ id: UUID) {
+        Task { @MainActor [weak self] in
+            guard let self, self.isSignedIn else { return }
+            try? self.outbox.enqueue(id, .delete)
+            await self.drainOutbox()
+        }
     }
 
-    // MARK: - Push
+    // MARK: - Push / tombstone entry points
+
+    /// Enqueues `release` for push (if signed in) and drains the outbox.
+    /// Existing callers (tests, `verify`'s implicit back-fill via
+    /// `reconcile`) still call this directly.
+    func push(_ release: Release) async {
+        guard isSignedIn else { return }
+        try? outbox.enqueue(release.id, .push)
+        await drainOutbox()
+    }
+
+    /// Enqueues `id` for tombstone (if signed in) and drains the outbox.
+    func tombstone(_ id: UUID) async {
+        guard isSignedIn else { return }
+        try? outbox.enqueue(id, .delete)
+        await drainOutbox()
+    }
+
+    // MARK: - Outbox draining
+
+    /// Sends every entry currently in the outbox, coalescing with any drain
+    /// already running rather than starting a second one — a caller that
+    /// enqueues while a drain is in flight just awaits that same run, and
+    /// the drain loop itself re-reads the outbox on every iteration, so an
+    /// entry enqueued mid-drain is still picked up before this call returns.
+    func drainOutbox() async {
+        if let existing = drainTask {
+            await existing.value
+            return
+        }
+        // Cleared inside the task, in the same main-actor turn the loop
+        // exits: clearing it after `await task.value` would leave a window
+        // where a new caller awaits an already-finished drain and its
+        // freshly enqueued entry waits for the next `reconcile()`.
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.runDrainLoop()
+            self.drainTask = nil
+        }
+        drainTask = task
+        await task.value
+    }
+
+    /// Sends the first not-yet-attempted-this-pass entry, re-reading the
+    /// outbox after every send. An entry that fails once is left for the
+    /// *next* drain (or the next `reconcile()`), not retried again in this
+    /// same pass — its `lastError`/`attempts` already reflect the failure.
+    private func runDrainLoop() async {
+        var attemptedThisPass: Set<UUID> = []
+        while true {
+            guard let entries = try? outbox.all() else { break }
+            guard let entry = entries.first(where: { !attemptedThisPass.contains($0.releaseId) }) else { break }
+            attemptedThisPass.insert(entry.releaseId)
+            await send(entry)
+        }
+    }
+
+    private func send(_ entry: SyncOutboxEntry) async {
+        switch entry.operation {
+        case .delete:
+            await sendDelete(entry.releaseId)
+        case .push:
+            await sendPush(entry.releaseId)
+        }
+    }
+
+    private func sendDelete(_ id: UUID) async {
+        do {
+            try await api.deleteRelease(id.uuidString)
+            try? outbox.remove(id, ifOperation: .delete)
+            status.lastError = nil
+        } catch {
+            try? outbox.recordFailure(id, error: error.localizedDescription)
+            status.lastError = error.localizedDescription
+        }
+    }
+
+    /// Looks the release up fresh (it may have changed, or vanished, since
+    /// it was enqueued) rather than carrying a snapshot in the outbox entry.
+    private func sendPush(_ id: UUID) async {
+        let localReleases = (try? library.all()) ?? []
+        guard let release = localReleases.first(where: { $0.id == id }) else {
+            // Deleted before this entry was drained: nothing to push, and
+            // the delete itself either already went out or has its own
+            // `.delete` entry queued — either way this stale `.push` entry
+            // is simply dropped.
+            try? outbox.remove(id, ifOperation: .push)
+            return
+        }
+        do {
+            try await pushInternal(release)
+            try? outbox.remove(id, ifOperation: .push)
+            status.lastError = nil
+        } catch {
+            try? outbox.recordFailure(id, error: error.localizedDescription)
+            status.lastError = error.localizedDescription
+        }
+    }
 
     /// `PUT`s the record, then uploads any of `release`'s files the server
     /// doesn't already have. The record goes first: the service's
     /// `POST /v1/releases/:id/files` 404s until the release row exists, so
     /// requesting upload URLs before the `PUT` would always fail. A `409`
-    /// on the `PUT` (someone else wrote this release first) reconciles to
-    /// pull that change in, then re-submits this device's record with a
-    /// fresh `updatedAt` so it still wins — this device's own coordinator
-    /// just finished this change a moment ago, so it is, by construction,
-    /// the newer intent.
-    func push(_ release: Release) async {
-        guard isSignedIn else { return }
-        guard pushingIds.insert(release.id).inserted else { return }
-        defer { pushingIds.remove(release.id) }
-
-        do {
-            try await pushInternal(release)
-            status.lastError = nil
-        } catch {
-            status.lastError = error.localizedDescription
-        }
-    }
-
+    /// on the `PUT` (someone else wrote this release first) fetches the
+    /// remote changes to pull that change in, then re-submits this device's
+    /// record with a fresh `updatedAt` so it still wins — this device's own
+    /// coordinator just finished this change a moment ago, so it is, by
+    /// construction, the newer intent.
     private func pushInternal(_ release: Release) async throws {
         // Sizes and uploads read the track files inside Spotify's folder, which
         // needs the folder's security scope open for the whole push.
@@ -216,7 +363,7 @@ final class SyncEngine: ReleaseSyncHook {
             do {
                 try await api.putRelease(record)
             } catch SyncApiError.conflict {
-                await reconcile()
+                try await fetchRemoteChanges()
                 record.updatedAt = Date()
                 try await api.putRelease(record)
             }
@@ -252,44 +399,49 @@ final class SyncEngine: ReleaseSyncHook {
     }
 
     /// Marks `release` as pushed (see `Release.syncedUpdatedAt`) so
-    /// back-fill never re-pushes it until it changes again.
+    /// back-fill never re-pushes it until it changes again. Update-only:
+    /// the uploads above took a while, and if the user deleted this release
+    /// in the meantime an `upsert` would re-create its index row with the
+    /// files already gone. The delete's tombstone is the server's newest
+    /// word on it, so there is nothing to mark.
     private func markPushed(_ release: Release, at updatedAt: Date) {
         var pushed = release
         pushed.updatedAt = updatedAt
         pushed.syncedUpdatedAt = updatedAt
-        try? library.upsert(pushed)
-    }
-
-    // MARK: - Tombstone
-
-    func tombstone(_ id: UUID) async {
-        guard isSignedIn else { return }
-        do {
-            try await api.deleteRelease(id.uuidString)
-            status.lastError = nil
-        } catch {
-            status.lastError = error.localizedDescription
-        }
+        _ = try? library.updateIfPresent(pushed)
     }
 
     // MARK: - Reconcile
 
-    /// `GET /v1/releases?sinceVersion=<last seen>`, applies every record
-    /// (see `process(_:)`), then back-fills local releases never pushed.
-    /// Skips a run already in progress rather than queuing one — the next
-    /// timer tick or explicit "Sync now" will simply pick up where this one
-    /// left off via `lastVersion`.
+    /// Back-fills unpushed releases, drains the outbox, retries any pending
+    /// cover downloads, fetches and applies remote changes
+    /// (`GET /v1/releases?sinceVersion=<last seen>`), retries pending
+    /// accepts, and refreshes quota. Coalesces with any run already in
+    /// progress rather than queuing a second one — a caller that reconciles
+    /// while one is in flight just awaits that same run.
     func reconcile() async {
         guard isSignedIn else { return }
-        guard !isReconciling else { return }
-        isReconciling = true
-        defer { isReconciling = false }
+        if let existing = reconcileTask {
+            await existing.value
+            return
+        }
+        // Cleared inside the task for the same reason as `drainTask`.
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.runReconcile()
+            self.reconcileTask = nil
+        }
+        reconcileTask = task
+        await task.value
+    }
 
+    private func runReconcile() async {
         do {
             // Back-filling first means a release pushed just now is already
             // reflected in the very next fetch below, so `lastVersion`
             // converges in this one pass rather than lagging a cycle.
             await backfillUnpushed()
+            await drainOutbox()
             // Retried before the fetch below, not after: a cover download
             // that fails during this run's own `process(_:)` loop is left
             // pending for the *next* `reconcile()` (see
@@ -297,11 +449,7 @@ final class SyncEngine: ReleaseSyncHook {
             // this same run.
             await retryFailedCoverUpdates()
 
-            let page = try await api.releases(sinceVersion: account.lastVersion)
-            for record in page.releases {
-                await process(record)
-            }
-            account.lastVersion = page.nextVersion
+            try await fetchRemoteChanges()
 
             await retryFailedAccepts()
 
@@ -318,6 +466,19 @@ final class SyncEngine: ReleaseSyncHook {
         } catch {
             status.lastError = error.localizedDescription
         }
+    }
+
+    /// Fetches one page of remote changes since `account.lastVersion` and
+    /// applies each (see `process(_:)`), advancing `account.lastVersion`.
+    /// Split out of `reconcile()` so `pushInternal`'s 409 path can pull in
+    /// the conflicting change without going through `reconcile()` itself —
+    /// that would otherwise wait on the very drain that's calling it.
+    private func fetchRemoteChanges() async throws {
+        let page = try await api.releases(sinceVersion: account.lastVersion)
+        for record in page.releases {
+            await process(record)
+        }
+        account.lastVersion = page.nextVersion
     }
 
     /// Retries `acceptFromMac` for every record a previous attempt couldn't
@@ -377,7 +538,7 @@ final class SyncEngine: ReleaseSyncHook {
                 // and strand the files on this phone for good.
                 var caughtUp = existingLocal
                 caughtUp.updatedAt = record.updatedAt
-                try? library.upsert(caughtUp)
+                _ = try? library.updateIfPresent(caughtUp)
             } else {
                 await applyRemoteUpdate(record, existingLocal: existingLocal)
             }
@@ -451,14 +612,16 @@ final class SyncEngine: ReleaseSyncHook {
         return remoteHash != localHash
     }
 
-    /// Pushes every local release that has never been fully pushed (see
+    /// Enqueues every local release that has never been fully pushed (see
     /// `needsPush`) — the "songs already on this phone before you signed in"
     /// back-fill `spec/sync.md` describes, and the retry for pushes that
-    /// failed part-way.
+    /// failed part-way. `outbox.enqueue` is itself a no-op when an entry for
+    /// that id already exists, so this never disturbs a `.delete` (or an
+    /// already-queued `.push`) sitting in the outbox.
     private func backfillUnpushed() async {
         let localReleases = (try? library.all()) ?? []
         for release in localReleases where Self.needsPush(release) {
-            await push(release)
+            try? outbox.enqueue(release.id, .push)
         }
     }
 

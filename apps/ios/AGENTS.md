@@ -22,7 +22,9 @@ Locally/
     SyncAccount.swift      # protocol SyncAccountStore: baseURL/email/deviceToken/deviceId/lastVersion,
                             # token kept in Keychain, never UserDefaults
     SyncApi.swift           # wire types + protocol SyncApi/HttpSyncApi: verify, releases page, uploads
-    SyncEngine.swift         # ReleaseSyncHook + SyncStatus + SyncEngine: reconcile loop, push, accept
+    SyncEngine.swift         # ReleaseSyncHook + SyncStatus + @MainActor SyncEngine: reconcile, push, accept
+    SyncOutbox.swift         # persistent push/delete queue (SwiftData), drained by SyncEngine (#19)
+    ReconcileScheduler.swift # the engine-owned 30s foreground reconcile timer
   Coordinator/            # ReleaseCoordinator — sequences stage → transcode → tag → move → index for
                           # import/update/delete; the only place that calls SpotifyFolderAccess
   Views/                  # Onboarding, Import (single + album), Library, Settings, Purchase, Components

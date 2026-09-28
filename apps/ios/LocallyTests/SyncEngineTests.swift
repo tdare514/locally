@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import Locally
 
+@MainActor
 struct SyncEngineTests {
     private struct Harness {
         let coordinator: ReleaseCoordinator
@@ -11,6 +12,7 @@ struct SyncEngineTests {
         let coverStore: FakeCoverStore
         let api: FakeSyncApi
         let account: InMemorySyncAccountStore
+        let outbox: InMemorySyncOutbox
         let engine: SyncEngine
     }
 
@@ -38,10 +40,17 @@ struct SyncEngineTests {
     /// Every test signs in up front (`account.save`) unless it's explicitly
     /// testing signed-out behaviour, since every `SyncEngine` entry point is
     /// a no-op when signed out.
-    private func makeHarness() -> Harness {
+    ///
+    /// `library` and `outbox` are accepted so a test can simulate an app
+    /// restart: build a second harness over the same (still-in-memory, but
+    /// standing in for "on disk") library and outbox, with a fresh `api`.
+    private func makeHarness(
+        library: InMemoryLibraryStore = InMemoryLibraryStore(),
+        outbox: InMemorySyncOutbox = InMemorySyncOutbox(),
+        api: FakeSyncApi = FakeSyncApi()
+    ) -> Harness {
         let folderDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let folder = FakeSpotifyFolder(directory: folderDir)
-        let library = InMemoryLibraryStore()
         let tagWriter = FakeTagWriter()
         let coverStore = FakeCoverStore()
         let coordinator = ReleaseCoordinator(
@@ -53,11 +62,10 @@ struct SyncEngineTests {
             library: library,
             coverStore: coverStore
         )
-        let api = FakeSyncApi()
         let account = InMemorySyncAccountStore()
         account.save(email: "toby@example.com", deviceToken: "test-token", deviceId: "device-1")
-        let engine = SyncEngine(api: api, account: account, library: library, coordinator: coordinator, coverStore: coverStore, deviceName: { "Toby's iPhone" })
-        return Harness(coordinator: coordinator, folder: folder, library: library, tagWriter: tagWriter, coverStore: coverStore, api: api, account: account, engine: engine)
+        let engine = SyncEngine(api: api, account: account, library: library, coordinator: coordinator, coverStore: coverStore, outbox: outbox, deviceName: { "Toby's iPhone" })
+        return Harness(coordinator: coordinator, folder: folder, library: library, tagWriter: tagWriter, coverStore: coverStore, api: api, account: account, outbox: outbox, engine: engine)
     }
 
     // MARK: - Push
@@ -675,5 +683,140 @@ struct SyncEngineTests {
         await h.engine.tombstone(id)
 
         #expect(h.api.deleteCalls == [id.uuidString])
+    }
+
+    // MARK: - Outbox (#19)
+
+    /// A delete made by the user while `reconcile()` is mid-flight (e.g.
+    /// suspended fetching the remote page) must still reach the server: the
+    /// user's own action enqueues into the same outbox `reconcile()` drains,
+    /// rather than being lost because a bare fire-and-forget `Task` from the
+    /// old implementation was never awaited.
+    @Test func deleteMadeWhileReconcileIsRunningReachesTheServer() async throws {
+        let h = makeHarness()
+        h.coordinator.syncHook = h.engine
+        let tags = TagSet(title: "T", artist: "A", album: "T")
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: nil)
+        try markSynced(release, in: h.library)
+
+        let gate = Gate()
+        h.api.releasesGate = { await gate.suspend() }
+
+        let reconcileTask = Task { await h.engine.reconcile() }
+        await gate.waitUntilEntered()
+
+        try await h.coordinator.deleteRelease(release.id)
+
+        await gate.resume()
+        await reconcileTask.value
+        await h.engine.drainOutbox()
+
+        #expect(h.api.deleteCalls.contains(release.id.uuidString))
+        #expect(try h.outbox.all().isEmpty)
+        #expect(try h.library.all().isEmpty)
+    }
+
+    /// A delete queued while the network is down must not be lost when the
+    /// app restarts: it sits in the (persistent, in production) outbox
+    /// until the next `reconcile()` — here simulated with a second engine
+    /// built over the same outbox and library.
+    @Test func deleteSurvivesAnAppRestartWithTheNetworkDown() async throws {
+        let library = InMemoryLibraryStore()
+        let outbox = InMemorySyncOutbox()
+        let failingApi = FakeSyncApi()
+        failingApi.deleteError = SyncApiError.network("offline")
+        let h = makeHarness(library: library, outbox: outbox, api: failingApi)
+        let tags = TagSet(title: "T", artist: "A", album: "T")
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: nil)
+        try markSynced(release, in: h.library)
+
+        await h.engine.tombstone(release.id)
+
+        let queued = try outbox.all()
+        #expect(queued.count == 1)
+        #expect(queued.first?.operation == .delete)
+        #expect(queued.first?.attempts == 1)
+        #expect(queued.first?.lastError != nil)
+
+        // "Restart": a fresh engine over the same outbox/library, with a
+        // working api this time.
+        let restarted = makeHarness(library: library, outbox: outbox, api: FakeSyncApi())
+
+        await restarted.engine.reconcile()
+
+        #expect(restarted.api.deleteCalls.contains(release.id.uuidString))
+        #expect(try outbox.all().isEmpty)
+    }
+
+    /// A stale `.push` entry left over after the release it names was
+    /// deleted (before the drain got to it) is dropped without ever
+    /// `PUT`ing anything.
+    @Test func aPushEntryForADeletedReleaseSendsNoPutAndIsDropped() async throws {
+        let h = makeHarness()
+        let releaseId = UUID()
+        try h.outbox.enqueue(releaseId, .push)
+
+        await h.engine.drainOutbox()
+
+        #expect(h.api.putCalls.isEmpty)
+        #expect(try h.outbox.all().isEmpty)
+    }
+
+    /// A delete enqueued while a push for the same id is in-flight must
+    /// survive that push finishing: the push only removes its own `.push`
+    /// entry (`ifOperation: .push`), so a `.delete` already sitting there
+    /// (from a user action that happened meanwhile) is left alone.
+    @Test func aDeleteQueuedWhileAPushIsInFlightSurvivesThePushFinishing() throws {
+        let outbox = InMemorySyncOutbox()
+        let id = UUID()
+        try outbox.enqueue(id, .push)
+        try outbox.enqueue(id, .delete)
+
+        try outbox.remove(id, ifOperation: .push)
+
+        let entries = try outbox.all()
+        #expect(entries.count == 1)
+        #expect(entries.first?.releaseId == id)
+        #expect(entries.first?.operation == .delete)
+    }
+
+    @Test func signOutEmptiesTheOutbox() async throws {
+        let h = makeHarness()
+        try h.outbox.enqueue(UUID(), .push)
+
+        await h.engine.signOut()
+
+        #expect(try h.outbox.all().isEmpty)
+    }
+}
+
+/// A two-stage gate for suspending an async call mid-flight and resuming it
+/// from elsewhere: `suspend()` marks itself entered (releasing anyone
+/// waiting in `waitUntilEntered()`) and then blocks until `resume()` is
+/// called.
+private actor Gate {
+    private var entered = false
+    private var enteredContinuation: CheckedContinuation<Void, Never>?
+    private var resumeContinuation: CheckedContinuation<Void, Never>?
+
+    func suspend() async {
+        entered = true
+        enteredContinuation?.resume()
+        enteredContinuation = nil
+        await withCheckedContinuation { continuation in
+            resumeContinuation = continuation
+        }
+    }
+
+    func waitUntilEntered() async {
+        if entered { return }
+        await withCheckedContinuation { continuation in
+            enteredContinuation = continuation
+        }
+    }
+
+    func resume() {
+        resumeContinuation?.resume()
+        resumeContinuation = nil
     }
 }
