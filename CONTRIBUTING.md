@@ -20,7 +20,7 @@ that touches routing, config, or the build pipeline.
 
 ## Where things go
 
-See the architecture map in `AGENTS.md`. In short:
+See the architecture map in `apps/web/AGENTS.md`. In short:
 
 - Pure domain logic with no I/O → `src/server/releases/ReleaseLayout.ts`.
 - A new external dependency (storage, converter, tag reader) → define an interface next

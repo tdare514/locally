@@ -60,4 +60,4 @@ tests/unit/             # vitest unit tests, no real disk/network/ffmpeg
 docs/adr/               # architecture decision records
 ```
 
-See `AGENTS.md` for the full architecture map and the project's non-negotiable rules.
+See `apps/web/AGENTS.md` for the full architecture map and the project's non-negotiable rules.
