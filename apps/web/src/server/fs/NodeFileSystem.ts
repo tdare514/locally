@@ -1,4 +1,4 @@
-import { createWriteStream } from "node:fs";
+import { createWriteStream, existsSync, realpathSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -52,12 +52,55 @@ export class NodeFileSystem implements FileSystem {
   }
 
   isInside(base: string, target: string): boolean {
+    // Lexical check first: cheap, and rejects the common cases (traversal segments,
+    // unrelated siblings) without touching disk.
+    if (!this.isInsideLexical(base, target)) return false;
+    // A symlink the user placed inside the library can lexically look like a child
+    // while actually resolving somewhere else entirely, so also compare real paths.
+    // Both sides are realpath'd (not just the target): on macOS `/tmp` itself is a
+    // symlink to `/private/tmp`, and comparing a realpath'd target against a
+    // lexical base would then wrongly reject paths under a tmp-dir library in tests.
+    const realBase = this.realpathOrSelf(path.resolve(base));
+    const realTarget = this.realAncestorPath(target);
+    return this.isInsideLexical(realBase, realTarget);
+  }
+
+  private isInsideLexical(base: string, target: string): boolean {
     const rel = path.relative(path.resolve(base), path.resolve(target));
     // "" is base itself; callers that must exclude it (delete) do so explicitly.
     if (rel === "") return true;
     // Absolute means a different drive (Windows). Otherwise only a leading ".." segment
     // escapes: a plain prefix test would wrongly reject a child named "..foo".
     return !path.isAbsolute(rel) && rel.split(path.sep)[0] !== "..";
+  }
+
+  private realpathOrSelf(resolved: string): string {
+    try {
+      return existsSync(resolved) ? realpathSync.native(resolved) : resolved;
+    } catch {
+      return resolved;
+    }
+  }
+
+  /**
+   * Real path of `target`'s deepest existing ancestor, with the non-existent
+   * tail segments (if any) re-appended untouched. `target` itself usually
+   * doesn't exist yet (a not-yet-written track/cover path), so plain
+   * `realpathSync` would throw; walking up to what does exist lets a symlinked
+   * ancestor still be caught while a merely-not-yet-created path isn't rejected.
+   */
+  private realAncestorPath(target: string): string {
+    let current = path.resolve(target);
+    const tail: string[] = [];
+    for (;;) {
+      if (existsSync(current)) break;
+      const parent = path.dirname(current);
+      if (parent === current) break; // reached the filesystem root without finding anything
+      tail.unshift(path.basename(current));
+      current = parent;
+    }
+    const real = this.realpathOrSelf(current);
+    return tail.length > 0 ? path.join(real, ...tail) : real;
   }
 
   async mkdirp(dir: string): Promise<void> {

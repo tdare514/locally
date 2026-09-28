@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { NextRequest, NextResponse } from "next/server";
 import { getServices } from "../../../server/container";
 import { badRequest, errorResponse } from "../../../server/http/responses";
+import { parseRevealBody } from "../../../server/http/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,19 +14,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Reveal only supported on macOS" }, { status: 400 });
     }
 
-    let body: { path?: unknown } = {};
+    let rawBody: unknown = {};
     try {
-      body = (await request.json()) as { path?: unknown };
+      rawBody = await request.json();
     } catch {
       // Empty body is fine; defaults to libraryDir.
     }
+    const body = parseRevealBody(rawBody);
 
     const services = getServices();
     const settings = await services.settings.get();
     const libraryDir = path.resolve(settings.libraryDir);
 
-    const target =
-      typeof body.path === "string" && body.path.trim().length > 0 ? path.resolve(body.path) : libraryDir;
+    const target = body.path !== undefined ? path.resolve(body.path) : libraryDir;
 
     if (!services.fs.isInside(libraryDir, target)) {
       return badRequest("path must be inside the library directory");

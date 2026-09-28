@@ -41,6 +41,17 @@ export async function GET(_request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "This release has no cover image" }, { status: 404 });
     }
 
+    // `coverPath` came off the on-disk index, which this route doesn't otherwise trust (see
+    // `ReleaseService.assertInsideLibrary`); reading it without the same check would let a
+    // tampered entry serve any file on the machine back to the browser. 404, not a distinct
+    // error, so a caller can't use this to probe for files outside the library.
+    const settings = await services.settings.get();
+    const isInside = services.fs.isInside(settings.libraryDir, release.coverPath);
+    const isLibraryDirItself = path.resolve(release.coverPath) === path.resolve(settings.libraryDir);
+    if (!isInside || isLibraryDirItself) {
+      return NextResponse.json({ error: "This release has no cover image" }, { status: 404 });
+    }
+
     let bytes: Buffer;
     try {
       bytes = await services.fs.readFile(release.coverPath);

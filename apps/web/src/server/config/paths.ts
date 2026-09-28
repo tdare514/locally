@@ -6,8 +6,14 @@ export function defaultLibraryDir(): string {
   return path.join(os.homedir(), "Music", "Spotify Local Import");
 }
 
-/** Directory holding app config (settings.json). */
+/**
+ * Directory holding app config (settings.json). Overridable via
+ * `LOCALLY_CONFIG_DIR` so tests can point this at a temp dir instead of the
+ * real `~/.spotify-local-import` - never set this in a normal run.
+ */
 export function settingsDir(): string {
+  const override = process.env.LOCALLY_CONFIG_DIR;
+  if (override && override.trim().length > 0) return override;
   return path.join(os.homedir(), ".spotify-local-import");
 }
 

@@ -315,6 +315,56 @@ describe("SyncEngine", () => {
     expect(status.lastError).toBeNull();
   });
 
+  it("push refuses a release whose track filePath was tampered to point outside the library", async () => {
+    const release = await importOne();
+    const outsidePath = path.join(os.tmpdir(), "sli-sync-outside-track.mp3");
+    await fs.writeFile(outsidePath, "not part of the library");
+    const tampered: Release = { ...release, tracks: [{ ...release.tracks[0], filePath: outsidePath }] };
+
+    await engine.push(tampered);
+
+    expect(api.putCalls).toHaveLength(0);
+    expect(api.uploadCalls).toHaveLength(0);
+    const status = await engine.status();
+    expect(status.lastError).toMatch(/outside the library/i);
+
+    await fs.rm(outsidePath, { force: true });
+  });
+
+  it("push refuses a release whose coverPath was tampered to point outside the library", async () => {
+    const release = await importOneWithCover();
+    const outsidePath = path.join(os.tmpdir(), "sli-sync-outside-cover.jpg");
+    await fs.writeFile(outsidePath, "not part of the library");
+    const tampered: Release = { ...release, coverPath: outsidePath };
+
+    await engine.push(tampered);
+
+    expect(api.putCalls).toHaveLength(0);
+    const status = await engine.status();
+    expect(status.lastError).toMatch(/outside the library/i);
+
+    await fs.rm(outsidePath, { force: true });
+  });
+
+  it("reconcile's backfill skips a release tampered outside the library, but still pushes the rest", async () => {
+    const good = await importOne("Good Artist", "Good Track");
+    const bad = await importOne("Bad Artist", "Bad Track");
+    const outsidePath = path.join(os.tmpdir(), "sli-sync-outside-backfill.mp3");
+    await fs.writeFile(outsidePath, "not part of the library");
+    // Corrupt the stored index entry directly, the way a hand-edited/hostile library.json would.
+    await repo.upsert(libraryDir, { ...bad, tracks: [{ ...bad.tracks[0], filePath: outsidePath }] });
+
+    await engine.reconcile();
+
+    const pushedIds = api.putCalls.map((r) => r.id);
+    expect(pushedIds).toContain(good.id);
+    expect(pushedIds).not.toContain(bad.id);
+    const status = await engine.status();
+    expect(status.lastError).toBeNull(); // the bad release is logged and skipped, not surfaced as a run failure
+
+    await fs.rm(outsidePath, { force: true });
+  });
+
   it("offers an iOS record as pending, then imports it with the same id on accept", async () => {
     const iosRecord: SyncRecord = {
       syncVersion: 1,

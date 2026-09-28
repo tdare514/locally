@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { PendingFromPhone, Release, SyncStatus } from "../../shared/types";
 import { DEFAULT_SYNC_BASE_URL } from "../../shared/types";
-import { NotFoundError, PublicError } from "../../shared/errors";
+import { NotFoundError, PublicError, ValidationError } from "../../shared/errors";
 import type { SettingsStore } from "../config/SettingsStore";
 import type { FileSystem } from "../fs/FileSystem";
 import type { ReleaseService } from "../releases/ReleaseService";
@@ -155,6 +155,13 @@ export class SyncEngine implements ReleaseSyncHooks {
   }
 
   private async pushOne(api: SyncApi, release: Release): Promise<void> {
+    // `filePath`/`coverPath` come from the on-disk index, which is no more trusted here
+    // than in `ReleaseService`: a tampered entry must not cause a file outside the
+    // library to be statSize'd, hashed, or uploaded to the sync service. Checked before
+    // any of that I/O happens.
+    const settings = await this.settings.get();
+    this.assertInsideLibrary(settings.libraryDir, release);
+
     const trackBytes: Record<string, number> = {};
     for (const t of release.tracks) {
       trackBytes[t.id] = await this.fs.statSize(t.filePath);
@@ -335,6 +342,17 @@ export class SyncEngine implements ReleaseSyncHooks {
     return record.origin === "mac" && record.originDevice === this.deviceName();
   }
 
+  /** Same shape as `ReleaseService.assertInsideLibrary`: inside the library dir and not the dir itself. */
+  private assertInsideLibrary(libraryDir: string, release: Release): void {
+    const checkPath = (target: string) => {
+      if (!this.fs.isInside(libraryDir, target) || path.resolve(target) === path.resolve(libraryDir)) {
+        throw new ValidationError(`Refusing to sync a file outside the library directory (release ${release.id})`);
+      }
+    };
+    for (const t of release.tracks) checkPath(t.filePath);
+    if (release.coverPath) checkPath(release.coverPath);
+  }
+
   /**
    * Guarded against overlapping runs; safe to call from a timer and from
    * "Sync now" at once. `running` is set synchronously (before the first
@@ -357,7 +375,18 @@ export class SyncEngine implements ReleaseSyncHooks {
       const localReleases = await this.releases.list();
       for (const release of localReleases) {
         if (state.pushedUpdatedAt[release.id] !== release.updatedAt) {
-          await this.pushOne(api, release);
+          try {
+            await this.pushOne(api, release);
+          } catch (err) {
+            // A tampered index entry must not block every other release from syncing;
+            // any other failure (network, server error, ...) still aborts the run as before,
+            // and this release is retried on the next reconcile.
+            if (err instanceof ValidationError) {
+              console.warn(`SyncEngine: skipping push of release ${release.id}: ${err.message}`);
+              continue;
+            }
+            throw err;
+          }
         }
       }
 

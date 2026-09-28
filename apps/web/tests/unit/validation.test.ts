@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ValidationError } from "../../src/shared/errors";
-import { parseImportMeta, parseUpdateMeta, sniffImageMime } from "../../src/server/http/validation";
+import { parseImportMeta, parseInspectAudio, parseUpdateMeta, sniffImageMime } from "../../src/server/http/validation";
 
 const JPEG_HEADER = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46]);
 const PNG_HEADER = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -168,6 +168,90 @@ describe("parseImportMeta field validation", () => {
   it("rejects a meta that is valid JSON but not an object", async () => {
     await expect(parseImportMeta(formFor(null))).rejects.toThrow(/meta must be a JSON object/);
     await expect(parseImportMeta(formFor([]))).rejects.toThrow(/meta must be a JSON object/);
+  });
+});
+
+describe("parseImportMeta duplicate track numbers", () => {
+  const base = { kind: "album", artist: "A", title: "Album" };
+
+  function formFor(meta: unknown, audioCount: number): FormData {
+    const form = new FormData();
+    form.set("meta", JSON.stringify(meta));
+    for (let i = 0; i < audioCount; i++) form.append("audio", audioFile(`t${i}.mp3`));
+    return form;
+  }
+
+  it("rejects two tracks sharing a trackNumber", async () => {
+    const tracks = [
+      { title: "T1", trackNumber: 1 },
+      { title: "T2", trackNumber: 1 },
+    ];
+    const form = formFor({ ...base, tracks }, 2);
+    await expect(parseImportMeta(form)).rejects.toThrow(
+      /meta\.tracks\[1\]\.trackNumber duplicates the trackNumber already used by tracks\[0\]/
+    );
+  });
+
+  it("accepts distinct track numbers", async () => {
+    const tracks = [
+      { title: "T1", trackNumber: 1 },
+      { title: "T2", trackNumber: 2 },
+    ];
+    const { meta } = await parseImportMeta(formFor({ ...base, tracks }, 2));
+    expect(meta.tracks).toHaveLength(2);
+  });
+});
+
+describe("parseUpdateMeta duplicate track numbers", () => {
+  it("rejects two track patches sharing a trackNumber", () => {
+    expect(() =>
+      parseUpdateMeta({
+        tracks: [
+          { id: "t1", trackNumber: 3 },
+          { id: "t2", trackNumber: 3 },
+        ],
+      })
+    ).toThrow(/tracks\[1\]\.trackNumber duplicates the trackNumber already used by tracks\[0\]/);
+  });
+
+  it("ignores patches that don't touch trackNumber", () => {
+    expect(() =>
+      parseUpdateMeta({
+        tracks: [
+          { id: "t1", title: "A" },
+          { id: "t2", title: "B" },
+        ],
+      })
+    ).not.toThrow();
+  });
+});
+
+describe("MAX_AUDIO_FILES", () => {
+  it("rejects an import with more than 100 audio files", async () => {
+    const base = { kind: "album", artist: "A", title: "Album" };
+    const tracks = Array.from({ length: 101 }, (_, i) => ({ title: `T${i}`, trackNumber: i + 1 }));
+    const form = new FormData();
+    form.set("meta", JSON.stringify({ ...base, tracks }));
+    for (let i = 0; i < 101; i++) form.append("audio", audioFile(`t${i}.mp3`));
+    await expect(parseImportMeta(form)).rejects.toThrow(/At most 100 audio files/);
+  });
+
+  it("rejects an inspect request with more than 100 audio files", () => {
+    const form = new FormData();
+    for (let i = 0; i < 101; i++) form.append("audio", audioFile(`t${i}.mp3`));
+    expect(() => parseInspectAudio(form)).toThrow(/At most 100 audio files/);
+  });
+});
+
+describe("parseInspectAudio per-file size limit", () => {
+  it("rejects an audio file over MAX_AUDIO_BYTES", () => {
+    const file = new File([new Uint8Array(1)], "big.mp3");
+    // Faking a huge upload without allocating 500MB: defineProperty adds an own
+    // data property that shadows the inherited `size` getter.
+    Object.defineProperty(file, "size", { value: 500 * 1024 * 1024 + 1 });
+    const form = new FormData();
+    form.append("audio", file);
+    expect(() => parseInspectAudio(form)).toThrow(/larger than 500MB/);
   });
 });
 

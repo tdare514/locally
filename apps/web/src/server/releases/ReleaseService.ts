@@ -63,6 +63,14 @@ export class ReleaseService {
     // Checked before anything is created, so the rollback below never touches an outside path.
     this.assertInsideLibrary(libraryDir, folderPath);
 
+    // Resolve every track's destination file name up front and refuse before writing anything
+    // if two collide (case-insensitive, since macOS is case-insensitive): otherwise the second
+    // safeMove into the same path silently overwrites the first track's file.
+    const trackNumbers = meta.tracks.map((t, i) => t.trackNumber ?? i + 1);
+    const titles = meta.tracks.map((t, i) => t.title?.trim() || `Track ${trackNumbers[i]}`);
+    const destFileNames = trackNumbers.map((n, i) => this.layout.trackFileName(n, titles[i]));
+    this.assertNoDuplicateFileNames(destFileNames);
+
     await this.fs.mkdirp(folderPath);
 
     const tempDir = await this.fs.makeTempDir("sli-import-");
@@ -83,15 +91,14 @@ export class ReleaseService {
 
       for (let i = 0; i < audioFiles.length; i++) {
         const file = audioFiles[i];
-        const trackMeta = meta.tracks[i];
-        const trackNumber = trackMeta.trackNumber ?? i + 1;
-        const title = trackMeta.title?.trim() || `Track ${trackNumber}`;
+        const trackNumber = trackNumbers[i];
+        const title = titles[i];
 
         const originalExt = path.extname(file.name) || ".dat";
         const tempInput = path.join(tempDir, `in-${i}${originalExt}`);
         await this.fs.saveWebFile(file, tempInput);
 
-        const destFileName = this.layout.trackFileName(trackNumber, title);
+        const destFileName = destFileNames[i];
         const destPath = path.join(folderPath, destFileName);
         this.assertInsideLibrary(libraryDir, destPath);
         const tempOutput = path.join(tempDir, `out-${i}.mp3`);
@@ -296,6 +303,24 @@ export class ReleaseService {
     }
   }
 
+  /**
+   * Two tracks with the same track number and titles that sanitise identically (e.g. differing
+   * only in case, or in characters `sanitizeSegment` strips) would produce the same destination
+   * file name. macOS's default filesystem is case-insensitive, so names are compared that way
+   * too. Called before any file is moved into the release folder, so a colliding import fails
+   * cleanly instead of one track's file silently overwriting another's.
+   */
+  private assertNoDuplicateFileNames(names: string[]): void {
+    const seen = new Set<string>();
+    for (const name of names) {
+      const key = name.toLowerCase();
+      if (seen.has(key)) {
+        throw new ValidationError(`Two tracks would both be named "${name}"`);
+      }
+      seen.add(key);
+    }
+  }
+
   /** Delete a release: removes its folder from disk and the library index entry. */
   async delete(id: string): Promise<void> {
     const settings = await this.settings.get();
@@ -305,11 +330,14 @@ export class ReleaseService {
     if (!existing) {
       throw new NotFoundError(`Release ${id} not found`);
     }
-    // Never delete anything that is not a release folder inside the library.
-    if (
-      !this.fs.isInside(libraryDir, existing.folderPath) ||
-      path.resolve(existing.folderPath) === path.resolve(libraryDir)
-    ) {
+    // Never delete anything that is not a release folder inside the library. `folderFor`
+    // always produces libraryDir/artist/album (2 segments), so anything shallower (an
+    // artist folder) or deeper (something inside a release folder) is rejected too - an
+    // index entry with a tampered `folderPath` must not be able to make delete() remove
+    // every release by one artist, or an unrelated directory nested under a release.
+    const rel = path.relative(path.resolve(libraryDir), path.resolve(existing.folderPath));
+    const depth = rel.split(path.sep).length;
+    if (!this.fs.isInside(libraryDir, existing.folderPath) || rel === "" || depth !== 2) {
       throw new ValidationError("Refusing to delete a folder outside the library");
     }
     await this.repo.remove(libraryDir, id);
@@ -352,6 +380,9 @@ export class ReleaseService {
     const desiredFolder = this.layout.folderFor(libraryDir, record.artist, record.title);
     const folderPath = await this.fs.uniqueDir(desiredFolder);
     this.assertInsideLibrary(libraryDir, folderPath);
+    // Same collision guard as `import()`, and just as necessary here: `sortedTracks` comes
+    // straight off the network record.
+    this.assertNoDuplicateFileNames(sortedTracks.map((t) => this.layout.trackFileName(t.trackNumber, t.title)));
     await this.fs.mkdirp(folderPath);
 
     try {

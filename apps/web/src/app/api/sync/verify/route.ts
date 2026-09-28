@@ -2,7 +2,8 @@ import os from "node:os";
 import { NextRequest, NextResponse } from "next/server";
 import { getServices } from "../../../../server/container";
 import { toSettingsResponse } from "../../../../server/config/settingsView";
-import { badRequest, errorResponse } from "../../../../server/http/responses";
+import { errorResponse } from "../../../../server/http/responses";
+import { parseSyncVerifyBody } from "../../../../server/http/validation";
 import { DEFAULT_SYNC_BASE_URL } from "../../../../shared/types";
 
 export const runtime = "nodejs";
@@ -10,13 +11,8 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as { email?: unknown; code?: unknown };
-    if (typeof body.email !== "string" || !body.email.includes("@")) {
-      return badRequest("A valid email is required");
-    }
-    if (typeof body.code !== "string" || body.code.trim().length === 0) {
-      return badRequest("The six-digit code is required");
-    }
+    const rawBody = await request.json();
+    const body = parseSyncVerifyBody(rawBody);
 
     const services = getServices();
     const settings = await services.settings.get();

@@ -88,4 +88,27 @@ describe("proxy: same-origin check on mutating API requests", () => {
   it("does not check GET, even with a foreign Origin", () => {
     expect(proxy(request({ path: "/api/x", origin: "http://evil.example" })).status).toBe(200);
   });
+
+  it("still applies the CSRF check to a percent-encoded /api/ path", () => {
+    expect(proxy(post({ path: "/%61pi/x", origin: "http://localhost:5173" })).status).toBe(403);
+    expect(proxy(post({ path: "/%61pi/x", origin: "http://localhost:3000" })).status).toBe(200);
+  });
+
+  it("still applies the CSRF check to a mixed-case /API/ path", () => {
+    expect(proxy(post({ path: "/API/x", origin: "http://localhost:5173" })).status).toBe(403);
+  });
+
+  it("fails closed (treats as API) on an unparsable percent-escape", () => {
+    expect(proxy(post({ path: "/%zz/x", origin: "http://localhost:5173" })).status).toBe(403);
+  });
+});
+
+describe("proxy: Cache-Control", () => {
+  it("sets no-store on API responses only, leaving non-API responses untouched", () => {
+    const apiRes = proxy(request({ path: "/api/x" }));
+    expect(apiRes.headers.get("Cache-Control")).toBe("no-store");
+
+    const pageRes = proxy(request({ path: "/some-page" }));
+    expect(pageRes.headers.get("Cache-Control")).toBeNull();
+  });
 });

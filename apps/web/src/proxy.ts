@@ -26,6 +26,24 @@ function parseUrl(value: string | null): URL | null {
   }
 }
 
+/**
+ * True if `pathname` addresses `/api/*`. Decodes percent-escapes first so
+ * `/%61pi/import` (which Next itself treats as `/api/import`) can't slip past
+ * the CSRF check below by looking like a non-API path on the raw string, and
+ * lowercases so `/API/import` can't either. A pathname that fails to decode
+ * (a malformed escape) is treated as an API path - fail closed rather than
+ * risk letting a mutating request skip the Origin check.
+ */
+function isApiPath(pathname: string): boolean {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return true;
+  }
+  return decoded.toLowerCase().startsWith("/api/");
+}
+
 export function proxy(req: NextRequest) {
   // This server only speaks plain http, so the Host header is our whole origin.
   // Not `req.nextUrl.origin`: Next rewrites 127.0.0.1 and [::1] to "localhost"
@@ -35,7 +53,7 @@ export function proxy(req: NextRequest) {
     return NextResponse.json({ error: "This app only accepts local connections" }, { status: 403 });
   }
 
-  const isApi = req.nextUrl.pathname.startsWith("/api/");
+  const isApi = isApiPath(req.nextUrl.pathname);
   if (isApi && MUTATING.has(req.method)) {
     // Same-origin fetches from our own page always send Origin (Referer is the
     // fallback for the odd client that sends only that). A missing, unparsable or
@@ -50,7 +68,7 @@ export function proxy(req: NextRequest) {
   res.headers.set("X-Content-Type-Options", "nosniff");
   res.headers.set("X-Frame-Options", "DENY");
   res.headers.set("Referrer-Policy", "no-referrer");
-  res.headers.set("Cache-Control", isApi ? "no-store" : res.headers.get("Cache-Control") ?? "");
+  if (isApi) res.headers.set("Cache-Control", "no-store");
   return res;
 }
 

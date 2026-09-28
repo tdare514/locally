@@ -138,6 +138,26 @@ describe("ReleaseService", () => {
     expect(first.folderPath).not.toBe(second.folderPath);
   });
 
+  it("refuses an import whose track file names collide, before creating anything", async () => {
+    const meta = {
+      kind: "album" as const,
+      artist: "Clash",
+      title: "Names",
+      tracks: [
+        { title: "Song", trackNumber: 1 },
+        { title: "SONG", trackNumber: 1 },
+      ],
+    };
+    await expect(service.import(meta, null, [audioFile("a.mp3"), audioFile("b.mp3")])).rejects.toBeInstanceOf(
+      ValidationError
+    );
+    const created = await fs
+      .access(path.join(libraryDir, "Clash"))
+      .then(() => true)
+      .catch(() => false);
+    expect(created).toBe(false);
+  });
+
   it("swapping two track numbers on update keeps file names and rewrites the track tags", async () => {
     const release = await service.import(
       {

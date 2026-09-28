@@ -39,7 +39,7 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Deployed to https://locally-sync-api.vercel.app (Vercel project locally-sync-api: Turso database, private Blob store); fails closed until the Resend key is set (#3)
 
 ## In progress
-- Security hardening from the Sep 27 review: web origin check, zod validation, HTTPS-only sync, sign-out on base URL change, Keychain hardening and the iOS privacy manifest landed (#11 closed); the medium/low backlog remains (#12)
+- Security hardening from the Sep 27 review: web origin check, zod validation, HTTPS-only sync, sign-out on base URL change, Keychain hardening and the iOS privacy manifest landed (#11 closed); the medium/low backlog is done on web (symlink-aware inside checks, index schema, ffmpeg watchdog, settings file perms, decoded CSRF path); its iOS items remain (#12)
 - Security review of apps/api (#20): findings fixed 28 Sep; auth rate limits now live in the shared libSQL database, so they hold across Vercel instances
 - Deploying apps/api to Vercel with libSQL, Blob and Resend behind the existing interfaces (#3): live; waiting on RESEND_API_KEY and MAIL_FROM, then point both clients at the URL and smoke-test
 

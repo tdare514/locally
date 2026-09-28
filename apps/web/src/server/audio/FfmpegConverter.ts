@@ -10,8 +10,13 @@ import type { AudioConverter } from "./AudioConverter";
  * filenames can't be interpreted as shell syntax). The binary name is
  * injectable so tests (or an alternate install location) can override it.
  */
+const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
+
 export class FfmpegConverter implements AudioConverter {
-  constructor(private readonly binary: string = "ffmpeg") {}
+  constructor(
+    private readonly binary: string = "ffmpeg",
+    private readonly timeoutMs: number = DEFAULT_TIMEOUT_MS
+  ) {}
 
   async toMp3(inputPath: string, outputPath: string): Promise<void> {
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
@@ -23,7 +28,15 @@ export class FfmpegConverter implements AudioConverter {
 
     await new Promise<void>((resolve, reject) => {
       const proc = spawn(this.binary, [
+        // Never wait on stdin: this always runs unattended, and a hung read
+        // would tie up the watchdog for nothing.
+        "-nostdin",
         "-y",
+        // Only the local file protocol is needed to read `inputPath`; this
+        // stops a crafted input (e.g. a concat-demuxer playlist) from making
+        // ffmpeg reach out to a network or pipe protocol instead.
+        "-protocol_whitelist",
+        "file",
         "-i",
         inputPath,
         "-vn",
@@ -31,6 +44,11 @@ export class FfmpegConverter implements AudioConverter {
         "libmp3lame",
         "-b:a",
         "320k",
+        // Force the container/muxer rather than inferring it from
+        // `outputPath`'s extension, which is always ".mp3" but shouldn't be
+        // load-bearing for what ffmpeg decides to write.
+        "-f",
+        "mp3",
         outputPath,
       ]);
 
@@ -39,7 +57,17 @@ export class FfmpegConverter implements AudioConverter {
         stderr += chunk.toString();
       });
 
+      // Watchdog: a stuck or maliciously slow input must not hang the import
+      // forever. SIGKILL rather than SIGTERM - ffmpeg can catch and ignore
+      // SIGTERM while still reading input.
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        proc.kill("SIGKILL");
+      }, this.timeoutMs);
+
       proc.on("error", (err) => {
+        clearTimeout(timer);
         const nodeErr = err as NodeJS.ErrnoException;
         if (nodeErr.code === "ENOENT") {
           reject(
@@ -53,7 +81,10 @@ export class FfmpegConverter implements AudioConverter {
       });
 
       proc.on("close", (code) => {
-        if (code === 0) {
+        clearTimeout(timer);
+        if (timedOut) {
+          reject(new PublicError(`ffmpeg timed out converting ${path.basename(inputPath)} and was stopped.`));
+        } else if (code === 0) {
           resolve();
         } else {
           console.error(stderr.slice(-2000));

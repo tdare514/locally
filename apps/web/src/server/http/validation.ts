@@ -10,6 +10,8 @@ export const MAX_AUDIO_BYTES = 500 * 1024 * 1024;
 /** Longest title/name accepted; `ReleaseLayout.sanitizeSegment` caps at the same length. */
 export const MAX_TEXT_LENGTH = 200;
 export const MAX_TRACKS = 200;
+/** Longest audio file list accepted per request, for import and inspect alike. */
+export const MAX_AUDIO_FILES = 100;
 
 /** True if `name`'s extension (lowercased) is one of `exts`. */
 export function hasExt(name: string, exts: readonly string[]): boolean {
@@ -70,6 +72,31 @@ const trackNumberSchema = z
   .min(1, TRACK_NUMBER_MSG)
   .max(999, TRACK_NUMBER_MSG);
 
+/** Reject a track list where two entries share a `trackNumber` (entries without one, e.g. a
+ * partial `update` patch that doesn't touch it, are ignored). Spotify's local-files matching and
+ * `ReleaseLayout.trackFileName` both key off track number, so a collision would make two tracks
+ * indistinguishable on disk. */
+function rejectDuplicateTrackNumbers(
+  tracks: ReadonlyArray<{ trackNumber?: number }>,
+  ctx: z.RefinementCtx
+): void {
+  const seenAt = new Map<number, number>();
+  for (let i = 0; i < tracks.length; i++) {
+    const n = tracks[i].trackNumber;
+    if (n === undefined) continue;
+    const firstIndex = seenAt.get(n);
+    if (firstIndex !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        message: `duplicates the trackNumber already used by tracks[${firstIndex}]`,
+        path: [i, "trackNumber"],
+      });
+    } else {
+      seenAt.set(n, i);
+    }
+  }
+}
+
 const importMetaSchema = z.object(
   {
     kind: kindSchema,
@@ -83,7 +110,8 @@ const importMetaSchema = z.object(
         error: "must be a non-empty array",
       })
       .min(1, "must be a non-empty array")
-      .max(MAX_TRACKS, `must have at most ${MAX_TRACKS} tracks`),
+      .max(MAX_TRACKS, `must have at most ${MAX_TRACKS} tracks`)
+      .superRefine(rejectDuplicateTrackNumbers),
   },
   { error: "must be a JSON object" }
 );
@@ -107,6 +135,7 @@ const updateMetaSchema = z.object(
         { error: "must be an array" }
       )
       .max(MAX_TRACKS, `must have at most ${MAX_TRACKS} entries`)
+      .superRefine(rejectDuplicateTrackNumbers)
       .optional(),
   },
   { error: "Request body must be a JSON object" }
@@ -155,6 +184,9 @@ export async function parseImportMeta(form: FormData): Promise<ParsedImport> {
   const audioFiles = form.getAll("audio").filter((v): v is File => v instanceof File);
   if (audioFiles.length === 0) {
     throw new ValidationError("At least one audio file is required");
+  }
+  if (audioFiles.length > MAX_AUDIO_FILES) {
+    throw new ValidationError(`At most ${MAX_AUDIO_FILES} audio files are allowed per request`);
   }
   if (meta.kind === "single" && audioFiles.length !== 1) {
     throw new ValidationError("A single must have exactly one audio file");
@@ -216,9 +248,15 @@ export function parseInspectAudio(form: FormData): File[] {
   if (audioFiles.length === 0) {
     throw new ValidationError("At least one audio file is required");
   }
+  if (audioFiles.length > MAX_AUDIO_FILES) {
+    throw new ValidationError(`At most ${MAX_AUDIO_FILES} audio files are allowed per request`);
+  }
   for (const f of audioFiles) {
     if (!hasExt(f.name, SUPPORTED_AUDIO_EXT)) {
       throw new ValidationError(`Unsupported audio file type: ${f.name}`);
+    }
+    if (f.size > MAX_AUDIO_BYTES) {
+      throw new ValidationError(`${f.name} is larger than 500MB`);
     }
   }
   return audioFiles;
@@ -229,6 +267,106 @@ export function parseUpdateMeta(body: unknown): UpdateReleaseMeta {
   const parsed = updateMetaSchema.safeParse(body);
   if (!parsed.success) {
     throw new ValidationError(describeIssue("", parsed.error.issues[0]));
+  }
+  return parsed.data;
+}
+
+// --- settings / reveal / sync: request bodies -----------------------------
+//
+// These routes used to hand-check `typeof`/`.trim()` inline; the schemas
+// below only pin down shape and non-emptiness (the same checks the routes
+// used to do by hand). Anything that needs `path`/`os` or other services -
+// home-folder expansion, the loopback/https rule for sync.baseUrl, the
+// isInside check for reveal - stays in the route, since it isn't pure input
+// validation.
+
+const putSettingsBodySchema = z.object({
+  libraryDir: z
+    .string({ error: "libraryDir is required and must be a non-empty string" })
+    .trim()
+    .min(1, "libraryDir is required and must be a non-empty string")
+    .optional(),
+  sync: z
+    .object({
+      baseUrl: z
+        .string({ error: "sync.baseUrl must be a non-empty string" })
+        .trim()
+        .min(1, "sync.baseUrl must be a non-empty string")
+        .optional(),
+    })
+    .optional(),
+});
+
+export interface ParsedSettingsPut {
+  libraryDir?: string;
+  sync?: { baseUrl?: string };
+}
+
+/** Validate the JSON body of `PUT /api/settings`. Presence/shape only; the route still does the
+ * path resolution and sync host rules that need `os`/`path` and `applySyncBaseUrlChange`. */
+export function parseSettingsPutBody(body: unknown): ParsedSettingsPut {
+  const parsed = putSettingsBodySchema.safeParse(body);
+  if (!parsed.success) {
+    // Messages here already name their field, so no describeIssue prefix.
+    throw new ValidationError(parsed.error.issues[0].message);
+  }
+  return parsed.data;
+}
+
+const revealBodySchema = z.object({
+  path: z
+    .string({ error: "path must be a string" })
+    .trim()
+    .min(1, "path must not be empty")
+    .refine((s) => !hasControlChar(s), "path must not contain control characters")
+    .optional(),
+});
+
+export interface ParsedReveal {
+  path?: string;
+}
+
+/** Validate the JSON body of `POST /api/reveal`. An absent `path` means "use the library dir",
+ * which the route still resolves and checks with `isInside`/`ReleaseLayout`. */
+export function parseRevealBody(body: unknown): ParsedReveal {
+  const parsed = revealBodySchema.safeParse(body);
+  if (!parsed.success) {
+    // Messages here already name their field, so no describeIssue prefix.
+    throw new ValidationError(parsed.error.issues[0].message);
+  }
+  return parsed.data;
+}
+
+const emailSchema = z
+  .string({ error: "A valid email is required" })
+  .refine((s) => s.includes("@"), "A valid email is required");
+
+const syncCodeBodySchema = z.object({ email: emailSchema });
+
+/** Validate the JSON body of `POST /api/sync/code`. */
+export function parseSyncCodeBody(body: unknown): { email: string } {
+  const parsed = syncCodeBodySchema.safeParse(body);
+  if (!parsed.success) {
+    // Messages here already name their field, so no describeIssue prefix.
+    throw new ValidationError(parsed.error.issues[0].message);
+  }
+  return parsed.data;
+}
+
+const syncVerifyBodySchema = z.object({
+  email: emailSchema,
+  code: z
+    .string({ error: "The six-digit code is required" })
+    .trim()
+    .min(1, "The six-digit code is required"),
+});
+
+/** Validate the JSON body of `POST /api/sync/verify`. */
+export function parseSyncVerifyBody(body: unknown): { email: string; code: string } {
+  const parsed = syncVerifyBodySchema.safeParse(body);
+  if (!parsed.success) {
+    // Messages here already name their field, so no describeIssue prefix.
+    throw new ValidationError(parsed.error.issues[0].message);
   }
   return parsed.data;
 }

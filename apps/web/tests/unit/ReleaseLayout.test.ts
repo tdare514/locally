@@ -114,6 +114,25 @@ describe("ReleaseLayout hardening", () => {
     });
   });
 
+  describe("sanitizeSegment: zero-width/bidi and byte-length hardening", () => {
+    it("strips zero-width and bidi control characters", () => {
+      // U+200B zero-width space, U+202E right-to-left override, U+2066 left-to-right isolate,
+      // U+FEFF BOM, U+061C Arabic letter mark.
+      expect(layout.sanitizeSegment("A​B‮C⁦D﻿E؜F")).toBe("ABCDEF");
+    });
+
+    it("caps a multibyte-heavy name by UTF-8 bytes, not just code points", () => {
+      // 200 code points of a 4-byte emoji is 800 bytes, far past the 255-byte filesystem
+      // limit even after the RESERVED_SUFFIX_BYTES headroom for an extension/"(n)" suffix.
+      const result = layout.sanitizeSegment("😀".repeat(200));
+      expect(Buffer.byteLength(result, "utf-8")).toBeLessThanOrEqual(255 - 16);
+      // Never split a surrogate pair: every character in the result must itself be
+      // a single valid code point (Array.from would throw/mangle on a lone surrogate).
+      expect(Array.from(result).every((ch) => ch.length <= 2)).toBe(true);
+      expect(result.length).toBeGreaterThan(0);
+    });
+  });
+
   describe("assertPlainFileName", () => {
     it.each(["01 - Intro.mp3", "cover.jpg", "Phone Artist - Phone Song - 01 - Phone Song.m4a", "a..b (2).mp3"])(
       "returns a plain child name unchanged: %s",
