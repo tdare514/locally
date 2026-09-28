@@ -11,6 +11,11 @@ const CODE_LENGTH = 6;
 const CODE_TTL_MS = 10 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 const TOKEN_BYTES = 32;
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** A device token unused for this long stops working; the device must sign in again. */
+export const TOKEN_IDLE_TTL_MS = 90 * DAY_MS;
+/** `lastSeenAt` is refreshed at most this often, so authenticating isn't a write per request. */
+export const LAST_SEEN_REFRESH_MS = DAY_MS;
 
 export interface AuthContext {
   user: { id: string; email: string };
@@ -151,7 +156,11 @@ export class AuthService {
     };
   }
 
-  /** Resolve a bearer token to its user and device, touching `lastSeenAt`. Rejects revoked devices. */
+  /**
+   * Resolve a bearer token to its user and device. Rejects revoked devices and
+   * tokens idle for longer than `TOKEN_IDLE_TTL_MS`; refreshes `lastSeenAt` at
+   * most once per `LAST_SEEN_REFRESH_MS`.
+   */
   async authenticate(token: string): Promise<AuthContext> {
     const tokenHash = this.hashToken(token);
     const [device] = await this.db.select().from(devices).where(eq(devices.tokenHash, tokenHash));
@@ -160,7 +169,13 @@ export class AuthService {
       throw new UnauthorizedError("Invalid or revoked device token");
     }
 
-    await this.db.update(devices).set({ lastSeenAt: this.now() }).where(eq(devices.id, device.id));
+    const now = this.now();
+    if (now - device.lastSeenAt > TOKEN_IDLE_TTL_MS) {
+      throw new UnauthorizedError("Device token expired. Sign in again.");
+    }
+    if (now - device.lastSeenAt >= LAST_SEEN_REFRESH_MS) {
+      await this.db.update(devices).set({ lastSeenAt: now }).where(eq(devices.id, device.id));
+    }
 
     const [user] = await this.db.select().from(users).where(eq(users.id, device.userId));
     if (!user) {

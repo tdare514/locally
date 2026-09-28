@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createDb, migrateDb, type Db } from "../../src/db/client";
-import { AuthService } from "../../src/server/auth/AuthService";
+import { AuthService, TOKEN_IDLE_TTL_MS, LAST_SEEN_REFRESH_MS } from "../../src/server/auth/AuthService";
 import { UnauthorizedError, NotFoundError } from "../../src/shared/errors";
 import { FakeMailer } from "../support/testServices";
 
@@ -141,5 +141,80 @@ describe("AuthService", () => {
     await expect(auth.revokeDevice(b.user.id, a.device.id)).rejects.toThrow(NotFoundError);
     // A's device still works.
     await expect(auth.authenticate(a.token)).resolves.toMatchObject({ user: { id: a.user.id } });
+  });
+
+  describe("token idle expiry", () => {
+    it("still authenticates after 89 days of inactivity", async () => {
+      await auth.issueCode("idle@example.com");
+      const { token } = await auth.verify({
+        email: "idle@example.com",
+        code: mailer.codeFor("idle@example.com"),
+        deviceName: "Mac",
+        platform: "mac",
+      });
+
+      clock += 89 * 24 * 60 * 60 * 1000;
+      await expect(auth.authenticate(token)).resolves.toBeDefined();
+    });
+
+    it("rejects a token idle for more than TOKEN_IDLE_TTL_MS", async () => {
+      const start = clock;
+      await auth.issueCode("idle2@example.com");
+      const { token } = await auth.verify({
+        email: "idle2@example.com",
+        code: mailer.codeFor("idle2@example.com"),
+        deviceName: "Mac",
+        platform: "mac",
+      });
+
+      clock = start + TOKEN_IDLE_TTL_MS + 1;
+      await expect(auth.authenticate(token)).rejects.toThrow(UnauthorizedError);
+    });
+
+    it("keeps working when used regularly, sliding the idle window forward", async () => {
+      await auth.issueCode("active@example.com");
+      const { token } = await auth.verify({
+        email: "active@example.com",
+        code: mailer.codeFor("active@example.com"),
+        deviceName: "Mac",
+        platform: "mac",
+      });
+
+      // Used every 30 days for over 200 days total; each use refreshes
+      // lastSeenAt, so the token never sits idle long enough to expire even
+      // though the total elapsed time far exceeds TOKEN_IDLE_TTL_MS.
+      for (let day = 30; day <= 210; day += 30) {
+        clock = Date.UTC(2026, 0, 1) + day * 24 * 60 * 60 * 1000;
+        await expect(auth.authenticate(token)).resolves.toBeDefined();
+      }
+    });
+  });
+
+  describe("lastSeenAt refresh throttling", () => {
+    it("does not rewrite lastSeenAt within LAST_SEEN_REFRESH_MS, but does after", async () => {
+      await auth.issueCode("refresh@example.com");
+      const { token, user } = await auth.verify({
+        email: "refresh@example.com",
+        code: mailer.codeFor("refresh@example.com"),
+        deviceName: "Mac",
+        platform: "mac",
+      });
+
+      const [initial] = await auth.listDevices(user.id);
+      const initialLastSeen = initial!.lastSeenAt;
+
+      // Authenticate again an hour later: well under the refresh interval.
+      clock += 60 * 60 * 1000;
+      await auth.authenticate(token);
+      const [afterHour] = await auth.listDevices(user.id);
+      expect(afterHour!.lastSeenAt).toBe(initialLastSeen);
+
+      // Push past a full day since the original lastSeenAt: now it updates.
+      clock = Date.UTC(2026, 0, 1) + LAST_SEEN_REFRESH_MS + 1;
+      await auth.authenticate(token);
+      const [afterDay] = await auth.listDevices(user.id);
+      expect(afterDay!.lastSeenAt).not.toBe(initialLastSeen);
+      expect(new Date(afterDay!.lastSeenAt).getTime()).toBe(clock);
+    });
   });
 });

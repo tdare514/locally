@@ -115,6 +115,9 @@ Accounts are email + a six-digit code, never a password. `src/server/auth/AuthSe
 - A successful code exchange mints an opaque 32-byte random device token. Only
   `sha256(token + TOKEN_PEPPER)` is stored (`devices.tokenHash`) — never the token
   itself. Losing the database does not hand out anyone's password or token.
+- A device token unused for 90 days expires (`TOKEN_IDLE_TTL_MS` in `AuthService`), so a
+  token on a lost or sold device stops working even if nobody revokes it. `lastSeenAt` is
+  refreshed at most once a day to avoid a write per request.
 - `AUTH_PEPPER`/`TOKEN_PEPPER` are required in production; `src/server/config/env.ts`
   falls back to a fixed, insecure development value outside production (with a loud
   startup warning), but with `NODE_ENV=production` refuses to start at all if either,
