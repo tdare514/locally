@@ -45,8 +45,11 @@ final class ReleaseRecord {
     var updatedAt: Date
     /// Mirrors `Release.syncedUpdatedAt`; `nil` until the first successful push.
     var syncedUpdatedAt: Date?
+    /// JSON-encoded `Release.uploadedFileNames`; `nil` for rows written
+    /// before it existed, read back as empty.
+    var uploadedFileNamesData: Data?
 
-    init(id: UUID, kindRaw: String, title: String, artist: String, year: String?, genre: String?, coverPath: String?, folderPath: String, tracksData: Data, createdAt: Date, updatedAt: Date, syncedUpdatedAt: Date? = nil) {
+    init(id: UUID, kindRaw: String, title: String, artist: String, year: String?, genre: String?, coverPath: String?, folderPath: String, tracksData: Data, createdAt: Date, updatedAt: Date, syncedUpdatedAt: Date? = nil, uploadedFileNamesData: Data? = nil) {
         self.id = id
         self.kindRaw = kindRaw
         self.title = title
@@ -59,6 +62,7 @@ final class ReleaseRecord {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.syncedUpdatedAt = syncedUpdatedAt
+        self.uploadedFileNamesData = uploadedFileNamesData
     }
 }
 
@@ -123,6 +127,7 @@ final class SwiftDataLibraryStore: LibraryStore {
         let existing = try context.fetch(FetchDescriptor(predicate: predicate)).first
 
         let tracksData = try JSONEncoder().encode(release.tracks)
+        let uploadedFileNamesData = try JSONEncoder().encode(release.uploadedFileNames)
 
         if let existing {
             existing.kindRaw = release.kind.rawValue
@@ -135,6 +140,7 @@ final class SwiftDataLibraryStore: LibraryStore {
             existing.tracksData = tracksData
             existing.updatedAt = release.updatedAt
             existing.syncedUpdatedAt = release.syncedUpdatedAt
+            existing.uploadedFileNamesData = uploadedFileNamesData
         } else {
             guard insertIfMissing else { return false }
             let record = ReleaseRecord(
@@ -149,7 +155,8 @@ final class SwiftDataLibraryStore: LibraryStore {
                 tracksData: tracksData,
                 createdAt: release.createdAt,
                 updatedAt: release.updatedAt,
-                syncedUpdatedAt: release.syncedUpdatedAt
+                syncedUpdatedAt: release.syncedUpdatedAt,
+                uploadedFileNamesData: uploadedFileNamesData
             )
             context.insert(record)
         }
@@ -163,6 +170,9 @@ final class SwiftDataLibraryStore: LibraryStore {
               let tracks = try? JSONDecoder().decode([Track].self, from: record.tracksData) else {
             return nil
         }
+        let uploadedFileNames: [String] = record.uploadedFileNamesData.flatMap {
+            try? JSONDecoder().decode([String].self, from: $0)
+        } ?? []
         return Release(
             id: record.id,
             kind: kind,
@@ -175,7 +185,8 @@ final class SwiftDataLibraryStore: LibraryStore {
             tracks: tracks,
             createdAt: record.createdAt,
             updatedAt: record.updatedAt,
-            syncedUpdatedAt: record.syncedUpdatedAt
+            syncedUpdatedAt: record.syncedUpdatedAt,
+            uploadedFileNames: uploadedFileNames
         )
     }
 }

@@ -348,17 +348,19 @@ final class SyncEngine: ReleaseSyncHook {
             // `CoverStore.fileURL`). A cover the store can't find is left out
             // of the record rather than failing the push: the other device
             // would otherwise wait forever for a `cover.jpg` that never lands.
-            let coverURL = release.coverPath != nil ? coverStore.fileURL(release.id) : nil
-            record.cover = coverURL.map { "cover.\($0.pathExtension)" }
-            // The change signal the other side compares against its own
-            // local cover's hash (see `applyRemoteUpdate` below). iOS
-            // already re-uploads the cover on every push regardless (no
-            // "already uploaded" cache like web's `uploadedFiles`), so
-            // this needs no accompanying change to `uploadFiles`.
+            let cover = coverUpload(for: release)
+            record.cover = cover?.name
+            // The hash is the change signal the other side compares against
+            // its own local cover's hash (see `applyRemoteUpdate` below); it
+            // is not what decides whether the cover gets re-uploaded here —
+            // `uploadFiles` does that from `release.uploadedFileNames`. A
+            // local cover replace makes `ReleaseCoordinator` drop the
+            // cover's name from `uploadedFileNames`, which is what makes the
+            // next push upload the new bytes.
             // `try?`: a cover that cannot be read is sent without a hash (no
             // change signal) rather than failing the whole push, in the same
             // spirit as the missing-cover case above.
-            record.coverHash = coverURL.flatMap { (try? Data(contentsOf: $0))?.sha256Hex }
+            record.coverHash = cover.flatMap { (try? Data(contentsOf: $0.url))?.sha256Hex }
 
             do {
                 try await api.putRelease(record)
@@ -368,16 +370,36 @@ final class SyncEngine: ReleaseSyncHook {
                 try await api.putRelease(record)
             }
 
-            try await uploadFiles(record: record, files: files, coverURL: coverURL)
-            markPushed(release, at: record.updatedAt)
+            let uploaded = try await uploadFiles(release: release, record: record, files: files, cover: cover)
+            markPushed(release, at: record.updatedAt, uploaded: uploaded)
         }
     }
 
-    private func uploadFiles(record: SyncRecord, files: [(track: Track, url: URL)], coverURL: URL?) async throws {
+    /// The cover file the push uploads for `release`, and the name it goes up
+    /// under, or `nil` when the release has no cover or the store can't find
+    /// its file (in which case the push leaves the cover out of the record).
+    /// Resolved by id, not `coverPath` (see `CoverStore.fileURL`).
+    private func coverUpload(for release: Release) -> (url: URL, name: String)? {
+        guard release.coverPath != nil, let url = coverStore.fileURL(release.id) else { return nil }
+        return (url, "cover.\(url.pathExtension)")
+    }
+
+    /// Requests tickets only for files not already in `release.uploadedFileNames`,
+    /// uploads each, and returns the updated set of names the server holds.
+    /// Persists progress after every single success (`recordUploaded`), so a
+    /// crash or dropped connection mid-album leaves the next retry with only
+    /// the remaining files to upload, not the whole release again. The first
+    /// failure stops the push (as the Mac's `pushOne` does): on a flaky link
+    /// carrying on would stack one timeout per remaining file, and the
+    /// retry picks up exactly where this left off anyway.
+    private func uploadFiles(release: Release, record: SyncRecord, files: [(track: Track, url: URL)], cover: (url: URL, name: String)?) async throws -> Set<String> {
+        var uploaded = Set(release.uploadedFileNames)
+
         var localPathByName: [String: URL] = [:]
         var requests: [SyncFileUploadRequest] = []
         for entry in files {
             let name = entry.url.lastPathComponent
+            guard !uploaded.contains(name) else { continue }
             localPathByName[name] = entry.url
             requests.append(SyncFileUploadRequest(
                 name: name,
@@ -385,17 +407,40 @@ final class SyncEngine: ReleaseSyncHook {
                 contentType: Self.contentType(forExtension: entry.url.pathExtension)
             ))
         }
-        if let coverName = record.cover, let coverURL {
-            localPathByName[coverName] = coverURL
-            requests.append(SyncFileUploadRequest(name: coverName, bytes: Self.fileSize(at: coverURL), contentType: Self.contentType(forExtension: (coverName as NSString).pathExtension)))
+        if let cover, !uploaded.contains(cover.name) {
+            localPathByName[cover.name] = cover.url
+            requests.append(SyncFileUploadRequest(name: cover.name, bytes: Self.fileSize(at: cover.url), contentType: Self.contentType(forExtension: (cover.name as NSString).pathExtension)))
         }
 
-        guard !requests.isEmpty else { return }
+        guard !requests.isEmpty else { return uploaded }
         let uploads = try await api.requestUploads(releaseId: record.id, files: requests)
+        // A requested name the server returns no ticket for is already held
+        // by the server (that is what the fake and web's contract mean by
+        // omitting it); recording it here keeps `needsPush` from retrying it
+        // every reconcile forever.
+        let requestedNames = Set(requests.map(\.name))
+        let ticketedNames = Set(uploads.map(\.name))
+        for name in requestedNames.subtracting(ticketedNames) {
+            uploaded.insert(name)
+            recordUploaded(name, for: release.id)
+        }
         for upload in uploads {
             guard let localURL = localPathByName[upload.name] else { continue }
             try await api.uploadFile(localURL, to: upload)
+            uploaded.insert(upload.name)
+            recordUploaded(upload.name, for: release.id)
         }
+        return uploaded
+    }
+
+    /// Records `name` as held by the server on the stored copy of the release
+    /// (re-read, so a title edit made while the upload ran isn't overwritten).
+    /// Update-only for the same reason as `markPushed`.
+    private func recordUploaded(_ name: String, for id: UUID) {
+        guard var current = ((try? library.all()) ?? []).first(where: { $0.id == id }) else { return }
+        guard !current.uploadedFileNames.contains(name) else { return }
+        current.uploadedFileNames.append(name)
+        _ = try? library.updateIfPresent(current)
     }
 
     /// Marks `release` as pushed (see `Release.syncedUpdatedAt`) so
@@ -404,10 +449,11 @@ final class SyncEngine: ReleaseSyncHook {
     /// in the meantime an `upsert` would re-create its index row with the
     /// files already gone. The delete's tombstone is the server's newest
     /// word on it, so there is nothing to mark.
-    private func markPushed(_ release: Release, at updatedAt: Date) {
+    private func markPushed(_ release: Release, at updatedAt: Date, uploaded: Set<String>) {
         var pushed = release
         pushed.updatedAt = updatedAt
         pushed.syncedUpdatedAt = updatedAt
+        pushed.uploadedFileNames = Array(uploaded).sorted()
         _ = try? library.updateIfPresent(pushed)
     }
 
@@ -620,17 +666,33 @@ final class SyncEngine: ReleaseSyncHook {
     /// already-queued `.push`) sitting in the outbox.
     private func backfillUnpushed() async {
         let localReleases = (try? library.all()) ?? []
-        for release in localReleases where Self.needsPush(release) {
+        for release in localReleases where needsPush(release) {
             try? outbox.enqueue(release.id, .push)
         }
     }
 
-    /// Never pushed, or changed since the last push that fully completed
-    /// (record and files). A push that failed part-way leaves
-    /// `syncedUpdatedAt` behind `updatedAt`, which is what makes it retry.
-    static func needsPush(_ release: Release) -> Bool {
+    private func needsPush(_ release: Release) -> Bool {
+        Self.needsPush(release, coverName: coverUpload(for: release)?.name)
+    }
+
+    /// The names a push of `release` uploads: each track's file name plus
+    /// `coverName` (the name `coverUpload(for:)` resolves) when there is one.
+    static func expectedUploadNames(of release: Release, coverName: String?) -> Set<String> {
+        var names = Set(release.tracks.map { ($0.filePath as NSString).lastPathComponent })
+        if let coverName { names.insert(coverName) }
+        return names
+    }
+
+    /// Never pushed, changed since the last push that fully completed
+    /// (record and files), or holding a file the server hasn't confirmed
+    /// (see `Release.uploadedFileNames`). A push that failed part-way leaves
+    /// `syncedUpdatedAt` behind `updatedAt`, which is what makes it retry;
+    /// a release stored before `uploadedFileNames` existed has an empty set,
+    /// so it is re-verified once and then settles.
+    static func needsPush(_ release: Release, coverName: String?) -> Bool {
         guard let synced = release.syncedUpdatedAt else { return true }
-        return synced < release.updatedAt
+        if synced < release.updatedAt { return true }
+        return !expectedUploadNames(of: release, coverName: coverName).isSubset(of: release.uploadedFileNames)
     }
 
     /// A record this very device wrote, seen again on a pull.
@@ -662,7 +724,7 @@ final class SyncEngine: ReleaseSyncHook {
             }
 
             let release = try await coordinator.importSynced(record, dir: tempDir)
-            markPushed(release, at: release.updatedAt)
+            markPushed(release, at: release.updatedAt, uploaded: Set(release.uploadedFileNames))
             status.pendingFromMac.removeAll { $0.id == recordId }
             status.failedAcceptIds.remove(recordId)
             status.lastError = nil

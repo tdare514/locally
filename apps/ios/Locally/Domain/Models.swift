@@ -63,6 +63,14 @@ struct Release: Identifiable, Codable, Hashable {
     /// `SyncEngine` back-fills any release where this is `nil` after sign-in,
     /// and re-pushes one whenever `updatedAt` moves past it.
     var syncedUpdatedAt: Date?
+    /// Names (plain file names, as `toSyncRecord` sends them) of this release's
+    /// files the sync service has confirmed it holds: each track file and the
+    /// cover's upload name. `SyncEngine` appends a name as soon as its upload
+    /// lands, so a retry after a partial failure only uploads what's missing,
+    /// and `ReleaseCoordinator` drops the cover's name when the cover is
+    /// replaced so the new bytes go up. Empty for releases stored before this
+    /// field existed; `SyncEngine.needsPush` re-verifies those once.
+    var uploadedFileNames: [String]
 
     init(
         id: UUID = UUID(),
@@ -76,7 +84,8 @@ struct Release: Identifiable, Codable, Hashable {
         tracks: [Track],
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
-        syncedUpdatedAt: Date? = nil
+        syncedUpdatedAt: Date? = nil,
+        uploadedFileNames: [String] = []
     ) {
         self.id = id
         self.kind = kind
@@ -90,6 +99,7 @@ struct Release: Identifiable, Codable, Hashable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.syncedUpdatedAt = syncedUpdatedAt
+        self.uploadedFileNames = uploadedFileNames
     }
 }
 

@@ -186,4 +186,20 @@ struct ReleaseCoordinatorUpdateTests {
         }
         #expect(coverStore.load(release.id) == existingCover, "the cover store still holds the original bytes")
     }
+
+    /// A cover replace keeps its old wire name (`cover.jpg`), so the only
+    /// way the next push re-uploads the new bytes is if this drops the
+    /// cover's name from `uploadedFileNames`; the tracks aren't touched by
+    /// a cover-only edit, so their names stay.
+    @Test func aCoverReplaceDropsTheCoverFromUploadedFileNamesButKeepsTheTracks() async throws {
+        let (coordinator, _, library, _, release, _) = try await makeImportedAlbum(cover: Data([0xFF, 0xD8, 1]))
+        let trackNames = Set(release.tracks.map { ($0.filePath as NSString).lastPathComponent })
+        var seeded = release
+        seeded.uploadedFileNames = Array(trackNames) + ["cover.jpg"]
+        try library.upsert(seeded)
+
+        let updated = try await coordinator.updateRelease(release.id, changes: ReleaseChanges(cover: Data([0xFF, 0xD8, 2])))
+
+        #expect(Set(updated.uploadedFileNames) == trackNames, "the cover's name is dropped; the tracks' names are kept")
+    }
 }

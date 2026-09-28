@@ -29,6 +29,7 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Library is the home tab, split into Singles and Albums sections with counts
 - Sync client: Keychain account, push, reconcile, "From your Mac"; cover replacements follow via coverHash (#26)
 - Sync pushes and deletes queue in a persistent outbox, retried each reconcile until the server confirms; a delete during reconcile or offline is no longer lost (#19)
+- Each release records which files the server holds, so a push retry after a partial failure uploads only what's missing and a cover replace re-uploads only the cover (#27)
 - "Make it a playlist" guide on the album done screen and release page: Copy button for the title, per-track iPhone steps and a fallback line (#21)
 - Share extension verified on an iPhone 12 Pro (iOS 18.7) and sync verified end to end on a phone, both 27 Sep 2026
 

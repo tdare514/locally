@@ -22,10 +22,17 @@ struct SyncEngineTests {
     /// had it), and needed so `reconcile()`'s back-fill step (which runs
     /// before the fetch, so its own push is reflected in the same pass)
     /// doesn't also try to push this release and clobber the seeded remote
-    /// record for the same id.
+    /// record for the same id. Also fills `uploadedFileNames` with what a
+    /// real push would have landed (the fake cover store always names the
+    /// cover file `cover.jpg`), so the back-fill's new "server hasn't
+    /// confirmed everything" check doesn't also re-queue it.
     private func markSynced(_ release: Release, in library: InMemoryLibraryStore) throws {
         var synced = release
         synced.syncedUpdatedAt = release.updatedAt
+        synced.uploadedFileNames = Array(SyncEngine.expectedUploadNames(
+            of: release,
+            coverName: release.coverPath != nil ? "cover.jpg" : nil
+        ))
         try library.upsert(synced)
     }
 
@@ -193,6 +200,131 @@ struct SyncEngineTests {
 
         let stored = try h.library.all().first { $0.id == release.id }
         #expect(stored?.syncedUpdatedAt != nil)
+    }
+
+    @Test func aPartialUploadFailureThenRetryUploadsOnlyTheMissingFiles() async throws {
+        let h = makeHarness()
+        let album = AlbumDraft(title: "Album", artist: "Artist", year: "2026", genre: "Rock", tracks: [
+            TrackDraft(title: "First"), TrackDraft(title: "Second")
+        ])
+        let files = try [makeSourceFile(named: "one.mp3"), makeSourceFile(named: "two.mp3")]
+        let cover = Data([0xFF, 0xD8, 0xFF, 0xE0, 1])
+        let release = try await h.coordinator.importAlbum(files: files, album: album, cover: cover)
+        let firstTrackName = (release.tracks[0].filePath as NSString).lastPathComponent
+        let secondTrackName = (release.tracks[1].filePath as NSString).lastPathComponent
+        h.api.uploadFailCountRemaining[secondTrackName] = 1
+
+        await h.engine.push(release)
+
+        #expect(h.engine.status.lastError != nil)
+        #expect(h.api.uploadedFileNames.contains(firstTrackName))
+        #expect(h.api.uploadedFileNames == [firstTrackName], "the first track landed; the failure stops the push before the cover")
+        var stored = try #require(h.library.all().first { $0.id == release.id })
+        #expect(Set(stored.uploadedFileNames) == Set(h.api.uploadedFileNames), "only what actually landed is recorded")
+        #expect(stored.syncedUpdatedAt == nil, "the push as a whole failed")
+
+        await h.engine.push(release)
+
+        #expect(h.engine.status.lastError == nil)
+        #expect(h.api.requestUploadsCalls.last?.files.map(\.name) == [secondTrackName, "cover.jpg"], "only what hadn't landed (the failed track, and the cover behind it) is asked for again")
+        stored = try #require(h.library.all().first { $0.id == release.id })
+        #expect(Set(stored.uploadedFileNames) == Set([firstTrackName, secondTrackName, "cover.jpg"]))
+        #expect(stored.syncedUpdatedAt == stored.updatedAt)
+    }
+
+    @Test func aCoverReplaceReUploadsOnlyTheCover() async throws {
+        let h = makeHarness()
+        let tags = TagSet(title: "Covered", artist: "Artist", album: "Covered")
+        let cover = Data([0xFF, 0xD8, 0xFF, 0xE0, 1])
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: cover)
+        let trackFileName = (release.tracks[0].filePath as NSString).lastPathComponent
+
+        await h.engine.push(release)
+        #expect(h.engine.status.lastError == nil)
+
+        let newCover = Data([0xFF, 0xD8, 0xFF, 0xE0, 2, 3])
+        let edited = try await h.coordinator.updateRelease(release.id, changes: ReleaseChanges(cover: newCover))
+        await h.engine.push(edited)
+
+        #expect(h.engine.status.lastError == nil)
+        #expect(h.api.requestUploadsCalls.last?.files.map(\.name) == ["cover.jpg"])
+        #expect(h.api.uploadedFileNames.last == "cover.jpg")
+        #expect(h.api.uploadedFileNames.filter { $0 == trackFileName }.count == 1, "the track is uploaded only once, on the first push")
+        let stored = try #require(h.library.all().first { $0.id == release.id })
+        #expect(Set(stored.uploadedFileNames) == Set([trackFileName, "cover.jpg"]))
+    }
+
+    @Test func anEditThatKeepsTheCoverUploadsNothing() async throws {
+        let h = makeHarness()
+        let tags = TagSet(title: "Covered", artist: "Artist", album: "Covered")
+        let cover = Data([0xFF, 0xD8, 0xFF, 0xE0, 1])
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: cover)
+
+        await h.engine.push(release)
+        #expect(h.engine.status.lastError == nil)
+        let requestsAfterFirstPush = h.api.requestUploadsCalls.count
+
+        let edited = try await h.coordinator.updateRelease(release.id, changes: ReleaseChanges(title: "New Title"))
+        await h.engine.push(edited)
+
+        #expect(h.engine.status.lastError == nil)
+        #expect(h.api.requestUploadsCalls.count == requestsAfterFirstPush, "nothing to request: every file is already uploaded")
+        #expect(h.api.putCalls.count == 2)
+    }
+
+    @Test func needsPushReVerifiesAReleaseStoredBeforeUploadedFileNamesExisted() {
+        let track = Track(title: "A", trackNumber: 1, filePath: "/x/a.mp3", originalName: "a.mp3")
+        let now = Date()
+        var release = Release(
+            kind: .single,
+            title: "T",
+            artist: "A",
+            coverPath: nil,
+            folderPath: "/x",
+            tracks: [track],
+            createdAt: now,
+            updatedAt: now,
+            syncedUpdatedAt: now,
+            uploadedFileNames: []
+        )
+        #expect(SyncEngine.needsPush(release, coverName: nil), "an empty set on an old row must be re-verified")
+
+        release.uploadedFileNames = ["a.mp3"]
+        #expect(!SyncEngine.needsPush(release, coverName: nil))
+
+        #expect(SyncEngine.needsPush(release, coverName: "cover.jpg"), "the cover isn't confirmed yet")
+    }
+
+    @Test func anAcceptedMacReleaseIsNotPushedBackOnTheNextReconcile() async throws {
+        let h = makeHarness()
+        let releaseId = UUID()
+        let fileName = "Mac Artist - Mac Song - 01 - Mac Song.mp3"
+        let macRecord = SyncRecord(
+            id: releaseId.uuidString,
+            kind: "single",
+            title: "Mac Song",
+            artist: "Mac Artist",
+            cover: "cover.jpg",
+            tracks: [SyncTrack(id: UUID().uuidString, title: "Mac Song", trackNumber: 1, file: fileName, bytes: 6, durationSec: nil)],
+            origin: "mac",
+            originDevice: "Toby's MacBook",
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        h.api.seed(macRecord)
+        h.api.fileContents[fileName] = Data([0xFF, 0xFB, 1, 2, 3, 4])
+        h.api.fileContents["cover.jpg"] = Data([0xFF, 0xD8, 0xFF, 0xE0])
+        h.engine.status.pendingFromMac = [macRecord]
+
+        await h.engine.acceptFromMac(macRecord.id)
+        #expect(h.engine.status.lastError == nil)
+
+        let imported = try #require(try h.library.all().first { $0.id == releaseId })
+        #expect(Set(imported.uploadedFileNames) == Set([fileName, "cover.jpg"]))
+
+        await h.engine.reconcile()
+
+        #expect(h.api.putCalls.isEmpty, "already fully on the server; reconcile's back-fill must not re-push it")
     }
 
     // MARK: - Reconcile: pending from the Mac

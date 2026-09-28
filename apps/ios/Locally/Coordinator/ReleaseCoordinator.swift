@@ -259,6 +259,17 @@ final class ReleaseCoordinator {
             }
         }
 
+        // A replaced cover keeps its old name (`cover.jpg`/`cover.png`), so
+        // dropping its name from `uploadedFileNames` is what makes the next
+        // push upload the new bytes instead of trusting the stale record.
+        let uploadedFileNames: [String]
+        if changes.cover != nil {
+            let trackFileNames = Set(tracks.map { ($0.filePath as NSString).lastPathComponent })
+            uploadedFileNames = existing.uploadedFileNames.filter { trackFileNames.contains($0) }
+        } else {
+            uploadedFileNames = existing.uploadedFileNames
+        }
+
         let updated = Release(
             id: existing.id,
             kind: existing.kind,
@@ -270,7 +281,8 @@ final class ReleaseCoordinator {
             folderPath: existing.folderPath,
             tracks: tracks,
             createdAt: existing.createdAt,
-            updatedAt: Date()
+            updatedAt: Date(),
+            uploadedFileNames: uploadedFileNames
         )
 
         do {
@@ -399,6 +411,15 @@ final class ReleaseCoordinator {
             }
         }
 
+        // The bytes for `record.cover` were just downloaded from the server,
+        // so it already holds them — same as web does — and adding its name
+        // here (rather than leaving it to the next push) keeps a fresh pull
+        // from re-uploading a cover the server just sent down.
+        var uploadedFileNames = existing.uploadedFileNames
+        if newCoverData != nil, let coverName = record.cover, !uploadedFileNames.contains(coverName) {
+            uploadedFileNames.append(coverName)
+        }
+
         let updated = Release(
             id: existing.id,
             kind: existing.kind,
@@ -411,7 +432,8 @@ final class ReleaseCoordinator {
             tracks: updatedTracks,
             createdAt: existing.createdAt,
             updatedAt: record.updatedAt,
-            syncedUpdatedAt: record.updatedAt
+            syncedUpdatedAt: record.updatedAt,
+            uploadedFileNames: uploadedFileNames
         )
 
         do {
@@ -493,6 +515,17 @@ final class ReleaseCoordinator {
             }
         }
 
+        // A track `uniqueDestination` renamed to avoid a local collision
+        // (e.g. "… (2).mp3") isn't on the server under that name, so it's
+        // left out and the next reconcile pushes it back up.
+        let serverTrackNames = Set(record.tracks.map(\.file))
+        var uploadedFileNames = tracks
+            .map { ($0.filePath as NSString).lastPathComponent }
+            .filter { serverTrackNames.contains($0) }
+        if coverPath != nil, let coverName = record.cover {
+            uploadedFileNames.append(coverName)
+        }
+
         let release = Release(
             id: releaseId,
             kind: kind,
@@ -505,7 +538,8 @@ final class ReleaseCoordinator {
             tracks: tracks,
             createdAt: record.createdAt,
             updatedAt: record.updatedAt,
-            syncedUpdatedAt: record.updatedAt
+            syncedUpdatedAt: record.updatedAt,
+            uploadedFileNames: uploadedFileNames
         )
 
         do {
