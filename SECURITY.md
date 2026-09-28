@@ -13,17 +13,25 @@ A malicious page open in another tab could try to `fetch("http://localhost:3000/
 to make the server import files, delete releases, or repoint the library dir.
 
 **Mitigation**: `src/proxy.ts` rejects any mutating request (`POST`/`PUT`/`PATCH`/`DELETE`
-under `/api/`) whose `Origin`/`Referer` is not itself a loopback host. Browsers always
-attach `Origin` on cross-site mutating requests, so a same-origin fetch from this app's
-own page passes and everything else is rejected with 403.
+under `/api/`) whose `Origin` (or, failing that, `Referer`) is not exactly this server's
+own origin — scheme, host *and* port, derived from the already-verified `Host` header.
+Browsers always attach `Origin` on cross-site mutating requests, so a same-origin fetch
+from this app's own page passes; a page on another loopback port (say a dev server on
+`localhost:5173`), a missing or unparsable header, and the literal `null` origin are all
+rejected with 403.
 
 ### DNS rebinding / LAN exposure
 
 An attacker-controlled DNS name could resolve to `127.0.0.1` after the browser's initial
 same-origin check, or the dev server could be exposed to other devices on the LAN.
 
-**Mitigation**: `src/proxy.ts` checks the `Host` header on every request and rejects
-anything that isn't `localhost`/`127.0.0.1`/`[::1]`, regardless of what DNS resolved.
+**Mitigation**: two layers. `src/proxy.ts` checks the `Host` header on every request
+and rejects anything that isn't `localhost`/`127.0.0.1`/`[::1]`, regardless of what DNS
+resolved — that is the DNS-rebinding defence. The network defence is that the server only
+listens on `127.0.0.1` (`next dev -H 127.0.0.1` / `next start -H 127.0.0.1` in
+`apps/web/package.json`), so nothing else on the LAN can reach the port at all. Both are
+needed: a non-browser client can forge any `Host` header it likes, so the header check
+alone would not keep a LAN attacker out if the port were reachable.
 
 ### Path traversal via user-controlled names
 

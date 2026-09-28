@@ -3,48 +3,45 @@ import { NextRequest, NextResponse } from "next/server";
 /**
  * Security boundary for a local-only server that writes to the user's disk.
  *
- * 1. Host must be loopback. Prevents DNS-rebinding and accidental LAN exposure.
- * 2. Mutating API requests must carry an Origin/Referer from this same loopback host.
- *    A malicious website open in the user's browser cannot then drive our API
- *    (browsers always attach Origin on cross-site POST/PUT/PATCH/DELETE).
+ * 1. Host must be loopback. Defends against DNS rebinding (the network defence,
+ *    binding to 127.0.0.1, lives in package.json's `dev`/`start` scripts).
+ * 2. Mutating API requests must carry an Origin/Referer that is exactly this
+ *    server's own origin (scheme, host and port). A malicious website open in the
+ *    user's browser cannot then drive our API - browsers always attach Origin on
+ *    cross-site POST/PUT/PATCH/DELETE - and neither can a page on another loopback
+ *    port such as a dev server on localhost:5173.
  * 3. Baseline hardening headers on every response.
  */
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-function hostnameOf(hostHeader: string | null): string | null {
-  if (!hostHeader) return null;
+/** `new URL(value)`, or null when `value` is missing or not an absolute URL (including the literal "null" Origin). */
+function parseUrl(value: string | null): URL | null {
+  if (!value) return null;
   try {
-    return new URL(`http://${hostHeader}`).hostname;
+    return new URL(value);
   } catch {
     return null;
   }
 }
 
-function isLoopback(hostname: string | null): boolean {
-  return hostname !== null && LOOPBACK_HOSTS.has(hostname);
-}
-
 export function proxy(req: NextRequest) {
-  const host = hostnameOf(req.headers.get("host"));
-  if (!isLoopback(host)) {
+  // This server only speaks plain http, so the Host header is our whole origin.
+  // Not `req.nextUrl.origin`: Next rewrites 127.0.0.1 and [::1] to "localhost"
+  // there, which would break the exact compare below for a page loaded via the IP.
+  const own = parseUrl(`http://${req.headers.get("host") ?? ""}`);
+  if (!own || !LOOPBACK_HOSTS.has(own.hostname)) {
     return NextResponse.json({ error: "This app only accepts local connections" }, { status: 403 });
   }
 
   const isApi = req.nextUrl.pathname.startsWith("/api/");
   if (isApi && MUTATING.has(req.method)) {
-    const origin = req.headers.get("origin") ?? req.headers.get("referer");
-    let originHost: string | null = null;
-    if (origin) {
-      try {
-        originHost = new URL(origin).hostname;
-      } catch {
-        originHost = null;
-      }
-    }
-    // Same-origin fetches from our own page always send Origin. Reject anything else.
-    if (!isLoopback(originHost)) {
+    // Same-origin fetches from our own page always send Origin (Referer is the
+    // fallback for the odd client that sends only that). A missing, unparsable or
+    // "null" origin never equals ours, so it is rejected like a foreign one.
+    const sender = parseUrl(req.headers.get("origin") ?? req.headers.get("referer"));
+    if (!sender || sender.origin !== own.origin) {
       return NextResponse.json({ error: "Cross-origin requests are not allowed" }, { status: 403 });
     }
   }
