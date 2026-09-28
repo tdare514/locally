@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import type { ApiError } from "../../shared/types";
-import { ValidationError, UnauthorizedError, NotFoundError, ConflictError, RateLimitError } from "../../shared/errors";
+import {
+  ValidationError,
+  UnauthorizedError,
+  NotFoundError,
+  ConflictError,
+  RateLimitError,
+  UploadTooLargeError,
+} from "../../shared/errors";
 
 function json(status: number, error: string): NextResponse<ApiError> {
   return NextResponse.json({ error }, { status });
@@ -18,6 +25,7 @@ export function errorResponse(err: unknown): NextResponse<ApiError> {
   if (err instanceof NotFoundError) return json(404, err.message);
   if (err instanceof ConflictError) return json(409, err.message);
   if (err instanceof RateLimitError) return json(429, err.message);
+  if (err instanceof UploadTooLargeError) return json(413, err.message);
   console.error(err);
   return json(500, "Internal server error");
 }

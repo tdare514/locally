@@ -38,7 +38,7 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 
 ## In progress
 - Security hardening from the Sep 27 review: web origin check, zod validation, HTTPS-only sync, sign-out on base URL change, Keychain hardening and the iOS privacy manifest landed (#11 closed); the medium/low backlog remains (#12)
-- Security review of apps/api, the same treatment web and iOS got; gates the deploy (#20)
+- Security review of apps/api (#20): findings fixed 28 Sep; the in-memory rate limiter is per instance, so the deploy (#3) needs a shared-store `RateLimiter` before going live
 - Deploying apps/api to Vercel with libSQL, Blob and Resend behind the existing interfaces (#3)
 - Listener icon rollout: favicon.ico, Open Graph image and docs landed; the on-device check of the icon and its alternate remains (#5)
 

@@ -41,13 +41,13 @@ async function buildServices(): Promise<Services> {
   const db = createDb(env.databaseUrl);
   await migrateDb(db);
 
-  const mailer: Mailer = env.mailer === "resend" && env.resendApiKey
-    ? new ResendMailer(env.resendApiKey, env.mailFrom)
-    : new ConsoleMailer();
+  const mailer: Mailer =
+    env.mailer === "resend" ? new ResendMailer(env.resendApiKey, env.mailFrom) : new ConsoleMailer();
 
-  const fileStore: FileStore = env.fileStore === "blob" && env.blobReadWriteToken
-    ? new VercelBlobFileStore(env.blobReadWriteToken)
-    : new LocalFileStore(path.join(process.cwd(), "data", "files"), env.publicBaseUrl, env.tokenPepper);
+  const fileStore: FileStore =
+    env.fileStore === "blob"
+      ? new VercelBlobFileStore(env.blobReadWriteToken)
+      : new LocalFileStore(path.join(process.cwd(), "data", "files"), env.publicBaseUrl, env.tokenPepper);
 
   const quota = new QuotaService(db);
 

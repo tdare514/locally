@@ -1,7 +1,16 @@
+import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { getServices } from "../../../../server/container";
 import { errorResponse } from "../../../../server/http/responses";
 import { UnauthorizedError } from "../../../../shared/errors";
+
+/** Timing-safe compare of the request's bearer header against the expected `Bearer <secret>`. */
+function isValidCronBearer(header: string | null, secret: string): boolean {
+  if (!header) return false;
+  const expected = Buffer.from(`Bearer ${secret}`);
+  const actual = Buffer.from(header);
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +28,7 @@ export async function GET(request: Request) {
 
     if (services.cronSecret) {
       const header = request.headers.get("authorization");
-      if (header !== `Bearer ${services.cronSecret}`) {
+      if (!isValidCronBearer(header, services.cronSecret)) {
         throw new UnauthorizedError("Invalid or missing cron secret");
       }
     } else {

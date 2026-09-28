@@ -1,8 +1,20 @@
+import crypto from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { emailSchema, fileNameSchema, releaseRecordSchema } from "../../src/shared/types";
-import { parseJsonBody, parseParam } from "../../src/server/http/validation";
+import { emailSchema, fileNameSchema, releaseRecordSchema, type TrackRecord } from "../../src/shared/types";
+import { MAX_JSON_BODY_BYTES, parseJsonBody, parseParam } from "../../src/server/http/validation";
 import { ValidationError } from "../../src/shared/errors";
 import { makeReleaseRecord } from "../support/fixtures";
+
+function makeTracks(count: number): TrackRecord[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: crypto.randomUUID(),
+    title: `Track ${i + 1}`,
+    trackNumber: i + 1,
+    file: `${String(i + 1).padStart(3, "0")}.mp3`,
+    bytes: 1000,
+    durationSec: 60,
+  }));
+}
 
 describe("fileNameSchema", () => {
   it("accepts a plain name with an allowed extension", () => {
@@ -61,6 +73,14 @@ describe("releaseRecordSchema", () => {
     const record = makeReleaseRecord({ tracks: [] });
     expect(releaseRecordSchema.safeParse(record).success).toBe(false);
   });
+
+  it("accepts exactly 500 tracks and rejects 501", () => {
+    const at500 = makeReleaseRecord({ tracks: makeTracks(500) });
+    expect(releaseRecordSchema.safeParse(at500).success).toBe(true);
+
+    const at501 = makeReleaseRecord({ tracks: makeTracks(501) });
+    expect(releaseRecordSchema.safeParse(at501).success).toBe(false);
+  });
 });
 
 describe("parseJsonBody / parseParam", () => {
@@ -80,5 +100,24 @@ describe("parseJsonBody / parseParam", () => {
 
   it("parseParam returns the parsed value on success", () => {
     expect(parseParam("person@example.com", emailSchema)).toBe("person@example.com");
+  });
+
+  it("rejects a body whose declared content-length exceeds the max, without reading it", async () => {
+    const request = new Request("http://localhost/x", {
+      method: "POST",
+      body: JSON.stringify({ email: "person@example.com" }),
+      headers: { "content-type": "application/json", "content-length": String(MAX_JSON_BODY_BYTES + 1) },
+    });
+    await expect(parseJsonBody(request, emailSchema)).rejects.toThrow(ValidationError);
+  });
+
+  it("rejects a body whose actual size exceeds the max", async () => {
+    const oversized = JSON.stringify({ email: "a".repeat(MAX_JSON_BODY_BYTES) + "@example.com" });
+    const request = new Request("http://localhost/x", {
+      method: "POST",
+      body: oversized,
+      headers: { "content-type": "application/json" },
+    });
+    await expect(parseJsonBody(request, emailSchema)).rejects.toThrow(ValidationError);
   });
 });

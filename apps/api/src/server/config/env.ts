@@ -7,19 +7,22 @@
 const DEV_AUTH_PEPPER = "dev-insecure-auth-pepper-do-not-use-in-production";
 const DEV_TOKEN_PEPPER = "dev-insecure-token-pepper-do-not-use-in-production";
 
-export interface Env {
+/** `FILE_STORE=blob` requires `BLOB_READ_WRITE_TOKEN`, checked once here — see `resolveFileStore`. */
+type FileStoreEnv = { fileStore: "local" } | { fileStore: "blob"; blobReadWriteToken: string };
+
+/** `MAILER=resend` requires `RESEND_API_KEY`, checked once here — see `resolveMailer`. */
+type MailerEnv = { mailer: "console" } | { mailer: "resend"; resendApiKey: string };
+
+export type Env = {
   databaseUrl: string;
   authPepper: string;
   tokenPepper: string;
-  fileStore: "local" | "blob";
-  blobReadWriteToken: string | undefined;
-  mailer: "console" | "resend";
-  resendApiKey: string | undefined;
   mailFrom: string;
   cronSecret: string | undefined;
   allowedOrigins: string[];
   publicBaseUrl: string;
-}
+} & FileStoreEnv &
+  MailerEnv;
 
 let warnedInsecurePeppers = false;
 
@@ -31,8 +34,43 @@ function parseAllowedOrigins(raw: string | undefined): string[] {
     .filter((s) => s.length > 0);
 }
 
+/** Fails closed: `FILE_STORE=blob` without a token would otherwise silently fall back to `LocalFileStore`. */
+function resolveFileStore(): FileStoreEnv {
+  if (process.env.FILE_STORE === "blob") {
+    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    if (!token) {
+      throw new Error("FILE_STORE=blob requires BLOB_READ_WRITE_TOKEN to be set. See .env.example.");
+    }
+    return { fileStore: "blob", blobReadWriteToken: token };
+  }
+  return { fileStore: "local" };
+}
+
+/** Fails closed: `MAILER=resend` without a key would otherwise silently fall back to `ConsoleMailer`, printing sign-in codes to production logs. */
+function resolveMailer(): MailerEnv {
+  if (process.env.MAILER === "resend") {
+    const key = process.env.RESEND_API_KEY;
+    if (!key) {
+      throw new Error("MAILER=resend requires RESEND_API_KEY to be set. See .env.example.");
+    }
+    return { mailer: "resend", resendApiKey: key };
+  }
+  return { mailer: "console" };
+}
+
 /** Read and validate every env var this app uses, applying dev-friendly defaults. */
 export function loadEnv(): Env {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  if (isProduction) {
+    const missing = (["AUTH_PEPPER", "TOKEN_PEPPER", "CRON_SECRET"] as const).filter((name) => !process.env[name]);
+    if (missing.length > 0) {
+      throw new Error(
+        `${missing.join(", ")} must be set in production — refusing to start with an insecure default. See .env.example.`
+      );
+    }
+  }
+
   const authPepper = process.env.AUTH_PEPPER || DEV_AUTH_PEPPER;
   const tokenPepper = process.env.TOKEN_PEPPER || DEV_TOKEN_PEPPER;
 
@@ -45,20 +83,15 @@ export function loadEnv(): Env {
     );
   }
 
-  const fileStore = process.env.FILE_STORE === "blob" ? "blob" : "local";
-  const mailer = process.env.MAILER === "resend" ? "resend" : "console";
-
   return {
     databaseUrl: process.env.DATABASE_URL || "file:./data/dev.db",
     authPepper,
     tokenPepper,
-    fileStore,
-    blobReadWriteToken: process.env.BLOB_READ_WRITE_TOKEN,
-    mailer,
-    resendApiKey: process.env.RESEND_API_KEY,
     mailFrom: process.env.MAIL_FROM || "Locally Sync <sync@example.com>",
     cronSecret: process.env.CRON_SECRET,
     allowedOrigins: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
     publicBaseUrl: (process.env.PUBLIC_BASE_URL || "http://localhost:4000").replace(/\/+$/, ""),
+    ...resolveFileStore(),
+    ...resolveMailer(),
   };
 }

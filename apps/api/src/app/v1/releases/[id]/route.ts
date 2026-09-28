@@ -26,6 +26,12 @@ export async function PUT(request: Request, { params }: Params) {
     }
 
     const result = await services.releases.upsert(user.id, releaseId, record);
+
+    if (!record.deleted) {
+      const keepNames = record.cover ? [...record.tracks.map((t) => t.file), record.cover] : record.tracks.map((t) => t.file);
+      await services.files.pruneUnreferenced(user.id, releaseId, keepNames);
+    }
+
     return NextResponse.json(result);
   } catch (err) {
     return errorResponse(err);

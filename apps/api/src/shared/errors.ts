@@ -20,3 +20,6 @@ export class ConflictError extends Error {}
 
 /** Sliding-window rate limit exceeded (maps to HTTP 429). */
 export class RateLimitError extends Error {}
+
+/** An upload exceeded the size declared when its signed URL was issued (maps to HTTP 413). */
+export class UploadTooLargeError extends Error {}

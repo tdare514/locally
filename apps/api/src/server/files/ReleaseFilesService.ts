@@ -1,9 +1,10 @@
 import crypto from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, notInArray } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { files } from "../../db/schema";
-import { NotFoundError } from "../../shared/errors";
+import { NotFoundError, ValidationError } from "../../shared/errors";
 import type { DownloadTicket, UploadTicket } from "../../shared/types";
+import { expectedContentTypeFor } from "./contentTypes";
 import type { FileStore } from "./FileStore";
 import type { QuotaService } from "../quota/QuotaService";
 
@@ -46,8 +47,23 @@ export class ReleaseFilesService {
     return rows.reduce((sum, row) => sum + row.bytes, 0);
   }
 
+  /**
+   * Throws `ValidationError` if any input's declared `contentType` doesn't
+   * match the one both clients derive from its extension (see
+   * `contentTypes.ts`) — a client can't claim `cover.jpg` is `text/html`.
+   */
+  private assertContentTypes(inputs: RegisterFileInput[]): void {
+    for (const input of inputs) {
+      const expected = expectedContentTypeFor(input.name);
+      if (input.contentType !== expected) {
+        throw new ValidationError(`${input.name} must have content type ${expected ?? "matching its extension"}`);
+      }
+    }
+  }
+
   /** Issue upload URLs for one or more files, enforcing the per-file cap and the account quota. */
   async createUploads(userId: string, releaseId: string, inputs: RegisterFileInput[]): Promise<UploadTicket[]> {
+    this.assertContentTypes(inputs);
     this.quota.assertFileSizes(inputs.map((f) => f.bytes));
 
     const requestedTotal = inputs.reduce((sum, f) => sum + f.bytes, 0);
@@ -98,5 +114,26 @@ export class ReleaseFilesService {
       throw new NotFoundError("File not found");
     }
     return this.fileStore.createDownload(row.storageKey);
+  }
+
+  /**
+   * Delete every registered file for `releaseId` whose name isn't in
+   * `keepNames` — called after a release update so a track/cover a client
+   * dropped from the record doesn't linger in storage or against quota.
+   * Drizzle's `notInArray` rejects an empty array, so an empty `keepNames`
+   * (a release with no files left to keep) instead selects every row for
+   * the release. Returns the number of files pruned. Tombstoned releases
+   * are handled separately, by `CleanupService`.
+   */
+  async pruneUnreferenced(userId: string, releaseId: string, keepNames: string[]): Promise<number> {
+    const scoped = and(eq(files.userId, userId), eq(files.releaseId, releaseId));
+    const condition = keepNames.length > 0 ? and(scoped, notInArray(files.name, keepNames)) : scoped;
+
+    const rows = await this.db.select().from(files).where(condition);
+    for (const row of rows) {
+      await this.fileStore.delete(row.storageKey);
+      await this.db.delete(files).where(eq(files.id, row.id));
+    }
+    return rows.length;
   }
 }

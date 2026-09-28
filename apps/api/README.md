@@ -68,9 +68,14 @@ handful of internal display purposes.
 
 See `.env.example` for the full list with descriptions. Every one of them
 has a working default for local development; only `AUTH_PEPPER`,
-`TOKEN_PEPPER`, and `CRON_SECRET` are required in production (the server
-logs a loud warning at startup if the peppers are left at their insecure
-dev defaults).
+`TOKEN_PEPPER`, and `CRON_SECRET` are required in production — with
+`NODE_ENV=production`, the server refuses to start if any of the three is
+unset, rather than warning and falling back to an insecure default (outside
+production it still just logs a loud warning). `FILE_STORE=blob` and
+`MAILER=resend` are likewise fail-closed: the server refuses to start
+without `BLOB_READ_WRITE_TOKEN` or `RESEND_API_KEY` respectively, in any
+environment, instead of silently falling back to local storage or the
+console mailer.
 
 ## Project layout
 

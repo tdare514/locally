@@ -1,9 +1,13 @@
 import crypto from "node:crypto";
-import { beforeEach, describe, expect, it } from "vitest";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDb, migrateDb, type Db } from "../../src/db/client";
 import { users } from "../../src/db/schema";
 import type { CreateUploadParams, FileStore, UploadTicket } from "../../src/server/files/FileStore";
-import { ReleaseFilesService } from "../../src/server/files/ReleaseFilesService";
+import { LocalFileStore } from "../../src/server/files/LocalFileStore";
+import { ReleaseFilesService, storageKeyFor } from "../../src/server/files/ReleaseFilesService";
 import { MAX_FILE_BYTES, QuotaService } from "../../src/server/quota/QuotaService";
 import { NotFoundError, ValidationError } from "../../src/shared/errors";
 import type { DownloadTicket } from "../../src/shared/types";
@@ -85,5 +89,72 @@ describe("ReleaseFilesService", () => {
     await service.createUploads(userId, releaseId, [{ name: "track.mp3", bytes: 100, contentType: "audio/mpeg" }]);
     const ticket = await service.createDownload(userId, releaseId, "track.mp3");
     expect(ticket.url).toContain("track.mp3");
+  });
+
+  it("accepts a content type that matches the file's extension", async () => {
+    await expect(
+      service.createUploads(userId, releaseId, [{ name: "track.mp3", bytes: 100, contentType: "audio/mpeg" }])
+    ).resolves.toHaveLength(1);
+  });
+
+  it("rejects a content type that doesn't match the file's extension", async () => {
+    await expect(
+      service.createUploads(userId, releaseId, [{ name: "cover.jpg", bytes: 100, contentType: "text/html" }])
+    ).rejects.toThrow(ValidationError);
+  });
+
+  describe("pruneUnreferenced", () => {
+    let rootDir: string;
+    let realStore: LocalFileStore;
+    let realService: ReleaseFilesService;
+
+    beforeEach(async () => {
+      rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "sli-prune-test-"));
+      realStore = new LocalFileStore(rootDir, "http://localhost:4000", "test-token-pepper");
+      realService = new ReleaseFilesService(db, realStore, new QuotaService(db));
+    });
+
+    afterEach(async () => {
+      await fs.rm(rootDir, { recursive: true, force: true });
+    });
+
+    it("deletes a file's row and storage object when it's no longer referenced, keeping the rest", async () => {
+      await realService.createUploads(userId, releaseId, [
+        { name: "keep.mp3", bytes: 10, contentType: "audio/mpeg" },
+        { name: "drop.mp3", bytes: 10, contentType: "audio/mpeg" },
+      ]);
+      await realStore.writeFromRequest(
+        storageKeyFor(userId, releaseId, "keep.mp3"),
+        new Response(new Uint8Array(Buffer.from("keep bytes"))).body,
+        1000
+      );
+      await realStore.writeFromRequest(
+        storageKeyFor(userId, releaseId, "drop.mp3"),
+        new Response(new Uint8Array(Buffer.from("drop bytes"))).body,
+        1000
+      );
+
+      const pruned = await realService.pruneUnreferenced(userId, releaseId, ["keep.mp3"]);
+      expect(pruned).toBe(1);
+
+      expect(await realStore.readFile(storageKeyFor(userId, releaseId, "drop.mp3"))).toBeNull();
+      expect(await realStore.readFile(storageKeyFor(userId, releaseId, "keep.mp3"))).not.toBeNull();
+
+      await expect(realService.createDownload(userId, releaseId, "drop.mp3")).rejects.toThrow(NotFoundError);
+      await expect(realService.createDownload(userId, releaseId, "keep.mp3")).resolves.toBeDefined();
+    });
+
+    it("with an empty keep list, prunes every file registered for the release", async () => {
+      await realService.createUploads(userId, releaseId, [{ name: "only.mp3", bytes: 10, contentType: "audio/mpeg" }]);
+      await realStore.writeFromRequest(
+        storageKeyFor(userId, releaseId, "only.mp3"),
+        new Response(new Uint8Array(Buffer.from("bytes"))).body,
+        1000
+      );
+
+      const pruned = await realService.pruneUnreferenced(userId, releaseId, []);
+      expect(pruned).toBe(1);
+      expect(await realStore.readFile(storageKeyFor(userId, releaseId, "only.mp3"))).toBeNull();
+    });
   });
 });

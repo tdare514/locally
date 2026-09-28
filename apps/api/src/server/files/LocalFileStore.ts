@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { UploadTooLargeError } from "../../shared/errors";
 import type { DownloadTicket } from "../../shared/types";
 import type { CreateUploadParams, FileStore, UploadTicket } from "./FileStore";
 
@@ -28,31 +29,74 @@ export class LocalFileStore implements FileStore {
     this.signingKey = crypto.createHash("sha256").update(`local-file-store:${tokenPepper}`).digest();
   }
 
-  private sign(key: string, expiresAt: number): string {
-    return crypto.createHmac("sha256", this.signingKey).update(`${key}:${expiresAt}`).digest("hex");
+  /**
+   * Upload and download signatures are domain-separated (`upload:`/`download:`
+   * prefixes) so a signature minted for one can never verify as the other,
+   * and an upload signature also covers the declared byte count so a client
+   * can't shrink `bytes` to slip past the quota check and then PUT a larger
+   * body than it declared.
+   */
+  private signUpload(key: string, expiresAt: number, maxBytes: number): string {
+    return crypto.createHmac("sha256", this.signingKey).update(`upload:${key}:${expiresAt}:${maxBytes}`).digest("hex");
   }
 
-  /** Used by the local-upload/local-download routes to verify a request's `sig`/`exp` query params. */
-  verifySignature(key: string, expiresAtRaw: string | null, signatureRaw: string | null): boolean {
+  private signDownload(key: string, expiresAt: number): string {
+    return crypto.createHmac("sha256", this.signingKey).update(`download:${key}:${expiresAt}`).digest("hex");
+  }
+
+  private verifyHex(expected: string, actualRaw: string): boolean {
+    const expectedBuf = Buffer.from(expected, "hex");
+    const actualBuf = Buffer.from(actualRaw, "hex");
+    return expectedBuf.length === actualBuf.length && crypto.timingSafeEqual(expectedBuf, actualBuf);
+  }
+
+  /**
+   * Used by the local-upload route to verify a request's `exp`/`max`/`sig`
+   * query params. Returns the verified max byte count (from the signed
+   * `max`, not the raw query param) or `null` if the signature, expiry, or
+   * `max` value doesn't check out.
+   */
+  verifyUploadSignature(key: string, expiresAtRaw: string | null, maxBytesRaw: string | null, signatureRaw: string | null): number | null {
+    if (!expiresAtRaw || !maxBytesRaw || !signatureRaw) return null;
+    const expiresAt = Number(expiresAtRaw);
+    const maxBytes = Number(maxBytesRaw);
+    if (!Number.isFinite(expiresAt) || expiresAt < this.now()) return null;
+    if (!Number.isFinite(maxBytes) || maxBytes < 0) return null;
+
+    if (!this.verifyHex(this.signUpload(key, expiresAt, maxBytes), signatureRaw)) return null;
+    return maxBytes;
+  }
+
+  /** Used by the local-download route to verify a request's `exp`/`sig` query params. */
+  verifyDownloadSignature(key: string, expiresAtRaw: string | null, signatureRaw: string | null): boolean {
     if (!expiresAtRaw || !signatureRaw) return false;
     const expiresAt = Number(expiresAtRaw);
     if (!Number.isFinite(expiresAt) || expiresAt < this.now()) return false;
 
-    const expected = Buffer.from(this.sign(key, expiresAt), "hex");
-    const actual = Buffer.from(signatureRaw, "hex");
-    return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+    return this.verifyHex(this.signDownload(key, expiresAt), signatureRaw);
   }
 
-  /** Resolve a storage key to an absolute path on disk, used by the local-storage routes. */
+  /**
+   * Resolve a storage key to an absolute path on disk, used by every method
+   * below that touches the filesystem. Keys are server-generated (never
+   * client input — see `storageKeyFor`), but this is inside-checked anyway
+   * per the repo's "every user-derived path is sanitised and inside-checked"
+   * invariant: throws if the resolved path escapes `rootDir`.
+   */
   absolutePathFor(key: string): string {
-    return path.join(this.rootDir, key);
+    const resolvedRoot = path.resolve(this.rootDir);
+    const target = path.resolve(resolvedRoot, key);
+    if (target !== resolvedRoot && !target.startsWith(resolvedRoot + path.sep)) {
+      throw new Error(`Storage key resolves outside the file store root: ${key}`);
+    }
+    return target;
   }
 
-  async createUpload({ key, contentType }: CreateUploadParams): Promise<UploadTicket> {
+  async createUpload({ key, bytes, contentType }: CreateUploadParams): Promise<UploadTicket> {
     const expiresAt = this.now() + TICKET_LIFETIME_MS;
-    const sig = this.sign(key, expiresAt);
+    const sig = this.signUpload(key, expiresAt, bytes);
     return {
-      url: `${this.publicBaseUrl}/v1/internal/local-upload/${key}?exp=${expiresAt}&sig=${sig}`,
+      url: `${this.publicBaseUrl}/v1/internal/local-upload/${key}?exp=${expiresAt}&max=${bytes}&sig=${sig}`,
       method: "PUT",
       headers: { "Content-Type": contentType },
     };
@@ -60,7 +104,7 @@ export class LocalFileStore implements FileStore {
 
   async createDownload(key: string): Promise<DownloadTicket> {
     const expiresAt = this.now() + TICKET_LIFETIME_MS;
-    const sig = this.sign(key, expiresAt);
+    const sig = this.signDownload(key, expiresAt);
     return {
       url: `${this.publicBaseUrl}/v1/internal/local-download/${key}?exp=${expiresAt}&sig=${sig}`,
       expiresAt: new Date(expiresAt).toISOString(),
@@ -71,17 +115,42 @@ export class LocalFileStore implements FileStore {
     await fs.rm(this.absolutePathFor(key), { force: true });
   }
 
-  /** Write a request body to disk at `key`, creating parent directories as needed. */
-  async writeFromRequest(key: string, body: ReadableStream<Uint8Array> | null): Promise<void> {
+  /**
+   * Write a request body to disk at `key`, creating parent directories as
+   * needed. Streams the body and tracks a running total so a body larger
+   * than `maxBytes` (the size verified from the upload signature) is
+   * rejected — and the underlying reader cancelled — before anything is
+   * written to disk.
+   */
+  async writeFromRequest(key: string, body: ReadableStream<Uint8Array> | null, maxBytes: number): Promise<void> {
     if (!body) {
       throw new Error("Upload request had no body");
     }
+
+    const reader = body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        try {
+          await reader.cancel();
+        } catch {
+          // Best-effort: we're already failing the request.
+        }
+        throw new UploadTooLargeError(`Upload exceeded the declared ${maxBytes}-byte limit`);
+      }
+      chunks.push(value);
+    }
+
+    if (total === 0) {
+      throw new Error("Upload request had no body");
+    }
+
     const dest = this.absolutePathFor(key);
     await fs.mkdir(path.dirname(dest), { recursive: true });
-    const chunks: Uint8Array[] = [];
-    for await (const chunk of body as unknown as AsyncIterable<Uint8Array>) {
-      chunks.push(chunk);
-    }
     await fs.writeFile(dest, Buffer.concat(chunks));
   }
 

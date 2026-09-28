@@ -57,7 +57,7 @@ export const releaseRecordSchema = z.object({
     .nullable(),
   genre: z.string().max(200).nullable(),
   cover: fileNameSchema.nullable(),
-  tracks: z.array(trackRecordSchema).min(1),
+  tracks: z.array(trackRecordSchema).min(1).max(500),
   origin: platformSchema,
   originDevice: z.string().min(1).max(200),
   createdAt: isoDateSchema,

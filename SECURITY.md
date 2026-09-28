@@ -116,8 +116,10 @@ Accounts are email + a six-digit code, never a password. `src/server/auth/AuthSe
   `sha256(token + TOKEN_PEPPER)` is stored (`devices.tokenHash`) — never the token
   itself. Losing the database does not hand out anyone's password or token.
 - `AUTH_PEPPER`/`TOKEN_PEPPER` are required in production; `src/server/config/env.ts`
-  falls back to a fixed, insecure development value and prints a loud startup warning
-  if they're unset, so this can't fail silently on a real deployment.
+  falls back to a fixed, insecure development value outside production (with a loud
+  startup warning), but with `NODE_ENV=production` refuses to start at all if either,
+  or `CRON_SECRET`, is unset — this can't fail silently or ship insecure on a real
+  deployment.
 - Revoking a device (`DELETE /v1/devices/:id`) is scoped to the caller's own `userId`,
   so one account can never revoke another's device.
 
@@ -142,6 +144,12 @@ else — and if it does, the response is a plain 404, identical to "doesn't exis
 - Every request body is parsed through a zod schema (`server/http/validation.ts`);
   a schema mismatch or unparseable JSON becomes a `ValidationError` (400) with a
   message safe to show the client, never a raw zod/parse error.
+- Request bodies are capped at 1 MiB (`MAX_JSON_BODY_BYTES`), checked against both
+  the declared `content-length` and the actual body, before JSON parsing.
+- A release record's `tracks` array is capped at 500 entries.
+- A file's declared `contentType` must match the one both clients derive from its
+  extension (`server/files/contentTypes.ts`); `ReleaseFilesService.createUploads`
+  rejects a mismatch before it ever reaches quota checks or storage.
 
 ### Storage keys are never client input
 
@@ -150,6 +158,11 @@ actual storage key (`users/<userId>/releases/<releaseId>/<name>`) is built
 server-side in `ReleaseFilesService`/`storageKeyFor`, from the authenticated
 `userId`, the already-ownership-checked `releaseId`, and the already-validated
 `name` — a client can never point storage at another user's or release's path.
+A successful `PUT /v1/releases/:id` (not a tombstone) also prunes any previously
+registered file no longer referenced by the record's tracks/cover
+(`ReleaseFilesService.pruneUnreferenced`), so a track dropped from a release
+doesn't linger in storage or against quota. Tombstoned releases' files are
+cleaned up separately, on a delay, by `CleanupService`.
 
 ### Signed URLs for file transfer
 
@@ -159,10 +172,14 @@ bodies at 4.5 MB). In production this is Vercel Blob's own signed-URL mechanism
 (`VercelBlobFileStore`, via `issueSignedToken`/`presignUrl`, each scoped to one
 pathname/content-type/size and expiring in 5 minutes). In local development
 (`LocalFileStore`), the same contract is implemented for real: an HMAC-SHA256
-signature over `key:expiry`, keyed off `TOKEN_PEPPER` with domain separation
-(never the pepper bytes directly), verified with `crypto.timingSafeEqual` and an
-expiry check before either `/v1/internal/local-upload/*` or
-`/v1/internal/local-download/*` touches disk.
+signature keyed off `TOKEN_PEPPER` with domain separation (never the pepper bytes
+directly, and upload signatures can never verify as download signatures or vice
+versa), verified with `crypto.timingSafeEqual` and an expiry check before either
+`/v1/internal/local-upload/*` or `/v1/internal/local-download/*` touches disk. An
+upload's signature also covers the declared byte count, so a client can't shrink
+`bytes` to slip past the quota check and then PUT a larger body than it declared —
+`writeFromRequest` streams the body and aborts once it exceeds that verified
+maximum, writing nothing to disk.
 
 ### Rate limiting
 
@@ -182,9 +199,11 @@ there is no CSRF surface to guard the way `apps/web`'s `proxy.ts` has to.
 
 `GET /v1/internal/cleanup` (deletes old tombstones' files and expired auth codes)
 requires `Authorization: Bearer <CRON_SECRET>` whenever `CRON_SECRET` is set,
-which must be true in production. It's deliberately left open when unset, which
-only happens in local development (`.env.example` leaves it blank on purpose),
-so it can be exercised directly with curl.
+which must be true in production (`loadEnv` refuses to start without it there).
+The comparison is `crypto.timingSafeEqual` on the header against the expected
+value, not `!==`. It's deliberately left open when unset, which only happens in
+local development (`.env.example` leaves it blank on purpose), so it can be
+exercised directly with curl.
 
 ### Env vars
 
@@ -192,6 +211,13 @@ See `apps/api/.env.example` for the full list (`DATABASE_URL`, `AUTH_PEPPER`,
 `TOKEN_PEPPER`, `FILE_STORE`, `BLOB_READ_WRITE_TOKEN`, `MAILER`,
 `RESEND_API_KEY`, `MAIL_FROM`, `CRON_SECRET`, `ALLOWED_ORIGINS`,
 `PUBLIC_BASE_URL`), each with a working, insecure-by-design local default.
+`loadEnv` (`src/server/config/env.ts`) fails closed rather than silently
+degrading: `FILE_STORE=blob` without `BLOB_READ_WRITE_TOKEN`, or
+`MAILER=resend` without `RESEND_API_KEY`, throws instead of falling back to
+`LocalFileStore`/`ConsoleMailer` — the latter would otherwise print sign-in
+codes to production logs. With `NODE_ENV=production`, a missing
+`AUTH_PEPPER`, `TOKEN_PEPPER`, or `CRON_SECRET` throws too, instead of just
+warning.
 
 ## Reporting
 

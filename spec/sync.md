@@ -65,14 +65,15 @@ Server-side each record also carries `userId`, `version` (integer, bumped on eve
 | GET `/v1/me` | | `{ user, device, quota: { usedBytes, limitBytes }, devices: [...] }` |
 | DELETE `/v1/devices/:id` | | revokes that device's token |
 | GET `/v1/releases?sinceVersion=N` | | `{ releases: [record + version], nextVersion }` (tombstones included) |
-| PUT `/v1/releases/:id` | the record | `{ version }`; 409 if the stored `updatedAt` is newer |
+| PUT `/v1/releases/:id` | the record (at most 500 tracks) | `{ version }`; 409 if the stored `updatedAt` is newer; stored files the record no longer references are deleted |
 | DELETE `/v1/releases/:id` | | tombstone; `{ version }` |
-| POST `/v1/releases/:id/files` | `{ files: [{ name, bytes, contentType }] }` | `{ uploads: [{ name, url, method, headers }] }`; enforces quota and 200 MB per file |
+| POST `/v1/releases/:id/files` | `{ files: [{ name, bytes, contentType }] }` | `{ uploads: [{ name, url, method, headers }] }`; enforces quota, 200 MB per file, and that `contentType` matches the name's extension |
 | GET `/v1/releases/:id/files/:name` | | `{ url, expiresAt }` download URL |
 
 Rules: every path is scoped to the token's user; a release id belongs to the user that first
 wrote it; tombstones keep their files for 30 days then a cron deletes the objects; codes and
-tokens are stored hashed; auth endpoints are rate-limited per email and per IP.
+tokens are stored hashed; auth endpoints are rate-limited per email and per IP; JSON request
+bodies are capped at 1 MiB (400 when exceeded).
 
 ## Storage and providers
 
