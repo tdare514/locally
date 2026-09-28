@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServices } from "../../../../server/container";
 import { errorResponse } from "../../../../server/http/responses";
+import { emptySyncState } from "../../../../server/sync/SyncState";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,6 +27,10 @@ export async function POST() {
       ...settings,
       sync: settings.sync ? { ...settings.sync, deviceToken: null, email: null, lastVersion: 0 } : null,
     });
+
+    // A different account or host signing in later on this Mac must not
+    // inherit this account's push bookkeeping or pending phone releases.
+    await services.syncState.set(emptySyncState());
 
     return NextResponse.json({ ok: true });
   } catch (err) {

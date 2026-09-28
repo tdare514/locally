@@ -6,6 +6,7 @@ import { toSettingsResponse } from "../../../server/config/settingsView";
 import { badRequest, errorResponse } from "../../../server/http/responses";
 import { parseSettingsPutBody } from "../../../server/http/validation";
 import { applySyncBaseUrlChange } from "../../../server/sync/settings";
+import { emptySyncState } from "../../../server/sync/SyncState";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +52,15 @@ export async function PUT(request: NextRequest) {
         return badRequest(result.error);
       }
       sync = result.sync;
+      // `applySyncBaseUrlChange` returns a fresh object when the host changed
+      // (or there was no previous sync config) and the same `current.sync`
+      // object when the URL is unchanged. Local sync bookkeeping — pushed
+      // versions, uploaded files, cover hashes, pending phone releases — was
+      // built against the old host's device token, so it must be reset along
+      // with it; otherwise it's misread as already-synced against the new host.
+      if (sync !== current.sync) {
+        await services.syncState.set(emptySyncState());
+      }
     }
 
     if (body.libraryDir === undefined && body.sync?.baseUrl === undefined) {

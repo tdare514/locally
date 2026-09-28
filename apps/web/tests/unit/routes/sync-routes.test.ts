@@ -4,6 +4,8 @@ import type { Settings, Release, SyncStatus } from "../../../src/shared/types";
 import type { Services } from "../../../src/server/container";
 import type { MeResult, SyncApi, VerifyCodeResult } from "../../../src/server/sync/SyncApi";
 import { NotFoundError } from "../../../src/shared/errors";
+import { emptySyncState, type SyncState, type SyncStateStore } from "../../../src/server/sync/SyncState";
+import type { SyncRecord } from "../../../src/server/sync/SyncRecord";
 
 // `vi.mock` factories are hoisted above these imports by Vitest; `services`
 // below is read lazily (only when a route handler actually calls
@@ -63,6 +65,23 @@ class FakeSyncApi implements Partial<SyncApi> {
 
 const fakeSyncApi = new FakeSyncApi() as unknown as SyncApi;
 
+/** In-memory `SyncStateStore` fake, following `tests/unit/SyncEngine.test.ts`. */
+class FakeSyncStateStore implements SyncStateStore {
+  private state: SyncState = emptySyncState();
+  async get(): Promise<SyncState> {
+    return {
+      pushedUpdatedAt: { ...this.state.pushedUpdatedAt },
+      uploadedFiles: Object.fromEntries(Object.entries(this.state.uploadedFiles).map(([k, v]) => [k, [...v]])),
+      coverHash: { ...this.state.coverHash },
+      pendingFromPhone: { ...this.state.pendingFromPhone },
+    };
+  }
+  async set(state: SyncState): Promise<SyncState> {
+    this.state = state;
+    return state;
+  }
+}
+
 const fixedStatus: SyncStatus = {
   signedIn: true,
   email: "a@b.com",
@@ -75,6 +94,7 @@ const fixedStatus: SyncStatus = {
 };
 
 let syncEngine: { status: ReturnType<typeof vi.fn>; reconcile: ReturnType<typeof vi.fn>; acceptFromPhone: ReturnType<typeof vi.fn> };
+let syncState: FakeSyncStateStore;
 
 function jsonRequest(url: string, body: unknown): NextRequest {
   return new NextRequest(url, {
@@ -94,10 +114,12 @@ beforeEach(() => {
     reconcile: vi.fn().mockResolvedValue(undefined),
     acceptFromPhone: vi.fn(),
   };
+  syncState = new FakeSyncStateStore();
   services = {
     settings: new FakeSettingsStore(),
     syncApiFactory: () => fakeSyncApi,
     syncEngine,
+    syncState,
   } as unknown as Services;
 });
 
@@ -159,6 +181,26 @@ describe("POST /api/sync/signout", () => {
     const res = await signoutPOST();
     expect(res.status).toBe(200);
     expect(revokeDeviceCalls).toEqual([]);
+  });
+
+  it("clears pre-seeded local sync state", async () => {
+    settingsValue = {
+      libraryDir: "/tmp/lib",
+      sync: { baseUrl: "http://localhost:4000", deviceToken: "tok-123", email: "a@b.com", lastVersion: 5 },
+    };
+    await syncState.set({
+      pushedUpdatedAt: { "rel-1": "2026-01-01T00:00:00.000Z" },
+      uploadedFiles: {},
+      coverHash: {},
+      pendingFromPhone: { "rel-2": {} as SyncRecord },
+    });
+
+    const res = await signoutPOST();
+    expect(res.status).toBe(200);
+
+    const state = await syncState.get();
+    expect(state.pushedUpdatedAt).toEqual({});
+    expect(state.pendingFromPhone).toEqual({});
   });
 });
 

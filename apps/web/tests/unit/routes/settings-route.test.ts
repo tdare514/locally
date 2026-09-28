@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Settings } from "../../../src/shared/types";
 import type { Services } from "../../../src/server/container";
+import { emptySyncState, type SyncState, type SyncStateStore } from "../../../src/server/sync/SyncState";
+import type { SyncRecord } from "../../../src/server/sync/SyncRecord";
 
 let services: Services;
 
@@ -23,6 +25,23 @@ class FakeSettingsStore {
   }
 }
 
+/** In-memory `SyncStateStore` fake, following `tests/unit/SyncEngine.test.ts`. */
+class FakeSyncStateStore implements SyncStateStore {
+  private state: SyncState = emptySyncState();
+  async get(): Promise<SyncState> {
+    return {
+      pushedUpdatedAt: { ...this.state.pushedUpdatedAt },
+      uploadedFiles: Object.fromEntries(Object.entries(this.state.uploadedFiles).map(([k, v]) => [k, [...v]])),
+      coverHash: { ...this.state.coverHash },
+      pendingFromPhone: { ...this.state.pendingFromPhone },
+    };
+  }
+  async set(state: SyncState): Promise<SyncState> {
+    this.state = state;
+    return state;
+  }
+}
+
 function putRequest(body: unknown): NextRequest {
   return new NextRequest("http://localhost/api/settings", {
     method: "PUT",
@@ -31,9 +50,12 @@ function putRequest(body: unknown): NextRequest {
   });
 }
 
+let syncState: FakeSyncStateStore;
+
 beforeEach(() => {
   settingsValue = { libraryDir: "/tmp/lib", sync: null };
-  services = { settings: new FakeSettingsStore() } as unknown as Services;
+  syncState = new FakeSyncStateStore();
+  services = { settings: new FakeSettingsStore(), syncState } as unknown as Services;
 });
 
 describe("GET /api/settings", () => {
@@ -95,6 +117,46 @@ describe("PUT /api/settings", () => {
     const body = (await res.json()) as { sync: { baseUrl: string; signedIn: boolean } };
     expect(body.sync.baseUrl).toBe("https://sync.example.com");
     expect(body.sync.signedIn).toBe(false);
+  });
+
+  it("changing sync.baseUrl to a different https host clears pre-seeded local sync state", async () => {
+    settingsValue = {
+      libraryDir: "/tmp/lib",
+      sync: { baseUrl: "http://localhost:4000", deviceToken: "secret-token", email: "a@b.com", lastVersion: 3 },
+    };
+    await syncState.set({
+      pushedUpdatedAt: { "rel-1": "2026-01-01T00:00:00.000Z" },
+      uploadedFiles: {},
+      coverHash: {},
+      pendingFromPhone: { "rel-2": {} as SyncRecord },
+    });
+
+    const res = await PUT(putRequest({ sync: { baseUrl: "https://sync.example.com" } }));
+    expect(res.status).toBe(200);
+
+    const state = await syncState.get();
+    expect(state.pushedUpdatedAt).toEqual({});
+    expect(state.pendingFromPhone).toEqual({});
+  });
+
+  it("re-saving the same sync.baseUrl leaves pre-seeded local sync state untouched", async () => {
+    settingsValue = {
+      libraryDir: "/tmp/lib",
+      sync: { baseUrl: "http://localhost:4000", deviceToken: "secret-token", email: "a@b.com", lastVersion: 3 },
+    };
+    await syncState.set({
+      pushedUpdatedAt: { "rel-1": "2026-01-01T00:00:00.000Z" },
+      uploadedFiles: {},
+      coverHash: {},
+      pendingFromPhone: { "rel-2": {} as SyncRecord },
+    });
+
+    const res = await PUT(putRequest({ sync: { baseUrl: "http://localhost:4000" } }));
+    expect(res.status).toBe(200);
+
+    const state = await syncState.get();
+    expect(state.pushedUpdatedAt).toEqual({ "rel-1": "2026-01-01T00:00:00.000Z" });
+    expect(state.pendingFromPhone).toEqual({ "rel-2": {} as SyncRecord });
   });
 
   it("re-sending the current sync.baseUrl preserves the token, email, and lastVersion", async () => {
