@@ -1,4 +1,4 @@
-import { and, eq, lt } from "drizzle-orm";
+import { and, eq, lt, sql } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { authCodes, files, rateLimits, releases } from "../../db/schema";
 import type { FileStore } from "../files/FileStore";
@@ -10,6 +10,8 @@ export interface CleanupResult {
   deletedFiles: number;
   deletedAuthCodes: number;
   deletedRateLimits: number;
+  /** Total bytes across every remaining `files` row (a cost guardrail, not a deletion count). */
+  totalStoredBytes: number;
 }
 
 /**
@@ -57,6 +59,13 @@ export class CleanupService {
       .where(lt(rateLimits.windowStart, rateLimitCutoff))
       .returning({ key: rateLimits.key });
 
-    return { deletedFiles, deletedAuthCodes: expiredCodes.length, deletedRateLimits: staleRateLimits.length };
+    const totalsRow = await this.db.select({ total: sql<number>`coalesce(sum(${files.bytes}), 0)` }).from(files);
+
+    return {
+      deletedFiles,
+      deletedAuthCodes: expiredCodes.length,
+      deletedRateLimits: staleRateLimits.length,
+      totalStoredBytes: Number(totalsRow[0]?.total ?? 0),
+    };
   }
 }

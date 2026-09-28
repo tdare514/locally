@@ -99,6 +99,14 @@ describe("CleanupService", () => {
 
     const remaining = await db.select().from(files);
     expect(remaining).toHaveLength(2);
+    // Each remaining file is 1 byte, so the total reflects the post-deletion count.
+    expect(result.totalStoredBytes).toBe(2);
+  });
+
+  it("returns 0 total stored bytes when the files table is empty", async () => {
+    const cleanup = new CleanupService(db, fileStore, () => clock);
+    const result = await cleanup.run();
+    expect(result.totalStoredBytes).toBe(0);
   });
 
   it("deletes expired auth codes but keeps unexpired ones", async () => {

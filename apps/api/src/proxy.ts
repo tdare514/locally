@@ -17,16 +17,26 @@ function parseAllowedOrigins(raw: string | undefined): string[] {
 
 const ALLOWED_ORIGINS = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
 
+const REQUEST_ID_HEADER = "x-request-id";
+
 export function proxy(req: NextRequest) {
   const origin = req.headers.get("origin");
   const allowed = origin !== null && isOriginAllowed(origin, ALLOWED_ORIGINS);
+  const requestId = crypto.randomUUID();
 
   // Preflight: answer directly, with CORS headers only if the origin is allowed.
   if (req.method === "OPTIONS") {
-    return new NextResponse(null, { status: 204, headers: allowed && origin ? corsHeaders(origin) : {} });
+    const headers = allowed && origin ? corsHeaders(origin) : {};
+    return new NextResponse(null, { status: 204, headers: { ...headers, [REQUEST_ID_HEADER]: requestId } });
   }
 
-  const res = NextResponse.next();
+  // Overwrite any client-supplied x-request-id before it reaches the route
+  // handler, which trusts this header (see server/http/observe.ts).
+  const forwardedHeaders = new Headers(req.headers);
+  forwardedHeaders.set(REQUEST_ID_HEADER, requestId);
+
+  const res = NextResponse.next({ request: { headers: forwardedHeaders } });
+  res.headers.set(REQUEST_ID_HEADER, requestId);
   if (allowed && origin) {
     for (const [key, value] of Object.entries(corsHeaders(origin))) {
       res.headers.set(key, value);

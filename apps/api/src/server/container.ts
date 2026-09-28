@@ -25,6 +25,7 @@ export interface Services {
   files: ReleaseFilesService;
   cleanup: CleanupService;
   cronSecret: string | undefined;
+  storageAlertBytes: number;
   allowedOrigins: string[];
   /** Sliding-window rate limiters for the two unauthenticated auth routes, keyed separately by email and by IP. */
   rateLimiters: {
@@ -61,6 +62,7 @@ async function buildServices(): Promise<Services> {
     files: new ReleaseFilesService(db, fileStore, quota),
     cleanup: new CleanupService(db, fileStore),
     cronSecret: env.cronSecret,
+    storageAlertBytes: env.storageAlertBytes,
     allowedOrigins: env.allowedOrigins,
     rateLimiters: {
       // 5 code requests per email / 20 per IP, per 15 minutes.

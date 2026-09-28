@@ -61,6 +61,7 @@ export async function createTestServices(): Promise<TestServices> {
     files: new ReleaseFilesService(db, fileStore, quota),
     cleanup: new CleanupService(db, fileStore),
     cronSecret: undefined,
+    storageAlertBytes: 50 * 1024 * 1024 * 1024,
     allowedOrigins: ["http://localhost:*"],
     rateLimiters: {
       codeByEmail: new InMemoryRateLimiter(1000, 15 * 60 * 1000),

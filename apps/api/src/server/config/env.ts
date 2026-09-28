@@ -7,6 +7,9 @@
 const DEV_AUTH_PEPPER = "dev-insecure-auth-pepper-do-not-use-in-production";
 const DEV_TOKEN_PEPPER = "dev-insecure-token-pepper-do-not-use-in-production";
 
+/** 50 GiB — a placeholder budget; set `STORAGE_ALERT_BYTES` to the real one before it matters. */
+const DEFAULT_STORAGE_ALERT_BYTES = 50 * 1024 * 1024 * 1024;
+
 /** `FILE_STORE=blob` requires `BLOB_READ_WRITE_TOKEN`, checked once here — see `resolveFileStore`. */
 type FileStoreEnv = { fileStore: "local" } | { fileStore: "blob"; blobReadWriteToken: string };
 
@@ -23,6 +26,8 @@ export type Env = {
   cronSecret: string | undefined;
   allowedOrigins: string[];
   publicBaseUrl: string;
+  /** Cost guardrail: the cleanup cron logs a warning once total stored bytes reach this. */
+  storageAlertBytes: number;
 } & FileStoreEnv &
   MailerEnv;
 
@@ -34,6 +39,13 @@ function parseAllowedOrigins(raw: string | undefined): string[] {
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
+}
+
+/** Parses an optional positive-integer byte count, falling back to `fallback` when unset or invalid. */
+function parseByteCount(raw: string | undefined, fallback: number): number {
+  if (!raw || raw.trim().length === 0) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
 }
 
 /** Fails closed: `FILE_STORE=blob` without a token would otherwise silently fall back to `LocalFileStore`. */
@@ -101,6 +113,7 @@ export function loadEnv(): Env {
     cronSecret: process.env.CRON_SECRET,
     allowedOrigins: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
     publicBaseUrl: (process.env.PUBLIC_BASE_URL || "http://localhost:4000").replace(/\/+$/, ""),
+    storageAlertBytes: parseByteCount(process.env.STORAGE_ALERT_BYTES, DEFAULT_STORAGE_ALERT_BYTES),
     ...resolveFileStore(),
     ...resolveMailer(),
   };

@@ -26,6 +26,5 @@ export function errorResponse(err: unknown): NextResponse<ApiError> {
   if (err instanceof ConflictError) return json(409, err.message);
   if (err instanceof RateLimitError) return json(429, err.message);
   if (err instanceof UploadTooLargeError) return json(413, err.message);
-  console.error(err);
   return json(500, "Internal server error");
 }

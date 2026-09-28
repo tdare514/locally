@@ -37,6 +37,7 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 - Email-code accounts, device tokens, versioned releases (syncVersion 1 and 2) with last-writer-wins
 - Quota enforcement and signed, expiring file URLs (local store and Vercel Blob)
 - Rate limiting, CORS, daily cleanup cron
+- Every response carries x-request-id; 4xx/5xx, rate-limit, quota and auth failures log one JSON line (request ID, route, status, duration, user ID); the daily cron logs total stored bytes, warning past STORAGE_ALERT_BYTES (#29)
 - Device tokens expire after 90 days unused (lastSeenAt refreshed at most daily); a cross-user test matrix shows another account gets 404 on every release, file and device route (#33)
 - SQLite (libSQL) via Drizzle, migrated automatically on first request
 - Deployed to https://locally-sync-api.vercel.app (Vercel project locally-sync-api: Turso database, private Blob store, Resend sandbox sender); both clients default to it; sign-in code delivery verified 28 Sep (#3)
@@ -54,7 +55,7 @@ Hardening from the Sep 27 security review across web, iOS and the new sync API, 
 ## Next
 - Remaining iOS restructure items: on-device checks of the import silhouette and drag reorder (#6)
 - Mac library development: search, sort, bulk actions, playlist-aware grouping; plan-only: conversion job queue, SQLite index, multi-library (#7)
-- Architecture review for multiple users (docs/reviews/2026-09-28-architecture.md): atomic sync version #28 first, then API observability #29, async email and deletes #31; plans written for pagination (#30, docs/plans/30-sync-pagination.md) and account deletion (#34, docs/plans/34-account-deletion.md), both to implement after the iOS sync lane and #3; owner decisions on Mac packaging #35 and privacy/terms #36
+- Architecture review for multiple users (docs/reviews/2026-09-28-architecture.md): atomic sync version #28 first, then async email and deletes #31; plans written for pagination (#30, docs/plans/30-sync-pagination.md) and account deletion (#34, docs/plans/34-account-deletion.md), both to implement after the iOS sync lane and #3; owner decisions on Mac packaging #35 and privacy/terms #36
 - Repo health: CI workflows, an all-rights-reserved LICENSE and root-doc fixes landed; still open are the vitest .mts rename, apps/ios/README stale references, and the test gaps (#13)
 
 ## Architecture decisions

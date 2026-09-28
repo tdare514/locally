@@ -77,6 +77,29 @@ without `BLOB_READ_WRITE_TOKEN` or `RESEND_API_KEY` respectively, in any
 environment, instead of silently falling back to local storage or the
 console mailer.
 
+## Observability and cost alerts
+
+Every response carries an `x-request-id` header (the proxy generates one per request and
+`src/server/http/observe.ts` forwards it through). When a request fails (status >= 400), the
+route logs exactly one JSON line — level `info` for other 4xx, `warn` for 401/403/413/429, `error`
+for 5xx — with `requestId`, `route`, `method`, `status`, `durationMs` and `userId` (or `null`);
+never the email address, code, token, or request body/headers. In Vercel, open the deployment's
+**Runtime Logs** and search for the request id (also returned to the client in the response
+header) to correlate a client-reported failure with its server-side log line.
+
+The daily cleanup cron (`GET /v1/internal/cleanup`) additionally logs one `storage_total` line
+each run — `{ level, event: "storage_total", totalStoredBytes, alertBytes }` — at `warn` once
+total stored bytes (sum of the `files` table) reach `STORAGE_ALERT_BYTES` (default 50 GiB), else
+`info`. This is a signal to watch, not an enforced cap — set `STORAGE_ALERT_BYTES` to your real
+budget and watch for the `warn` line in Runtime Logs.
+
+To catch runaway spend beyond what these logs surface:
+
+1. **Vercel Spend Management.** Dashboard → **Settings** → **Billing** → **Spend Management** →
+   set a budget and a notification threshold for this project/team.
+2. **Blob usage and egress.** Dashboard → **Storage** → the Blob store → check usage and egress
+   graphs periodically, especially after raising `STORAGE_ALERT_BYTES` or seeing a `warn` line.
+
 ## Deploying to Vercel
 
 The production service runs on Vercel with a Turso (libSQL) database, a
