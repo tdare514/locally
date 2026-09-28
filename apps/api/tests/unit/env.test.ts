@@ -55,6 +55,8 @@ describe("loadEnv", () => {
     vi.stubEnv("RESEND_API_KEY", "");
     vi.stubEnv("CRON_SECRET", "");
     vi.stubEnv("DATABASE_URL", "");
+    vi.stubEnv("TURSO_DATABASE_URL", "");
+    vi.stubEnv("TURSO_AUTH_TOKEN", "");
     vi.stubEnv("ALLOWED_ORIGINS", "");
     vi.stubEnv("PUBLIC_BASE_URL", "");
 
@@ -75,7 +77,34 @@ describe("loadEnv", () => {
     vi.stubEnv("AUTH_PEPPER", "a-real-auth-pepper");
     vi.stubEnv("TOKEN_PEPPER", "a-real-token-pepper");
     vi.stubEnv("CRON_SECRET", "a-real-cron-secret");
+    vi.stubEnv("DATABASE_URL", "libsql://db.example.turso.io");
 
     expect(() => loadEnv()).not.toThrow();
+  });
+
+  it("throws in production when no database URL is set", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("AUTH_PEPPER", "a-real-auth-pepper");
+    vi.stubEnv("TOKEN_PEPPER", "a-real-token-pepper");
+    vi.stubEnv("CRON_SECRET", "a-real-cron-secret");
+    vi.stubEnv("DATABASE_URL", "");
+    vi.stubEnv("TURSO_DATABASE_URL", "");
+
+    expect(() => loadEnv()).toThrow(/DATABASE_URL/);
+  });
+
+  it("reads the Turso integration's URL and token when DATABASE_URL is unset", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("AUTH_PEPPER", "a-real-auth-pepper");
+    vi.stubEnv("TOKEN_PEPPER", "a-real-token-pepper");
+    vi.stubEnv("CRON_SECRET", "a-real-cron-secret");
+    vi.stubEnv("DATABASE_URL", "");
+    vi.stubEnv("DATABASE_AUTH_TOKEN", "");
+    vi.stubEnv("TURSO_DATABASE_URL", "libsql://db.example.turso.io");
+    vi.stubEnv("TURSO_AUTH_TOKEN", "a-turso-token");
+
+    const env = loadEnv();
+    expect(env.databaseUrl).toBe("libsql://db.example.turso.io");
+    expect(env.databaseAuthToken).toBe("a-turso-token");
   });
 });

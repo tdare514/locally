@@ -13,9 +13,10 @@ const MIGRATIONS_FOLDER = path.join(process.cwd(), "drizzle");
 /**
  * Build a Drizzle client over libSQL. `url` defaults to `DATABASE_URL`, or a
  * local SQLite file so `npm run dev`/`npm run check` work with no env vars
- * set at all. Tests pass `:memory:` explicitly for full isolation.
+ * set at all. Tests pass `:memory:` explicitly for full isolation. `authToken`
+ * is for a remote database whose token isn't embedded in the URL.
  */
-export function createDb(url: string = process.env.DATABASE_URL ?? "file:./data/dev.db"): Db {
+export function createDb(url: string = process.env.DATABASE_URL ?? "file:./data/dev.db", authToken?: string): Db {
   if (url.startsWith("file:")) {
     const filePath = url.slice("file:".length);
     const dir = path.dirname(filePath);
@@ -23,7 +24,7 @@ export function createDb(url: string = process.env.DATABASE_URL ?? "file:./data/
       fs.mkdirSync(dir, { recursive: true });
     }
   }
-  const client = createClient({ url });
+  const client = createClient({ url, authToken });
   return drizzle(client, { schema });
 }
 

@@ -15,6 +15,8 @@ type MailerEnv = { mailer: "console" } | { mailer: "resend"; resendApiKey: strin
 
 export type Env = {
   databaseUrl: string;
+  /** libSQL auth token when it isn't embedded in the URL (Turso's Vercel integration sets it separately). */
+  databaseAuthToken: string | undefined;
   authPepper: string;
   tokenPepper: string;
   mailFrom: string;
@@ -63,7 +65,14 @@ export function loadEnv(): Env {
   const isProduction = process.env.NODE_ENV === "production";
 
   if (isProduction) {
-    const missing = (["AUTH_PEPPER", "TOKEN_PEPPER", "CRON_SECRET"] as const).filter((name) => !process.env[name]);
+    const missing: string[] = (["AUTH_PEPPER", "TOKEN_PEPPER", "CRON_SECRET"] as const).filter(
+      (name) => !process.env[name]
+    );
+    // Without a database URL the server would fall back to a local SQLite
+    // file, which a serverless deploy can't keep.
+    if (!process.env.DATABASE_URL && !process.env.TURSO_DATABASE_URL) {
+      missing.push("DATABASE_URL (or TURSO_DATABASE_URL)");
+    }
     if (missing.length > 0) {
       throw new Error(
         `${missing.join(", ")} must be set in production — refusing to start with an insecure default. See .env.example.`
@@ -84,7 +93,8 @@ export function loadEnv(): Env {
   }
 
   return {
-    databaseUrl: process.env.DATABASE_URL || "file:./data/dev.db",
+    databaseUrl: process.env.DATABASE_URL || process.env.TURSO_DATABASE_URL || "file:./data/dev.db",
+    databaseAuthToken: process.env.DATABASE_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN || undefined,
     authPepper,
     tokenPepper,
     mailFrom: process.env.MAIL_FROM || "Locally Sync <sync@example.com>",

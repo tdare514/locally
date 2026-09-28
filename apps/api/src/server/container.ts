@@ -38,7 +38,7 @@ export interface Services {
 async function buildServices(): Promise<Services> {
   const env = loadEnv();
 
-  const db = createDb(env.databaseUrl);
+  const db = createDb(env.databaseUrl, env.databaseAuthToken);
   await migrateDb(db);
 
   const mailer: Mailer =

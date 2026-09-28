@@ -68,8 +68,8 @@ handful of internal display purposes.
 
 See `.env.example` for the full list with descriptions. Every one of them
 has a working default for local development; only `AUTH_PEPPER`,
-`TOKEN_PEPPER`, and `CRON_SECRET` are required in production — with
-`NODE_ENV=production`, the server refuses to start if any of the three is
+`TOKEN_PEPPER`, `CRON_SECRET` and a database URL are required in production — with
+`NODE_ENV=production`, the server refuses to start if any of them is
 unset, rather than warning and falling back to an insecure default (outside
 production it still just logs a loud warning). `FILE_STORE=blob` and
 `MAILER=resend` are likewise fail-closed: the server refuses to start
@@ -85,8 +85,11 @@ private Vercel Blob store and Resend for the sign-in email (#3).
 1. **Project.** Import the repo into Vercel with **Root Directory**
    `apps/api`; the framework preset is Next.js. `vercel.ts` adds the daily
    cleanup cron, nothing else.
-2. **Database.** Create a Turso database and set `DATABASE_URL` to
-   `libsql://<db>-<org>.turso.io?authToken=<token>`. Migrations under
+2. **Database.** Add Turso from the Vercel Marketplace
+   (`vercel integration add tursocloud/database`); it sets
+   `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`, which the app reads when
+   `DATABASE_URL` is unset. Production refuses to start with neither
+   set. Migrations under
    `drizzle/` run automatically on the first request of each instance, so a
    deploy needs no separate migrate step.
 3. **Files.** Create a Blob store (Storage → Blob) and connect it to the
