@@ -1,4 +1,4 @@
-import { and, eq, gt, lt, sql } from "drizzle-orm";
+import { and, eq, gt, lte, sql } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { releases, userCounters } from "../../db/schema";
 import { ConflictError, NotFoundError } from "../../shared/errors";
@@ -84,8 +84,12 @@ export class ReleaseSyncService {
 
   /**
    * Create or update a release. Last writer wins by `record.updatedAt`: a
-   * write whose `updatedAt` is not strictly newer than what's stored throws
-   * `ConflictError` (409) so the caller can pull first and re-apply.
+   * write whose `updatedAt` is older than what's stored throws
+   * `ConflictError` (409) so the caller can pull first and re-apply. An
+   * *equal* `updatedAt` is accepted and bumps the version: both clients
+   * finish a push whose `PUT` landed but whose file uploads failed by
+   * re-sending the same record, so a retry has to be idempotent rather
+   * than a conflict (found on the first real-device smoke test, #3).
    */
   async upsert(userId: string, releaseId: string, record: ReleaseRecord): Promise<UpsertResult> {
     const [existing] = await this.db.select().from(releases).where(eq(releases.id, releaseId));
@@ -97,7 +101,7 @@ export class ReleaseSyncService {
     const updatedAtMs = Date.parse(record.updatedAt);
     const now = this.now();
 
-    if (existing && updatedAtMs <= existing.updatedAt) {
+    if (existing && updatedAtMs < existing.updatedAt) {
       throw new ConflictError("Stored record is newer than the one being written");
     }
 
@@ -121,7 +125,7 @@ export class ReleaseSyncService {
         .onConflictDoUpdate({
           target: releases.id,
           set: { record, updatedAt: updatedAtMs, deleted: record.deleted, serverUpdatedAt: now, version },
-          setWhere: and(eq(releases.userId, userId), lt(releases.updatedAt, updatedAtMs)),
+          setWhere: and(eq(releases.userId, userId), lte(releases.updatedAt, updatedAtMs)),
         })
         .returning({ version: releases.version }),
     ]);

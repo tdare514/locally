@@ -120,7 +120,9 @@ source of truth.
   track (a cover that cannot be downloaded yet leaves the release pending for the next
   reconcile, like a track). Tombstone → delete locally. Local releases never pushed → push (back-fill after signing in).
 - **Conflicts**: last writer wins by `updatedAt`; a `409` from `PUT` means pull first, then
-  re-apply the local change on top if it is still wanted.
+  re-apply the local change on top if it is still wanted. A `PUT` whose `updatedAt` equals the
+  stored one is accepted (it bumps the version), so a client can re-send the same record to
+  finish a push whose file uploads failed.
 
 ## Not in this phase
 

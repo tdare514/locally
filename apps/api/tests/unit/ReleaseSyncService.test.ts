@@ -36,16 +36,22 @@ describe("ReleaseSyncService", () => {
     expect((await service.upsert(userA, first.id, updated)).version).toBe(3);
   });
 
-  it("rejects an update whose updatedAt is not newer than what's stored (409)", async () => {
+  it("rejects an update whose updatedAt is older than what's stored (409)", async () => {
     const record = makeReleaseRecord();
     await service.upsert(userA, record.id, record);
 
-    // Same updatedAt as stored.
-    await expect(service.upsert(userA, record.id, record)).rejects.toThrow(ConflictError);
-
-    // Older updatedAt.
     const older = { ...record, updatedAt: new Date(Date.parse(record.updatedAt) - 1000).toISOString() };
     await expect(service.upsert(userA, record.id, older)).rejects.toThrow(ConflictError);
+  });
+
+  it("accepts a retry with the same updatedAt and bumps the version (idempotent re-push)", async () => {
+    // A client whose PUT landed but whose file uploads then failed re-sends
+    // the identical record to finish the push; that must not be a 409.
+    const record = makeReleaseRecord();
+    const first = await service.upsert(userA, record.id, record);
+    const retry = await service.upsert(userA, record.id, record);
+    expect(retry.version).toBeGreaterThan(first.version);
+    expect((await service.getOwned(userA, record.id)).version).toBe(retry.version);
   });
 
   it("accepts an update with a strictly newer updatedAt", async () => {

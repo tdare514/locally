@@ -95,20 +95,29 @@ describe("routes (through the exported handler functions, no server)", () => {
     expect(putRes.status).toBe(200);
     expect(await putRes.json()).toEqual({ version: 1 });
 
-    // Same updatedAt again -> 409.
-    const conflictRes = await releaseRoute.PUT(
+    // Same updatedAt again (a retry after failed uploads) -> accepted, version 2.
+    const retryRes = await releaseRoute.PUT(
       jsonRequest(`http://localhost/v1/releases/${record.id}`, "PUT", record, token),
+      { params: Promise.resolve({ id: record.id }) }
+    );
+    expect(retryRes.status).toBe(200);
+    expect(await retryRes.json()).toEqual({ version: 2 });
+
+    // Older updatedAt -> 409.
+    const stale = { ...record, updatedAt: new Date(Date.parse(record.updatedAt) - 1000).toISOString() };
+    const conflictRes = await releaseRoute.PUT(
+      jsonRequest(`http://localhost/v1/releases/${record.id}`, "PUT", stale, token),
       { params: Promise.resolve({ id: record.id }) }
     );
     expect(conflictRes.status).toBe(409);
 
-    // Newer updatedAt -> version 2.
+    // Newer updatedAt -> version 3.
     const updated = { ...record, title: "Retitled", updatedAt: new Date(Date.parse(record.updatedAt) + 1000).toISOString() };
     const updateRes = await releaseRoute.PUT(
       jsonRequest(`http://localhost/v1/releases/${record.id}`, "PUT", updated, token),
       { params: Promise.resolve({ id: record.id }) }
     );
-    expect(await updateRes.json()).toEqual({ version: 2 });
+    expect(await updateRes.json()).toEqual({ version: 3 });
 
     // Body id must match the URL id.
     const mismatchRes = await releaseRoute.PUT(
@@ -152,15 +161,15 @@ describe("routes (through the exported handler functions, no server)", () => {
       new Request("http://localhost/v1/releases?sinceVersion=0", { headers: { authorization: `Bearer ${token}` } })
     );
     const listBody = await listRes.json();
-    expect(listBody.nextVersion).toBe(2);
-    expect(listBody.releases.find((r: { id: string }) => r.id === record.id)?.version).toBe(2);
+    expect(listBody.nextVersion).toBe(3);
+    expect(listBody.releases.find((r: { id: string }) => r.id === record.id)?.version).toBe(3);
 
     // Delete -> tombstone at version 3, visible in a subsequent list.
     const deleteRes = await releaseRoute.DELETE(
       new Request(`http://localhost/v1/releases/${record.id}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` } }),
       { params: Promise.resolve({ id: record.id }) }
     );
-    expect(await deleteRes.json()).toEqual({ version: 3 });
+    expect(await deleteRes.json()).toEqual({ version: 4 });
 
     const afterDelete = await releasesListRoute.GET(
       new Request(`http://localhost/v1/releases?sinceVersion=2`, { headers: { authorization: `Bearer ${token}` } })

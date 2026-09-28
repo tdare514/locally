@@ -1,0 +1,61 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const issueSignedToken = vi.fn(async () => "signed-token");
+const presignUrl = vi.fn(async () => ({ presignedUrl: "https://blob.example/presigned" }));
+const del = vi.fn(async () => undefined);
+
+vi.mock("@vercel/blob", () => ({ issueSignedToken, presignUrl, del }));
+
+const { VercelBlobFileStore, blobPathname } = await import("../../src/server/files/VercelBlobFileStore");
+
+describe("blobPathname", () => {
+  it("leaves a printable-ASCII key untouched", () => {
+    const key = "users/u1/releases/r1/01 - Track (live).mp3";
+    expect(blobPathname(key)).toBe(key);
+  });
+
+  it("percent-encodes every byte outside printable ASCII, and % itself", () => {
+    // `@vercel/blob` decodes its own signed token with `atob`, which turns a
+    // UTF-8 curly apostrophe into three Latin-1 characters; the SDK then
+    // rejects the token it just issued. The path it sees must stay ASCII.
+    expect(blobPathname("users/u1/releases/r1/01 - It’s Over.mp3")).toBe(
+      "users/u1/releases/r1/01 - It%E2%80%99s Over.mp3"
+    );
+    expect(blobPathname("a/100%.mp3")).toBe("a/100%25.mp3");
+    expect(blobPathname("a/tab\there.mp3")).toBe("a/tab%09here.mp3");
+  });
+});
+
+describe("VercelBlobFileStore", () => {
+  const key = "users/u1/releases/r1/01 - It’s Over.mp3";
+  const encoded = "users/u1/releases/r1/01 - It%E2%80%99s Over.mp3";
+  let store: InstanceType<typeof VercelBlobFileStore>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    store = new VercelBlobFileStore("rw-token");
+  });
+
+  it("signs and presigns uploads with the encoded pathname", async () => {
+    const ticket = await store.createUpload({ key, bytes: 123, contentType: "audio/mpeg" });
+    expect(ticket).toEqual({
+      url: "https://blob.example/presigned",
+      method: "PUT",
+      headers: { "Content-Type": "audio/mpeg" },
+    });
+    expect(issueSignedToken).toHaveBeenCalledWith(expect.objectContaining({ pathname: encoded, operations: ["put"] }));
+    expect(presignUrl).toHaveBeenCalledWith("signed-token", expect.objectContaining({ pathname: encoded, operation: "put" }));
+  });
+
+  it("signs and presigns downloads with the encoded pathname", async () => {
+    const ticket = await store.createDownload(key);
+    expect(ticket.url).toBe("https://blob.example/presigned");
+    expect(issueSignedToken).toHaveBeenCalledWith(expect.objectContaining({ pathname: encoded, operations: ["get"] }));
+    expect(presignUrl).toHaveBeenCalledWith("signed-token", expect.objectContaining({ pathname: encoded, operation: "get" }));
+  });
+
+  it("deletes by the encoded pathname", async () => {
+    await store.delete(key);
+    expect(del).toHaveBeenCalledWith(encoded, { token: "rw-token" });
+  });
+});

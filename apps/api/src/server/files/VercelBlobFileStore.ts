@@ -5,6 +5,24 @@ import type { CreateUploadParams, FileStore, UploadTicket } from "./FileStore";
 const TICKET_LIFETIME_MS = 5 * 60 * 1000;
 
 /**
+ * The Blob pathname handed to the SDK, derived from the storage key.
+ *
+ * `@vercel/blob`'s `presignUrl` re-reads the pathname it signed into the
+ * token by base64-decoding with `atob`, which yields Latin-1, so a key with
+ * any non-ASCII character (a curly apostrophe in "It's Over", accents,
+ * CJK) comes back as mojibake and the SDK rejects its own token with
+ * "Blob path does not match the signed token scope". Percent-encoding every
+ * byte outside printable ASCII (space through `~`; plus `%` itself, so the
+ * mapping can't collide) keeps the path the SDK sees pure ASCII while
+ * leaving every key that already uploaded fine unchanged. The mapping is one-way
+ * and applied at every call site here, so the `storageKey` persisted in the
+ * database stays the readable, un-encoded key.
+ */
+export function blobPathname(key: string): string {
+  return key.replace(/[^\x20-\x7e]|%/g, (ch) => encodeURIComponent(ch));
+}
+
+/**
  * Production `FileStore`: a private Vercel Blob store, selected with
  * `FILE_STORE=blob` (`BLOB_READ_WRITE_TOKEN` required).
  *
@@ -23,10 +41,11 @@ export class VercelBlobFileStore implements FileStore {
   constructor(private readonly readWriteToken: string) {}
 
   async createUpload({ key, bytes, contentType }: CreateUploadParams): Promise<UploadTicket> {
+    const pathname = blobPathname(key);
     const validUntil = Date.now() + TICKET_LIFETIME_MS;
     const signed = await issueSignedToken({
       token: this.readWriteToken,
-      pathname: key,
+      pathname,
       operations: ["put"],
       validUntil,
       allowedContentTypes: [contentType],
@@ -34,7 +53,7 @@ export class VercelBlobFileStore implements FileStore {
     });
     const { presignedUrl } = await presignUrl(signed, {
       operation: "put",
-      pathname: key,
+      pathname,
       access: "private",
       validUntil,
       allowedContentTypes: [contentType],
@@ -49,16 +68,17 @@ export class VercelBlobFileStore implements FileStore {
   }
 
   async createDownload(key: string): Promise<DownloadTicket> {
+    const pathname = blobPathname(key);
     const validUntil = Date.now() + TICKET_LIFETIME_MS;
     const signed = await issueSignedToken({
       token: this.readWriteToken,
-      pathname: key,
+      pathname,
       operations: ["get"],
       validUntil,
     });
     const { presignedUrl } = await presignUrl(signed, {
       operation: "get",
-      pathname: key,
+      pathname,
       access: "private",
       validUntil,
     });
@@ -66,6 +86,6 @@ export class VercelBlobFileStore implements FileStore {
   }
 
   async delete(key: string): Promise<void> {
-    await del(key, { token: this.readWriteToken });
+    await del(blobPathname(key), { token: this.readWriteToken });
   }
 }
