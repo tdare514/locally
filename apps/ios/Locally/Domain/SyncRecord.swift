@@ -122,6 +122,10 @@ struct SyncRecord: Codable, Hashable {
     var year: String?
     var genre: String?
     var cover: String?
+    /// Lowercase hex sha256 of the cover's bytes (`syncVersion` 2). `nil`
+    /// both for "no cover" and for a v1 record that carries no key; either
+    /// way there is no change signal and the receiver leaves its cover alone.
+    var coverHash: String?
     var tracks: [SyncTrack]
     var origin: String
     var originDevice: String
@@ -141,6 +145,7 @@ struct SyncRecord: Codable, Hashable {
         year: String? = nil,
         genre: String? = nil,
         cover: String? = nil,
+        coverHash: String? = nil,
         tracks: [SyncTrack],
         origin: String,
         originDevice: String,
@@ -157,6 +162,7 @@ struct SyncRecord: Codable, Hashable {
         self.year = year
         self.genre = genre
         self.cover = cover
+        self.coverHash = coverHash
         self.tracks = tracks
         self.origin = origin
         self.originDevice = originDevice
@@ -167,7 +173,7 @@ struct SyncRecord: Codable, Hashable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case syncVersion, id, kind, title, artist, year, genre, cover, tracks
+        case syncVersion, id, kind, title, artist, year, genre, cover, coverHash, tracks
         case origin, originDevice, createdAt, updatedAt, deleted, version
     }
 
@@ -189,6 +195,7 @@ struct SyncRecord: Codable, Hashable {
         try container.encode(year, forKey: .year)
         try container.encode(genre, forKey: .genre)
         try container.encode(cover, forKey: .cover)
+        try container.encode(coverHash, forKey: .coverHash)
         try container.encode(tracks, forKey: .tracks)
         try container.encode(origin, forKey: .origin)
         try container.encode(originDevice, forKey: .originDevice)

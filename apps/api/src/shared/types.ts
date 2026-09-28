@@ -45,8 +45,12 @@ export const trackRecordSchema = z.object({
 export type TrackRecord = z.infer<typeof trackRecordSchema>;
 
 /** The `release.json` document from `spec/sync.md`, as sent in `PUT /v1/releases/:id`. */
+/** Lowercase hex sha256 of a cover's bytes; the change signal for `cover.<ext>`, whose name never changes. */
+export const coverHashSchema = z.string().regex(/^[0-9a-f]{64}$/);
+
 export const releaseRecordSchema = z.object({
-  syncVersion: z.literal(1),
+  /** 1: original record. 2: adds `coverHash`. Both are accepted so clients can update in any order. */
+  syncVersion: z.union([z.literal(1), z.literal(2)]),
   id: uuidSchema,
   kind: z.enum(["single", "album"]),
   title: z.string().min(1).max(500),
@@ -57,6 +61,8 @@ export const releaseRecordSchema = z.object({
     .nullable(),
   genre: z.string().max(200).nullable(),
   cover: fileNameSchema.nullable(),
+  /** Absent on `syncVersion` 1 records (no signal); `null` on a v2 record with no cover. */
+  coverHash: coverHashSchema.nullable().optional(),
   tracks: z.array(trackRecordSchema).min(1).max(500),
   origin: platformSchema,
   originDevice: z.string().min(1).max(200),

@@ -185,6 +185,25 @@ struct SyncRecordTests {
     /// inspects the actual JSON `Data`, not just the decoded Swift value —
     /// a JSONDecoder round trip alone can't catch a missing-vs-null key,
     /// since both decode to the same `nil`.
+    /// `coverHash` arrived with `syncVersion` 2. A v1 record has no key at
+    /// all, a v2 record without a cover has `null`; both decode to `nil`.
+    @Test func coverHashDecodesWhetherPresentNullOrAbsent() throws {
+        let hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        let base = Self.specExampleJSON
+        let v1 = try JSONDecoder.syncApi.decode(SyncRecord.self, from: base.data(using: .utf8)!)
+        #expect(v1.coverHash == nil)
+
+        let withHash = base.replacingOccurrences(of: "\"cover\": \"cover.jpg\",", with: "\"cover\": \"cover.jpg\", \"coverHash\": \"\(hash)\",")
+            .replacingOccurrences(of: "\"syncVersion\": 1", with: "\"syncVersion\": 2")
+        let v2 = try JSONDecoder.syncApi.decode(SyncRecord.self, from: withHash.data(using: .utf8)!)
+        #expect(v2.syncVersion == 2)
+        #expect(v2.coverHash == hash)
+
+        let withNull = base.replacingOccurrences(of: "\"cover\": \"cover.jpg\",", with: "\"cover\": null, \"coverHash\": null,")
+        let v2NoCover = try JSONDecoder.syncApi.decode(SyncRecord.self, from: withNull.data(using: .utf8)!)
+        #expect(v2NoCover.coverHash == nil)
+    }
+
     @Test func nilOptionalFieldsEncodeAsExplicitNullNeverAsAMissingKey() throws {
         let track = SyncTrack(id: "t1", title: "T", trackNumber: 1, file: "t.mp3", bytes: 0, durationSec: nil)
         let record = SyncRecord(
@@ -203,6 +222,8 @@ struct SyncRecordTests {
         #expect(json["genre"] is NSNull)
         #expect(json.keys.contains("cover"))
         #expect(json["cover"] is NSNull)
+        #expect(json.keys.contains("coverHash"))
+        #expect(json["coverHash"] is NSNull)
         #expect(tracksJSON[0].keys.contains("durationSec"))
         #expect(tracksJSON[0]["durationSec"] is NSNull)
     }

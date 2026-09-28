@@ -86,6 +86,24 @@ describe("SyncRecordSchema / parseSyncRecord", () => {
     expect(() => parseSyncRecord(bad)).toThrow();
   });
 
+  it("accepts a syncVersion 2 record with a coverHash, and with a null coverHash", () => {
+    const hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    expect(() => parseSyncRecord(validRecord({ syncVersion: 2, coverHash: hash }))).not.toThrow();
+    expect(() => parseSyncRecord(validRecord({ syncVersion: 2, cover: null, coverHash: null }))).not.toThrow();
+  });
+
+  it("accepts a syncVersion 1 record with no coverHash key at all", () => {
+    const old = validRecord() as Partial<SyncRecord>;
+    delete old.coverHash;
+    expect(SyncRecordSchema.parse(old).coverHash).toBeUndefined();
+  });
+
+  it("rejects a malformed coverHash and an unknown syncVersion", () => {
+    expect(() => parseSyncRecord(validRecord({ syncVersion: 2, coverHash: "abc" }))).toThrow();
+    expect(() => parseSyncRecord(validRecord({ syncVersion: 2, coverHash: "E3B0".repeat(16) }))).toThrow();
+    expect(() => parseSyncRecord(validRecord({ syncVersion: 3 as never }))).toThrow();
+  });
+
   it("rejects a missing deleted flag", () => {
     const bad = validRecord() as Partial<SyncRecord>;
     delete bad.deleted;

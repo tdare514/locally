@@ -43,8 +43,12 @@ export const SyncTrackSchema = z.object({
  * wire shape clients PUT/GET; server-only bookkeeping (`userId`, `version`,
  * `serverUpdatedAt`) is layered on by the API and isn't part of this schema.
  */
+/** Lowercase hex sha256 of the cover's bytes: the only signal that `cover.<ext>` changed, since its name never does. */
+export const CoverHashSchema = z.string().regex(/^[0-9a-f]{64}$/);
+
 export const SyncRecordSchema = z.object({
-  syncVersion: z.literal(1),
+  /** 1: original record. 2: adds `coverHash`. Both are accepted so the other client can update in any order. */
+  syncVersion: z.union([z.literal(1), z.literal(2)]),
   id: plainName("release id"),
   kind: z.enum(["single", "album"]),
   title: z.string(),
@@ -52,6 +56,8 @@ export const SyncRecordSchema = z.object({
   year: z.string().nullable(),
   genre: z.string().nullable(),
   cover: plainName("cover").nullable(),
+  /** Absent on a `syncVersion` 1 record (no signal, leave the cover alone); `null` on a v2 record with no cover. */
+  coverHash: CoverHashSchema.nullable().optional(),
   tracks: z.array(SyncTrackSchema),
   origin: z.enum(["mac", "ios"]),
   originDevice: z.string(),

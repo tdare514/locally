@@ -74,6 +74,15 @@ describe("releaseRecordSchema", () => {
     expect(releaseRecordSchema.safeParse(record).success).toBe(false);
   });
 
+  it("accepts syncVersion 2 with a coverHash, syncVersion 1 without one, and rejects a malformed hash", () => {
+    const hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    expect(releaseRecordSchema.safeParse(makeReleaseRecord({ syncVersion: 2, coverHash: hash })).success).toBe(true);
+    expect(releaseRecordSchema.safeParse(makeReleaseRecord({ syncVersion: 2, coverHash: null })).success).toBe(true);
+    expect(releaseRecordSchema.parse(makeReleaseRecord()).coverHash).toBeUndefined();
+    expect(releaseRecordSchema.safeParse(makeReleaseRecord({ syncVersion: 2, coverHash: "abc" })).success).toBe(false);
+    expect(releaseRecordSchema.safeParse(makeReleaseRecord({ syncVersion: 3 as never })).success).toBe(false);
+  });
+
   it("accepts exactly 500 tracks and rejects 501", () => {
     const at500 = makeReleaseRecord({ tracks: makeTracks(500) });
     expect(releaseRecordSchema.safeParse(at500).success).toBe(true);
