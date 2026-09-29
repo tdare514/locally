@@ -350,6 +350,35 @@ export class ReleaseService {
     return this.repo.find(settings.libraryDir, id);
   }
 
+  /**
+   * Bytes and MIME type of a release's cover, for GET /api/releases/:id/cover.
+   * Returns null when there is no usable cover: none recorded, or a `coverPath` that is not
+   * strictly inside the library. That path came off the on-disk index, which is not trusted, and
+   * the same null for both stops a caller probing for files outside the library. Throws
+   * NotFoundError when the release is unknown or the cover file is gone from disk.
+   */
+  async readCover(id: string): Promise<{ bytes: Buffer; contentType: string } | null> {
+    const settings = await this.settings.get();
+    const release = await this.repo.find(settings.libraryDir, id);
+    if (!release) throw new NotFoundError(`Release ${id} not found`);
+    if (!release.coverPath) return null;
+    const coverPath = release.coverPath;
+    if (
+      !this.fs.isInside(settings.libraryDir, coverPath) ||
+      path.resolve(coverPath) === path.resolve(settings.libraryDir)
+    ) {
+      return null;
+    }
+    let bytes: Buffer;
+    try {
+      bytes = await this.fs.readFile(coverPath);
+    } catch {
+      throw new NotFoundError("Cover file is missing on disk");
+    }
+    const contentType = path.extname(coverPath).toLowerCase() === ".png" ? "image/png" : "image/jpeg";
+    return { bytes, contentType };
+  }
+
   async list(): Promise<Release[]> {
     const settings = await this.settings.get();
     return this.repo.list(settings.libraryDir);

@@ -11,7 +11,7 @@ import type { SyncSettings } from "../../shared/types";
  * the existing session. We also require `https:` for any non-loopback host,
  * since the token would otherwise cross the network in the clear.
  *
- * The settings route (`src/app/api/settings/route.ts`) also resets the local
+ * The settings policy (`src/server/config/settingsUpdate.ts`) also resets the local
  * `SyncState` (pushed versions, uploaded files, cover hashes, pending phone
  * releases) whenever this function returns a fresh `sync` object, since that
  * bookkeeping was built against the old host and must not be read as if it

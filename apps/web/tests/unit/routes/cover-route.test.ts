@@ -2,6 +2,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Release, Settings } from "../../../src/shared/types";
 import type { Services } from "../../../src/server/container";
+import { ReleaseService } from "../../../src/server/releases/ReleaseService";
 
 let services: Services;
 
@@ -25,8 +26,8 @@ class FakeSettingsStore {
   }
 }
 
-class FakeReleaseService {
-  async get(): Promise<Release | null> {
+class FakeRepo {
+  async find(): Promise<Release | null> {
     return releaseValue;
   }
 }
@@ -71,8 +72,15 @@ beforeEach(() => {
   fileBytes = null;
   services = {
     settings: new FakeSettingsStore(),
-    releases: new FakeReleaseService(),
-    fs: new FakeFileSystem(),
+    // The route delegates to `ReleaseService.readCover`, so exercise the real service over
+    // the same fakes rather than faking the method away.
+    releases: new ReleaseService(
+      new FakeSettingsStore() as never,
+      new FakeRepo() as never,
+      {} as never,
+      {} as never,
+      new FakeFileSystem() as never
+    ),
   } as unknown as Services;
 });
 

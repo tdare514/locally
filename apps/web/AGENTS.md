@@ -19,6 +19,7 @@ src/server/
     SettingsStore.ts        # interface: get()/set() app settings
     FileSettingsStore.ts    # JSON-file impl (~/.spotify-local-import/settings.json)
     paths.ts                # default library dir, settings file path helpers
+    settingsUpdate.ts       # PUT /api/settings policy: libraryDir rules, dismissed-flag and sync-state resets
     settingsView.ts         # projects server-internal Settings down to safe client response
   storage/
     LibraryRepository.ts     # interface: list/find/upsert/remove, scoped to a libraryDir
