@@ -259,8 +259,13 @@ flips to "Unlocked"; "Restore purchase" should do the same after a fresh install
 - `project.yml` adds `ITSAppUsesNonExemptEncryption: false`, `CFBundleDisplayName: Locally`,
   `LSApplicationCategoryType: public.app-category.music`, and points
   `CFBundleShortVersionString`/`CFBundleVersion` at `MARKETING_VERSION` (`1.0`) /
-  `CURRENT_PROJECT_VERSION` (`2`) so the extension's version always matches the app's (Xcode
-  otherwise warns, and refuses to submit, if they differ).
+  `CURRENT_PROJECT_VERSION` (`2`), set once in the project-level `settings.base` so the
+  extension's version always matches the app's (Xcode otherwise warns, and refuses to submit, if
+  they differ). Bump them there, not per target.
+- Release builds carry no `NSLocalNetworkUsageDescription` or `NSAppTransportSecurity` key: a
+  Debug-only post-build step in `project.yml` adds them so a Debug build can sync with a dev server
+  on the Mac's LAN address. Release always uses the hosted API. Check with
+  `plutil -p <Release>/Locally.app/Info.plist` after a Release build (#84).
 - Submission checklist still open: the App Store icon is the listener mark rendered by
   `scripts/make-listener-icons.py` (main `AppIcon`, alternate `AppIcon-Line`, picker in Settings);
   export compliance is answered by `ITSAppUsesNonExemptEncryption: false` above; screenshots need
