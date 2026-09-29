@@ -39,7 +39,7 @@ src/server/
   sync/
     SyncApi.ts                # interface + HttpSyncApi: sign-in code/verify, list/push records, upload files
     SyncEngine.ts             # reconcile loop, push local changes, accept "From your phone" releases
-    SyncRecord.ts             # zod schema for the wire record, to/fromSyncRecord, isPlainSyncName guard
+    SyncRecord.ts             # zod schema for the wire record, plain-name + extension guards, to/fromSyncRecord
     SyncState.ts              # SyncState + SyncStateStore interface: pushed/uploaded/pending bookkeeping
     FileSyncStateStore.ts     # JSON-file impl (sync-state.json next to settings.json), zod-validated
   http/

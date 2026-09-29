@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   SyncRecordSchema,
   fromSyncRecord,
+  hasSyncFileExtension,
   isPlainSyncName,
   parseSyncRecord,
   toSyncRecord,
@@ -194,6 +195,85 @@ describe("fromSyncRecord", () => {
     });
     const meta = fromSyncRecord(record);
     expect(meta.tracks.map((t) => t.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("SyncRecordSchema refuses file names with an unsupported extension", () => {
+  const rejectedAsTrackFile = [
+    "01 - Intro.wav",
+    "01 - Intro.flac",
+    "01 - Intro",
+    "01 - Intro.mp3.bak",
+    "01 - Intro.mp",
+    "mp3",
+  ];
+  const rejectedAsCover = ["cover.gif", "cover.webp", "cover.jpg ", "mp3"];
+
+  it.each(rejectedAsTrackFile)("rejects %j as a track file", (file) => {
+    expect(() =>
+      parseSyncRecord(validRecord({ tracks: [{ ...validRecord().tracks[0], file }] })),
+    ).toThrow();
+  });
+
+  it.each(rejectedAsCover)("rejects %j as a cover", (cover) => {
+    expect(() => parseSyncRecord(validRecord({ cover }))).toThrow();
+  });
+
+  it.each(["01 - Intro.MP3", "01 - Intro.Mp3", "01 - Intro.m4a", "01 - Intro.M4A", "a.b.mp3"])(
+    "accepts %j as a track file",
+    (file) => {
+      expect(() =>
+        parseSyncRecord(validRecord({ tracks: [{ ...validRecord().tracks[0], file }] })),
+      ).not.toThrow();
+    },
+  );
+
+  it.each(["cover.jpg", "cover.JPG", "cover.jpeg", "cover.JPEG", "cover.png", "cover.PNG"])(
+    "accepts %j as a cover",
+    (cover) => {
+      expect(() => parseSyncRecord(validRecord({ cover }))).not.toThrow();
+    },
+  );
+
+  it("accepts a null cover", () => {
+    expect(() => parseSyncRecord(validRecord({ cover: null }))).not.toThrow();
+  });
+
+  it("accepts release and track ids without a file extension", () => {
+    expect(() => parseSyncRecord(validRecord())).not.toThrow();
+    expect(validRecord().id).toBe("3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90");
+  });
+
+  const extensionTableReject = [
+    ...rejectedAsTrackFile,
+    ...rejectedAsCover.filter((c) => c !== "cover.jpg "),
+    "cover.jpg ",
+  ];
+  const extensionTableAccept = [
+    "01 - Intro.MP3",
+    "01 - Intro.Mp3",
+    "01 - Intro.m4a",
+    "01 - Intro.M4A",
+    "a.b.mp3",
+    "cover.jpg",
+    "cover.JPG",
+    "cover.jpeg",
+    "cover.JPEG",
+    "cover.png",
+    "cover.PNG",
+    "file.MP3",
+    "file.M4A",
+    "file.JPG",
+    "file.JPEG",
+    "file.PNG",
+  ];
+
+  it.each(extensionTableReject)("hasSyncFileExtension rejects %j", (name) => {
+    expect(hasSyncFileExtension(name)).toBe(false);
+  });
+
+  it.each(extensionTableAccept)("hasSyncFileExtension accepts %j", (name) => {
+    expect(hasSyncFileExtension(name)).toBe(true);
   });
 });
 

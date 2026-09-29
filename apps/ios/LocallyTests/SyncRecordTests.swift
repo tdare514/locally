@@ -26,6 +26,86 @@ struct SyncRecordTests {
     }
     """
 
+    @Test func decodingSpecExampleWithAWavTrackThrowsSyncRecordRejected() throws {
+        let json = Self.specExampleJSON.replacingOccurrences(
+            of: "\"file\": \"01 - Intro.mp3\"",
+            with: "\"file\": \"01 - Intro.wav\""
+        )
+        do {
+            _ = try JSONDecoder.syncApi.decode(SyncRecord.self, from: json.data(using: .utf8)!)
+            Issue.record("expected SyncRecordRejected")
+        } catch let rejected as SyncRecordRejected {
+            #expect(rejected.field == "tracks[0].file")
+            #expect(rejected.name == "01 - Intro.wav")
+        }
+    }
+
+    @Test func decodingWithCoverGifThrowsSyncRecordRejected() throws {
+        let json = Self.specExampleJSON.replacingOccurrences(
+            of: "\"cover\": \"cover.jpg\"",
+            with: "\"cover\": \"cover.gif\""
+        )
+        do {
+            _ = try JSONDecoder.syncApi.decode(SyncRecord.self, from: json.data(using: .utf8)!)
+            Issue.record("expected SyncRecordRejected")
+        } catch let rejected as SyncRecordRejected {
+            #expect(rejected.field == "cover")
+            #expect(rejected.name == "cover.gif")
+        }
+    }
+
+    @Test func decodingAcceptsMixedCaseExtensionsAndNullCover() throws {
+        var json = Self.specExampleJSON.replacingOccurrences(
+            of: "\"file\": \"01 - Intro.mp3\"",
+            with: "\"file\": \"01 - Intro.MP3\""
+        )
+        json = json.replacingOccurrences(of: "\"cover\": \"cover.jpg\"", with: "\"cover\": \"cover.JPEG\"")
+        let record = try JSONDecoder.syncApi.decode(SyncRecord.self, from: json.data(using: .utf8)!)
+        #expect(record.tracks[0].file == "01 - Intro.MP3")
+        #expect(record.cover == "cover.JPEG")
+
+        let nullCover = Self.specExampleJSON.replacingOccurrences(
+            of: "\"cover\": \"cover.jpg\"",
+            with: "\"cover\": null"
+        )
+        let noCover = try JSONDecoder.syncApi.decode(SyncRecord.self, from: nullCover.data(using: .utf8)!)
+        #expect(noCover.cover == nil)
+    }
+
+    @Test func structurallyBrokenRecordThrowsDecodingErrorNotSyncRecordRejected() {
+        let json = """
+        { "syncVersion": 1, "id": "abc", "kind": "single", "title": "T", "artist": "A",
+          "year": null, "genre": null, "cover": null,
+          "origin": "ios", "originDevice": "Device",
+          "createdAt": "2026-09-27T20:00:00Z", "updatedAt": "2026-09-27T20:00:00Z",
+          "deleted": false }
+        """
+        #expect(throws: DecodingError.self) {
+            _ = try JSONDecoder.syncApi.decode(SyncRecord.self, from: json.data(using: .utf8)!)
+        }
+    }
+
+    private static let extensionRejectNames = [
+        "01 - Intro.wav", "01 - Intro.flac", "01 - Intro", "01 - Intro.mp3.bak", "01 - Intro.mp",
+        "cover.gif", "cover.webp", "cover.jpg ", "mp3",
+    ]
+
+    private static let extensionAcceptNames = [
+        "01 - Intro.MP3", "01 - Intro.Mp3", "01 - Intro.m4a", "01 - Intro.M4A", "a.b.mp3",
+        "cover.jpg", "cover.JPG", "cover.jpeg", "cover.JPEG", "cover.png", "cover.PNG",
+        "file.MP3", "file.M4A", "file.JPG", "file.JPEG", "file.PNG",
+    ]
+
+    @Test(arguments: extensionRejectNames)
+    func syncFileNameRejectsUnsupportedExtension(name: String) {
+        #expect(!SyncFileName.hasSupportedExtension(name))
+    }
+
+    @Test(arguments: extensionAcceptNames)
+    func syncFileNameAcceptsSupportedExtension(name: String) {
+        #expect(SyncFileName.hasSupportedExtension(name))
+    }
+
     @Test func decodesTheSpecExampleRecord() throws {
         let data = Self.specExampleJSON.data(using: .utf8)!
         let record = try JSONDecoder.syncApi.decode(SyncRecord.self, from: data)
