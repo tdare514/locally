@@ -3,10 +3,10 @@
 Snapshot of now, not a changelog. Update this when a change makes it stale.
 Git history holds the past.
 
-Last updated: 2026-09-28
+Last updated: 2026-09-29
 
 ## Current focus
-Security hardening leftovers on iOS (#12), Mac library work (#7), and owner decisions on Mac packaging (#35) and privacy/terms (#36). Agent-readiness (#22–#25) and repo health (#13) are done; async email/deletes (#31) and the iOS import silhouette/reorder code (#6) landed.
+Security hardening leftovers on iOS (#12), Mac library work (#7), and owner decisions on Mac packaging (#35) and the rest of privacy/terms (#36). One #36 point is decided and planned: before anyone else can sign up, the terms must say the user may upload only audio they own, or otherwise have the right to upload (ADR 0004, `docs/plans/36-own-the-audio.md`). Still owner decisions on #36: the privacy-policy URL and full privacy text, a takedown contact, whether the 30-day unused-blob cleanup is the retention policy, and whether first sign-ups are invite-only. Agent-readiness (#22–#25) and repo health (#13) are done; async email/deletes (#31) and the iOS import silhouette/reorder code (#6) landed.
 
 ## What works
 ### Web (apps/web)
@@ -63,7 +63,7 @@ Security hardening leftovers on iOS (#12), Mac library work (#7), and owner deci
 ## Next
 - On-device confirmation of the import silhouette and long-press drag reorder on a phone (checklist in `apps/ios/README.md`; ViewModel reorder tests landed) (#6)
 - Mac library development: compact release header and import page cleanup next; then search, sort, bulk actions, playlist-aware grouping; plan-only: conversion job queue, SQLite index, multi-library (#7)
-- Architecture review for multiple users (docs/reviews/2026-09-28-architecture.md): owner decisions on Mac packaging #35 and privacy/terms #36
+- Architecture review for multiple users (docs/reviews/2026-09-28-architecture.md): Mac packaging (#35) is still an owner decision. On #36 the rights clause is decided (ADR 0004) and the sign-up acknowledgement is planned; the privacy policy, takedown contact, retention statement, and invite-only question remain owner decisions. Sign-ups stay closed
 
 ## Architecture decisions
-See docs/adr/. Product plans: docs/web-plan.md, docs/ios-plan.md. Sync contract: spec/sync.md.
+See docs/adr/. ADR 0004 records the sync rights clause (#36). Product plans: docs/web-plan.md, docs/ios-plan.md. Sync contract: spec/sync.md.
