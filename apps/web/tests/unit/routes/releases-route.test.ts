@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Services } from "../../../src/server/container";
 import type { Release, Settings, UpdateReleaseMeta } from "../../../src/shared/types";
 import { NotFoundError, ValidationError } from "../../../src/shared/errors";
+import { ReleaseService } from "../../../src/server/releases/ReleaseService";
 import { NodeFileSystem } from "../../../src/server/fs/NodeFileSystem";
 
 let services: Services;
@@ -50,6 +51,17 @@ class FakeReleaseService {
   async get(id: string): Promise<Release | null> {
     getCalls.push(id);
     return releaseToReturn;
+  }
+  /** The cover route delegates here; run the real service logic over this file's fakes. */
+  async readCover(id: string) {
+    const repo = { find: async () => releaseToReturn };
+    return new ReleaseService(
+      new FakeSettingsStore() as never,
+      repo as never,
+      {} as never,
+      {} as never,
+      new NodeFileSystem()
+    ).readCover(id);
   }
   async update(id: string, patch: UpdateReleaseMeta): Promise<Release> {
     updateCalls.push({ id, patch });

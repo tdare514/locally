@@ -1,11 +1,10 @@
-import os from "node:os";
-import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { getServices } from "../../../server/container";
+import { homeDir } from "../../../server/config/paths";
+import { planSettingsUpdate } from "../../../server/config/settingsUpdate";
 import { toSettingsResponse } from "../../../server/config/settingsView";
 import { badRequest, errorResponse } from "../../../server/http/responses";
 import { parseSettingsPutBody } from "../../../server/http/validation";
-import { applySyncBaseUrlChange } from "../../../server/sync/settings";
 import { emptySyncState } from "../../../server/sync/SyncState";
 
 export const runtime = "nodejs";
@@ -27,47 +26,10 @@ export async function PUT(request: NextRequest) {
     const services = getServices();
     const current = await services.settings.get();
 
-    let libraryDir = current.libraryDir;
-    let spotifySourceDismissed = current.spotifySourceDismissed;
-    if (body.libraryDir !== undefined) {
-      let dir = body.libraryDir;
-      if (dir === "~" || dir.startsWith("~/")) dir = path.join(os.homedir(), dir.slice(1));
-      if (!path.isAbsolute(dir)) {
-        return badRequest("libraryDir must be an absolute path (e.g. /Users/you/Music/Spotify Local Import)");
-      }
-      dir = path.resolve(dir);
-      if (dir === path.parse(dir).root || dir === os.homedir()) {
-        return badRequest("libraryDir must be a dedicated folder, not your home folder or the filesystem root");
-      }
-      // A new folder needs to be added to Spotify again, so the one-time
-      // prompt should reappear.
-      if (dir !== current.libraryDir) spotifySourceDismissed = false;
-      libraryDir = dir;
-    }
-
-    let sync = current.sync;
-    if (body.sync?.baseUrl !== undefined) {
-      const result = applySyncBaseUrlChange(current.sync, body.sync.baseUrl);
-      if (!result.ok) {
-        return badRequest(result.error);
-      }
-      sync = result.sync;
-      // `applySyncBaseUrlChange` returns a fresh object when the host changed
-      // (or there was no previous sync config) and the same `current.sync`
-      // object when the URL is unchanged. Local sync bookkeeping — pushed
-      // versions, uploaded files, cover hashes, pending phone releases — was
-      // built against the old host's device token, so it must be reset along
-      // with it; otherwise it's misread as already-synced against the new host.
-      if (sync !== current.sync) {
-        await services.syncState.set(emptySyncState());
-      }
-    }
-
-    if (body.libraryDir === undefined && body.sync?.baseUrl === undefined) {
-      return badRequest("Nothing to update: pass libraryDir and/or sync.baseUrl");
-    }
-
-    const settings = await services.settings.set({ ...current, libraryDir, sync, spotifySourceDismissed });
+    const plan = planSettingsUpdate(current, body, homeDir());
+    if (!plan.ok) return badRequest(plan.error);
+    if (plan.resetSyncState) await services.syncState.set(emptySyncState());
+    const settings = await services.settings.set(plan.settings);
     return NextResponse.json(toSettingsResponse(settings));
   } catch (err) {
     return errorResponse(err);

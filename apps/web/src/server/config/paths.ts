@@ -1,9 +1,14 @@
 import os from "node:os";
 import path from "node:path";
 
+/** The user's home directory; the one place the server layer resolves it. */
+export function homeDir(): string {
+  return os.homedir();
+}
+
 /** Default library directory where tagged music files are written. */
 export function defaultLibraryDir(): string {
-  return path.join(os.homedir(), "Music", "Spotify Local Import");
+  return path.join(homeDir(), "Music", "Spotify Local Import");
 }
 
 /**
@@ -14,7 +19,7 @@ export function defaultLibraryDir(): string {
 export function settingsDir(): string {
   const override = process.env.LOCALLY_CONFIG_DIR;
   if (override && override.trim().length > 0) return override;
-  return path.join(os.homedir(), ".spotify-local-import");
+  return path.join(homeDir(), ".spotify-local-import");
 }
 
 /** Full path to the settings file. */
