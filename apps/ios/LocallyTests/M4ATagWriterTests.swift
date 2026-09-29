@@ -100,7 +100,11 @@ struct M4ATagWriterTests {
         defer { try? FileManager.default.removeItem(at: dir) }
         let before = try Data(contentsOf: url)
         let tags = TagSet(title: "First Title", artist: "First Artist", album: "Album", trackNumber: 1, totalTracks: 1)
-        let writer = M4ATagWriter(replaceItem: { _, _ in throw CocoaError(.fileWriteNoPermission) })
+        var seen: (original: URL, replacement: URL, replacementExisted: Bool)?
+        let writer = M4ATagWriter(replaceItem: { original, replacement in
+            seen = (original, replacement, FileManager.default.fileExists(atPath: replacement.path))
+            throw CocoaError(.fileWriteNoPermission)
+        })
 
         do {
             try await writer.write(tags, cover: nil, to: url)
@@ -114,6 +118,11 @@ struct M4ATagWriterTests {
 
         #expect(try Data(contentsOf: url) == before)
         #expect(try fileNames(in: dir) == ["song.m4a"])
+        // A temp file was really created, next to the target, with a non-audio name.
+        #expect(seen?.original == url)
+        #expect(seen?.replacement.pathExtension == "tmp")
+        #expect(seen?.replacement.deletingLastPathComponent().standardizedFileURL == dir.standardizedFileURL)
+        #expect(seen?.replacementExisted == true)
     }
 
     @Test func unreadableInputThrowsAndLeavesNoTempFile() async throws {
