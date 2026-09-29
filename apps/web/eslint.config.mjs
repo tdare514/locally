@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "electron/dist/**",
     "dist-desktop/**",
+    ".ffmpeg-build/**",
+    "electron/vendor/**",
   ]),
 ]);
 

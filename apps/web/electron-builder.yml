@@ -11,6 +11,10 @@ files:
 extraResources:
   - from: .next/standalone
     to: standalone
+  - from: electron/vendor/ffmpeg/${arch}/ffmpeg
+    to: ffmpeg
+  - from: electron/build/licenses
+    to: licenses
 # extraResources drops node_modules; the hook copies the standalone server's own back in.
 afterPack: scripts/after-pack.mjs
 asar: true

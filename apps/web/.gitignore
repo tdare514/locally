@@ -7,3 +7,5 @@ next-env.d.ts
 .vercel
 /electron/dist/
 /dist-desktop/
+/.ffmpeg-build/
+/electron/vendor/
