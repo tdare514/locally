@@ -3,7 +3,7 @@
 Snapshot of now, not a changelog. Update this when a change makes it stale.
 Git history holds the past.
 
-Last updated: 2026-09-28
+Last updated: 2026-09-29
 
 ## Current focus
 Security hardening leftovers on iOS (#12), Mac library work (#7), and owner decisions on Mac packaging (#35) and privacy/terms (#36). Agent-readiness (#22–#25) and repo health (#13) are done; async email/deletes (#31) and the iOS import silhouette/reorder code (#6) landed.
@@ -21,6 +21,7 @@ Security hardening leftovers on iOS (#12), Mac library work (#7), and owner deci
 - Guided "Make it a playlist" disclosure on album release pages: Copy button for the title, per-track Mac steps and a fallback line; opens expanded on the page an album import lands on (#21)
 - One-time "Spotify can't see this yet" prompt on the release page: copy path, open Spotify settings, dismiss; hidden once Spotify's local-files index lists the library folder
 - Library is the home view: empty state mirrors iOS onboarding (diagram + Add your first single / Make an album); populated library splits Singles and Albums with counts in the main list and the sidebar (#7)
+- Release page header is compact: a 112 cover thumb beside the kind badge, title, and artist, with the metadata fields below. Import puts a 120 cover beside title and artist, then year and genre (#7)
 
 ### iOS (apps/ios)
 - Onboarding picks the Spotify Local Files folder via a security-scoped bookmark
@@ -62,7 +63,7 @@ Security hardening leftovers on iOS (#12), Mac library work (#7), and owner deci
 
 ## Next
 - On-device confirmation of the import silhouette and long-press drag reorder on a phone (checklist in `apps/ios/README.md`; ViewModel reorder tests landed) (#6)
-- Mac library development: compact release header and import page cleanup next; then search, sort, bulk actions, playlist-aware grouping; plan-only: conversion job queue, SQLite index, multi-library (#7)
+- Mac library development: search, sort, bulk actions, and playlist-aware grouping next; plan-only: conversion job queue, SQLite index, multi-library (#7)
 - Architecture review for multiple users (docs/reviews/2026-09-28-architecture.md): owner decisions on Mac packaging #35 and privacy/terms #36
 
 ## Architecture decisions

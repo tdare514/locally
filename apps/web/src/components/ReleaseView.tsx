@@ -223,53 +223,45 @@ export default function ReleaseView({
     return <p className="text-text-muted">Release not found.</p>;
   }
 
+  const headerTitle = title.trim() || artist.trim() || release.title || release.artist;
+  const headerArtist = artist.trim() || release.artist;
+
   return (
     <div className="mx-auto flex max-w-[920px] flex-col gap-8 pb-16">
       <SpotifySourceBanner onOpenSettings={onOpenSettings} onToast={onToast} />
 
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.17em] text-text-dim">
-          Library / {release.kind === "single" ? "Single" : "Album"}
-        </p>
-        <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">
-          {release.title || release.artist}
-        </h1>
-        <p className="mt-2 text-base text-text-muted">
-          {release.artist}
-          {release.year ? ` · ${release.year}` : ""}
-        </p>
+      {/* Compact header: 112 thumb beside kind, title, and artist. Fields follow. */}
+      <div className="flex items-start gap-3">
+        <CoverPicker
+          file={null}
+          existingUrl={
+            release.coverPath ? coverUrl(release.id, release.updatedAt) : null
+          }
+          onChange={handleReplaceCover}
+          disabled={replacingCover}
+          presentation="thumb"
+        />
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <span className="w-fit rounded-full bg-elevated px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-text-muted">
+            {release.kind === "single" ? "Single" : "Album"}
+          </span>
+          <h1 className="line-clamp-2 text-2xl font-bold tracking-[-0.03em] text-text">
+            {headerTitle}
+          </h1>
+          <p className="truncate text-sm text-text-muted">{headerArtist}</p>
+        </div>
       </div>
 
       <div className="flex flex-col gap-4">
         <div className="flex items-baseline justify-between">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">Details</p>
-            <h2 className="mt-1 text-lg font-bold tracking-[-0.03em] text-text">Metadata</h2>
-          </div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">Details</p>
           <p className="text-sm text-text-muted">Tap to edit</p>
         </div>
-
-        <div className="flex flex-col gap-4 sm:flex-row">
-          <CoverPicker
-            file={null}
-            existingUrl={
-              release.coverPath ? coverUrl(release.id, release.updatedAt) : null
-            }
-            onChange={handleReplaceCover}
-            disabled={replacingCover}
-            size={180}
-          />
-          <div className="flex flex-1 flex-col gap-4">
-            <span className="w-fit rounded-full bg-elevated px-3 py-1 text-xs font-semibold uppercase tracking-wide text-text-muted">
-              {release.kind === "single" ? "Single" : "Album"}
-            </span>
-            <Field label="Title" value={title} onChange={setTitle} />
-            <Field label="Artist" value={artist} onChange={setArtist} />
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Year" value={year} onChange={setYear} />
-              <Field label="Genre" value={genre} onChange={setGenre} />
-            </div>
-          </div>
+        <Field label="Title" value={title} onChange={setTitle} />
+        <Field label="Artist" value={artist} onChange={setArtist} />
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Year" value={year} onChange={setYear} />
+          <Field label="Genre" value={genre} onChange={setGenre} />
         </div>
       </div>
 
