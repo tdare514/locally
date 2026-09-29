@@ -535,7 +535,10 @@ final class SyncEngine: ReleaseSyncHook {
 
             await retryFailedAccepts()
 
-            if let me = try? await api.me() {
+            // Re-check after the await: a sign-out or account delete that
+            // ran while `me()` was in flight has already cleared the
+            // account, and nothing from this response may be written back.
+            if let me = try? await api.me(), isSignedIn {
                 status.quota = me.quota
                 if account.deviceName == nil {
                     account.deviceName = me.deviceName
