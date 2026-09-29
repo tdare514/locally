@@ -38,6 +38,7 @@ Security hardening leftovers on iOS (#12) and Mac library work (#7). Mac packagi
 - Each release records which files the server holds, so a push retry after a partial failure uploads only what's missing and a cover replace re-uploads only the cover (#27)
 - "Make it a playlist" guide on the album done screen and release page: Copy button for the title, per-track iPhone steps and a fallback line (#21)
 - Share extension verified on an iPhone 12 Pro (iOS 18.7) and sync verified end to end on a phone, both 27 Sep 2026
+- Import silhouette and long-press drag reorder checked on an iPhone 14, 28 Sep 2026 (#6): empty album shows three faint rows, empty single shows one, both with "No tracks yet"; two or more tracks show "Hold and drag a track to reorder." with no Edit button, and a saved release-page order is still there after leaving and coming back
 
 ### Sync API (apps/api)
 - Email-code accounts, device tokens, versioned releases (syncVersion 1 and 2) with last-writer-wins
@@ -62,7 +63,6 @@ Security hardening leftovers on iOS (#12) and Mac library work (#7). Mac packagi
 - Spotify caches local-file metadata; restart Spotify to see edits to an already-imported track
 
 ## Next
-- On-device confirmation of the import silhouette and long-press drag reorder on a phone (checklist in `apps/ios/README.md`; ViewModel reorder tests landed) (#6)
 - Mac library development: search, sort, bulk actions, and playlist-aware grouping next; plan-only: conversion job queue, SQLite index, multi-library (#7)
 - Mac packaging (#35) is decided: wrap the existing Next.js app in Electron (`docs/adr/0004-package-the-mac-app-with-electron.md`, plan in `docs/plans/35-electron-packaging.md`). Planned, not started as code. Until that follow-up the app stays `cd apps/web && npm install && npm run dev` plus `brew install ffmpeg`. On #36 the rights clause is decided (ADR 0005) and the sign-up acknowledgement is planned; the privacy policy, takedown contact, retention statement, and invite-only question remain owner decisions. Sign-ups stay closed
 
