@@ -54,10 +54,15 @@ electron/                 # Mac desktop shell (Electron); compiled by tsconfig.e
   lib/serverEnv.ts        # pure: env for the server child (HOSTNAME forced to 127.0.0.1, PORT, config dir, ffmpeg, PATH)
   lib/migrateConfig.ts    # pure: first-launch copy of ~/.spotify-local-import config into Application Support
   lib/waitForServer.ts    # polls the server URL until it answers or the child dies
+  lib/update-manifest.ts  # pure: verifies the Ed25519-signed update envelope and validates the manifest (#71)
+  lib/updater.ts          # update check, SHA-256-verified download, ditto unzip, bundle swap; app-menu "Check for Updates…"
+  lib/updateConfig.ts     # pinned manifest URL, public key, bundle id (empty = updater disabled)
 scripts/prepare-standalone.mjs  # copies public and .next/static into .next/standalone after the desktop build
 scripts/after-pack.mjs    # electron-builder hook: copies the standalone node_modules into the app bundle
 scripts/build-ffmpeg.sh   # builds a static LGPL ffmpeg (+ libmp3lame) from pinned sources into electron/vendor/ (ADR 0006)
 scripts/check-ffmpeg.mjs  # desktop:package preflight: fails unless the vendored ffmpeg for this arch exists
+scripts/publish-desktop.mjs  # owner-run: zips Locally.app, uploads to Blob, signs and uploads desktop/latest.json (#71)
+scripts/desktop-keygen.mjs   # owner-run once: creates the Ed25519 update-signing key under ~/.config/locally
 electron/build/licenses/  # committed LGPL/licence texts and SOURCES.md; shipped as Resources/licenses
 electron/vendor/          # git-ignored: the built ffmpeg binary, per uname -m arch
 src/proxy.ts              # loopback-only + same-origin CSRF guard (Next middleware)
