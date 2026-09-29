@@ -6,7 +6,7 @@ Git history holds the past.
 Last updated: 2026-09-29
 
 ## Current focus
-Security hardening leftovers on iOS (#12), Mac library work (#7), and owner decisions on Mac packaging (#35) and privacy/terms (#36). Agent-readiness (#22–#25) and repo health (#13) are done; async email/deletes (#31) and the iOS import silhouette/reorder code (#6) landed.
+Security hardening leftovers on iOS (#12), Mac library work (#7), and the owner decision on privacy/terms (#36). Mac packaging (#35) is decided (Electron) and planned, not in progress as code. Agent-readiness (#22–#25) and repo health (#13) are done; async email/deletes (#31) and the iOS import silhouette/reorder code (#6) landed.
 
 ## What works
 ### Web (apps/web)
@@ -64,7 +64,7 @@ Security hardening leftovers on iOS (#12), Mac library work (#7), and owner deci
 ## Next
 - On-device confirmation of the import silhouette and long-press drag reorder on a phone (checklist in `apps/ios/README.md`; ViewModel reorder tests landed) (#6)
 - Mac library development: search, sort, bulk actions, and playlist-aware grouping next; plan-only: conversion job queue, SQLite index, multi-library (#7)
-- Architecture review for multiple users (docs/reviews/2026-09-28-architecture.md): owner decisions on Mac packaging #35 and privacy/terms #36
+- Mac packaging (#35) is decided: wrap the existing Next.js app in Electron (`docs/adr/0004-package-the-mac-app-with-electron.md`, plan in `docs/plans/35-electron-packaging.md`). Planned, not started as code. Until that follow-up the app stays `cd apps/web && npm install && npm run dev` plus `brew install ffmpeg`. Privacy/terms (#36) is still an open owner decision from the architecture review (`docs/reviews/2026-09-28-architecture.md`)
 
 ## Architecture decisions
 See docs/adr/. Product plans: docs/web-plan.md, docs/ios-plan.md. Sync contract: spec/sync.md.

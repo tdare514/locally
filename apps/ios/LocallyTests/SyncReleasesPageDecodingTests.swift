@@ -99,4 +99,78 @@ struct SyncReleasesPageDecodingTests {
         #expect(page.nextVersion == 5)
         #expect(page.hasMore == false)
     }
+
+    private static func minimalReleaseJSON(id: String, file: String) -> [String: Any] {
+        [
+            "syncVersion": 1,
+            "id": id,
+            "kind": "single",
+            "title": "T",
+            "artist": "A",
+            "year": NSNull(),
+            "genre": NSNull(),
+            "cover": NSNull(),
+            "tracks": [
+                [
+                    "id": "d290f1ee-6c54-4b01-90e6-d701748f0851",
+                    "title": "Intro",
+                    "trackNumber": 1,
+                    "file": file,
+                    "bytes": 100,
+                    "durationSec": NSNull(),
+                ] as [String: Any],
+            ],
+            "origin": "mac",
+            "originDevice": "Mac",
+            "createdAt": "2026-09-27T20:00:00Z",
+            "updatedAt": "2026-09-27T20:00:00Z",
+            "deleted": false,
+            "version": 1,
+        ] as [String: Any]
+    }
+
+    @Test func skipsARecordWithABadExtensionAndReturnsTheRestOfThePage() async throws {
+        let api = makeApi()
+        ReleasesPageStubURLProtocol.handler = { _ in
+            let releases: [[String: Any]] = [
+                Self.minimalReleaseJSON(id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", file: "one.mp3"),
+                Self.minimalReleaseJSON(id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", file: "two.wav"),
+                Self.minimalReleaseJSON(id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", file: "three.mp3"),
+            ]
+            let body = try! JSONSerialization.data(withJSONObject: [
+                "releases": releases,
+                "nextVersion": 42,
+                "hasMore": false,
+            ])
+            return (200, body)
+        }
+
+        let page = try await api.releases(sinceVersion: 0, limit: 200)
+
+        #expect(page.releases.count == 2)
+        #expect(page.releases.map(\.id).sorted() == [
+            "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        ])
+        #expect(page.nextVersion == 42)
+        #expect(page.hasMore == false)
+    }
+
+    @Test func aMalformedUpdatedAtStillFailsTheWholePage() async throws {
+        let api = makeApi()
+        ReleasesPageStubURLProtocol.handler = { _ in
+            var bad = Self.minimalReleaseJSON(id: "bad-id", file: "one.mp3")
+            bad["updatedAt"] = "not-a-date"
+            let body = try! JSONSerialization.data(withJSONObject: [
+                "releases": [bad],
+                "nextVersion": 5,
+                "hasMore": false,
+            ])
+            return (200, body)
+        }
+
+        await #expect(throws: SyncApiError.self) {
+            _ = try await api.releases(sinceVersion: 0, limit: 200)
+        }
+    }
 }
