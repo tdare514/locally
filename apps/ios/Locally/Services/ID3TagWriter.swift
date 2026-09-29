@@ -5,33 +5,80 @@ import Foundation
 /// Local Files reads (TIT2/TPE1/TPE2/TALB/TRCK/TDRC/TCON) plus one APIC
 /// cover frame. Any existing ID3v2 header is stripped and replaced (never
 /// stacked) so re-tagging in place keeps the file's audio bytes untouched.
+/// Audio is streamed in fixed-size chunks; tag bodies are bounded by the
+/// ID3v2.4 synchsafe size limit.
 final class ID3TagWriter: TagWriter {
+    /// Exclusive upper bound for any ID3v2.4 size field: 4 synchsafe bytes carry 28 bits.
+    static let synchsafeLimit = 1 << 28
+
+    /// True when `value` fits a 4-byte synchsafe integer.
+    static func canEncodeSynchsafe(_ value: Int) -> Bool {
+        value >= 0 && value < synchsafeLimit
+    }
+
+    /// Audio is copied in chunks of this size; peak memory is frames + one chunk.
+    private static let copyChunkSize = 1 << 20 // 1 MiB
+
+    /// Tag bodies (all frames together) must be strictly below this. Production uses
+    /// `synchsafeLimit`; tests inject a small value so the rejection path runs on a few KB.
+    private let tagBodyLimit: Int
+
     private let textEncodingUTF8: UInt8 = 0x03
     private let picEncodingLatin1: UInt8 = 0x00
     private let frontCoverPictureType: UInt8 = 0x03
 
-    func write(_ tags: TagSet, cover: Data?, to url: URL) async throws {
-        let original: Data
-        do {
-            original = try Data(contentsOf: url)
-        } catch {
-            throw LocallyError.taggingFailed(error.localizedDescription)
-        }
+    init(tagBodyLimit: Int = ID3TagWriter.synchsafeLimit) {
+        self.tagBodyLimit = tagBodyLimit
+    }
 
-        let audio = Self.stripExistingID3Header(from: original)
+    func write(_ tags: TagSet, cover: Data?, to url: URL) async throws {
         let frames = buildFrames(tags: tags, cover: cover)
+        guard frames.count < tagBodyLimit else {
+            throw LocallyError.taggingFailed("That cover is too large to store in an mp3.")
+        }
         let header = buildHeader(framesSize: frames.count)
 
-        var output = Data()
-        output.append(header)
-        output.append(frames)
-        output.append(audio)
+        // Same directory as the target so `replaceItemAt` is a rename on the same volume,
+        // and `.tmp` so Spotify's scanner never picks it up if the app dies mid-write.
+        let tmp = url.deletingLastPathComponent()
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("tmp")
 
         do {
-            try output.write(to: url, options: .atomic)
+            try Self.assemble(header: header, frames: frames, audioFrom: url, into: tmp)
+            _ = try FileManager.default.replaceItemAt(url, withItemAt: tmp)
+        } catch let error as LocallyError {
+            try? FileManager.default.removeItem(at: tmp)
+            throw error
         } catch {
+            try? FileManager.default.removeItem(at: tmp)
             throw LocallyError.taggingFailed(error.localizedDescription)
         }
+    }
+
+    /// Writes `header` + `frames` + the audio bytes of `source` (its existing ID3 header, if
+    /// any, skipped) into `destination`, copying audio in `copyChunkSize` pieces.
+    private static func assemble(header: Data, frames: Data, audioFrom source: URL, into destination: URL) throws {
+        let input = try FileHandle(forReadingFrom: source)
+        defer { try? input.close() }
+
+        let fileLength = try input.seekToEnd()
+        try input.seek(toOffset: 0)
+        let prefix = try input.read(upToCount: 10) ?? Data()
+        let skip = existingID3HeaderLength(prefix: prefix, fileLength: Int(clamping: fileLength))
+        try input.seek(toOffset: UInt64(skip))
+
+        guard FileManager.default.createFile(atPath: destination.path, contents: nil) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        let output = try FileHandle(forWritingTo: destination)
+
+        try output.write(contentsOf: header)
+        try output.write(contentsOf: frames)
+        while let chunk = try input.read(upToCount: copyChunkSize), !chunk.isEmpty {
+            try output.write(contentsOf: chunk)
+        }
+        try output.close()
     }
 
     // MARK: - Header
@@ -123,15 +170,23 @@ final class ID3TagWriter: TagWriter {
         return value
     }
 
+    /// Byte count of a usable ID3v2 header at the start of a file whose first (up to) 10 bytes
+    /// are `prefix` and whose total length is `fileLength`; 0 when there is none or it cannot
+    /// be trusted (too short, no "ID3" magic, or a declared size that runs past the file).
+    static func existingID3HeaderLength(prefix: Data, fileLength: Int) -> Int {
+        guard prefix.count >= 10 else { return 0 }
+        let bytes = [UInt8](prefix.prefix(10))
+        guard bytes[0] == 0x49, bytes[1] == 0x44, bytes[2] == 0x33 else { return 0 }
+        let framesSize = desynchsafe(Array(bytes[6...9]))
+        let totalHeaderSize = 10 + framesSize
+        guard totalHeaderSize <= fileLength else { return 0 }
+        return totalHeaderSize
+    }
+
     /// Returns just the audio bytes: if `data` starts with an "ID3" header,
     /// skip past it (header + declared frames size); otherwise return as-is.
     static func stripExistingID3Header(from data: Data) -> Data {
-        guard data.count >= 10 else { return data }
-        let bytes = [UInt8](data.prefix(10))
-        guard bytes[0] == 0x49, bytes[1] == 0x44, bytes[2] == 0x33 else { return data }
-        let framesSize = desynchsafe(Array(bytes[6...9]))
-        let totalHeaderSize = 10 + framesSize
-        guard totalHeaderSize <= data.count else { return data }
-        return data.suffix(from: data.startIndex + totalHeaderSize)
+        let skip = existingID3HeaderLength(prefix: data.prefix(10), fileLength: data.count)
+        return data.suffix(from: data.startIndex + skip)
     }
 }

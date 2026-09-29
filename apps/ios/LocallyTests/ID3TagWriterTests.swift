@@ -18,10 +18,13 @@ struct ID3TagWriterTests {
         return Data(bytes)
     }
 
-    private func makeFile() throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mp3")
-        try fakeAudioBytes().write(to: url)
-        return url
+    /// A fresh directory holding one `track.mp3`; the caller removes the directory.
+    private func makeFile(audio: Data? = nil) throws -> (dir: URL, url: URL) {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("track.mp3")
+        try (audio ?? fakeAudioBytes()).write(to: url)
+        return (dir, url)
     }
 
     private func tags(cover: Bool = false) -> TagSet {
@@ -70,7 +73,8 @@ struct ID3TagWriterTests {
     }
 
     @Test func writesExpectedTextFrames() async throws {
-        let url = try makeFile()
+        let (dir, url) = try makeFile()
+        defer { try? FileManager.default.removeItem(at: dir) }
         let original = try Data(contentsOf: url)
 
         try await writer.write(tags(), cover: nil, to: url)
@@ -90,7 +94,8 @@ struct ID3TagWriterTests {
     }
 
     @Test func writesAPICWithMimeAndPictureBytes() async throws {
-        let url = try makeFile()
+        let (dir, url) = try makeFile()
+        defer { try? FileManager.default.removeItem(at: dir) }
         // Minimal PNG signature so mime detection picks "image/png".
         let pngHeader: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
         let cover = Data(pngHeader + [1, 2, 3, 4, 5])
@@ -117,7 +122,8 @@ struct ID3TagWriterTests {
     }
 
     @Test func synchsafeSizeMatchesActualFramesLength() async throws {
-        let url = try makeFile()
+        let (dir, url) = try makeFile()
+        defer { try? FileManager.default.removeItem(at: dir) }
         try await writer.write(tags(), cover: nil, to: url)
 
         let result = try Data(contentsOf: url)
@@ -129,7 +135,8 @@ struct ID3TagWriterTests {
     }
 
     @Test func writingTwiceDoesNotStackHeaders() async throws {
-        let url = try makeFile()
+        let (dir, url) = try makeFile()
+        defer { try? FileManager.default.removeItem(at: dir) }
         let original = try Data(contentsOf: url)
 
         try await writer.write(tags(), cover: nil, to: url)
@@ -148,6 +155,109 @@ struct ID3TagWriterTests {
         // not left in place ahead of the second one.
         let occurrences = countOccurrences(of: [0x49, 0x44, 0x33], in: bytes)
         #expect(occurrences == 1)
+    }
+
+    @Test func defaultLimitIsTheSynchsafeLimit() {
+        #expect(ID3TagWriter.synchsafeLimit == 1 << 28)
+        #expect(ID3TagWriter.canEncodeSynchsafe((1 << 28) - 1) == true)
+        #expect(ID3TagWriter.canEncodeSynchsafe(1 << 28) == false)
+        #expect(ID3TagWriter.canEncodeSynchsafe(-1) == false)
+    }
+
+    @Test func rejectsATagBodyAtTheLimitAndLeavesTheFileUntouched() async throws {
+        let (dir, url) = try makeFile()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let before = try Data(contentsOf: url)
+        let cover = Data(repeating: 0xAB, count: 2048)
+        let writer = ID3TagWriter(tagBodyLimit: 1024)
+
+        do {
+            try await writer.write(tags(), cover: cover, to: url)
+            Issue.record("expected taggingFailed")
+        } catch let error as LocallyError {
+            guard case .taggingFailed = error else {
+                Issue.record("unexpected LocallyError \(error)")
+                return
+            }
+        }
+
+        let after = try Data(contentsOf: url)
+        #expect(after == before)
+        let listing = try FileManager.default.contentsOfDirectory(atPath: dir.path).sorted()
+        #expect(listing == ["track.mp3"])
+    }
+
+    @Test func acceptsATagBodyOneByteBelowTheLimitAndRejectsAtIt() async throws {
+        let (dir1, url1) = try makeFile()
+        defer { try? FileManager.default.removeItem(at: dir1) }
+        try await writer.write(tags(), cover: nil, to: url1)
+        let result = try Data(contentsOf: url1)
+        let bytes = [UInt8](result)
+        let S = ID3TagWriter.desynchsafe(Array(bytes[6...9]))
+
+        let (dir2, url2) = try makeFile()
+        defer { try? FileManager.default.removeItem(at: dir2) }
+        try await ID3TagWriter(tagBodyLimit: S + 1).write(tags(), cover: nil, to: url2)
+
+        let (dir3, url3) = try makeFile()
+        defer { try? FileManager.default.removeItem(at: dir3) }
+        do {
+            try await ID3TagWriter(tagBodyLimit: S).write(tags(), cover: nil, to: url3)
+            Issue.record("expected taggingFailed")
+        } catch let error as LocallyError {
+            guard case .taggingFailed = error else {
+                Issue.record("unexpected LocallyError \(error)")
+                return
+            }
+        }
+    }
+
+    @Test func streamsAudioLargerThanOneChunkByteForByte() async throws {
+        let audioSize = (2 << 20) + 4097
+        let audio = fakeAudioBytes(count: audioSize)
+        let (dir, url) = try makeFile(audio: audio)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        try await writer.write(tags(), cover: nil, to: url)
+
+        let result = try Data(contentsOf: url)
+        let (_, parsedAudio) = parse(result)
+        #expect(parsedAudio == audio)
+
+        // Second pass: existing ID3 header prefixed onto multi-chunk audio.
+        try await writer.write(tags(), cover: nil, to: url)
+        let result2 = try Data(contentsOf: url)
+        let (_, parsedAudio2) = parse(result2)
+        #expect(parsedAudio2 == audio)
+    }
+
+    @Test func leavesOnlyTheTaggedFileBehindOnSuccess() async throws {
+        let (dir, url) = try makeFile()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        try await writer.write(tags(), cover: nil, to: url)
+
+        let listing = try FileManager.default.contentsOfDirectory(atPath: dir.path).sorted()
+        #expect(listing == ["track.mp3"])
+    }
+
+    @Test func missingFileThrowsTaggingFailed() async throws {
+        let (dir, url) = try makeFile()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let missing = dir.appendingPathComponent("does-not-exist.mp3")
+
+        do {
+            try await writer.write(tags(), cover: nil, to: missing)
+            Issue.record("expected taggingFailed")
+        } catch let error as LocallyError {
+            guard case .taggingFailed = error else {
+                Issue.record("unexpected LocallyError \(error)")
+                return
+            }
+        }
+
+        let listing = try FileManager.default.contentsOfDirectory(atPath: dir.path).sorted()
+        #expect(listing == ["track.mp3"])
     }
 
     private func countOccurrences(of pattern: [UInt8], in bytes: [UInt8]) -> Int {
