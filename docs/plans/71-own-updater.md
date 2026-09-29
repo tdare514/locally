@@ -1,6 +1,6 @@
 # Plan: own updater for the unsigned Mac app (#71, ADR 0007)
 
-Scope is `apps/web` (Electron shell) plus one owner-run publish script. `apps/api`, `apps/ios`,
+Implementation issue: #78. Scope is `apps/web` (Electron shell) plus one owner-run publish script. `apps/api`, `apps/ios`,
 `spec/` and the sync protocol are unchanged. Implement from this plan in a fresh session.
 
 ## Owner actions (one time)
