@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, shell } from "electron";
+import { app, BrowserWindow, dialog, Menu, shell } from "electron";
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -6,6 +6,7 @@ import path from "node:path";
 import { findFreePort } from "./lib/freePort";
 import { migrateLegacyConfig } from "./lib/migrateConfig";
 import { buildServerEnv } from "./lib/serverEnv";
+import { initUpdater } from "./lib/updater";
 import { waitForServer } from "./lib/waitForServer";
 
 // Single-window Mac shell around Next's standalone server. The server binds 127.0.0.1
@@ -22,6 +23,7 @@ app.setPath("userData", userDataOverride || path.join(app.getPath("appData"), "L
 
 let child: ChildProcess | null = null;
 let killTimer: NodeJS.Timeout | null = null;
+let mainWindow: BrowserWindow | null = null;
 
 function openExternal(target: string): void {
   try {
@@ -184,6 +186,33 @@ app
     }
 
     const url = await startServer();
-    openWindow(url);
+    mainWindow = openWindow(url);
+    mainWindow.on("closed", () => {
+      mainWindow = null;
+    });
+
+    const updater = initUpdater({ app, dialog, shell, getWindow: () => mainWindow });
+    Menu.setApplicationMenu(
+      Menu.buildFromTemplate([
+        {
+          label: app.name,
+          submenu: [
+            { role: "about" },
+            { label: "Check for Updates…", click: () => void updater.checkNow(true) },
+            { type: "separator" },
+            { role: "services" },
+            { type: "separator" },
+            { role: "hide" },
+            { role: "hideOthers" },
+            { role: "unhide" },
+            { type: "separator" },
+            { role: "quit" },
+          ],
+        },
+        { role: "editMenu" },
+        { role: "viewMenu" },
+        { role: "windowMenu" },
+      ]),
+    );
   })
   .catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)));

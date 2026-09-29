@@ -14,7 +14,9 @@
     "desktop": "electron electron/dist/main.js",
     "desktop:dev": "tsc -p tsconfig.electron.json && LOCALLY_DESKTOP_URL=http://127.0.0.1:3000 electron electron/dist/main.js",
     "desktop:ffmpeg": "bash scripts/build-ffmpeg.sh",
-    "desktop:package": "node scripts/check-ffmpeg.mjs && npm run desktop:build && electron-builder --mac --dir"
+    "desktop:package": "node scripts/check-ffmpeg.mjs && npm run desktop:build && electron-builder --mac --dir",
+    "desktop:publish": "node scripts/publish-desktop.mjs",
+    "desktop:keygen": "node scripts/desktop-keygen.mjs"
   },
   "dependencies": {
     "music-metadata": "^11.16.1",
@@ -29,6 +31,7 @@
     "@types/node": "^22.20.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vercel/blob": "^2.8.0",
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3",
     "eslint": "^9",
