@@ -1,17 +1,24 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import type { Release, ReleaseKind } from "../shared/types";
 import { coverUrl } from "../lib/api-client";
 import {
+  LIBRARY_SORT_OPTIONS,
+  filterLibrary,
   libraryRowSubtitle,
   partitionLibrary,
+  type LibrarySort,
 } from "../lib/library-sections";
-import { ChevronRightIcon, MusicNoteIcon } from "./Icons";
+import { ChevronRightIcon, MusicNoteIcon, SearchIcon } from "./Icons";
 
 interface LibraryViewProps {
   releases: Release[];
   loading: boolean;
+  query: string;
+  sort: LibrarySort;
+  onQueryChange: (query: string) => void;
+  onSortChange: (sort: LibrarySort) => void;
   onSelectRelease: (id: string) => void;
   onImport: (kind?: ReleaseKind) => void;
 }
@@ -24,9 +31,28 @@ interface LibraryViewProps {
 export default function LibraryView({
   releases,
   loading,
+  query,
+  sort,
+  onQueryChange,
+  onSortChange,
   onSelectRelease,
   onImport,
 }: LibraryViewProps) {
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // Cmd+F / Ctrl+F focuses the library search instead of the browser's find bar.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "f" && searchRef.current) {
+        e.preventDefault();
+        searchRef.current.focus();
+        searchRef.current.select();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   if (loading) {
     return <p className="text-text-muted">Loading…</p>;
   }
@@ -35,7 +61,10 @@ export default function LibraryView({
     return <LibraryEmptyState onImport={onImport} />;
   }
 
-  const { singles, albums, totalTracks } = partitionLibrary(releases);
+  const totalTracks = releases.reduce((n, r) => n + r.tracks.length, 0);
+  const visible = filterLibrary(releases, query);
+  const { singles, albums } = partitionLibrary(visible, sort);
+  const searching = query.trim() !== "";
 
   return (
     <div className="mx-auto flex max-w-[920px] flex-col gap-8 pb-16">
@@ -52,6 +81,58 @@ export default function LibraryView({
           {totalTracks} track{totalTracks === 1 ? "" : "s"}
         </p>
       </div>
+
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1">
+          <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+          <input
+            ref={searchRef}
+            type="search"
+            value={query}
+            placeholder="Search titles, artists, genres…"
+            aria-label="Search library"
+            onChange={(e) => onQueryChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && query !== "") {
+                e.preventDefault();
+                onQueryChange("");
+              }
+            }}
+            className="w-full rounded-md bg-elevated py-3 pl-11 pr-4 text-sm text-text outline-none placeholder:text-text-muted/60 focus:ring-2 focus:ring-accent"
+          />
+        </div>
+        <div className="relative shrink-0">
+          <select
+            aria-label="Sort library"
+            value={sort}
+            onChange={(e) => onSortChange(e.target.value as LibrarySort)}
+            className="appearance-none rounded-md bg-elevated py-3 pl-4 pr-10 text-sm text-text outline-none focus:ring-2 focus:ring-accent"
+          >
+            {LIBRARY_SORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <ChevronRightIcon className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 rotate-90 text-text-muted" />
+        </div>
+      </div>
+
+      {searching && visible.length === 0 && (
+        <div className="flex flex-col items-center gap-2 py-12 text-center">
+          <p className="text-text-muted">No matches for “{query.trim()}”</p>
+          <p className="text-xs text-text-dim">
+            Try another title, artist, genre, or year.
+          </p>
+          <button
+            type="button"
+            onClick={() => onQueryChange("")}
+            className="mt-2 rounded-full bg-elevated px-6 py-2 text-sm font-bold text-text transition-colors hover:bg-elevated-hover active:scale-95"
+          >
+            Clear search
+          </button>
+        </div>
+      )}
 
       {singles.length > 0 && (
         <LibrarySection

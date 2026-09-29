@@ -112,6 +112,12 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
   system navigation bar and tab bar and styles them to match.
 - **Text field**: `elevated`, radius 6, label above in field-label style, placeholder at
   `text-muted` 60 %. Year and Genre sit side by side in a two-column grid.
+- **Library toolbar (desktop)**: under the "All music" header, a search field (magnifier at the
+  left, placeholder "Search titles, artists, genres…", ⌘F focuses it, Escape clears it) beside a
+  sort menu (Recently updated, Title A–Z, Artist A–Z, Year, newest first). Both use the text-field
+  style. The sidebar list follows the same query and sort and shows "Showing matches for …" with a
+  Clear link while a query is active. No matches shows "No matches for …" with a Clear search
+  pill; an empty library keeps the onboarding state.
 - **Cover drop zone** (import): the desktop import shows only the 120 compact square, a `card`
   block with a 1 px dashed `border-dashed` (accent on hover), an image-plus icon (24, `text-muted`,
   accent on hover) and "Click or drop an image" at 11 pt in `text-soft` (iOS: "Tap to choose a
