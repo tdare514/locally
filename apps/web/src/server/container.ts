@@ -36,7 +36,8 @@ export interface Services {
 function buildServices(): Services {
   const settings = new FileSettingsStore();
   const library = new JsonLibraryRepository();
-  const converter = new FfmpegConverter();
+  // LOCALLY_FFMPEG is set by the Electron shell to a bundled binary; never user input.
+  const converter = new FfmpegConverter(process.env.LOCALLY_FFMPEG?.trim() || undefined);
   const tags = new Id3TagService();
   const fs = new NodeFileSystem();
   const layout = new ReleaseLayout();

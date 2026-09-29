@@ -35,6 +35,17 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### Desktop app (unsigned developer build)
+
+```bash
+cd apps/web && npm install && npm run desktop:package
+```
+
+This produces `apps/web/dist-desktop/mac-arm64/Locally.app` (`mac/` on Intel). It is unsigned, so
+open it with right-click, Open. ffmpeg still comes from Homebrew for now. Config lives in
+`~/Library/Application Support/Locally` and is copied from `~/.spotify-local-import` on first
+launch; the original is left untouched.
+
 ## Run the iOS app
 
 ```bash

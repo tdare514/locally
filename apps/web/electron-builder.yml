@@ -1,0 +1,24 @@
+appId: com.tdare514.locally
+productName: Locally
+directories:
+  output: dist-desktop
+  buildResources: electron/build
+files:
+  - electron/dist/**/*
+  - package.json
+  # The shell needs only electron + node builtins; the server's deps ship in standalone.
+  - "!node_modules/**/*"
+extraResources:
+  - from: .next/standalone
+    to: standalone
+# extraResources drops node_modules; the hook copies the standalone server's own back in.
+afterPack: scripts/after-pack.mjs
+asar: true
+npmRebuild: false
+mac:
+  target:
+    - dir
+  category: public.app-category.music
+  identity: null
+  hardenedRuntime: false
+  icon: ../ios/Locally/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png

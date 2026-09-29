@@ -6,7 +6,7 @@ Git history holds the past.
 Last updated: 2026-09-29
 
 ## Current focus
-Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps. Mac packaging (#35) is decided (Electron) and planned, not in progress as code. One #36 point is decided and planned: before anyone else can sign up, the terms must say the user may upload only audio they own, or otherwise have the right to upload (ADR 0005, `docs/plans/36-own-the-audio.md`). Still owner decisions on #36: the privacy-policy URL and full privacy text, a takedown contact, whether the 30-day unused-blob cleanup is the retention policy, and whether first sign-ups are invite-only. Agent-readiness (#22–#25) and repo health (#13) are done; async email/deletes (#31) and the iOS import silhouette/reorder code (#6) landed.
+Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps. Mac packaging (#35): the Electron shell is in as an unsigned developer build; ffmpeg bundling (#69), signing and notarisation (#70) and auto-update (#71) follow. One #36 point is decided and planned: before anyone else can sign up, the terms must say the user may upload only audio they own, or otherwise have the right to upload (ADR 0005, `docs/plans/36-own-the-audio.md`). Still owner decisions on #36: the privacy-policy URL and full privacy text, a takedown contact, whether the 30-day unused-blob cleanup is the retention policy, and whether first sign-ups are invite-only. Agent-readiness (#22–#25) and repo health (#13) are done; async email/deletes (#31) and the iOS import silhouette/reorder code (#6) landed.
 
 ## What works
 ### Web (apps/web)
@@ -22,6 +22,7 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 - One-time "Spotify can't see this yet" prompt on the release page: copy path, open Spotify settings, dismiss; hidden once Spotify's local-files index lists the library folder
 - Library is the home view: empty state mirrors iOS onboarding (diagram + Add your first single / Make an album); populated library splits Singles and Albums with counts in the main list and the sidebar (#7)
 - Release page header is compact: a 112 cover thumb beside the kind badge, title, and artist, with the metadata fields below. Import puts a 120 cover beside title and artist, then year and genre (#7)
+- Electron desktop shell (#35): `npm run desktop:package` produces an unsigned `dist-desktop/mac-arm64/Locally.app` that spawns the Next standalone server on a free 127.0.0.1 port (HOSTNAME forced, ADR 0003) and opens one locked-down window; config lives in `~/Library/Application Support/Locally`, copied once from `~/.spotify-local-import` with owner-only modes; ffmpeg comes from PATH or a bundled `Resources/ffmpeg` when present. Smoke: `LOCALLY_DESKTOP_SMOKE=1` with a `LOCALLY_DESKTOP_USER_DATA` temp dir
 
 ### iOS (apps/ios)
 - Onboarding picks the Spotify Local Files folder via a security-scoped bookmark
@@ -67,7 +68,7 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 ## Next
 - Follow-ups from the 29 Sep review of the Cursor PRs (#41–#55): web pull-page skip (#60), device-name backfill guard (#62), web CoverPicker and route-test cleanup (#63), small iOS items (#64); owner decision on the Inbox sweep and import allow-list (#65)
 - Mac library development: search, sort, bulk actions, and playlist-aware grouping next; plan-only: conversion job queue, SQLite index, multi-library (#7)
-- Mac packaging (#35) is decided: wrap the existing Next.js app in Electron (`docs/adr/0004-package-the-mac-app-with-electron.md`, plan in `docs/plans/35-electron-packaging.md`). Planned, not started as code. Until that follow-up the app stays `cd apps/web && npm install && npm run dev` plus `brew install ffmpeg`. On #36 the rights clause is decided (ADR 0005) and the sign-up acknowledgement is planned; the privacy policy, takedown contact, retention statement, and invite-only question remain owner decisions. Sign-ups stay closed
+- Mac packaging (#35, ADR 0004): `npm run desktop:package` in `apps/web` builds an unsigned `Locally.app` around the Next standalone server. Still to do: bundle ffmpeg after the licence choice (#69), Developer ID signing and notarisation (#70, owner action), auto-update (#71, blocked by #70). Until #69 the app needs `brew install ffmpeg`; until #70 only the developer can open it. On #36 the rights clause is decided (ADR 0005) and the sign-up acknowledgement is planned; the privacy policy, takedown contact, retention statement, and invite-only question remain owner decisions. Sign-ups stay closed
 
 ## Architecture decisions
 See docs/adr/. ADR 0005 records the sync rights clause (#36). Product plans: docs/web-plan.md, docs/ios-plan.md. Sync contract: spec/sync.md.
