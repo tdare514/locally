@@ -107,4 +107,41 @@ describe("loadEnv", () => {
     expect(env.databaseUrl).toBe("libsql://db.example.turso.io");
     expect(env.databaseAuthToken).toBe("a-turso-token");
   });
+
+  describe("migrateOnStart", () => {
+    function stubProduction() {
+      vi.stubEnv("NODE_ENV", "production");
+      vi.stubEnv("AUTH_PEPPER", "a-real-auth-pepper");
+      vi.stubEnv("TOKEN_PEPPER", "a-real-token-pepper");
+      vi.stubEnv("CRON_SECRET", "a-real-cron-secret");
+      vi.stubEnv("DATABASE_URL", "libsql://db.example.turso.io");
+    }
+
+    it("is true in development and false in production by default", () => {
+      vi.stubEnv("DB_MIGRATE_ON_START", "");
+      vi.stubEnv("NODE_ENV", "development");
+      expect(loadEnv().migrateOnStart).toBe(true);
+
+      stubProduction();
+      expect(loadEnv().migrateOnStart).toBe(false);
+    });
+
+    it("DB_MIGRATE_ON_START=true turns it on in production", () => {
+      stubProduction();
+      vi.stubEnv("DB_MIGRATE_ON_START", "true");
+      expect(loadEnv().migrateOnStart).toBe(true);
+    });
+
+    it("DB_MIGRATE_ON_START=false turns it off in development", () => {
+      vi.stubEnv("NODE_ENV", "development");
+      vi.stubEnv("DB_MIGRATE_ON_START", "false");
+      expect(loadEnv().migrateOnStart).toBe(false);
+    });
+
+    it("ignores an unrecognised DB_MIGRATE_ON_START value", () => {
+      vi.stubEnv("NODE_ENV", "development");
+      vi.stubEnv("DB_MIGRATE_ON_START", "maybe");
+      expect(loadEnv().migrateOnStart).toBe(true);
+    });
+  });
 });

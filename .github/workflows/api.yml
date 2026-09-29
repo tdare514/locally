@@ -63,8 +63,9 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run build
-      # Migrations run on the live database on first request, so the committed
-      # drizzle/ folder must be exactly what the schema generates.
+      # Migrations run on the live database in the Vercel build
+      # (scripts/migrate.mjs) and the runtime guard reads the same journal, so
+      # the committed drizzle/ folder must be exactly what the schema generates.
       - name: Migrations match schema
         run: |
           npm run db:generate

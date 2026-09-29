@@ -1,5 +1,5 @@
 import path from "node:path";
-import { createDb, migrateDb, type Db } from "../db/client";
+import { assertMigrated, createDb, migrateDb, type Db } from "../db/client";
 import { loadEnv } from "./config/env";
 import { AccountService } from "./account/AccountService";
 import { AuthService } from "./auth/AuthService";
@@ -42,7 +42,8 @@ async function buildServices(): Promise<Services> {
   const env = loadEnv();
 
   const db = createDb(env.databaseUrl, env.databaseAuthToken);
-  await migrateDb(db);
+  if (env.migrateOnStart) await migrateDb(db);
+  else await assertMigrated(db);
 
   const mailer: Mailer =
     env.mailer === "resend" ? new ResendMailer(env.resendApiKey, env.mailFrom) : new ConsoleMailer();
@@ -85,7 +86,9 @@ async function buildServices(): Promise<Services> {
 // rate limiters) on every edit-and-save. Holding a `Promise<Services>`
 // (rather than awaiting before storing) means two requests that arrive
 // while the first build is still migrating the database both await the
-// same build instead of racing a second one.
+// same build instead of racing a second one. A build that rejects is dropped
+// from the cache so the next call rebuilds, instead of a transient database
+// error poisoning the instance for its whole life.
 const GLOBAL_KEY = Symbol.for("sync-api.services");
 
 interface GlobalWithServices {
@@ -96,7 +99,11 @@ interface GlobalWithServices {
 export function getServices(): Promise<Services> {
   const g = globalThis as GlobalWithServices;
   if (!g[GLOBAL_KEY]) {
-    g[GLOBAL_KEY] = buildServices();
+    const build = buildServices();
+    g[GLOBAL_KEY] = build;
+    build.catch(() => {
+      if (g[GLOBAL_KEY] === build) delete g[GLOBAL_KEY];
+    });
   }
   return g[GLOBAL_KEY];
 }
