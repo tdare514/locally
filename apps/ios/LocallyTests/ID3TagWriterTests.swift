@@ -212,29 +212,11 @@ struct ID3TagWriterTests {
         }
     }
 
-    @Test func injectedLimitAboveSynchsafeIsClampedAndStillRejectsAtTheLimit() async throws {
+    /// The guard behaviour at any limit is covered by the 1024-byte tests above; this only
+    /// checks that an injected limit can't exceed what four synchsafe bytes encode.
+    @Test func injectedLimitAboveSynchsafeIsClamped() {
         #expect(ID3TagWriter(tagBodyLimit: ID3TagWriter.synchsafeLimit + 1).tagBodyLimit == ID3TagWriter.synchsafeLimit)
-
-        let (dir, url) = try makeFile()
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let before = try Data(contentsOf: url)
-        // Zero-filled cover whose frame body is at least `synchsafeLimit` bytes.
-        let cover = Data(count: ID3TagWriter.synchsafeLimit)
-        let writer = ID3TagWriter(tagBodyLimit: ID3TagWriter.synchsafeLimit + 1)
-
-        do {
-            try await writer.write(tags(), cover: cover, to: url)
-            Issue.record("expected taggingFailed")
-        } catch let error as LocallyError {
-            guard case .taggingFailed = error else {
-                Issue.record("unexpected LocallyError \(error)")
-                return
-            }
-        }
-
-        #expect(try Data(contentsOf: url) == before)
-        let listing = try FileManager.default.contentsOfDirectory(atPath: dir.path).sorted()
-        #expect(listing == ["track.mp3"])
+        #expect(ID3TagWriter(tagBodyLimit: 1024).tagBodyLimit == 1024)
     }
 
     @Test func streamsAudioLargerThanOneChunkByteForByte() async throws {
