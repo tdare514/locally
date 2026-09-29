@@ -338,6 +338,9 @@ final class FakeSyncApi: SyncApi {
     )
     private(set) var revokedDeviceIds: [String] = []
     private(set) var meCallCount = 0
+    /// Runs inside `me()` before it returns, so a test can sign out (or
+    /// otherwise change engine state) while a reconcile is suspended there.
+    var onMe: (@MainActor () async -> Void)?
 
     /// Release id -> stored record, each carrying the version it was last
     /// written at. `nil` records never existed; a tombstone stays in this
@@ -390,6 +393,7 @@ final class FakeSyncApi: SyncApi {
 
     func me() async throws -> SyncMeResult {
         meCallCount += 1
+        await onMe?()
         return try meResult.get()
     }
 

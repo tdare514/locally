@@ -1152,6 +1152,22 @@ struct SyncEngineTests {
         #expect(h.engine.status.deviceName == "iPhone 14")
     }
 
+    @Test func reconcileDoesNotBackfillTheDeviceNameAfterASignOutDuringMe() async throws {
+        let h = makeHarness()
+        h.api.meResult = .success(
+            SyncMeResult(email: "toby@example.com", deviceId: "device-1", deviceName: "iPhone", quota: SyncQuota(usedBytes: 0, limitBytes: 1_073_741_824))
+        )
+        h.api.onMe = { await h.engine.signOut() }
+
+        await h.engine.reconcile()
+
+        #expect(h.api.meCallCount == 1)
+        #expect(h.engine.status.signedIn == false)
+        #expect(h.account.deviceName == nil)
+        #expect(h.engine.status.deviceName == nil)
+        #expect(h.engine.status.quota == nil)
+    }
+
     @Test func signOutClearsThePersistedDeviceName() async throws {
         let h = makeHarness()
         h.account.deviceName = "iPhone 14"
