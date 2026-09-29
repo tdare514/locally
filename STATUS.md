@@ -6,7 +6,7 @@ Git history holds the past.
 Last updated: 2026-09-29
 
 ## Current focus
-Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps. Blocker: the sync API's Vercel skip rule errors every production deploy until #57 is fixed. Mac packaging (#35) is decided (Electron) and planned, not in progress as code. One #36 point is decided and planned: before anyone else can sign up, the terms must say the user may upload only audio they own, or otherwise have the right to upload (ADR 0005, `docs/plans/36-own-the-audio.md`). Still owner decisions on #36: the privacy-policy URL and full privacy text, a takedown contact, whether the 30-day unused-blob cleanup is the retention policy, and whether first sign-ups are invite-only. Agent-readiness (#22–#25) and repo health (#13) are done; async email/deletes (#31) and the iOS import silhouette/reorder code (#6) landed.
+Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps. Mac packaging (#35) is decided (Electron) and planned, not in progress as code. One #36 point is decided and planned: before anyone else can sign up, the terms must say the user may upload only audio they own, or otherwise have the right to upload (ADR 0005, `docs/plans/36-own-the-audio.md`). Still owner decisions on #36: the privacy-policy URL and full privacy text, a takedown contact, whether the 30-day unused-blob cleanup is the retention policy, and whether first sign-ups are invite-only. Agent-readiness (#22–#25) and repo health (#13) are done; async email/deletes (#31) and the iOS import silhouette/reorder code (#6) landed.
 
 ## What works
 ### Web (apps/web)
@@ -53,11 +53,11 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 - Email send (`POST /v1/auth/code`) and release file prune (`PUT /v1/releases/:id`) run after the response via Next `after()`; blob deletes are batched with `FileStore.deleteMany` (#31)
 - SQLite (libSQL) via Drizzle, migrated automatically on first request
 - Release pulls are paged (#30): at most 200 releases or 2 MiB per `GET /v1/releases` page with `hasMore`; web and iOS loop until the last page, saving the cursor per page (100-page guard); `/v1/me` lists the 50 newest devices with `devicesHasMore`. Shipped clients stay correct and catch up over several reconciles
-- Deployed to https://locally-sync-api.vercel.app (Vercel project locally-sync-api: Turso database, private Blob store, Resend); both clients default to it; smoke-tested end to end 28 Sep from a Mac and an iPhone 14: sign-in, push each way, tombstone (#3 closed). Resend still uses the sandbox sender, which only delivers to the owner's address: verify a domain and set MAIL_FROM before anyone else signs up
+- Deployed to https://locally-sync-api.vercel.app (Vercel project locally-sync-api: Turso database, private Blob store, Resend); both clients default to it; smoke-tested end to end 28 Sep from a Mac and an iPhone 14: sign-in, push each way, tombstone (#3 closed). Resend still uses the sandbox sender, which only delivers to the owner's address: verify a domain and set MAIL_FROM before anyone else signs up (#58, `launch` label)
 
 ## In progress
 - Security review of apps/api (#20): findings fixed 28 Sep; auth rate limits now live in the shared libSQL database, so they hold across Vercel instances
-- Sync API operations: the Vercel project's ignored-build-step cancels `vercel redeploy`, so an env change needs a push touching apps/api or `vercel deploy --prod --archive=tgz` from a repo root linked to locally-sync-api. Since 29 Sep every git-triggered production build errors before it starts: the skip rule diffs against the last deployed commit (61eaa73), which has left Vercel's shallow clone (#57). Production still serves 61eaa73, which has every apps/api change on main
+- Sync API operations: the Vercel project's ignored-build-step cancels `vercel redeploy`, so an env change needs a push touching apps/api or `vercel deploy --prod --archive=tgz` from a repo root linked to locally-sync-api. The skip rule fails open since #57: if the last deployed commit is missing from Vercel's shallow clone the build goes ahead instead of erroring
 
 ## Known issues
 - Share extension can't be provisioned for a device build on the project's Personal team; simulator-only for now (see apps/ios/README.md)
