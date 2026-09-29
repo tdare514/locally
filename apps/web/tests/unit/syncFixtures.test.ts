@@ -14,12 +14,9 @@ describe("sync fixtures", () => {
   it("finds fixtures and every file matches a known prefix", () => {
     expect(fixtureFiles.length).toBeGreaterThan(0);
     const valid = fixtureFiles.filter((name) => name.startsWith("valid-"));
-    const invalid = fixtureFiles.filter(
-      (name) => name.startsWith("invalid-") && !name.startsWith("invalid-api-"),
-    );
-    const invalidApi = fixtureFiles.filter((name) => name.startsWith("invalid-api-"));
+    const invalid = fixtureFiles.filter((name) => name.startsWith("invalid-"));
     expect(valid.length).toBeGreaterThan(0);
-    expect(invalid.length + invalidApi.length).toBeGreaterThan(0);
+    expect(invalid.length).toBeGreaterThan(0);
     for (const name of fixtureFiles) {
       expect(
         name.startsWith("valid-") || name.startsWith("invalid-"),
@@ -36,11 +33,7 @@ describe("sync fixtures", () => {
     },
   );
 
-  it.each(
-    fixtureFiles.filter(
-      (name) => name.startsWith("invalid-") && !name.startsWith("invalid-api-"),
-    ),
-  )("rejects %s", (name) => {
+  it.each(fixtureFiles.filter((name) => name.startsWith("invalid-")))("rejects %s", (name) => {
     const result = SyncRecordSchema.safeParse(loadFixture(name));
     expect(result.success).toBe(false);
   });

@@ -8,7 +8,17 @@ const SyncStateFileSchema = z.object({
   pushedUpdatedAt: z.record(z.string(), z.string()).default({}),
   uploadedFiles: z.record(z.string(), z.array(z.string())).default({}),
   coverHash: z.record(z.string(), z.string()).default({}),
-  pendingFromPhone: z.record(z.string(), SyncRecordSchema).default({}),
+  pendingFromPhone: z
+    .record(z.string(), z.unknown())
+    .default({})
+    .transform((entries) =>
+      Object.fromEntries(
+        Object.entries(entries).flatMap(([id, raw]) => {
+          const parsed = SyncRecordSchema.safeParse(raw);
+          return parsed.success ? [[id, parsed.data]] : [];
+        }),
+      ),
+    ),
 });
 
 /** JSON-file backed {@link SyncStateStore}, next to `settings.json`. */

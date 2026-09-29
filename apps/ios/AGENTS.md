@@ -47,6 +47,8 @@ LocallyTests/             # Swift Testing suites; Fakes.swift has a fake for eve
   refuses otherwise. Touch the folder only inside `SpotifyFolderAccess.withAccess` (sync/async).
 - **Sync record file names and ids are plain child names, validated before use** —
   `ReleaseLayout.isPlainFileName`, applied before every download and read (issue #10).
+  `tracks[].file` and `cover` must also carry one of the API's extensions (`SyncFileName`);
+  `SyncRecord.init(from:)` refuses the record and `HttpSyncApi.releases` skips it.
 - **Edits re-tag files in place; never rename or move a track** — Spotify playlists keep it.
 - **User-facing strings live in `Resources/Copy.swift`; colors/spacing in `Resources/Theme.swift`.**
 - **`LocallyTests` uses Swift Testing** (`import Testing`, `@Test`), not XCTest.
