@@ -118,6 +118,13 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
   style. The sidebar list follows the same query and sort and shows "Showing matches for …" with a
   Clear link while a query is active. No matches shows "No matches for …" with a Clear search
   pill; an empty library keeps the onboarding state.
+- **Library selection (desktop)**: a "Select" pill on the toolbar swaps it for a selection bar
+  ("{n} selected", Select all / Deselect all, "Edit details…", "Delete…" in `danger`, Done;
+  Escape also leaves). Rows show a 20 checkbox (`accent` when ticked) in place of the chevron and
+  toggle on click. Delete confirms inline in the bar, in the release page's confirm style. Edit
+  details opens a `card` dialog with Artist, Year and Genre; blank fields stay unchanged and
+  tracks are re-tagged in place. Both run per release through the existing endpoints and report
+  "Deleted 2 of 3 releases; failed: …" in a toast.
 - **Cover drop zone** (import): the desktop import shows only the 120 compact square, a `card`
   block with a 1 px dashed `border-dashed` (accent on hover), an image-plus icon (24, `text-muted`,
   accent on hover) and "Click or drop an image" at 11 pt in `text-soft` (iOS: "Tap to choose a
