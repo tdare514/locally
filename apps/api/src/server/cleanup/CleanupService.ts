@@ -5,7 +5,8 @@ import type { FileStore } from "../files/FileStore";
 
 const TOMBSTONE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const RATE_LIMIT_RETENTION_MS = 24 * 60 * 60 * 1000;
-const PENDING_DELETE_PAGE_SIZE = 200;
+/** Rows per page for every cleanup pass, so no query binds an unbounded `IN (...)` list. */
+const CLEANUP_PAGE_SIZE = 200;
 
 export interface CleanupResult {
   deletedFiles: number;
@@ -25,8 +26,11 @@ export interface CleanupResult {
  * prunes `rate_limits` rows (see `DbRateLimiter`) whose window is more than a
  * day stale — a window that old is never read again, since every limiter's
  * `windowMs` is well under 24h. Tombstone rows themselves are kept (clients
- * may not have seen them yet); only the underlying files are removed.
- * Blob deletes use `FileStore.deleteMany`; DB deletes use `WHERE id IN (...)`.
+ * may not have seen them yet, and pulls return tombstones with no age limit);
+ * only the underlying files are removed, and a tombstone with no files left
+ * is not selected again. Every pass works a page (`CLEANUP_PAGE_SIZE`) at a
+ * time. Blob deletes use `FileStore.deleteMany`; DB deletes use
+ * `WHERE id IN (...)`.
  */
 export class CleanupService {
   constructor(
@@ -103,14 +107,14 @@ export class CleanupService {
         .select({ storageKey: pendingDeletes.storageKey })
         .from(pendingDeletes)
         .orderBy(pendingDeletes.enqueuedAt, pendingDeletes.storageKey)
-        .limit(PENDING_DELETE_PAGE_SIZE)
+        .limit(CLEANUP_PAGE_SIZE)
         .offset(failed);
       if (rows.length === 0) return drained;
 
       const page = await this.drainKeys(rows.map((row) => row.storageKey));
       drained += page.drained;
       failed += page.failed;
-      if (rows.length < PENDING_DELETE_PAGE_SIZE) return drained;
+      if (rows.length < CLEANUP_PAGE_SIZE) return drained;
     }
   }
 
@@ -119,38 +123,46 @@ export class CleanupService {
 
     const cutoff = this.now() - TOMBSTONE_RETENTION_MS;
 
-    const oldTombstones = await this.db
-      .select({ id: releases.id })
-      .from(releases)
-      .where(and(eq(releases.deleted, true), lt(releases.serverUpdatedAt, cutoff)));
-
     let deletedFiles = 0;
-    if (oldTombstones.length > 0) {
-      const releaseIds = oldTombstones.map((row) => row.id);
-      const rows = await this.db.select().from(files).where(inArray(files.releaseId, releaseIds));
-      if (rows.length > 0) {
-        await this.fileStore.deleteMany(rows.map((row) => row.storageKey));
-        await this.db.delete(files).where(
-          inArray(
-            files.id,
-            rows.map((row) => row.id)
-          )
-        );
-        deletedFiles = rows.length;
-      }
+    for (;;) {
+      // Select through `files`, not `releases`: a tombstone whose files are
+      // already gone drops out of this join, so it is never re-read.
+      const rows = await this.db
+        .select({ id: files.id, storageKey: files.storageKey })
+        .from(files)
+        .innerJoin(releases, eq(files.releaseId, releases.id))
+        .where(and(eq(releases.deleted, true), lt(releases.serverUpdatedAt, cutoff)))
+        .limit(CLEANUP_PAGE_SIZE);
+      if (rows.length === 0) break;
+
+      await this.fileStore.deleteMany(rows.map((row) => row.storageKey));
+      await this.db.delete(files).where(
+        inArray(
+          files.id,
+          rows.map((row) => row.id)
+        )
+      );
+      deletedFiles += rows.length;
+      if (rows.length < CLEANUP_PAGE_SIZE) break;
     }
 
-    const expiredCodes = await this.db
-      .select({ id: authCodes.id })
-      .from(authCodes)
-      .where(lt(authCodes.expiresAt, this.now()));
-    if (expiredCodes.length > 0) {
+    let deletedAuthCodes = 0;
+    for (;;) {
+      const expiredCodes = await this.db
+        .select({ id: authCodes.id })
+        .from(authCodes)
+        .where(lt(authCodes.expiresAt, this.now()))
+        .limit(CLEANUP_PAGE_SIZE);
+      if (expiredCodes.length === 0) break;
+
       await this.db.delete(authCodes).where(
         inArray(
           authCodes.id,
           expiredCodes.map((row) => row.id)
         )
       );
+      deletedAuthCodes += expiredCodes.length;
+      if (expiredCodes.length < CLEANUP_PAGE_SIZE) break;
     }
 
     const rateLimitCutoff = this.now() - RATE_LIMIT_RETENTION_MS;
@@ -163,7 +175,7 @@ export class CleanupService {
 
     return {
       deletedFiles,
-      deletedAuthCodes: expiredCodes.length,
+      deletedAuthCodes,
       deletedRateLimits: staleRateLimits.length,
       drainedPendingDeletes,
       totalStoredBytes: Number(totalsRow[0]?.total ?? 0),
