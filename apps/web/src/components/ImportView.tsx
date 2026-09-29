@@ -204,20 +204,25 @@ export default function ImportView({
         </button>
       </div>
 
-      <div className="flex flex-col gap-6 sm:flex-row">
-        <CoverPicker file={coverFile} onChange={setCoverFile} />
-        <div className="flex flex-1 flex-col gap-4">
-          <Field
-            label="Title"
-            value={title}
-            onChange={setTitle}
-            placeholder={kind === "single" ? "Same as track title" : "Album title"}
-          />
-          <Field label="Artist" value={artist} onChange={setArtist} placeholder="Artist name" />
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Year" value={year} onChange={setYear} placeholder="2024" />
-            <Field label="Genre" value={genre} onChange={setGenre} placeholder="Genre" />
+      {/* Cover first, compact, beside title and artist so it stays in view
+          while those are typed. Year and genre follow; tracks follow below. */}
+      <div className="flex flex-col gap-4">
+        <div className="flex items-start gap-4">
+          <CoverPicker file={coverFile} onChange={setCoverFile} presentation="compact" />
+          <div className="flex min-w-0 flex-1 flex-col gap-4">
+            <Field
+              label="Title"
+              value={title}
+              onChange={setTitle}
+              placeholder={kind === "single" ? "Same as track title" : "Album title"}
+            />
+            <Field label="Artist" value={artist} onChange={setArtist} placeholder="Artist name" />
           </div>
+        </div>
+        <p className="text-xs text-text-hint">Square artwork works best</p>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Year" value={year} onChange={setYear} placeholder="2024" />
+          <Field label="Genre" value={genre} onChange={setGenre} placeholder="Genre" />
         </div>
       </div>
 

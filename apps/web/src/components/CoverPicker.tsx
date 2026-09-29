@@ -2,7 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import CoverCropDialog from "./CoverCropDialog";
-import { ImagePlusIcon, PencilIcon } from "./Icons";
+import { ImagePlusIcon, MusicNoteIcon, PencilIcon } from "./Icons";
+
+/** How the square is drawn. Sizes match `docs/design.md`: the full import drop
+ * zone is 240, the compact import square beside title and artist is 120, and
+ * the release-header thumb is 112. */
+export type CoverPresentation = "drop" | "compact" | "thumb";
 
 interface CoverPickerProps {
   /** A freshly-chosen (not yet uploaded) cover file, if any. */
@@ -11,21 +16,57 @@ interface CoverPickerProps {
   existingUrl?: string | null;
   onChange: (file: File) => void;
   disabled?: boolean;
-  /** Side of the square, in px. Import's drop zone uses the default 240; the release page's
-   * cover uses 180. */
+  /**
+   * Side of the square, in px. Defaults from `presentation`: 240 drop, 120
+   * compact, 112 thumb.
+   */
   size?: number;
+  /** `drop` is the full zone. `compact` sits beside title and artist on import.
+   * `thumb` is the release-page header cover. */
+  presentation?: CoverPresentation;
+}
+
+function defaultSize(presentation: CoverPresentation): number {
+  if (presentation === "thumb") return 112;
+  if (presentation === "compact") return 120;
+  return 240;
+}
+
+function frameClass(
+  presentation: CoverPresentation,
+  hasPreview: boolean,
+  dragOver: boolean
+): string {
+  const radius = presentation === "thumb" ? "rounded-[10px]" : "rounded-lg";
+  if (presentation === "thumb") {
+    return `${radius} border border-border bg-card ${dragOver ? "ring-2 ring-accent" : ""}`;
+  }
+  const dashed = dragOver ? "border-accent" : "border-border-dashed";
+  if (!hasPreview || presentation === "compact") {
+    return `${radius} border border-dashed bg-card ${dashed}`;
+  }
+  return `${radius} bg-card ${dragOver ? "ring-2 ring-accent" : ""}`;
+}
+
+/** 28 px circular pencil, inset on the thumb (and on a filled compact square). */
+function PencilBadge() {
+  return (
+    <span className="absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/80 text-white backdrop-blur-sm">
+      <PencilIcon className="h-3 w-3" />
+    </span>
+  );
 }
 
 /** Square cover art preview. Click to choose a file, or drag one in.
- * Empty: a dashed drop zone with an image-plus icon. Filled: the image with an "Edit"
- * pill overlay in the bottom-right corner (used both for a freshly-picked cover and an
- * already-stored one on the release page). */
+ * Empty drop zone: dashed card, image-plus icon, caption. Filled drop zone: the
+ * image with an "Edit" pill. Compact and thumb are the smaller header squares. */
 export default function CoverPicker({
   file,
   existingUrl,
   onChange,
   disabled,
-  size = 240,
+  size,
+  presentation = "drop",
 }: CoverPickerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -33,6 +74,8 @@ export default function CoverPicker({
   // A freshly-chosen file awaiting confirmation in the crop dialog. `onChange` only fires once
   // the user hits Done there; Cancel drops this and leaves `file` (the prop) untouched.
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+
+  const side = size ?? defaultSize(presentation);
 
   useEffect(() => {
     // Derives a revocable object URL from the `file` prop and must clean it up on change/unmount,
@@ -71,30 +114,30 @@ export default function CoverPicker({
           acceptFiles(e.dataTransfer.files);
         }}
         role="button"
-        tabIndex={0}
-        style={{ width: size, height: size }}
-        className={`relative flex shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-card text-center transition-colors ${
-          previewUrl
-            ? dragOver
-              ? "ring-2 ring-accent"
-              : ""
-            : `border border-dashed ${dragOver ? "border-accent" : "border-border-dashed"}`
-        } ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
+        tabIndex={disabled ? -1 : 0}
+        aria-label={previewUrl ? "Edit cover" : "Choose cover image"}
+        style={{ width: side, height: side }}
+        className={`relative flex shrink-0 cursor-pointer items-center justify-center overflow-hidden text-center transition-colors ${frameClass(
+          presentation,
+          previewUrl !== null,
+          dragOver
+        )} ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
       >
         {previewUrl ? (
-          <>
-            {/* Object URLs / local API image routes aren't compatible with next/image's optimizer. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={previewUrl}
-              alt="Cover art preview"
-              className="h-full w-full object-cover"
+          // Object URLs / local API image routes aren't compatible with next/image's optimizer.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={previewUrl} alt="" className="h-full w-full object-cover" />
+        ) : presentation === "thumb" ? (
+          <MusicNoteIcon className="h-7 w-7 text-text-muted" />
+        ) : presentation === "compact" ? (
+          <div className="flex flex-col items-center gap-1 px-2">
+            <ImagePlusIcon
+              className={`h-6 w-6 ${dragOver ? "text-accent" : "text-text-muted"}`}
             />
-            <span className="absolute bottom-2 right-2 flex items-center gap-1.5 rounded-full bg-black/80 px-3 py-1.5 text-sm font-semibold text-white backdrop-blur-sm">
-              <PencilIcon className="h-3.5 w-3.5" />
-              Edit
-            </span>
-          </>
+            <p className="text-center text-[11px] font-medium leading-tight text-[#D7D7D7]">
+              Click or drop an image
+            </p>
+          </div>
         ) : (
           <div className="flex flex-col items-center gap-2 px-4">
             <ImagePlusIcon
@@ -104,6 +147,15 @@ export default function CoverPicker({
             <p className="text-xs text-text-hint">Square artwork works best</p>
           </div>
         )}
+        {presentation === "thumb" || (previewUrl && presentation === "compact") ? (
+          <PencilBadge />
+        ) : null}
+        {previewUrl && presentation === "drop" ? (
+          <span className="absolute bottom-2 right-2 flex items-center gap-1.5 rounded-full bg-black/80 px-3 py-1.5 text-sm font-semibold text-white backdrop-blur-sm">
+            <PencilIcon className="h-3.5 w-3.5" />
+            Edit
+          </span>
+        ) : null}
         <input
           ref={inputRef}
           type="file"
