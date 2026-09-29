@@ -61,7 +61,7 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 
 ## In progress
 - Security review of apps/api (#20): findings fixed 28 Sep; auth rate limits now live in the shared libSQL database, so they hold across Vercel instances
-- Sync API operations: the Vercel project's ignored-build-step cancels `vercel redeploy`, so an env change needs a push touching apps/api or `vercel deploy --prod --archive=tgz` from a repo root linked to locally-sync-api. The skip rule fails open since #57: if the last deployed commit is missing from Vercel's shallow clone the build goes ahead instead of erroring
+- Sync API operations: the Vercel project's ignored-build-step cancels `vercel redeploy`, so an env change needs a push touching apps/api or `vercel deploy --prod --archive=tgz` from a repo root linked to locally-sync-api. The skip rule fails open since #57: if the last deployed commit is missing from Vercel's shallow clone the build goes ahead instead of erroring. Fix planned in `docs/plans/90-migrate-per-deploy.md` (#90): migrate in the Vercel build with a runtime schema guard, and let a redeploy of the same commit build; awaiting owner approval
 
 ## Known issues
 - Share extension can't be provisioned for a device build on the project's Personal team; simulator-only for now (see apps/ios/README.md)
