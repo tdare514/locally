@@ -260,6 +260,7 @@ final class InMemorySyncAccountStore: SyncAccountStore {
     private(set) var deviceToken: String?
     private(set) var deviceId: String?
     var lastVersion: Int = 0
+    var deviceName: String?
 
     func save(email: String, deviceToken: String, deviceId: String) {
         self.email = email
@@ -272,6 +273,7 @@ final class InMemorySyncAccountStore: SyncAccountStore {
         deviceToken = nil
         deviceId = nil
         lastVersion = 0
+        deviceName = nil
     }
 }
 
@@ -329,6 +331,7 @@ final class FakeSyncApi: SyncApi {
         SyncMeResult(email: "test@example.com", deviceId: "device-1", deviceName: "Test Device", quota: SyncQuota(usedBytes: 0, limitBytes: 1_073_741_824))
     )
     private(set) var revokedDeviceIds: [String] = []
+    private(set) var meCallCount = 0
 
     /// Release id -> stored record, each carrying the version it was last
     /// written at. `nil` records never existed; a tombstone stays in this
@@ -380,7 +383,8 @@ final class FakeSyncApi: SyncApi {
     }
 
     func me() async throws -> SyncMeResult {
-        try meResult.get()
+        meCallCount += 1
+        return try meResult.get()
     }
 
     func revokeDevice(_ id: String) async throws {

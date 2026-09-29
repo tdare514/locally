@@ -106,7 +106,9 @@ struct SyncSettingsSection: View {
     private var signedInContent: some View {
         VStack(alignment: .leading, spacing: 10) {
             LabeledContent(Copy.Sync.emailFieldLabel, value: syncStatus.email ?? "")
-            LabeledContent(Copy.Sync.deviceLabel, value: syncStatus.deviceName ?? "")
+            if let deviceName = syncStatus.deviceName {
+                LabeledContent(Copy.Sync.deviceLabel, value: deviceName)
+            }
             if let quota = syncStatus.quota {
                 LabeledContent(Copy.Sync.storageLabel, value: Copy.Sync.quota(usedMB: quota.usedBytes / 1_048_576, limitMB: quota.limitBytes / 1_048_576))
             }

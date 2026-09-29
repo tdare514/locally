@@ -54,7 +54,8 @@ struct SyncEngineTests {
     private func makeHarness(
         library: InMemoryLibraryStore = InMemoryLibraryStore(),
         outbox: InMemorySyncOutbox = InMemorySyncOutbox(),
-        api: FakeSyncApi = FakeSyncApi()
+        api: FakeSyncApi = FakeSyncApi(),
+        account: InMemorySyncAccountStore? = nil
     ) -> Harness {
         let folderDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let folder = FakeSpotifyFolder(directory: folderDir)
@@ -69,10 +70,15 @@ struct SyncEngineTests {
             library: library,
             coverStore: coverStore
         )
-        let account = InMemorySyncAccountStore()
-        account.save(email: "toby@example.com", deviceToken: "test-token", deviceId: "device-1")
-        let engine = SyncEngine(api: api, account: account, library: library, coordinator: coordinator, coverStore: coverStore, outbox: outbox, deviceName: { "Toby's iPhone" })
-        return Harness(coordinator: coordinator, folder: folder, library: library, tagWriter: tagWriter, coverStore: coverStore, api: api, account: account, outbox: outbox, engine: engine)
+        let resolvedAccount: InMemorySyncAccountStore
+        if let account {
+            resolvedAccount = account
+        } else {
+            resolvedAccount = InMemorySyncAccountStore()
+            resolvedAccount.save(email: "toby@example.com", deviceToken: "test-token", deviceId: "device-1")
+        }
+        let engine = SyncEngine(api: api, account: resolvedAccount, library: library, coordinator: coordinator, coverStore: coverStore, outbox: outbox, deviceName: { "Toby's iPhone" })
+        return Harness(coordinator: coordinator, folder: folder, library: library, tagWriter: tagWriter, coverStore: coverStore, api: api, account: resolvedAccount, outbox: outbox, engine: engine)
     }
 
     // MARK: - Push
@@ -939,6 +945,8 @@ struct SyncEngineTests {
 
     @Test func deleteAccountCallsTheApiWithTheStoredEmailAndClearsLocalState() async throws {
         let h = makeHarness()
+        h.account.deviceName = "iPhone 14"
+        h.engine.status.deviceName = "iPhone 14"
         try h.outbox.enqueue(UUID(), .push)
         let tags = TagSet(title: "My Song", artist: "My Artist", album: "My Album")
         let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: nil)
@@ -954,6 +962,8 @@ struct SyncEngineTests {
         #expect(try h.outbox.all().isEmpty)
         #expect(h.engine.status.signedIn == false)
         #expect(h.engine.status.email == nil)
+        #expect(h.account.deviceName == nil)
+        #expect(h.engine.status.deviceName == nil)
         #expect(h.engine.status.lastError == nil)
         let stored = try h.library.all().first { $0.id == release.id }
         #expect(stored?.syncedUpdatedAt == nil)
@@ -1090,6 +1100,67 @@ struct SyncEngineTests {
         #expect(h.account.lastVersion == 0)
         // Stopped after the first (non-advancing) page rather than looping.
         #expect(h.api.releasesCallCount == 1)
+    }
+
+    // MARK: - Device name (#38)
+
+    @Test func verifyPersistsTheDeviceNameAndAFreshEngineRestoresItWithoutSigningInAgain() async throws {
+        let h = makeHarness()
+        h.account.clear()
+        h.engine.status.signedIn = false
+        h.engine.status.email = nil
+        h.engine.status.deviceName = nil
+        h.api.verifyResult = .success(
+            SyncVerifyResult(token: "test-token", userId: "user-1", email: "toby@example.com", deviceId: "device-1", deviceName: "iPhone 14")
+        )
+
+        try await h.engine.verify(email: "toby@example.com", code: "123456")
+
+        #expect(h.account.deviceName == "iPhone 14")
+        #expect(h.engine.status.deviceName == "iPhone 14")
+        #expect(h.api.verifyCalls.first?.deviceName == "Toby's iPhone")
+
+        let restarted = makeHarness(library: h.library, outbox: h.outbox, api: FakeSyncApi(), account: h.account)
+        #expect(restarted.engine.status.deviceName == "iPhone 14")
+        #expect(restarted.api.verifyCalls.isEmpty)
+        #expect(restarted.api.meCallCount == 0)
+    }
+
+    @Test func reconcileBackfillsAMissingDeviceNameFromMe() async throws {
+        let h = makeHarness()
+        h.api.meResult = .success(
+            SyncMeResult(email: "toby@example.com", deviceId: "device-1", deviceName: "iPhone", quota: SyncQuota(usedBytes: 0, limitBytes: 1_073_741_824))
+        )
+
+        await h.engine.reconcile()
+
+        #expect(h.account.deviceName == "iPhone")
+        #expect(h.engine.status.deviceName == "iPhone")
+    }
+
+    @Test func reconcileDoesNotOverwriteAStoredDeviceName() async throws {
+        let h = makeHarness()
+        h.account.deviceName = "iPhone 14"
+        h.engine.status.deviceName = "iPhone 14"
+        h.api.meResult = .success(
+            SyncMeResult(email: "toby@example.com", deviceId: "device-1", deviceName: "iPhone", quota: SyncQuota(usedBytes: 0, limitBytes: 1_073_741_824))
+        )
+
+        await h.engine.reconcile()
+
+        #expect(h.account.deviceName == "iPhone 14")
+        #expect(h.engine.status.deviceName == "iPhone 14")
+    }
+
+    @Test func signOutClearsThePersistedDeviceName() async throws {
+        let h = makeHarness()
+        h.account.deviceName = "iPhone 14"
+        h.engine.status.deviceName = "iPhone 14"
+
+        await h.engine.signOut()
+
+        #expect(h.account.deviceName == nil)
+        #expect(h.engine.status.deviceName == nil)
     }
 }
 

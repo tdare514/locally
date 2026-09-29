@@ -28,6 +28,9 @@ protocol SyncAccountStore: AnyObject {
     /// The last `version` reconcile saw from `GET /v1/releases`, so the next
     /// call only pages in what changed since. `0` before the first sync.
     var lastVersion: Int { get set }
+    /// The device name the server echoed from `POST /v1/auth/verify`, shown in
+    /// Settings; `nil` when signed out or when signed in before it was stored.
+    var deviceName: String? { get set }
 
     /// Records a successful `POST /v1/auth/verify`, making `email`,
     /// `deviceId` and `deviceToken` non-nil. Throws (and persists nothing)
@@ -58,6 +61,7 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
         static let email = "com.tdare.locally.sync.email"
         static let deviceId = "com.tdare.locally.sync.deviceId"
         static let lastVersion = "com.tdare.locally.sync.lastVersion"
+        static let deviceName = "com.tdare.locally.sync.deviceName"
     }
 
     private let defaults: UserDefaults
@@ -102,6 +106,17 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
         set { defaults.set(newValue, forKey: Key.lastVersion) }
     }
 
+    var deviceName: String? {
+        get { defaults.string(forKey: Key.deviceName) }
+        set {
+            if let newValue {
+                defaults.set(newValue, forKey: Key.deviceName)
+            } else {
+                defaults.removeObject(forKey: Key.deviceName)
+            }
+        }
+    }
+
     func save(email: String, deviceToken: String, deviceId: String) throws {
         // Write the token first: if the Keychain write fails, nothing else
         // is persisted, so we never end up half signed-in.
@@ -114,6 +129,7 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
         defaults.removeObject(forKey: Key.email)
         defaults.removeObject(forKey: Key.deviceId)
         defaults.removeObject(forKey: Key.lastVersion)
+        defaults.removeObject(forKey: Key.deviceName)
         tokenStore.delete()
     }
 }
