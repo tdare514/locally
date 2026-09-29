@@ -19,21 +19,36 @@ final class ID3TagWriter: TagWriter {
     /// Audio is copied in chunks of this size; peak memory is frames + one chunk.
     private static let copyChunkSize = 1 << 20 // 1 MiB
 
+    /// Swaps `replacement` over `original` in place. Injected so tests can
+    /// make the swap fail without touching the real file system call.
+    typealias ReplaceItem = (_ original: URL, _ replacement: URL) throws -> Void
+
     /// Tag bodies (all frames together) must be strictly below this. Production uses
     /// `synchsafeLimit`; tests inject a small value so the rejection path runs on a few KB.
-    private let tagBodyLimit: Int
+    /// Clamped to `synchsafeLimit`, so an injected limit can never exceed what four
+    /// synchsafe bytes encode.
+    let tagBodyLimit: Int
+
+    private let replaceItem: ReplaceItem
 
     private let textEncodingUTF8: UInt8 = 0x03
     private let picEncodingLatin1: UInt8 = 0x00
     private let frontCoverPictureType: UInt8 = 0x03
 
-    init(tagBodyLimit: Int = ID3TagWriter.synchsafeLimit) {
-        self.tagBodyLimit = tagBodyLimit
+    init(
+        tagBodyLimit: Int = ID3TagWriter.synchsafeLimit,
+        replaceItem: @escaping ReplaceItem = { original, replacement in
+            _ = try FileManager.default.replaceItemAt(original, withItemAt: replacement)
+        }
+    ) {
+        // Clamp so an injected limit can never exceed what four synchsafe bytes encode.
+        self.tagBodyLimit = min(tagBodyLimit, ID3TagWriter.synchsafeLimit)
+        self.replaceItem = replaceItem
     }
 
     func write(_ tags: TagSet, cover: Data?, to url: URL) async throws {
         let frames = buildFrames(tags: tags, cover: cover)
-        guard frames.count < tagBodyLimit else {
+        guard Self.canEncodeSynchsafe(frames.count), frames.count < tagBodyLimit else {
             throw LocallyError.taggingFailed("That cover is too large to store in an mp3.")
         }
         let header = buildHeader(framesSize: frames.count)
@@ -46,7 +61,7 @@ final class ID3TagWriter: TagWriter {
 
         do {
             try Self.assemble(header: header, frames: frames, audioFrom: url, into: tmp)
-            _ = try FileManager.default.replaceItemAt(url, withItemAt: tmp)
+            try replaceItem(url, tmp)
         } catch let error as LocallyError {
             try? FileManager.default.removeItem(at: tmp)
             throw error
@@ -181,12 +196,5 @@ final class ID3TagWriter: TagWriter {
         let totalHeaderSize = 10 + framesSize
         guard totalHeaderSize <= fileLength else { return 0 }
         return totalHeaderSize
-    }
-
-    /// Returns just the audio bytes: if `data` starts with an "ID3" header,
-    /// skip past it (header + declared frames size); otherwise return as-is.
-    static func stripExistingID3Header(from data: Data) -> Data {
-        let skip = existingID3HeaderLength(prefix: data.prefix(10), fileLength: data.count)
-        return data.suffix(from: data.startIndex + skip)
     }
 }

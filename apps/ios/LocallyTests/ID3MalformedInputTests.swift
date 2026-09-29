@@ -4,8 +4,8 @@ import Testing
 
 /// Feeds truncated/garbage/bad-size ID3v2 headers into `ID3TagWriter`, which
 /// is the only place in the iOS app that parses an existing ID3 header (to
-/// strip it before writing a fresh one — see `stripExistingID3Header`).
-/// Every case must recover (return the input unchanged) rather than crash
+/// skip it before writing a fresh one — see `existingID3HeaderLength`).
+/// Every case must recover (skip nothing, or exactly the declared header) rather than crash
 /// or read/write past the buffer, and a full `write(_:cover:to:)` pass over
 /// a malformed file must still only touch the one file it was given.
 struct ID3MalformedInputTests {
@@ -15,25 +15,26 @@ struct ID3MalformedInputTests {
         return url
     }
 
-    // MARK: - stripExistingID3Header
+    // MARK: - existingID3HeaderLength
+
+    private func headerLength(of data: Data) -> Int {
+        ID3TagWriter.existingID3HeaderLength(prefix: data.prefix(10), fileLength: data.count)
+    }
 
     @Test func emptyDataIsReturnedUnchanged() {
-        let result = ID3TagWriter.stripExistingID3Header(from: Data())
-        #expect(result.isEmpty)
+        #expect(headerLength(of: Data()) == 0)
     }
 
     @Test func dataShorterThanAHeaderIsReturnedUnchanged() {
         let bytes: [UInt8] = [0x49, 0x44, 0x33, 0x04] // "ID3" + version byte, cut off
-        let result = ID3TagWriter.stripExistingID3Header(from: Data(bytes))
-        #expect(result == Data(bytes))
+        #expect(headerLength(of: Data(bytes)) == 0)
     }
 
     @Test func dataWithoutTheID3MagicBytesIsReturnedUnchanged() {
         // Looks like an mp3 frame sync, not an ID3 header.
         var bytes: [UInt8] = [0xFF, 0xFB, 0, 0, 0, 0, 0, 0, 0, 0]
         bytes.append(contentsOf: (0..<20).map { UInt8($0) })
-        let result = ID3TagWriter.stripExistingID3Header(from: Data(bytes))
-        #expect(result == Data(bytes))
+        #expect(headerLength(of: Data(bytes)) == 0)
     }
 
     /// A header that declares a frames size larger than the file actually
@@ -45,9 +46,7 @@ struct ID3MalformedInputTests {
         bytes.append(contentsOf: (0..<10).map { UInt8($0) })
         let data = Data(bytes)
 
-        let result = ID3TagWriter.stripExistingID3Header(from: data)
-
-        #expect(result == data, "an unsatisfiable declared size must not be trusted")
+        #expect(headerLength(of: data) == 0, "an unsatisfiable declared size must not be trusted")
     }
 
     /// A header declaring exactly the bytes available (header + frames ==
@@ -59,9 +58,10 @@ struct ID3MalformedInputTests {
         bytes.append(contentsOf: [1, 2, 3, 4, 5])
         let data = Data(bytes)
 
-        let result = ID3TagWriter.stripExistingID3Header(from: data)
+        let skip = headerLength(of: data)
 
-        #expect(result.isEmpty)
+        #expect(skip == 10 + 5)
+        #expect(data.suffix(from: data.startIndex + skip).isEmpty)
     }
 
     @Test func garbageBinaryDataIsReturnedUnchanged() {
@@ -73,15 +73,15 @@ struct ID3MalformedInputTests {
         }
         let data = Data(bytes)
 
-        let result = ID3TagWriter.stripExistingID3Header(from: data)
+        let skip = headerLength(of: data)
 
         // None of the random bytes happen to start with "ID3" (checked
-        // above by construction of the seed), so this must pass through.
+        // above by construction of the seed), so nothing may be skipped.
         if bytes[0] == 0x49, bytes[1] == 0x44, bytes[2] == 0x33 {
             // Vanishingly unlikely, but keep the test meaningful either way.
-            #expect(result.count <= data.count)
+            #expect(skip <= data.count)
         } else {
-            #expect(result == data)
+            #expect(skip == 0)
         }
     }
 
@@ -150,25 +150,6 @@ struct ID3MalformedInputTests {
 
         let result = try Data(contentsOf: url)
         #expect(!result.isEmpty, "the new header/frames were still written")
-    }
-
-    @Test func existingID3HeaderLengthMatchesStripForEveryMalformedShape() {
-        #expect(ID3TagWriter.existingID3HeaderLength(prefix: Data(), fileLength: 0) == 0)
-        #expect(ID3TagWriter.existingID3HeaderLength(prefix: Data([0x49, 0x44, 0x33, 0x04]), fileLength: 4) == 0)
-
-        var noMagic: [UInt8] = [0xFF, 0xFB, 0, 0, 0, 0, 0, 0, 0, 0]
-        noMagic.append(contentsOf: (0..<20).map { UInt8($0) })
-        #expect(ID3TagWriter.existingID3HeaderLength(prefix: Data(noMagic.prefix(10)), fileLength: noMagic.count) == 0)
-
-        var oversized: [UInt8] = [0x49, 0x44, 0x33, 0x04, 0x00, 0x00]
-        oversized.append(contentsOf: [0x7F, 0x7F, 0x7F, 0x7F])
-        oversized.append(contentsOf: (0..<10).map { UInt8($0) })
-        #expect(ID3TagWriter.existingID3HeaderLength(prefix: Data(oversized.prefix(10)), fileLength: oversized.count) == 0)
-
-        var exact: [UInt8] = [0x49, 0x44, 0x33, 0x04, 0x00, 0x00]
-        exact.append(contentsOf: [0x00, 0x00, 0x00, 0x05])
-        exact.append(contentsOf: [1, 2, 3, 4, 5])
-        #expect(ID3TagWriter.existingID3HeaderLength(prefix: Data(exact.prefix(10)), fileLength: exact.count) == 15)
     }
 
     @Test func writingOverAFileThatIsOnlyAnID3HeaderYieldsANewHeaderAndNoAudio() async throws {

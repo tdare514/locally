@@ -212,6 +212,13 @@ struct ID3TagWriterTests {
         }
     }
 
+    /// The guard behaviour at any limit is covered by the 1024-byte tests above; this only
+    /// checks that an injected limit can't exceed what four synchsafe bytes encode.
+    @Test func injectedLimitAboveSynchsafeIsClamped() {
+        #expect(ID3TagWriter(tagBodyLimit: ID3TagWriter.synchsafeLimit + 1).tagBodyLimit == ID3TagWriter.synchsafeLimit)
+        #expect(ID3TagWriter(tagBodyLimit: 1024).tagBodyLimit == 1024)
+    }
+
     @Test func streamsAudioLargerThanOneChunkByteForByte() async throws {
         let audioSize = (2 << 20) + 4097
         let audio = fakeAudioBytes(count: audioSize)
@@ -260,6 +267,35 @@ struct ID3TagWriterTests {
         #expect(listing == ["track.mp3"])
     }
 
+    @Test func failedReplaceThrowsTaggingFailedAndLeavesTheOriginalUntouched() async throws {
+        let (dir, url) = try makeFile()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let before = try Data(contentsOf: url)
+        var seen: (original: URL, replacement: URL, replacementExisted: Bool)?
+        let writer = ID3TagWriter(replaceItem: { original, replacement in
+            seen = (original, replacement, FileManager.default.fileExists(atPath: replacement.path))
+            throw CocoaError(.fileWriteNoPermission)
+        })
+
+        do {
+            try await writer.write(tags(), cover: nil, to: url)
+            Issue.record("expected taggingFailed")
+        } catch let error as LocallyError {
+            guard case .taggingFailed = error else {
+                Issue.record("unexpected LocallyError \(error)")
+                return
+            }
+        }
+
+        #expect(try Data(contentsOf: url) == before)
+        let listing = try FileManager.default.contentsOfDirectory(atPath: dir.path).sorted()
+        #expect(listing == ["track.mp3"])
+        #expect(seen?.original == url)
+        #expect(seen?.replacement.pathExtension == "tmp")
+        #expect(seen?.replacement.deletingLastPathComponent().standardizedFileURL == dir.standardizedFileURL)
+        #expect(seen?.replacementExisted == true)
+    }
+
     private func countOccurrences(of pattern: [UInt8], in bytes: [UInt8]) -> Int {
         guard bytes.count >= pattern.count else { return 0 }
         var count = 0
@@ -272,6 +308,7 @@ struct ID3TagWriterTests {
     }
 
     private static func audioSuffix(of data: Data) -> Data {
-        ID3TagWriter.stripExistingID3Header(from: data)
+        let skip = ID3TagWriter.existingID3HeaderLength(prefix: data.prefix(10), fileLength: data.count)
+        return data.suffix(from: data.startIndex + skip)
     }
 }

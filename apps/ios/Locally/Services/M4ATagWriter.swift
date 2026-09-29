@@ -31,9 +31,12 @@ final class M4ATagWriter: TagWriter {
         }
         exportSession = session
 
+        // Same directory as the target so `replaceItemAt` is a rename on the same volume,
+        // and `.tmp` so Spotify's scanner never indexes a half-written export if the app
+        // dies before the swap. The container format comes from `outputFileType`, not the name.
         let tmpOutput = url.deletingLastPathComponent()
             .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension("m4a")
+            .appendingPathExtension("tmp")
 
         exportSession.outputURL = tmpOutput
         exportSession.outputFileType = .m4a
