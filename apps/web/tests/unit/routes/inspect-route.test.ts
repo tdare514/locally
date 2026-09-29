@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Services } from "../../../src/server/container";
 import type { InspectedFile } from "../../../src/server/releases/InspectService";
+import { MAX_AUDIO_FILES } from "../../../src/server/http/validation";
 
 let services: Services;
 
@@ -83,6 +84,17 @@ describe("POST /api/inspect", () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
     expect(body.error).toMatch(/unsupported audio/i);
+    expect(inspectCalls).toEqual([]);
+  });
+
+  it("rejects more than MAX_AUDIO_FILES files before calling the service", async () => {
+    const files = Array.from({ length: MAX_AUDIO_FILES + 1 }, (_, i) => audioFile(`secret-${i}.mp3`));
+    const res = await POST(inspectRequest(formFor(files)));
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/at most/i);
+    expect(JSON.stringify(body)).not.toContain("secret-");
     expect(inspectCalls).toEqual([]);
   });
 

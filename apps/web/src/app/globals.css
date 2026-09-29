@@ -12,6 +12,7 @@
   --text-muted: #b3b3b3;
   --text-dim: #777777;
   --text-hint: #888888;
+  --text-soft: #d7d7d7;
   --accent: #1e7df0;
   --accent-hover: #3b8ef5;
   --border: #282828;
@@ -31,6 +32,7 @@
   --color-text-muted: var(--text-muted);
   --color-text-dim: var(--text-dim);
   --color-text-hint: var(--text-hint);
+  --color-text-soft: var(--text-soft);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-border: var(--border);

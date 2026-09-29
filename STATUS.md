@@ -65,7 +65,7 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 - Spotify caches local-file metadata; restart Spotify to see edits to an already-imported track
 
 ## Next
-- Follow-ups from the 29 Sep review of the Cursor PRs (#41–#55): web pull-page skip (#60), device-name backfill guard (#62), web CoverPicker and route-test cleanup (#63), small iOS items (#64); owner decision on the Inbox sweep and import allow-list (#65)
+- Follow-ups from the 29 Sep review of the Cursor PRs (#41–#55): web pull-page skip (#60), device-name backfill guard (#62), small iOS items (#64); owner decision on the Inbox sweep and import allow-list (#65)
 - Mac library development: search, sort, bulk actions, and playlist-aware grouping next; plan-only: conversion job queue, SQLite index, multi-library (#7)
 - Mac packaging (#35) is decided: wrap the existing Next.js app in Electron (`docs/adr/0004-package-the-mac-app-with-electron.md`, plan in `docs/plans/35-electron-packaging.md`). Planned, not started as code. Until that follow-up the app stays `cd apps/web && npm install && npm run dev` plus `brew install ffmpeg`. On #36 the rights clause is decided (ADR 0005) and the sign-up acknowledgement is planned; the privacy policy, takedown contact, retention statement, and invite-only question remain owner decisions. Sign-ups stay closed
 

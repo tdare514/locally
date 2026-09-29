@@ -1,8 +1,11 @@
+import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Settings } from "../../../src/shared/types";
 import type { Services } from "../../../src/server/container";
+import { NodeFileSystem } from "../../../src/server/fs/NodeFileSystem";
 
 type ExecFileCallback = (err: Error | null) => void;
 
@@ -25,16 +28,8 @@ vi.mock("../../../src/server/container", () => ({
 import { POST } from "../../../src/app/api/reveal/route";
 
 let settingsValue: Settings;
+let libraryDir: string;
 let platformDescriptor: PropertyDescriptor | undefined;
-
-/** Lexical `isInside` matching `NodeFileSystem`: the base itself is inside. */
-class FakeFileSystem {
-  isInside(base: string, target: string): boolean {
-    const rel = path.relative(path.resolve(base), path.resolve(target));
-    if (rel === "") return true;
-    return !path.isAbsolute(rel) && rel.split(path.sep)[0] !== "..";
-  }
-}
 
 class FakeSettingsStore {
   async get(): Promise<Settings> {
@@ -54,30 +49,32 @@ function revealRequest(body?: unknown): NextRequest {
   });
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   execCalls = [];
   execError = null;
-  settingsValue = { libraryDir: "/tmp/lib", sync: null };
+  libraryDir = await fs.mkdtemp(path.join(os.tmpdir(), "locally-reveal-"));
+  settingsValue = { libraryDir, sync: null };
   services = {
     settings: new FakeSettingsStore(),
-    fs: new FakeFileSystem(),
+    fs: new NodeFileSystem(),
   } as unknown as Services;
 
   platformDescriptor = Object.getOwnPropertyDescriptor(process, "platform");
   Object.defineProperty(process, "platform", { configurable: true, value: "darwin" });
 });
 
-afterEach(() => {
+afterEach(async () => {
   if (platformDescriptor) {
     Object.defineProperty(process, "platform", platformDescriptor);
   }
+  await fs.rm(libraryDir, { recursive: true, force: true });
 });
 
 describe("POST /api/reveal", () => {
   it("rejects when not running on macOS", async () => {
     Object.defineProperty(process, "platform", { configurable: true, value: "linux" });
 
-    const res = await POST(revealRequest({ path: "/tmp/lib/Artist" }));
+    const res = await POST(revealRequest({ path: path.join(libraryDir, "Artist") }));
 
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
@@ -89,24 +86,32 @@ describe("POST /api/reveal", () => {
     const res = await POST(revealRequest({}));
 
     expect(res.status).toBe(200);
-    expect(execCalls).toEqual([{ cmd: "open", args: ["-R", path.resolve("/tmp/lib")] }]);
+    expect(execCalls).toEqual([{ cmd: "open", args: ["-R", path.resolve(libraryDir)] }]);
   });
 
   it("reveals a path inside the library", async () => {
-    const target = "/tmp/lib/Artist/Title";
+    const target = path.join(libraryDir, "Artist", "Title");
     const res = await POST(revealRequest({ path: target }));
 
     expect(res.status).toBe(200);
     expect(execCalls).toEqual([{ cmd: "open", args: ["-R", path.resolve(target)] }]);
   });
 
-  it("rejects a path outside the library without shelling out", async () => {
-    const res = await POST(revealRequest({ path: "/etc/passwd" }));
+  it.each([
+    ["an absolute path elsewhere", () => "/etc/passwd"],
+    ["a .. traversal", () => `${libraryDir}/../outside/secret.mp3`],
+    ["a sibling-prefix path", () => `${libraryDir}-evil/secret.mp3`],
+    ["a relative path", () => "Artist/secret.mp3"],
+  ])("rejects %s without shelling out", async (_label, makePath) => {
+    const res = await POST(revealRequest({ path: makePath() }));
 
     expect(res.status).toBe(400);
     const body = (await res.json()) as { error: string };
     expect(body.error).toMatch(/inside the library/);
-    expect(JSON.stringify(body)).not.toContain("passwd");
+    const text = JSON.stringify(body);
+    expect(text).not.toContain("secret");
+    expect(text).not.toContain("passwd");
+    expect(text).not.toContain(libraryDir);
     expect(execCalls).toEqual([]);
   });
 
@@ -120,7 +125,7 @@ describe("POST /api/reveal", () => {
   it("maps an open(1) failure to a 500 without leaking the path", async () => {
     execError = new Error("open failed: /Users/someone/secret/path");
 
-    const res = await POST(revealRequest({ path: "/tmp/lib/Artist" }));
+    const res = await POST(revealRequest({ path: path.join(libraryDir, "Artist") }));
 
     expect(res.status).toBe(500);
     const body = (await res.json()) as { error: string };

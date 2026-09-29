@@ -23,6 +23,7 @@ and both apps follow.
 | text-muted | #B3B3B3 | secondary text, metadata on the right of headers |
 | text-dim | #777777 | chevrons, footnotes, breadcrumb eyebrows |
 | text-hint | #888888 | hint lines under drop zones |
+| text-soft | #D7D7D7 | the line inside a drop zone ("Click or drop an image", "Drop audio files here") |
 | danger | #F15E6C | errors, delete |
 | accent | #1E7DF0 (hover #3B8EF5) on both platforms, decided 27 Sep 2026 | eyebrows, primary buttons, selected segment, focus ring, accent icons, the shimmer on the app icon |
 
@@ -73,7 +74,7 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
 | Input text | 16 mobile, 14 desktop | regular | text | |
 | Row title | 15 mobile, 14 desktop | semibold | text | |
 | Row subtitle | 14 mobile, 12 desktop | regular | text-muted | |
-| Drop-zone line / hint | 14 medium / 12 | | #D7D7D7 / text-hint | |
+| Drop-zone line / hint | 14 medium / 12 | | text-soft / text-hint | |
 | Nav title (mobile top bar) | 18 | bold | text | |
 | Badge | 10 | semibold | text-muted | 0.1em, uppercase |
 | Primary button | 15 mobile, 14 desktop | bold | black on accent | |
@@ -111,9 +112,11 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
   system navigation bar and tab bar and styles them to match.
 - **Text field**: `elevated`, radius 6, label above in field-label style, placeholder at
   `text-muted` 60 %. Year and Genre sit side by side in a two-column grid.
-- **Cover drop zone** (import): a square `card` block with a 1 px dashed `border-dashed` (accent
-  on hover), an image-plus icon (30, `text-muted`, accent on hover), "Click or drop an image"
-  (iOS: "Tap to choose a cover") and the hint "Square artwork works best".
+- **Cover drop zone** (import): the desktop import shows only the 120 compact square, a `card`
+  block with a 1 px dashed `border-dashed` (accent on hover), an image-plus icon (24, `text-muted`,
+  accent on hover) and "Click or drop an image" at 11 pt in `text-soft` (iOS: "Tap to choose a
+  cover"); a 28 pencil badge appears once filled. The hint "Square artwork works best" is rendered
+  once by the import layout under that row (see the Desktop import layout bullet).
 - **Audio drop zone**: a `card` block, min height 128, dashed border as above, an upload-cloud
   icon (26), "Drop audio files here, or click to choose" (iOS: "Tap to choose a file") and the
   hint "Singles are one file. Switch to Album for multiple." Below it, before any track exists,
