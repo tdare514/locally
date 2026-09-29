@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, eq, inArray, notInArray } from "drizzle-orm";
+import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { files } from "../../db/schema";
 import { NotFoundError, ValidationError } from "../../shared/errors";
@@ -38,15 +38,6 @@ export class ReleaseFilesService {
     private readonly now: () => number = () => Date.now()
   ) {}
 
-  private async existingBytesFor(userId: string, releaseId: string, names: string[]): Promise<number> {
-    if (names.length === 0) return 0;
-    const rows = await this.db
-      .select({ bytes: files.bytes })
-      .from(files)
-      .where(and(eq(files.userId, userId), eq(files.releaseId, releaseId), inArray(files.name, names)));
-    return rows.reduce((sum, row) => sum + row.bytes, 0);
-  }
-
   /**
    * Throws `ValidationError` if any input's declared `contentType` doesn't
    * match the one both clients derive from its extension (see
@@ -67,38 +58,54 @@ export class ReleaseFilesService {
     this.quota.assertFileSizes(inputs.map((f) => f.bytes));
 
     const requestedTotal = inputs.reduce((sum, f) => sum + f.bytes, 0);
-    const replacedTotal = await this.existingBytesFor(
-      userId,
-      releaseId,
-      inputs.map((f) => f.name)
-    );
-    const netAdditionalBytes = requestedTotal - replacedTotal;
-    if (netAdditionalBytes > 0) {
-      await this.quota.assertWithinQuota(userId, netAdditionalBytes);
+    const prepared = inputs.map((input) => ({ input, key: storageKeyFor(userId, releaseId, input.name) }));
+
+    // The quota check and the row upserts are ONE statement (#28: a write's
+    // preconditions are repeated inside the write), so two concurrent requests
+    // cannot both pass the check against the same usage. Usage, replaced bytes
+    // and the limit are all read inside the statement, never in a prior query.
+    // No network work happens before it succeeds: tickets are issued after. If
+    // that fails, the rows count bytes for a ticket never issued, the same as
+    // any abandoned upload today; nothing reclaims those yet (#89).
+    if (prepared.length > 0) {
+      const now = this.now();
+      const rows = sql.join(
+        prepared.map(
+          ({ input, key }) =>
+            sql`(${crypto.randomUUID()}, ${releaseId}, ${userId}, ${input.name}, ${input.bytes}, ${input.contentType}, ${key}, ${now})`
+        ),
+        sql`, `
+      );
+      const names = sql.join(
+        prepared.map(({ input }) => sql`${input.name}`),
+        sql`, `
+      );
+      const replaced = sql`COALESCE((SELECT SUM(bytes) FROM files WHERE user_id = ${userId} AND release_id = ${releaseId} AND name IN (${names})), 0)`;
+      const used = sql`COALESCE((SELECT SUM(bytes) FROM files WHERE user_id = ${userId}), 0)`;
+      const limit = sql`(SELECT storage_limit_bytes FROM users WHERE id = ${userId})`;
+      const result = await this.db.run(sql`
+        INSERT INTO files (id, release_id, user_id, name, bytes, content_type, storage_key, created_at)
+        SELECT column1, column2, column3, column4, column5, column6, column7, column8
+        FROM (VALUES ${rows})
+        WHERE ${requestedTotal} - ${replaced} <= 0
+           OR ${used} + ${requestedTotal} - ${replaced} <= ${limit}
+        ON CONFLICT (release_id, name) DO UPDATE SET
+          bytes = excluded.bytes,
+          content_type = excluded.content_type,
+          storage_key = excluded.storage_key,
+          created_at = excluded.created_at
+      `);
+      if (result.rowsAffected === 0) {
+        // Rejected by the guard. Re-run the plain check for the precise error
+        // (a missing user is a 404); otherwise it is the quota.
+        await this.quota.assertWithinQuota(userId, requestedTotal);
+        throw new ValidationError("Storage quota exceeded");
+      }
     }
 
     const tickets: UploadTicket[] = [];
-    for (const input of inputs) {
-      const key = storageKeyFor(userId, releaseId, input.name);
+    for (const { input, key } of prepared) {
       const ticket = await this.fileStore.createUpload({ key, bytes: input.bytes, contentType: input.contentType });
-
-      await this.db
-        .insert(files)
-        .values({
-          id: crypto.randomUUID(),
-          releaseId,
-          userId,
-          name: input.name,
-          bytes: input.bytes,
-          contentType: input.contentType,
-          storageKey: key,
-          createdAt: this.now(),
-        })
-        .onConflictDoUpdate({
-          target: [files.releaseId, files.name],
-          set: { bytes: input.bytes, contentType: input.contentType, storageKey: key, createdAt: this.now() },
-        });
-
       tickets.push({ name: input.name, url: ticket.url, method: ticket.method, headers: ticket.headers });
     }
     return tickets;

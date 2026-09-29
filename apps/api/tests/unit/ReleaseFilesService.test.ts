@@ -110,6 +110,22 @@ describe("ReleaseFilesService", () => {
     ).rejects.toThrow(ValidationError);
   });
 
+  it("lets only one of two concurrent requests through when together they exceed the quota", async () => {
+    // Each 600k request fits the 1M quota alone; together they do not.
+    const results = await Promise.allSettled([
+      service.createUploads(userId, releaseId, [{ name: "a.mp3", bytes: 600_000, contentType: "audio/mpeg" }]),
+      service.createUploads(userId, crypto.randomUUID(), [{ name: "b.mp3", bytes: 600_000, contentType: "audio/mpeg" }]),
+    ]);
+
+    const rejected = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]?.reason).toBeInstanceOf(ValidationError);
+    expect((rejected[0]?.reason as Error).message).toBe("Storage quota exceeded");
+    expect(await new QuotaService(db).usedBytes(userId)).toBe(600_000);
+    expect(store.created).toHaveLength(1);
+  });
+
   describe("pruneUnreferenced", () => {
     let rootDir: string;
     let realStore: LocalFileStore;
