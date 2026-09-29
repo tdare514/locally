@@ -55,13 +55,13 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 - Device tokens expire after a year unused (the account itself never expires) (lastSeenAt refreshed at most daily); a cross-user test matrix shows another account gets 404 on every release, file and device route (#33)
 - DELETE /v1/me deletes an account (email echoed as confirmation) in one transaction; its blobs are queued in pending_deletes and drained right after, with the daily cron as the guarantee (#34)
 - Email send (`POST /v1/auth/code`) and release file prune (`PUT /v1/releases/:id`) run after the response via Next `after()`; blob deletes are batched with `FileStore.deleteMany` (#31)
-- SQLite (libSQL) via Drizzle, migrated automatically on first request
+- SQLite (libSQL) via Drizzle; migrated in the Vercel build in production, on first request in development and tests (#90)
 - Release pulls are paged (#30): at most 200 releases or 2 MiB per `GET /v1/releases` page with `hasMore`; web and iOS loop until the last page, saving the cursor per page (100-page guard); `/v1/me` lists the 50 newest devices with `devicesHasMore`. Shipped clients stay correct and catch up over several reconciles
 - Deployed to https://locally-sync-api.vercel.app (Vercel project locally-sync-api: Turso database, private Blob store, Resend); both clients default to it; smoke-tested end to end 28 Sep from a Mac and an iPhone 14: sign-in, push each way, tombstone (#3 closed). Resend still uses the sandbox sender, which only delivers to the owner's address: verify a domain and set MAIL_FROM before anyone else signs up (#58, `launch` label)
+- Migrations run once per deploy in the Vercel build (`npm run db:migrate`, fails the deploy on error); each cold start only verifies the schema version. A redeploy of the current commit builds instead of being cancelled by the ignore step; pushes that don't touch apps/api are still skipped (#90)
 
 ## In progress
 - Security review of apps/api (#20): findings fixed 28 Sep; auth rate limits now live in the shared libSQL database, so they hold across Vercel instances
-- Sync API operations: the Vercel project's ignored-build-step cancels `vercel redeploy`, so an env change needs a push touching apps/api or `vercel deploy --prod --archive=tgz` from a repo root linked to locally-sync-api. The skip rule fails open since #57: if the last deployed commit is missing from Vercel's shallow clone the build goes ahead instead of erroring. Fix planned in `docs/plans/90-migrate-per-deploy.md` (#90): migrate in the Vercel build with a runtime schema guard, and let a redeploy of the same commit build; awaiting owner approval
 
 ## Known issues
 - Share extension can't be provisioned for a device build on the project's Personal team; simulator-only for now (see apps/ios/README.md)

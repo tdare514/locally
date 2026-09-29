@@ -33,7 +33,7 @@ src/server/
   http/          bearer, responses, validation, authContext, cors, clientIp, afterResponse
   config/env.ts  reads process.env once, with every default
   container.ts   getServices(): builds and memoises the graph above
-src/db/{client,schema}.ts, drizzle/   # Drizzle over libSQL; migrations run on first request
+src/db/{client,schema}.ts, drizzle/   # Drizzle over libSQL; migrations run in the Vercel build (scripts/migrate.mjs), runtime verifies
 src/shared/                           # wire contract: zod schemas + errors, shared with routes
 tests/support/{fixtures,testServices.ts}  # in-memory/temp-dir service graph for tests
 tests/unit/**                         # vitest against that graph
@@ -62,6 +62,10 @@ tests/unit/**                         # vitest against that graph
   `.env.example` documents keys without values.
 - **Schema changes go through `npm run db:generate`** (drizzle-kit), with the generated
   migration committed under `drizzle/`.
+- **Migrations must be compatible with the previous deployment's code.** Old instances keep
+  serving while the new build migrates, and a rollback runs older code on the newer schema: add
+  tables and nullable columns; never rename, drop, or tighten in the same release as the code
+  that stops using the old shape.
 - **Provider swaps** (file store, mailer, rate limiter, db) implement the existing interface and
   are wired in `container.ts`; services depend on interfaces only, never a concrete impl.
 - **Account deletion is one transaction plus the `pending_deletes` queue; never delete blobs

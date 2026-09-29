@@ -17,6 +17,7 @@ type FileStoreEnv = { fileStore: "local" } | { fileStore: "blob"; blobReadWriteT
 type MailerEnv = { mailer: "console" } | { mailer: "resend"; resendApiKey: string };
 
 export type Env = {
+  /** Mirrored by scripts/migrate.mjs (`DATABASE_URL`, else `TURSO_DATABASE_URL`); keep the two in step. */
   databaseUrl: string;
   /** libSQL auth token when it isn't embedded in the URL (Turso's Vercel integration sets it separately). */
   databaseAuthToken: string | undefined;
@@ -28,6 +29,13 @@ export type Env = {
   publicBaseUrl: string;
   /** Cost guardrail: the cleanup cron logs a warning once total stored bytes reach this. */
   storageAlertBytes: number;
+  /**
+   * Apply migrations on the first request (true) or only verify the schema is
+   * current (false). Defaults to true outside production, where the Vercel
+   * build migrates instead (scripts/migrate.mjs); `DB_MIGRATE_ON_START`
+   * overrides it.
+   */
+  migrateOnStart: boolean;
 } & FileStoreEnv &
   MailerEnv;
 
@@ -72,6 +80,14 @@ function resolveMailer(): MailerEnv {
   return { mailer: "console" };
 }
 
+/** `DB_MIGRATE_ON_START=true|1|false|0`; anything else (or unset) means `fallback`. */
+function parseMigrateOnStart(raw: string | undefined, fallback: boolean): boolean {
+  const v = raw?.trim().toLowerCase();
+  if (v === "true" || v === "1") return true;
+  if (v === "false" || v === "0") return false;
+  return fallback;
+}
+
 /** Read and validate every env var this app uses, applying dev-friendly defaults. */
 export function loadEnv(): Env {
   const isProduction = process.env.NODE_ENV === "production";
@@ -114,6 +130,7 @@ export function loadEnv(): Env {
     allowedOrigins: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
     publicBaseUrl: (process.env.PUBLIC_BASE_URL || "http://localhost:4000").replace(/\/+$/, ""),
     storageAlertBytes: parseByteCount(process.env.STORAGE_ALERT_BYTES, DEFAULT_STORAGE_ALERT_BYTES),
+    migrateOnStart: parseMigrateOnStart(process.env.DB_MIGRATE_ON_START, !isProduction),
     ...resolveFileStore(),
     ...resolveMailer(),
   };
