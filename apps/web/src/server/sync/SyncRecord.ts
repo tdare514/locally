@@ -32,7 +32,7 @@ const plainName = (what: string) => z.string().refine(isPlainSyncName, `${what} 
 /** The extensions the API accepts for `tracks[].file` and `cover` (`SUPPORTED_FILE_EXT` in apps/api). */
 export const SYNC_FILE_EXTENSIONS = ["mp3", "m4a", "jpg", "jpeg", "png"] as const;
 
-const SYNC_FILE_EXTENSION_RE = /\.(mp3|m4a|jpg|jpeg|png)$/i;
+const SYNC_FILE_EXTENSION_RE = new RegExp(`\\.(${SYNC_FILE_EXTENSIONS.join("|")})$`, "i");
 
 /** True when `name` ends in one of `SYNC_FILE_EXTENSIONS`, compared case-insensitively, as the API checks it. */
 export function hasSyncFileExtension(name: string): boolean {
@@ -83,9 +83,42 @@ export const SyncRecordSchema = z.object({
 export type SyncTrack = z.infer<typeof SyncTrackSchema>;
 export type SyncRecord = z.infer<typeof SyncRecordSchema>;
 
-/** Parse and validate an arbitrary JSON value as a `SyncRecord`, throwing a zod error if it doesn't match. */
+/**
+ * Thrown by `parseSyncRecord` for a record that has the right shape but names
+ * a file or id this app will not use (`isPlainSyncName` / `hasSyncFileExtension`).
+ * Distinct from a `ZodError` so `HttpSyncApi.listReleases` can skip the one
+ * record and keep the rest of the page, as iOS's `SyncRecordRejected` does.
+ */
+export class SyncRecordRejectedError extends Error {
+  constructor(
+    /** The record's `id` when it was a string, else `null`. */
+    readonly recordId: string | null,
+    /** One entry per refused name, e.g. `tracks.0.file: track file must end in one of: mp3, m4a, jpg, jpeg, png`. */
+    readonly reasons: string[]
+  ) {
+    super(`sync record ${recordId ?? "(no id)"} refused: ${reasons.join("; ")}`);
+    this.name = "SyncRecordRejectedError";
+  }
+}
+
+/**
+ * Parse and validate an arbitrary JSON value as a `SyncRecord`. Throws
+ * `SyncRecordRejectedError` when the only problems are refused names, and the
+ * zod error when the record is structurally broken.
+ */
 export function parseSyncRecord(data: unknown): SyncRecord {
-  return SyncRecordSchema.parse(data);
+  const result = SyncRecordSchema.safeParse(data);
+  if (result.success) return result.data;
+  const { issues } = result.error;
+  // The only `.refine()` calls in the schema are the name checks, so `custom` means a refused name.
+  if (issues.every((issue) => issue.code === "custom")) {
+    const id = typeof data === "object" && data !== null ? (data as { id?: unknown }).id : undefined;
+    throw new SyncRecordRejectedError(
+      typeof id === "string" ? id : null,
+      issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+    );
+  }
+  throw result.error;
 }
 
 /**

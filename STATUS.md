@@ -40,7 +40,7 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 - Share extension verified on an iPhone 12 Pro (iOS 18.7) and sync verified end to end on a phone, both 27 Sep 2026
 - Security backlog (#12) closed: M4ATagWriter checks `replaceItemAt` and removes its temp export, ID3TagWriter guards the synchsafe size limit and streams audio, the share extension allow-lists audio extensions and the Inbox sweeps orphaned files
 - Sync device name persists across relaunch and verify sends the model marketing name, e.g. "iPhone 14" (#38). A phone that signed in before this change keeps "iPhone" on the server until it signs out and back in; the model table stops at the iPhone 16 family (#64)
-- Web and iOS reject a sync record whose track or cover extension the API would refuse; the shared `invalid-*` fixtures assert it in all three apps (#39)
+- Web and iOS skip a pulled sync record whose track or cover extension the API would refuse, keep the rest of the page, and still fail the page on a structurally broken record; the shared `invalid-*` fixtures assert the refusal in all three apps (#39, web skip #60)
 - Import silhouette and long-press drag reorder checked on an iPhone 14, 28 Sep 2026 (#6): empty album shows three faint rows, empty single shows one, both with "No tracks yet"; two or more tracks show "Hold and drag a track to reorder." with no Edit button, and a saved release-page order is still there after leaving and coming back
 
 ### Sync API (apps/api)

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  SYNC_FILE_EXTENSIONS,
+  SyncRecordRejectedError,
   SyncRecordSchema,
   fromSyncRecord,
   hasSyncFileExtension,
@@ -199,6 +201,11 @@ describe("fromSyncRecord", () => {
 });
 
 describe("SyncRecordSchema refuses file names with an unsupported extension", () => {
+  it.each(SYNC_FILE_EXTENSIONS)("hasSyncFileExtension accepts every listed extension: %s", (ext) => {
+    expect(hasSyncFileExtension(`track.${ext}`)).toBe(true);
+    expect(hasSyncFileExtension(`track.${ext.toUpperCase()}`)).toBe(true);
+  });
+
   const rejectedAsTrackFile = [
     "01 - Intro.wav",
     "01 - Intro.flac",
@@ -319,5 +326,52 @@ describe("SyncRecordSchema refuses names that are not plain file names", () => {
     expect(isPlainSyncName("Étude Nº 3 (live) [2024].mp3")).toBe(true);
     expect(isPlainSyncName("a".repeat(255))).toBe(true);
     expect(() => parseSyncRecord(validRecord({ cover: null }))).not.toThrow();
+  });
+});
+
+function caught(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (err) {
+    return err;
+  }
+  throw new Error("expected the call to throw");
+}
+
+describe("parseSyncRecord distinguishes a refused name from a broken record", () => {
+  it("throws SyncRecordRejectedError for a track file with an unsupported extension, naming the record and the field", () => {
+    const record = validRecord();
+    const bad = { ...record, tracks: [{ ...record.tracks[0], file: "01 - Intro.wav" }] };
+    expect(() => parseSyncRecord(bad)).toThrow(SyncRecordRejectedError);
+    const err = caught(() => parseSyncRecord(bad)) as SyncRecordRejectedError;
+    expect(err.recordId).toBe(record.id);
+    expect(err.reasons).toHaveLength(1);
+    expect(err.reasons[0]).toContain("tracks.0.file");
+  });
+
+  it("throws SyncRecordRejectedError for a cover with an unsupported extension", () => {
+    expect(() => parseSyncRecord(validRecord({ cover: "cover.gif" }))).toThrow(SyncRecordRejectedError);
+  });
+
+  it("throws SyncRecordRejectedError for a track file containing a path separator", () => {
+    const record = validRecord();
+    const bad = { ...record, tracks: [{ ...record.tracks[0], file: "../x.mp3" }] };
+    expect(() => parseSyncRecord(bad)).toThrow(SyncRecordRejectedError);
+  });
+
+  it("throws a zod error, not SyncRecordRejectedError, for a record missing updatedAt", () => {
+    const rest: Partial<SyncRecord> = validRecord();
+    delete rest.updatedAt;
+    const err = caught(() => parseSyncRecord(rest));
+    expect(err).not.toBeInstanceOf(SyncRecordRejectedError);
+    expect((err as { issues?: unknown }).issues).toBeDefined();
+  });
+
+  it("throws a zod error, not SyncRecordRejectedError, for a record whose tracks are missing", () => {
+    const rest: Partial<SyncRecord> = validRecord();
+    delete rest.tracks;
+    const err = caught(() => parseSyncRecord(rest));
+    expect(err).not.toBeInstanceOf(SyncRecordRejectedError);
+    expect((err as { issues?: unknown }).issues).toBeDefined();
   });
 });
