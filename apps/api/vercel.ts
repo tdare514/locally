@@ -8,9 +8,12 @@ import type { VercelConfig } from "@vercel/config/v1";
  */
 export const config: VercelConfig = {
   crons: [{ path: "/v1/internal/cleanup", schedule: "0 0 * * *" }],
-  // Runs in apps/api; exit 0 skips the build. Diffs against the last deployed
-  // commit rather than HEAD^ so a multi-commit push is judged as a whole. With
-  // no previous deploy, or that commit missing from the shallow clone, the
-  // test or git fails and the build goes ahead.
-  ignoreCommand: 'test -n "$VERCEL_GIT_PREVIOUS_SHA" && git diff --quiet "$VERCEL_GIT_PREVIOUS_SHA" HEAD -- .',
+  // Runs in apps/api; exit 0 skips the build, exit 1 builds. Diffs against the
+  // last successfully deployed commit rather than HEAD^ so a multi-commit push
+  // is judged as a whole. Vercel clones shallowly, so that commit can be
+  // missing; git would then exit 128, which Vercel treats as a failed
+  // deployment rather than "build" (#57). The rev-parse guard turns that case
+  // into exit 1, as does an empty variable on the first deploy.
+  ignoreCommand:
+    'test -n "$VERCEL_GIT_PREVIOUS_SHA" && git rev-parse --verify --quiet "$VERCEL_GIT_PREVIOUS_SHA^{commit}" >/dev/null && git diff --quiet "$VERCEL_GIT_PREVIOUS_SHA" HEAD -- .',
 };
