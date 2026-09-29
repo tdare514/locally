@@ -6,7 +6,7 @@ Git history holds the past.
 Last updated: 2026-09-29
 
 ## Current focus
-Security hardening leftovers on iOS (#12) and Mac library work (#7). Mac packaging (#35) is decided (Electron) and planned, not in progress as code. One #36 point is decided and planned: before anyone else can sign up, the terms must say the user may upload only audio they own, or otherwise have the right to upload (ADR 0005, `docs/plans/36-own-the-audio.md`). Still owner decisions on #36: the privacy-policy URL and full privacy text, a takedown contact, whether the 30-day unused-blob cleanup is the retention policy, and whether first sign-ups are invite-only. Agent-readiness (#22–#25) and repo health (#13) are done; async email/deletes (#31) and the iOS import silhouette/reorder code (#6) landed.
+Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps. Blocker: the sync API's Vercel skip rule errors every production deploy until #57 is fixed. Mac packaging (#35) is decided (Electron) and planned, not in progress as code. One #36 point is decided and planned: before anyone else can sign up, the terms must say the user may upload only audio they own, or otherwise have the right to upload (ADR 0005, `docs/plans/36-own-the-audio.md`). Still owner decisions on #36: the privacy-policy URL and full privacy text, a takedown contact, whether the 30-day unused-blob cleanup is the retention policy, and whether first sign-ups are invite-only. Agent-readiness (#22–#25) and repo health (#13) are done; async email/deletes (#31) and the iOS import silhouette/reorder code (#6) landed.
 
 ## What works
 ### Web (apps/web)
@@ -38,6 +38,9 @@ Security hardening leftovers on iOS (#12) and Mac library work (#7). Mac packagi
 - Each release records which files the server holds, so a push retry after a partial failure uploads only what's missing and a cover replace re-uploads only the cover (#27)
 - "Make it a playlist" guide on the album done screen and release page: Copy button for the title, per-track iPhone steps and a fallback line (#21)
 - Share extension verified on an iPhone 12 Pro (iOS 18.7) and sync verified end to end on a phone, both 27 Sep 2026
+- Security backlog (#12) closed: M4ATagWriter checks `replaceItemAt` and removes its temp export, ID3TagWriter guards the synchsafe size limit and streams audio, the share extension allow-lists audio extensions and the Inbox sweeps orphaned files
+- Sync device name persists across relaunch and verify sends the model marketing name, e.g. "iPhone 14" (#38)
+- Web and iOS reject a sync record whose track or cover extension the API would refuse; the shared `invalid-*` fixtures assert it in all three apps (#39)
 - Import silhouette and long-press drag reorder checked on an iPhone 14, 28 Sep 2026 (#6): empty album shows three faint rows, empty single shows one, both with "No tracks yet"; two or more tracks show "Hold and drag a track to reorder." with no Edit button, and a saved release-page order is still there after leaving and coming back
 
 ### Sync API (apps/api)
@@ -53,9 +56,8 @@ Security hardening leftovers on iOS (#12) and Mac library work (#7). Mac packagi
 - Deployed to https://locally-sync-api.vercel.app (Vercel project locally-sync-api: Turso database, private Blob store, Resend); both clients default to it; smoke-tested end to end 28 Sep from a Mac and an iPhone 14: sign-in, push each way, tombstone (#3 closed). Resend still uses the sandbox sender, which only delivers to the owner's address: verify a domain and set MAIL_FROM before anyone else signs up
 
 ## In progress
-- Security hardening from the Sep 27 review: web origin check, zod validation, HTTPS-only sync, sign-out on base URL change, Keychain hardening and the iOS privacy manifest landed (#11 closed); the medium/low backlog is done on web (symlink-aware inside checks, index schema, ffmpeg watchdog, settings file perms, decoded CSRF path); iOS #12 share-extension allow-list and Inbox sweep are done; M4ATagWriter `replaceItemAt` temp cleanup and ID3TagWriter size guard remain (#12)
 - Security review of apps/api (#20): findings fixed 28 Sep; auth rate limits now live in the shared libSQL database, so they hold across Vercel instances
-- Sync API operations: the Vercel project's ignored-build-step cancels `vercel redeploy`, so an env change needs a push touching apps/api or `vercel deploy --prod --archive=tgz` from a repo root linked to locally-sync-api
+- Sync API operations: the Vercel project's ignored-build-step cancels `vercel redeploy`, so an env change needs a push touching apps/api or `vercel deploy --prod --archive=tgz` from a repo root linked to locally-sync-api. Since 29 Sep every git-triggered production build errors before it starts: the skip rule diffs against the last deployed commit (61eaa73), which has left Vercel's shallow clone (#57). Production still serves 61eaa73, which has every apps/api change on main
 
 ## Known issues
 - Share extension can't be provisioned for a device build on the project's Personal team; simulator-only for now (see apps/ios/README.md)
