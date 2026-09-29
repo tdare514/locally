@@ -2,7 +2,7 @@
 
 ## Summary
 
-ADR 0004 locks one clause. Before anyone else can sign up, the terms must say the
+ADR 0005 locks one clause. Before anyone else can sign up, the terms must say the
 user may upload only audio they have the rights to: they must own the audio, or
 otherwise have the right to upload it.
 
