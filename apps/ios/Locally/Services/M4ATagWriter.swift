@@ -13,7 +13,7 @@ final class M4ATagWriter: TagWriter {
 
     private let replaceItem: ReplaceItem
 
-    init(replaceItem: ReplaceItem = { original, replacement in
+    init(replaceItem: @escaping ReplaceItem = { original, replacement in
         _ = try FileManager.default.replaceItemAt(original, withItemAt: replacement)
     }) {
         self.replaceItem = replaceItem
