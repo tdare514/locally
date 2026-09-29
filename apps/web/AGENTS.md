@@ -48,6 +48,14 @@ src/server/
   container.ts                # getServices(): builds and memoises the singletons above
 src/app/api/**/route.ts   # thin HTTP handlers: parse via http/validation, call a service, respond
 src/app/api/sync/**/route.ts  # sync: code/verify/status/signout, reconcile, accept/[id]
+electron/                 # Mac desktop shell (Electron); compiled by tsconfig.electron.json to electron/dist
+  main.ts                 # spawns the Next standalone server on a free 127.0.0.1 port, opens one window, locks navigation
+  lib/freePort.ts         # findFreePort() on 127.0.0.1
+  lib/serverEnv.ts        # pure: env for the server child (HOSTNAME forced to 127.0.0.1, PORT, config dir, ffmpeg, PATH)
+  lib/migrateConfig.ts    # pure: first-launch copy of ~/.spotify-local-import config into Application Support
+  lib/waitForServer.ts    # polls the server URL until it answers or the child dies
+scripts/prepare-standalone.mjs  # copies public and .next/static into .next/standalone after the desktop build
+scripts/after-pack.mjs    # electron-builder hook: copies the standalone node_modules into the app bundle
 src/proxy.ts              # loopback-only + same-origin CSRF guard (Next middleware)
 src/lib/api-client.ts     # client-side typed fetch wrappers (imports src/shared/types)
 src/lib/crop-geometry.ts  # pure: square/original crop geometry, mirrors iOS ImageCropper.swift
@@ -68,6 +76,9 @@ tests/unit/routes/**      # route handlers called directly with a mocked getServ
   mutating requests. Don't relax this without updating `SECURITY.md`.
 - **No shell-string process spawning.** `ffmpeg`/`open` are invoked with `spawn`/`execFile` and
   argument arrays, never a shell string built from user input.
+- **Desktop shell.** `electron/` must keep the server's `HOSTNAME=127.0.0.1` (the standalone server
+  defaults to 0.0.0.0; ADR 0003 forbids that) and must not add a place to write beyond the app's
+  config dir. It runs the standalone build only, with no custom Next server and no path logic.
 - **Tests never touch real user directories.** No test may read/write `~/.spotify-local-import` or
   `~/Music`; use `os.tmpdir()` and an in-memory `SettingsStore` fake.
 
@@ -76,6 +87,20 @@ tests/unit/routes/**      # route handlers called directly with a mocked getServ
 ```bash
 npm run check   # next typegen && tsc --noEmit && eslint && vitest run
 ```
+
+### Building the desktop app
+
+```bash
+npm run desktop:build    # LOCALLY_DESKTOP_BUILD=1 next build + prepare-standalone + tsc for electron/
+npm run desktop          # run the built shell (needs desktop:build first)
+npm run desktop:dev      # shell against `npm run dev` on 127.0.0.1:3000 (start dev in another terminal)
+npm run desktop:package  # unsigned dist-desktop/mac-*/Locally.app via electron-builder
+```
+
+`LOCALLY_DESKTOP_SMOKE=1 LOCALLY_DESKTOP_USER_DATA=$(mktemp -d) electron electron/dist/main.js`
+prints `smoke-ok <url> <title>` and exits. Always pass the `LOCALLY_DESKTOP_USER_DATA` override for
+smoke and manual runs: without it the shell uses `~/Library/Application Support/Locally` and copies
+the real `~/.spotify-local-import` config into it on first launch.
 
 ## Adding a new storage backend or converter
 
