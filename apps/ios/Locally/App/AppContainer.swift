@@ -103,8 +103,8 @@ final class AppContainer {
         purchaseStatus.isFullUnlocked = purchase.isFullUnlocked
     }
 
-    static func production() -> AppContainer {
-        let modelContainer = Self.makeModelContainer(inMemory: false)
+    static func production() throws -> AppContainer {
+        let modelContainer = try ModelStore.open(at: ModelStore.defaultURL)
         let folder = UserDefaultsSpotifyFolder()
         let library = SwiftDataLibraryStore(context: modelContainer.mainContext)
         let importer = LocalFileImporter()
@@ -168,7 +168,8 @@ final class AppContainer {
         outbox: SyncOutbox? = nil,
         deviceName: @escaping () -> String = { "Test Device" }
     ) -> AppContainer {
-        let modelContainer = Self.makeModelContainer(inMemory: true)
+        // swiftlint:disable:next force_try
+        let modelContainer = try! ModelStore.open(at: nil)
         let coordinator = ReleaseCoordinator(
             importer: importer,
             transcoder: transcoder,
@@ -205,12 +206,6 @@ final class AppContainer {
             syncEngine: syncEngine,
             modelContainer: modelContainer
         )
-    }
-
-    private static func makeModelContainer(inMemory: Bool) -> ModelContainer {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: inMemory)
-        // swiftlint:disable:next force_try
-        return try! ModelContainer(for: ReleaseRecord.self, SyncOutboxRecord.self, configurations: configuration)
     }
 }
 

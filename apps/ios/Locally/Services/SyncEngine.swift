@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// The narrow interface `ReleaseCoordinator` pushes through after a
 /// successful user-initiated change. Kept separate from `SyncEngine` itself
@@ -121,6 +122,12 @@ final class SyncEngine: ReleaseSyncHook {
 
     private var reconcileTask: Task<Void, Never>?
     private var drainTask: Task<Void, Never>?
+    /// The last problem `surface(_:)` reported since the current reconcile
+    /// began, so a later successful send or the end-of-run reset can't wipe
+    /// it with `nil`.
+    private var reconcileIssue: String?
+
+    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Locally", category: "sync")
 
     /// Runs `reconcile()` on a timer while the app is foregrounded. Built
     /// lazily so its `tick` closure can capture `self` after the rest of
@@ -190,6 +197,7 @@ final class SyncEngine: ReleaseSyncHook {
     /// account the user signs into next.
     func signOut() async {
         if let deviceId = account.deviceId {
+            // Best-effort: offline must not stop the user signing out.
             try? await api.revokeDevice(deviceId)
         }
         clearLocalAccountState()
@@ -226,8 +234,12 @@ final class SyncEngine: ReleaseSyncHook {
     /// talks to the server.
     private func clearLocalAccountState() {
         account.clear()
-        try? outbox.removeAll()
-        try? library.clearSyncMarkers()
+        // A failure here would let queued work go out under the next account,
+        // or leave markers that stop a new account re-pushing everything, so
+        // it is surfaced (after the status reset below) rather than dropped.
+        var cleanupFailure: Error?
+        do { try outbox.removeAll() } catch { cleanupFailure = error }
+        do { try library.clearSyncMarkers() } catch { cleanupFailure = error }
         status.signedIn = false
         status.email = nil
         status.deviceName = nil
@@ -235,6 +247,44 @@ final class SyncEngine: ReleaseSyncHook {
         status.failedAcceptIds = []
         status.quota = nil
         status.lastError = nil
+        if let cleanupFailure {
+            surface(Copy.Sync.signOutCleanupFailed(cleanupFailure.localizedDescription), error: cleanupFailure)
+        }
+    }
+
+    /// Logs `error` and shows `message` on `status.lastError`. Also kept in
+    /// `reconcileIssue` so a reconcile that carries on past the problem still
+    /// ends with it visible.
+    private func surface(_ message: String, error: Error) {
+        Self.log.error("\(message, privacy: .public): \(String(describing: error), privacy: .public)")
+        status.lastError = message
+        reconcileIssue = message
+    }
+
+    /// Enqueues `id` for `operation`. A failure is surfaced, not swallowed:
+    /// the change would otherwise never reach the server. Callers still
+    /// drain, since other entries may be waiting.
+    @discardableResult
+    private func enqueue(_ id: UUID, _ operation: SyncOutboxEntry.Operation) -> Bool {
+        do {
+            try outbox.enqueue(id, operation)
+            return true
+        } catch {
+            surface(Copy.Sync.queueFailed(error.localizedDescription), error: error)
+            return false
+        }
+    }
+
+    /// Every local release, or `nil` after surfacing the failure. An empty
+    /// list must never stand in for an unreadable library: callers would
+    /// offer everything as new, skip tombstones, or drop pending work.
+    private func localReleases() -> [Release]? {
+        do {
+            return try library.all()
+        } catch {
+            surface(Copy.Sync.libraryUnreadable(error.localizedDescription), error: error)
+            return nil
+        }
     }
 
     // MARK: - Auto-reconcile
@@ -252,7 +302,7 @@ final class SyncEngine: ReleaseSyncHook {
     nonisolated func pushAfterChange(_ release: Release) {
         Task { @MainActor [weak self] in
             guard let self, self.isSignedIn else { return }
-            try? self.outbox.enqueue(release.id, .push)
+            self.enqueue(release.id, .push)
             await self.drainOutbox()
         }
     }
@@ -260,7 +310,7 @@ final class SyncEngine: ReleaseSyncHook {
     nonisolated func pushTombstone(_ id: UUID) {
         Task { @MainActor [weak self] in
             guard let self, self.isSignedIn else { return }
-            try? self.outbox.enqueue(id, .delete)
+            self.enqueue(id, .delete)
             await self.drainOutbox()
         }
     }
@@ -272,14 +322,14 @@ final class SyncEngine: ReleaseSyncHook {
     /// `reconcile`) still call this directly.
     func push(_ release: Release) async {
         guard isSignedIn else { return }
-        try? outbox.enqueue(release.id, .push)
+        enqueue(release.id, .push)
         await drainOutbox()
     }
 
     /// Enqueues `id` for tombstone (if signed in) and drains the outbox.
     func tombstone(_ id: UUID) async {
         guard isSignedIn else { return }
-        try? outbox.enqueue(id, .delete)
+        enqueue(id, .delete)
         await drainOutbox()
     }
 
@@ -315,7 +365,13 @@ final class SyncEngine: ReleaseSyncHook {
     private func runDrainLoop() async {
         var attemptedThisPass: Set<UUID> = []
         while true {
-            guard let entries = try? outbox.all() else { break }
+            let entries: [SyncOutboxEntry]
+            do {
+                entries = try outbox.all()
+            } catch {
+                surface(Copy.Sync.queueFailed(error.localizedDescription), error: error)
+                break
+            }
             guard let entry = entries.first(where: { !attemptedThisPass.contains($0.releaseId) }) else { break }
             attemptedThisPass.insert(entry.releaseId)
             await send(entry)
@@ -334,9 +390,11 @@ final class SyncEngine: ReleaseSyncHook {
     private func sendDelete(_ id: UUID) async {
         do {
             try await api.deleteRelease(id.uuidString)
+            // Best-effort: the server confirmed; a leftover entry only retries an idempotent delete.
             try? outbox.remove(id, ifOperation: .delete)
-            status.lastError = nil
+            status.lastError = reconcileIssue
         } catch {
+            // Best-effort: attempts/lastError bookkeeping only; the entry stays queued either way.
             try? outbox.recordFailure(id, error: error.localizedDescription)
             status.lastError = error.localizedDescription
         }
@@ -345,20 +403,24 @@ final class SyncEngine: ReleaseSyncHook {
     /// Looks the release up fresh (it may have changed, or vanished, since
     /// it was enqueued) rather than carrying a snapshot in the outbox entry.
     private func sendPush(_ id: UUID) async {
-        let localReleases = (try? library.all()) ?? []
+        // Unreadable library: leave the entry queued for the next drain.
+        guard let localReleases = localReleases() else { return }
         guard let release = localReleases.first(where: { $0.id == id }) else {
             // Deleted before this entry was drained: nothing to push, and
             // the delete itself either already went out or has its own
             // `.delete` entry queued — either way this stale `.push` entry
             // is simply dropped.
+            // Best-effort: a leftover stale entry is dropped again next drain.
             try? outbox.remove(id, ifOperation: .push)
             return
         }
         do {
             try await pushInternal(release)
+            // Best-effort: the server confirmed; a leftover entry only retries an idempotent push.
             try? outbox.remove(id, ifOperation: .push)
-            status.lastError = nil
+            status.lastError = reconcileIssue
         } catch {
+            // Best-effort: attempts/lastError bookkeeping only; the entry stays queued either way.
             try? outbox.recordFailure(id, error: error.localizedDescription)
             status.lastError = error.localizedDescription
         }
@@ -473,6 +535,7 @@ final class SyncEngine: ReleaseSyncHook {
     /// (re-read, so a title edit made while the upload ran isn't overwritten).
     /// Update-only for the same reason as `markPushed`.
     private func recordUploaded(_ name: String, for id: UUID) {
+        // Best-effort: if this can't be read or written the file is simply re-uploaded next push.
         guard var current = ((try? library.all()) ?? []).first(where: { $0.id == id }) else { return }
         guard !current.uploadedFileNames.contains(name) else { return }
         current.uploadedFileNames.append(name)
@@ -490,6 +553,7 @@ final class SyncEngine: ReleaseSyncHook {
         pushed.updatedAt = updatedAt
         pushed.syncedUpdatedAt = updatedAt
         pushed.uploadedFileNames = Array(uploaded).sorted()
+        // Best-effort: an unmarked release is just pushed again (idempotent).
         _ = try? library.updateIfPresent(pushed)
     }
 
@@ -518,6 +582,7 @@ final class SyncEngine: ReleaseSyncHook {
     }
 
     private func runReconcile() async {
+        reconcileIssue = nil
         do {
             // Back-filling first means a release pushed just now is already
             // reflected in the very next fetch below, so `lastVersion`
@@ -538,6 +603,7 @@ final class SyncEngine: ReleaseSyncHook {
             // Re-check after the await: a sign-out or account delete that
             // ran while `me()` was in flight has already cleared the
             // account, and nothing from this response may be written back.
+            // Best-effort: quota display only.
             if let me = try? await api.me(), isSignedIn {
                 status.quota = me.quota
                 if account.deviceName == nil {
@@ -549,7 +615,9 @@ final class SyncEngine: ReleaseSyncHook {
             status.lastRunAt = Date()
             // Don't stomp on an accept retry's own error message with `nil`
             // when one is still pending.
-            if status.failedAcceptIds.isEmpty {
+            if let reconcileIssue {
+                status.lastError = reconcileIssue
+            } else if status.failedAcceptIds.isEmpty {
                 status.lastError = nil
             }
         } catch {
@@ -575,7 +643,7 @@ final class SyncEngine: ReleaseSyncHook {
         for _ in 0..<Self.maxReleasePagesPerReconcile {
             let page = try await api.releases(sinceVersion: cursor, limit: syncReleasesPageLimit)
             for record in page.releases {
-                await process(record)
+                try await process(record)
             }
             // Only a pulled page's `nextVersion` may write `lastVersion`
             // (the #37 invariant); persisted after every page, not just the
@@ -610,7 +678,8 @@ final class SyncEngine: ReleaseSyncHook {
     private func retryFailedCoverUpdates() async {
         guard !status.failedCoverUpdates.isEmpty else { return }
         let pending = status.failedCoverUpdates
-        let localReleases = (try? library.all()) ?? []
+        // Unreadable library: keep everything pending rather than dropping it as "gone".
+        guard let localReleases = localReleases() else { return }
         for (recordId, record) in pending {
             guard let releaseId = UUID(uuidString: record.id),
                   let existingLocal = localReleases.first(where: { $0.id == releaseId }) else {
@@ -623,15 +692,30 @@ final class SyncEngine: ReleaseSyncHook {
         }
     }
 
-    private func process(_ record: SyncRecord) async {
+    /// Throws only when the library can't be read, which stops the fetch
+    /// before `account.lastVersion` advances past this page, so the page is
+    /// pulled again next reconcile instead of being misapplied.
+    private func process(_ record: SyncRecord) async throws {
         guard let recordId = UUID(uuidString: record.id) else { return }
-        let localReleases = (try? library.all()) ?? []
+        let localReleases: [Release]
+        do {
+            localReleases = try library.all()
+        } catch {
+            Self.log.error("Library unreadable while applying a pulled record: \(String(describing: error), privacy: .public)")
+            throw error
+        }
         let existingLocal = localReleases.first { $0.id == recordId }
 
         if record.deleted {
             status.pendingFromMac.removeAll { $0.id == record.id }
             if existingLocal != nil {
-                try? await coordinator.applyTombstone(recordId)
+                do {
+                    try await coordinator.applyTombstone(recordId)
+                } catch {
+                    // The cursor still advances, so this delete is not retried
+                    // automatically; the release stays until it is deleted again.
+                    surface(Copy.Sync.applyRemoteFailed(error.localizedDescription), error: error)
+                }
             }
             return
         }
@@ -649,6 +733,7 @@ final class SyncEngine: ReleaseSyncHook {
                 // and strand the files on this phone for good.
                 var caughtUp = existingLocal
                 caughtUp.updatedAt = record.updatedAt
+                // Best-effort: a stale updatedAt only means this echo is seen again.
                 _ = try? library.updateIfPresent(caughtUp)
             } else {
                 await applyRemoteUpdate(record, existingLocal: existingLocal)
@@ -686,8 +771,15 @@ final class SyncEngine: ReleaseSyncHook {
     /// retry on the next `reconcile()`, rather than being silently dropped.
     private func applyRemoteUpdate(_ record: SyncRecord, existingLocal: Release) async {
         guard let coverName = record.cover, isCoverChanged(record, existingLocal: existingLocal) else {
-            _ = try? await coordinator.applyRemoteUpdate(record)
-            status.failedCoverUpdates.removeValue(forKey: record.id)
+            do {
+                _ = try await coordinator.applyRemoteUpdate(record)
+                status.failedCoverUpdates.removeValue(forKey: record.id)
+            } catch {
+                // Kept for `retryFailedCoverUpdates()`: the cursor has moved on,
+                // so nothing else would bring this update back.
+                status.failedCoverUpdates[record.id] = record
+                surface(Copy.Sync.applyRemoteFailed(error.localizedDescription), error: error)
+            }
             return
         }
 
@@ -695,6 +787,7 @@ final class SyncEngine: ReleaseSyncHook {
             .appendingPathComponent("Locally-Sync-Cover-\(UUID().uuidString)", isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            // Best-effort temp-dir cleanup.
             defer { try? FileManager.default.removeItem(at: tempDir) }
 
             try await downloadFile(releaseId: record.id, name: coverName, into: tempDir)
@@ -730,9 +823,9 @@ final class SyncEngine: ReleaseSyncHook {
     /// that id already exists, so this never disturbs a `.delete` (or an
     /// already-queued `.push`) sitting in the outbox.
     private func backfillUnpushed() async {
-        let localReleases = (try? library.all()) ?? []
+        guard let localReleases = localReleases() else { return }
         for release in localReleases where needsPush(release) {
-            try? outbox.enqueue(release.id, .push)
+            enqueue(release.id, .push)
         }
     }
 
@@ -779,6 +872,7 @@ final class SyncEngine: ReleaseSyncHook {
             .appendingPathComponent("Locally-Sync-\(UUID().uuidString)", isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            // Best-effort temp-dir cleanup.
             defer { try? FileManager.default.removeItem(at: tempDir) }
 
             for track in record.tracks {
@@ -830,6 +924,7 @@ final class SyncEngine: ReleaseSyncHook {
     // MARK: - Helpers
 
     private static func fileSize(at url: URL) -> Int {
+        // Best-effort: an unreadable size counts as 0 (quota is enforced server-side).
         (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int ?? 0
     }
 
