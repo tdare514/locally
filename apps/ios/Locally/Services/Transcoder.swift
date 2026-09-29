@@ -22,11 +22,9 @@ protocol Transcoder {
 /// `AVAssetExportSession` with the Apple M4A (AAC 256 kbps) preset for
 /// everything else.
 final class AVTranscoder: Transcoder {
-    private static let passthroughExtensions: Set<String> = ["mp3", "m4a"]
-
     func prepare(_ file: StagedFile) async throws -> PreparedFile {
         let ext = file.url.pathExtension.lowercased()
-        if Self.passthroughExtensions.contains(ext) {
+        if SupportedAudio.passthrough.contains(ext) {
             return PreparedFile(url: file.url, ext: ext)
         }
 
@@ -37,7 +35,7 @@ final class AVTranscoder: Transcoder {
         // can't verify that itself.
         nonisolated(unsafe) let exportSession: AVAssetExportSession
         guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else {
-            throw LocallyError.transcodeFailed("This device can't convert that file.")
+            throw LocallyError.transcodeFailed(Copy.FileErrors.cannotConvertFile)
         }
         exportSession = session
 
@@ -60,7 +58,7 @@ final class AVTranscoder: Transcoder {
                     let message = exportSession.error?.localizedDescription ?? "Export failed."
                     continuation.resume(throwing: LocallyError.transcodeFailed(message))
                 default:
-                    continuation.resume(throwing: LocallyError.transcodeFailed("Unexpected export state."))
+                    continuation.resume(throwing: LocallyError.transcodeFailed(Copy.FileErrors.unexpectedExportState))
                 }
             }
         }

@@ -37,4 +37,10 @@ struct SupportedAudioTests {
             .map { $0.trimmingCharacters(in: .whitespaces) }
         #expect(!tokens.contains("aif"))
     }
+
+    @Test func passthroughIsASubsetOfTheSupportedExtensions() {
+        #expect(SupportedAudio.passthrough.isSubset(of: SupportedAudio.extensions))
+        #expect(SupportedAudio.passthrough.contains("mp3"))
+        #expect(!SupportedAudio.passthrough.contains("wav"))
+    }
 }

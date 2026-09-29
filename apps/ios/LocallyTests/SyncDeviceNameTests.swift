@@ -6,6 +6,8 @@ struct SyncDeviceNameTests {
     @Test func mapsKnownIdentifiers() {
         #expect(SyncDeviceName.name(forMachine: "iPhone14,7") == "iPhone 14")
         #expect(SyncDeviceName.name(forMachine: "iPhone17,5") == "iPhone 16e")
+        #expect(SyncDeviceName.name(forMachine: "iPhone18,3") == "iPhone 17")
+        #expect(SyncDeviceName.name(forMachine: "iPhone18,4") == "iPhone Air")
     }
 
     @Test func unknownIdentifierFallsBackToRawValue() {

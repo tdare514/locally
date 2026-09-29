@@ -29,6 +29,7 @@ struct ImportView: View {
     /// back to the foreground, since the share extension can only add to
     /// the inbox while this app isn't running.
     @State private var inboxFiles: [InboxFile] = []
+    @State private var inboxRefreshTask: Task<Void, Never>?
     /// How many waiting files the user last dismissed the toast for; it
     /// comes back only when the count changes (new songs arrived).
     @State private var dismissedCount: Int?
@@ -321,7 +322,19 @@ struct ImportView: View {
 
     private func refreshInbox() {
         guard let container else { return }
-        container.inbox.sweepOrphans()
+        let inbox = container.inbox
+        inboxRefreshTask?.cancel()
+        inboxRefreshTask = Task {
+            // The sweep lists the Inbox and stats every file; run it off the
+            // main actor and only reload the list once it has finished.
+            _ = await Task.detached(priority: .utility) { inbox.sweepOrphans() }.value
+            guard !Task.isCancelled else { return }
+            loadInboxFiles()
+        }
+    }
+
+    private func loadInboxFiles() {
+        guard let container else { return }
         // Files already sent to Spotify are never "waiting", even when the
         // connected folder happens to be one the inbox also scans.
         let knownPaths = Set(((try? container.library.all()) ?? []).flatMap { $0.tracks.map(\.filePath) })

@@ -29,6 +29,11 @@ enum SyncDeviceName {
         return result
     }
 
+    /// Hardware identifier → marketing name. Unknown identifiers fall back to
+    /// the raw string (see `name(forMachine:)`), so a missing entry is cosmetic.
+    /// To extend after a new iPhone ships: run
+    /// `xcrun simctl list devicetypes -j` on a Mac with the newest Xcode and
+    /// copy each new `modelIdentifier` / `name` pair from its output.
     private static let marketingNames: [String: String] = [
         "iPhone11,2": "iPhone XS",
         "iPhone11,4": "iPhone XS Max",
@@ -60,5 +65,10 @@ enum SyncDeviceName {
         "iPhone17,3": "iPhone 16",
         "iPhone17,4": "iPhone 16 Plus",
         "iPhone17,5": "iPhone 16e",
+        "iPhone18,1": "iPhone 17 Pro",
+        "iPhone18,2": "iPhone 17 Pro Max",
+        "iPhone18,3": "iPhone 17",
+        "iPhone18,4": "iPhone Air",
+        "iPhone18,5": "iPhone 17e",
     ]
 }

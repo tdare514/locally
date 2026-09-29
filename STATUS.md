@@ -39,7 +39,7 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 - "Make it a playlist" guide on the album done screen and release page: Copy button for the title, per-track iPhone steps and a fallback line (#21)
 - Share extension verified on an iPhone 12 Pro (iOS 18.7) and sync verified end to end on a phone, both 27 Sep 2026
 - Security backlog (#12) closed: M4ATagWriter checks `replaceItemAt` and removes its temp export, ID3TagWriter guards the synchsafe size limit and streams audio, the share extension allow-lists audio extensions and the Inbox sweeps orphaned files
-- Sync device name persists across relaunch and verify sends the model marketing name, e.g. "iPhone 14" (#38). A phone that signed in before this change keeps "iPhone" on the server until it signs out and back in; the model table stops at the iPhone 16 family (#64)
+- Sync device name persists across relaunch and verify sends the model marketing name, e.g. "iPhone 14" (#38). A phone that signed in before this change keeps "iPhone" on the server until it signs out and back in; the model table covers through the iPhone 17 family and iPhone Air, with a note in `SyncDeviceName.swift` on extending it (#64)
 - Web and iOS skip a pulled sync record whose track or cover extension the API would refuse, keep the rest of the page, and still fail the page on a structurally broken record; the shared `invalid-*` fixtures assert the refusal in all three apps (#39, web skip #60)
 - Import silhouette and long-press drag reorder checked on an iPhone 14, 28 Sep 2026 (#6): empty album shows three faint rows, empty single shows one, both with "No tracks yet"; two or more tracks show "Hold and drag a track to reorder." with no Edit button, and a saved release-page order is still there after leaving and coming back
 
@@ -65,7 +65,7 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 - Spotify caches local-file metadata; restart Spotify to see edits to an already-imported track
 
 ## Next
-- Follow-ups from the 29 Sep review of the Cursor PRs (#41–#55): web pull-page skip (#60), device-name backfill guard (#62), small iOS items (#64); owner decision on the Inbox sweep and import allow-list (#65)
+- Follow-ups from the 29 Sep review of the Cursor PRs (#41–#55): web pull-page skip (#60), device-name backfill guard (#62); owner decision on the Inbox sweep and import allow-list (#65)
 - Mac library development: search, sort, bulk actions, and playlist-aware grouping next; plan-only: conversion job queue, SQLite index, multi-library (#7)
 - Mac packaging (#35) is decided: wrap the existing Next.js app in Electron (`docs/adr/0004-package-the-mac-app-with-electron.md`, plan in `docs/plans/35-electron-packaging.md`). Planned, not started as code. Until that follow-up the app stays `cd apps/web && npm install && npm run dev` plus `brew install ffmpeg`. On #36 the rights clause is decided (ADR 0005) and the sign-up acknowledgement is planned; the privacy policy, takedown contact, retention statement, and invite-only question remain owner decisions. Sign-ups stay closed
 

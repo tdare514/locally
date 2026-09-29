@@ -27,7 +27,7 @@ final class M4ATagWriter: TagWriter {
         // can't verify that itself.
         nonisolated(unsafe) let exportSession: AVAssetExportSession
         guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetPassthrough) else {
-            throw LocallyError.taggingFailed("This device can't tag that file.")
+            throw LocallyError.taggingFailed(Copy.FileErrors.cannotTagFile)
         }
         exportSession = session
 
@@ -52,7 +52,7 @@ final class M4ATagWriter: TagWriter {
                         let message = exportSession.error?.localizedDescription ?? "Tagging failed."
                         continuation.resume(throwing: LocallyError.taggingFailed(message))
                     default:
-                        continuation.resume(throwing: LocallyError.taggingFailed("Unexpected export state."))
+                        continuation.resume(throwing: LocallyError.taggingFailed(Copy.FileErrors.unexpectedExportState))
                     }
                 }
             }
@@ -72,7 +72,7 @@ final class M4ATagWriter: TagWriter {
         }
         guard FileManager.default.fileExists(atPath: url.path) else {
             removeTempOutput(tmpOutput)
-            throw LocallyError.taggingFailed("The tagged file didn't land in place.")
+            throw LocallyError.taggingFailed(Copy.FileErrors.taggedFileMissing)
         }
     }
 
