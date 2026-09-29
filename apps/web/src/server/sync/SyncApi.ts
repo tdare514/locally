@@ -4,7 +4,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { PublicError } from "../../shared/errors";
-import { SyncRecordSchema, type SyncRecord } from "./SyncRecord";
+import { SyncRecordRejectedError, parseSyncRecord, type SyncRecord } from "./SyncRecord";
 
 export type SyncPlatform = "mac" | "ios";
 
@@ -183,11 +183,24 @@ export class HttpSyncApi implements SyncApi {
       { headers: this.headers(false) }
     );
     const body = await this.handle<{ releases: unknown[]; nextVersion: number; hasMore?: unknown }>(res);
-    const releases = body.releases.map((raw) => {
-      const record = SyncRecordSchema.parse(raw);
+    const releases: ListReleasesResult["releases"] = [];
+    for (const raw of body.releases) {
+      let record: SyncRecord;
+      try {
+        record = parseSyncRecord(raw);
+      } catch (err) {
+        // A record naming a file this app won't use is skipped, not fatal: the rest of the
+        // page and the cursor still advance, matching iOS. A structurally broken record still
+        // fails the page.
+        if (err instanceof SyncRecordRejectedError) {
+          console.warn(`SyncApi: skipping ${err.message}`);
+          continue;
+        }
+        throw err;
+      }
       const version = (raw as { version?: unknown }).version;
-      return { ...record, version: typeof version === "number" ? version : 0 };
-    });
+      releases.push({ ...record, version: typeof version === "number" ? version : 0 });
+    }
     return { releases, nextVersion: body.nextVersion, hasMore: body.hasMore === true };
   }
 

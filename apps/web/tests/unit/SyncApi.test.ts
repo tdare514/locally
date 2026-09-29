@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HttpSyncApi, SyncAuthError, SyncConflictError } from "../../src/server/sync/SyncApi";
+import { SyncRecordRejectedError } from "../../src/server/sync/SyncRecord";
 import { PublicError } from "../../src/shared/errors";
 
 interface FakeCall {
@@ -17,6 +18,24 @@ function jsonResponse(body: unknown, status = 200): Response {
     headers: { "content-type": "application/json" },
   });
 }
+
+const validWireRecord = {
+  syncVersion: 1,
+  id: "good",
+  kind: "single",
+  title: "T",
+  artist: "A",
+  year: null,
+  genre: null,
+  cover: null,
+  tracks: [{ id: "t1", title: "T", trackNumber: 1, file: "01 - T.mp3", bytes: 1, durationSec: null }],
+  origin: "ios",
+  originDevice: "iPhone",
+  createdAt: "2026-09-27T20:00:00Z",
+  updatedAt: "2026-09-27T20:00:00Z",
+  deleted: false,
+  version: 3,
+};
 
 beforeEach(() => {
   calls = [];
@@ -115,6 +134,24 @@ describe("HttpSyncApi request shape", () => {
     expect(result.hasMore).toBe(false);
   });
 
+  it("listReleases skips a record with a refused extension, keeps the others, and still returns nextVersion/hasMore", async () => {
+    const good = validWireRecord;
+    const bad = { ...good, id: "bad", tracks: [{ ...good.tracks[0], file: "01 - T.wav" }], version: 4 };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    mockNextResponse(jsonResponse({ releases: [good, bad], nextVersion: 5, hasMore: true }));
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+
+    const result = await api.listReleases(0, 200);
+
+    expect(result.releases.map((r) => r.id)).toEqual(["good"]);
+    expect(result.releases[0].version).toBe(3);
+    expect(result.nextVersion).toBe(5);
+    expect(result.hasMore).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain("bad");
+    warn.mockRestore();
+  });
+
   it("deleteAccount DELETEs /v1/me with the email as the JSON body", async () => {
     mockNextResponse(jsonResponse({}));
     const api = new HttpSyncApi("http://localhost:4000", "tok");
@@ -198,11 +235,15 @@ describe("HttpSyncApi error mapping", () => {
     await expect(api.revokeDevice("dev-1")).resolves.toBeUndefined();
   });
 
-  it("listReleases rejects when a returned release fails schema validation", async () => {
-    mockNextResponse(jsonResponse({ releases: [{ not: "a valid record" }], nextVersion: 1 }));
+  it("listReleases rejects the whole page when a record is structurally broken (missing updatedAt)", async () => {
+    mockNextResponse(
+      jsonResponse({ releases: [validWireRecord, { ...validWireRecord, id: "broken", updatedAt: undefined }], nextVersion: 1 })
+    );
     const api = new HttpSyncApi("http://localhost:4000", "tok");
 
-    await expect(api.listReleases(0, 200)).rejects.toBeTruthy();
+    const call = api.listReleases(0, 200);
+    await expect(call).rejects.toBeTruthy();
+    await expect(call).rejects.not.toBeInstanceOf(SyncRecordRejectedError);
   });
 });
 

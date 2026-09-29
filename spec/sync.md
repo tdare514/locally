@@ -35,8 +35,10 @@ Identical to the shared metadata model plus sync fields. `tracks[].file` names t
 object; the name never changes after upload (Spotify playlists depend on file names on both
 devices, and both apps re-tag in place). `tracks[].file` and `cover` end in one of `mp3`,
 `m4a`, `jpg`, `jpeg`, `png` (case-insensitive: the name's last `.`-suffix, compared in lower
-case). The API refuses any other name with a 400, and both clients refuse such a record before
-using any file name in it.
+case). The API refuses any other name with a 400. Both clients skip such a record when it arrives
+in a `GET /v1/releases` page (the rest of the page is still applied and the cursor advances past
+it), and never use any file name in it; a structurally broken record, such as one missing a field,
+still fails the whole page.
 
 ```json
 {
@@ -76,8 +78,8 @@ Server-side each record also carries `userId`, `version` (integer, bumped on eve
 file name prefix says what every reader must do with it:
 
 - `valid-*`: every app parses it.
-- `invalid-*`: every app rejects it (the API with a 400, clients before using any file name in
-  it).
+- `invalid-*`: every app rejects it (the API with a 400; clients skip a record with a refused
+  name and fail the page on a structurally broken one, without ever using a file name from it).
 
 Any change to the record, or to what a reader accepts, updates the fixtures in the same change,
 so that a record defined differently in one app fails that app's tests instead of failing a
