@@ -23,6 +23,10 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  XCODEGEN_VERSION: 2.46.0
+  XCODEGEN_SHA256: 4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806
+
 jobs:
   build-and-test:
     runs-on: macos-15
@@ -32,13 +36,28 @@ jobs:
         working-directory: apps/ios
     steps:
       - uses: actions/checkout@v4
-      - run: brew install xcodegen
+      - name: Install XcodeGen ${{ env.XCODEGEN_VERSION }}
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL -o xcodegen.zip \
+            "https://github.com/yonaskolb/XcodeGen/releases/download/${XCODEGEN_VERSION}/xcodegen.zip"
+          echo "${XCODEGEN_SHA256}  xcodegen.zip" | shasum -a 256 -c -
+          unzip -q xcodegen.zip
+          echo "$PWD/xcodegen/bin" >> "$GITHUB_PATH"
       - run: xcodegen generate
       - name: Build
         run: |
           xcodebuild -project Locally.xcodeproj -scheme Locally -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
+      # Pick an available iPhone simulator rather than naming one, so a runner
+      # image that drops a device model does not break the build.
       - name: Test
         run: |
+          SIM_ID=$(xcrun simctl list devices available --json \
+            | jq -r '[.devices | to_entries[] | select(.key | contains("iOS")) | .value[]
+                      | select(.name | startswith("iPhone"))][0].udid')
+          if [ -z "$SIM_ID" ] || [ "$SIM_ID" = "null" ]; then
+            echo "::error::No available iPhone simulator on this runner"; exit 1
+          fi
           xcodebuild test -project Locally.xcodeproj -scheme Locally \
-            -destination 'platform=iOS Simulator,name=iPhone 16' CODE_SIGNING_ALLOWED=NO
+            -destination "platform=iOS Simulator,id=$SIM_ID" CODE_SIGNING_ALLOWED=NO

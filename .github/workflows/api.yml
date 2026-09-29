@@ -36,3 +36,14 @@ jobs:
           cache-dependency-path: apps/api/package-lock.json
       - run: npm ci
       - run: npm run check
+      - run: npm run build
+      # Migrations run on the live database on first request, so the committed
+      # drizzle/ folder must be exactly what the schema generates.
+      - name: Migrations match schema
+        run: |
+          npm run db:generate
+          if [ -n "$(git status --porcelain -- drizzle)" ]; then
+            git status --short -- drizzle
+            echo "::error::src/db/schema.ts changed without a committed migration; run npm run db:generate in apps/api and commit apps/api/drizzle"
+            exit 1
+          fi

@@ -8,7 +8,7 @@ product plan and `spec/metadata.md` for the metadata model shared with `apps/web
 ## Requirements
 
 - Xcode 26 or later, with the iOS 17+ SDK.
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen) on `PATH` (`brew install xcodegen`).
+- [XcodeGen](https://github.com/yonaskolb/XcodeGen) on `PATH` (`brew install xcodegen`). CI pins 2.46.0 in `.github/workflows/ios.yml`.
 - An iOS Simulator runtime installed (Xcode > Settings > Components) to run the app or
   its tests. Building for the simulator SDK does **not** require a runtime, but Xcode's
   asset-catalog compiler (`actool`) does need one installed to compile `Assets.xcassets`
