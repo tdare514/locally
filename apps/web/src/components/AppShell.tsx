@@ -41,8 +41,10 @@ export default function AppShell() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  // Only the first load shows "Loading…": later refreshes (after an import,
+  // edit, delete, or bulk action) swap the list in place so the library view
+  // keeps its toolbar and selection state on screen.
   const refreshLibrary = useCallback(() => {
-    setLoadingLibrary(true);
     return getLibrary()
       .then((lib) => setLibrary(lib))
       .catch((e) =>
@@ -52,8 +54,6 @@ export default function AppShell() {
   }, [showToast]);
 
   useEffect(() => {
-    // Fetch-on-mount: refreshLibrary sets loading state before its async fetch resolves.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshLibrary();
   }, [refreshLibrary]);
 
@@ -126,6 +126,8 @@ export default function AppShell() {
             onSortChange={setLibrarySort}
             onSelectRelease={(id) => setView({ type: "release", id })}
             onImport={openImport}
+            onBulkDone={refreshLibrary}
+            onToast={showToast}
           />
         )}
         {view.type === "import" && (
