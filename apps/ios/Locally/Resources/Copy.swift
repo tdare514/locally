@@ -186,6 +186,15 @@ enum Copy {
         static let version = "Version"
     }
 
+    /// Messages carried by `LocallyError` from the tag writers and transcoder.
+    enum FileErrors {
+        static let coverTooLargeForMp3 = "That cover is too large to store in an mp3."
+        static let cannotTagFile = "This device can't tag that file."
+        static let cannotConvertFile = "This device can't convert that file."
+        static let unexpectedExportState = "Unexpected export state."
+        static let taggedFileMissing = "The tagged file didn't land in place."
+    }
+
     enum Inbox {
         static func waitingBanner(count: Int) -> String {
             count == 1 ? "1 song is waiting to be tagged." : "\(count) songs are waiting to be tagged."

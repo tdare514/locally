@@ -7,6 +7,11 @@ import Foundation
 enum SupportedAudio {
     static let extensions: Set<String> = ["mp3", "m4a", "wav", "flac", "aiff", "aif"]
 
+    /// The subset `AVTranscoder` hands to the tag writers untouched; every
+    /// other supported extension is converted to m4a first. Kept here, next
+    /// to `extensions`, so the two lists cannot drift apart.
+    static let passthrough: Set<String> = ["mp3", "m4a"]
+
     /// True when `fileName` has an extension (case-insensitive) on the list.
     static func isSupported(fileName: String) -> Bool {
         let ext = (fileName as NSString).pathExtension.lowercased()

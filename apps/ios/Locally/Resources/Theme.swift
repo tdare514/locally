@@ -54,6 +54,9 @@ enum Theme {
         static let dropZoneHint = SwiftUI.Font.system(size: 12, weight: .regular)
         static let badge = SwiftUI.Font.system(size: 10, weight: .semibold)
         static let primaryButton = SwiftUI.Font.system(size: 15, weight: .bold)
+        /// Trailing row chevron (library rows, compact release-detail rows),
+        /// drawn in `textDim` per `docs/design.md`.
+        static let chevron = SwiftUI.Font.system(size: 13, weight: .semibold)
     }
 
     /// Corner radii from "Shape and spacing". Pill shapes (buttons, the

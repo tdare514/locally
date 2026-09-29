@@ -148,7 +148,7 @@ struct LibraryView: View {
             Spacer()
 
             Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
+                .font(Theme.Font.chevron)
                 .foregroundStyle(Theme.textDim)
         }
         .padding(.horizontal, 12)

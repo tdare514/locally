@@ -230,7 +230,7 @@ struct FileRow: View {
             // `docs/design.md`'s Mobile Editor Tracks section.
             if isCompact {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(Theme.Font.chevron)
                     .foregroundStyle(Theme.textDim)
                     .accessibilityHidden(true)
             }

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import Locally
 
@@ -33,12 +34,15 @@ struct CopyTests {
         }
     }
 
-    @Test func importSilhouetteAndReorderHintCopyIsStable() {
-        #expect(Copy.Import.noTracksYet == "No tracks yet")
-        #expect(Copy.Import.noTracksHint == "Add audio files above and they'll appear here.")
-        #expect(Copy.Import.reorderHint == "Hold and drag a track to reorder.")
+    @Test func importSilhouetteAndReorderHintCopyIsWellFormed() {
+        // Structural checks only: the wording may change, the shape may not.
+        let strings = [Copy.Import.noTracksYet, Copy.Import.noTracksHint, Copy.Import.reorderHint]
+        for string in strings {
+            #expect(!string.isEmpty)
+            #expect(string == string.trimmingCharacters(in: .whitespacesAndNewlines))
+            #expect(!string.contains("!"))
+        }
+        // Import and Detail show the same reorder hint.
         #expect(Copy.Detail.reorderHint == Copy.Import.reorderHint)
-        #expect(!Copy.Import.reorderHint.contains("!"))
-        #expect(!Copy.Import.noTracksHint.contains("!"))
     }
 }

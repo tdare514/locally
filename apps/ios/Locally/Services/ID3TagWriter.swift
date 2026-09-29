@@ -49,7 +49,7 @@ final class ID3TagWriter: TagWriter {
     func write(_ tags: TagSet, cover: Data?, to url: URL) async throws {
         let frames = buildFrames(tags: tags, cover: cover)
         guard Self.canEncodeSynchsafe(frames.count), frames.count < tagBodyLimit else {
-            throw LocallyError.taggingFailed("That cover is too large to store in an mp3.")
+            throw LocallyError.taggingFailed(Copy.FileErrors.coverTooLargeForMp3)
         }
         let header = buildHeader(framesSize: frames.count)
 
