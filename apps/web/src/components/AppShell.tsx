@@ -8,6 +8,7 @@ import LibraryView from "./LibraryView";
 import ImportView from "./ImportView";
 import ReleaseView from "./ReleaseView";
 import SettingsView from "./SettingsView";
+import type { LibrarySort } from "../lib/library-sections";
 import Toast, { type ToastMessage } from "./Toast";
 
 export type View =
@@ -21,6 +22,9 @@ export default function AppShell() {
   const [library, setLibrary] = useState<Library | null>(null);
   const [loadingLibrary, setLoadingLibrary] = useState(true);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  // Lives here (not in LibraryView) so the query survives opening a release and coming back.
+  const [libraryQuery, setLibraryQuery] = useState("");
+  const [librarySort, setLibrarySort] = useState<LibrarySort>("newest");
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const nextToastId = useRef(0);
 
@@ -101,6 +105,9 @@ export default function AppShell() {
         releases={library?.releases ?? []}
         loading={loadingLibrary}
         view={view}
+        query={libraryQuery}
+        sort={librarySort}
+        onClearQuery={() => setLibraryQuery("")}
         pendingFromPhone={syncStatus?.pendingFromPhone ?? []}
         onAcceptFromPhone={handleAcceptFromPhone}
         onSelectRelease={(id) => setView({ type: "release", id })}
@@ -113,6 +120,10 @@ export default function AppShell() {
           <LibraryView
             releases={library?.releases ?? []}
             loading={loadingLibrary}
+            query={libraryQuery}
+            sort={librarySort}
+            onQueryChange={setLibraryQuery}
+            onSortChange={setLibrarySort}
             onSelectRelease={(id) => setView({ type: "release", id })}
             onImport={openImport}
           />

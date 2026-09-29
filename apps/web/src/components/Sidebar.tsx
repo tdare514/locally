@@ -2,7 +2,11 @@
 
 import type { PendingFromPhone, Release } from "../shared/types";
 import { coverUrl } from "../lib/api-client";
-import { partitionLibrary } from "../lib/library-sections";
+import {
+  filterLibrary,
+  partitionLibrary,
+  type LibrarySort,
+} from "../lib/library-sections";
 import type { View } from "./AppShell";
 import { MusicNoteIcon } from "./Icons";
 
@@ -10,6 +14,9 @@ interface SidebarProps {
   releases: Release[];
   loading: boolean;
   view: View;
+  query: string;
+  sort: LibrarySort;
+  onClearQuery: () => void;
   pendingFromPhone: PendingFromPhone[];
   onAcceptFromPhone: (id: string) => void;
   onSelectRelease: (id: string) => void;
@@ -28,6 +35,9 @@ export default function Sidebar({
   releases,
   loading,
   view,
+  query,
+  sort,
+  onClearQuery,
   pendingFromPhone,
   onAcceptFromPhone,
   onSelectRelease,
@@ -35,7 +45,8 @@ export default function Sidebar({
   onImportClick,
   onSettingsClick,
 }: SidebarProps) {
-  const { singles, albums } = partitionLibrary(releases);
+  const searching = query.trim() !== "";
+  const { singles, albums } = partitionLibrary(filterLibrary(releases, query), sort);
 
   return (
     <aside className="flex w-full shrink-0 flex-row border-b border-border bg-card md:h-full md:w-64 md:flex-col md:border-b-0 md:border-r">
@@ -95,6 +106,29 @@ export default function Sidebar({
         )}
 
         {loading && <p className="px-2 text-sm text-text-muted">Loading…</p>}
+
+        {!loading && releases.length > 0 && searching && (
+          <div className="flex items-baseline justify-between gap-2 px-2 pb-1">
+            <p className="min-w-0 truncate text-[11px] text-text-dim">
+              Showing matches for “{query.trim()}”
+            </p>
+            <button
+              type="button"
+              onClick={onClearQuery}
+              className="shrink-0 text-[11px] font-semibold text-accent hover:underline"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
+        {!loading &&
+          releases.length > 0 &&
+          searching &&
+          singles.length === 0 &&
+          albums.length === 0 && (
+            <p className="px-2 py-2 text-sm text-text-muted">No matches.</p>
+          )}
 
         {!loading && releases.length === 0 && (
           <p className="px-2 py-2 text-sm text-text-muted">
