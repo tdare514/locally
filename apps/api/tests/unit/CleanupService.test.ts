@@ -113,6 +113,62 @@ describe("CleanupService", () => {
     expect(result.totalStoredBytes).toBe(2);
   });
 
+  it("cleans more old tombstone files than one page, and a second run finds nothing", async () => {
+    const tombstoneIds = [
+      await insertRelease(true, clock - 31 * DAY_MS),
+      await insertRelease(true, clock - 45 * DAY_MS),
+      await insertRelease(true, clock - 90 * DAY_MS),
+    ];
+    const liveReleaseId = await insertRelease(false, clock - 60 * DAY_MS);
+
+    const tombstoneFiles = Array.from({ length: 450 }, (_, i) => {
+      const releaseId = tombstoneIds[i % tombstoneIds.length]!;
+      const name = `${String(i).padStart(3, "0")}.mp3`;
+      return {
+        id: crypto.randomUUID(),
+        releaseId,
+        userId,
+        name,
+        bytes: 1,
+        contentType: "audio/mpeg",
+        storageKey: `users/${userId}/releases/${releaseId}/${name}`,
+        createdAt: clock,
+      };
+    });
+    const liveKey = `users/${userId}/releases/${liveReleaseId}/01.mp3`;
+    await db.insert(files).values([
+      ...tombstoneFiles,
+      {
+        id: crypto.randomUUID(),
+        releaseId: liveReleaseId,
+        userId,
+        name: "01.mp3",
+        bytes: 1,
+        contentType: "audio/mpeg",
+        storageKey: liveKey,
+        createdAt: clock,
+      },
+    ]);
+
+    const cleanup = new CleanupService(db, fileStore, () => clock);
+    const first = await cleanup.run();
+
+    expect(first.deletedFiles).toBe(450);
+    expect([...fileStore.deleted].sort()).toEqual(tombstoneFiles.map((f) => f.storageKey).sort());
+    const afterFirst = await db.select().from(files);
+    expect(afterFirst.map((f) => f.storageKey)).toEqual([liveKey]);
+    const tombstoneRows = await db.select().from(releases);
+    expect(tombstoneRows).toHaveLength(4);
+    expect(tombstoneRows.filter((r) => r.deleted)).toHaveLength(3);
+
+    fileStore.deleted = [];
+    const second = await cleanup.run();
+
+    expect(second.deletedFiles).toBe(0);
+    expect(fileStore.deleted).toEqual([]);
+    expect((await db.select().from(files)).map((f) => f.storageKey)).toEqual([liveKey]);
+  });
+
   it("returns 0 total stored bytes when the files table is empty", async () => {
     const cleanup = new CleanupService(db, fileStore, () => clock);
     const result = await cleanup.run();
@@ -148,6 +204,35 @@ describe("CleanupService", () => {
     const remaining = await db.select().from(authCodes);
     expect(remaining).toHaveLength(1);
     expect(remaining[0]?.email).toBe("b@example.com");
+  });
+
+  it("deletes more expired auth codes than one page", async () => {
+    const expired = Array.from({ length: 450 }, (_, i) => ({
+      id: crypto.randomUUID(),
+      email: `expired${i}@example.com`,
+      codeHash: "x",
+      createdAt: clock - DAY_MS,
+      expiresAt: clock - 1000 - i,
+      attempts: 0,
+      consumedAt: null,
+    }));
+    const valid = ["keep1@example.com", "keep2@example.com"].map((email) => ({
+      id: crypto.randomUUID(),
+      email,
+      codeHash: "y",
+      createdAt: clock,
+      expiresAt: clock + 10 * 60 * 1000,
+      attempts: 0,
+      consumedAt: null,
+    }));
+    await db.insert(authCodes).values([...expired, ...valid]);
+
+    const cleanup = new CleanupService(db, fileStore, () => clock);
+    const result = await cleanup.run();
+
+    expect(result.deletedAuthCodes).toBe(450);
+    const remaining = await db.select().from(authCodes);
+    expect(remaining.map((r) => r.email).sort()).toEqual(["keep1@example.com", "keep2@example.com"]);
   });
 
   it("deletes rate limit windows older than 24h but keeps recent ones", async () => {
