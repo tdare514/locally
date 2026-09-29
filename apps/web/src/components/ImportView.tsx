@@ -249,7 +249,7 @@ export default function ImportView({
           <UploadCloudIcon
             className={`h-[26px] w-[26px] ${dragOver ? "text-accent" : "text-text-muted"}`}
           />
-          <p className="text-sm font-medium text-[#D7D7D7]">
+          <p className="text-sm font-medium text-text-soft">
             Drop audio files here, or click to choose
           </p>
           {kind === "single" ? (
