@@ -21,6 +21,7 @@ Security hardening leftovers on iOS (#12) and Mac library work (#7). Mac packagi
 - Guided "Make it a playlist" disclosure on album release pages: Copy button for the title, per-track Mac steps and a fallback line; opens expanded on the page an album import lands on (#21)
 - One-time "Spotify can't see this yet" prompt on the release page: copy path, open Spotify settings, dismiss; hidden once Spotify's local-files index lists the library folder
 - Library is the home view: empty state mirrors iOS onboarding (diagram + Add your first single / Make an album); populated library splits Singles and Albums with counts in the main list and the sidebar (#7)
+- Release page header is compact: a 112 cover thumb beside the kind badge, title, and artist, with the metadata fields below. Import puts a 120 cover beside title and artist, then year and genre (#7)
 
 ### iOS (apps/ios)
 - Onboarding picks the Spotify Local Files folder via a security-scoped bookmark
@@ -62,7 +63,7 @@ Security hardening leftovers on iOS (#12) and Mac library work (#7). Mac packagi
 
 ## Next
 - On-device confirmation of the import silhouette and long-press drag reorder on a phone (checklist in `apps/ios/README.md`; ViewModel reorder tests landed) (#6)
-- Mac library development: compact release header and import page cleanup next; then search, sort, bulk actions, playlist-aware grouping; plan-only: conversion job queue, SQLite index, multi-library (#7)
+- Mac library development: search, sort, bulk actions, and playlist-aware grouping next; plan-only: conversion job queue, SQLite index, multi-library (#7)
 - Mac packaging (#35) is decided: wrap the existing Next.js app in Electron (`docs/adr/0004-package-the-mac-app-with-electron.md`, plan in `docs/plans/35-electron-packaging.md`). Planned, not started as code. Until that follow-up the app stays `cd apps/web && npm install && npm run dev` plus `brew install ffmpeg`. On #36 the rights clause is decided (ADR 0005) and the sign-up acknowledgement is planned; the privacy policy, takedown contact, retention statement, and invite-only question remain owner decisions. Sign-ups stay closed
 
 ## Architecture decisions

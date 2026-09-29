@@ -126,10 +126,11 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
   `text-dim` 12 pt line under the Tracks header reads "Hold and drag a track to reorder." — the
   album builder's list supports long-press drag-to-reorder without an Edit mode on iOS 16+, so
   there is no toolbar Edit button any more (it only mismatched the Single/Album layouts).
-- **Desktop import layout**: two columns, 240 cover column and the form; fields in a two-column
-  grid; the audio drop zone full width; a footer row with a 1 px `border` on top holding a
-  `text-dim` note "Your files stay on this device." on the left and the primary button on the
-  right.
+- **Desktop import layout**: cover first — a 120 compact square beside Title and Artist, so the
+  cover stays in view while those are typed — then the hint "Square artwork works best", then
+  Year and Genre in a two-column grid. The audio drop zone is full width and tracks follow. A
+  footer row with a 1 px `border` on top holds a `text-dim` note "Your files stay on this device."
+  on the left and the primary button on the right.
 - **Library list (mobile)**: one `card` container, radius 12, 1 px `border`; rows 78 min height
   with 12 padding, 56 square art radius 6 (or an `elevated` tile with a muted note icon), title
   and subtitle (albums: "artist · N tracks"), a `text-dim` chevron at the right; rows separated by
@@ -149,8 +150,11 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
   52, a 30 pt `elevated` tile holding an accent file-music icon, filename 14 medium, "Audio file"
   12 muted, chevron. No Edit-mode toolbar button; reordering is a plain long-press drag. Sticky
   footer with the save action.
-- **Desktop release page**: breadcrumb eyebrow "LIBRARY / SINGLE", title 36, "artist · year" in
-  `text-muted`, then a 180 cover beside the fields.
+- **Desktop release page**: the same compact header as the mobile editor, on the 920-wide page.
+  A 112 cover thumb (radius 10, 1 px `border`, 28 circular pencil badge) sits beside the kind
+  badge, the title (page title, 2 lines) and the artist in `text-muted`. Under that, the DETAILS
+  eyebrow and "Tap to edit" (no separate Metadata title), then Title, Artist, and Year/Genre.
+  Tracks, the playlist disclosure, and the action row follow.
 - **Make it a playlist (album release pages, both apps)**: a disclosure between the Tracks
   section and the action row, `card` with 1 px `border`, radius 9, padding 20, title "Make it a
   playlist" with a chevron that rotates open. Body: the album title beside a small secondary /
