@@ -38,11 +38,13 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ### Desktop app (unsigned developer build)
 
 ```bash
-cd apps/web && npm install && npm run desktop:package
+cd apps/web && npm install && npm run desktop:ffmpeg && npm run desktop:package
 ```
 
 This produces `apps/web/dist-desktop/mac-arm64/Locally.app` (`mac/` on Intel). It is unsigned, so
-open it with right-click, Open. ffmpeg still comes from Homebrew for now. Config lives in
+open it with right-click, Open. Run `npm run desktop:ffmpeg` once first (it builds an LGPL ffmpeg
+from pinned sources, several minutes) and then `npm run desktop:package`; the packaged app no longer
+needs Homebrew ffmpeg (`npm run dev` still uses ffmpeg from PATH). Config lives in
 `~/Library/Application Support/Locally` and is copied from `~/.spotify-local-import` on first
 launch; the original is left untouched.
 

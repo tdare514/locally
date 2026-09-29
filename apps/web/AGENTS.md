@@ -56,6 +56,10 @@ electron/                 # Mac desktop shell (Electron); compiled by tsconfig.e
   lib/waitForServer.ts    # polls the server URL until it answers or the child dies
 scripts/prepare-standalone.mjs  # copies public and .next/static into .next/standalone after the desktop build
 scripts/after-pack.mjs    # electron-builder hook: copies the standalone node_modules into the app bundle
+scripts/build-ffmpeg.sh   # builds a static LGPL ffmpeg (+ libmp3lame) from pinned sources into electron/vendor/ (ADR 0006)
+scripts/check-ffmpeg.mjs  # desktop:package preflight: fails unless the vendored ffmpeg for this arch exists
+electron/build/licenses/  # committed LGPL/licence texts and SOURCES.md; shipped as Resources/licenses
+electron/vendor/          # git-ignored: the built ffmpeg binary, per uname -m arch
 src/proxy.ts              # loopback-only + same-origin CSRF guard (Next middleware)
 src/lib/api-client.ts     # client-side typed fetch wrappers (imports src/shared/types)
 src/lib/crop-geometry.ts  # pure: square/original crop geometry, mirrors iOS ImageCropper.swift
@@ -79,6 +83,9 @@ tests/unit/routes/**      # route handlers called directly with a mocked getServ
 - **Desktop shell.** `electron/` must keep the server's `HOSTNAME=127.0.0.1` (the standalone server
   defaults to 0.0.0.0; ADR 0003 forbids that) and must not add a place to write beyond the app's
   config dir. It runs the standalone build only, with no custom Next server and no path logic.
+- **Bundled ffmpeg stays LGPL.** Build it with `--disable-gpl --disable-nonfree`, pinned by
+  checksum in `scripts/build-ffmpeg.sh`. A version bump updates `electron/build/licenses/SOURCES.md`
+  and ADR 0006.
 - **Tests never touch real user directories.** No test may read/write `~/.spotify-local-import` or
   `~/Music`; use `os.tmpdir()` and an in-memory `SettingsStore` fake.
 

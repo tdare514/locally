@@ -15,4 +15,12 @@ export default async function afterPack(context) {
   if (!fs.existsSync(from)) throw new Error(`after-pack: ${from} is missing; run npm run desktop:build`);
   fs.cpSync(from, to, { recursive: true });
   console.log(`  • after-pack: copied standalone node_modules -> ${path.relative(context.appOutDir, to)}`);
+
+  // The ffmpeg binary comes from extraResources (electron/vendor/ffmpeg/<arch>/ffmpeg, ADR 0006).
+  const ffmpeg = path.join(resources, "ffmpeg");
+  if (!fs.existsSync(ffmpeg)) {
+    throw new Error(`after-pack: ${ffmpeg} is missing; run npm run desktop:ffmpeg first`);
+  }
+  fs.chmodSync(ffmpeg, 0o755);
+  console.log(`  • after-pack: bundled ffmpeg present -> ${path.relative(context.appOutDir, ffmpeg)}`);
 }
