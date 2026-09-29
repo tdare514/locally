@@ -190,6 +190,7 @@ final class FakeFileImporter: FileImporter {
 final class FakeInboxStore: InboxStore {
     private(set) var files: [InboxFile]
     private(set) var removed: [InboxFile] = []
+    private(set) var sweepCalls = 0
 
     init(files: [InboxFile] = []) {
         self.files = files
@@ -202,6 +203,11 @@ final class FakeInboxStore: InboxStore {
     func remove(_ file: InboxFile) throws {
         files.removeAll { $0.url == file.url }
         removed.append(file)
+    }
+
+    func sweepOrphans() -> Int {
+        sweepCalls += 1
+        return 0
     }
 }
 
