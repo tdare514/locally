@@ -29,6 +29,12 @@ struct SupportedAudioTests {
         for ext in SupportedAudio.extensions where ext != "aif" {
             #expect(SupportedAudio.readableList.contains(ext))
         }
-        #expect(!SupportedAudio.readableList.contains("aif"))
+        // Tokenize: "aiff" contains the substring "aif", so a raw
+        // `contains("aif")` would falsely fail on the intended "aiff".
+        let tokens = SupportedAudio.readableList
+            .replacingOccurrences(of: " or ", with: ", ")
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        #expect(!tokens.contains("aif"))
     }
 }
