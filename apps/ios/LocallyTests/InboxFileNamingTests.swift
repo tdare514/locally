@@ -33,4 +33,28 @@ struct InboxFileNamingTests {
         let id = UUID()
         #expect(InboxFileNaming.originalName(fromInboxFileName: "\(id.uuidString)-") == nil)
     }
+
+    @Test func fileNameKeepsALongNameWithinTheFileSystemLimit() {
+        let id = UUID()
+        let original = String(repeating: "a", count: 300) + ".flac"
+        let name = InboxFileNaming.fileName(id: id, originalName: original)
+        #expect(name.utf8.count == InboxFileNaming.maxFileNameBytes)
+        #expect(name.hasPrefix("\(id.uuidString)-aaa"))
+        #expect(name.hasSuffix(".flac"))
+        let recovered = InboxFileNaming.originalName(fromInboxFileName: name)
+        #expect(recovered.map(SupportedAudio.isSupported(fileName:)) == true)
+    }
+
+    @Test func fileNameTruncatesMultiByteNamesOnACharacterBoundary() {
+        let original = String(repeating: "é", count: 200) + ".mp3"
+        let name = InboxFileNaming.fileName(id: UUID(), originalName: original)
+        #expect(name.utf8.count <= InboxFileNaming.maxFileNameBytes)
+        #expect(name.hasSuffix("é.mp3"))
+    }
+
+    @Test func fileNameLeavesANameThatFitsUntouched() {
+        let id = UUID()
+        let original = String(repeating: "b", count: 214) + ".mp3"
+        #expect(InboxFileNaming.fileName(id: id, originalName: original) == "\(id.uuidString)-\(original)")
+    }
 }

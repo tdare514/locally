@@ -6,13 +6,41 @@ import Foundation
 /// any `FileManager`/App Group access so it can be unit tested without a
 /// container.
 enum InboxFileNaming {
+    /// The name of the Inbox folder inside the App Group container. The
+    /// extension writes there and the app reads there, so both use this.
+    static let folderName = "Inbox"
+
+    /// APFS refuses a file name longer than this many UTF-8 bytes.
+    static let maxFileNameBytes = 255
+
     /// The on-disk name a shared file is given inside the Inbox folder:
     /// `"<uuid>-<original name>"`. The uuid keeps two shares of a
     /// same-named file from colliding; the original name is kept verbatim
     /// (not sanitised) since it never leaves the Inbox folder as-is — the
     /// app re-derives its own filename via `ReleaseLayout` once imported.
+    /// An original name too long to fit beside the uuid loses characters
+    /// from the end of its stem; the extension is kept, since the app
+    /// allow-lists files by it.
     static func fileName(id: UUID, originalName: String) -> String {
-        "\(id.uuidString)-\(originalName)"
+        let prefix = "\(id.uuidString)-"
+        let budget = maxFileNameBytes - prefix.utf8.count
+        guard originalName.utf8.count > budget else { return prefix + originalName }
+
+        let ext = (originalName as NSString).pathExtension
+        let suffix = ext.isEmpty ? "" : ".\(ext)"
+        guard suffix.utf8.count < budget else {
+            return prefix + truncated(originalName, toBytes: budget)
+        }
+        let stem = String(originalName.dropLast(suffix.count))
+        return prefix + truncated(stem, toBytes: budget - suffix.utf8.count) + suffix
+    }
+
+    /// Drops whole characters from the end until `text` fits in `bytes`
+    /// UTF-8 bytes, so a multi-byte character is never split.
+    private static func truncated(_ text: String, toBytes bytes: Int) -> String {
+        var result = Substring(text)
+        while result.utf8.count > bytes { result = result.dropLast() }
+        return String(result)
     }
 
     /// A canonical UUID string (`8-4-4-4-12` hex digits) is always exactly

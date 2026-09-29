@@ -23,9 +23,9 @@ final class ShareViewController: UIViewController {
         statusLabel.numberOfLines = 0
         statusLabel.textAlignment = .center
         statusLabel.font = .preferredFont(forTextStyle: .body)
-        statusLabel.text = "Saving to Locally…"
+        statusLabel.text = ShareCopy.saving
 
-        doneButton.setTitle("Done", for: .normal)
+        doneButton.setTitle(ShareCopy.done, for: .normal)
         doneButton.isHidden = true
         doneButton.addTarget(self, action: #selector(finish), for: .touchUpInside)
 
@@ -51,7 +51,7 @@ final class ShareViewController: UIViewController {
             .flatMap { $0.attachments ?? [] }
 
         guard !providers.isEmpty else {
-            showResult(message: "Couldn't find any audio to save.")
+            showResult(message: ShareCopy.noAudio)
             return
         }
 
@@ -73,11 +73,11 @@ final class ShareViewController: UIViewController {
         }
 
         if savedCount > 0, unsupportedCount > 0 {
-            showResult(message: "Saved \(savedCount) to Locally, skipped \(unsupportedCount) it can't import. Open Locally to tag and send.")
+            showResult(message: ShareCopy.savedSome(savedCount, skipped: unsupportedCount))
         } else if savedCount > 0 {
-            showResult(message: "Saved to Locally. Open Locally to tag and send.")
+            showResult(message: ShareCopy.saved)
         } else {
-            showResult(message: lastError ?? "Couldn't save that file.")
+            showResult(message: lastError ?? ShareCopy.saveFailed)
         }
     }
 
@@ -126,7 +126,7 @@ final class ShareViewController: UIViewController {
     private static func inboxDirectory() -> URL? {
         FileManager.default
             .containerURL(forSecurityApplicationGroupIdentifier: AppGroup.identifier)?
-            .appendingPathComponent("Inbox", isDirectory: true)
+            .appendingPathComponent(InboxFileNaming.folderName, isDirectory: true)
     }
 
     private func showResult(message: String) {
@@ -147,14 +147,9 @@ final class ShareViewController: UIViewController {
 
         var errorDescription: String? {
             switch self {
-            case .notAudio: return "That file isn't audio."
-            case .noAppGroup: return "Couldn't reach Locally's shared storage."
-            case .unsupportedFormat(let ext):
-                let trimmed = ext.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.isEmpty {
-                    return "Locally can't import that file. Share \(SupportedAudio.readableList)."
-                }
-                return "Locally can't import .\(trimmed.lowercased()) files. Share \(SupportedAudio.readableList)."
+            case .notAudio: return ShareCopy.notAudio
+            case .noAppGroup: return ShareCopy.noAppGroup
+            case .unsupportedFormat(let ext): return ShareCopy.unsupportedFormat(fileExtension: ext)
             }
         }
     }

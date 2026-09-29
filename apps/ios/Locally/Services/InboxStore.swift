@@ -45,7 +45,7 @@ final class AppGroupInboxStore: InboxStore {
     init(appGroupIdentifier: String = AppGroup.identifier) {
         self.inboxDirectory = FileManager.default
             .containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)?
-            .appendingPathComponent("Inbox", isDirectory: true)
+            .appendingPathComponent(InboxFileNaming.folderName, isDirectory: true)
         self.documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
     }
 
