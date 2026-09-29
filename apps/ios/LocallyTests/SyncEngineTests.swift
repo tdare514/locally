@@ -12,7 +12,7 @@ struct SyncEngineTests {
         let coverStore: FakeCoverStore
         let api: FakeSyncApi
         let account: InMemorySyncAccountStore
-        let outbox: InMemorySyncOutbox
+        let outbox: any SyncOutbox
         let engine: SyncEngine
     }
 
@@ -53,7 +53,7 @@ struct SyncEngineTests {
     /// standing in for "on disk") library and outbox, with a fresh `api`.
     private func makeHarness(
         library: InMemoryLibraryStore = InMemoryLibraryStore(),
-        outbox: InMemorySyncOutbox = InMemorySyncOutbox(),
+        outbox: any SyncOutbox = InMemorySyncOutbox(),
         api: FakeSyncApi = FakeSyncApi(),
         account: InMemorySyncAccountStore? = nil
     ) -> Harness {
@@ -79,6 +79,27 @@ struct SyncEngineTests {
         }
         let engine = SyncEngine(api: api, account: resolvedAccount, library: library, coordinator: coordinator, coverStore: coverStore, outbox: outbox, deviceName: { "Toby's iPhone" })
         return Harness(coordinator: coordinator, folder: folder, library: library, tagWriter: tagWriter, coverStore: coverStore, api: api, account: resolvedAccount, outbox: outbox, engine: engine)
+    }
+
+    // MARK: - Outbox failures
+
+    @Test func pushSurfacesAnOutboxEnqueueFailureInsteadOfDroppingIt() async throws {
+        let h = makeHarness(outbox: FailingSyncOutbox())
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: TagSet(title: "T", artist: "A", album: "T"), cover: nil)
+
+        await h.engine.push(release)
+
+        #expect(h.engine.status.lastError == Copy.Sync.queueFailed(FailingSyncOutbox.Failure().localizedDescription))
+        #expect(h.api.putCalls.isEmpty)
+    }
+
+    @Test func tombstoneSurfacesAnOutboxEnqueueFailureInsteadOfDroppingIt() async {
+        let h = makeHarness(outbox: FailingSyncOutbox())
+
+        await h.engine.tombstone(UUID())
+
+        #expect(h.engine.status.lastError == Copy.Sync.queueFailed(FailingSyncOutbox.Failure().localizedDescription))
+        #expect(h.api.deleteCalls.isEmpty)
     }
 
     // MARK: - Push

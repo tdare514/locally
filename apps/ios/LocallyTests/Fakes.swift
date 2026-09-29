@@ -539,3 +539,18 @@ final class FakeSyncApi: SyncApi {
         storage[record.id] = stored
     }
 }
+
+
+/// A `SyncOutbox` whose `enqueue` always throws (a full disk, a corrupt
+/// store); every other method behaves like an empty outbox.
+final class FailingSyncOutbox: SyncOutbox {
+    struct Failure: Error, LocalizedError {
+        var errorDescription: String? { "disk full" }
+    }
+
+    func all() throws -> [SyncOutboxEntry] { [] }
+    func enqueue(_ releaseId: UUID, _ operation: SyncOutboxEntry.Operation) throws { throw Failure() }
+    func recordFailure(_ releaseId: UUID, error: String) throws {}
+    func remove(_ releaseId: UUID, ifOperation operation: SyncOutboxEntry.Operation) throws {}
+    func removeAll() throws {}
+}

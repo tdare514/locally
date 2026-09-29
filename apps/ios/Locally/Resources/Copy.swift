@@ -5,6 +5,18 @@ import Foundation
 /// idea per sentence, no exclamation marks) stays consistent. Text mirrors
 /// `docs/ios-plan.md`'s "In-app copy" section verbatim.
 enum Copy {
+    enum StoreError {
+        static let title = "Locally can't open its library"
+        static let body = "Locally couldn't open the index of your releases. Your music files in the Spotify folder are untouched."
+        static let tryAgain = "Try again"
+        static let reset = "Reset library index"
+        static let resetTitle = "Reset the library index?"
+        static let resetConfirm = "Reset"
+        static let resetCancel = "Cancel"
+        static let resetMessage = "Your list of releases in Locally will be empty afterwards. Your music files stay in the Spotify folder and Spotify still plays them. The old index is kept as a backup in the app's storage."
+        static func detail(_ text: String) -> String { "Details: \(text)" }
+    }
+
     enum Onboarding {
         static let welcomeTitle = "Welcome to Locally"
         static let welcomeBody = "Add your own songs to Spotify with the cover and details you choose. This app is independent and is not made by or connected to Spotify."
@@ -258,5 +270,10 @@ enum Copy {
         static let sendToSpotify = "Send to Spotify"
         static let sendAll = "Send all"
         static let downloading = "Downloading…"
+
+        static func queueFailed(_ detail: String) -> String { "Couldn't queue a change to sync: \(detail)" }
+        static func libraryUnreadable(_ detail: String) -> String { "Couldn't read your library to sync: \(detail)" }
+        static func applyRemoteFailed(_ detail: String) -> String { "Couldn't apply a change from another device: \(detail)" }
+        static func signOutCleanupFailed(_ detail: String) -> String { "Signed out, but couldn't clear queued sync changes: \(detail)" }
     }
 }

@@ -1,11 +1,11 @@
 import SwiftUI
 
-/// App entry point: builds the one production `AppContainer` and injects it
+/// App entry point: builds the one production `AppContainer` (or shows `StoreErrorView` if the library index won't open) and injects it
 /// into the view tree via `.environment`, so every view reaches services
 /// through protocols rather than constructing anything itself.
 @main
 struct LocallyApp: App {
-    @State private var container = AppContainer.production()
+    @State private var launch = LaunchState.open()
 
     init() {
         Theme.applyChrome()
@@ -19,12 +19,22 @@ struct LocallyApp: App {
                 // hit the network mid-test, so the host stays inert.
                 Color.clear
             } else {
-                RootView()
-                    .environment(\.appContainer, container)
-                    .environment(container.folderStatus)
-                    .environment(container.purchaseStatus)
-                    .environment(container.syncStatus)
+                switch launch {
+                case .ready(let container):
+                    RootView()
+                        .environment(\.appContainer, container)
+                        .environment(container.folderStatus)
+                        .environment(container.purchaseStatus)
+                        .environment(container.syncStatus)
+                        .preferredColorScheme(.dark)
+                case .failed(let detail):
+                    StoreErrorView(
+                        detail: detail,
+                        onRetry: { launch = LaunchState.open() },
+                        onReset: { launch = LaunchState.resetAndOpen() }
+                    )
                     .preferredColorScheme(.dark)
+                }
             }
         }
     }
