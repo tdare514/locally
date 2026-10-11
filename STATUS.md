@@ -3,7 +3,7 @@
 Snapshot of now, not a changelog. Update this when a change makes it stale.
 Git history holds the past.
 
-Last updated: 2026-09-29
+Last updated: 2026-10-11
 
 ## Current focus
 Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps. Mac packaging (#35): the Electron shell is in as an unsigned developer build with an LGPL ffmpeg bundled (#69, ADR 0006); signing and notarisation (#70) and auto-update (#71) follow. One #36 point is decided and planned: before anyone else can sign up, the terms must say the user may upload only audio they own, or otherwise have the right to upload (ADR 0005, `docs/plans/36-own-the-audio.md`). Still owner decisions on #36: the privacy-policy URL and full privacy text, a takedown contact, whether the 30-day unused-blob cleanup is the retention policy, and whether first sign-ups are invite-only. Agent-readiness (#22–#25) and repo health (#13) are done; async email/deletes (#31) and the iOS import silhouette/reorder code (#6) landed.
@@ -69,6 +69,7 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 - Spotify caches local-file metadata; restart Spotify to see edits to an already-imported track
 
 ## Next
+- Stream tracking (#102): count Spotify plays of Locally tracks per device, with a total. Plan in `docs/plans/102-stream-tracking.md`, awaiting owner approval of its four decisions. Spike #103, API #104 and background running #105 can start in parallel; the Mac tracker #106 waits on #103, Mac sync and display #107 on #104 and #106, the onboarding opt-in card #110 on #106, iPhone display #108 on #104. iPhone plays can't be counted yet (iOS hides other apps' playback); #103 tests Spotify's Web API as a source. Next after that: a sign-in screen and an account section in Settings (#111, to plan)
 - Follow-ups from the 29 Sep review of the Cursor PRs (#41–#55): web pull-page skip (#60), device-name backfill guard (#62); owner decision on the Inbox sweep and import allow-list (#65)
 - Mac library development: search, sort, and bulk actions landed; playlist-aware grouping next; plan-only: conversion job queue, SQLite index, multi-library (#7)
 - Mac packaging (#35, ADR 0004): `npm run desktop:package` in `apps/web` builds an unsigned `Locally.app` around the Next standalone server. ffmpeg is bundled as an LGPL build (#69, ADR 0006). Still to do: Developer ID signing and notarisation (#70, owner action, before the 1 Nov public demo), switching on the interim updater (#78: built, but off until the owner creates the public `locally-releases` Blob store, runs `npm run desktop:keygen` and fills `electron/lib/updateConfig.ts`; `electron-updater` replaces it after #70, #71), an Intel build of ffmpeg. Until #70 only the developer can open it. On #36 the rights clause is decided (ADR 0005) and the sign-up acknowledgement is planned; the privacy policy, takedown contact, retention statement, and invite-only question remain owner decisions. Sign-ups stay closed
