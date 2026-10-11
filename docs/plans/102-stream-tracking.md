@@ -46,8 +46,11 @@ Recommended options first; the plan below assumes them. Approving this plan's PR
 2. **What the server stores:** per-device, per-track play counts only. No timestamps, no play
    events, no catalog (non-Locally) tracks. Rejected alternative: play events with times, which
    would allow listening history charts but is more personal data to hold and delete.
-3. **Opt-in:** counting is off until the user turns on "Count my Spotify plays" in Settings.
-   Turning it on runs the first check, which makes macOS ask "Locally wants to control Spotify".
+3. **Opt-in, offered at onboarding:** counting is off until the user turns it on. The Mac app asks
+   once, with a "Count your Spotify plays?" card in the empty-library onboarding (and once on the
+   library home for people who already have a library); Settings keeps the toggle. Turning it on
+   runs the first check, which makes macOS ask "Locally wants to control Spotify". The iPhone
+   onboarding gets no step while the phone can't count (owner request, 11 Oct; #110).
 4. **Signing (#70):** until the app is Developer ID signed, every new unsigned build can ask for
    that permission again, because macOS ties it to the app's signature. Accept that for developer
    builds; don't offer tracking to other people before #70.
@@ -214,6 +217,7 @@ unless the app gets extended quota.
 | Mac app: background running and Open at Login | #105 | plan approved | `apps/web/electron/**`, `apps/web/electron-builder.yml` |
 | Mac app: play tracker | #106 | plan approved, #103 question 1 | `apps/web/src/server/plays/**`, settings, `container.ts` |
 | Mac app: push counts, per-device breakdown | #107 | #104, #106 | `apps/web/src/server/sync/**`, release page |
+| Mac app: offer counting once at onboarding | #110 | #106 | `LibraryView.tsx`, settings flag |
 | iPhone: show per-device counts | #108 | #104 | `apps/ios/**` |
 
 #103, #104 and #105 can run in parallel. Every unit updates `STATUS.md`, so stage it explicitly
