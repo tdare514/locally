@@ -382,7 +382,7 @@ body {
 .import-pill:focus-visible {
   --import-ink: #fff;
   --import-glint: #fff;
-  animation: import-ink-settle 2.2s ease-in-out forwards;
+  animation: import-ink-settle 1.2s ease-in-out forwards;
 }
 .import-label {
   color: transparent;
@@ -401,7 +401,7 @@ body {
 .import-pill:hover .import-label,
 .import-pill:focus-visible .import-label {
   filter: drop-shadow(0 0 4px rgb(255 255 255 / 0.45));
-  animation: import-shimmer 2s cubic-bezier(0.45, 0, 0.55, 1) 1.7s infinite;
+  animation: import-shimmer 2s cubic-bezier(0.45, 0, 0.55, 1) 0.3s infinite;
 }
 .import-plus {
   color: var(--import-ink);
@@ -411,10 +411,11 @@ body {
   color: #fff;
   animation: import-plus-spin 1.1s cubic-bezier(0.1, 0.6, 0.2, 1);
 }
-/* Snap to bright white with the spin, hold it, then settle to a dimmer white for the shimmer. */
+/* Snap to bright white with the spin, hold it briefly, then settle to a dimmer white while the
+   first glint sweeps out of the slowing plus. */
 @keyframes import-ink-settle {
   0% { --import-ink: #000; }
-  8%, 55% { --import-ink: #fff; }
+  12%, 30% { --import-ink: #fff; }
   100% { --import-ink: rgb(255 255 255 / 0.55); }
 }
 /* A turn and a half, fast at first and winding down; it ends on a multiple of 90deg so the plus
