@@ -29,6 +29,9 @@ struct SleeveCoverPicker: View {
         .confirmationDialog(Copy.Import.coverDialogTitle, isPresented: $isDialogPresented) {
             Button(Copy.Import.coverFromPhotos) { isPhotosPresented = true }
             Button(Copy.Import.coverFromFiles, action: onPickFromFiles)
+            if imageData != nil {
+                Button(Copy.Import.removeCover, role: .destructive) { imageData = nil }
+            }
         }
         // As in `CoverPicker`: the Photos picker hangs off a persistent background
         // node, never off the dialog, which is torn down when it closes.

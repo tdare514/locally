@@ -71,6 +71,7 @@ enum Copy {
         static let coverFromPhotos = "Photos"
         static let coverFromFiles = "Files"
         static let coverDialogTitle = "Add a cover"
+        static let removeCover = "Remove cover"
         /// The hint read after the record sleeve's own label.
         static let sleeveHint = "Choose a cover from Photos or Files"
         /// The file chooser panel's caption before a file is chosen. Matches
