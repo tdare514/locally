@@ -182,6 +182,25 @@ enum Theme {
         /// Reduced motion swaps the cover with a plain, short opacity change.
         static let reducedMotionFadeDuration: Double = 0.2
 
+        /// `.glass-fake` fill: a 135deg gradient from white 0.14 to white 0.04 at 55%.
+        static let glassFillTop: Double = 0.14
+        static let glassFillBottom: Double = 0.04
+        static let glassFillStop: CGFloat = 0.55
+        /// `.glass-fake` inset hairline: `inset 0 0 0 1px` white 0.12.
+        static let glassHairlineOpacity: Double = 0.12
+        /// `.glass-fake` top highlight: `inset 0 1px 0` white 0.35.
+        static let glassHighlightOpacity: Double = 0.35
+        /// `.glass-fake` outer shadow `0 16px 40px -12px` black 0.55, approximated.
+        static let glassShadowOpacity: Double = 0.55
+        static let glassShadowRadius: CGFloat = 18
+        static let glassShadowY: CGFloat = 16
+        /// `.glass-fake` corner radius, also used for the album builder's panel.
+        static let glassCornerRadius: CGFloat = 16
+        /// The solid fill used instead of the gradient under Reduce Transparency.
+        static let glassSolid = Color(red: 30 / 255, green: 30 / 255, blue: 34 / 255)
+        /// The glass fill under a `List` row: the flat share of the `.glass-fake` gradient.
+        static let glassListRowOpacity: Double = 0.08
+
         /// `.ambient-backdrop` colour transition: 900 ms.
         static let backdropCrossFade: Double = 0.9
         /// `.ambient-backdrop` radial gradients: radii as a share of width and height, centres likewise.

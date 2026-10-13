@@ -65,7 +65,7 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 - Migrations run once per deploy in the Vercel build (`npm run db:migrate`, fails the deploy on error); each cold start only verifies the schema version. A redeploy of the current commit builds instead of being cancelled by the ignore step; pushes that don't touch apps/api are still skipped (#90)
 
 ## In progress
-- iOS immersive look (#112, plan in the #112 comments): `ArtworkPalette` is in (#124), a Swift port of the web's cover colour extraction that returns the same colours for the same pixels; the components are in (#125): `ArtworkBackdrop` (cover-colour wash with slow drift), `RecordSleeve` (cover sleeve, peeking disc, save ceremony) and `InlineField`, with previews; the release page uses them (#126); the import screens and library home (#127, #128) follow
+- iOS immersive look (#112, plan in the #112 comments): `ArtworkPalette` is in (#124), a Swift port of the web's cover colour extraction that returns the same colours for the same pixels; the components are in (#125): `ArtworkBackdrop` (cover-colour wash with slow drift), `RecordSleeve` (cover sleeve, peeking disc, save ceremony) and `InlineField`, with previews; the release page uses them (#126); so do the import screens (#127): cover-colour backdrop, the sleeve as the cover control (Photos/Files, then the existing crop), inline fields, album tracks on a faked-glass panel, and the ceremony before the done screen. The library home (#128) follows
 - Security review of apps/api (#20): findings fixed 28 Sep; auth rate limits now live in the shared libSQL database, so they hold across Vercel instances
 
 ## Known issues
