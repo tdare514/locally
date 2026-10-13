@@ -117,6 +117,80 @@ body {
     --ambient-deep 900ms ease;
 }
 
+/* Library ambient space (#112): sits outside the scrolling pane so it stays with the screen.
+ * Three soft radial clouds drift slowly (transform only, no blur filters: the gradients are
+ * already soft and blur would repaint every frame). The colours cross-fade between covers. */
+.ambient-space {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  background: linear-gradient(to bottom, var(--ambient-deep) 0%, var(--bg) 100%);
+  transition:
+    --ambient-primary 900ms ease,
+    --ambient-secondary 900ms ease,
+    --ambient-deep 900ms ease;
+}
+.ambient-cloud-track {
+  position: absolute;
+  inset: 0;
+}
+.ambient-cloud {
+  position: absolute;
+  width: 75vmax;
+  height: 75vmax;
+  border-radius: 50%;
+  will-change: transform;
+  transition:
+    --ambient-primary 900ms ease,
+    --ambient-secondary 900ms ease;
+}
+.ambient-cloud-1 {
+  top: -25vmax;
+  left: -20vmax;
+  opacity: 0.75;
+  background: radial-gradient(closest-side, var(--ambient-primary), transparent);
+  animation: ambient-drift-1 38s ease-in-out infinite alternate;
+}
+.ambient-cloud-2 {
+  top: 20%;
+  right: -25vmax;
+  opacity: 0.6;
+  background: radial-gradient(closest-side, var(--ambient-secondary), transparent);
+  animation: ambient-drift-2 47s ease-in-out infinite alternate;
+}
+.ambient-cloud-3 {
+  bottom: -35vmax;
+  left: 10%;
+  opacity: 0.45;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--ambient-primary) 60%, var(--ambient-secondary)),
+    transparent
+  );
+  animation: ambient-drift-3 56s ease-in-out infinite alternate;
+}
+
+/* The composition shifts as the pane scrolls (scroll-linked, transform only). The pane's
+ * scroll timeline is named --pane on <main> and scoped by its wrapper in AppShell. Without
+ * support the tracks stay put and only the slow drift runs. */
+@supports (animation-timeline: scroll()) {
+  .ambient-cloud-track {
+    animation: linear both;
+    animation-timeline: --pane;
+  }
+  .ambient-track-1 {
+    animation-name: ambient-pane-1;
+  }
+  .ambient-track-2 {
+    animation-name: ambient-pane-2;
+  }
+  .ambient-track-3 {
+    animation-name: ambient-pane-3;
+  }
+}
+
 /* The record: a disc tucked behind the sleeve, peeking out to the right. */
 .record-disc {
   position: absolute;
@@ -205,39 +279,93 @@ body {
   background: linear-gradient(135deg, rgb(255 255 255 / 0.08), transparent 40%);
 }
 
-/* Library cover view (#112): a record slides out from behind the cover on hover or focus. */
+/* Library cover view (#112): the cover pops on hover or focus. The record stays on the
+ * release page. */
 .shelf-tile:hover,
 .shelf-tile:focus-visible {
   position: relative;
   z-index: 1;
 }
-.shelf-disc {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  scale: 0.94;
-  translate: 0 0;
-  pointer-events: none;
-  transition: translate 420ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.shelf-tile:hover .shelf-disc,
-.shelf-tile:focus-visible .shelf-disc {
-  translate: 22% 0;
-}
 .shelf-cover {
   position: relative;
   z-index: 1;
-  transition: translate 420ms cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 0.5rem;
+  transition:
+    translate 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    scale 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 320ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .shelf-tile:hover .shelf-cover,
 .shelf-tile:focus-visible .shelf-cover {
+  translate: 0 -6px;
+  scale: 1.03;
+  box-shadow: 0 28px 48px -16px color-mix(in srgb, var(--ambient-primary) 70%, black);
+}
+
+/* Library list view: the thumbnail lifts slightly when its row is hovered or focused. */
+.list-thumb {
+  box-shadow: 0 8px 18px -8px color-mix(in srgb, var(--ambient-primary) 60%, black);
+  transition:
+    translate 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    scale 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.list-row:hover .list-thumb,
+.list-row:focus-visible .list-thumb {
   translate: 0 -2px;
+  scale: 1.06;
+  box-shadow: 0 14px 24px -8px color-mix(in srgb, var(--ambient-primary) 80%, black);
 }
 
 .cover-in {
   animation: cover-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+@keyframes ambient-drift-1 {
+  from {
+    translate: 0 0;
+    scale: 1;
+  }
+  to {
+    translate: 8vmax 6vmax;
+    scale: 1.12;
+  }
+}
+@keyframes ambient-drift-2 {
+  from {
+    translate: 0 0;
+    scale: 1;
+  }
+  to {
+    translate: -4vmax 10vmax;
+    scale: 0.95;
+  }
+}
+@keyframes ambient-drift-3 {
+  from {
+    translate: 0 0;
+    scale: 1;
+  }
+  to {
+    translate: 6vmax -8vmax;
+    scale: 1.1;
+  }
+}
+@keyframes ambient-pane-1 {
+  to {
+    transform: translate(30vw, 40vh) rotate(25deg);
+  }
+}
+@keyframes ambient-pane-2 {
+  to {
+    transform: translate(-35vw, 20vh);
+  }
+}
+@keyframes ambient-pane-3 {
+  to {
+    transform: translate(10vw, -45vh);
+  }
+}
 @keyframes record-out {
   from {
     translate: -45% -50%;
@@ -268,14 +396,16 @@ body {
   .record-disc,
   .record-disc.record-pressed,
   .record-spin,
-  .cover-in {
+  .cover-in,
+  .ambient-cloud,
+  .ambient-cloud-track {
     animation: none;
   }
   .record:hover .record-disc {
     translate: 0 -50%;
   }
-  .shelf-disc,
-  .shelf-cover {
+  .shelf-cover,
+  .list-thumb {
     transition: none;
   }
 }

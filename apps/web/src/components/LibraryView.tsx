@@ -25,8 +25,6 @@ import {
   type CoverSize,
   type LibraryLayout,
 } from "../lib/library-view-prefs";
-import { useArtworkPalette } from "../lib/use-artwork-palette";
-import AmbientBackdrop from "./AmbientBackdrop";
 import BulkEditDialog from "./BulkEditDialog";
 import {
   ChevronRightIcon,
@@ -50,6 +48,8 @@ interface LibraryViewProps {
   /** Refresh the library after a bulk action. */
   onBulkDone: () => Promise<unknown> | void;
   onToast: (kind: "success" | "error", text: string) => void;
+  /** The cover that should tint the ambient space, or null when there is none. */
+  onAmbientCoverChange: (url: string | null) => void;
 }
 
 /**
@@ -68,8 +68,10 @@ export default function LibraryView({
   onImport,
   onBulkDone,
   onToast,
+  onAmbientCoverChange,
 }: LibraryViewProps) {
   const searchRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -78,6 +80,7 @@ export default function LibraryView({
   const [layout, setLayout] = useState<LibraryLayout>("list");
   const [coverSize, setCoverSize] = useState<CoverSize>(1);
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
 
   // Saved view prefs load after mount so the server and first client render agree.
   useEffect(() => {
@@ -99,15 +102,44 @@ export default function LibraryView({
 
   const visible = filterLibrary(releases, query);
   const { singles, albums } = partitionLibrary(visible, sort);
-  // The ambient wash follows the cover last hovered or focused, else the first cover shown.
+  // The ambient wash follows the hovered or focused cover while it is on screen, else the first
+  // cover on screen, else the first cover in the library.
   const coverReleases = [...singles, ...albums].filter((r) => r.coverPath);
   const focusRelease =
-    coverReleases.find((r) => r.id === focusId) ?? coverReleases[0] ?? null;
-  const palette = useArtworkPalette(
-    layout === "covers" && focusRelease
-      ? coverUrl(focusRelease.id, focusRelease.updatedAt)
-      : null,
-  );
+    coverReleases.find((r) => r.id === focusId && visibleIds.has(r.id)) ??
+    coverReleases.find((r) => visibleIds.has(r.id)) ??
+    coverReleases[0] ??
+    null;
+  const ambientUrl = focusRelease
+    ? coverUrl(focusRelease.id, focusRelease.updatedAt)
+    : null;
+  useEffect(() => {
+    onAmbientCoverChange(ambientUrl);
+  }, [ambientUrl, onAmbientCoverChange]);
+
+  // Track which rows or tiles are on screen in the scrolling pane, so the colour follows scroll.
+  const shownIds = [...singles, ...albums].map((r) => r.id).join(",");
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || typeof IntersectionObserver === "undefined") return;
+    const inView = new Set<string>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const id = (entry.target as HTMLElement).dataset.releaseId;
+          if (!id) continue;
+          if (entry.isIntersecting) inView.add(id);
+          else inView.delete(id);
+        }
+        setVisibleIds(new Set(inView));
+      },
+      { root: root.closest("main"), threshold: 0.4 },
+    );
+    root
+      .querySelectorAll("[data-release-id]")
+      .forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [layout, shownIds, loading, coverSize]);
 
   // Cmd+F / Ctrl+F focuses the library search instead of the browser's find bar.
   useEffect(() => {
@@ -222,11 +254,11 @@ export default function LibraryView({
 
   return (
     <div
+      ref={rootRef}
       className={`mx-auto flex flex-col gap-8 pb-16 ${
         layout === "covers" ? "max-w-[1240px]" : "max-w-[920px]"
       }`}
     >
-      {layout === "covers" && <AmbientBackdrop palette={palette} />}
       <div className="flex items-baseline justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">
@@ -498,6 +530,7 @@ function LibrarySection({
   selected,
   disabled,
   onToggle,
+  onFocusRelease,
 }: SectionProps) {
   return (
     <section className="flex flex-col gap-2">
@@ -507,23 +540,26 @@ function LibrarySection({
         </h2>
         <span className="text-sm text-text-dim">{count}</span>
       </div>
-      <ul className="overflow-hidden rounded-xl border border-border bg-card">
+      <ul className="overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.04]">
         {releases.map((r, index) => {
           const isSelected = selecting && selected.has(r.id);
           return (
             <li key={r.id}>
               {index > 0 && (
-                <div className="h-px bg-border" aria-hidden="true" />
+                <div className="h-px bg-white/[0.06]" aria-hidden="true" />
               )}
               <button
                 type="button"
                 onClick={() =>
                   selecting ? onToggle(r.id) : onSelectRelease(r.id)
                 }
+                onMouseEnter={() => onFocusRelease(r.id)}
+                onFocus={() => onFocusRelease(r.id)}
+                data-release-id={r.id}
                 disabled={selecting && disabled}
                 aria-pressed={selecting ? isSelected : undefined}
-                className={`flex min-h-[78px] w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-row-hover disabled:cursor-not-allowed disabled:opacity-60 ${
-                  isSelected ? "bg-row-hover" : ""
+                className={`list-row flex min-h-[78px] w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-white/[0.06] focus-visible:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60 ${
+                  isSelected ? "bg-white/[0.06]" : ""
                 }`}
               >
                 {selecting && <SelectBox checked={isSelected} />}
@@ -532,10 +568,10 @@ function LibrarySection({
                   <img
                     src={coverUrl(r.id, r.updatedAt)}
                     alt=""
-                    className="h-14 w-14 shrink-0 rounded object-cover"
+                    className="list-thumb h-14 w-14 shrink-0 rounded object-cover"
                   />
                 ) : (
-                  <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded bg-elevated text-text-muted">
+                  <span className="list-thumb flex h-14 w-14 shrink-0 items-center justify-center rounded bg-elevated text-text-muted">
                     <MusicNoteIcon className="h-5 w-5" />
                   </span>
                 )}
@@ -559,7 +595,7 @@ function LibrarySection({
   );
 }
 
-/** Cover view section: a grid of bare covers with a record that slides out on hover (#112). */
+/** Cover view section: a grid of bare covers that pop on hover (#112). */
 function CoverSection({
   label,
   count,
@@ -599,24 +635,12 @@ function CoverSection({
               }
               onMouseEnter={() => onFocusRelease(r.id)}
               onFocus={() => onFocusRelease(r.id)}
+              data-release-id={r.id}
               disabled={selecting && disabled}
               aria-pressed={selecting ? isSelected : undefined}
               className="shelf-tile min-w-0 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-60"
             >
               <div className="relative aspect-square">
-                {!selecting && (
-                  <div className="shelf-disc" aria-hidden="true">
-                    <div className="record-face">
-                      <div
-                        className="record-label"
-                        style={
-                          url ? { backgroundImage: `url("${url}")` } : undefined
-                        }
-                      />
-                      <div className="record-sheen" />
-                    </div>
-                  </div>
-                )}
                 <div
                   className={`shelf-cover h-full w-full rounded-lg ${
                     isSelected

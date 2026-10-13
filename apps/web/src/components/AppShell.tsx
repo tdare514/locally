@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { Library, Release, ReleaseKind, SyncStatus } from "../shared/types";
 import { acceptFromPhone, getLibrary, getSyncStatus } from "../lib/api-client";
 import Sidebar from "./Sidebar";
@@ -9,6 +9,8 @@ import ImportView from "./ImportView";
 import ReleaseView from "./ReleaseView";
 import SettingsView from "./SettingsView";
 import type { LibrarySort } from "../lib/library-sections";
+import AmbientSpace from "./AmbientSpace";
+import { useArtworkPalette } from "../lib/use-artwork-palette";
 import Toast, { type ToastMessage } from "./Toast";
 
 export type View =
@@ -25,6 +27,10 @@ export default function AppShell() {
   // Lives here (not in LibraryView) so the query survives opening a release and coming back.
   const [libraryQuery, setLibraryQuery] = useState("");
   const [librarySort, setLibrarySort] = useState<LibrarySort>("newest");
+  // The cover LibraryView wants the ambient space tinted by; the wash lives out here so it
+  // sits outside the scrolling pane.
+  const [ambientCoverUrl, setAmbientCoverUrl] = useState<string | null>(null);
+  const libraryPalette = useArtworkPalette(view.type === "library" ? ambientCoverUrl : null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const nextToastId = useRef(0);
 
@@ -115,50 +121,64 @@ export default function AppShell() {
         onImportClick={() => openImport()}
         onSettingsClick={() => setView({ type: "settings" })}
       />
-      {/* relative + isolate: the release page's AmbientBackdrop paints behind its content but
-          inside this pane, so it never covers the sidebar. */}
-      <main className="relative isolate flex-1 overflow-y-auto p-6 md:p-10 lg:p-16">
-        {view.type === "library" && (
-          <LibraryView
-            releases={library?.releases ?? []}
-            loading={loadingLibrary}
-            query={libraryQuery}
-            sort={librarySort}
-            onQueryChange={setLibraryQuery}
-            onSortChange={setLibrarySort}
-            onSelectRelease={(id) => setView({ type: "release", id })}
-            onImport={openImport}
-            onBulkDone={refreshLibrary}
-            onToast={showToast}
-          />
+      {/* The wrapper holds the library's AmbientSpace outside the scroller so it never scrolls
+          away, and scopes the scroll timeline that drifts its clouds. main stays relative +
+          isolate: the release page's AmbientBackdrop paints behind its content but inside this
+          pane, so it never covers the sidebar. */}
+      <div
+        className="relative isolate min-h-0 min-w-0 flex-1"
+        style={{ timelineScope: "--pane" } as CSSProperties}
+      >
+        {view.type === "library" && (library?.releases.length ?? 0) > 0 && (
+          <AmbientSpace palette={libraryPalette} />
         )}
-        {view.type === "import" && (
-          <ImportView
-            key={view.kind ?? "any"}
-            initialKind={view.kind}
-            onImported={handleImported}
-            onToast={showToast}
-          />
-        )}
-        {view.type === "release" && (
-          <ReleaseView
-            key={view.id}
-            releaseId={view.id}
-            justImported={view.justImported ?? false}
-            onDeleted={handleDeleted}
-            onUpdated={refreshLibrary}
-            onToast={showToast}
-            onOpenSettings={() => setView({ type: "settings" })}
-          />
-        )}
-        {view.type === "settings" && (
-          <SettingsView
-            onToast={showToast}
-            syncStatus={syncStatus}
-            onSyncStatusChange={refreshSyncStatus}
-          />
-        )}
-      </main>
+        <main
+          className="relative isolate h-full overflow-y-auto p-6 md:p-10 lg:p-16"
+          style={{ scrollTimeline: "--pane y" } as CSSProperties}
+        >
+          {view.type === "library" && (
+            <LibraryView
+              releases={library?.releases ?? []}
+              loading={loadingLibrary}
+              query={libraryQuery}
+              sort={librarySort}
+              onQueryChange={setLibraryQuery}
+              onSortChange={setLibrarySort}
+              onSelectRelease={(id) => setView({ type: "release", id })}
+              onImport={openImport}
+              onBulkDone={refreshLibrary}
+              onToast={showToast}
+              onAmbientCoverChange={setAmbientCoverUrl}
+            />
+          )}
+          {view.type === "import" && (
+            <ImportView
+              key={view.kind ?? "any"}
+              initialKind={view.kind}
+              onImported={handleImported}
+              onToast={showToast}
+            />
+          )}
+          {view.type === "release" && (
+            <ReleaseView
+              key={view.id}
+              releaseId={view.id}
+              justImported={view.justImported ?? false}
+              onDeleted={handleDeleted}
+              onUpdated={refreshLibrary}
+              onToast={showToast}
+              onOpenSettings={() => setView({ type: "settings" })}
+            />
+          )}
+          {view.type === "settings" && (
+            <SettingsView
+              onToast={showToast}
+              syncStatus={syncStatus}
+              onSyncStatusChange={refreshSyncStatus}
+            />
+          )}
+        </main>
+      </div>
       <Toast toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
