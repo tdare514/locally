@@ -126,20 +126,53 @@ body {
   z-index: -1;
   pointer-events: none;
   overflow: hidden;
-  background: linear-gradient(to bottom, var(--ambient-deep) 0%, var(--bg) 100%);
+  /* Near-black base with only a faint tint, so the small clouds stand out by contrast. */
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--ambient-deep) 35%, var(--bg)),
+    var(--bg)
+  );
   transition:
     --ambient-primary 900ms ease,
     --ambient-secondary 900ms ease,
     --ambient-deep 900ms ease;
 }
+/* Scroll only picks a phase (data-phase); the track eases to it on its own slow timing, so
+ * the composition never follows scroll speed. A fast scroll just retargets the ease. */
 .ambient-cloud-track {
   position: absolute;
   inset: 0;
+  transition: translate 3.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ambient-space[data-phase="1"] .ambient-track-1 {
+  translate: 10vw 8vh;
+}
+.ambient-space[data-phase="1"] .ambient-track-2 {
+  translate: -12vw -10vh;
+}
+.ambient-space[data-phase="1"] .ambient-track-3 {
+  translate: -8vw -6vh;
+}
+.ambient-space[data-phase="2"] .ambient-track-1 {
+  translate: 14vw 12vh;
+}
+.ambient-space[data-phase="2"] .ambient-track-2 {
+  translate: -4vw 8vh;
+}
+.ambient-space[data-phase="2"] .ambient-track-3 {
+  translate: 12vw -4vh;
+}
+.ambient-space[data-phase="3"] .ambient-track-1 {
+  translate: 6vw 4vh;
+}
+.ambient-space[data-phase="3"] .ambient-track-2 {
+  translate: -14vw -8vh;
+}
+.ambient-space[data-phase="3"] .ambient-track-3 {
+  translate: 10vw -12vh;
 }
 .ambient-cloud {
   position: absolute;
-  width: 75vmax;
-  height: 75vmax;
   border-radius: 50%;
   will-change: transform;
   transition:
@@ -147,48 +180,35 @@ body {
     --ambient-secondary 900ms ease;
 }
 .ambient-cloud-1 {
-  top: -25vmax;
-  left: -20vmax;
-  opacity: 0.75;
+  width: 42vmax;
+  height: 42vmax;
+  top: -10vmax;
+  left: -8vmax;
+  opacity: 0.6;
   background: radial-gradient(closest-side, var(--ambient-primary), transparent);
-  animation: ambient-drift-1 38s ease-in-out infinite alternate;
+  animation: ambient-drift-1 64s ease-in-out infinite alternate;
 }
 .ambient-cloud-2 {
-  top: 20%;
-  right: -25vmax;
-  opacity: 0.6;
+  width: 34vmax;
+  height: 34vmax;
+  top: 38%;
+  right: -10vmax;
+  opacity: 0.5;
   background: radial-gradient(closest-side, var(--ambient-secondary), transparent);
-  animation: ambient-drift-2 47s ease-in-out infinite alternate;
+  animation: ambient-drift-2 78s ease-in-out infinite alternate;
 }
 .ambient-cloud-3 {
-  bottom: -35vmax;
-  left: 10%;
-  opacity: 0.45;
+  width: 24vmax;
+  height: 24vmax;
+  bottom: -6vmax;
+  left: 30%;
+  opacity: 0.3;
   background: radial-gradient(
     closest-side,
     color-mix(in srgb, var(--ambient-primary) 60%, var(--ambient-secondary)),
     transparent
   );
-  animation: ambient-drift-3 56s ease-in-out infinite alternate;
-}
-
-/* The composition shifts as the pane scrolls (scroll-linked, transform only). The pane's
- * scroll timeline is named --pane on <main> and scoped by its wrapper in AppShell. Without
- * support the tracks stay put and only the slow drift runs. */
-@supports (animation-timeline: scroll()) {
-  .ambient-cloud-track {
-    animation: linear both;
-    animation-timeline: --pane;
-  }
-  .ambient-track-1 {
-    animation-name: ambient-pane-1;
-  }
-  .ambient-track-2 {
-    animation-name: ambient-pane-2;
-  }
-  .ambient-track-3 {
-    animation-name: ambient-pane-3;
-  }
+  animation: ambient-drift-3 92s ease-in-out infinite alternate;
 }
 
 /* The record: a disc tucked behind the sleeve, peeking out to the right. */
@@ -327,8 +347,8 @@ body {
     scale: 1;
   }
   to {
-    translate: 8vmax 6vmax;
-    scale: 1.12;
+    translate: 4vmax 3vmax;
+    scale: 1.06;
   }
 }
 @keyframes ambient-drift-2 {
@@ -337,8 +357,8 @@ body {
     scale: 1;
   }
   to {
-    translate: -4vmax 10vmax;
-    scale: 0.95;
+    translate: -3vmax 4vmax;
+    scale: 1.05;
   }
 }
 @keyframes ambient-drift-3 {
@@ -347,23 +367,8 @@ body {
     scale: 1;
   }
   to {
-    translate: 6vmax -8vmax;
-    scale: 1.1;
-  }
-}
-@keyframes ambient-pane-1 {
-  to {
-    transform: translate(30vw, 40vh) rotate(25deg);
-  }
-}
-@keyframes ambient-pane-2 {
-  to {
-    transform: translate(-35vw, 20vh);
-  }
-}
-@keyframes ambient-pane-3 {
-  to {
-    transform: translate(10vw, -45vh);
+    translate: 3vmax -2vmax;
+    scale: 1.06;
   }
 }
 @keyframes record-out {
@@ -397,9 +402,11 @@ body {
   .record-disc.record-pressed,
   .record-spin,
   .cover-in,
-  .ambient-cloud,
-  .ambient-cloud-track {
+  .ambient-cloud {
     animation: none;
+  }
+  .ambient-cloud-track {
+    transition: none;
   }
   .record:hover .record-disc {
     translate: 0 -50%;

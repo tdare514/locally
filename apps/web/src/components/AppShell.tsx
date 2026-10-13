@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Library, Release, ReleaseKind, SyncStatus } from "../shared/types";
 import { acceptFromPhone, getLibrary, getSyncStatus } from "../lib/api-client";
 import Sidebar from "./Sidebar";
@@ -33,6 +33,10 @@ export default function AppShell() {
   const libraryPalette = useArtworkPalette(view.type === "library" ? ambientCoverUrl : null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const nextToastId = useRef(0);
+  // Coarse scroll phase for the ambient space: scroll only picks a phase, and CSS eases to it
+  // on its own timing, so the clouds never track scroll speed.
+  const mainRef = useRef<HTMLElement>(null);
+  const [phase, setPhase] = useState(0);
 
   const showToast = useCallback((kind: "success" | "error", text: string) => {
     nextToastId.current += 1;
@@ -58,6 +62,24 @@ export default function AppShell() {
       )
       .finally(() => setLoadingLibrary(false));
   }, [showToast]);
+
+  useEffect(() => {
+    const main = mainRef.current;
+    if (!main) return;
+    let raf = 0;
+    const read = () => {
+      raf = 0;
+      setPhase(Math.min(3, Math.floor(main.scrollTop / (main.clientHeight * 0.6))));
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(read);
+    };
+    main.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      main.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
 
   useEffect(() => {
     refreshLibrary();
@@ -122,19 +144,16 @@ export default function AppShell() {
         onSettingsClick={() => setView({ type: "settings" })}
       />
       {/* The wrapper holds the library's AmbientSpace outside the scroller so it never scrolls
-          away, and scopes the scroll timeline that drifts its clouds. main stays relative +
+          away, and the scroll phase (see below) nudges its clouds. main stays relative +
           isolate: the release page's AmbientBackdrop paints behind its content but inside this
           pane, so it never covers the sidebar. */}
-      <div
-        className="relative isolate min-h-0 min-w-0 flex-1"
-        style={{ timelineScope: "--pane" } as CSSProperties}
-      >
+      <div className="relative isolate min-h-0 min-w-0 flex-1">
         {view.type === "library" && (library?.releases.length ?? 0) > 0 && (
-          <AmbientSpace palette={libraryPalette} />
+          <AmbientSpace palette={libraryPalette} phase={phase} />
         )}
         <main
+          ref={mainRef}
           className="relative isolate h-full overflow-y-auto p-6 md:p-10 lg:p-16"
-          style={{ scrollTimeline: "--pane y" } as CSSProperties}
         >
           {view.type === "library" && (
             <LibraryView
