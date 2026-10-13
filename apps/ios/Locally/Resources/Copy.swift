@@ -134,6 +134,14 @@ enum Copy {
         static func albumSubtitle(artist: String, tracks: Int) -> String {
             "\(artist) · \(trackCount(tracks))"
         }
+        /// The list / cover toggle and cover size control in the header.
+        static let layoutList = "List"
+        static let layoutCovers = "Covers"
+        static let layoutLabel = "Library view"
+        static let coverSizeLabel = "Cover size"
+        static let sizeSmall = "Small"
+        static let sizeMedium = "Medium"
+        static let sizeLarge = "Large"
         /// The sticky-footer button that switches to the Add a song tab.
         static let addASong = "Add a song"
 

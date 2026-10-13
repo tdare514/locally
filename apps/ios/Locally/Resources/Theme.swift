@@ -19,6 +19,8 @@ enum Theme {
     /// `row-hover`: pressed/hovered list rows.
     static let rowHover = Color(red: 0x1C / 255, green: 0x1C / 255, blue: 0x1C / 255)
     static let primaryText = Color.white
+    /// Text on an `accent` fill (the primary pill, selected toggles).
+    static let onAccent = Color.black
     /// `text-muted`: secondary text, metadata on the right of headers.
     static let secondaryText = Color(red: 0xB3 / 255, green: 0xB3 / 255, blue: 0xB3 / 255)
     /// `border`: 1 pt borders on cards, rows, inputs, footers.
@@ -96,6 +98,31 @@ enum Theme {
         static let primaryButtonV: CGFloat = 12
     }
 
+    /// The library home's cover grid, press lift and "library sky".
+    enum Library {
+        /// Minimum tile width per `CoverSize` (compact, medium, large). With
+        /// `Spacing.listPagePadding` on a 402 pt phone these give 3, 2 and 1 columns.
+        static let tileMinWidth: [CGFloat] = [96, 150, 300]
+        /// Gap between tiles per `CoverSize`.
+        static let tileGap: [CGFloat] = [12, 16, 20]
+        static let tileCornerRadius: CGFloat = 8
+        static let listPanelCornerRadius: CGFloat = 16
+        /// A pressed cover grows by this factor and gains a soft shadow.
+        static let pressScale: CGFloat = 1.03
+        static let pressShadowRadius: CGFloat = 10
+        static let pressShadowOpacity: Double = 0.35
+        static let pressShadowY: CGFloat = 4
+        static let pressDuration: Double = 0.15
+        /// Scroll distance after which a pressed release stops colouring the sky.
+        static let pressedSkyReleaseDistance: CGFloat = 120
+        static let thumbnailSize: CGFloat = 56
+        /// Spacing between header controls and between a tile's cover and text.
+        static let headerControlGap: CGFloat = 8
+        static let tileTextGap: CGFloat = 8
+        static let toggleIconSize: CGFloat = 15
+        static let toggleButtonSize: CGFloat = 36
+    }
+
     /// The "immersive" release look (#112 on the web): the record sleeve, the
     /// artwork backdrop and the inline field. Each value cites the
     /// `apps/web/src/app/globals.css` rule or `lib/artwork-palette.ts` constant
@@ -123,6 +150,9 @@ enum Theme {
         static let sheenOpacityFar: Double = 0.07
         /// `.record-face` repeating groove: a 1 px line every 3 px.
         static let grooveSpacing: CGFloat = 3
+        /// Degrees each glow turns per screen scrolled (`.ambient-sky-1` 28, `.ambient-sky-2` -22).
+        static let scrollTurnPrimary: Double = 28
+        static let scrollTurnSecondary: Double = 22
         /// Fake glass (no blur over the backdrop): a faint white fill and a hairline stroke.
         static let panelFillOpacity: Double = 0.06
         static let panelStrokeOpacity: Double = 0.10

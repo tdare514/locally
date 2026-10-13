@@ -1,9 +1,15 @@
 import SwiftUI
 
 /// The home tab. Lists everything sent to Spotify so far, newest first;
-/// tapping a row opens `ReleaseDetailView` to edit or delete it. With no
-/// releases it becomes the onboarding: a diagram of files moving from
-/// Locally into Spotify and the two first-import actions.
+/// tapping a row or tile opens `ReleaseDetailView` to edit or delete it. A
+/// header toggle switches between a list (rows in a translucent panel) and a
+/// cover grid with three sizes; both choices persist. Behind a populated
+/// library sits the "library sky": an `ArtworkBackdrop` fixed behind the
+/// scroll view, coloured by the release last pressed or else the first one on
+/// screen, its glows turning as the library scrolls (and letting go of a pressed
+/// release once the library has scrolled away from it). With no releases
+/// it becomes the onboarding: a diagram of files moving from Locally into
+/// Spotify and the two first-import actions.
 struct LibraryView: View {
     @Environment(\.appContainer) private var container
 
@@ -16,6 +22,35 @@ struct LibraryView: View {
     @State private var releases: [Release] = []
     @State private var errorMessage: String?
 
+    @AppStorage(LibraryViewPrefs.layoutKey) private var layout: LibraryLayout = .default
+    @AppStorage(LibraryViewPrefs.coverSizeKey) private var coverSize: CoverSize = .default
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Scroll distance, read only by `LibrarySky` so scrolling doesn't re-run this body.
+    @State private var motion = LibrarySkyMotion()
+    /// The release last pressed; it colours the sky until another is pressed or
+    /// the library scrolls `pressedSkyReleaseDistance` away from where it was.
+    @State private var pressedID: Release.ID?
+    /// `motion.offset` when `pressedID` was set.
+    @State private var pressOffset: CGFloat = 0
+    /// Releases whose row or tile is currently on screen.
+    @State private var visibleIDs: Set<Release.ID> = []
+    @State private var palettes: [CoverKey: AmbientPalette] = [:]
+    /// Decoded covers, read once per `CoverKey` in `load()`.
+    @State private var covers: [CoverKey: UIImage] = [:]
+
+    /// A release's cover identity: a replaced cover bumps `updatedAt`.
+    private struct CoverKey: Hashable {
+        let id: Release.ID
+        let updatedAt: Date
+    }
+
+    private func key(_ release: Release) -> CoverKey {
+        CoverKey(id: release.id, updatedAt: release.updatedAt)
+    }
+
+    private static let scrollSpace = "librarySkyScroll"
+
     private var totalTrackCount: Int {
         releases.reduce(0) { $0 + $1.tracks.count }
     }
@@ -23,17 +58,36 @@ struct LibraryView: View {
     private var singles: [Release] { releases.filter { $0.kind == .single } }
     private var albums: [Release] { releases.filter { $0.kind == .album } }
 
+    /// Display order: singles, then albums.
+    private var displayOrder: [Release] { singles + albums }
+
+    /// The release whose cover colours the sky.
+    private var skyID: Release.ID? {
+        if let pressedID, releases.contains(where: { $0.id == pressedID }) { return pressedID }
+        return displayOrder.first(where: { visibleIDs.contains($0.id) })?.id ?? displayOrder.first?.id
+    }
+
+    private var skyKey: CoverKey? {
+        guard let skyID, let release = releases.first(where: { $0.id == skyID }) else { return nil }
+        return key(release)
+    }
+
+    private var skyPalette: AmbientPalette {
+        skyKey.flatMap { palettes[$0] } ?? .neutral
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
-                Theme.background.ignoresSafeArea()
-
                 if releases.isEmpty {
+                    Theme.background.ignoresSafeArea()
                     LibraryEmptyState(
                         onAddSingle: { startImport(.single) },
                         onMakeAlbum: { startImport(.album) }
                     )
                 } else {
+                    LibrarySky(palette: skyPalette, motion: motion)
+
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
                             header
@@ -50,11 +104,30 @@ struct LibraryView: View {
                         .padding(.horizontal, Theme.Spacing.listPagePadding)
                         .padding(.top, 12)
                         .padding(.bottom, 24)
+                        .background {
+                            GeometryReader { geo in
+                                Color.clear.preference(
+                                    key: LibraryScrollOffsetKey.self,
+                                    value: -geo.frame(in: .named(Self.scrollSpace)).minY
+                                )
+                            }
+                        }
+                    }
+                    .coordinateSpace(name: Self.scrollSpace)
+                    .onPreferenceChange(LibraryScrollOffsetKey.self) { offset in
+                        motion.offset = offset
+                        if pressedID != nil,
+                           abs(offset - pressOffset) > Theme.Library.pressedSkyReleaseDistance {
+                            pressedID = nil
+                        }
                     }
                 }
             }
+            .task(id: skyKey) { await ensurePalette(for: skyKey) }
             .navigationTitle(Copy.Library.title)
             .navigationBarTitleDisplayMode(.inline)
+            // The sky runs up under the title, as on the release page.
+            .toolbarBackground(releases.isEmpty ? .automatic : .hidden, for: .navigationBar)
             .navigationDestination(for: Release.self) { release in
                 ReleaseDetailView(release: release)
             }
@@ -75,6 +148,7 @@ struct LibraryView: View {
         selectedTab = .importSong
     }
 
+    @ViewBuilder
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 4) {
@@ -88,10 +162,59 @@ struct LibraryView: View {
                 .font(Theme.Font.meta)
                 .foregroundStyle(Theme.secondaryText)
         }
+        controls
     }
 
-    /// A section label with its count, then one `cardContainer` of rows
-    /// separated by a 1 pt `border`. Singles come first, then albums.
+    /// The list / covers toggle and, in covers view, the three-step size control.
+    private var controls: some View {
+        HStack(spacing: Theme.Library.headerControlGap) {
+            HStack(spacing: 0) {
+                layoutButton(.list, systemImage: "list.bullet", label: Copy.Library.layoutList)
+                layoutButton(.covers, systemImage: "square.grid.2x2", label: Copy.Library.layoutCovers)
+            }
+            .padding(2)
+            .background(Capsule().fill(Theme.Immersive.panelFill))
+            .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(Copy.Library.layoutLabel)
+
+            Spacer()
+
+            if layout == .covers {
+                SegmentedPill(
+                    options: [
+                        (CoverSize.compact, Copy.Library.sizeSmall),
+                        (CoverSize.medium, Copy.Library.sizeMedium),
+                        (CoverSize.large, Copy.Library.sizeLarge),
+                    ],
+                    selection: $coverSize,
+                    isCompact: true
+                )
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel(Copy.Library.coverSizeLabel)
+            }
+        }
+    }
+
+    private func layoutButton(_ value: LibraryLayout, systemImage: String, label: String) -> some View {
+        let selected = layout == value
+        return Button {
+            layout = value
+        } label: {
+            Image(systemName: systemImage)
+                .font(.system(size: Theme.Library.toggleIconSize, weight: .semibold))
+                .foregroundStyle(selected ? Theme.onAccent : Theme.secondaryText)
+                .frame(width: Theme.Library.toggleButtonSize, height: Theme.Library.toggleButtonSize - 8)
+                .background { if selected { Capsule().fill(Theme.accent) } }
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// A section label with its count, then the rows (list) or tiles (covers)
+    /// of that section. Singles come first, then albums.
     private func section(label: String, items: [Release]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
@@ -105,20 +228,76 @@ struct LibraryView: View {
             }
             .padding(.horizontal, 4)
 
-            VStack(spacing: 0) {
-                ForEach(Array(items.enumerated()), id: \.element.id) { index, release in
-                    NavigationLink(value: release) {
-                        row(for: release)
-                    }
-                    .buttonStyle(LibraryRowButtonStyle())
+            switch layout {
+            case .list: listPanel(items)
+            case .covers: coverGrid(items)
+            }
+        }
+    }
 
-                    if index < items.count - 1 {
-                        Rectangle().fill(Theme.border).frame(height: 1)
-                    }
+    /// Rows in a translucent panel over the sky, separated by a 1 pt `panelStroke`.
+    private func listPanel(_ items: [Release]) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.Library.listPanelCornerRadius, style: .continuous)
+        return VStack(spacing: 0) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, release in
+                NavigationLink(value: release) { row(for: release) }
+                    .buttonStyle(PressAwareStyle(rowHighlight: true, onPress: { didPress(release) }))
+                    .onAppear { visibleIDs.insert(release.id) }
+                    .onDisappear { visibleIDs.remove(release.id) }
+
+                if index < items.count - 1 {
+                    Rectangle().fill(Theme.Immersive.panelStroke).frame(height: 1)
                 }
             }
-            .cardContainer()
         }
+        .background(shape.fill(Theme.Immersive.panelFill))
+        .clipShape(shape)
+        .overlay(shape.stroke(Theme.Immersive.panelStroke, lineWidth: 1))
+    }
+
+    private func coverGrid(_ items: [Release]) -> some View {
+        LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: coverSize.tileMinWidth), spacing: coverSize.tileGap)],
+            spacing: coverSize.tileGap
+        ) {
+            ForEach(items) { release in
+                NavigationLink(value: release) { tile(for: release) }
+                    .buttonStyle(PressAwareStyle(rowHighlight: false, onPress: { didPress(release) }))
+                    .onAppear { visibleIDs.insert(release.id) }
+                    .onDisappear { visibleIDs.remove(release.id) }
+            }
+        }
+    }
+
+    private func tile(for release: Release) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Library.tileTextGap) {
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .overlay { coverImage(for: release, cornerRadius: Theme.Library.tileCornerRadius) }
+                .liftOnPress()
+            VStack(alignment: .leading, spacing: 2) {
+                Text(release.title)
+                    .font(Theme.Font.rowTitle)
+                    .foregroundStyle(Theme.primaryText)
+                    .lineLimit(1)
+                Text(subtitle(for: release))
+                    .font(Theme.Font.rowSubtitle)
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(1)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+
+    private func didPress(_ release: Release) {
+        pressOffset = motion.offset
+        pressedID = release.id
+    }
+
+    private func subtitle(for release: Release) -> String {
+        release.kind == .album
+            ? Copy.Library.albumSubtitle(artist: release.artist, tracks: release.tracks.count)
+            : release.artist
     }
 
     /// The subtle dashed rule between the Singles and Albums sections.
@@ -131,15 +310,14 @@ struct LibraryView: View {
     private func row(for release: Release) -> some View {
         HStack(spacing: 12) {
             coverThumbnail(for: release)
+                .liftOnPress()
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(release.title)
                     .font(Theme.Font.rowTitle)
                     .foregroundStyle(Theme.primaryText)
                     .lineLimit(1)
-                Text(release.kind == .album
-                     ? Copy.Library.albumSubtitle(artist: release.artist, tracks: release.tracks.count)
-                     : release.artist)
+                Text(subtitle(for: release))
                     .font(Theme.Font.rowSubtitle)
                     .foregroundStyle(Theme.secondaryText)
                     .lineLimit(1)
@@ -156,43 +334,132 @@ struct LibraryView: View {
         .contentShape(Rectangle())
     }
 
-    @ViewBuilder
     private func coverThumbnail(for release: Release) -> some View {
-        RoundedRectangle(cornerRadius: Theme.Radius.thumbnail)
-            .fill(Theme.elevated)
-            .frame(width: 56, height: 56)
-            .overlay {
-                if let coverStore = container?.coverStore,
-                   let data = coverStore.load(release.id),
-                   let uiImage = UIImage(data: data) {
+        Color.clear
+            .frame(width: Theme.Library.thumbnailSize, height: Theme.Library.thumbnailSize)
+            .overlay { coverImage(for: release, cornerRadius: Theme.Radius.thumbnail) }
+    }
+
+    /// The stored cover filling its frame, or a `music.note` on `elevated`.
+    @ViewBuilder
+    private func coverImage(for release: Release, cornerRadius: CGFloat) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius)
+        if let uiImage = covers[key(release)] {
+            Color.clear
+                .overlay {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 56, height: 56)
-                        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.thumbnail))
-                } else {
-                    Image(systemName: "music.note")
-                        .foregroundStyle(Theme.secondaryText)
                 }
-            }
+                .clipShape(shape)
+        } else {
+            shape.fill(Theme.elevated)
+                .overlay { Image(systemName: "music.note").foregroundStyle(Theme.secondaryText) }
+        }
+    }
+
+    /// Fills the palette cache for `key` off the main thread.
+    private func ensurePalette(for key: CoverKey?) async {
+        guard let key, palettes[key] == nil else { return }
+        let store = container?.coverStore
+        let palette = await Task.detached(priority: .utility) {
+            ArtworkPalette.palette(forCover: store?.load(key.id))
+        }.value
+        palettes[key] = palette
     }
 
     private func load() {
         guard let container else { return }
         do {
             releases = try container.library.all().sorted { $0.updatedAt > $1.updatedAt }
+            let live = Set(releases.map(key))
+            palettes = palettes.filter { live.contains($0.key) }
+            covers = covers.filter { live.contains($0.key) }
+            for release in releases where covers[key(release)] == nil {
+                if let data = container.coverStore.load(release.id), let image = UIImage(data: data) {
+                    covers[key(release)] = image
+                }
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 }
 
-/// Highlights a library row with `row-hover` while pressed, per
-/// `docs/design.md`'s "Library list" component.
-private struct LibraryRowButtonStyle: ButtonStyle {
+/// Scroll distance of the library content, read by a background `GeometryReader`.
+private struct LibraryScrollOffsetKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+/// Whether the library row or tile containing the view is being pressed;
+/// set by `PressAwareStyle`, read by `LiftOnPress` on the cover.
+private extension EnvironmentValues {
+    @Entry var libraryCoverPressed: Bool = false
+}
+
+/// Renders the link's label, passes `isPressed` down as `libraryCoverPressed`
+/// so the cover can lift, and optionally fills the row with `row-hover` per
+/// `docs/design.md`'s "Library list" component. `onPress` fires when a press begins.
+private struct PressAwareStyle: ButtonStyle {
+    let rowHighlight: Bool
+    let onPress: () -> Void
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .background(configuration.isPressed ? Theme.rowHover : Color.clear)
+            .environment(\.libraryCoverPressed, configuration.isPressed)
+            .background(rowHighlight && configuration.isPressed ? Theme.rowHover : Color.clear)
+            .onChange(of: configuration.isPressed) { _, pressed in
+                if pressed { onPress() }
+            }
+    }
+}
+
+private extension View {
+    /// Grows slightly with a soft shadow while the enclosing row or tile is
+    /// pressed; with Reduce Motion on there is no movement (the row highlight remains).
+    func liftOnPress() -> some View {
+        modifier(LiftOnPress())
+    }
+}
+
+private struct LiftOnPress: ViewModifier {
+    @Environment(\.libraryCoverPressed) private var pressed
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        let lifted = pressed && !reduceMotion
+        content
+            .scaleEffect(lifted ? Theme.Library.pressScale : 1)
+            .shadow(
+                color: .black.opacity(lifted ? Theme.Library.pressShadowOpacity : 0),
+                radius: Theme.Library.pressShadowRadius, x: 0, y: Theme.Library.pressShadowY
+            )
+            .animation(.easeOut(duration: Theme.Library.pressDuration), value: lifted)
+    }
+}
+
+/// Holds the library's scroll distance outside `LibraryView`'s state, so only
+/// the views that read `offset` (just `LibrarySky`) update as it scrolls.
+@Observable @MainActor
+private final class LibrarySkyMotion {
+    var offset: CGFloat = 0
+}
+
+/// The fixed colour wash behind the library. It alone reads the scroll offset;
+/// the glows turn by screens scrolled (the web's `.ambient-sky-1/-2`).
+private struct LibrarySky: View {
+    let palette: AmbientPalette
+    let motion: LibrarySkyMotion
+
+    var body: some View {
+        GeometryReader { geo in
+            ArtworkBackdrop(
+                palette: palette,
+                progress: geo.size.height > 0 ? Double(motion.offset / geo.size.height) : 0
+            )
+        }
+        .ignoresSafeArea()
     }
 }
 

@@ -7,6 +7,10 @@ import UIKit
 /// about artwork. A new set of colours cross-fades over `Theme.Immersive.backdropCrossFade`;
 /// the glows drift slowly by transform only (no blur or material sits over the animation).
 /// With Reduce Motion on there is no drift and colours change instantly.
+/// `progress` (screens scrolled) turns the two glows against each other on top of the
+/// drift, by `Immersive.scrollTurnPrimary` / `scrollTurnSecondary` degrees per screen as
+/// the web's `.ambient-sky-1/-2` do, so a caller can link the wash to scrolling (the
+/// library home does); it is ignored under Reduce Motion.
 struct ArtworkBackdrop: View {
     private struct Palette: Equatable {
         var primary: Color
@@ -20,10 +24,12 @@ struct ArtworkBackdrop: View {
     }
 
     private let palette: Palette
+    private let progress: Double
     @State private var layers: [Layer]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(primary: Color, secondary: Color, deep: Color) {
+    init(primary: Color, secondary: Color, deep: Color, progress: Double = 0) {
+        self.progress = progress
         let capped = Palette(
             primary: Self.capped(primary, cap: Theme.Immersive.luminanceCapPrimary),
             secondary: Self.capped(secondary, cap: Theme.Immersive.luminanceCapSecondary),
@@ -33,11 +39,32 @@ struct ArtworkBackdrop: View {
         self._layers = State(initialValue: [Layer(palette: capped)])
     }
 
+    /// From an `AmbientPalette` ("#rrggbb" strings, as `ArtworkPalette` returns).
+    init(palette: AmbientPalette, progress: Double = 0) {
+        self.init(
+            primary: Self.color(hex: palette.primary),
+            secondary: Self.color(hex: palette.secondary),
+            deep: Self.color(hex: palette.deep),
+            progress: progress
+        )
+    }
+
+    /// A 6-digit "#rrggbb" (or "rrggbb") string as a colour; the page black when malformed.
+    static func color(hex: String) -> Color {
+        let digits = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
+        guard digits.count == 6, let value = UInt32(digits, radix: 16) else { return Theme.background }
+        return Color(
+            red: Double((value >> 16) & 0xFF) / 255,
+            green: Double((value >> 8) & 0xFF) / 255,
+            blue: Double(value & 0xFF) / 255
+        )
+    }
+
     var body: some View {
         ZStack {
             Theme.background
             ForEach(layers) { layer in
-                Wash(palette: layer.palette, reduceMotion: reduceMotion)
+                Wash(palette: layer.palette, progress: reduceMotion ? 0 : progress, reduceMotion: reduceMotion)
                     .transition(.opacity)
             }
         }
@@ -91,6 +118,7 @@ struct ArtworkBackdrop: View {
 
     private struct Wash: View {
         let palette: Palette
+        let progress: Double
         let reduceMotion: Bool
 
         var body: some View {
@@ -117,6 +145,7 @@ struct ArtworkBackdrop: View {
                             rotation: Theme.Immersive.driftRotationPrimary,
                             scale: Theme.Immersive.driftScalePrimary
                         ))
+                        .rotationEffect(.degrees(progress * Theme.Immersive.scrollTurnPrimary))
                         glow(
                             palette.secondary, size: geo.size,
                             radius: Theme.Immersive.backdropSecondaryRadius,
@@ -128,6 +157,7 @@ struct ArtworkBackdrop: View {
                             rotation: Theme.Immersive.driftRotationSecondary,
                             scale: Theme.Immersive.driftScaleSecondary
                         ))
+                        .rotationEffect(.degrees(-progress * Theme.Immersive.scrollTurnSecondary))
                     }
                 }
             }
