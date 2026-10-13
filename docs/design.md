@@ -166,11 +166,32 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
   52, a 30 pt `elevated` tile holding an accent file-music icon, filename 14 medium, "Audio file"
   12 muted, chevron. No Edit-mode toolbar button; reordering is a plain long-press drag. Sticky
   footer with the save action.
-- **Desktop release page**: the same compact header as the mobile editor, on the 920-wide page.
-  A 112 cover thumb (radius 10, 1 px `border`, 28 circular pencil badge) sits beside the kind
-  badge, the title (page title, 2 lines) and the artist in `text-muted`. Under that, the DETAILS
-  eyebrow and "Tap to edit" (no separate Metadata title), then Title, Artist, and Year/Genre.
-  Tracks, the playlist disclosure, and the action row follow.
+- **Desktop release page** (#112, web first; the iOS editor still uses the compact header above
+  until it follows): editing should feel like putting a record together, not filling in a form.
+  - *Artwork backdrop*: three colours read from the cover (`src/lib/artwork-palette.ts`) wash
+    the main pane: `primary` top left, `secondary` top right, `deep` fading to `bg`. Every
+    colour is capped on relative luminance (0.12 / 0.08 / 0.035), so white text keeps at least
+    6:1. With no cover the wash is neutral grey (#262626 / #1a1a1a / #0d0d0d). A new cover
+    cross-fades the wash over 900 ms.
+  - *Record sleeve* (the hero): the cover at 248 (200 below `sm`), radius 4 like printed card,
+    a soft two-layer shadow and a faint top-left sheen, with the 28 pencil badge. A vinyl disc
+    (228 / 184) sits behind it and peeks out to the right; its centre label is the cover art,
+    or `accent` as a house label before there is one. On load the disc slides out once; on
+    hover it eases out 14 px more. A new cover fades and scales in (0.96 to 1) over the old one.
+    An empty sleeve reads "Add cover art" / "Drop an image or click to choose".
+  - *Details*, directly under the sleeve and left-aligned, with no field boxes: a quiet meta
+    line ("Album · 5 tracks", white at 70 %), the title as a 44 bold (30 below `sm`) inline
+    field, the artist as a 20 semibold one, then "Year" and "Genre" as small labels each beside
+    an inline value. Inline fields look like text until hovered (white 7 % fill) or focused
+    (white 10 % fill plus the 2 px `accent` ring). Enter in the title commits it.
+  - *Dock*: Save to library (primary), "Unsaved changes" in `text-muted` while there are any,
+    Show in Finder and Delete (text buttons) in one pill of black at 70 % with blur and a white
+    10 % ring. It sits under the details and pins to the top of the pane as you scroll to the
+    tracks. The toast for a save reads "Saved to your library".
+  - *Saving*: the record tucks most of the way into the sleeve and comes back out spinning
+    1.5 turns (1.3 s in all), whatever the request takes.
+  - Reduced motion: no slide, spin, scale or colour fade; changes are instant.
+  - Tracks and the playlist disclosure follow, unchanged.
 - **Make it a playlist (album release pages, both apps)**: a disclosure between the Tracks
   section and the action row, `card` with 1 px `border`, radius 9, padding 20, title "Make it a
   playlist" with a chevron that rotates open. Body: the album title beside a small secondary /

@@ -115,7 +115,9 @@ export default function AppShell() {
         onImportClick={() => openImport()}
         onSettingsClick={() => setView({ type: "settings" })}
       />
-      <main className="flex-1 overflow-y-auto p-6 md:p-10 lg:p-16">
+      {/* relative + isolate: the release page's AmbientBackdrop paints behind its content but
+          inside this pane, so it never covers the sidebar. */}
+      <main className="relative isolate flex-1 overflow-y-auto p-6 md:p-10 lg:p-16">
         {view.type === "library" && (
           <LibraryView
             releases={library?.releases ?? []}
