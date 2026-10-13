@@ -29,12 +29,21 @@ struct ImportSingleView: View {
     /// Raw bytes from the Files cover pick, handed to `CoverPicker` to
     /// crop; see `CoverPicker.rawPick`.
     @State private var rawCoverPick: Data?
+    /// Backdrop colours taken from the cover; neutral until one is picked.
+    @State private var palette = AmbientPalette.neutral
+    /// Bumped on a successful send to play the sleeve ceremony.
+    @State private var ceremony = 0
+    /// True from the Send tap until the ceremony has played, so `DoneView` waits for it.
+    @State private var holdingForCeremony = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
-            Theme.background.ignoresSafeArea()
+            // The backdrop itself sits at the back of `ImportView`, behind the header
+            // and the Single/Album switch; this screen only hands it the cover's colours.
+            Color.clear
 
-            if let model, model.completedRelease != nil {
+            if let model, model.completedRelease != nil, !holdingForCeremony {
                 DoneView(kind: .single) {
                     model.reset()
                 }
@@ -42,10 +51,15 @@ struct ImportSingleView: View {
                 form(model)
             }
         }
+        .preference(key: ImportPaletteKey.self, value: palette)
         .task {
             if model == nil, let container {
                 model = ImportSingleViewModel(importer: container.importer, coordinator: container.coordinator, inbox: container.inbox)
             }
+        }
+        .task(id: model?.coverData) {
+            let data = model?.coverData
+            palette = await Task.detached { ArtworkPalette.palette(forCover: data) }.value
         }
         .task(id: inboxQueue) {
             guard !inboxQueue.isEmpty, let model else { return }
@@ -62,30 +76,20 @@ struct ImportSingleView: View {
 
                 if model.pickedURL != nil {
                     VStack(alignment: .leading, spacing: Theme.Spacing.fieldGap) {
-                        // Cover first, compact, beside Title and Artist: the Mac
-                        // layout, so the cover is in view while typing.
-                        HStack(alignment: .top, spacing: 16) {
-                            CoverPicker(
-                                imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 }),
-                                rawPick: $rawCoverPick,
-                                style: .compact
-                            ) {
-                                activePicker = .cover
-                                isPickerPresented = true
-                            }
-                            VStack(alignment: .leading, spacing: Theme.Spacing.fieldGap) {
-                                Field(Copy.Import.fieldTitle, text: Binding(get: { model.title }, set: { model.title = $0 }))
-                                Field(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }))
-                            }
+                        SleeveCoverPicker(
+                            imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 }),
+                            rawPick: $rawCoverPick,
+                            ceremony: ceremony
+                        ) {
+                            activePicker = .cover
+                            isPickerPresented = true
                         }
-                        Text(Copy.Import.coverHint)
-                            .font(Theme.Font.dropZoneHint)
-                            .foregroundStyle(Theme.textHint)
-                        Field(Copy.Import.fieldAlbum, placeholder: Copy.Import.albumPlaceholder, text: Binding(get: { model.album }, set: { model.album = $0 }))
-                        HStack(spacing: 12) {
-                            Field(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }), keyboardType: .numberPad)
-                            Field(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }))
-                        }
+                        InlineField(Copy.Import.fieldTitle, text: Binding(get: { model.title }, set: { model.title = $0 }), font: Theme.Font.pageTitle)
+                        InlineField(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }))
+                        InlineField(Copy.Import.fieldAlbum, text: Binding(get: { model.album }, set: { model.album = $0 }))
+                        InlineField(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }))
+                            .keyboardType(.numberPad)
+                        InlineField(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }))
                     }
 
                     if let errorMessage = model.errorMessage {
@@ -99,10 +103,17 @@ struct ImportSingleView: View {
             }
             .padding(Theme.Spacing.pagePadding)
         }
-        .background(Theme.background)
         .stickyFooter {
             Button {
-                Task { await model.send() }
+                Task {
+                    holdingForCeremony = true
+                    await model.send()
+                    if model.completedRelease != nil, !reduceMotion {
+                        ceremony += 1
+                        try? await Task.sleep(for: .seconds(Theme.Immersive.ceremonyDuration))
+                    }
+                    holdingForCeremony = false
+                }
             } label: {
                 if model.isSending {
                     ProgressView().tint(.black)
@@ -111,7 +122,7 @@ struct ImportSingleView: View {
                 }
             }
             .buttonStyle(PrimaryPillButtonStyle())
-            .disabled(!model.canSend)
+            .disabled(!model.canSend || holdingForCeremony)
         }
         .fileImporter(
             isPresented: $isPickerPresented,

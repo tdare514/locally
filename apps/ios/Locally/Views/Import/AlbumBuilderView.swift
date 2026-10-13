@@ -29,12 +29,21 @@ struct AlbumBuilderView: View {
     /// Raw bytes from the Files cover pick, handed to `CoverPicker` to
     /// crop; see `CoverPicker.rawPick`.
     @State private var rawCoverPick: Data?
+    /// Backdrop colours taken from the cover; neutral until one is picked.
+    @State private var palette = AmbientPalette.neutral
+    /// Bumped on a successful send to play the sleeve ceremony.
+    @State private var ceremony = 0
+    /// True from the Send tap until the ceremony has played, so `DoneView` waits for it.
+    @State private var holdingForCeremony = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
-            Theme.background.ignoresSafeArea()
+            // The backdrop itself sits at the back of `ImportView`, behind the header
+            // and the Single/Album switch; this screen only hands it the cover's colours.
+            Color.clear
 
-            if let model, model.completedRelease != nil {
+            if let model, model.completedRelease != nil, !holdingForCeremony {
                 DoneView(kind: .album, trackTitles: model.orderedTrackTitles, albumTitle: model.albumTitle) {
                     model.reset()
                 }
@@ -42,10 +51,15 @@ struct AlbumBuilderView: View {
                 form(model)
             }
         }
+        .preference(key: ImportPaletteKey.self, value: palette)
         .task {
             if model == nil, let container {
                 model = AlbumBuilderViewModel(importer: container.importer, coordinator: container.coordinator, inbox: container.inbox)
             }
+        }
+        .task(id: model?.coverData) {
+            let data = model?.coverData
+            palette = await Task.detached { ArtworkPalette.palette(forCover: data) }.value
         }
         .task(id: inboxFiles) {
             guard !inboxFiles.isEmpty, let model else { return }
@@ -67,19 +81,20 @@ struct AlbumBuilderView: View {
             // Cover first, compact, beside the album title and artist (the Mac
             // layout), then the rest of the metadata; the tracks follow.
             Section {
-                HStack(alignment: .top, spacing: 16) {
-                    CoverPicker(
-                        imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 }),
-                        rawPick: $rawCoverPick,
-                        style: .compact
-                    ) {
-                        activePicker = .cover
-                        isPickerPresented = true
-                    }
-                    VStack(alignment: .leading, spacing: Theme.Spacing.fieldGap) {
-                        Field(Copy.Import.fieldAlbumTitle, text: Binding(get: { model.albumTitle }, set: { model.albumTitle = $0 }))
-                        Field(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }))
-                    }
+                SleeveCoverPicker(
+                    imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 }),
+                    rawPick: $rawCoverPick,
+                    ceremony: ceremony
+                ) {
+                    activePicker = .cover
+                    isPickerPresented = true
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: Theme.Spacing.pagePadding, bottom: Theme.Spacing.rowGap, trailing: Theme.Spacing.pagePadding))
+                VStack(alignment: .leading, spacing: Theme.Spacing.fieldGap) {
+                    InlineField(Copy.Import.fieldAlbumTitle, text: Binding(get: { model.albumTitle }, set: { model.albumTitle = $0 }), font: Theme.Font.pageTitle)
+                    InlineField(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }))
                 }
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
@@ -90,9 +105,10 @@ struct AlbumBuilderView: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: Theme.Spacing.pagePadding, bottom: Theme.Spacing.rowGap, trailing: Theme.Spacing.pagePadding))
-                HStack(spacing: 12) {
-                    Field(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }), keyboardType: .numberPad)
-                    Field(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }))
+                VStack(alignment: .leading, spacing: Theme.Spacing.fieldGap) {
+                    InlineField(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }))
+                        .keyboardType(.numberPad)
+                    InlineField(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }))
                 }
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
@@ -113,14 +129,14 @@ struct AlbumBuilderView: View {
                     Text(Copy.Import.reorderHint)
                         .font(Theme.Font.dropZoneHint)
                         .foregroundStyle(Theme.textDim)
-                        .listRowBackground(Color.clear)
+                        .listRowBackground(glassRow)
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: 0, leading: Theme.Spacing.pagePadding, bottom: 6, trailing: Theme.Spacing.pagePadding))
                         .accessibilityIdentifier("reorder-hint")
                 }
                 if model.rows.isEmpty {
                     TrackListSilhouette(rows: 3)
-                        .listRowBackground(Color.clear)
+                        .listRowBackground(glassRow)
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: Theme.Spacing.pagePadding, bottom: Theme.Spacing.rowGap, trailing: Theme.Spacing.pagePadding))
                 } else {
@@ -134,7 +150,7 @@ struct AlbumBuilderView: View {
                             isEditable: true,
                             onTitleChange: { newValue in setTitle(newValue, for: row, in: model) }
                         )
-                        .listRowBackground(Color.clear)
+                        .listRowBackground(glassRow)
                         .listRowSeparator(.hidden)
                         .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: Theme.Spacing.pagePadding, bottom: Theme.Spacing.rowGap, trailing: Theme.Spacing.pagePadding))
                     }
@@ -160,10 +176,17 @@ struct AlbumBuilderView: View {
         .listStyle(.plain)
         .listSectionSpacing(.custom(Theme.Spacing.sectionGap))
         .scrollContentBackground(.hidden)
-        .background(Theme.background)
         .stickyFooter {
             Button {
-                Task { await model.send() }
+                Task {
+                    holdingForCeremony = true
+                    await model.send()
+                    if model.completedRelease != nil, !reduceMotion {
+                        ceremony += 1
+                        try? await Task.sleep(for: .seconds(Theme.Immersive.ceremonyDuration))
+                    }
+                    holdingForCeremony = false
+                }
             } label: {
                 if model.isSending {
                     VStack(spacing: 4) {
@@ -178,7 +201,7 @@ struct AlbumBuilderView: View {
                 }
             }
             .buttonStyle(PrimaryPillButtonStyle())
-            .disabled(!model.canSend)
+            .disabled(!model.canSend || holdingForCeremony)
         }
         .fileImporter(
             isPresented: $isPickerPresented,
@@ -225,6 +248,11 @@ struct AlbumBuilderView: View {
         }
         .buttonStyle(.plain)
         .dropZone()
+    }
+
+    /// The release page's faked-glass panel fill behind the track rows (no blur or material).
+    private var glassRow: some View {
+        Theme.Immersive.panelFill
     }
 
     /// A title binding by row id (not index), so it stays correct while

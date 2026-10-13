@@ -68,6 +68,12 @@ enum Copy {
         /// The hint under the cover drop zone, verbatim from `docs/design.md`'s
         /// "Cover drop zone" component.
         static let coverHint = "Square artwork works best"
+        static let coverFromPhotos = "Photos"
+        static let coverFromFiles = "Files"
+        static let coverDialogTitle = "Add a cover"
+        static let removeCover = "Remove cover"
+        /// The hint read after the record sleeve's own label.
+        static let sleeveHint = "Choose a cover from Photos or Files"
         /// The file chooser panel's caption before a file is chosen. Matches
         /// `docs/design.md`'s "Drop zone / file chooser" component, iOS wording.
         static let fileCaption = "Tap to choose a file"

@@ -69,7 +69,11 @@ struct ImportView: View {
                 }
                 .padding(.top, 24)
             }
-            .background(Theme.background.ignoresSafeArea())
+            // The cover's colour wash sits behind everything on this screen, header
+            // included; the single/album screen below reports its colours up.
+            .backgroundPreferenceValue(ImportPaletteKey.self) { palette in
+                ArtworkBackdrop(palette: palette)
+            }
             // Waiting songs surface as a floating toast rather than a block in
             // the layout, so the form never shifts and the note reads as a
             // notification. Dismissed until the count changes.
@@ -339,5 +343,15 @@ struct ImportView: View {
         // connected folder happens to be one the inbox also scans.
         let knownPaths = Set(((try? container.library.all()) ?? []).flatMap { $0.tracks.map(\.filePath) })
         inboxFiles = container.inbox.pendingFiles().filter { !knownPaths.contains($0.url.path) }
+    }
+}
+
+/// The import screen's backdrop colours, reported by `ImportSingleView` or
+/// `AlbumBuilderView` (neutral until a cover is picked) so `ImportView` can draw one
+/// `ArtworkBackdrop` at the very back, behind its own header.
+struct ImportPaletteKey: PreferenceKey {
+    static let defaultValue = AmbientPalette.neutral
+    static func reduce(value: inout AmbientPalette, nextValue: () -> AmbientPalette) {
+        value = nextValue()
     }
 }
