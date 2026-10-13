@@ -21,6 +21,8 @@ struct LibraryView: View {
 
     @State private var releases: [Release] = []
     @State private var errorMessage: String?
+    /// The search box text; not persisted.
+    @State private var query = ""
 
     @AppStorage(LibraryViewPrefs.layoutKey) private var layout: LibraryLayout = .default
     @AppStorage(LibraryViewPrefs.coverSizeKey) private var coverSize: CoverSize = .default
@@ -55,8 +57,10 @@ struct LibraryView: View {
         releases.reduce(0) { $0 + $1.tracks.count }
     }
 
-    private var singles: [Release] { releases.filter { $0.kind == .single } }
-    private var albums: [Release] { releases.filter { $0.kind == .album } }
+    /// `releases` narrowed by the search box; the sections and the sky follow this.
+    private var matching: [Release] { LibrarySearch.filter(releases, query: query) }
+    private var singles: [Release] { matching.filter { $0.kind == .single } }
+    private var albums: [Release] { matching.filter { $0.kind == .album } }
 
     /// Display order: singles, then albums.
     private var displayOrder: [Release] { singles + albums }
@@ -91,6 +95,14 @@ struct LibraryView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
                             header
+                            if matching.isEmpty {
+                                Text(Copy.Library.noMatches(query))
+                                    .font(Theme.Font.body)
+                                    .foregroundStyle(Theme.secondaryText)
+                                    .multilineTextAlignment(.center)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.top, Theme.Library.noMatchesTopPadding)
+                            }
                             if !singles.isEmpty {
                                 section(label: Copy.Library.singlesSection, items: singles)
                             }
@@ -113,6 +125,7 @@ struct LibraryView: View {
                             }
                         }
                     }
+                    .scrollDismissesKeyboard(.immediately)
                     .coordinateSpace(name: Self.scrollSpace)
                     .onPreferenceChange(LibraryScrollOffsetKey.self) { offset in
                         motion.offset = offset
@@ -124,10 +137,9 @@ struct LibraryView: View {
                 }
             }
             .task(id: skyKey) { await ensurePalette(for: skyKey) }
-            .navigationTitle(Copy.Library.title)
-            .navigationBarTitleDisplayMode(.inline)
-            // The sky runs up under the title, as on the release page.
-            .toolbarBackground(releases.isEmpty ? .automatic : .hidden, for: .navigationBar)
+            // No bar on the home screen (the header carries the title); pushed
+            // release pages set their own.
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Release.self) { release in
                 ReleaseDetailView(release: release)
             }
@@ -162,7 +174,35 @@ struct LibraryView: View {
                 .font(Theme.Font.meta)
                 .foregroundStyle(Theme.secondaryText)
         }
+        searchField
         controls
+    }
+
+    /// Fake-glass search box filtering the library by title, artist, genre, year and track titles.
+    private var searchField: some View {
+        HStack(spacing: Theme.Library.headerControlGap) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(Theme.secondaryText)
+                .accessibilityHidden(true)
+            TextField(Copy.Library.searchPlaceholder, text: $query)
+                .font(Theme.Font.body)
+                .foregroundStyle(Theme.primaryText)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.secondaryText)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Copy.Library.clearSearch)
+            }
+        }
+        .padding(.horizontal, Theme.Library.searchPaddingH)
+        .frame(height: Theme.Library.searchHeight)
+        .background(Capsule().fill(Theme.Immersive.panelFill))
+        .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
     }
 
     /// The list / covers toggle and, in covers view, the three-step size control.
@@ -300,9 +340,11 @@ struct LibraryView: View {
             : release.artist
     }
 
-    /// The subtle dashed rule between the Singles and Albums sections.
+    /// The barely visible hairline between the Singles and Albums sections.
     private var sectionDivider: some View {
-        DashedRule()
+        Rectangle()
+            .fill(Theme.Library.sectionDivider)
+            .frame(height: 1)
             .padding(.vertical, 4)
             .accessibilityHidden(true)
     }
@@ -554,23 +596,5 @@ private struct LibraryEmptyState: View {
                 .font(Theme.Font.rowSubtitle)
                 .foregroundStyle(Theme.secondaryText)
         }
-    }
-}
-
-/// A 1 pt horizontal dashed line in `borderDashed`, used between library sections.
-private struct DashedRule: View {
-    var body: some View {
-        Rectangle()
-            .fill(Color.clear)
-            .frame(height: 1)
-            .overlay {
-                GeometryReader { geo in
-                    Path { p in
-                        p.move(to: CGPoint(x: 0, y: 0.5))
-                        p.addLine(to: CGPoint(x: geo.size.width, y: 0.5))
-                    }
-                    .stroke(Theme.borderDashed, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                }
-            }
     }
 }

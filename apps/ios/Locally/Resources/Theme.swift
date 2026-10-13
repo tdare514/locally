@@ -116,6 +116,11 @@ enum Theme {
         /// Scroll distance after which a pressed release stops colouring the sky.
         static let pressedSkyReleaseDistance: CGFloat = 120
         static let thumbnailSize: CGFloat = 56
+        /// The hairline between the Singles and Albums sections.
+        static let sectionDivider = Color.white.opacity(0.07)
+        static let searchHeight: CGFloat = 40
+        static let searchPaddingH: CGFloat = 14
+        static let noMatchesTopPadding: CGFloat = 32
         /// Spacing between header controls and between a tile's cover and text.
         static let headerControlGap: CGFloat = 8
         static let tileTextGap: CGFloat = 8

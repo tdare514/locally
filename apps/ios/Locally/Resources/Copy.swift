@@ -135,6 +135,9 @@ enum Copy {
             "\(artist) · \(trackCount(tracks))"
         }
         /// The list / cover toggle and cover size control in the header.
+        static let searchPlaceholder = "Search title, artist, genre or track"
+        static let clearSearch = "Clear search"
+        static func noMatches(_ query: String) -> String { "No matches for \u{201C}\(query)\u{201D}" }
         static let layoutList = "List"
         static let layoutCovers = "Covers"
         static let layoutLabel = "Library view"
