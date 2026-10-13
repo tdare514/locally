@@ -81,7 +81,10 @@ export default function PhoneInbox({ pending, onAccept }: PhoneInboxProps) {
         aria-expanded={open}
         aria-controls={panelId}
         aria-label={triggerLabel(count, open)}
-        className={`relative flex h-10 w-10 items-center justify-center rounded-full bg-elevated transition-colors hover:bg-elevated-hover active:scale-95 ${
+        className={`relative flex h-10 w-10 items-center justify-center rounded-full transition-colors active:scale-95 ${
+          // Open: the circle drops away and the red X stands alone.
+          open ? "bg-transparent" : "bg-elevated hover:bg-elevated-hover"
+        } ${
           count > 0 ? "text-text" : "text-text-dim"
         }`}
       >
@@ -92,7 +95,7 @@ export default function PhoneInbox({ pending, onAccept }: PhoneInboxProps) {
             data-open={open}
           />
         </span>
-        {count > 0 && (
+        {count > 0 && !open && (
           <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent px-1 text-[11px] font-bold leading-none text-black">
             {count}
           </span>
@@ -107,7 +110,7 @@ export default function PhoneInbox({ pending, onAccept }: PhoneInboxProps) {
           aria-label="From your phone"
           tabIndex={-1}
           data-state={open ? "open" : "closed"}
-          className="phone-tray absolute right-0 top-full z-30 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] rounded-xl border border-white/10 p-2 outline-none"
+          className="phone-tray absolute right-full top-full z-30 w-[22rem] max-w-[calc(100vw-2rem)] rounded-xl border border-white/10 p-2 outline-none"
         >
           <p className="px-2 py-2 text-xs font-bold uppercase tracking-[0.18em] text-accent">
             From your phone
