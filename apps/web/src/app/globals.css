@@ -356,6 +356,76 @@ body {
   box-shadow: 0 12px 20px -8px rgb(0 0 0 / 0.8);
 }
 
+/* Import pill: black ink at rest; on hover or focus the ink fades to white and a brighter
+   glint sweeps through the letters, like a "thinking" shimmer. The two ink colours are
+   registered so the fade can transition inside the gradient; the plus turns a quarter. */
+@property --import-ink {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #000;
+}
+@property --import-glint {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #000;
+}
+.import-pill {
+  --import-ink: #000;
+  --import-glint: #000;
+  transition:
+    background-color 200ms,
+    --import-ink 280ms ease-out,
+    --import-glint 280ms ease-out;
+}
+.import-pill:hover,
+.import-pill:focus-visible {
+  --import-ink: rgb(255 255 255 / 0.74);
+  --import-glint: #fff;
+}
+.import-label {
+  color: transparent;
+  background: linear-gradient(
+      100deg,
+      var(--import-ink) 0 38%,
+      var(--import-glint) 50%,
+      var(--import-ink) 62% 100%
+    )
+    0 0 / 250% 100%;
+  background-position: 100% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.import-pill:hover .import-label,
+.import-pill:focus-visible .import-label {
+  animation: import-shimmer 1.8s linear 120ms infinite;
+}
+.import-plus {
+  color: var(--import-ink);
+  transition: rotate 360ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.import-pill:hover .import-plus,
+.import-pill:focus-visible .import-plus {
+  color: #fff;
+  rotate: 90deg;
+}
+@keyframes import-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .import-pill:hover .import-label,
+  .import-pill:focus-visible .import-label {
+    animation: none;
+  }
+  .import-plus {
+    transition: none;
+  }
+  .import-pill:hover .import-plus,
+  .import-pill:focus-visible .import-plus {
+    rotate: none;
+  }
+}
+
 .cover-in {
   animation: cover-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }

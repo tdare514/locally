@@ -78,12 +78,12 @@ export default function Sidebar({
           type="button"
           onClick={onImportClick}
           aria-current={view.type === "import" ? "page" : undefined}
-          className={`flex shrink-0 items-center justify-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-accent-hover md:mt-2 md:w-full ${focusRing} ${
+          className={`import-pill flex shrink-0 items-center justify-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold hover:bg-accent-hover md:mt-2 md:w-full ${focusRing} ${
             view.type === "import" ? "ring-2 ring-white/25" : ""
           }`}
         >
-          <PlusIcon className="h-4 w-4" />
-          Import
+          <PlusIcon className="import-plus h-4 w-4" />
+          <span className="import-label">Import</span>
         </button>
       </nav>
 
