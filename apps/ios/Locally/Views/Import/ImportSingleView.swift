@@ -39,7 +39,9 @@ struct ImportSingleView: View {
 
     var body: some View {
         ZStack {
-            ArtworkBackdrop(palette: palette).ignoresSafeArea()
+            // The backdrop itself sits at the back of `ImportView`, behind the header
+            // and the Single/Album switch; this screen only hands it the cover's colours.
+            Color.clear
 
             if let model, model.completedRelease != nil, !holdingForCeremony {
                 DoneView(kind: .single) {
@@ -49,6 +51,7 @@ struct ImportSingleView: View {
                 form(model)
             }
         }
+        .preference(key: ImportPaletteKey.self, value: palette)
         .task {
             if model == nil, let container {
                 model = ImportSingleViewModel(importer: container.importer, coordinator: container.coordinator, inbox: container.inbox)
