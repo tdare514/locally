@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { parseCoverSize, parseLibraryLayout } from "../../src/lib/library-view-prefs";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  loadLibraryWidth,
+  parseCoverSize,
+  parseLibraryLayout,
+  parseLibraryWidth,
+  saveLibraryWidth,
+} from "../../src/lib/library-view-prefs";
 
 describe("parseLibraryLayout", () => {
   it("accepts the two layouts", () => {
@@ -30,5 +36,58 @@ describe("parseCoverSize", () => {
     expect(parseCoverSize("-1")).toBe(1);
     expect(parseCoverSize("1.5")).toBe(1);
     expect(parseCoverSize("99")).toBe(1);
+  });
+});
+
+describe("parseLibraryWidth", () => {
+  it("accepts the two widths", () => {
+    expect(parseLibraryWidth("comfortable")).toBe("comfortable");
+    expect(parseLibraryWidth("full")).toBe("full");
+  });
+  it("defaults to comfortable for null and garbage", () => {
+    expect(parseLibraryWidth(null)).toBe("comfortable");
+    expect(parseLibraryWidth("")).toBe("comfortable");
+    expect(parseLibraryWidth("wide")).toBe("comfortable");
+    expect(parseLibraryWidth("FULL")).toBe("comfortable");
+  });
+});
+
+describe("library width storage", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function stubStorage() {
+    const data = new Map<string, string>();
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (k: string) => data.get(k) ?? null,
+        setItem: (k: string, v: string) => void data.set(k, v),
+      },
+    });
+  }
+
+  it("defaults to comfortable when nothing is saved", () => {
+    stubStorage();
+    expect(loadLibraryWidth()).toBe("comfortable");
+  });
+  it("round-trips a saved width", () => {
+    stubStorage();
+    saveLibraryWidth("full");
+    expect(loadLibraryWidth()).toBe("full");
+    saveLibraryWidth("comfortable");
+    expect(loadLibraryWidth()).toBe("comfortable");
+  });
+  it("falls back to comfortable when storage throws", () => {
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: () => {
+          throw new Error("blocked");
+        },
+        setItem: () => {
+          throw new Error("blocked");
+        },
+      },
+    });
+    expect(loadLibraryWidth()).toBe("comfortable");
+    expect(() => saveLibraryWidth("full")).not.toThrow();
   });
 });

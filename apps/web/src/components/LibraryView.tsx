@@ -20,10 +20,12 @@ import {
   COVER_GRID_GAP_PX,
   COVER_TILE_MIN_PX,
   loadLibraryViewPrefs,
+  loadLibraryWidth,
   saveCoverSize,
   saveLibraryLayout,
   type CoverSize,
   type LibraryLayout,
+  type LibraryWidth,
 } from "../lib/library-view-prefs";
 import BulkEditDialog from "./BulkEditDialog";
 import {
@@ -79,6 +81,7 @@ export default function LibraryView({
   const [busy, setBusy] = useState(false);
   const [layout, setLayout] = useState<LibraryLayout>("list");
   const [coverSize, setCoverSize] = useState<CoverSize>(1);
+  const [width, setWidth] = useState<LibraryWidth>("comfortable");
   const [focusId, setFocusId] = useState<string | null>(null);
   const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
 
@@ -88,6 +91,7 @@ export default function LibraryView({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLayout(prefs.layout);
     setCoverSize(prefs.coverSize);
+    setWidth(loadLibraryWidth());
   }, []);
 
   function changeLayout(next: LibraryLayout) {
@@ -256,7 +260,7 @@ export default function LibraryView({
     <div
       ref={rootRef}
       className={`mx-auto flex flex-col gap-8 pb-16 ${
-        layout === "covers" ? "max-w-[1240px]" : "max-w-[920px]"
+        width === "full" ? "max-w-[1240px]" : "max-w-[920px]"
       }`}
     >
       <div className="flex items-baseline justify-between gap-4">

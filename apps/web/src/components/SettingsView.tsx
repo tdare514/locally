@@ -15,6 +15,7 @@ import {
   syncNow,
   verifySyncCode,
 } from "../lib/api-client";
+import { loadLibraryWidth, saveLibraryWidth, type LibraryWidth } from "../lib/library-view-prefs";
 import Field from "./Field";
 
 interface SettingsViewProps {
@@ -52,6 +53,18 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
   const [libraryDir, setLibraryDir] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [libraryWidth, setLibraryWidth] = useState<LibraryWidth>("comfortable");
+
+  // Saved width loads after mount so the server and first client render agree.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLibraryWidth(loadLibraryWidth());
+  }, []);
+
+  function changeLibraryWidth(next: LibraryWidth) {
+    setLibraryWidth(next);
+    saveLibraryWidth(next);
+  }
 
   const [baseUrl, setBaseUrl] = useState(DEFAULT_SYNC_BASE_URL);
   const [knownBaseUrl, setKnownBaseUrl] = useState<string | null>(null);
@@ -243,6 +256,41 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
             >
               Show in Finder
             </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
+        <p className="text-sm font-bold text-text">Library</p>
+        <div className="flex items-center justify-between gap-4">
+          <span id="library-width-label" className="text-sm text-text-muted">
+            Library width
+          </span>
+          <div
+            role="group"
+            aria-labelledby="library-width-label"
+            className="flex items-center gap-0.5 rounded-full bg-elevated/60 p-0.5"
+          >
+            {(
+              [
+                { value: "comfortable", label: "Comfortable" },
+                { value: "full", label: "Full width" },
+              ] as const
+            ).map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => changeLibraryWidth(value)}
+                aria-pressed={libraryWidth === value}
+                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                  libraryWidth === value
+                    ? "bg-elevated-hover text-text"
+                    : "text-text-dim hover:text-text-muted"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
       </section>
