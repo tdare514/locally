@@ -1,0 +1,53 @@
+#if DEBUG
+import SwiftUI
+
+/// Debug-only harness for deterministic screenshots of the immersive components. Launch the app
+/// with `-componentGallery <name>`; see `LocallyApp`.
+struct ComponentGallery: View {
+    static let names = ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "backdrop-a", "backdrop-b", "inline-field"]
+
+    let name: String
+    @State private var title = "Midnight Drive"
+    @State private var empty = ""
+
+    private static let paletteA = (
+        primary: Color(red: 0.32, green: 0.10, blue: 0.45),
+        secondary: Color(red: 0.45, green: 0.08, blue: 0.20),
+        deep: Color(red: 0.12, green: 0.04, blue: 0.16)
+    )
+    private static let paletteB = (
+        primary: Color(red: 0.05, green: 0.30, blue: 0.30),
+        secondary: Color(red: 0.30, green: 0.18, blue: 0.02),
+        deep: Color(red: 0.02, green: 0.10, blue: 0.10)
+    )
+
+    var body: some View {
+        let palette = name == "backdrop-b" ? Self.paletteB : Self.paletteA
+        ZStack {
+            ArtworkBackdrop(primary: palette.primary, secondary: palette.secondary, deep: palette.deep)
+            content
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch name {
+        case "sleeve-filled":
+            RecordSleeve(cover: SampleArtwork.sunset, onAddCover: {})
+        case "sleeve-empty":
+            RecordSleeve(cover: nil, onAddCover: {})
+        case "sleeve-ceremony":
+            RecordSleeve(cover: SampleArtwork.sunset, pose: .halfTucked, onAddCover: {})
+        case "inline-field":
+            VStack(alignment: .leading, spacing: Theme.Spacing.sectionGap) {
+                InlineField("Title", text: $empty, font: Theme.Font.pageTitle)
+                InlineField("Title", text: $title, font: Theme.Font.pageTitle)
+            }
+            .padding(Theme.Spacing.pagePadding)
+        default:
+            EmptyView()
+        }
+    }
+}
+#endif
