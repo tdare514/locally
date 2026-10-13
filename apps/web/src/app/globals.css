@@ -145,31 +145,31 @@ body {
   transition: translate 1.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .ambient-space[data-phase="1"] .ambient-track-1 {
-  translate: 10vw 8vh;
+  translate: 18vw 14vh;
 }
 .ambient-space[data-phase="1"] .ambient-track-2 {
-  translate: -12vw -10vh;
+  translate: -20vw -16vh;
 }
 .ambient-space[data-phase="1"] .ambient-track-3 {
-  translate: -8vw -6vh;
+  translate: -16vw 10vh;
 }
 .ambient-space[data-phase="2"] .ambient-track-1 {
-  translate: 14vw 12vh;
+  translate: -10vw 20vh;
 }
 .ambient-space[data-phase="2"] .ambient-track-2 {
-  translate: -4vw 8vh;
+  translate: 14vw 18vh;
 }
 .ambient-space[data-phase="2"] .ambient-track-3 {
-  translate: 12vw -4vh;
+  translate: 20vw -14vh;
 }
 .ambient-space[data-phase="3"] .ambient-track-1 {
-  translate: 6vw 4vh;
+  translate: 24vw -8vh;
 }
 .ambient-space[data-phase="3"] .ambient-track-2 {
-  translate: -14vw -8vh;
+  translate: -6vw -22vh;
 }
 .ambient-space[data-phase="3"] .ambient-track-3 {
-  translate: 10vw -12vh;
+  translate: -22vw -18vh;
 }
 .ambient-cloud {
   position: absolute;
@@ -186,7 +186,7 @@ body {
   left: -8vmax;
   opacity: 0.6;
   background: radial-gradient(closest-side, var(--ambient-primary), transparent);
-  animation: ambient-drift-1 28s ease-in-out infinite alternate;
+  animation: ambient-drift-1 34s ease-in-out infinite;
 }
 .ambient-cloud-2 {
   width: 34vmax;
@@ -195,7 +195,7 @@ body {
   right: -10vmax;
   opacity: 0.5;
   background: radial-gradient(closest-side, var(--ambient-secondary), transparent);
-  animation: ambient-drift-2 34s ease-in-out infinite alternate;
+  animation: ambient-drift-2 41s ease-in-out infinite;
 }
 .ambient-cloud-3 {
   width: 24vmax;
@@ -208,7 +208,7 @@ body {
     color-mix(in srgb, var(--ambient-primary) 60%, var(--ambient-secondary)),
     transparent
   );
-  animation: ambient-drift-3 40s ease-in-out infinite alternate;
+  animation: ambient-drift-3 47s ease-in-out infinite;
 }
 
 /* The record: a disc tucked behind the sleeve, peeking out to the right. */
@@ -341,35 +341,25 @@ body {
   animation: cover-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* Each cloud wanders a loop across the pane (four waypoints, back to the start) rather than
+ * wobbling in place, so the space keeps visibly moving. Transform only. */
 @keyframes ambient-drift-1 {
-  from {
-    translate: 0 0;
-    scale: 1;
-  }
-  to {
-    translate: 6vmax 4vmax;
-    scale: 1.1;
-  }
+  0%, 100% { translate: 0 0; scale: 1; }
+  25% { translate: 22vw 14vh; scale: 1.12; }
+  50% { translate: 38vw 38vh; scale: 0.94; }
+  75% { translate: 10vw 30vh; scale: 1.06; }
 }
 @keyframes ambient-drift-2 {
-  from {
-    translate: 0 0;
-    scale: 1;
-  }
-  to {
-    translate: -5vmax 6vmax;
-    scale: 1.08;
-  }
+  0%, 100% { translate: 0 0; scale: 1; }
+  25% { translate: -20vw 18vh; scale: 0.94; }
+  50% { translate: -40vw -10vh; scale: 1.1; }
+  75% { translate: -14vw -26vh; scale: 1.02; }
 }
 @keyframes ambient-drift-3 {
-  from {
-    translate: 0 0;
-    scale: 1;
-  }
-  to {
-    translate: 5vmax -4vmax;
-    scale: 1.1;
-  }
+  0%, 100% { translate: 0 0; scale: 1; }
+  25% { translate: 18vw -20vh; scale: 1.1; }
+  50% { translate: -16vw -40vh; scale: 0.96; }
+  75% { translate: -26vw -12vh; scale: 1.08; }
 }
 @keyframes record-out {
   from {

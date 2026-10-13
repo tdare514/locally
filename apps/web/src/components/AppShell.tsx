@@ -69,7 +69,9 @@ export default function AppShell() {
     let raf = 0;
     const read = () => {
       raf = 0;
-      setPhase(Math.min(3, Math.floor(main.scrollTop / (main.clientHeight * 0.6))));
+      // Every quarter screen of scroll picks the next of four arrangements, cycling, so the
+      // clouds keep moving however long the library is.
+      setPhase(Math.floor(main.scrollTop / (main.clientHeight * 0.25)) % 4);
     };
     const onScroll = () => {
       if (!raf) raf = requestAnimationFrame(read);
