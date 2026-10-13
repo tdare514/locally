@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import type { PendingFromPhone } from "../shared/types";
-import { CloudDownIcon, MusicNoteIcon, XIcon } from "./Icons";
+import { CloudDownIcon, MusicNoteIcon, PlusIcon, XIcon } from "./Icons";
 
 /** Matches the .phone-tray exit transition in globals.css. */
 const EXIT_MS = 200;
@@ -110,7 +110,7 @@ export default function PhoneInbox({ pending, onAccept }: PhoneInboxProps) {
           aria-label="From your phone"
           tabIndex={-1}
           data-state={open ? "open" : "closed"}
-          className="phone-tray glass-fake glass-frost absolute right-full top-full z-30 isolate w-[26rem] max-w-[calc(100vw-2rem)] rounded-[22px] p-2 outline-none"
+          className="phone-tray glass-fake glass-frost absolute right-full top-full z-30 isolate w-[17rem] max-w-[calc(100vw-2rem)] rounded-[22px] p-2 outline-none"
         >
           {pending.length === 0 && (
             <p className="px-3 py-3 text-sm text-text-muted">Nothing waiting from your phone.</p>
@@ -132,8 +132,9 @@ export default function PhoneInbox({ pending, onAccept }: PhoneInboxProps) {
   );
 }
 
-/** One pending release as a small record sleeve, echoing the release page: the cover tile with
- * the disc peeking out behind it, then the title and an outlined Send to Spotify pill. */
+/** One pending release as a small record sleeve, echoing the release page. The sleeve is the
+ * Send to Spotify button: on hover the cover turns accent with a plus (Spotify's own "add" mark)
+ * and the disc rolls out; the title and artist sit beside it. */
 function PendingRow({
   item,
   leaving,
@@ -143,30 +144,37 @@ function PendingRow({
   leaving: boolean;
   onSend: () => void;
 }) {
+  const title = item.title || item.artist;
   return (
     <div className="flex items-center gap-3.5 rounded-2xl px-2.5 py-2.5">
-      <span className="relative h-12 w-[4.25rem] shrink-0">
-        <span className="absolute right-0 top-1/2 h-11 w-11 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,#3a3a40_0_12%,#0c0c0e_13%_17%,#26262b_18%_40%,#1a1a1e_41%_62%,#2a2a30_63%_100%)] shadow-[0_4px_12px_-4px_rgb(0_0_0/0.8)] ring-1 ring-white/15" />
-        <span className="absolute left-0 top-0 flex h-12 w-12 items-center justify-center rounded-[10px] bg-[linear-gradient(140deg,color-mix(in_srgb,var(--accent)_55%,#1a1a1f),#121216)] text-white/70 shadow-[0_6px_16px_-6px_rgb(0_0_0/0.8)] ring-1 ring-white/10">
-          <MusicNoteIcon className="h-4 w-4" />
-        </span>
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-semibold text-text">
-          {item.title || item.artist}
-        </span>
-        <span className="block truncate text-[13px] text-text-muted">
-          {item.artist} · {item.trackCount} track{item.trackCount === 1 ? "" : "s"}
-        </span>
-      </span>
       <button
         type="button"
         disabled={leaving}
         onClick={onSend}
-        className="shrink-0 rounded-full px-4 py-2 text-[13px] font-bold text-text ring-1 ring-white/20 transition-colors hover:bg-accent hover:text-black hover:ring-accent active:scale-95 disabled:opacity-60"
+        aria-label={`Send ${title} to Spotify`}
+        title="Send to Spotify"
+        className="group/send relative h-12 w-[4.25rem] shrink-0 rounded-[10px] active:scale-95 disabled:opacity-60"
       >
-        Send to Spotify
+        <span className="absolute right-0 top-1/2 h-11 w-11 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,#3a3a40_0_12%,#0c0c0e_13%_17%,#26262b_18%_40%,#1a1a1e_41%_62%,#2a2a30_63%_100%)] shadow-[0_4px_12px_-4px_rgb(0_0_0/0.8)] ring-1 ring-white/15 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover/send:translate-x-1.5 group-hover/send:rotate-45 group-focus-visible/send:translate-x-1.5" />
+        <span className="absolute left-0 top-0 flex h-12 w-12 items-center justify-center rounded-[10px] bg-[linear-gradient(140deg,color-mix(in_srgb,var(--accent)_55%,#1a1a1f),#121216)] text-white/70 shadow-[0_6px_16px_-6px_rgb(0_0_0/0.8)] ring-1 ring-white/10 transition-colors group-hover/send:bg-accent group-hover/send:bg-none group-focus-visible/send:bg-accent group-focus-visible/send:bg-none group-focus-visible/send:ring-2 group-focus-visible/send:ring-white">
+          <MusicNoteIcon className="h-4 w-4 transition-opacity group-hover/send:opacity-0 group-focus-visible/send:opacity-0" />
+          <PlusIcon
+            className="absolute h-5 w-5 text-black opacity-0 transition-opacity group-hover/send:opacity-100 group-focus-visible/send:opacity-100"
+            strokeWidth={2.5}
+          />
+        </span>
       </button>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] font-semibold text-text">{title}</span>
+        {/* A long artist name gives way first; the track count always shows. */}
+        <span className="flex text-[13px] text-text-muted">
+          <span className="truncate">{item.artist}</span>
+          <span className="shrink-0 whitespace-pre">
+            {" · "}
+            {item.trackCount} track{item.trackCount === 1 ? "" : "s"}
+          </span>
+        </span>
+      </span>
     </div>
   );
 }

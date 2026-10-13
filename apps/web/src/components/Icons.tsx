@@ -158,3 +158,12 @@ export function CloudDownIcon(props: SVGProps<SVGSVGElement>) {
     </IconBase>
   );
 }
+
+/** Add glyph: a plus, as on Spotify's own add-to-library button. */
+export function PlusIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </IconBase>
+  );
+}
