@@ -2,8 +2,7 @@ import SwiftUI
 
 extension ArtworkBackdrop {
     /// The shared `AmbientPalette` to backdrop bridge: parses the palette's "#rrggbb"
-    /// strings into colours. The release page (#126) is expected to use this in place
-    /// of its private `color(hex:)`.
+    /// strings into colours. Used by the release page and the import screens.
     init(palette: AmbientPalette) {
         self.init(
             primary: Self.color(hex: palette.primary),

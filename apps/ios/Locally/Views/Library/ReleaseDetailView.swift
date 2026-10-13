@@ -50,11 +50,7 @@ struct ReleaseDetailView: View {
     private func content(_ model: ReleaseDetailViewModel) -> some View {
         let isAlbum = model.kind == .album
         ZStack {
-            ArtworkBackdrop(
-                primary: Self.color(hex: palette.primary),
-                secondary: Self.color(hex: palette.secondary),
-                deep: Self.color(hex: palette.deep)
-            )
+            ArtworkBackdrop(palette: palette)
             .ignoresSafeArea()
 
             List {
@@ -91,7 +87,7 @@ struct ReleaseDetailView: View {
                 coverImage = data.flatMap(UIImage.init(data:))
                 coverImageData = data
             }
-            palette = await Task.detached { Self.palette(from: data) }.value
+            palette = await Task.detached { ArtworkPalette.palette(forCover: data) }.value
         }
         .task(id: photosItem) {
             guard let photosItem else { return }
@@ -259,41 +255,6 @@ struct ReleaseDetailView: View {
         if let index = model.trackRows.firstIndex(where: { $0.id == row.id }) {
             model.trackRows[index].title = newValue
         }
-    }
-
-    // MARK: Palette
-
-    private static func color(hex: String) -> Color {
-        let digits = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
-        guard digits.count == 6, let value = UInt32(digits, radix: 16) else { return Theme.background }
-        return Color(
-            red: Double((value >> 16) & 0xFF) / 255,
-            green: Double((value >> 8) & 0xFF) / 255,
-            blue: Double(value & 0xFF) / 255
-        )
-    }
-
-    /// Mirrors the web's `use-artwork-palette.ts`: the cover drawn into a 24x24 RGBA bitmap.
-    nonisolated private static func palette(from data: Data?) -> AmbientPalette {
-        let side = 24
-        guard let data, let cgImage = UIImage(data: data)?.cgImage else { return .neutral }
-        var pixels = [UInt8](repeating: 0, count: side * side * 4)
-        let drawn = pixels.withUnsafeMutableBytes { buffer -> Bool in
-            guard let context = CGContext(
-                data: buffer.baseAddress,
-                width: side,
-                height: side,
-                bitsPerComponent: 8,
-                bytesPerRow: side * 4,
-                space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
-                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-            ) else { return false }
-            context.interpolationQuality = .medium
-            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: side, height: side))
-            return true
-        }
-        guard drawn else { return .neutral }
-        return ArtworkPalette.paletteFromPixels(pixels) ?? .neutral
     }
 }
 
