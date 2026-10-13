@@ -303,6 +303,59 @@ body {
   box-shadow: 0 14px 24px -8px color-mix(in srgb, var(--ambient-primary) 80%, black);
 }
 
+/* Sidebar (#116): a translucent surface over the window-level library sky. No backdrop-filter:
+   the sky animates under it and a blur would repaint every frame. */
+.sidebar {
+  position: relative;
+  background: linear-gradient(to right, rgb(0 0 0 / 0.38), rgb(0 0 0 / 0.22));
+}
+.sidebar::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgb(255 255 255 / 0.08) 20%,
+    rgb(255 255 255 / 0.08) 80%,
+    transparent
+  );
+}
+@media (min-width: 48rem) {
+  .sidebar::after {
+    top: 0;
+    bottom: 0;
+    right: 0;
+    left: auto;
+    width: 1px;
+    height: auto;
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(255 255 255 / 0.08) 20%,
+      rgb(255 255 255 / 0.08) 80%,
+      transparent
+    );
+  }
+}
+.side-thumb {
+  box-shadow: 0 6px 14px -8px rgb(0 0 0 / 0.7);
+  transition:
+    translate 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    scale 320ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.side-row:hover .side-thumb,
+.side-row:focus-visible .side-thumb {
+  translate: 0 -2px;
+  scale: 1.06;
+  box-shadow: 0 12px 20px -8px rgb(0 0 0 / 0.8);
+}
+
 .cover-in {
   animation: cover-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
@@ -443,7 +496,8 @@ body {
     translate: 0 -50%;
   }
   .shelf-cover,
-  .list-thumb {
+  .list-thumb,
+  .side-thumb {
     transition: none;
   }
   .phone-tray,

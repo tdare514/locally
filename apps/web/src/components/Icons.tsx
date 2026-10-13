@@ -167,3 +167,23 @@ export function PlusIcon(props: SVGProps<SVGSVGElement>) {
     </IconBase>
   );
 }
+
+/** Library glyph: three upright bars, the last one leaning like a record pulled from a shelf. */
+export function LibraryIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 4v16M9 4v16M14.5 5.5l4.5 14" />
+    </IconBase>
+  );
+}
+
+/** Settings glyph: two sliders. */
+export function SettingsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 8h9M17 8h3M4 16h3M11 16h9" />
+      <circle cx="15" cy="8" r="2" />
+      <circle cx="9" cy="16" r="2" />
+    </IconBase>
+  );
+}
