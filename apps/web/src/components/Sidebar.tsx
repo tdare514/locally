@@ -8,7 +8,7 @@ import {
   type LibrarySort,
 } from "../lib/library-sections";
 import type { View } from "./AppShell";
-import { MusicNoteIcon } from "./Icons";
+import { LibraryIcon, MusicNoteIcon, PlusIcon, SettingsIcon } from "./Icons";
 
 interface SidebarProps {
   releases: Release[];
@@ -21,11 +21,15 @@ interface SidebarProps {
   onLibraryClick: () => void;
   onImportClick: () => void;
   onSettingsClick: () => void;
+  signedIn: boolean;
+  email: string | null;
 }
 
-function navPillClass(active: boolean): string {
-  return `shrink-0 rounded-full px-4 py-2 text-left text-sm font-semibold transition-colors md:rounded-md ${
-    active ? "bg-accent text-black" : "bg-elevated text-text hover:bg-elevated-hover"
+const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+
+function navItemClass(active: boolean): string {
+  return `flex shrink-0 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${focusRing} ${
+    active ? "bg-white/[0.08] text-text" : "text-text-muted hover:bg-white/[0.06] hover:text-text"
   }`;
 }
 
@@ -40,35 +44,48 @@ export default function Sidebar({
   onLibraryClick,
   onImportClick,
   onSettingsClick,
+  signedIn,
+  email,
 }: SidebarProps) {
   const searching = query.trim() !== "";
   const { singles, albums } = partitionLibrary(filterLibrary(releases, query), sort);
 
   return (
-    <aside className="flex w-full shrink-0 flex-row border-b border-border bg-card md:h-full md:w-64 md:flex-col md:border-b-0 md:border-r">
-      <div className="flex items-center gap-2 overflow-x-auto p-3 md:flex-col md:items-stretch md:gap-2 md:overflow-visible md:p-4">
+    <aside className="sidebar flex w-full shrink-0 flex-row md:h-full md:w-64 md:flex-col">
+      <nav
+        aria-label="Main"
+        className="flex items-center gap-2 overflow-x-auto p-3 md:flex-col md:items-stretch md:gap-1 md:overflow-visible md:p-4"
+      >
         <button
           type="button"
           onClick={onLibraryClick}
-          className={navPillClass(view.type === "library")}
+          aria-current={view.type === "library" ? "page" : undefined}
+          className={navItemClass(view.type === "library")}
         >
+          <LibraryIcon className="h-4 w-4" />
           Library
         </button>
         <button
           type="button"
-          onClick={onImportClick}
-          className={navPillClass(view.type === "import")}
+          onClick={onSettingsClick}
+          aria-current={view.type === "settings" ? "page" : undefined}
+          className={navItemClass(view.type === "settings")}
         >
-          + Import
+          <SettingsIcon className="h-4 w-4" />
+          Settings
         </button>
         <button
           type="button"
-          onClick={onSettingsClick}
-          className={navPillClass(view.type === "settings")}
+          onClick={onImportClick}
+          aria-current={view.type === "import" ? "page" : undefined}
+          className={`import-pill flex shrink-0 items-center justify-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold hover:bg-accent-hover md:mt-2 md:w-full ${focusRing} ${
+            view.type === "import" ? "ring-2 ring-white/25" : ""
+          }`}
         >
-          ⚙ Settings
+          <PlusIcon className="import-plus h-4 w-4" />
+          <span className="import-label">Import</span>
         </button>
-      </div>
+      </nav>
 
       <div className="hidden flex-1 flex-col gap-1 overflow-y-auto px-2 pb-4 md:flex">
         {loading && <p className="px-2 text-sm text-text-muted">Loading…</p>}
@@ -112,13 +129,6 @@ export default function Sidebar({
           />
         )}
 
-        {!loading && singles.length > 0 && albums.length > 0 && (
-          <div
-            className="mx-2 my-2 border-t border-dashed border-border-dashed"
-            aria-hidden="true"
-          />
-        )}
-
         {!loading && albums.length > 0 && (
           <SidebarSection
             label="Albums"
@@ -130,12 +140,16 @@ export default function Sidebar({
         )}
       </div>
 
-      <div className="hidden shrink-0 items-center gap-2 border-t border-border px-4 py-3 md:flex">
+      {/* #111 (sign-in and account) will fill this area. */}
+      <div className="mx-3 mb-3 hidden shrink-0 items-center gap-3 rounded-xl bg-white/[0.04] px-3 py-2.5 md:flex">
         {/* eslint-disable-next-line @next/next/no-img-element -- static SVG, no optimisation needed */}
-        <img src="/brand/listener-line.svg" alt="" className="h-6 w-6" />
-        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-dim">
-          Locally
-        </span>
+        <img src="/brand/listener-line.svg" alt="" className="h-6 w-6 shrink-0" />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-text">Locally</p>
+          <p className="truncate text-xs text-text-dim">
+            {signedIn ? (email ? email : "Syncing with your phone") : "On this Mac"}
+          </p>
+        </div>
       </div>
     </aside>
   );
@@ -156,11 +170,9 @@ function SidebarSection({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-baseline justify-between gap-2 px-2 py-2">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">
-          {label}
-        </p>
-        <span className="text-[10px] text-text-dim">{count}</span>
+      <div className="flex items-baseline gap-2 px-2 pb-1 pt-3">
+        <h2 className="text-sm font-bold tracking-[-0.01em] text-text">{label}</h2>
+        <span className="text-xs text-text-dim">{count}</span>
       </div>
       {releases.map((r) => {
         const active = view.type === "release" && view.id === r.id;
@@ -169,8 +181,9 @@ function SidebarSection({
             key={r.id}
             type="button"
             onClick={() => onSelectRelease(r.id)}
-            className={`flex items-center gap-3 rounded-md px-2 py-2 text-left transition-colors ${
-              active ? "bg-row-hover" : "hover:bg-row-hover"
+            aria-current={active ? "page" : undefined}
+            className={`side-row flex items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors ${focusRing} ${
+              active ? "bg-white/[0.08]" : "hover:bg-white/[0.06] focus-visible:bg-white/[0.06]"
             }`}
           >
             {r.coverPath ? (
@@ -178,10 +191,10 @@ function SidebarSection({
               <img
                 src={coverUrl(r.id, r.updatedAt)}
                 alt=""
-                className="h-10 w-10 shrink-0 rounded object-cover"
+                className="side-thumb h-11 w-11 shrink-0 rounded-md object-cover"
               />
             ) : (
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-elevated text-text-muted">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-white/[0.06] text-text-muted">
                 <MusicNoteIcon className="h-4 w-4" />
               </span>
             )}

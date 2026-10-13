@@ -34,11 +34,11 @@ export default function AppShell() {
   const libraryPalette = useArtworkPalette(view.type === "library" ? ambientCoverUrl : null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const nextToastId = useRef(0);
-  // The library sky follows the scroll through --pane-progress and --pane-swirl on the pane
-  // wrapper, eased each frame so it twists while scrolling and settles after. Written
+  // The library sky follows the scroll through --pane-progress and --pane-swirl on the sky
+  // element (which fills the whole window, under the sidebar too), eased each frame so it twists while scrolling and settles after. Written
   // straight to the style, not React state, so scrolling never re-renders the app.
   const mainRef = useRef<HTMLElement>(null);
-  const paneRef = useRef<HTMLDivElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
 
   const showToast = useCallback((kind: "success" | "error", text: string) => {
     nextToastId.current += 1;
@@ -67,8 +67,8 @@ export default function AppShell() {
 
   useEffect(() => {
     const main = mainRef.current;
-    const pane = paneRef.current;
-    if (!main || !pane) return;
+    const shell = shellRef.current;
+    if (!main || !shell) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let raf = 0;
     let current = 0;
@@ -84,9 +84,9 @@ export default function AppShell() {
       speed *= 0.85;
       if (Math.abs(target - current) < 0.0005) current = target;
       if (Math.abs(swirl) < 0.001 && Math.abs(speed) < 0.001) swirl = speed = 0;
-      // Set on the sky itself, not the pane: a custom property changed on the pane would make
-      // the browser restyle the whole library every frame.
-      const sky = pane.querySelector<HTMLElement>(".ambient-space");
+      // Set on the sky itself, not the shell: a custom property changed on the shell would make
+      // the browser restyle the whole app every frame.
+      const sky = shell.querySelector<HTMLElement>(".ambient-space");
       if (sky) {
         sky.style.setProperty("--pane-progress", current.toFixed(4));
         sky.style.setProperty("--pane-swirl", swirl.toFixed(4));
@@ -159,7 +159,15 @@ export default function AppShell() {
   }
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden md:flex-row">
+    <div
+      ref={shellRef}
+      className="relative isolate flex h-screen w-screen flex-col overflow-hidden md:flex-row"
+    >
+      {/* The library sky fills the whole window, outside the scroller so it never scrolls away,
+          and paints under both the sidebar and the pane. */}
+      {view.type === "library" && (library?.releases.length ?? 0) > 0 && (
+        <AmbientSpace palette={libraryPalette} />
+      )}
       <Sidebar
         releases={library?.releases ?? []}
         loading={loadingLibrary}
@@ -171,15 +179,12 @@ export default function AppShell() {
         onLibraryClick={() => setView({ type: "library" })}
         onImportClick={() => openImport()}
         onSettingsClick={() => setView({ type: "settings" })}
+        signedIn={syncStatus?.signedIn ?? false}
+        email={syncStatus?.email ?? null}
       />
-      {/* The wrapper holds the library's AmbientSpace outside the scroller so it never scrolls
-          away, and carries --pane-progress / --pane-swirl (see above) that turn its sky. main stays relative +
-          isolate: the release page's AmbientBackdrop paints behind its content but inside this
-          pane, so it never covers the sidebar. */}
-      <div ref={paneRef} className="relative isolate min-h-0 min-w-0 flex-1">
-        {view.type === "library" && (library?.releases.length ?? 0) > 0 && (
-          <AmbientSpace palette={libraryPalette} />
-        )}
+      {/* main stays relative + isolate: the release page's AmbientBackdrop paints behind its
+          content but inside this pane, so it never covers the sidebar. */}
+      <div className="relative isolate min-h-0 min-w-0 flex-1">
         <main
           ref={mainRef}
           className="relative isolate h-full overflow-y-auto p-6 md:p-10 lg:p-16"
