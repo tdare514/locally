@@ -138,3 +138,23 @@ export function CoverLargeIcon(props: SVGProps<SVGSVGElement>) {
     </IconBase>
   );
 }
+
+/** Close glyph: two crossing strokes. */
+export function XIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M6 6l12 12M18 6 6 18" />
+    </IconBase>
+  );
+}
+
+/** Phone inbox trigger (#115): a cloud with a down arrow. */
+export function CloudDownIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M17.5 19H7a5 5 0 0 1-1-9.9A6 6 0 0 1 17.6 8.2 4.5 4.5 0 0 1 17.5 19Z" />
+      <path d="M12 19v-7" />
+      <path d="m9.5 16.5 2.5 2.5 2.5-2.5" />
+    </IconBase>
+  );
+}

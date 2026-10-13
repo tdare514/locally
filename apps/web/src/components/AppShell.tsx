@@ -11,6 +11,7 @@ import SettingsView from "./SettingsView";
 import type { LibrarySort } from "../lib/library-sections";
 import AmbientSpace from "./AmbientSpace";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
+import PhoneInbox from "./PhoneInbox";
 import Toast, { type ToastMessage } from "./Toast";
 
 export type View =
@@ -144,13 +145,16 @@ export default function AppShell() {
     setView({ type: "import", kind });
   }
 
-  async function handleAcceptFromPhone(id: string) {
+  /** Resolves true once the release is imported, false (after a toast) when it failed. */
+  async function handleAcceptFromPhone(id: string): Promise<boolean> {
     try {
       await acceptFromPhone(id);
       showToast("success", "Added to your library");
       await Promise.all([refreshLibrary(), refreshSyncStatus()]);
+      return true;
     } catch (e) {
       showToast("error", e instanceof Error ? e.message : "Failed to import from your phone");
+      return false;
     }
   }
 
@@ -163,8 +167,6 @@ export default function AppShell() {
         query={libraryQuery}
         sort={librarySort}
         onClearQuery={() => setLibraryQuery("")}
-        pendingFromPhone={syncStatus?.pendingFromPhone ?? []}
-        onAcceptFromPhone={handleAcceptFromPhone}
         onSelectRelease={(id) => setView({ type: "release", id })}
         onLibraryClick={() => setView({ type: "library" })}
         onImportClick={() => openImport()}
@@ -225,6 +227,12 @@ export default function AppShell() {
             />
           )}
         </main>
+        <div className="absolute right-4 top-4 z-20 md:right-6 md:top-6">
+          <PhoneInbox
+            pending={syncStatus?.pendingFromPhone ?? []}
+            onAccept={handleAcceptFromPhone}
+          />
+        </div>
       </div>
       <Toast toasts={toasts} onDismiss={dismissToast} />
     </div>

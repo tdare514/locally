@@ -17,6 +17,7 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 - Import and update requests validated with zod; every write checked inside the library dir
 - Loopback-only server (127.0.0.1) with a full-origin CSRF check
 - Sync client: email-code sign-in, push, reconcile, "From your phone"; a cover replaced on either device follows via the record's coverHash (#26)
+- "From your phone" lives in a top-right tray, not the sidebar (#115): a cloud-download button with an accent count badge turns into a red X while open; the tray opens and closes only from that button or Escape, lists each pending release with Send to Spotify, and a sent row collapses out
 - "Delete sync account…" in Settings deletes the cloud account after a confirm and signs this Mac out; music files stay (#34)
 - Guided "Make it a playlist" disclosure on album release pages: Copy button for the title, per-track Mac steps and a fallback line; opens expanded on the page an album import lands on (#21)
 - One-time "Spotify can't see this yet" prompt on the release page: copy path, open Spotify settings, dismiss; hidden once Spotify's local-files index lists the library folder

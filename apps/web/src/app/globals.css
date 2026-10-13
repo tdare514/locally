@@ -337,6 +337,62 @@ body {
   }
 }
 
+/* Phone inbox tray (#115): panel enter/exit, accepted-row collapse, trigger icon morph. */
+.phone-tray {
+  transform-origin: top right;
+  background: color-mix(in srgb, var(--card) 85%, transparent);
+  box-shadow: 0 24px 60px -12px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.04);
+  opacity: 0;
+  transform: translateY(-6px) scale(0.96);
+  transition:
+    opacity 200ms cubic-bezier(0.4, 0, 1, 1),
+    transform 200ms cubic-bezier(0.4, 0, 1, 1);
+}
+.phone-tray[data-state="open"] {
+  opacity: 1;
+  transform: none;
+  transition-duration: 280ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  @starting-style {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.96);
+  }
+}
+.phone-tray-row {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows 220ms ease-in,
+    opacity 220ms ease-in,
+    transform 220ms ease-in;
+}
+.phone-tray-row[data-leaving="true"] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateX(1rem);
+}
+.phone-tray-glyph {
+  transition:
+    transform 200ms ease,
+    opacity 200ms ease;
+}
+.phone-tray-glyph[data-open="false"] {
+  opacity: 1;
+  transform: rotate(0deg);
+}
+.phone-tray-glyph[data-open="true"] {
+  opacity: 0;
+  transform: rotate(90deg);
+}
+.phone-tray-glyph-x[data-open="false"] {
+  opacity: 0;
+  transform: rotate(-90deg);
+}
+.phone-tray-glyph-x[data-open="true"] {
+  opacity: 1;
+  transform: rotate(0deg);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ambient-backdrop,
   .record-disc {
@@ -354,6 +410,12 @@ body {
   }
   .shelf-cover,
   .list-thumb {
+    transition: none;
+  }
+  .phone-tray,
+  .phone-tray[data-state="open"],
+  .phone-tray-row,
+  .phone-tray-glyph {
     transition: none;
   }
 }
