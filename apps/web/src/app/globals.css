@@ -379,7 +379,7 @@ body {
 }
 .import-pill:hover,
 .import-pill:focus-visible {
-  --import-ink: rgb(255 255 255 / 0.55);
+  --import-ink: rgb(255 255 255 / 0.9);
   --import-glint: #fff;
 }
 .import-label {
@@ -399,7 +399,7 @@ body {
 .import-pill:hover .import-label,
 .import-pill:focus-visible .import-label {
   animation: import-shimmer 2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-  filter: drop-shadow(0 0 6px rgb(255 255 255 / 0.35));
+  filter: drop-shadow(0 0 3px rgb(255 255 255 / 0.35));
 }
 .import-plus {
   color: var(--import-ink);
@@ -410,10 +410,18 @@ body {
   color: #fff;
   rotate: 90deg;
 }
-/* Sweep for 1.2s, then rest, so each pass reads as its own glint. */
+/* Sweep for 1.2s, then rest, so each pass reads as its own glint. The ink is near white, so
+   the glint shows as a bloom of glow that peaks mid-sweep. */
 @keyframes import-shimmer {
-  0% { background-position: 100% 0; }
-  60%, 100% { background-position: 0% 0; }
+  0% {
+    background-position: 100% 0;
+    filter: drop-shadow(0 0 3px rgb(255 255 255 / 0.35));
+  }
+  30% { filter: drop-shadow(0 0 9px rgb(255 255 255 / 0.85)); }
+  60%, 100% {
+    background-position: 0% 0;
+    filter: drop-shadow(0 0 3px rgb(255 255 255 / 0.35));
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .import-pill:hover .import-label,
