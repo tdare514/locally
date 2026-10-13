@@ -137,22 +137,25 @@ body {
     --ambient-secondary 900ms ease,
     --ambient-deep 900ms ease;
 }
-/* Scroll moves each cloud along its own path, as in the first version, but half as far and
- * through --pane-progress, which AppShell eases toward the scroll position each frame. A fast
- * scroll is followed smoothly instead of yanking the clouds. */
+/* Scroll flows the clouds like layers at different depths: --pane-progress is screens scrolled
+ * (eased by AppShell), and each track rises at its own rate, so a cloud flows up and out as you
+ * scroll down and back in as you scroll up. Cloud 4 starts below the pane and flows in as the
+ * others leave, so a long library never runs out of colour. Idle, they only drift in place. */
 .ambient-cloud-track {
   position: absolute;
   inset: 0;
 }
 .ambient-track-1 {
-  transform: translate(calc(var(--pane-progress, 0) * 15vw), calc(var(--pane-progress, 0) * 20vh))
-    rotate(calc(var(--pane-progress, 0) * 12deg));
+  transform: translate(calc(var(--pane-progress, 0) * 8vw), calc(var(--pane-progress, 0) * -60vh));
 }
 .ambient-track-2 {
-  transform: translate(calc(var(--pane-progress, 0) * -18vw), calc(var(--pane-progress, 0) * 10vh));
+  transform: translate(calc(var(--pane-progress, 0) * -6vw), calc(var(--pane-progress, 0) * -45vh));
 }
 .ambient-track-3 {
-  transform: translate(calc(var(--pane-progress, 0) * 5vw), calc(var(--pane-progress, 0) * -22vh));
+  transform: translate(calc(var(--pane-progress, 0) * -10vw), calc(var(--pane-progress, 0) * -52vh));
+}
+.ambient-track-4 {
+  transform: translate(calc(var(--pane-progress, 0) * 6vw), calc(var(--pane-progress, 0) * -64vh));
 }
 /* Each cloud fades out on an eased curve (no bright core, no visible rim) and is a stretched,
  * tilted ellipse, so the colour melts into the background instead of reading as a ball. */
@@ -198,6 +201,17 @@ body {
   rotate: -6deg;
   opacity: 0.5;
   animation: ambient-drift-3 56s ease-in-out infinite alternate;
+}
+
+.ambient-cloud-4 {
+  --cloud: var(--ambient-secondary);
+  width: 56vmax;
+  height: 32vmax;
+  top: 118%;
+  left: 34%;
+  rotate: 10deg;
+  opacity: 0.7;
+  animation: ambient-drift-2 51s ease-in-out infinite alternate-reverse;
 }
 
 /* The record: a disc tucked behind the sleeve, peeking out to the right. */

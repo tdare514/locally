@@ -73,16 +73,15 @@ export default function AppShell() {
     let current = 0;
     let target = 0;
     const step = () => {
-      current += (target - current) * 0.06;
+      current += (target - current) * 0.1;
       if (Math.abs(target - current) < 0.0005) current = target;
       pane.style.setProperty("--pane-progress", current.toFixed(4));
       raf = current === target ? 0 : requestAnimationFrame(step);
     };
     const onScroll = () => {
-      // A short library still gets a full screen and a half of travel, so a small scroll
-      // never swings the clouds across their whole path.
-      const range = Math.max(main.scrollHeight - main.clientHeight, main.clientHeight * 1.5);
-      target = Math.min(1, main.scrollTop / range);
+      // Progress is screens scrolled, so every library flows the same per screen; capped where
+      // the last cloud has flowed in.
+      target = Math.min(2.4, main.scrollTop / main.clientHeight);
       if (!raf) raf = requestAnimationFrame(step);
     };
     main.addEventListener("scroll", onScroll, { passive: true });

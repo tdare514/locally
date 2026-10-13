@@ -16,7 +16,7 @@ export default function AmbientSpace({ palette }: { palette: AmbientPalette | nu
   } as CSSProperties;
   return (
     <div aria-hidden className="ambient-space" style={style}>
-      {[1, 2, 3].map((n) => (
+      {[1, 2, 3, 4].map((n) => (
         <div key={n} className={`ambient-cloud-track ambient-track-${n}`}>
           <div className={`ambient-cloud ambient-cloud-${n}`} />
         </div>
