@@ -48,6 +48,7 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 - Sync device name persists across relaunch and verify sends the model marketing name, e.g. "iPhone 14" (#38). A phone that signed in before this change keeps "iPhone" on the server until it signs out and back in; the model table covers through the iPhone 17 family and iPhone Air, with a note in `SyncDeviceName.swift` on extending it (#64)
 - Web and iOS skip a pulled sync record whose track or cover extension the API would refuse, keep the rest of the page, and still fail the page on a structurally broken record; the shared `invalid-*` fixtures assert the refusal in all three apps (#39, web skip #60)
 - A failed sync-outbox write, an unreadable library during sync, or a pulled change that can't be applied now logs and shows on the sync error line instead of being dropped; a SwiftData store that won't open at launch shows a "can't open its library" screen with Try again and a confirmed Reset that moves the index to a timestamped backup, instead of crashing (#86)
+- Release page is the record (#126): the cover's colours wash the screen (palette re-derived off the main thread, so a cover swap reskins it), the cover is a `RecordSleeve` that opens Photos or Files into the existing crop, title/artist/year/genre are inline fields under it, tracks, "Make it a playlist" and Delete sit in a translucent panel (no blur), and a floating pill dock shows "Unsaved changes" and Save; a save tucks and spins the record and shows "Saved to your library"
 - Import silhouette and long-press drag reorder checked on an iPhone 14, 28 Sep 2026 (#6): empty album shows three faint rows, empty single shows one, both with "No tracks yet"; two or more tracks show "Hold and drag a track to reorder." with no Edit button, and a saved release-page order is still there after leaving and coming back
 
 ### Sync API (apps/api)
@@ -64,7 +65,7 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 - Migrations run once per deploy in the Vercel build (`npm run db:migrate`, fails the deploy on error); each cold start only verifies the schema version. A redeploy of the current commit builds instead of being cancelled by the ignore step; pushes that don't touch apps/api are still skipped (#90)
 
 ## In progress
-- iOS immersive look (#112, plan in the #112 comments): `ArtworkPalette` is in (#124), a Swift port of the web's cover colour extraction that returns the same colours for the same pixels; the components are in (#125): `ArtworkBackdrop` (cover-colour wash with slow drift), `RecordSleeve` (cover sleeve, peeking disc, save ceremony) and `InlineField`, with previews but not yet on any screen; the screens (#126–#128) follow
+- iOS immersive look (#112, plan in the #112 comments): `ArtworkPalette` is in (#124), a Swift port of the web's cover colour extraction that returns the same colours for the same pixels; the components are in (#125): `ArtworkBackdrop` (cover-colour wash with slow drift), `RecordSleeve` (cover sleeve, peeking disc, save ceremony) and `InlineField`, with previews; the release page uses them (#126); the import screens and library home (#127, #128) follow
 - Security review of apps/api (#20): findings fixed 28 Sep; auth rate limits now live in the shared libSQL database, so they hold across Vercel instances
 
 ## Known issues

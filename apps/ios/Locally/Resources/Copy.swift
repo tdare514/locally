@@ -38,6 +38,10 @@ enum Copy {
         /// Accessibility label of the sleeve once it has a cover.
         static let changeCoverArt = "Change cover art"
         static let savedToLibrary = "Saved to your library"
+        static let unsavedChanges = "Unsaved changes"
+        /// The cover-source choices shown when the sleeve is tapped.
+        static let coverFromPhotos = "Photos"
+        static let coverFromFiles = "Files"
     }
 
     enum Import {

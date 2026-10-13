@@ -123,6 +123,22 @@ enum Theme {
         static let sheenOpacityFar: Double = 0.07
         /// `.record-face` repeating groove: a 1 px line every 3 px.
         static let grooveSpacing: CGFloat = 3
+        /// Fake glass (no blur over the backdrop): a faint white fill and a hairline stroke.
+        static let panelFillOpacity: Double = 0.06
+        static let panelStrokeOpacity: Double = 0.10
+        /// How long "Saved to your library" stays in the save dock.
+        static let savedToastSeconds: Double = 2.5
+        static let dockStatusFade: Double = 0.2
+        static let dockBottomPadding: CGFloat = 12
+        static let dockGap: CGFloat = 12
+        /// Padding inside the hero row so the sleeve's shadow (radius 26, y 24) fades out unclipped.
+        static let sleeveShadowRoomTop: CGFloat = 16
+        static let sleeveShadowRoomBottom: CGFloat = 64
+        /// Gap between the title/artist and the year/genre row (web `mt-1` + `gap-3`).
+        static let fieldsMetaGap: CGFloat = 10
+        /// Tap height of the playlist and delete rows, since list rows have no minimum here.
+        static let panelActionMinHeight: CGFloat = 40
+        static let panelRowInset: CGFloat = 12
         static let grooveWidth: CGFloat = 1
         static let grooveOpacity: Double = 0.04
         /// `.record-face` dark ring (`63.5% 64.5%` of the farthest-corner radius, 1.414 x the disc radius).
@@ -130,6 +146,10 @@ enum Theme {
         static let discRingWidth: CGFloat = 1.4
         static let discRingOpacity: Double = 0.35
         static let discEdgeOpacity: Double = 0.07
+        /// Darkens the dock only, so list rows scrolling under the glass stay out of the way of its text.
+        static let dockUnderlay = Color.black.opacity(0.92)
+        static var panelFill: Color { .white.opacity(panelFillOpacity) }
+        static var panelStroke: Color { .white.opacity(panelStrokeOpacity) }
         static let discColor = Color(red: 0x11 / 255, green: 0x11 / 255, blue: 0x11 / 255)
         /// `.record-face` shadow `0 24px 48px -18px`, approximated (SwiftUI has no spread).
         static let discShadowOpacity: Double = 0.6

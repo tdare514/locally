@@ -41,4 +41,28 @@ struct ReleaseDetailViewModelTests {
         #expect(last.tags.album == "New Name")
         #expect(try library.all().first?.tracks.first?.title == "New Name")
     }
+
+    @Test func aSuccessfulSaveBumpsSaveCount() async throws {
+        let folderDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let tagWriter = FakeTagWriter()
+        let coverStore = FakeCoverStore()
+        let coordinator = ReleaseCoordinator(
+            importer: FakeFileImporter(),
+            transcoder: FakeTranscoder(),
+            m4aTagWriter: tagWriter,
+            id3TagWriter: tagWriter,
+            folder: FakeSpotifyFolder(directory: folderDir),
+            library: InMemoryLibraryStore(),
+            coverStore: coverStore
+        )
+        let tags = TagSet(title: "Old Name", artist: "Artist", album: "Old Name", trackNumber: 1, totalTracks: 1)
+        let release = try await coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: nil)
+
+        let model = ReleaseDetailViewModel(release: release, coordinator: coordinator, coverStore: coverStore)
+        #expect(model.saveCount == 0)
+        model.title = "New Name"
+        await model.save()
+
+        #expect(model.saveCount == 1)
+    }
 }
