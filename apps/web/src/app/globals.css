@@ -129,8 +129,8 @@ body {
   /* Near-black base with only a faint tint, so the small clouds stand out by contrast. */
   background: linear-gradient(
     to bottom,
-    color-mix(in srgb, var(--ambient-deep) 35%, var(--bg)),
-    var(--bg)
+    color-mix(in srgb, var(--ambient-deep) 55%, var(--bg)),
+    color-mix(in srgb, var(--ambient-deep) 20%, var(--bg))
   );
   transition:
     --ambient-primary 900ms ease,
@@ -154,43 +154,49 @@ body {
 .ambient-track-3 {
   transform: translate(calc(var(--pane-progress, 0) * 5vw), calc(var(--pane-progress, 0) * -22vh));
 }
+/* Each cloud fades out on an eased curve (no bright core, no visible rim) and is a stretched,
+ * tilted ellipse, so the colour melts into the background instead of reading as a ball. */
 .ambient-cloud {
   position: absolute;
   border-radius: 50%;
   will-change: transform;
-  transition:
-    --ambient-primary 900ms ease,
-    --ambient-secondary 900ms ease;
+  --cloud: var(--ambient-primary);
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--cloud) 70%, transparent) 0%,
+    color-mix(in srgb, var(--cloud) 45%, transparent) 25%,
+    color-mix(in srgb, var(--cloud) 20%, transparent) 50%,
+    color-mix(in srgb, var(--cloud) 6%, transparent) 75%,
+    transparent 100%
+  );
 }
 .ambient-cloud-1 {
-  width: 42vmax;
-  height: 42vmax;
-  top: -10vmax;
-  left: -8vmax;
-  opacity: 0.6;
-  background: radial-gradient(closest-side, var(--ambient-primary), transparent);
+  width: 64vmax;
+  height: 38vmax;
+  top: -12vmax;
+  left: -14vmax;
+  rotate: -12deg;
+  opacity: 0.8;
   animation: ambient-drift-1 38s ease-in-out infinite alternate;
 }
 .ambient-cloud-2 {
-  width: 34vmax;
-  height: 34vmax;
-  top: 38%;
-  right: -10vmax;
-  opacity: 0.5;
-  background: radial-gradient(closest-side, var(--ambient-secondary), transparent);
+  --cloud: var(--ambient-secondary);
+  width: 52vmax;
+  height: 30vmax;
+  top: 34%;
+  right: -16vmax;
+  rotate: 18deg;
+  opacity: 0.7;
   animation: ambient-drift-2 47s ease-in-out infinite alternate;
 }
 .ambient-cloud-3 {
-  width: 24vmax;
+  --cloud: color-mix(in srgb, var(--ambient-primary) 60%, var(--ambient-secondary));
+  width: 44vmax;
   height: 24vmax;
-  bottom: -6vmax;
-  left: 30%;
-  opacity: 0.3;
-  background: radial-gradient(
-    closest-side,
-    color-mix(in srgb, var(--ambient-primary) 60%, var(--ambient-secondary)),
-    transparent
-  );
+  bottom: -8vmax;
+  left: 22%;
+  rotate: -6deg;
+  opacity: 0.5;
   animation: ambient-drift-3 56s ease-in-out infinite alternate;
 }
 
