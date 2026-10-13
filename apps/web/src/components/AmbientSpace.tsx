@@ -4,9 +4,10 @@ import type { CSSProperties } from "react";
 import { NEUTRAL_PALETTE, type AmbientPalette } from "../lib/artwork-palette";
 
 /** The library's colour wash (#112). Unlike AmbientBackdrop it sits outside the scrolling pane,
- * so it stays with the screen while the list scrolls; three clouds drift slowly and shift between
- * scroll phases on their own slow timing (never tracking scroll speed). Colours are registered custom properties, so a new cover cross-fades. */
-export default function AmbientSpace({ palette, phase = 0 }: { palette: AmbientPalette | null; phase?: number }) {
+ * so it stays with the screen while the list scrolls; three clouds drift gently and move with the
+ * scroll through `--pane-progress` (set by AppShell). Colours are registered custom properties, so
+ * a new cover cross-fades. */
+export default function AmbientSpace({ palette }: { palette: AmbientPalette | null }) {
   const p = palette ?? NEUTRAL_PALETTE;
   const style = {
     "--ambient-primary": p.primary,
@@ -14,7 +15,7 @@ export default function AmbientSpace({ palette, phase = 0 }: { palette: AmbientP
     "--ambient-deep": p.deep,
   } as CSSProperties;
   return (
-    <div aria-hidden className="ambient-space" data-phase={phase} style={style}>
+    <div aria-hidden className="ambient-space" style={style}>
       {[1, 2, 3].map((n) => (
         <div key={n} className={`ambient-cloud-track ambient-track-${n}`}>
           <div className={`ambient-cloud ambient-cloud-${n}`} />

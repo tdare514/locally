@@ -137,39 +137,22 @@ body {
     --ambient-secondary 900ms ease,
     --ambient-deep 900ms ease;
 }
-/* Scroll only picks a phase (data-phase); the track eases to it on its own slow timing, so
- * the composition never follows scroll speed. A fast scroll just retargets the ease. */
+/* Scroll moves each cloud along its own path, as in the first version, but half as far and
+ * through --pane-progress, which AppShell eases toward the scroll position each frame. A fast
+ * scroll is followed smoothly instead of yanking the clouds. */
 .ambient-cloud-track {
   position: absolute;
   inset: 0;
-  transition: translate 1.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.ambient-space[data-phase="1"] .ambient-track-1 {
-  translate: 18vw 14vh;
+.ambient-track-1 {
+  transform: translate(calc(var(--pane-progress, 0) * 15vw), calc(var(--pane-progress, 0) * 20vh))
+    rotate(calc(var(--pane-progress, 0) * 12deg));
 }
-.ambient-space[data-phase="1"] .ambient-track-2 {
-  translate: -20vw -16vh;
+.ambient-track-2 {
+  transform: translate(calc(var(--pane-progress, 0) * -18vw), calc(var(--pane-progress, 0) * 10vh));
 }
-.ambient-space[data-phase="1"] .ambient-track-3 {
-  translate: -16vw 10vh;
-}
-.ambient-space[data-phase="2"] .ambient-track-1 {
-  translate: -10vw 20vh;
-}
-.ambient-space[data-phase="2"] .ambient-track-2 {
-  translate: 14vw 18vh;
-}
-.ambient-space[data-phase="2"] .ambient-track-3 {
-  translate: 20vw -14vh;
-}
-.ambient-space[data-phase="3"] .ambient-track-1 {
-  translate: 24vw -8vh;
-}
-.ambient-space[data-phase="3"] .ambient-track-2 {
-  translate: -6vw -22vh;
-}
-.ambient-space[data-phase="3"] .ambient-track-3 {
-  translate: -22vw -18vh;
+.ambient-track-3 {
+  transform: translate(calc(var(--pane-progress, 0) * 5vw), calc(var(--pane-progress, 0) * -22vh));
 }
 .ambient-cloud {
   position: absolute;
@@ -186,7 +169,7 @@ body {
   left: -8vmax;
   opacity: 0.6;
   background: radial-gradient(closest-side, var(--ambient-primary), transparent);
-  animation: ambient-drift-1 34s ease-in-out infinite;
+  animation: ambient-drift-1 38s ease-in-out infinite alternate;
 }
 .ambient-cloud-2 {
   width: 34vmax;
@@ -195,7 +178,7 @@ body {
   right: -10vmax;
   opacity: 0.5;
   background: radial-gradient(closest-side, var(--ambient-secondary), transparent);
-  animation: ambient-drift-2 41s ease-in-out infinite;
+  animation: ambient-drift-2 47s ease-in-out infinite alternate;
 }
 .ambient-cloud-3 {
   width: 24vmax;
@@ -208,7 +191,7 @@ body {
     color-mix(in srgb, var(--ambient-primary) 60%, var(--ambient-secondary)),
     transparent
   );
-  animation: ambient-drift-3 47s ease-in-out infinite;
+  animation: ambient-drift-3 56s ease-in-out infinite alternate;
 }
 
 /* The record: a disc tucked behind the sleeve, peeking out to the right. */
@@ -341,25 +324,17 @@ body {
   animation: cover-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* Each cloud wanders a loop across the pane (four waypoints, back to the start) rather than
- * wobbling in place, so the space keeps visibly moving. Transform only. */
 @keyframes ambient-drift-1 {
-  0%, 100% { translate: 0 0; scale: 1; }
-  25% { translate: 22vw 14vh; scale: 1.12; }
-  50% { translate: 38vw 38vh; scale: 0.94; }
-  75% { translate: 10vw 30vh; scale: 1.06; }
+  from { translate: 0 0; scale: 1; }
+  to { translate: 8vmax 6vmax; scale: 1.12; }
 }
 @keyframes ambient-drift-2 {
-  0%, 100% { translate: 0 0; scale: 1; }
-  25% { translate: -20vw 18vh; scale: 0.94; }
-  50% { translate: -40vw -10vh; scale: 1.1; }
-  75% { translate: -14vw -26vh; scale: 1.02; }
+  from { translate: 0 0; scale: 1; }
+  to { translate: -4vmax 10vmax; scale: 0.95; }
 }
 @keyframes ambient-drift-3 {
-  0%, 100% { translate: 0 0; scale: 1; }
-  25% { translate: 18vw -20vh; scale: 1.1; }
-  50% { translate: -16vw -40vh; scale: 0.96; }
-  75% { translate: -26vw -12vh; scale: 1.08; }
+  from { translate: 0 0; scale: 1; }
+  to { translate: 6vmax -8vmax; scale: 1.1; }
 }
 @keyframes record-out {
   from {
@@ -394,9 +369,6 @@ body {
   .cover-in,
   .ambient-cloud {
     animation: none;
-  }
-  .ambient-cloud-track {
-    transition: none;
   }
   .record:hover .record-disc {
     translate: 0 -50%;

@@ -33,10 +33,11 @@ export default function AppShell() {
   const libraryPalette = useArtworkPalette(view.type === "library" ? ambientCoverUrl : null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const nextToastId = useRef(0);
-  // Coarse scroll phase for the ambient space: scroll only picks a phase, and CSS eases to it
-  // on its own timing, so the clouds never track scroll speed.
+  // The ambient clouds follow the scroll through --pane-progress on the pane wrapper, eased a
+  // little each frame toward the scroll position so a fast scroll is followed smoothly. Written
+  // straight to the style, not React state, so scrolling never re-renders the app.
   const mainRef = useRef<HTMLElement>(null);
-  const [phase, setPhase] = useState(0);
+  const paneRef = useRef<HTMLDivElement>(null);
 
   const showToast = useCallback((kind: "success" | "error", text: string) => {
     nextToastId.current += 1;
@@ -65,16 +66,24 @@ export default function AppShell() {
 
   useEffect(() => {
     const main = mainRef.current;
-    if (!main) return;
+    const pane = paneRef.current;
+    if (!main || !pane) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let raf = 0;
-    const read = () => {
-      raf = 0;
-      // Every quarter screen of scroll picks the next of four arrangements, cycling, so the
-      // clouds keep moving however long the library is.
-      setPhase(Math.floor(main.scrollTop / (main.clientHeight * 0.25)) % 4);
+    let current = 0;
+    let target = 0;
+    const step = () => {
+      current += (target - current) * 0.06;
+      if (Math.abs(target - current) < 0.0005) current = target;
+      pane.style.setProperty("--pane-progress", current.toFixed(4));
+      raf = current === target ? 0 : requestAnimationFrame(step);
     };
     const onScroll = () => {
-      if (!raf) raf = requestAnimationFrame(read);
+      // A short library still gets a full screen and a half of travel, so a small scroll
+      // never swings the clouds across their whole path.
+      const range = Math.max(main.scrollHeight - main.clientHeight, main.clientHeight * 1.5);
+      target = Math.min(1, main.scrollTop / range);
+      if (!raf) raf = requestAnimationFrame(step);
     };
     main.addEventListener("scroll", onScroll, { passive: true });
     return () => {
@@ -146,12 +155,12 @@ export default function AppShell() {
         onSettingsClick={() => setView({ type: "settings" })}
       />
       {/* The wrapper holds the library's AmbientSpace outside the scroller so it never scrolls
-          away, and the scroll phase (see below) nudges its clouds. main stays relative +
+          away, and carries --pane-progress (see above) that moves its clouds. main stays relative +
           isolate: the release page's AmbientBackdrop paints behind its content but inside this
           pane, so it never covers the sidebar. */}
-      <div className="relative isolate min-h-0 min-w-0 flex-1">
+      <div ref={paneRef} className="relative isolate min-h-0 min-w-0 flex-1">
         {view.type === "library" && (library?.releases.length ?? 0) > 0 && (
-          <AmbientSpace palette={libraryPalette} phase={phase} />
+          <AmbientSpace palette={libraryPalette} />
         )}
         <main
           ref={mainRef}
