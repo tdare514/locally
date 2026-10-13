@@ -9,6 +9,8 @@ import ImportView from "./ImportView";
 import ReleaseView from "./ReleaseView";
 import SettingsView from "./SettingsView";
 import type { LibrarySort } from "../lib/library-sections";
+import AmbientSpace from "./AmbientSpace";
+import { useArtworkPalette } from "../lib/use-artwork-palette";
 import Toast, { type ToastMessage } from "./Toast";
 
 export type View =
@@ -25,8 +27,17 @@ export default function AppShell() {
   // Lives here (not in LibraryView) so the query survives opening a release and coming back.
   const [libraryQuery, setLibraryQuery] = useState("");
   const [librarySort, setLibrarySort] = useState<LibrarySort>("newest");
+  // The cover LibraryView wants the ambient space tinted by; the wash lives out here so it
+  // sits outside the scrolling pane.
+  const [ambientCoverUrl, setAmbientCoverUrl] = useState<string | null>(null);
+  const libraryPalette = useArtworkPalette(view.type === "library" ? ambientCoverUrl : null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const nextToastId = useRef(0);
+  // The library sky follows the scroll through --pane-progress and --pane-swirl on the pane
+  // wrapper, eased each frame so it twists while scrolling and settles after. Written
+  // straight to the style, not React state, so scrolling never re-renders the app.
+  const mainRef = useRef<HTMLElement>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
 
   const showToast = useCallback((kind: "success" | "error", text: string) => {
     nextToastId.current += 1;
@@ -52,6 +63,50 @@ export default function AppShell() {
       )
       .finally(() => setLoadingLibrary(false));
   }, [showToast]);
+
+  useEffect(() => {
+    const main = mainRef.current;
+    const pane = paneRef.current;
+    if (!main || !pane) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let raf = 0;
+    let current = 0;
+    let target = 0;
+    let swirl = 0;
+    let lastTop = main.scrollTop;
+    let speed = 0;
+    const step = () => {
+      current += (target - current) * 0.08;
+      // Swirl follows scroll speed and eases back to 0, so the sky twists while scrolling and
+      // settles after; speed itself decays each frame once scrolling stops.
+      swirl += (speed - swirl) * 0.08;
+      speed *= 0.85;
+      if (Math.abs(target - current) < 0.0005) current = target;
+      if (Math.abs(swirl) < 0.001 && Math.abs(speed) < 0.001) swirl = speed = 0;
+      // Set on the sky itself, not the pane: a custom property changed on the pane would make
+      // the browser restyle the whole library every frame.
+      const sky = pane.querySelector<HTMLElement>(".ambient-space");
+      if (sky) {
+        sky.style.setProperty("--pane-progress", current.toFixed(4));
+        sky.style.setProperty("--pane-swirl", swirl.toFixed(4));
+      }
+      raf = current === target && swirl === 0 ? 0 : requestAnimationFrame(step);
+    };
+    const onScroll = () => {
+      // Progress is screens scrolled; speed is screens per event, signed, capped so a flick
+      // twists the sky without spinning it.
+      target = main.scrollTop / main.clientHeight;
+      const delta = (main.scrollTop - lastTop) / main.clientHeight;
+      lastTop = main.scrollTop;
+      speed = Math.max(-1, Math.min(1, speed + delta * 4));
+      if (!raf) raf = requestAnimationFrame(step);
+    };
+    main.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      main.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
 
   useEffect(() => {
     refreshLibrary();
@@ -115,48 +170,62 @@ export default function AppShell() {
         onImportClick={() => openImport()}
         onSettingsClick={() => setView({ type: "settings" })}
       />
-      <main className="flex-1 overflow-y-auto p-6 md:p-10 lg:p-16">
-        {view.type === "library" && (
-          <LibraryView
-            releases={library?.releases ?? []}
-            loading={loadingLibrary}
-            query={libraryQuery}
-            sort={librarySort}
-            onQueryChange={setLibraryQuery}
-            onSortChange={setLibrarySort}
-            onSelectRelease={(id) => setView({ type: "release", id })}
-            onImport={openImport}
-            onBulkDone={refreshLibrary}
-            onToast={showToast}
-          />
+      {/* The wrapper holds the library's AmbientSpace outside the scroller so it never scrolls
+          away, and carries --pane-progress / --pane-swirl (see above) that turn its sky. main stays relative +
+          isolate: the release page's AmbientBackdrop paints behind its content but inside this
+          pane, so it never covers the sidebar. */}
+      <div ref={paneRef} className="relative isolate min-h-0 min-w-0 flex-1">
+        {view.type === "library" && (library?.releases.length ?? 0) > 0 && (
+          <AmbientSpace palette={libraryPalette} />
         )}
-        {view.type === "import" && (
-          <ImportView
-            key={view.kind ?? "any"}
-            initialKind={view.kind}
-            onImported={handleImported}
-            onToast={showToast}
-          />
-        )}
-        {view.type === "release" && (
-          <ReleaseView
-            key={view.id}
-            releaseId={view.id}
-            justImported={view.justImported ?? false}
-            onDeleted={handleDeleted}
-            onUpdated={refreshLibrary}
-            onToast={showToast}
-            onOpenSettings={() => setView({ type: "settings" })}
-          />
-        )}
-        {view.type === "settings" && (
-          <SettingsView
-            onToast={showToast}
-            syncStatus={syncStatus}
-            onSyncStatusChange={refreshSyncStatus}
-          />
-        )}
-      </main>
+        <main
+          ref={mainRef}
+          className="relative isolate h-full overflow-y-auto p-6 md:p-10 lg:p-16"
+        >
+          {view.type === "library" && (
+            <LibraryView
+              releases={library?.releases ?? []}
+              loading={loadingLibrary}
+              query={libraryQuery}
+              sort={librarySort}
+              onQueryChange={setLibraryQuery}
+              onSortChange={setLibrarySort}
+              onSelectRelease={(id) => setView({ type: "release", id })}
+              onImport={openImport}
+              onBulkDone={refreshLibrary}
+              onToast={showToast}
+              onAmbientCoverChange={setAmbientCoverUrl}
+            />
+          )}
+          {view.type === "import" && (
+            <ImportView
+              key={view.kind ?? "any"}
+              initialKind={view.kind}
+              onImported={handleImported}
+              onToast={showToast}
+            />
+          )}
+          {view.type === "release" && (
+            <ReleaseView
+              key={view.id}
+              releaseId={view.id}
+              initialRelease={library?.releases.find((r) => r.id === view.id)}
+              justImported={view.justImported ?? false}
+              onDeleted={handleDeleted}
+              onUpdated={refreshLibrary}
+              onToast={showToast}
+              onOpenSettings={() => setView({ type: "settings" })}
+            />
+          )}
+          {view.type === "settings" && (
+            <SettingsView
+              onToast={showToast}
+              syncStatus={syncStatus}
+              onSyncStatusChange={refreshSyncStatus}
+            />
+          )}
+        </main>
+      </div>
       <Toast toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
