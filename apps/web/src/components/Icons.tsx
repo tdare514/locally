@@ -95,3 +95,46 @@ export function MusicNoteIcon(props: SVGProps<SVGSVGElement>) {
     </IconBase>
   );
 }
+
+/** Library list view: three rows, each with a small leading square. */
+export function ListViewIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <rect x="3" y="4.5" width="3" height="3" rx="0.5" />
+      <rect x="3" y="10.5" width="3" height="3" rx="0.5" />
+      <rect x="3" y="16.5" width="3" height="3" rx="0.5" />
+      <path d="M10 6h11M10 12h11M10 18h11" />
+    </IconBase>
+  );
+}
+
+/** Library cover view: one rounded square holding four smaller squares in a 2x2 grid. */
+export function CoverGridIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <rect x="2.5" y="2.5" width="19" height="19" rx="3" />
+      <rect x="6.5" y="6.5" width="4" height="4" rx="0.5" />
+      <rect x="13.5" y="6.5" width="4" height="4" rx="0.5" />
+      <rect x="6.5" y="13.5" width="4" height="4" rx="0.5" />
+      <rect x="13.5" y="13.5" width="4" height="4" rx="0.5" />
+    </IconBase>
+  );
+}
+
+/** Cover size slider, small end. */
+export function CoverSmallIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <rect x="8" y="8" width="8" height="8" rx="1.5" />
+    </IconBase>
+  );
+}
+
+/** Cover size slider, large end. */
+export function CoverLargeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <rect x="3" y="3" width="18" height="18" rx="2.5" />
+    </IconBase>
+  );
+}
