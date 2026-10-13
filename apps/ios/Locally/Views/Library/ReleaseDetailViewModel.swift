@@ -38,6 +38,8 @@ final class ReleaseDetailViewModel {
     var errorMessage: String?
     var statusMessage: String?
     var isDeleted = false
+    /// Bumped after each successful save; the view plays the record ceremony on it.
+    private(set) var saveCount = 0
 
     init(release: Release, coordinator: ReleaseCoordinator, coverStore: CoverStore) {
         // `@Observable` forbids reading a tracked property via `self` until
@@ -120,6 +122,7 @@ final class ReleaseDetailViewModel {
         do {
             let updated = try await coordinator.updateRelease(releaseId, changes: changes)
             apply(updated)
+            saveCount += 1
             statusMessage = Copy.Import.afterEdit
         } catch {
             errorMessage = error.localizedDescription

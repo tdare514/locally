@@ -1,0 +1,95 @@
+import SwiftUI
+
+extension View {
+    /// Fake glass: a faint white fill and a hairline stroke, no blur over the backdrop.
+    func fakeGlass<S: InsettableShape>(_ shape: S) -> some View {
+        background(Theme.Immersive.panelFill, in: shape)
+            .overlay(shape.strokeBorder(Theme.Immersive.panelStroke, lineWidth: 1))
+    }
+}
+
+/// Where a `List` row sits in its panel card, so its background can draw the card's edges.
+enum PanelEdge { case top, middle, bottom }
+
+/// A row background for the record's panels. A `List` section can only be styled row by
+/// row, so each row paints the fill plus the card's side lines (and top/bottom at the ends).
+struct PanelRowBackground: View {
+    let edge: PanelEdge
+
+    var body: some View {
+        let stroke = Theme.Immersive.panelStroke
+        ZStack {
+            Theme.Immersive.panelFill
+            VStack(spacing: 0) {
+                if edge == .top { stroke.frame(height: 1) }
+                Spacer(minLength: 0)
+                if edge == .bottom { stroke.frame(height: 1) }
+            }
+            HStack(spacing: 0) {
+                stroke.frame(width: 1)
+                Spacer(minLength: 0)
+                stroke.frame(width: 1)
+            }
+        }
+    }
+}
+
+/// The floating save control under the record: a compact centred capsule holding an
+/// "Unsaved changes" / "Saved to your library" status and Save.
+struct ReleaseDock: View {
+    let model: ReleaseDetailViewModel
+
+    @State private var showSaved = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var status: String? {
+        if model.hasChanges { return Copy.Immersive.unsavedChanges }
+        return showSaved ? Copy.Immersive.savedToLibrary : nil
+    }
+
+    var body: some View {
+        pill
+        .padding(.bottom, Theme.Immersive.dockBottomPadding)
+        .animation(reduceMotion ? nil : .easeInOut(duration: Theme.Immersive.dockStatusFade), value: status)
+        .task(id: model.saveCount) {
+            guard model.saveCount > 0 else { return }
+            showSaved = true
+            try? await Task.sleep(for: .seconds(Theme.Immersive.savedToastSeconds))
+            if !Task.isCancelled { showSaved = false }
+        }
+    }
+
+    private var pill: some View {
+        HStack(spacing: Theme.Immersive.dockGap) {
+            if let status {
+                statusText(status).padding(.leading, Theme.Immersive.dockGap)
+            }
+            saveButton
+        }
+        .padding(6)
+        .background(Theme.Immersive.dockUnderlay, in: Capsule())
+        .fakeGlass(Capsule())
+        .frame(maxWidth: .infinity)
+    }
+
+    private func statusText(_ text: String) -> some View {
+        Text(text)
+            .font(Theme.Font.meta)
+            .foregroundStyle(model.hasChanges ? Theme.secondaryText : Theme.primaryText)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .transition(.opacity)
+    }
+
+    private var saveButton: some View {
+        Button {
+            Task { await model.save() }
+        } label: {
+            Text(model.isSaving ? Copy.Detail.saving : Copy.Detail.saveChanges)
+                .lineLimit(1)
+                .fixedSize()
+        }
+        .buttonStyle(PrimaryPillButtonStyle(isFullWidth: false))
+        .disabled(!model.canSave)
+    }
+}
