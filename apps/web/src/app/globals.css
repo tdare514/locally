@@ -142,7 +142,7 @@ body {
 .ambient-cloud-track {
   position: absolute;
   inset: 0;
-  transition: translate 3.2s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: translate 1.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .ambient-space[data-phase="1"] .ambient-track-1 {
   translate: 10vw 8vh;
@@ -186,7 +186,7 @@ body {
   left: -8vmax;
   opacity: 0.6;
   background: radial-gradient(closest-side, var(--ambient-primary), transparent);
-  animation: ambient-drift-1 64s ease-in-out infinite alternate;
+  animation: ambient-drift-1 28s ease-in-out infinite alternate;
 }
 .ambient-cloud-2 {
   width: 34vmax;
@@ -195,7 +195,7 @@ body {
   right: -10vmax;
   opacity: 0.5;
   background: radial-gradient(closest-side, var(--ambient-secondary), transparent);
-  animation: ambient-drift-2 78s ease-in-out infinite alternate;
+  animation: ambient-drift-2 34s ease-in-out infinite alternate;
 }
 .ambient-cloud-3 {
   width: 24vmax;
@@ -208,7 +208,7 @@ body {
     color-mix(in srgb, var(--ambient-primary) 60%, var(--ambient-secondary)),
     transparent
   );
-  animation: ambient-drift-3 92s ease-in-out infinite alternate;
+  animation: ambient-drift-3 40s ease-in-out infinite alternate;
 }
 
 /* The record: a disc tucked behind the sleeve, peeking out to the right. */
@@ -347,8 +347,8 @@ body {
     scale: 1;
   }
   to {
-    translate: 4vmax 3vmax;
-    scale: 1.06;
+    translate: 6vmax 4vmax;
+    scale: 1.1;
   }
 }
 @keyframes ambient-drift-2 {
@@ -357,8 +357,8 @@ body {
     scale: 1;
   }
   to {
-    translate: -3vmax 4vmax;
-    scale: 1.05;
+    translate: -5vmax 6vmax;
+    scale: 1.08;
   }
 }
 @keyframes ambient-drift-3 {
@@ -367,8 +367,8 @@ body {
     scale: 1;
   }
   to {
-    translate: 3vmax -2vmax;
-    scale: 1.06;
+    translate: 5vmax -4vmax;
+    scale: 1.1;
   }
 }
 @keyframes record-out {
