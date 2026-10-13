@@ -96,6 +96,104 @@ enum Theme {
         static let primaryButtonV: CGFloat = 12
     }
 
+    /// The "immersive" release look (#112 on the web): the record sleeve, the
+    /// artwork backdrop and the inline field. Each value cites the
+    /// `apps/web/src/app/globals.css` rule or `lib/artwork-palette.ts` constant
+    /// it was ported from.
+    enum Immersive {
+        /// `CoverPicker` sleeve: 248 from `sm`, 200 below.
+        static let sleeveSizeRegular: CGFloat = 248
+        static let sleeveSizeCompact: CGFloat = 200
+        static let sleeveCornerRadius: CGFloat = 4
+        /// `RecordSleeve.tsx`: disc 184 on a 200 sleeve, 228 on 248 (both 0.92).
+        static let discToSleeveRatio: CGFloat = 0.92
+        /// `pr-[92px]` on a 184 disc: half the disc shows past the sleeve.
+        static let discPeekRatio: CGFloat = 0.5
+        /// `.record-label { inset: 32% }`: label diameter is the remaining 36%.
+        static let labelToDiscRatio: CGFloat = 0.36
+        /// `.record-label::after { inset: 46% }`: spindle hole is 8% of the label.
+        static let spindleToLabelRatio: CGFloat = 0.08
+        static let labelRingWidth: CGFloat = 3
+        static let labelRingOpacity: Double = 0.5
+        /// `.record-sheen` mask `transparent 0 34%`.
+        static let sheenInnerRatio: CGFloat = 0.34
+        /// `.record-sheen` conic gradient `from 20deg` (CSS starts at 12 o'clock).
+        static let sheenStartDegrees: Double = 20
+        static let sheenOpacityNear: Double = 0.1
+        static let sheenOpacityFar: Double = 0.07
+        /// `.record-face` repeating groove: a 1 px line every 3 px.
+        static let grooveSpacing: CGFloat = 3
+        static let grooveWidth: CGFloat = 1
+        static let grooveOpacity: Double = 0.04
+        /// `.record-face` dark ring (`63.5% 64.5%` of the farthest-corner radius, 1.414 x the disc radius).
+        static let discRingRadiusRatio: CGFloat = 0.898
+        static let discRingWidth: CGFloat = 1.4
+        static let discRingOpacity: Double = 0.35
+        static let discEdgeOpacity: Double = 0.07
+        static let discColor = Color(red: 0x11 / 255, green: 0x11 / 255, blue: 0x11 / 255)
+        /// `.record-face` shadow `0 24px 48px -18px`, approximated (SwiftUI has no spread).
+        static let discShadowOpacity: Double = 0.6
+        static let discShadowRadius: CGFloat = 20
+        static let discShadowY: CGFloat = 18
+        /// `.record-sleeve` shadows `0 32px 64px -24px` and `0 10px 20px -10px`, approximated.
+        static let sleeveShadowFarOpacity: Double = 0.7
+        static let sleeveShadowFarRadius: CGFloat = 26
+        static let sleeveShadowFarY: CGFloat = 24
+        static let sleeveShadowNearOpacity: Double = 0.45
+        static let sleeveShadowNearRadius: CGFloat = 8
+        static let sleeveShadowNearY: CGFloat = 6
+        /// `.record-sleeve::after`: a 1 px edge and a 135deg sheen fading out by 40%.
+        static let sleeveEdgeOpacity: Double = 0.1
+        static let sleeveSheenOpacity: Double = 0.08
+        static let sleeveSheenEnd: CGFloat = 0.4
+
+        /// `@keyframes record-press`: 1300 ms total; the disc is 42% of its width into
+        /// the sleeve at the 25% keyframe, then eases back out.
+        static let ceremonyDuration: Double = 1.3
+        static let ceremonyTuckDuration: Double = 0.325
+        static let ceremonyTuckFraction: CGFloat = 0.42
+        /// `.record-spin` starts 280 ms in and runs to the end of the ceremony. The web
+        /// turns 540 deg and snaps back; two full turns (720) end on the same pose.
+        static let ceremonySpinDelay: Double = 0.28
+        static let ceremonySpinDegrees: Double = 720
+        /// `.cover-in`: 520 ms fade from opacity 0 and scale 0.96.
+        static let coverFadeDuration: Double = 0.52
+        static let coverFadeScale: CGFloat = 0.96
+        /// Reduced motion swaps the cover with a plain, short opacity change.
+        static let reducedMotionFadeDuration: Double = 0.2
+
+        /// `.ambient-backdrop` colour transition: 900 ms.
+        static let backdropCrossFade: Double = 0.9
+        /// `.ambient-backdrop` radial gradients: radii as a share of width and height, centres likewise.
+        static let backdropPrimaryRadius = CGSize(width: 1.10, height: 0.80)
+        static let backdropPrimaryCenter = CGPoint(x: 0.08, y: 0)
+        static let backdropSecondaryRadius = CGSize(width: 0.70, height: 0.60)
+        static let backdropSecondaryCenter = CGPoint(x: 0.96, y: 0.06)
+        /// The gradients reach transparent at 72% / 70% of their radius.
+        static let backdropPrimaryFade: CGFloat = 0.72
+        static let backdropSecondaryFade: CGFloat = 0.70
+        /// The deep colour runs down to the page black at 92% of the height.
+        static let backdropDeepEnd: CGFloat = 0.92
+        /// `ambient-breathe-1` / `-2` (alternate): one-way period in seconds, rotation in degrees, scale.
+        static let driftPeriodPrimary: Double = 40
+        static let driftPeriodSecondary: Double = 52
+        static let driftRotationPrimary: (from: Double, to: Double) = (-3, 4)
+        static let driftScalePrimary: (from: Double, to: Double) = (1, 1.06)
+        static let driftRotationSecondary: (from: Double, to: Double) = (3, -4)
+        static let driftScaleSecondary: (from: Double, to: Double) = (1.04, 0.98)
+        /// `lib/artwork-palette.ts` WCAG relative-luminance caps (white text stays readable).
+        static let luminanceCapPrimary: Double = 0.12
+        static let luminanceCapSecondary: Double = 0.08
+        static let luminanceCapDeep: Double = 0.035
+
+        /// Underline under a focused inline field: one device pixel.
+        static let inlineFieldUnderlineOpacity: Double = 0.6
+        static let inlineFieldUnderlineGap: CGFloat = 4
+        static let inlineFieldFocusFade: Double = 0.15
+        /// Empty-sleeve caption spacing.
+        static let sleeveCaptionPadding: CGFloat = 16
+    }
+
     /// Opaque black tab and navigation bars, so a bright cover scrolling
     /// underneath never bleeds through the system blur.
     static func applyChrome() {

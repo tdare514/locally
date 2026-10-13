@@ -32,6 +32,14 @@ enum Copy {
         static let getStarted = "Get started"
     }
 
+    /// The immersive release look's reusable components (not yet on a screen).
+    enum Immersive {
+        static let addCoverArt = "Add cover art"
+        /// Accessibility label of the sleeve once it has a cover.
+        static let changeCoverArt = "Change cover art"
+        static let savedToLibrary = "Saved to your library"
+    }
+
     enum Import {
         static let title = "Import"
         /// The page subtitle shown under the title, per `docs/design.md`'s

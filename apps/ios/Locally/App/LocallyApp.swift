@@ -13,7 +13,9 @@ struct LocallyApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if Self.isHostingUnitTests {
+            if let gallery = Self.componentGallery {
+                gallery
+            } else if Self.isHostingUnitTests {
                 // The test bundle runs inside this app. Showing RootView would
                 // start auto-reconcile with the simulator's real account and
                 // hit the network mid-test, so the host stays inert.
@@ -37,6 +39,16 @@ struct LocallyApp: App {
                 }
             }
         }
+    }
+
+    /// DEBUG only: `-componentGallery <name>` shows one immersive component for screenshots.
+    private static var componentGallery: AnyView? {
+        #if DEBUG
+        if let name = UserDefaults.standard.string(forKey: "componentGallery") {
+            return AnyView(ComponentGallery(name: name))
+        }
+        #endif
+        return nil
     }
 
     /// True when XCTest has injected a test bundle into this process.
