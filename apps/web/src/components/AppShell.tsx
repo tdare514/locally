@@ -33,8 +33,8 @@ export default function AppShell() {
   const libraryPalette = useArtworkPalette(view.type === "library" ? ambientCoverUrl : null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const nextToastId = useRef(0);
-  // The ambient clouds follow the scroll through --pane-progress on the pane wrapper, eased a
-  // little each frame toward the scroll position so a fast scroll is followed smoothly. Written
+  // The library sky follows the scroll through --pane-progress and --pane-swirl on the pane
+  // wrapper, eased each frame so it twists while scrolling and settles after. Written
   // straight to the style, not React state, so scrolling never re-renders the app.
   const mainRef = useRef<HTMLElement>(null);
   const paneRef = useRef<HTMLDivElement>(null);
@@ -72,16 +72,28 @@ export default function AppShell() {
     let raf = 0;
     let current = 0;
     let target = 0;
+    let swirl = 0;
+    let lastTop = main.scrollTop;
+    let speed = 0;
     const step = () => {
-      current += (target - current) * 0.1;
+      current += (target - current) * 0.08;
+      // Swirl follows scroll speed and eases back to 0, so the sky twists while scrolling and
+      // settles after; speed itself decays each frame once scrolling stops.
+      swirl += (speed - swirl) * 0.08;
+      speed *= 0.85;
       if (Math.abs(target - current) < 0.0005) current = target;
+      if (Math.abs(swirl) < 0.001 && Math.abs(speed) < 0.001) swirl = speed = 0;
       pane.style.setProperty("--pane-progress", current.toFixed(4));
-      raf = current === target ? 0 : requestAnimationFrame(step);
+      pane.style.setProperty("--pane-swirl", swirl.toFixed(4));
+      raf = current === target && swirl === 0 ? 0 : requestAnimationFrame(step);
     };
     const onScroll = () => {
-      // Progress is screens scrolled, so every library flows the same per screen; capped where
-      // the last cloud has flowed in.
-      target = Math.min(2.4, main.scrollTop / main.clientHeight);
+      // Progress is screens scrolled; speed is screens per event, signed, capped so a flick
+      // twists the sky without spinning it.
+      target = main.scrollTop / main.clientHeight;
+      const delta = (main.scrollTop - lastTop) / main.clientHeight;
+      lastTop = main.scrollTop;
+      speed = Math.max(-1, Math.min(1, speed + delta * 4));
       if (!raf) raf = requestAnimationFrame(step);
     };
     main.addEventListener("scroll", onScroll, { passive: true });
@@ -154,7 +166,7 @@ export default function AppShell() {
         onSettingsClick={() => setView({ type: "settings" })}
       />
       {/* The wrapper holds the library's AmbientSpace outside the scroller so it never scrolls
-          away, and carries --pane-progress (see above) that moves its clouds. main stays relative +
+          away, and carries --pane-progress / --pane-swirl (see above) that turn its sky. main stays relative +
           isolate: the release page's AmbientBackdrop paints behind its content but inside this
           pane, so it never covers the sidebar. */}
       <div ref={paneRef} className="relative isolate min-h-0 min-w-0 flex-1">

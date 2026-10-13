@@ -137,81 +137,44 @@ body {
     --ambient-secondary 900ms ease,
     --ambient-deep 900ms ease;
 }
-/* Scroll flows the clouds like layers at different depths: --pane-progress is screens scrolled
- * (eased by AppShell), and each track rises at its own rate, so a cloud flows up and out as you
- * scroll down and back in as you scroll up. Cloud 4 starts below the pane and flows in as the
- * others leave, so a long library never runs out of colour. Idle, they only drift in place. */
-.ambient-cloud-track {
+/* One continuous sky, not separate clouds: two oversized colour fields made of overlapping soft
+ * ellipses, stacked and turning in opposite directions. AppShell writes --pane-progress (screens
+ * scrolled, eased) and --pane-swirl (scroll speed, eased back to 0), so while you scroll the
+ * whole field twists and smears like ink in water, and when you stop it settles. The fields are
+ * larger than the pane so turning never shows an edge. Transforms only. */
+.ambient-sky {
+  position: absolute;
+  inset: -45%;
+  will-change: transform;
+}
+.ambient-sky-1 {
+  transform: rotate(calc(var(--pane-progress, 0) * 28deg + var(--pane-swirl, 0) * 14deg))
+    scale(calc(1 + var(--pane-swirl, 0) * 0.04));
+}
+.ambient-sky-2 {
+  opacity: 0.75;
+  transform: rotate(calc(var(--pane-progress, 0) * -22deg - var(--pane-swirl, 0) * 20deg))
+    scale(calc(1.05 - var(--pane-swirl, 0) * 0.03));
+}
+.ambient-sky-paint {
   position: absolute;
   inset: 0;
 }
-.ambient-track-1 {
-  transform: translate(calc(var(--pane-progress, 0) * 8vw), calc(var(--pane-progress, 0) * -60vh));
+/* Ellipses fade on an eased curve with no rim, so they merge into one field. Positions are in
+ * the oversized layer, so 50% 50% is the middle of the pane. */
+.ambient-sky-1 .ambient-sky-paint {
+  background:
+    radial-gradient(28% 18% at 38% 38%, color-mix(in srgb, var(--ambient-primary) 55%, transparent), transparent 100%),
+    radial-gradient(24% 16% at 62% 50%, color-mix(in srgb, var(--ambient-secondary) 50%, transparent), transparent 100%),
+    radial-gradient(30% 14% at 44% 64%, color-mix(in srgb, var(--ambient-primary) 35%, transparent), transparent 100%);
+  animation: ambient-breathe-1 40s ease-in-out infinite alternate;
 }
-.ambient-track-2 {
-  transform: translate(calc(var(--pane-progress, 0) * -6vw), calc(var(--pane-progress, 0) * -45vh));
-}
-.ambient-track-3 {
-  transform: translate(calc(var(--pane-progress, 0) * -10vw), calc(var(--pane-progress, 0) * -52vh));
-}
-.ambient-track-4 {
-  transform: translate(calc(var(--pane-progress, 0) * 6vw), calc(var(--pane-progress, 0) * -64vh));
-}
-/* Each cloud fades out on an eased curve (no bright core, no visible rim) and is a stretched,
- * tilted ellipse, so the colour melts into the background instead of reading as a ball. */
-.ambient-cloud {
-  position: absolute;
-  border-radius: 50%;
-  will-change: transform;
-  --cloud: var(--ambient-primary);
-  background: radial-gradient(
-    closest-side,
-    color-mix(in srgb, var(--cloud) 70%, transparent) 0%,
-    color-mix(in srgb, var(--cloud) 45%, transparent) 25%,
-    color-mix(in srgb, var(--cloud) 20%, transparent) 50%,
-    color-mix(in srgb, var(--cloud) 6%, transparent) 75%,
-    transparent 100%
-  );
-}
-.ambient-cloud-1 {
-  width: 64vmax;
-  height: 38vmax;
-  top: -12vmax;
-  left: -14vmax;
-  rotate: -12deg;
-  opacity: 0.8;
-  animation: ambient-drift-1 38s ease-in-out infinite alternate;
-}
-.ambient-cloud-2 {
-  --cloud: var(--ambient-secondary);
-  width: 52vmax;
-  height: 30vmax;
-  top: 34%;
-  right: -16vmax;
-  rotate: 18deg;
-  opacity: 0.7;
-  animation: ambient-drift-2 47s ease-in-out infinite alternate;
-}
-.ambient-cloud-3 {
-  --cloud: color-mix(in srgb, var(--ambient-primary) 60%, var(--ambient-secondary));
-  width: 44vmax;
-  height: 24vmax;
-  bottom: -8vmax;
-  left: 22%;
-  rotate: -6deg;
-  opacity: 0.5;
-  animation: ambient-drift-3 56s ease-in-out infinite alternate;
-}
-
-.ambient-cloud-4 {
-  --cloud: var(--ambient-secondary);
-  width: 56vmax;
-  height: 32vmax;
-  top: 118%;
-  left: 34%;
-  rotate: 10deg;
-  opacity: 0.7;
-  animation: ambient-drift-2 51s ease-in-out infinite alternate-reverse;
+.ambient-sky-2 .ambient-sky-paint {
+  background:
+    radial-gradient(22% 20% at 58% 36%, color-mix(in srgb, var(--ambient-secondary) 45%, transparent), transparent 100%),
+    radial-gradient(26% 15% at 40% 54%, color-mix(in srgb, color-mix(in srgb, var(--ambient-primary) 60%, var(--ambient-secondary)) 45%, transparent), transparent 100%),
+    radial-gradient(20% 16% at 60% 66%, color-mix(in srgb, var(--ambient-secondary) 35%, transparent), transparent 100%);
+  animation: ambient-breathe-2 52s ease-in-out infinite alternate;
 }
 
 /* The record: a disc tucked behind the sleeve, peeking out to the right. */
@@ -344,17 +307,13 @@ body {
   animation: cover-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-@keyframes ambient-drift-1 {
-  from { translate: 0 0; scale: 1; }
-  to { translate: 8vmax 6vmax; scale: 1.12; }
+@keyframes ambient-breathe-1 {
+  from { rotate: -3deg; scale: 1; }
+  to { rotate: 4deg; scale: 1.06; }
 }
-@keyframes ambient-drift-2 {
-  from { translate: 0 0; scale: 1; }
-  to { translate: -4vmax 10vmax; scale: 0.95; }
-}
-@keyframes ambient-drift-3 {
-  from { translate: 0 0; scale: 1; }
-  to { translate: 6vmax -8vmax; scale: 1.1; }
+@keyframes ambient-breathe-2 {
+  from { rotate: 3deg; scale: 1.04; }
+  to { rotate: -4deg; scale: 0.98; }
 }
 @keyframes record-out {
   from {
@@ -387,7 +346,7 @@ body {
   .record-disc.record-pressed,
   .record-spin,
   .cover-in,
-  .ambient-cloud {
+  .ambient-sky-paint {
     animation: none;
   }
   .record:hover .record-disc {
