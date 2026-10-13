@@ -21,6 +21,9 @@ import { useArtworkPalette } from "../lib/use-artwork-palette";
 
 interface ReleaseViewProps {
   releaseId: string;
+  /** The release as the library already has it, so the page renders at once instead of
+   * flashing "Loading…"; the fresh copy is fetched quietly behind it. */
+  initialRelease?: Release;
   justImported?: boolean;
   onDeleted: () => void;
   onUpdated: () => void;
@@ -128,19 +131,24 @@ function InlineField({
 
 export default function ReleaseView({
   releaseId,
+  initialRelease,
   justImported = false,
   onDeleted,
   onUpdated,
   onToast,
   onOpenSettings,
 }: ReleaseViewProps) {
-  const [release, setRelease] = useState<Release | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [title, setTitle] = useState("");
-  const [artist, setArtist] = useState("");
-  const [year, setYear] = useState("");
-  const [genre, setGenre] = useState("");
-  const [tracks, setTracks] = useState<EditableTrack[]>([]);
+  const [release, setRelease] = useState<Release | null>(initialRelease ?? null);
+  const [loading, setLoading] = useState(!initialRelease);
+  const [title, setTitle] = useState(initialRelease?.title ?? "");
+  const [artist, setArtist] = useState(initialRelease?.artist ?? "");
+  const [year, setYear] = useState(initialRelease?.year ?? "");
+  const [genre, setGenre] = useState(initialRelease?.genre ?? "");
+  const [tracks, setTracks] = useState<EditableTrack[]>(
+    () => initialRelease?.tracks.map((t) => ({ key: t.id, title: t.title })) ?? []
+  );
+  // While a copy is on screen, a load refreshes it quietly instead of flashing "Loading…".
+  const shown = useRef<Release | null>(initialRelease ?? null);
   const [saving, setSaving] = useState(false);
   const [replacingCover, setReplacingCover] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -170,6 +178,7 @@ export default function ReleaseView({
   }, [release, onToast]);
 
   const applyRelease = useCallback((r: Release) => {
+    shown.current = r;
     setRelease(r);
     setTitle(r.title);
     setArtist(r.artist);
@@ -179,7 +188,7 @@ export default function ReleaseView({
   }, []);
 
   const load = useCallback(() => {
-    setLoading(true);
+    if (!shown.current) setLoading(true);
     setConfirmingDelete(false);
     getRelease(releaseId)
       .then(applyRelease)

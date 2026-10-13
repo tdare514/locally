@@ -83,8 +83,13 @@ export default function AppShell() {
       speed *= 0.85;
       if (Math.abs(target - current) < 0.0005) current = target;
       if (Math.abs(swirl) < 0.001 && Math.abs(speed) < 0.001) swirl = speed = 0;
-      pane.style.setProperty("--pane-progress", current.toFixed(4));
-      pane.style.setProperty("--pane-swirl", swirl.toFixed(4));
+      // Set on the sky itself, not the pane: a custom property changed on the pane would make
+      // the browser restyle the whole library every frame.
+      const sky = pane.querySelector<HTMLElement>(".ambient-space");
+      if (sky) {
+        sky.style.setProperty("--pane-progress", current.toFixed(4));
+        sky.style.setProperty("--pane-swirl", swirl.toFixed(4));
+      }
       raf = current === target && swirl === 0 ? 0 : requestAnimationFrame(step);
     };
     const onScroll = () => {
@@ -204,6 +209,7 @@ export default function AppShell() {
             <ReleaseView
               key={view.id}
               releaseId={view.id}
+              initialRelease={library?.releases.find((r) => r.id === view.id)}
               justImported={view.justImported ?? false}
               onDeleted={handleDeleted}
               onUpdated={refreshLibrary}
