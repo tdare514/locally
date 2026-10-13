@@ -247,9 +247,9 @@ struct AlbumBuilderView: View {
         .dropZone()
     }
 
-    /// The translucent glass fill behind the track rows (no blur or material).
+    /// The release page's faked-glass panel fill behind the track rows (no blur or material).
     private var glassRow: some View {
-        Color.white.opacity(Theme.Immersive.glassListRowOpacity)
+        Theme.Immersive.panelFill
     }
 
     /// A title binding by row id (not index), so it stays correct while
