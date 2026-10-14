@@ -128,8 +128,8 @@ the shipped web and iOS clients are unaffected. The Mac app pushing and displayi
   route) and an empty `tracks` list for a release with no plays. `current` is true for the
   requesting device. Devices are listed with their stored name and platform even when revoked,
   because their plays still count. `total` is the sum over all devices.
-- Play counts of a tombstoned release are deleted by the daily cleanup; deleting the account
-  deletes them too.
+- Play counts of a tombstoned release are never served and are deleted by the daily cleanup,
+  on the same 30-day schedule as the release's files; deleting the account deletes them at once.
 - Fixtures: `spec/fixtures/plays/valid-*.json` and `invalid-*.json` are example PUT bodies (a
   separate folder from `spec/fixtures/sync/`, whose readers parse every file as a release
   record). The API and the web client test them.
