@@ -4,6 +4,7 @@ import { loadEnv } from "./config/env";
 import { AccountService } from "./account/AccountService";
 import { AuthService } from "./auth/AuthService";
 import { ReleaseSyncService } from "./releases/ReleaseSyncService";
+import { PlaysService } from "./plays/PlaysService";
 import { QuotaService } from "./quota/QuotaService";
 import { CleanupService } from "./cleanup/CleanupService";
 import type { Mailer } from "./mail/Mailer";
@@ -23,6 +24,7 @@ export interface Services {
   auth: AuthService;
   account: AccountService;
   releases: ReleaseSyncService;
+  plays: PlaysService;
   quota: QuotaService;
   files: ReleaseFilesService;
   cleanup: CleanupService;
@@ -62,6 +64,7 @@ async function buildServices(): Promise<Services> {
     auth: new AuthService(db, mailer, env.authPepper, env.tokenPepper),
     account: new AccountService(db),
     releases: new ReleaseSyncService(db),
+    plays: new PlaysService(db),
     quota,
     files: new ReleaseFilesService(db, fileStore, quota),
     cleanup: new CleanupService(db, fileStore),

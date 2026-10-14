@@ -153,3 +153,50 @@ export interface DownloadTicket {
 export interface ApiError {
   error: string;
 }
+
+/** Highest play count a device may report for one track. */
+export const MAX_PLAY_COUNT = 1_000_000;
+/** Most entries in one `PUT /v1/plays` body. */
+export const MAX_PLAY_ENTRIES = 500;
+
+/** Body of `PUT /v1/plays`. Strict: a body naming a device or user (or anything else unknown) is refused. */
+export const playCountsRequestSchema = z
+  .object({
+    counts: z
+      .array(
+        z
+          .object({
+            releaseId: uuidSchema,
+            trackId: uuidSchema,
+            count: z.number().int().min(0).max(MAX_PLAY_COUNT),
+          })
+          .strict()
+      )
+      .min(1)
+      .max(MAX_PLAY_ENTRIES),
+  })
+  .strict();
+export type PlayCountsRequest = z.infer<typeof playCountsRequestSchema>;
+
+export interface PlayCountsResponse {
+  accepted: number;
+  ignored: number;
+}
+
+export interface TrackPlaysDevice {
+  deviceId: string;
+  name: string;
+  platform: Platform;
+  count: number;
+  current: boolean;
+}
+
+export interface TrackPlays {
+  trackId: string;
+  total: number;
+  devices: TrackPlaysDevice[];
+}
+
+export interface ReleasePlaysResponse {
+  tracks: TrackPlays[];
+}
