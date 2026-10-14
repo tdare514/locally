@@ -17,6 +17,7 @@ import { HttpSyncApi } from "./sync/SyncApi";
 import { SyncEngine, type SyncApiFactory } from "./sync/SyncEngine";
 import { LocalFilesIndexDetector } from "./spotify/SpotifySourceDetector";
 import type { SpotifySourceDetector } from "./spotify/SpotifySourceDetector";
+import { isDemo } from "./demo";
 
 export interface Services {
   settings: SettingsStore;
@@ -83,6 +84,10 @@ interface GlobalWithServices {
 
 /** Lazily build and memoise the app's service singletons. */
 export function getServices(): Services {
+  // The demo build must never reach the disk, settings or sync services (#139).
+  if (isDemo()) {
+    throw new Error("getServices() is not available in the demo build");
+  }
   const g = globalThis as GlobalWithServices;
   if (!g[GLOBAL_KEY]) {
     g[GLOBAL_KEY] = buildServices();

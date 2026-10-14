@@ -3,11 +3,13 @@ import { getServices } from "../../../../server/container";
 import { errorResponse } from "../../../../server/http/responses";
 import { parseSyncCodeBody } from "../../../../server/http/validation";
 import { DEFAULT_SYNC_BASE_URL } from "../../../../shared/types";
+import { demoReadOnly, isDemo } from "../../../../server/demo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  if (isDemo()) return demoReadOnly();
   try {
     const rawBody = await request.json();
     const body = parseSyncCodeBody(rawBody);

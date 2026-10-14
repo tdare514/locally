@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { getServices } from "../../../../../server/container";
 import { spotifySourceStatus } from "../../../../../server/spotify/sourceStatus";
 import { errorResponse } from "../../../../../server/http/responses";
+import { demoReadOnly, isDemo } from "../../../../../server/demo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST() {
+  if (isDemo()) return demoReadOnly();
   try {
     const services = getServices();
     const current = await services.settings.get();

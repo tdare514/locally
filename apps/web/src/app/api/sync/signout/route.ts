@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { getServices } from "../../../../server/container";
 import { errorResponse } from "../../../../server/http/responses";
 import { emptySyncState } from "../../../../server/sync/SyncState";
+import { demoReadOnly, isDemo } from "../../../../server/demo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST() {
+  if (isDemo()) return demoReadOnly();
   try {
     const services = getServices();
     const settings = await services.settings.get();

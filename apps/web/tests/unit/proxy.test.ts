@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { proxy } from "../../src/proxy";
 
 interface Opts {
@@ -110,5 +110,50 @@ describe("proxy: Cache-Control", () => {
 
     const pageRes = proxy(request({ path: "/some-page" }));
     expect(pageRes.headers.get("Cache-Control")).toBeNull();
+  });
+});
+
+describe("proxy: demo mode", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  const demoHost = "locally-web.vercel.app";
+
+  it("skips the loopback Host check for GET pages and API reads", () => {
+    vi.stubEnv("LOCALLY_DEMO", "1");
+    expect(proxy(request({ host: demoHost })).status).toBe(200);
+    expect(proxy(request({ host: demoHost, path: "/api/library" })).status).toBe(200);
+  });
+
+  it("refuses every non-GET/HEAD /api request, however the path is spelled", () => {
+    vi.stubEnv("LOCALLY_DEMO", "1");
+    for (const path of ["/api/import", "/api/sync/code", "/%61pi/import"]) {
+      for (const method of ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"]) {
+        const res = proxy(request({ host: demoHost, method, path, origin: `http://${demoHost}` }));
+        expect(res.status, `${method} ${path}`).toBe(403);
+      }
+    }
+  });
+
+  it("answers 403 with the read-only error body", async () => {
+    vi.stubEnv("LOCALLY_DEMO", "1");
+    const res = proxy(request({ host: demoHost, method: "POST", path: "/api/import", origin: `http://${demoHost}` }));
+    expect(await res.json()).toEqual({ error: "Demo: read-only" });
+  });
+
+  it("does not block a non-API POST", () => {
+    vi.stubEnv("LOCALLY_DEMO", "1");
+    const res = proxy(request({ host: demoHost, method: "POST", path: "/", origin: `http://${demoHost}` }));
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("proxy: non-demo build", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("still rejects a non-loopback Host when LOCALLY_DEMO is unset, 0 or true", () => {
+    expect(proxy(request({ host: "locally-web.vercel.app" })).status).toBe(403);
+    for (const value of ["0", "true"]) {
+      vi.stubEnv("LOCALLY_DEMO", value);
+      expect(proxy(request({ host: "locally-web.vercel.app" })).status, value).toBe(403);
+    }
   });
 });

@@ -3,6 +3,8 @@ import { getServices } from "../../../../server/container";
 import { errorResponse } from "../../../../server/http/responses";
 import { parseUpdateMeta } from "../../../../server/http/validation";
 import { NotFoundError } from "../../../../shared/errors";
+import { demoReadOnly, isDemo } from "../../../../server/demo";
+import { findDemoRelease } from "../../../../server/demo/library";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +16,7 @@ interface Params {
 export async function GET(_request: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
-    const release = await getServices().releases.get(id);
+    const release = isDemo() ? findDemoRelease(id) : await getServices().releases.get(id);
     if (!release) {
       throw new NotFoundError(`Release ${id} not found`);
     }
@@ -25,6 +27,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
 }
 
 export async function PATCH(request: NextRequest, { params }: Params) {
+  if (isDemo()) return demoReadOnly();
   try {
     const { id } = await params;
     const patch = parseUpdateMeta(await request.json());
@@ -36,6 +39,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 }
 
 export async function DELETE(_request: NextRequest, { params }: Params) {
+  if (isDemo()) return demoReadOnly();
   try {
     const { id } = await params;
     await getServices().releases.delete(id);

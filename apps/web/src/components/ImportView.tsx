@@ -7,6 +7,7 @@ import Field from "./Field";
 import TrackList, { type EditableTrack } from "./TrackList";
 import CoverPicker from "./CoverPicker";
 import { UploadCloudIcon } from "./Icons";
+import { IS_DEMO } from "../lib/demo";
 
 interface ImportViewProps {
   /** Prefill Single | Album when opened from the library empty-state CTAs. */
@@ -173,6 +174,17 @@ export default function ImportView({
     } finally {
       setImporting(false);
     }
+  }
+
+  if (IS_DEMO) {
+    return (
+      <div className="mx-auto flex max-w-4xl flex-col gap-3 pb-16">
+        <h1 className="text-4xl font-bold tracking-[-0.02em] text-text">Import</h1>
+        <p className="text-base text-text-muted">
+          Importing isn&apos;t available in the demo. Browse the sample library instead.
+        </p>
+      </div>
+    );
   }
 
   return (

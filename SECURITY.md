@@ -33,6 +33,29 @@ listens on `127.0.0.1` (`next dev -H 127.0.0.1` / `next start -H 127.0.0.1` in
 needed: a non-browser client can forge any `Host` header it likes, so the header check
 alone would not keep a LAN attacker out if the port were reachable.
 
+### Public demo build (`LOCALLY_DEMO=1`, #139)
+
+The Vercel project `locally-web` serves a read-only demo of the web app to anyone. It is
+built with `LOCALLY_DEMO=1`, which is set only in that project's env; dev, `npm start` and
+the desktop build never set it, so they keep both checks above unchanged.
+
+In demo mode the loopback `Host` check is skipped, because the demo is a public site.
+That is safe only because the demo has nothing to protect: no route reads or writes the disk,
+the settings store or the sync service. Three layers keep it that way:
+
+1. `src/proxy.ts` refuses every `/api/*` request that is not `GET` or `HEAD` with 403
+   "Demo: read-only", before the same-origin check (an allowlist, so `OPTIONS` and unknown
+   methods are refused too).
+2. Every mutating route handler returns the same 403 first, before it reads the body.
+3. `getServices()` throws in demo mode, so a `GET` route without its demo branch fails
+   closed instead of touching the server's disk. `GET` routes answer from the bundled
+   sample library in `src/server/demo/` (invented releases, hand-drawn SVG covers served
+   with `Content-Security-Policy: default-src 'none'`).
+
+`apps/web/vercel.json` holds the ignored-build-step, so only changes under `apps/web`
+redeploy the demo. Anyone setting `LOCALLY_DEMO=1` on a local or desktop server gets a
+server that cannot read or write their library, not a weaker one.
+
 ### Path traversal via user-controlled names
 
 Artist/album/track names, cover filenames, and the `reveal` path all come from the

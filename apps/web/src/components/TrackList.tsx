@@ -14,13 +14,15 @@ interface TrackListProps {
   onChange: (tracks: EditableTrack[]) => void;
   /** When provided, each row gets a remove button (used while importing, before upload). */
   onRemove?: (index: number) => void;
+  /** Demo: titles can be read but not edited or reordered. */
+  readOnly?: boolean;
 }
 
 /** A reorderable (up/down buttons, no drag library) list of editable track titles, styled as
  * file rows: an accent-tinted tile, the editable title, an "Audio file" caption, and the
  * reorder/remove controls. Track numbers are implicit: they always equal the row's position
  * (1-based). */
-export default function TrackList({ tracks, onChange, onRemove }: TrackListProps) {
+export default function TrackList({ tracks, onChange, onRemove, readOnly = false }: TrackListProps) {
   function updateTitle(index: number, title: string) {
     const next = tracks.slice();
     next[index] = { ...next[index], title };
@@ -55,6 +57,7 @@ export default function TrackList({ tracks, onChange, onRemove }: TrackListProps
             <input
               type="text"
               value={track.title}
+              readOnly={readOnly}
               onChange={(e) => updateTitle(index, e.target.value)}
               placeholder="Track title"
               className="min-w-0 rounded bg-transparent text-sm font-semibold text-text outline-none focus:ring-2 focus:ring-accent"
@@ -65,7 +68,7 @@ export default function TrackList({ tracks, onChange, onRemove }: TrackListProps
             <button
               type="button"
               onClick={() => move(index, -1)}
-              disabled={index === 0}
+              disabled={readOnly || index === 0}
               className="rounded px-1.5 py-1 text-text-dim hover:text-text disabled:opacity-30"
               aria-label="Move track up"
             >
@@ -74,7 +77,7 @@ export default function TrackList({ tracks, onChange, onRemove }: TrackListProps
             <button
               type="button"
               onClick={() => move(index, 1)}
-              disabled={index === tracks.length - 1}
+              disabled={readOnly || index === tracks.length - 1}
               className="rounded px-1.5 py-1 text-text-dim hover:text-text disabled:opacity-30"
               aria-label="Move track down"
             >
