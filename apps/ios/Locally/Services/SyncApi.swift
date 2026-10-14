@@ -26,6 +26,28 @@ struct SyncMeResult: Equatable {
     var quota: SyncQuota
 }
 
+/// `GET /v1/releases/:id/plays`: Spotify play counts per track, split by device.
+/// The phone only shows these; it never adds counts (#108).
+struct SyncReleasePlays: Decodable, Equatable {
+    var tracks: [SyncTrackPlays]
+}
+
+/// One track's plays. `trackId` is the sync record's track id; `total` is the sum over `devices`.
+struct SyncTrackPlays: Decodable, Equatable {
+    var trackId: String
+    var total: Int
+    var devices: [SyncDevicePlays]
+}
+
+/// One device's play count for a track. `current` is true for the requesting device.
+struct SyncDevicePlays: Decodable, Equatable {
+    var deviceId: String
+    var name: String
+    var platform: String
+    var count: Int
+    var current: Bool
+}
+
 /// One page of `GET /v1/releases?sinceVersion=N&limit=M`.
 ///
 /// `hasMore: true` means more releases exist above `nextVersion`; the caller
@@ -112,6 +134,9 @@ protocol SyncApi {
     func uploadFile(_ fileURL: URL, to upload: SyncUpload) async throws
     /// `GET /v1/releases/:id/files/:name`: a short-lived download URL.
     func downloadURL(releaseId: String, fileName: String) async throws -> URL
+    /// `GET /v1/releases/:id/plays`: per-device play counts for each track.
+    /// Throws on a 404 when the release isn't the user's or is tombstoned.
+    func releasePlays(releaseId: String) async throws -> SyncReleasePlays
     /// Downloads `url` to `destination` via `downloadTask(with:)`, so the
     /// file streams straight to disk rather than through memory.
     func downloadFile(from url: URL, to destination: URL) async throws
@@ -270,6 +295,11 @@ final class HttpSyncApi: SyncApi {
             throw SyncApiError.network("Malformed download URL.")
         }
         return url
+    }
+
+    func releasePlays(releaseId: String) async throws -> SyncReleasePlays {
+        let data = try await send(path: "/v1/releases/\(releaseId)/plays", method: "GET")
+        return try decode(SyncReleasePlays.self, from: data)
     }
 
     func downloadFile(from url: URL, to destination: URL) async throws {

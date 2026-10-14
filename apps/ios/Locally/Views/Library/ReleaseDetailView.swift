@@ -38,11 +38,12 @@ struct ReleaseDetailView: View {
         }
         .task {
             if model == nil, let container {
-                let made = ReleaseDetailViewModel(release: release, coordinator: container.coordinator, coverStore: container.coverStore)
+                let made = ReleaseDetailViewModel(release: release, coordinator: container.coordinator, coverStore: container.coverStore, syncApi: container.syncApi, isSignedIn: { container.syncAccount.deviceToken != nil })
                 coverImage = made.coverData.flatMap(UIImage.init(data:))
                 coverImageData = made.coverData
                 model = made
             }
+            await model?.loadPlays()
         }
     }
 
@@ -209,8 +210,31 @@ struct ReleaseDetailView: View {
                 onTitleChange: { newValue in setTitle(newValue, for: row, in: model) }
             )
             .panelRow(.middle)
+            if let plays = model.plays(for: row) {
+                playsLines(plays).panelRow(.middle)
+            }
         }
         .onMove(perform: model.trackRows.count >= 2 ? model.moveTracks : nil)
+    }
+
+    /// Quiet per-device play counts under a track row.
+    private func playsLines(_ plays: SyncTrackPlays) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.rowGap) {
+            Text(Copy.Detail.playCount(plays.total))
+                .font(Theme.Font.meta)
+                .foregroundStyle(Theme.secondaryText)
+            ForEach(plays.devices, id: \.deviceId) { device in
+                HStack {
+                    Text(Copy.Detail.playDevice(device.name, current: device.current))
+                    Spacer()
+                    Text("\(device.count)")
+                }
+                .font(Theme.Font.rowSubtitle)
+                .foregroundStyle(Theme.textDim)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     private func playlistGuide(_ model: ReleaseDetailViewModel) -> some View {

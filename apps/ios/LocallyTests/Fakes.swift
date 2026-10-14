@@ -514,6 +514,15 @@ final class FakeSyncApi: SyncApi {
     /// when the remote and local `coverHash` already match.
     private(set) var downloadFileCalls: [String] = []
 
+    /// Stubbed `releasePlays` outcome; set `.failure` to simulate offline or 404.
+    var releasePlaysResult: Result<SyncReleasePlays, Error> = .success(SyncReleasePlays(tracks: []))
+    private(set) var releasePlaysCalls: [String] = []
+
+    func releasePlays(releaseId: String) async throws -> SyncReleasePlays {
+        releasePlaysCalls.append(releaseId)
+        return try releasePlaysResult.get()
+    }
+
     func downloadURL(releaseId: String, fileName: String) async throws -> URL {
         URL(string: "https://fake-storage.example.com/\(releaseId)/\(fileName)")!
     }
