@@ -1,0 +1,82 @@
+[
+  {
+    "name": "empty",
+    "input": "",
+    "expected": "Unknown"
+  },
+  {
+    "name": "null",
+    "input": null,
+    "expected": "Unknown"
+  },
+  {
+    "name": "spaces only",
+    "input": "    ",
+    "expected": "Unknown"
+  },
+  {
+    "name": "NBSP only",
+    "input": "\u00a0\u00a0",
+    "expected": "Unknown"
+  },
+  {
+    "name": "ideographic space only",
+    "input": "\u3000",
+    "expected": "Unknown"
+  },
+  {
+    "name": "tabs and newlines only",
+    "input": "\t\n \r",
+    "expected": "Unknown"
+  },
+  {
+    "name": "inner spaces kept",
+    "input": "a  b c",
+    "expected": "a  b c"
+  },
+  {
+    "name": "leading trimmed",
+    "input": "   x",
+    "expected": "x"
+  },
+  {
+    "name": "trailing trimmed",
+    "input": "x   ",
+    "expected": "x"
+  },
+  {
+    "name": "both trimmed",
+    "input": "  x y  ",
+    "expected": "x y"
+  },
+  {
+    "name": "NBSP trimmed at both ends",
+    "input": "\u00a0x\u00a0",
+    "expected": "x"
+  },
+  {
+    "name": "ideographic space trimmed",
+    "input": "\u3000x\u3000",
+    "expected": "x"
+  },
+  {
+    "name": "en space and line separator trimmed",
+    "input": "\u2002x\u2028",
+    "expected": "x"
+  },
+  {
+    "name": "narrow NBSP and medium math space trimmed",
+    "input": "\u202fx\u205f",
+    "expected": "x"
+  },
+  {
+    "name": "Ogham space mark trimmed",
+    "input": "\u1680x\u1680",
+    "expected": "x"
+  },
+  {
+    "name": "mixed dots and spaces at ends",
+    "input": " . \u00a0x\u3000. ",
+    "expected": "x"
+  }
+]

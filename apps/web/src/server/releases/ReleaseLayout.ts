@@ -53,28 +53,35 @@ export class ReleaseLayout {
     // No leading dots: ".foo" is a hidden folder and ".."/"..foo" look like traversal.
     // No trailing dots/spaces: problematic on Windows, harmless elsewhere.
     const cleaned = stripped.replace(/^[.\s]+/, "").replace(/[.\s]+$/, "");
-    // Cap by code point (never split a surrogate pair) AND by UTF-8 byte length, since a
+    // Cap on whole grapheme clusters, by code points AND UTF-8 bytes, since a
     // multibyte-heavy name (emoji, CJK) can blow past the filesystem's byte limit long
     // before it hits the code-point cap. `RESERVED_SUFFIX_BYTES` leaves room for whatever
     // the caller appends afterwards (an extension, or uniqueDir's " (n)").
-    const capped = this.capToByteLength(
-      Array.from(cleaned).slice(0, MAX_SEGMENT_LENGTH).join(""),
+    const capped = this.capToGraphemes(
+      cleaned,
+      MAX_SEGMENT_LENGTH,
       MAX_FILE_NAME_LENGTH - RESERVED_SUFFIX_BYTES
     ).replace(/[.\s]+$/, "");
     return capped.length > 0 ? capped : "Unknown";
   }
 
-  /** Truncate `value` to at most `maxBytes` of UTF-8, cutting only on a code-point boundary. */
-  private capToByteLength(value: string, maxBytes: number): string {
-    if (Buffer.byteLength(value, "utf-8") <= maxBytes) return value;
-    const chars = Array.from(value);
+  /**
+   * Keep whole grapheme clusters from the start of `value` while the result stays within
+   * `maxCodePoints` and `maxBytes` of UTF-8. A cluster that would cross either limit is
+   * dropped with everything after it, so a cut never splits a code point or a grapheme.
+   */
+  private capToGraphemes(value: string, maxCodePoints: number, maxBytes: number): string {
+    let codePoints = 0;
     let bytes = 0;
     let end = 0;
-    for (; end < chars.length; end++) {
-      bytes += Buffer.byteLength(chars[end], "utf-8");
-      if (bytes > maxBytes) break;
+    const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+    for (const { segment } of segmenter.segment(value)) {
+      codePoints += Array.from(segment).length;
+      bytes += Buffer.byteLength(segment, "utf-8");
+      if (codePoints > maxCodePoints || bytes > maxBytes) break;
+      end += segment.length;
     }
-    return chars.slice(0, end).join("");
+    return value.slice(0, end);
   }
 
   /** The (not-yet-deduplicated) folder for a release, given its artist/album. */

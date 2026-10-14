@@ -1,0 +1,77 @@
+[
+  {
+    "name": "NUL",
+    "input": "a\u0000b",
+    "expected": "ab"
+  },
+  {
+    "name": "newline",
+    "input": "a\nb",
+    "expected": "ab"
+  },
+  {
+    "name": "tab inside",
+    "input": "a\tb",
+    "expected": "ab"
+  },
+  {
+    "name": "carriage return",
+    "input": "a\rb",
+    "expected": "ab"
+  },
+  {
+    "name": "DEL",
+    "input": "a\u007fb",
+    "expected": "ab"
+  },
+  {
+    "name": "right-to-left override inside",
+    "input": "song\u202emp3.exe",
+    "expected": "songmp3.exe"
+  },
+  {
+    "name": "zero width space",
+    "input": "a\u200bb",
+    "expected": "ab"
+  },
+  {
+    "name": "zero width joiner and marks U+200C-U+200F",
+    "input": "a\u200cb\u200dc\u200ed\u200fe",
+    "expected": "abcde"
+  },
+  {
+    "name": "BOM inside",
+    "input": "a\ufeffb",
+    "expected": "ab"
+  },
+  {
+    "name": "bidi embeddings U+202A-U+202E",
+    "input": "a\u202ab\u202bc\u202cd\u202de\u202ef",
+    "expected": "abcdef"
+  },
+  {
+    "name": "bidi isolates U+2066-U+2069",
+    "input": "a\u2066b\u2067c\u2068d\u2069e",
+    "expected": "abcde"
+  },
+  {
+    "name": "Arabic letter mark",
+    "input": "a\u061cb",
+    "expected": "ab"
+  },
+  {
+    "name": "only invisible characters",
+    "input": "\u200b\ufeff\u202e\u061c\u0000",
+    "expected": "Unknown"
+  },
+  {
+    "name": "invisible between dots",
+    "input": ".\u200b.",
+    "expected": "Unknown"
+  },
+  {
+    "name": "invisible hides a leading dot",
+    "input": "\u200b.x",
+    "expected": "x"
+  }
+]

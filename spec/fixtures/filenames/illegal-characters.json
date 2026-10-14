@@ -1,0 +1,67 @@
+[
+  {
+    "name": "slash",
+    "input": "AC/DC",
+    "expected": "ACDC"
+  },
+  {
+    "name": "backslash",
+    "input": "a\\b",
+    "expected": "ab"
+  },
+  {
+    "name": "colon",
+    "input": "Re: Mix",
+    "expected": "Re Mix"
+  },
+  {
+    "name": "asterisk",
+    "input": "a*b",
+    "expected": "ab"
+  },
+  {
+    "name": "question mark",
+    "input": "Why?",
+    "expected": "Why"
+  },
+  {
+    "name": "double quote",
+    "input": "say \"hi\"",
+    "expected": "say hi"
+  },
+  {
+    "name": "less than",
+    "input": "a<b",
+    "expected": "ab"
+  },
+  {
+    "name": "greater than",
+    "input": "a>b",
+    "expected": "ab"
+  },
+  {
+    "name": "pipe",
+    "input": "a|b",
+    "expected": "ab"
+  },
+  {
+    "name": "all mixed with text",
+    "input": "x/\\:*?\"<>|y",
+    "expected": "xy"
+  },
+  {
+    "name": "only illegal",
+    "input": "/\\:*?\"<>|",
+    "expected": "Unknown"
+  },
+  {
+    "name": "plain name unchanged",
+    "input": "Blue Monday",
+    "expected": "Blue Monday"
+  },
+  {
+    "name": "non-ASCII kept",
+    "input": "Beyonc\u00e9 \u2013 \u00c5ngstr\u00f6m",
+    "expected": "Beyonc\u00e9 \u2013 \u00c5ngstr\u00f6m"
+  }
+]
