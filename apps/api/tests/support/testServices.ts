@@ -9,6 +9,7 @@ import type { Services } from "../../src/server/container";
 import { LocalFileStore } from "../../src/server/files/LocalFileStore";
 import { ReleaseFilesService } from "../../src/server/files/ReleaseFilesService";
 import type { Mailer } from "../../src/server/mail/Mailer";
+import { PlaysService } from "../../src/server/plays/PlaysService";
 import { QuotaService } from "../../src/server/quota/QuotaService";
 import { InMemoryRateLimiter } from "../../src/server/ratelimit/InMemoryRateLimiter";
 import { ReleaseSyncService } from "../../src/server/releases/ReleaseSyncService";
@@ -59,6 +60,7 @@ export async function createTestServices(): Promise<TestServices> {
     auth: new AuthService(db, mailer, "test-auth-pepper", "test-token-pepper"),
     account: new AccountService(db),
     releases: new ReleaseSyncService(db),
+    plays: new PlaysService(db),
     quota,
     files: new ReleaseFilesService(db, fileStore, quota),
     cleanup: new CleanupService(db, fileStore),

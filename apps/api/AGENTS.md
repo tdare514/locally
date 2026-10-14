@@ -16,6 +16,7 @@ src/app/v1/
   devices/[id]                        # revoke a device
   me                                  # account, device, quota, device list
   releases, releases/[id]             # list-since-version, upsert, tombstone
+  plays, releases/[id]/plays          # per-device play counts: push (max-merge), read per release
   releases/[id]/files                 # request upload URLs
   releases/[id]/files/[name]          # request a download URL
   internal/cleanup                    # daily cron: expired codes, tombstoned files
@@ -27,6 +28,7 @@ src/server/
   releases/      ReleaseSyncService: scoped list/upsert/tombstone, last-writer-wins
   files/         FileStore interface, Local/VercelBlob impls, ReleaseFilesService
   quota/         QuotaService: usage vs per-account limit
+  plays/         PlaysService: per-device play counts, live releases of the user only
   mail/          Mailer interface, Console/Resend impls
   ratelimit/     RateLimiter interface; DbRateLimiter (libSQL-backed, shared across instances)
   cleanup/       CleanupService: the cron's work

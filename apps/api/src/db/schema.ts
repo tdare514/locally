@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, uniqueIndex, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, uniqueIndex, index, primaryKey } from "drizzle-orm/sqlite-core";
 import type { ReleaseRecord } from "../shared/types";
 
 /** 1 GiB, the default free-tier storage limit for a new account. */
@@ -74,6 +74,24 @@ export const files = sqliteTable("files", {
   storageKeyIdx: uniqueIndex("files_storage_key_idx").on(table.storageKey),
   releaseNameIdx: uniqueIndex("files_release_name_idx").on(table.releaseId, table.name),
   userIdx: index("files_user_idx").on(table.userId),
+}));
+
+/**
+ * A device's absolute lifetime play count for one track (`PlaysService`). The
+ * device belongs to exactly one user, so (`deviceId`, `trackId`) is already
+ * user-scoped; `userId` and `releaseId` are stored for scoped reads and cleanup.
+ * `trackId` is not checked against the release record's tracks.
+ */
+export const playCounts = sqliteTable("play_counts", {
+  userId: text("user_id").notNull(),
+  deviceId: text("device_id").notNull(),
+  releaseId: text("release_id").notNull(),
+  trackId: text("track_id").notNull(),
+  count: integer("count").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.deviceId, table.trackId] }),
+  userReleaseIdx: index("play_counts_user_release_idx").on(table.userId, table.releaseId),
 }));
 
 /** Shared-store counters behind `DbRateLimiter` (see `src/server/ratelimit`). */

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
-import { authCodes, devices, files, pendingDeletes, releases, userCounters, users } from "../../src/db/schema";
+import { authCodes, devices, files, pendingDeletes, playCounts, releases, userCounters, users } from "../../src/db/schema";
 import { UnauthorizedError, ValidationError } from "../../src/shared/errors";
 import { makeReleaseRecord } from "../support/fixtures";
 import { createTestServices, type TestServices } from "../support/testServices";
@@ -119,6 +120,24 @@ describe("AccountService", () => {
     for (const key of queued.map((q) => q.storageKey)) {
       expect(key.startsWith(`users/${a.userId}/`)).toBe(true);
     }
+  });
+
+  it("removes the account's play counts and keeps the other account's", async () => {
+    const seed = async (acc: Account) => {
+      const [device] = await services.db.select().from(devices).where(eq(devices.userId, acc.userId));
+      await services.plays.push(acc.userId, device!.id, [
+        { releaseId: acc.releaseIds[1]!, trackId: crypto.randomUUID(), count: 4 },
+      ]);
+    };
+    await seed(a);
+    await seed(b);
+    expect(await services.db.select().from(playCounts)).toHaveLength(2);
+
+    await services.account.deleteAccount(a.userId, a.email);
+
+    const remaining = await services.db.select().from(playCounts);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]!.userId).toBe(b.userId);
   });
 
   it("rejects a mismatched email with ValidationError and deletes nothing (case/whitespace still matches)", async () => {

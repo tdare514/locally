@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createDb, migrateDb, type Db } from "../../src/db/client";
-import { authCodes, files, pendingDeletes, rateLimits, releases, userCounters, users } from "../../src/db/schema";
+import { authCodes, files, pendingDeletes, playCounts, rateLimits, releases, userCounters, users } from "../../src/db/schema";
 import { CleanupService } from "../../src/server/cleanup/CleanupService";
 import type { FileStore } from "../../src/server/files/FileStore";
 import { makeReleaseRecord } from "../support/fixtures";
@@ -167,6 +167,29 @@ describe("CleanupService", () => {
     expect(second.deletedFiles).toBe(0);
     expect(fileStore.deleted).toEqual([]);
     expect((await db.select().from(files)).map((f) => f.storageKey)).toEqual([liveKey]);
+  });
+
+  it("deletes play counts of tombstones older than 30 days, keeping newer tombstones and live releases", async () => {
+    const oldTombstoneId = await insertRelease(true, clock - 31 * DAY_MS);
+    const recentTombstoneId = await insertRelease(true, clock - 1 * DAY_MS);
+    const liveReleaseId = await insertRelease(false, clock - 60 * DAY_MS);
+    const deviceId = crypto.randomUUID();
+    await db.insert(playCounts).values(
+      [oldTombstoneId, recentTombstoneId, liveReleaseId].map((releaseId) => ({
+        userId,
+        deviceId,
+        releaseId,
+        trackId: crypto.randomUUID(),
+        count: 3,
+        updatedAt: clock,
+      }))
+    );
+
+    const result = await new CleanupService(db, fileStore, () => clock).run();
+
+    expect(result.deletedPlayCounts).toBe(1);
+    const remaining = await db.select().from(playCounts);
+    expect(remaining.map((r) => r.releaseId).sort()).toEqual([recentTombstoneId, liveReleaseId].sort());
   });
 
   it("returns 0 total stored bytes when the files table is empty", async () => {

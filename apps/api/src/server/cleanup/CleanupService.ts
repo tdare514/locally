@@ -1,6 +1,6 @@
 import { and, eq, inArray, lt, sql } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { authCodes, files, pendingDeletes, rateLimits, releases } from "../../db/schema";
+import { authCodes, files, pendingDeletes, playCounts, rateLimits, releases } from "../../db/schema";
 import type { FileStore } from "../files/FileStore";
 
 const TOMBSTONE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -10,6 +10,8 @@ const CLEANUP_PAGE_SIZE = 200;
 
 export interface CleanupResult {
   deletedFiles: number;
+  /** `play_counts` rows of tombstoned releases past the same retention as their files. */
+  deletedPlayCounts: number;
   deletedAuthCodes: number;
   deletedRateLimits: number;
   /** Blobs of deleted accounts removed from `pending_deletes` this run (see `AccountService`). */
@@ -146,6 +148,20 @@ export class CleanupService {
       if (rows.length < CLEANUP_PAGE_SIZE) break;
     }
 
+    // Play counts of tombstoned releases (not served meanwhile), same retention as their files.
+    const stalePlayCounts = await this.db
+      .delete(playCounts)
+      .where(
+        inArray(
+          playCounts.releaseId,
+          this.db
+            .select({ id: releases.id })
+            .from(releases)
+            .where(and(eq(releases.deleted, true), lt(releases.serverUpdatedAt, cutoff)))
+        )
+      )
+      .returning({ trackId: playCounts.trackId });
+
     let deletedAuthCodes = 0;
     for (;;) {
       const expiredCodes = await this.db
@@ -175,6 +191,7 @@ export class CleanupService {
 
     return {
       deletedFiles,
+      deletedPlayCounts: stalePlayCounts.length,
       deletedAuthCodes,
       deletedRateLimits: staleRateLimits.length,
       drainedPendingDeletes,

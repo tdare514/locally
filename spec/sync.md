@@ -99,12 +99,40 @@ sync at runtime.
 | DELETE `/v1/releases/:id` | | tombstone; `{ version }` |
 | POST `/v1/releases/:id/files` | `{ files: [{ name, bytes, contentType }] }` | `{ uploads: [{ name, url, method, headers }] }`; enforces quota, 200 MB per file, and that `contentType` matches the name's extension |
 | GET `/v1/releases/:id/files/:name` | | `{ url, expiresAt }` download URL |
+| PUT `/v1/plays` | `{ counts: [{ releaseId, trackId, count }] }`, 1 to 500 entries | `{ accepted, ignored }`; see "Play counts" |
+| GET `/v1/releases/:id/plays` | | `{ tracks: [{ trackId, total, devices: [{ deviceId, name, platform, count, current }] }] }`; 404 for a release that isn't the user's or is tombstoned |
 
 Rules: every path is scoped to the token's user; a release id belongs to the user that first
 wrote it; tombstones keep their files for 30 days then a cron deletes the objects; codes and
 tokens are stored hashed; auth endpoints are rate-limited per email and per IP; JSON request
 bodies are capped at 1 MiB (400 when exceeded). The daily cron (`GET /v1/internal/cleanup`) also
 drains `pending_deletes` (blobs of deleted accounts), oldest first.
+
+## Play counts
+
+Per-device play counts for a release's tracks, so a client can show how often each track was
+played and on which device. Additive: the release record and `syncVersion` do not change, and
+the shipped web and iOS clients are unaffected. The Mac app pushing and displaying counts is
+#107; the iPhone display is #108.
+
+- `count` is this device's absolute lifetime count for that track: an integer from 0 to
+  1,000,000. The server stores `max(stored, sent)` per (device, track), so a retried, repeated
+  or out-of-order push never double counts and a count never goes down.
+- The device is always the token's device. A body never names a device or user (a body with an
+  unknown key, such as `deviceId`, is a 400).
+- An entry whose `releaseId` is not a live (non-tombstoned) release of this user is ignored and
+  counted in `ignored`; the rest of the batch is applied. `accepted` is the number of entries
+  applied. `releaseId` and `trackId` are UUIDs, as for release and track ids; `trackId` is not
+  checked against the record's tracks.
+- GET returns 404 for a release that isn't the user's or is tombstoned (same as every release
+  route) and an empty `tracks` list for a release with no plays. `current` is true for the
+  requesting device. Devices are listed with their stored name and platform even when revoked,
+  because their plays still count. `total` is the sum over all devices.
+- Play counts of a tombstoned release are never served and are deleted by the daily cleanup,
+  on the same 30-day schedule as the release's files; deleting the account deletes them at once.
+- Fixtures: `spec/fixtures/plays/valid-*.json` and `invalid-*.json` are example PUT bodies (a
+  separate folder from `spec/fixtures/sync/`, whose readers parse every file as a release
+  record). The API and the web client test them.
 
 ## Storage and providers
 

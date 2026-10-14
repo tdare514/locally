@@ -16,6 +16,8 @@ import * as meRoute from "../../src/app/v1/me/route";
 import * as devicesRoute from "../../src/app/v1/devices/[id]/route";
 import * as releasesListRoute from "../../src/app/v1/releases/route";
 import * as releaseRoute from "../../src/app/v1/releases/[id]/route";
+import * as playsRoute from "../../src/app/v1/plays/route";
+import * as releasePlaysRoute from "../../src/app/v1/releases/[id]/plays/route";
 import * as filesRoute from "../../src/app/v1/releases/[id]/files/route";
 import * as fileDownloadRoute from "../../src/app/v1/releases/[id]/files/[name]/route";
 import * as localUploadRoute from "../../src/app/v1/internal/local-upload/[...key]/route";
@@ -132,6 +134,37 @@ describe("cross-user isolation", () => {
       },
     ];
 
+    // Alice's device reports plays for her release.
+    const alicePlays = await playsRoute.PUT(
+      jsonRequest("http://localhost/v1/plays", "PUT", { counts: [{ releaseId: record.id, trackId: track.id, count: 5 }] }, alice.token)
+    );
+    expect(alicePlays.status).toBe(200);
+    expect(await alicePlays.json()).toEqual({ accepted: 1, ignored: 0 });
+
+    cases.push({
+      name: "GET release/:id/plays",
+      run: () =>
+        releasePlaysRoute.GET(
+          new Request(`http://localhost/v1/releases/${record.id}/plays`, { headers: { authorization: `Bearer ${bob.token}` } }),
+          { params: Promise.resolve({ id: record.id }) }
+        ),
+    });
+
+    // Bob's PUT for Alice's release is ignored and writes nothing.
+    const bobPlays = await playsRoute.PUT(
+      jsonRequest("http://localhost/v1/plays", "PUT", { counts: [{ releaseId: record.id, trackId: track.id, count: 99 }] }, bob.token)
+    );
+    expect(bobPlays.status).toBe(200);
+    expect(await bobPlays.json()).toEqual({ accepted: 0, ignored: 1 });
+    // A body naming a device is refused.
+    const bodyDevice = await playsRoute.PUT(
+      jsonRequest("http://localhost/v1/plays", "PUT", {
+        deviceId: alice.deviceId,
+        counts: [{ releaseId: record.id, trackId: track.id, count: 99 }],
+      }, bob.token)
+    );
+    expect(bodyDevice.status).toBe(400);
+
     for (const { name, run } of cases) {
       const res = await run();
       expect(res.status, `${name} should 404, not leak existence via another status`).toBe(404);
@@ -163,6 +196,21 @@ describe("cross-user isolation", () => {
     expect(aliceRelease.version).toBe(1);
     expect(aliceRelease.deleted).toBe(false);
     expect(aliceRelease.artist).toBe(record.artist);
+
+    const alicePlaysAfter = await releasePlaysRoute.GET(
+      new Request(`http://localhost/v1/releases/${record.id}/plays`, { headers: { authorization: `Bearer ${alice.token}` } }),
+      { params: Promise.resolve({ id: record.id }) }
+    );
+    expect(alicePlaysAfter.status).toBe(200);
+    expect(await alicePlaysAfter.json()).toEqual({
+      tracks: [
+        {
+          trackId: track.id,
+          total: 5,
+          devices: [{ deviceId: alice.deviceId, name: "Alice's Mac", platform: "mac", count: 5, current: true }],
+        },
+      ],
+    });
 
     const aliceMe = await meRoute.GET(new Request("http://localhost/v1/me", { headers: { authorization: `Bearer ${alice.token}` } }));
     expect(aliceMe.status).toBe(200);
