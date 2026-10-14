@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { NextResponse } from "next/server";
 import { errorResponse } from "../../../../server/http/responses";
+import { demoReadOnly, isDemo } from "../../../../server/demo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,7 @@ function runOpen(args: string[]): Promise<void> {
 }
 
 export async function POST() {
+  if (isDemo()) return demoReadOnly();
   try {
     if (process.platform !== "darwin") {
       return NextResponse.json({ error: "Opening Spotify only supported on macOS" }, { status: 400 });

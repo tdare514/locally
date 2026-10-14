@@ -4,11 +4,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServices } from "../../../server/container";
 import { badRequest, errorResponse } from "../../../server/http/responses";
 import { parseRevealBody } from "../../../server/http/validation";
+import { demoReadOnly, isDemo } from "../../../server/demo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  if (isDemo()) return demoReadOnly();
   try {
     if (process.platform !== "darwin") {
       return NextResponse.json({ error: "Reveal only supported on macOS" }, { status: 400 });

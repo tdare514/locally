@@ -6,11 +6,14 @@ import { toSettingsResponse } from "../../../server/config/settingsView";
 import { badRequest, errorResponse } from "../../../server/http/responses";
 import { parseSettingsPutBody } from "../../../server/http/validation";
 import { emptySyncState } from "../../../server/sync/SyncState";
+import { demoReadOnly, isDemo } from "../../../server/demo";
+import { DEMO_SETTINGS_RESPONSE } from "../../../server/demo/library";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  if (isDemo()) return NextResponse.json(DEMO_SETTINGS_RESPONSE);
   try {
     const settings = await getServices().settings.get();
     return NextResponse.json(toSettingsResponse(settings));
@@ -20,6 +23,7 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  if (isDemo()) return demoReadOnly();
   try {
     const rawBody = await request.json();
     const body = parseSettingsPutBody(rawBody);

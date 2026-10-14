@@ -16,6 +16,8 @@ interface CoverPickerProps {
   existingUrl?: string | null;
   onChange: (file: File) => void;
   disabled?: boolean;
+  /** Demo: no editing and no pencil badge, but the cover is not dimmed. */
+  readOnly?: boolean;
   /** `compact` sits beside title and artist on import. `thumb` is a small
    * header cover. `sleeve` is the release page's hero cover (#112). */
   presentation: CoverPresentation;
@@ -60,8 +62,10 @@ export default function CoverPicker({
   existingUrl,
   onChange,
   disabled,
+  readOnly,
   presentation,
 }: CoverPickerProps) {
+  const inert = disabled || readOnly;
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
@@ -94,7 +98,7 @@ export default function CoverPicker({
   }
 
   function acceptFiles(files: FileList | null) {
-    if (disabled || !files || files.length === 0) return;
+    if (inert || !files || files.length === 0) return;
     const first = files[0];
     if (!first.type.startsWith("image/")) return;
     setPendingFile(first);
@@ -103,10 +107,10 @@ export default function CoverPicker({
   return (
     <>
       <div
-        onClick={() => !disabled && inputRef.current?.click()}
+        onClick={() => !inert && inputRef.current?.click()}
         onDragOver={(e) => {
           e.preventDefault();
-          if (!disabled) setDragOver(true);
+          if (!inert) setDragOver(true);
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => {
@@ -115,13 +119,14 @@ export default function CoverPicker({
           acceptFiles(e.dataTransfer.files);
         }}
         role="button"
-        tabIndex={disabled ? -1 : 0}
+        tabIndex={inert ? -1 : 0}
+        title={readOnly ? "Not available in the demo" : undefined}
         aria-label={previewUrl ? "Edit cover" : "Choose cover image"}
         style={side === null ? undefined : { width: side, height: side }}
         className={`relative flex shrink-0 cursor-pointer items-center justify-center overflow-hidden text-center transition-colors ${frameClass(
           presentation,
           dragOver
-        )} ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
+        )} ${disabled ? "cursor-not-allowed opacity-60" : ""} ${readOnly ? "!cursor-default" : ""}`}
       >
         {/* Object URLs / local API image routes aren't compatible with next/image's optimizer. */}
         {presentation === "sleeve" && previewUrl ? (
@@ -166,7 +171,7 @@ export default function CoverPicker({
             </p>
           </div>
         )}
-        {presentation === "thumb" || previewUrl ? (
+        {!readOnly && (presentation === "thumb" || previewUrl) ? (
           <PencilBadge />
         ) : null}
         <input
@@ -174,7 +179,7 @@ export default function CoverPicker({
           type="file"
           accept="image/jpeg,image/png"
           className="hidden"
-          disabled={disabled}
+          disabled={inert}
           onChange={(e) => {
             acceptFiles(e.target.files);
             e.target.value = "";

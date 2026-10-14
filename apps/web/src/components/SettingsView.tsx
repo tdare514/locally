@@ -16,6 +16,7 @@ import {
   verifySyncCode,
 } from "../lib/api-client";
 import { loadLibraryWidth, saveLibraryWidth, type LibraryWidth } from "../lib/library-view-prefs";
+import { IS_DEMO } from "../lib/demo";
 import Field from "./Field";
 
 interface SettingsViewProps {
@@ -230,6 +231,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
 
       <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
         <p className="text-sm font-bold text-text">Library folder</p>
+        <fieldset disabled={IS_DEMO} className="m-0 min-w-0 border-0 p-0">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1">
             <Field
@@ -258,6 +260,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
             </button>
           </div>
         </div>
+        </fieldset>
       </section>
 
       <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
@@ -303,6 +306,8 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
             you to send to Spotify.
           </p>
         </div>
+        {IS_DEMO && <p className="text-sm text-text-muted">Sync isn&apos;t available in the demo.</p>}
+        <fieldset disabled={IS_DEMO} className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0">
 
         {!signedIn && (
           <div className="flex flex-col gap-4">
@@ -478,6 +483,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
           treated as two separate libraries — each side&apos;s songs sync as they are, so a song
           tagged on both shows up twice.
         </p>
+        </fieldset>
       </section>
 
       <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">

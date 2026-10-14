@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { DEMO_READ_ONLY_ERROR, isDemo } from "./server/demo";
 
 /**
  * Security boundary for a local-only server that writes to the user's disk.
@@ -11,10 +12,16 @@ import { NextRequest, NextResponse } from "next/server";
  *    cross-site POST/PUT/PATCH/DELETE - and neither can a page on another loopback
  *    port such as a dev server on localhost:5173.
  * 3. Baseline hardening headers on every response.
+ *
+ * Demo build (`LOCALLY_DEMO=1`, Vercel only, #139): check 1 is skipped because
+ * the demo is a public website and has no route that reads or writes the disk.
+ * Instead every `/api/*` request that is not GET or HEAD is refused outright,
+ * which is stricter than check 2. See SECURITY.md.
  */
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const READ_ONLY = new Set(["GET", "HEAD"]);
 
 /** `new URL(value)`, or null when `value` is missing or not an absolute URL (including the literal "null" Origin). */
 function parseUrl(value: string | null): URL | null {
@@ -49,11 +56,16 @@ export function proxy(req: NextRequest) {
   // Not `req.nextUrl.origin`: Next rewrites 127.0.0.1 and [::1] to "localhost"
   // there, which would break the exact compare below for a page loaded via the IP.
   const own = parseUrl(`http://${req.headers.get("host") ?? ""}`);
-  if (!own || !LOOPBACK_HOSTS.has(own.hostname)) {
+  const demo = isDemo();
+  if (!own || (!demo && !LOOPBACK_HOSTS.has(own.hostname))) {
     return NextResponse.json({ error: "This app only accepts local connections" }, { status: 403 });
   }
 
   const isApi = isApiPath(req.nextUrl.pathname);
+  if (demo && isApi && !READ_ONLY.has(req.method)) {
+    // An allowlist, not MUTATING: OPTIONS or an unknown method is refused too.
+    return NextResponse.json({ error: DEMO_READ_ONLY_ERROR }, { status: 403 });
+  }
   if (isApi && MUTATING.has(req.method)) {
     // Same-origin fetches from our own page always send Origin (Referer is the
     // fallback for the odd client that sends only that). A missing, unparsable or

@@ -2,6 +2,7 @@
 
 import type { Release } from "../shared/types";
 import { coverUrl } from "../lib/api-client";
+import { IS_DEMO } from "../lib/demo";
 import {
   filterLibrary,
   partitionLibrary,
@@ -77,10 +78,12 @@ export default function Sidebar({
         <button
           type="button"
           onClick={onImportClick}
+          disabled={IS_DEMO}
+          title={IS_DEMO ? "Not available in the demo" : undefined}
           aria-current={view.type === "import" ? "page" : undefined}
-          className={`import-pill flex shrink-0 items-center justify-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold hover:bg-accent-hover md:mt-2 md:w-full ${focusRing} ${
+          className={`${IS_DEMO ? "" : "import-pill "}flex shrink-0 items-center justify-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold hover:bg-accent-hover md:mt-2 md:w-full ${focusRing} ${
             view.type === "import" ? "ring-2 ring-white/25" : ""
-          }`}
+          } disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-accent`}
         >
           <PlusIcon className="import-plus h-4 w-4" />
           <span className="import-label">Import</span>
@@ -146,9 +149,18 @@ export default function Sidebar({
         <img src="/brand/listener-line.svg" alt="" className="h-6 w-6 shrink-0" />
         <div className="min-w-0">
           <p className="text-sm font-semibold text-text">Locally</p>
-          <p className="truncate text-xs text-text-dim">
-            {signedIn ? (email ? email : "Syncing with your phone") : "On this Mac"}
-          </p>
+          {IS_DEMO ? (
+            <p className="flex items-center gap-2 truncate text-xs text-text-dim">
+              <span className="rounded-full bg-white/[0.08] px-2 py-0.5 text-[11px] font-semibold text-text-soft">
+                Demo
+              </span>
+              Read-only sample
+            </p>
+          ) : (
+            <p className="truncate text-xs text-text-dim">
+              {signedIn ? (email ? email : "Syncing with your phone") : "On this Mac"}
+            </p>
+          )}
         </div>
       </div>
     </aside>

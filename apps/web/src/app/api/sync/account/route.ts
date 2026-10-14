@@ -4,11 +4,13 @@ import { badRequest, errorResponse } from "../../../../server/http/responses";
 import { toSettingsResponse } from "../../../../server/config/settingsView";
 import { emptySyncState } from "../../../../server/sync/SyncState";
 import { SyncAuthError } from "../../../../server/sync/SyncApi";
+import { demoReadOnly, isDemo } from "../../../../server/demo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function DELETE() {
+  if (isDemo()) return demoReadOnly();
   try {
     const services = getServices();
     const settings = await services.settings.get();

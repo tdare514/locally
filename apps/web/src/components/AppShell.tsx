@@ -5,6 +5,7 @@ import type { Library, Release, ReleaseKind, SyncStatus } from "../shared/types"
 import { acceptFromPhone, getLibrary, getSyncStatus } from "../lib/api-client";
 import Sidebar from "./Sidebar";
 import LibraryView from "./LibraryView";
+import { IS_DEMO } from "../lib/demo";
 import ImportView from "./ImportView";
 import ReleaseView from "./ReleaseView";
 import SettingsView from "./SettingsView";
@@ -232,12 +233,14 @@ export default function AppShell() {
             />
           )}
         </main>
-        <div className="absolute right-4 top-4 z-20 md:right-6 md:top-6">
-          <PhoneInbox
-            pending={syncStatus?.pendingFromPhone ?? []}
-            onAccept={handleAcceptFromPhone}
-          />
-        </div>
+        {!IS_DEMO && (
+          <div className="absolute right-4 top-4 z-20 md:right-6 md:top-6">
+            <PhoneInbox
+              pending={syncStatus?.pendingFromPhone ?? []}
+              onAccept={handleAcceptFromPhone}
+            />
+          </div>
+        )}
       </div>
       <Toast toasts={toasts} onDismiss={dismissToast} />
     </div>

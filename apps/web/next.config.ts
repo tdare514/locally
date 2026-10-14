@@ -5,6 +5,8 @@ import type { NextConfig } from "next";
 const desktopBuild = process.env.LOCALLY_DESKTOP_BUILD === "1";
 
 const nextConfig: NextConfig = {
+  // Inlines the demo flag (#139) into the client bundle; empty unless LOCALLY_DEMO=1.
+  env: { NEXT_PUBLIC_LOCALLY_DEMO: process.env.LOCALLY_DEMO === "1" ? "1" : "" },
   output: desktopBuild ? "standalone" : undefined,
   // apps/web is the tracing root, so the standalone tree is `.next/standalone/server.js`.
   ...(desktopBuild ? { outputFileTracingRoot: process.cwd() } : {}),

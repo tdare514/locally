@@ -18,6 +18,7 @@ import SpotifySourceBanner from "./SpotifySourceBanner";
 import { ChevronRightIcon, CopyIcon } from "./Icons";
 import { COPIED_LABEL, COPY_LABEL, PLAYLIST_FALLBACK, playlistSteps } from "../lib/playlist-copy";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
+import { IS_DEMO } from "../lib/demo";
 
 interface ReleaseViewProps {
   releaseId: string;
@@ -122,6 +123,7 @@ function InlineField({
         value={value}
         placeholder={placeholder}
         inputMode={inputMode}
+        readOnly={IS_DEMO}
         onChange={(e) => onChange(e.target.value)}
         className="field-sizing-content min-w-[4ch] rounded-md bg-transparent px-1.5 py-0.5 font-semibold text-text outline-none transition-colors placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
       />
@@ -300,6 +302,7 @@ export default function ReleaseView({
             existingUrl={artworkUrl}
             onChange={handleReplaceCover}
             disabled={replacingCover}
+            readOnly={IS_DEMO}
             presentation="sleeve"
           />
         </RecordSleeve>
@@ -313,6 +316,7 @@ export default function ReleaseView({
             aria-label="Title"
             rows={1}
             value={title}
+            readOnly={IS_DEMO}
             placeholder="Untitled"
             onChange={(e) => setTitle(e.target.value.replace(/\n/g, " "))}
             onKeyDown={(e) => {
@@ -326,6 +330,7 @@ export default function ReleaseView({
           <input
             aria-label="Artist"
             value={artist}
+            readOnly={IS_DEMO}
             placeholder="Add artist"
             onChange={(e) => setArtist(e.target.value)}
             className="field-sizing-content -mx-2 -mt-1 min-w-[8ch] max-w-full self-start rounded-md bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
@@ -349,18 +354,21 @@ export default function ReleaseView({
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || IS_DEMO}
+          title={IS_DEMO ? "Not available in the demo" : undefined}
           className="rounded-full bg-accent px-7 py-2.5 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {saving ? "Saving…" : "Save to library"}
         </button>
-        {unsaved && !confirmingDelete && (
+        {unsaved && !IS_DEMO && !confirmingDelete && (
           <span className="px-1 text-xs text-text-muted">Unsaved changes</span>
         )}
         <button
           type="button"
           onClick={handleReveal}
-          className="rounded-full px-4 py-2.5 text-sm font-medium text-text transition-colors hover:bg-white/10"
+          disabled={IS_DEMO}
+          title={IS_DEMO ? "Not available in the demo" : undefined}
+          className="rounded-full px-4 py-2.5 text-sm font-medium text-text transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Show in Finder
         </button>
@@ -387,7 +395,9 @@ export default function ReleaseView({
           <button
             type="button"
             onClick={handleDelete}
-            className="rounded-full px-3 py-2.5 text-sm font-semibold text-danger transition-colors hover:bg-white/10"
+            disabled={IS_DEMO}
+            title={IS_DEMO ? "Not available in the demo" : undefined}
+            className="rounded-full px-3 py-2.5 text-sm font-semibold text-danger transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Delete
           </button>
@@ -395,7 +405,7 @@ export default function ReleaseView({
       </div>
       <div className="flex flex-col gap-3">
         <h2 className="text-lg font-bold tracking-[-0.03em] text-text">Tracks</h2>
-        <TrackList tracks={tracks} onChange={handleTracksChange} />
+        <TrackList tracks={tracks} onChange={handleTracksChange} readOnly={IS_DEMO} />
       </div>
 
       {release.kind === "album" && (

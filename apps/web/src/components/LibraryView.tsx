@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Release, ReleaseKind } from "../shared/types";
 import { coverUrl, deleteRelease, updateRelease } from "../lib/api-client";
+import { IS_DEMO } from "../lib/demo";
 import {
   bulkDetailsPatch,
   bulkSummary,
@@ -426,13 +427,15 @@ export default function LibraryView({
             </select>
             <ChevronRightIcon className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 rotate-90 text-text-muted" />
           </div>
-          <button
-            type="button"
-            onClick={() => setSelecting(true)}
-            className="shrink-0 rounded-full bg-elevated px-6 py-3 text-sm font-bold text-text transition-colors hover:bg-elevated-hover active:scale-95"
-          >
-            Select
-          </button>
+          {!IS_DEMO && (
+            <button
+              type="button"
+              onClick={() => setSelecting(true)}
+              className="shrink-0 rounded-full bg-elevated px-6 py-3 text-sm font-bold text-text transition-colors hover:bg-elevated-hover active:scale-95"
+            >
+              Select
+            </button>
+          )}
         </div>
       )}
 
@@ -493,7 +496,9 @@ export default function LibraryView({
         <button
           type="button"
           onClick={() => onImport()}
-          className="rounded-full bg-accent px-8 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95"
+          disabled={IS_DEMO}
+          title={IS_DEMO ? "Not available in the demo" : undefined}
+          className="rounded-full bg-accent px-8 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Add a song
         </button>
@@ -738,14 +743,18 @@ function LibraryEmptyState({
         <button
           type="button"
           onClick={() => onImport("single")}
-          className="w-full rounded-full bg-accent px-8 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95"
+          disabled={IS_DEMO}
+          title={IS_DEMO ? "Not available in the demo" : undefined}
+          className="w-full rounded-full bg-accent px-8 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Add your first single
         </button>
         <button
           type="button"
           onClick={() => onImport("album")}
-          className="w-full rounded-full bg-elevated px-8 py-3 text-sm font-bold text-text transition-colors hover:bg-elevated-hover active:scale-95"
+          disabled={IS_DEMO}
+          title={IS_DEMO ? "Not available in the demo" : undefined}
+          className="w-full rounded-full bg-elevated px-8 py-3 text-sm font-bold text-text transition-colors hover:bg-elevated-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Make an album
         </button>
