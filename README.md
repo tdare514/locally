@@ -1,5 +1,10 @@
 # Locally
 
+**[Try the live demo →](https://locally-web-liard.vercel.app)** A read-only sample library, so
+nothing you click there can import, edit or delete anything.
+
+[![The Locally library: singles and albums with their covers, a search bar and a sidebar](docs/images/demo-library.jpg)](https://locally-web-liard.vercel.app)
+
 Locally imports audio files, tags them (cover, artist, album, year, genre, track numbers) and
 delivers them to the folder Spotify's Local Files feature reads, on a Mac and on an iPhone, with
 an optional sync service that mirrors the two libraries.
