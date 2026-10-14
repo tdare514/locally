@@ -3,7 +3,7 @@
 Snapshot of now, not a changelog. Update this when a change makes it stale.
 Git history holds the past.
 
-Last updated: 2026-10-13
+Last updated: 2026-10-14
 
 ## Current focus
 Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps. Mac packaging (#35): the Electron shell is in as an unsigned developer build with an LGPL ffmpeg bundled (#69, ADR 0006); signing and notarisation (#70) and auto-update (#71) follow. One #36 point is decided and planned: before anyone else can sign up, the terms must say the user may upload only audio they own, or otherwise have the right to upload (ADR 0005, `docs/plans/36-own-the-audio.md`). Still owner decisions on #36: the privacy-policy URL and full privacy text, a takedown contact, whether the 30-day unused-blob cleanup is the retention policy, and whether first sign-ups are invite-only. Agent-readiness (#22–#25) and repo health (#13) are done; async email/deletes (#31) and the iOS import silhouette/reorder code (#6) landed.
@@ -49,6 +49,7 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 - Web and iOS skip a pulled sync record whose track or cover extension the API would refuse, keep the rest of the page, and still fail the page on a structurally broken record; the shared `invalid-*` fixtures assert the refusal in all three apps (#39, web skip #60)
 - A failed sync-outbox write, an unreadable library during sync, or a pulled change that can't be applied now logs and shows on the sync error line instead of being dropped; a SwiftData store that won't open at launch shows a "can't open its library" screen with Try again and a confirmed Reset that moves the index to a timestamped backup, instead of crashing (#86)
 - Release page is the record (#126): the cover's colours wash the screen (palette re-derived off the main thread, so a cover swap reskins it), the cover is a `RecordSleeve` that opens Photos or Files into the existing crop, title/artist/year/genre are inline fields under it, tracks, "Make it a playlist" and Delete sit in a translucent panel (no blur), and a floating pill dock shows "Unsaved changes" and Save; a save tucks and spins the record and shows "Saved to your library"
+- Filename sanitising matches the Mac (#85): leading dots, control and bidi characters are stripped and a segment is capped at 200 code points and 239 UTF-8 bytes on whole graphemes; both apps run the shared `spec/fixtures/filenames/` cases. Existing files keep their names. The flat `<Artist> - <Album> - <NN> - <Title>` name can still pass 255 bytes when all three are long (follow-up)
 - Import silhouette and long-press drag reorder checked on an iPhone 14, 28 Sep 2026 (#6): empty album shows three faint rows, empty single shows one, both with "No tracks yet"; two or more tracks show "Hold and drag a track to reorder." with no Edit button, and a saved release-page order is still there after leaving and coming back
 
 ### Sync API (apps/api)

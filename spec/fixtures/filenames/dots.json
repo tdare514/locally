@@ -1,0 +1,57 @@
+[
+  {
+    "name": "leading dot",
+    "input": ".x",
+    "expected": "x"
+  },
+  {
+    "name": "two dots only",
+    "input": "..",
+    "expected": "Unknown"
+  },
+  {
+    "name": "leading dots",
+    "input": "...hidden",
+    "expected": "hidden"
+  },
+  {
+    "name": "traversal-looking",
+    "input": "../etc",
+    "expected": "etc"
+  },
+  {
+    "name": "trailing dot",
+    "input": "x.",
+    "expected": "x"
+  },
+  {
+    "name": "trailing dots",
+    "input": "x...",
+    "expected": "x"
+  },
+  {
+    "name": "both ends",
+    "input": "..x..",
+    "expected": "x"
+  },
+  {
+    "name": "inner dots kept",
+    "input": "a.b.c",
+    "expected": "a.b.c"
+  },
+  {
+    "name": "dots only",
+    "input": ".....",
+    "expected": "Unknown"
+  },
+  {
+    "name": "dot and spaces around",
+    "input": " . x . ",
+    "expected": "x"
+  },
+  {
+    "name": "dot exposed after illegal removed",
+    "input": "./.x",
+    "expected": "x"
+  }
+]

@@ -49,8 +49,21 @@ identically in Spotify's Local Files.
   artist/album pairs get ` (2)`, ` (3)` suffixes on the album folder.
 - iOS Spotify folder: flat, `<Artist> - <Album> - <NN> - <Title>.<ext>` because Spotify's iOS folder
   is scanned flat and the user sees the names in Files. Same sanitising rules as the Mac.
-- Sanitising a segment: strip `/ \ : * ? " < > |`, trim, strip trailing dots and spaces, fall back
-  to `Unknown`.
+- Sanitising a segment (both apps, in this order):
+  1. Missing input is the empty string.
+  2. Remove control characters U+0000-U+001F and U+007F.
+  3. Remove invisible reordering characters U+061C, U+200B-U+200F, U+202A-U+202E, U+2066-U+2069,
+     U+FEFF.
+  4. Remove `/ \ : * ? " < > |`.
+  5. Strip leading and trailing dots and whitespace (JavaScript `\s`: U+0009-U+000D, U+0020,
+     U+00A0, U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000, U+FEFF).
+  6. Cap the length: keep whole grapheme clusters from the start while the result stays within 200
+     Unicode code points and 239 UTF-8 bytes (255 less 16 reserved for an extension or ` (n)`).
+     A cluster that would cross either limit is dropped with everything after it.
+  7. Strip trailing dots and whitespace again.
+  8. An empty result becomes `Unknown`.
+
+  Shared cases live in `spec/fixtures/filenames/`; both apps' tests run them.
 
 ## Formats
 
