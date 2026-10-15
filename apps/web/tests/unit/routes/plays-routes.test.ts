@@ -1,8 +1,8 @@
 import os from "node:os";
 import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Services } from "../../../src/server/container";
-import type { PlaysStatus, ReleasePlaysResponse, Settings } from "../../../src/shared/types";
+import type { PlaysStatus, PlaysSummaryResponse, Release, ReleasePlaysResponse, Settings } from "../../../src/shared/types";
 import type { SyncApi } from "../../../src/server/sync/SyncApi";
 import { FakePlayCountStore } from "../FakePlayCountStore";
 
@@ -10,6 +10,7 @@ let services: Services;
 let status: PlaysStatus;
 let playStore: FakePlayCountStore;
 let settingsValue: Settings;
+let liveReleases: Release[];
 let releasePlays: ReturnType<typeof vi.fn>;
 let syncApiFactory: ReturnType<typeof vi.fn>;
 
@@ -19,6 +20,7 @@ vi.mock("../../../src/server/container", () => ({
 
 import { GET as playsGET } from "../../../src/app/api/plays/route";
 import { GET } from "../../../src/app/api/plays/status/route";
+import { GET as summaryGET } from "../../../src/app/api/plays/summary/route";
 
 const REL = "3f2a6c1e-8b7d-4e5a-9c1d-2a4b6c8d0e1f";
 const TRACK = "a1b2c3d4-0001-4a5b-8c9d-0123456789ab";
@@ -27,11 +29,13 @@ beforeEach(() => {
   status = "off";
   playStore = new FakePlayCountStore();
   settingsValue = { libraryDir: "/tmp/lib", sync: null };
+  liveReleases = [];
   releasePlays = vi.fn(async () => ({ tracks: [] }));
   syncApiFactory = vi.fn(() => ({ releasePlays }) as unknown as SyncApi);
   services = {
     playTracker: { status: () => status },
     playStore,
+    library: { list: async () => liveReleases },
     settings: { get: async () => settingsValue, set: async (s: Settings) => s },
     syncApiFactory,
   } as unknown as Services;
@@ -152,5 +156,117 @@ describe("GET /api/plays", () => {
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "releaseId must be a UUID" });
     expect(syncApiFactory).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/plays/summary (#200)", () => {
+  const REL2 = "9b1c2d3e-4f50-4a61-8b72-93a4b5c6d7e8";
+  const TRACK2 = "a1b2c3d4-0002-4a5b-8c9d-0123456789ab";
+  const GONE_REL = "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b";
+  const GONE_TRACK = "a1b2c3d4-0003-4a5b-8c9d-0123456789ab";
+
+  function summaryRequest(query: string): NextRequest {
+    return new NextRequest(`http://localhost/api/plays/summary${query}`);
+  }
+
+  beforeEach(() => {
+    // Only Date is faked. Noon UTC on 15 Oct is the 15th or, east of UTC+12, the 16th, so the
+    // dates below keep clear of that edge; the exact zone edge is tested in playsSummary.test.ts.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T12:00:00Z"));
+    liveReleases = [{ id: REL } as Release, { id: REL2 } as Release];
+    playStore.seed(TRACK, REL, 10, 0, { "2026-10-12": 2, "2026-10-14": 1, "2026-10-15": 3 });
+    playStore.seed(TRACK2, REL2, 4); // counted before days were recorded
+    playStore.seed(GONE_TRACK, GONE_REL, 9, 0, { "2026-10-14": 9 }); // a release that is no longer in the library
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+  });
+
+  it("returns the plays in the range with the last day played, and all-time totals, for live releases only", async () => {
+    const res = await summaryGET(summaryRequest("?from=2026-10-12&to=2026-10-15"));
+
+    expect(res.status).toBe(200);
+    expect((await res.json()) as PlaysSummaryResponse).toEqual({
+      tracks: [{ trackId: TRACK, releaseId: REL, plays: 6, lastPlayedDay: "2026-10-15" }],
+      allTime: [
+        { trackId: TRACK, releaseId: REL, plays: 10 },
+        { trackId: TRACK2, releaseId: REL2, plays: 4 },
+      ],
+    });
+  });
+
+  it("totals a different period from the same store", async () => {
+    const res = await summaryGET(summaryRequest("?from=2026-10-13&to=2026-10-14"));
+
+    expect(((await res.json()) as PlaysSummaryResponse).tracks).toEqual([
+      { trackId: TRACK, releaseId: REL, plays: 1, lastPlayedDay: "2026-10-14" },
+    ]);
+  });
+
+  it("drops a deleted or tombstoned release from both lists", async () => {
+    liveReleases = [{ id: REL2 } as Release];
+
+    const res = await summaryGET(summaryRequest("?from=2026-10-01&to=2026-10-15"));
+
+    expect((await res.json()) as PlaysSummaryResponse).toEqual({
+      tracks: [],
+      allTime: [{ trackId: TRACK2, releaseId: REL2, plays: 4 }],
+    });
+  });
+
+  it("answers from this Mac alone: no sync call even when signed in", async () => {
+    settingsValue = {
+      libraryDir: "/tmp/lib",
+      sync: { baseUrl: "http://localhost:4000", deviceToken: "tok-123", email: "a@b.com", lastVersion: 0 },
+    };
+
+    const res = await summaryGET(summaryRequest("?from=2026-10-12&to=2026-10-15"));
+
+    expect(res.status).toBe(200);
+    expect(syncApiFactory).not.toHaveBeenCalled();
+    expect(JSON.stringify(await res.json())).not.toContain("tok-123");
+  });
+
+  it("accepts a range that ends tomorrow", async () => {
+    const res = await summaryGET(summaryRequest("?from=2026-10-12&to=2026-10-16"));
+    expect(res.status).toBe(200);
+  });
+
+  it.each([
+    ["no dates", ""],
+    ["no to", "?from=2026-10-01"],
+    ["no from", "?to=2026-10-15"],
+    ["empty dates", "?from=&to="],
+    ["a day that does not exist", "?from=2026-02-30&to=2026-10-15"],
+    ["a to that does not exist", "?from=2026-10-01&to=2026-02-30"],
+    ["garbage", "?from=garbage&to=2026-10-15"],
+    ["a timestamp", `?from=${encodeURIComponent("2026-10-01T00:00:00Z")}&to=2026-10-15`],
+    ["from after to", "?from=2026-10-15&to=2026-10-14"],
+    ["a range over 400 days", "?from=2025-09-01&to=2026-10-15"],
+    ["a to beyond tomorrow", "?from=2026-10-12&to=2026-10-20"],
+  ])("is 400 with the usual error shape for %s, before anything is read", async (_name, query) => {
+    const get = vi.spyOn(playStore, "get");
+
+    const res = await summaryGET(summaryRequest(query));
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: unknown };
+    expect(Object.keys(body)).toEqual(["error"]);
+    expect(typeof body.error).toBe("string");
+    expect(get).not.toHaveBeenCalled();
+    expect(syncApiFactory).not.toHaveBeenCalled();
+  });
+
+  it("answers an empty summary in the public demo without touching the services", async () => {
+    vi.stubEnv("LOCALLY_DEMO", "1");
+    services = {} as unknown as Services;
+
+    const res = await summaryGET(summaryRequest("?from=2026-10-12&to=2026-10-15"));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ tracks: [], allTime: [] });
   });
 });
