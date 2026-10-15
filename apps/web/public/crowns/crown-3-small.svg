@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-4 -8 128 108" width="128" height="108">
+  <defs>
+    <linearGradient id="sm3" x1="0" y1="0" x2="1" y2=".25"><stop offset="0" stop-color="#f2b880"/><stop offset=".3" stop-color="#b0682e"/><stop offset="1" stop-color="#43210a"/></linearGradient>
+    <linearGradient id="sb3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fde0c2"/><stop offset=".4" stop-color="#f2b880"/><stop offset="1" stop-color="#8c4a1c"/></linearGradient>
+    <radialGradient id="sg3" cx="38%" cy="32%" r="78%"><stop offset="0" stop-color="#aaf7d6"/><stop offset=".45" stop-color="#14cf83"/><stop offset="1" stop-color="#04512f"/></radialGradient>
+  </defs>
+  <g fill="url(#sm3)" stroke="#120e17" stroke-width="5" stroke-linejoin="round"><path d="M14 60 C21.7 48 18.04 33.6 19 12 C23.43 33.6 34.3 48 42 60 Z"/><path d="M42 56 C51.9 42.5 56.53 26.3 60 2 C63.47 26.3 68.1 42.5 78 56 Z"/><path d="M78 60 C85.7 48 96.57 33.6 101 12 C101.96 33.6 98.3 48 106 60 Z"/></g>
+  <path d="M10 60 Q60 73 110 60 L108 80 Q60 95 12 80 Z" fill="url(#sb3)" stroke="#120e17" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M60 64 L71 76 L60 90 L49 76 Z" fill="url(#sg3)" stroke="#120e17" stroke-width="3.5" stroke-linejoin="round"/>
+</svg>

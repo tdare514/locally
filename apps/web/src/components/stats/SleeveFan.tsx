@@ -222,6 +222,14 @@ function Sleeve({
             <MusicNoteIcon className="h-6 w-6" />
           </span>
         )}
+        {item.rank <= 5 && (
+          <span aria-hidden className="fan-crown">
+            {/* eslint-disable-next-line @next/next/no-img-element -- two tiny local SVGs, swapped by CSS at 64px */}
+            <img src={`/crowns/crown-${item.rank}.svg`} alt="" draggable={false} decoding="async" className="fan-crown-full" />
+            {/* eslint-disable-next-line @next/next/no-img-element -- see above */}
+            <img src={`/crowns/crown-${item.rank}-small.svg`} alt="" draggable={false} decoding="async" className="fan-crown-small" />
+          </span>
+        )}
         <span aria-hidden className="fan-rank" data-medal={medal}>
           {item.rank}
         </span>
