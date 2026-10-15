@@ -20,34 +20,38 @@ const LAYER = "absolute inset-0 size-full object-cover";
  * next sample cover. Rendered as the child of RecordSleeve. */
 export default function CoverSleeve({ cover, beat, onPick }: CoverSleeveProps) {
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      aria-label={cover ? "Cover art" : "Add cover art"}
-      onClick={onPick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label={cover ? "Cover art" : "Add cover art"}
+        onClick={onPick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onPick();
+          }
+        }}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
           e.preventDefault();
           onPick();
-        }
-      }}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => {
-        e.preventDefault();
-        onPick();
-      }}
-      className="record-sleeve relative flex size-[200px] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-[4px] bg-card text-center outline-none focus-visible:ring-2 focus-visible:ring-accent sm:size-[248px]"
-    >
-      {(cover === null || beat) && (
-        <div className={`flex flex-col items-center gap-2 px-6 ${cover ? "imp-empty-out" : ""}`}>
-          <ImagePlusIcon className="h-8 w-8 text-text-muted" />
-          <p className="text-sm font-semibold text-text">Add cover art</p>
-          <p className="text-xs leading-snug text-text-muted">Drop an image or click to choose</p>
-        </div>
-      )}
-      {cover && <img key={cover.id} src={cover.src} alt="" className={`${beat ? "imp-cover " : ""}${LAYER}`} />}
-      {/* The camera flash once the cover is in. Opacity only; reduced motion hides it. */}
+        }}
+        className="record-sleeve relative flex size-[200px] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-[4px] bg-card text-center outline-none focus-visible:ring-2 focus-visible:ring-accent sm:size-[248px]"
+      >
+        {(cover === null || beat) && (
+          <div className={`flex flex-col items-center gap-2 px-6 ${cover ? "imp-empty-out" : ""}`}>
+            <ImagePlusIcon className="h-8 w-8 text-text-muted" />
+            <p className="text-sm font-semibold text-text">Add cover art</p>
+            <p className="text-xs leading-snug text-text-muted">Drop an image or click to choose</p>
+          </div>
+        )}
+        {cover && <img key={cover.id} src={cover.src} alt="" className={`${beat ? "imp-cover " : ""}${LAYER}`} />}
+      </div>
+      {/* The camera flash once the cover is in: over the whole sleeve and spilling a little past
+          its edge, so it sits beside the sleeve, not inside its clip. Opacity only; reduced motion
+          hides it. */}
       {cover && beat && <div aria-hidden className="imp-flash" />}
-    </div>
+    </>
   );
 }

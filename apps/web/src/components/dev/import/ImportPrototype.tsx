@@ -35,10 +35,10 @@ const INVITE_PALETTE: AmbientPalette = {
 };
 
 /* The beat's clock, in ms from the moment the cover is chosen. The keyframes in globals.css
- * (.imp-cover, .record-face, .imp-flash, .record-disc under .imp-beat) hold the rest of it: slide
- * 0 for 420, disc turn 280 for 460, flash 740 for 490, disc tucks in 1100 for 520. */
+ * (.imp-cover, .imp-flash, .record-face, .record-disc under .imp-beat) hold the rest of it: slide
+ * 0 for 420, flash 420 for 700, disc tucks in and turns 640 for 600. */
 /** The colour wash starts with the flash and then uses the backdrop's own 900ms fade. */
-const WASH_AT = 740;
+const WASH_AT = 420;
 const WASH_MS = 900;
 
 const noop = () => {};

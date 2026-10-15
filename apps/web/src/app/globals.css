@@ -716,13 +716,11 @@ body {
 /* The cover beat, in ms from the moment a cover is chosen, full colour from the first frame
  * (ImportPrototype.tsx holds the colour wash time that goes with it):
  *    0 for 420  the cover slides in from the right (V1's original slide: 48px and a fade)
- *  280 for 460  the disc settles with a turn, 240deg decelerating into place (.record-face); it
- *               starts in the slide's tail and has landed before the flash
- *  740 for 490  a camera flash over the sleeve once the cover is in and the disc has landed
- *               (.imp-flash): up in 90ms, then 400ms to fade; the colour wash starts with it, on
- *               the backdrop's own 900ms fade
- * 1100 for 520  the disc slides all the way into the sleeve (.record-disc), in the flash's
- *               decay: it's sealed
+ *  420 for 700  a camera flash over the whole sleeve (.imp-flash) as soon as the slide is done: up
+ *               in 90ms, held 60ms at 0.9, then 550ms to fade so the colour comes back through
+ *               the white; the colour wash starts with it, on the backdrop's own 900ms fade
+ *  640 for 600  the disc slides all the way into the sleeve and turns 240deg as it goes, one
+ *               decelerating motion (.record-disc and .record-face), in the flash's decay: sealed
  * After the beat the disc rests in the sleeve and hovering the record brings it out again (the
  * `.record:hover` rule above). */
 .imp-beat,
@@ -743,35 +741,40 @@ body {
 @keyframes imp-slide {
   from { opacity: 0; transform: translateX(48px); }
 }
-/* A soft radial white, brightest at the centre with softer edges. Opacity only, and it rests at
- * 0 so nothing is left over once it has run. */
+/* White light over the whole sleeve, a little softer toward the edges, with a feathered spill
+ * past them that fades to nothing within about 30px. Opacity only; it rests at 0 so nothing is
+ * left once it has run. The decay curve is deliberately not the expo-out house easing, which
+ * would drop it in about 200ms: this one holds the light so the colour returns through it. */
 .imp-flash {
   position: absolute;
   inset: 0;
+  border-radius: 4px;
   pointer-events: none;
   opacity: 0;
   background: radial-gradient(
     circle farthest-corner at 50% 50%,
     rgb(255 255 255 / 1) 0%,
-    rgb(255 255 255 / 0.7) 45%,
-    rgb(255 255 255 / 0.25) 100%
+    rgb(255 255 255 / 0.92) 55%,
+    rgb(255 255 255 / 0.8) 100%
   );
-  animation: imp-flash 490ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
-  animation-delay: calc(740ms - var(--imp-t, 0ms));
+  box-shadow: 0 0 24px 6px rgb(255 255 255 / 0.6);
+  animation: imp-flash 700ms linear backwards;
+  animation-delay: calc(420ms - var(--imp-t, 0ms));
   animation-play-state: var(--imp-run, running);
 }
 @keyframes imp-flash {
-  0% { opacity: 0; }
-  18% { opacity: 0.65; }
+  0% { opacity: 0; animation-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1); }
+  12.9% { opacity: 0.9; }
+  21.4% { opacity: 0.9; animation-timing-function: cubic-bezier(0.5, 0, 0.7, 1); }
   100% { opacity: 0; }
 }
 /* The grooves are rotationally symmetric, so the turn is carried by the label's art. */
 .imp-beat .record-face {
-  animation: imp-settle 460ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
-  animation-delay: calc(280ms - var(--imp-t, 0ms));
+  animation: imp-turn 600ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(640ms - var(--imp-t, 0ms));
   animation-play-state: var(--imp-run, running);
 }
-@keyframes imp-settle {
+@keyframes imp-turn {
   from { rotate: -240deg; }
 }
 .imp-beat .record-disc,
@@ -782,8 +785,8 @@ body {
   animation: none;
 }
 .imp-beat .record-disc {
-  animation: imp-away 520ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
-  animation-delay: calc(1100ms - var(--imp-t, 0ms));
+  animation: imp-away 600ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation-delay: calc(640ms - var(--imp-t, 0ms));
   animation-play-state: var(--imp-run, running);
 }
 @keyframes imp-away {
