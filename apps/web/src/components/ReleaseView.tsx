@@ -293,119 +293,130 @@ export default function ReleaseView({
       <AmbientBackdrop palette={palette} />
       <SpotifySourceBanner onOpenSettings={onOpenSettings} onToast={onToast} />
 
-      {/* The record is the hero: the sleeve (cover picker) with the disc peeking out, and the
-          details set directly under it as inline text rather than a form (#112). */}
-      <header className="flex flex-col gap-8 pt-2">
-        <RecordSleeve labelUrl={artworkUrl} spin={spin}>
-          <CoverPicker
-            file={null}
-            existingUrl={artworkUrl}
-            onChange={handleReplaceCover}
-            disabled={replacingCover}
-            readOnly={IS_DEMO}
-            presentation="sleeve"
-          />
-        </RecordSleeve>
-
-        <div className="flex min-w-0 flex-col gap-3">
-          <h1 className="sr-only">{headerTitle}</h1>
-          <p className="text-sm text-white/70">
-            {release.kind === "single" ? "Single" : "Album"} · {trackCount}
-          </p>
-          <textarea
-            aria-label="Title"
-            rows={1}
-            value={title}
-            readOnly={IS_DEMO}
-            placeholder="Untitled"
-            onChange={(e) => setTitle(e.target.value.replace(/\n/g, " "))}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                e.currentTarget.blur();
-              }
-            }}
-            className="field-sizing-content -mx-2 max-w-[min(100%,720px)] resize-none rounded-lg bg-transparent px-2 py-1 text-[30px] font-bold leading-[1.1] tracking-[-0.035em] text-text outline-none transition-colors placeholder:text-white/40 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent sm:text-[44px]"
-          />
-          <input
-            aria-label="Artist"
-            value={artist}
-            readOnly={IS_DEMO}
-            placeholder="Add artist"
-            onChange={(e) => setArtist(e.target.value)}
-            className="field-sizing-content -mx-2 -mt-1 min-w-[8ch] max-w-full self-start rounded-md bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
-          />
-          <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-[15px]">
-            <InlineField
-              label="Year"
-              value={year}
-              onChange={setYear}
-              placeholder="Add year"
-              inputMode="numeric"
+      {/* From lg up the record and the tracks share a left column and the dock gets a column of
+          its own on the right, spanning both so it stays pinned while the tracks scroll. Below lg
+          everything stacks and the dock sits under the details. */}
+      <div className="flex flex-col gap-12 lg:grid lg:grid-cols-[minmax(0,1fr)_13rem] lg:items-start lg:gap-x-10">
+        {/* The record is the hero: the sleeve (cover picker) with the disc peeking out, and the
+            details set directly under it as inline text rather than a form (#112). */}
+        <header className="flex flex-col gap-8 pt-2 lg:col-start-1 lg:row-start-1 lg:pt-4">
+          <RecordSleeve labelUrl={artworkUrl} spin={spin}>
+            <CoverPicker
+              file={null}
+              existingUrl={artworkUrl}
+              onChange={handleReplaceCover}
+              disabled={replacingCover}
+              readOnly={IS_DEMO}
+              presentation="sleeve"
             />
-            <InlineField label="Genre" value={genre} onChange={setGenre} placeholder="Add genre" />
-          </div>
-        </div>
-      </header>
+          </RecordSleeve>
 
-      {/* Dock: sits under the details, then pins to the top of the pane so the save action stays
-          in reach while you edit the tracks below. */}
-      <div className="sticky top-4 z-10 -my-4 flex w-fit max-w-full flex-wrap items-center gap-2 self-start rounded-[26px] bg-black/70 p-1.5 pr-3 sm:rounded-full shadow-[0_16px_40px_-12px_rgb(0_0_0/0.8)] ring-1 ring-white/10 backdrop-blur-xl">
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving || IS_DEMO}
-          title={IS_DEMO ? "Not available in the demo" : undefined}
-          className="rounded-full bg-accent px-7 py-2.5 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {saving ? "Saving…" : "Save to library"}
-        </button>
-        {unsaved && !IS_DEMO && !confirmingDelete && (
-          <span className="px-1 text-xs text-text-muted">Unsaved changes</span>
-        )}
-        <button
-          type="button"
-          onClick={handleReveal}
-          disabled={IS_DEMO}
-          title={IS_DEMO ? "Not available in the demo" : undefined}
-          className="rounded-full px-4 py-2.5 text-sm font-medium text-text transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          Show in Finder
-        </button>
-        {confirmingDelete ? (
-          <span className="flex items-center gap-2 text-sm">
-            <span className="pl-1 text-text-muted">Delete this release?</span>
+          <div className="flex min-w-0 flex-col gap-3">
+            <h1 className="sr-only">{headerTitle}</h1>
+            <p className="text-sm text-white/70">
+              {release.kind === "single" ? "Single" : "Album"} · {trackCount}
+            </p>
+            <textarea
+              aria-label="Title"
+              rows={1}
+              value={title}
+              readOnly={IS_DEMO}
+              placeholder="Untitled"
+              onChange={(e) => setTitle(e.target.value.replace(/\n/g, " "))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  e.currentTarget.blur();
+                }
+              }}
+              className="field-sizing-content -mx-2 max-w-[min(100%,720px)] resize-none rounded-lg bg-transparent px-2 py-1 text-[30px] font-bold leading-[1.1] tracking-[-0.035em] text-text outline-none transition-colors placeholder:text-white/40 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent sm:text-[44px]"
+            />
+            <input
+              aria-label="Artist"
+              value={artist}
+              readOnly={IS_DEMO}
+              placeholder="Add artist"
+              onChange={(e) => setArtist(e.target.value)}
+              className="field-sizing-content -mx-2 -mt-1 min-w-[8ch] max-w-full self-start rounded-md bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
+            />
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-[15px]">
+              <InlineField
+                label="Year"
+                value={year}
+                onChange={setYear}
+                placeholder="Add year"
+                inputMode="numeric"
+              />
+              <InlineField label="Genre" value={genre} onChange={setGenre} placeholder="Add genre" />
+            </div>
+          </div>
+        </header>
+
+        {/* Dock: under the details below lg; from lg up a column on the right, level with the
+            record. It pins to the top of the pane so the save action stays in reach while you
+            edit the tracks. A sticky offset counts from <main>'s padding edge, so the 4rem of
+            lg:p-16 plus top-4 leaves the dock 5rem below the pane's top: clear of the phone-tray
+            button AppShell pins there (md:top-6 + --tray-size = 4rem, and a rem of air). Keep
+            that sum if the pane's padding changes. */}
+        <div className="sticky top-4 z-10 -my-4 flex w-fit max-w-full flex-wrap items-center gap-2 self-start rounded-[26px] bg-black/70 p-1.5 pr-3 sm:rounded-full shadow-[0_16px_40px_-12px_rgb(0_0_0/0.8)] ring-1 ring-white/10 backdrop-blur-xl lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:my-0 lg:w-auto lg:flex-col lg:items-stretch lg:gap-1 lg:rounded-[26px] lg:p-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || IS_DEMO}
+            title={IS_DEMO ? "Not available in the demo" : undefined}
+            className="rounded-full bg-accent px-7 py-2.5 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {saving ? "Saving…" : "Save to library"}
+          </button>
+          {unsaved && !IS_DEMO && !confirmingDelete && (
+            <span className="px-1 text-xs text-text-muted lg:py-1 lg:text-center">Unsaved changes</span>
+          )}
+          <button
+            type="button"
+            onClick={handleReveal}
+            disabled={IS_DEMO}
+            title={IS_DEMO ? "Not available in the demo" : undefined}
+            className="rounded-full px-4 py-2.5 text-sm font-medium text-text transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Show in Finder
+          </button>
+          {confirmingDelete ? (
+            <span className="flex items-center gap-2 text-sm lg:flex-col lg:items-stretch lg:gap-1">
+              <span className="pl-1 text-text-muted lg:py-1 lg:pl-0 lg:text-center">
+                Delete this release?
+              </span>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="rounded-full bg-danger px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {deleting ? "Deleting…" : "Confirm delete"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingDelete(false)}
+                className="rounded-full px-4 py-2 text-sm text-text-muted hover:text-text"
+              >
+                Cancel
+              </button>
+            </span>
+          ) : (
             <button
               type="button"
               onClick={handleDelete}
-              disabled={deleting}
-              className="rounded-full bg-danger px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              disabled={IS_DEMO}
+              title={IS_DEMO ? "Not available in the demo" : undefined}
+              className="rounded-full px-3 py-2.5 text-sm font-semibold text-danger transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {deleting ? "Deleting…" : "Confirm delete"}
+              Delete
             </button>
-            <button
-              type="button"
-              onClick={() => setConfirmingDelete(false)}
-              className="rounded-full px-4 py-2 text-sm text-text-muted hover:text-text"
-            >
-              Cancel
-            </button>
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={IS_DEMO}
-            title={IS_DEMO ? "Not available in the demo" : undefined}
-            className="rounded-full px-3 py-2.5 text-sm font-semibold text-danger transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Delete
-          </button>
-        )}
-      </div>
-      <div className="flex flex-col gap-3">
-        <h2 className="text-lg font-bold tracking-[-0.03em] text-text">Tracks</h2>
-        <TrackList tracks={tracks} onChange={handleTracksChange} readOnly={IS_DEMO} />
+          )}
+        </div>
+        <div className="flex flex-col gap-3 lg:col-start-1 lg:row-start-2">
+          <h2 className="text-lg font-bold tracking-[-0.03em] text-text">Tracks</h2>
+          <TrackList tracks={tracks} onChange={handleTracksChange} readOnly={IS_DEMO} />
+        </div>
       </div>
 
       {release.kind === "album" && (

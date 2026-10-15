@@ -8,6 +8,7 @@ import TrackList, { type EditableTrack } from "./TrackList";
 import CoverPicker from "./CoverPicker";
 import { UploadCloudIcon } from "./Icons";
 import { IS_DEMO } from "../lib/demo";
+import { applyTrackEdits } from "../lib/track-order";
 
 interface ImportViewProps {
   /** Prefill Single | Album when opened from the library empty-state CTAs. */
@@ -121,16 +122,7 @@ export default function ImportView({
   }
 
   function handleTracksChange(tracks: EditableTrack[]) {
-    setEntries((prev) => {
-      const byKey = new Map(prev.map((e) => [e.key, e]));
-      return tracks
-        .map((t) => {
-          const original = byKey.get(t.key);
-          if (!original) return null;
-          return { key: t.key, file: original.file, title: t.title };
-        })
-        .filter((e): e is Entry => e !== null);
-    });
+    setEntries((prev) => applyTrackEdits(prev, tracks));
   }
 
   function handleRemove(index: number) {
