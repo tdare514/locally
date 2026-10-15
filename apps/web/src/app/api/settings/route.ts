@@ -34,6 +34,7 @@ export async function PUT(request: NextRequest) {
     if (!plan.ok) return badRequest(plan.error);
     if (plan.resetSyncState) await services.syncState.set(emptySyncState());
     const settings = await services.settings.set(plan.settings);
+    services.playTracker.setEnabled(settings.trackPlays === true);
     return NextResponse.json(toSettingsResponse(settings));
   } catch (err) {
     return errorResponse(err);

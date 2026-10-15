@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { SyncStatus } from "../shared/types";
+import type { PlaysStatus, SyncStatus } from "../shared/types";
 import { DEFAULT_SYNC_BASE_URL } from "../shared/types";
 import {
   deleteSyncAccount,
+  getPlaysStatus,
   getSettings,
   getSpotifySource,
   putSettings,
   putSyncBaseUrl,
+  putTrackPlays,
   requestSyncCode,
   reveal,
   signOutSync,
@@ -88,9 +90,51 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
       });
   }, []);
 
+  const [trackPlays, setTrackPlays] = useState(false);
+  const [savingTrackPlays, setSavingTrackPlays] = useState(false);
+  const [playsStatus, setPlaysStatus] = useState<PlaysStatus>("off");
+
+  // While counting is on: read the tracker status now, after toggling, and every 10 s.
+  useEffect(() => {
+    if (!trackPlays || IS_DEMO) return;
+    let cancelled = false;
+    const refresh = () => {
+      getPlaysStatus()
+        .then((r) => {
+          if (!cancelled) setPlaysStatus(r.status);
+        })
+        .catch(() => {
+          // Status line is a nice-to-have; keep the last known value.
+        });
+    };
+    refresh();
+    const timer = setInterval(refresh, 10_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [trackPlays]);
+
+  async function handleToggleTrackPlays() {
+    const next = !trackPlays;
+    setSavingTrackPlays(true);
+    try {
+      const updated = await putTrackPlays(next);
+      setTrackPlays(updated.trackPlays);
+      if (!updated.trackPlays) setPlaysStatus("off");
+    } catch (e) {
+      onToast("error", e instanceof Error ? e.message : "Failed to save setting");
+    } finally {
+      setSavingTrackPlays(false);
+    }
+  }
+
   useEffect(() => {
     getSettings()
-      .then((s) => setLibraryDir(s.libraryDir))
+      .then((s) => {
+        setLibraryDir(s.libraryDir);
+        setTrackPlays(s.trackPlays);
+      })
       .catch((e) =>
         onToast("error", e instanceof Error ? e.message : "Failed to load settings")
       )
@@ -296,6 +340,42 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
             ))}
           </div>
         </div>
+      </section>
+
+      <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
+        <p className="text-sm font-bold text-text">Plays</p>
+        <fieldset disabled={IS_DEMO} className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
+          <div className="flex items-center justify-between gap-4">
+            <span id="track-plays-label" className="text-sm text-text-muted">
+              Count my Spotify plays
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={trackPlays}
+              aria-labelledby="track-plays-label"
+              onClick={handleToggleTrackPlays}
+              disabled={loading || savingTrackPlays}
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40 ${
+                trackPlays ? "bg-accent text-black" : "bg-elevated-hover text-text-dim hover:text-text-muted"
+              }`}
+            >
+              {trackPlays ? "On" : "Off"}
+            </button>
+          </div>
+          <p className="text-xs text-text-dim">
+            Counts a Locally track once it has played 30 seconds in Spotify. Plays on your other
+            devices count while Spotify is open on this Mac.
+          </p>
+          {trackPlays && playsStatus === "spotify-not-running" && (
+            <p className="text-sm text-text-muted">Spotify isn&apos;t running.</p>
+          )}
+          {trackPlays && playsStatus === "permission-denied" && (
+            <p className="text-sm text-danger">
+              Locally isn&apos;t allowed to see what Spotify is playing. Allow it in System Settings ▸ Privacy &amp; Security ▸ Automation.
+            </p>
+          )}
+        </fieldset>
       </section>
 
       <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-6">

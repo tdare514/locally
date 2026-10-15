@@ -11,6 +11,7 @@ import type {
   ApiError,
   SyncStatus,
   SpotifySourceStatus,
+  PlaysStatusResponse,
 } from "../shared/types";
 
 /** Response shape for POST /api/inspect (per-file prefill data). Not a persisted entity, so it
@@ -58,6 +59,20 @@ export async function putSettings(libraryDir: string): Promise<SettingsResponse>
     body: JSON.stringify({ libraryDir }),
   });
   return handle<SettingsResponse>(res);
+}
+
+export async function putTrackPlays(trackPlays: boolean): Promise<SettingsResponse> {
+  const res = await fetch("/api/settings", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ trackPlays }),
+  });
+  return handle<SettingsResponse>(res);
+}
+
+export async function getPlaysStatus(): Promise<PlaysStatusResponse> {
+  const res = await fetch("/api/plays/status");
+  return handle<PlaysStatusResponse>(res);
 }
 
 export async function putSyncBaseUrl(baseUrl: string): Promise<SettingsResponse> {

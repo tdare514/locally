@@ -65,6 +65,7 @@ export const DEMO_RELEASES: Release[] = [
 export const DEMO_SETTINGS_RESPONSE: SettingsResponse = {
   libraryDir: DEMO_DIR,
   sync: { baseUrl: "https://locally-sync-api.vercel.app", email: null, signedIn: false, lastVersion: 0 },
+  trackPlays: false,
 };
 
 /** Signed out, nothing pending. */

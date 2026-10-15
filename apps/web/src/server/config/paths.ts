@@ -36,3 +36,8 @@ export function libraryFilePath(libraryDir: string): string {
 export function syncStateFilePath(): string {
   return path.join(settingsDir(), "sync-state.json");
 }
+
+/** Full path to the local play counts file (#106), next to settings.json. */
+export function playsFilePath(): string {
+  return path.join(settingsDir(), "plays.json");
+}

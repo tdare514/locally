@@ -57,6 +57,7 @@ export interface Settings {
   libraryDir: string;    // where tagged files are written; Spotify should be pointed at this folder
   sync: SyncSettings | null;
   spotifySourceDismissed?: boolean;  // user clicked "Done, I added it" on the Spotify source prompt
+  trackPlays?: boolean;  // opt-in: count plays of Locally tracks in Spotify on this Mac (#106); default false
 }
 
 /** The `sync` field as returned to the browser by GET/PUT /api/settings: no token. */
@@ -71,6 +72,14 @@ export interface SyncStatusSummary {
 export interface SettingsResponse {
   libraryDir: string;
   sync: SyncStatusSummary;
+  trackPlays: boolean;
+}
+
+/** Response shape for GET /api/plays/status. */
+export type PlaysStatus = "off" | "on" | "spotify-not-running" | "permission-denied";
+
+export interface PlaysStatusResponse {
+  status: PlaysStatus;
 }
 
 /** One release from the phone that hasn't been imported into the local library yet. */

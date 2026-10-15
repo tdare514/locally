@@ -51,11 +51,13 @@ function putRequest(body: unknown): NextRequest {
 }
 
 let syncState: FakeSyncStateStore;
+let playTracker: { setEnabled: ReturnType<typeof vi.fn> };
 
 beforeEach(() => {
   settingsValue = { libraryDir: "/tmp/lib", sync: null };
   syncState = new FakeSyncStateStore();
-  services = { settings: new FakeSettingsStore(), syncState } as unknown as Services;
+  playTracker = { setEnabled: vi.fn() };
+  services = { settings: new FakeSettingsStore(), syncState, playTracker } as unknown as Services;
 });
 
 describe("GET /api/settings", () => {
@@ -82,6 +84,27 @@ describe("GET /api/settings", () => {
     expect(body.sync.signedIn).toBe(true);
     expect(body.sync.lastVersion).toBe(3);
     expect(JSON.stringify(body)).not.toContain("secret-token");
+  });
+});
+
+describe("trackPlays setting", () => {
+  it("is exposed by GET, false by default", async () => {
+    const body = (await (await GET()).json()) as { trackPlays: boolean };
+    expect(body.trackPlays).toBe(false);
+  });
+
+  it("PUT updates it and tells the tracker", async () => {
+    const res = await PUT(putRequest({ trackPlays: true }));
+    expect(res.status).toBe(200);
+    expect(settingsValue.trackPlays).toBe(true);
+    expect(((await res.json()) as { trackPlays: boolean }).trackPlays).toBe(true);
+    expect(playTracker.setEnabled).toHaveBeenCalledWith(true);
+  });
+
+  it("PUT rejects a non-boolean", async () => {
+    const res = await PUT(putRequest({ trackPlays: "yes" }));
+    expect(res.status).toBe(400);
+    expect(playTracker.setEnabled).not.toHaveBeenCalled();
   });
 });
 

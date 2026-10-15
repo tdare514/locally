@@ -17,6 +17,11 @@ import { HttpSyncApi } from "./sync/SyncApi";
 import { SyncEngine, type SyncApiFactory } from "./sync/SyncEngine";
 import { LocalFilesIndexDetector } from "./spotify/SpotifySourceDetector";
 import type { SpotifySourceDetector } from "./spotify/SpotifySourceDetector";
+import { FilePlayCountStore } from "./plays/FilePlayCountStore";
+import type { PlayCountStore } from "./plays/PlayCountStore";
+import { OsascriptNowPlaying } from "./plays/OsascriptNowPlaying";
+import { PlayTracker } from "./plays/PlayTracker";
+import type { ReleaseSyncHooks } from "./releases/ReleaseSyncHooks";
 import { isDemo } from "./demo";
 
 export interface Services {
@@ -32,6 +37,8 @@ export interface Services {
   syncApiFactory: SyncApiFactory;
   syncEngine: SyncEngine;
   spotify: SpotifySourceDetector;
+  playStore: PlayCountStore;
+  playTracker: PlayTracker;
 }
 
 function buildServices(): Services {
@@ -50,11 +57,32 @@ function buildServices(): Services {
   // Late-wire the engine as ReleaseService's sync hooks (see ReleaseSyncHooks
   // for why this can't be a constructor parameter: SyncEngine itself depends
   // on this same ReleaseService instance).
-  releases.setSyncHooks(syncEngine);
+  // A local delete also drops that release's play counts (#106); composed here so
+  // sync/ stays untouched.
+  const playStore = new FilePlayCountStore();
+  const hooks: ReleaseSyncHooks = {
+    onImported: (release) => syncEngine.onImported(release),
+    onUpdated: (release) => syncEngine.onUpdated(release),
+    onCoverReplaced: (release) => syncEngine.onCoverReplaced(release),
+    onDeleted: (release) => {
+      syncEngine.onDeleted(release);
+      playStore.removeRelease(release.id).catch((err) => {
+        console.warn("Could not remove play counts for a deleted release:", err instanceof Error ? err.message : err);
+      });
+    },
+  };
+  releases.setSyncHooks(hooks);
   // Reconcile with the sync service every 30s while signed in; reconcile()
   // itself is a cheap no-op when signed out. `buildServices()` only runs once
   // per process (memoised below), so this only starts one timer.
   syncEngine.startPolling();
+
+  // Opt-in Spotify play tracker (#106): only polls while Settings > trackPlays is on.
+  const playTracker = new PlayTracker(new OsascriptNowPlaying(), settings, library, playStore);
+  settings
+    .get()
+    .then((s) => playTracker.setEnabled(s.trackPlays === true))
+    .catch(() => undefined);
 
   return {
     settings,
@@ -69,6 +97,8 @@ function buildServices(): Services {
     syncApiFactory,
     syncEngine,
     spotify: new LocalFilesIndexDetector(),
+    playStore,
+    playTracker,
   };
 }
 

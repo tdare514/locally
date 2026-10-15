@@ -93,9 +93,23 @@ describe("planSettingsUpdate sync.baseUrl", () => {
   });
 });
 
+describe("planSettingsUpdate trackPlays", () => {
+  it("defaults to false and turns on and off", () => {
+    expect(ok(planSettingsUpdate(current(), { libraryDir: path.join(home, "X") }, home)).settings.trackPlays).toBe(false);
+    const on = ok(planSettingsUpdate(current(), { trackPlays: true }, home));
+    expect(on.settings.trackPlays).toBe(true);
+    expect(ok(planSettingsUpdate(on.settings, { trackPlays: false }, home)).settings.trackPlays).toBe(false);
+  });
+
+  it("keeps the value when only libraryDir changes", () => {
+    const r = ok(planSettingsUpdate(current({ trackPlays: true }), { libraryDir: path.join(home, "Y") }, home));
+    expect(r.settings.trackPlays).toBe(true);
+  });
+});
+
 describe("planSettingsUpdate empty body", () => {
   it("refuses when neither field is given", () => {
     const r = planSettingsUpdate(current(), {}, home);
-    expect(r).toMatchObject({ ok: false, error: "Nothing to update: pass libraryDir and/or sync.baseUrl" });
+    expect(r).toMatchObject({ ok: false, error: "Nothing to update: pass libraryDir, sync.baseUrl and/or trackPlays" });
   });
 });

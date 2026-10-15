@@ -40,7 +40,7 @@ export class FileSettingsStore implements SettingsStore {
     } catch (err) {
       const code = (err as NodeJS.ErrnoException)?.code;
       if (code === "ENOENT") {
-        const defaults: Settings = { libraryDir: defaultLibraryDir(), sync: null };
+        const defaults: Settings = { libraryDir: defaultLibraryDir(), sync: null, trackPlays: false };
         await this.set(defaults);
         return defaults;
       }
@@ -57,7 +57,7 @@ export class FileSettingsStore implements SettingsStore {
       const corruptPath = `${file}.corrupt-${Date.now()}`;
       await fs.rename(file, corruptPath);
       console.warn(`${file} contained invalid JSON; moved it to ${corruptPath} and reset to defaults.`);
-      const defaults: Settings = { libraryDir: defaultLibraryDir(), sync: null };
+      const defaults: Settings = { libraryDir: defaultLibraryDir(), sync: null, trackPlays: false };
       await this.set(defaults);
       return defaults;
     }
@@ -68,7 +68,8 @@ export class FileSettingsStore implements SettingsStore {
         : defaultLibraryDir();
     const spotifySourceDismissed =
       typeof parsed.spotifySourceDismissed === "boolean" ? parsed.spotifySourceDismissed : false;
-    return { libraryDir, sync: parseSyncSettings(parsed.sync), spotifySourceDismissed };
+    const trackPlays = typeof parsed.trackPlays === "boolean" ? parsed.trackPlays : false;
+    return { libraryDir, sync: parseSyncSettings(parsed.sync), spotifySourceDismissed, trackPlays };
   }
 
   async set(settings: Settings): Promise<Settings> {
