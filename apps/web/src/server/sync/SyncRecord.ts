@@ -3,8 +3,17 @@ import { z } from "zod";
 import type { Release, ReleaseKind } from "../../shared/types";
 import { MAX_DISC_NUMBER } from "../../shared/discs";
 
-/** Which platform wrote a given version of a release record. */
-export type SyncOrigin = "mac" | "ios";
+/**
+ * Which platform wrote a given version of a release record. "mac" and "ios" are the clients that
+ * exist today; any other short token (such as "web", #137) is another device, so a record from a
+ * future client never fails a pull page. Only `origin === "mac"` plus a matching `originDevice`
+ * is this Mac's own.
+ */
+export type SyncOrigin = "mac" | "ios" | (string & {});
+
+/** The wire shape of `origin`: any short lowercase token, so a release from a client this build has
+ * never heard of is read as "another device" instead of failing the whole pull page. */
+const SYNC_ORIGIN_PATTERN = /^[a-z][a-z0-9-]{0,15}$/;
 
 /** Longest name accepted for a record's file names and ids: the filename limit on every common filesystem. */
 export const MAX_SYNC_NAME_LENGTH = 255;
@@ -76,7 +85,7 @@ export const SyncRecordSchema = z.object({
   /** Absent on a `syncVersion` 1 record (no signal, leave the cover alone); `null` on a v2 record with no cover. */
   coverHash: CoverHashSchema.nullable().optional(),
   tracks: z.array(SyncTrackSchema),
-  origin: z.enum(["mac", "ios"]),
+  origin: z.string().regex(SYNC_ORIGIN_PATTERN),
   originDevice: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),

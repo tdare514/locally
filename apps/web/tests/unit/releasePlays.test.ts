@@ -95,6 +95,21 @@ describe("mergeReleasePlays", () => {
     expect(merged.tracks.map((tr) => tr.trackId)).toEqual([t(1)]);
   });
 
+  it("a device on a platform it has never heard of is another device, even with this Mac's name (#185)", () => {
+    const merged = mergeReleasePlays(
+      local({ [t(1)]: { releaseId: REL, count: 4 } }),
+      REL,
+      server({ trackId: t(1), devices: [device("Toby's MacBook", 9, false, "web"), device("Gadget", 2, false, "future-thing")] }),
+      "Toby's MacBook",
+    );
+    expect(merged.tracks[0].total).toBe(15);
+    expect(merged.tracks[0].devices.map((d) => [d.name, d.platform, d.count])).toEqual([
+      ["Toby's MacBook", "web", 9],
+      ["Gadget", "future-thing", 2],
+      ["This Mac", "mac", 4],
+    ]);
+  });
+
   it("this Mac is the local count when it is ahead of the service", () => {
     const merged = mergeReleasePlays(
       local({ [t(1)]: { releaseId: REL, count: 12 } }),

@@ -39,6 +39,19 @@ struct ReleasePlaysTests {
         SyncDevicePlays(deviceId: name, name: name, platform: "macos", count: count, current: current)
     }
 
+    /// #185: a device on a platform this build has never heard of decodes,
+    /// and keeps its name and platform, so it shows as a generic device.
+    @Test func decodesADeviceOnAPlatformItHasNeverHeardOf() throws {
+        let json = """
+        { "tracks": [ { "trackId": "AAAAAAAA-0000-0000-0000-000000000001", "total": 5, "devices": [
+          { "deviceId": "d1", "name": "Browser", "platform": "web", "count": 3, "current": false },
+          { "deviceId": "d2", "name": "Gadget", "platform": "future-thing", "count": 2, "current": false } ] } ] }
+        """
+        let plays = try JSONDecoder().decode(SyncReleasePlays.self, from: Data(json.utf8))
+        #expect(plays.tracks[0].devices.map(\.name) == ["Browser", "Gadget"])
+        #expect(plays.tracks[0].devices.map(\.platform) == ["web", "future-thing"])
+    }
+
     @Test func decodesTheSampleResponse() throws {
         let plays = try JSONDecoder().decode(SyncReleasePlays.self, from: Data(sampleJSON.utf8))
         #expect(plays.tracks.count == 1)

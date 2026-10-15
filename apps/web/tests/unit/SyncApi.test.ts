@@ -91,6 +91,26 @@ describe("HttpSyncApi request shape", () => {
     expect(calls[0].init?.body).toBeUndefined();
   });
 
+  it("me() parses a device list with a platform this build has never heard of (#185)", async () => {
+    mockNextResponse(
+      jsonResponse({
+        user: { id: "u1", email: "a@b.com" },
+        device: { id: "d1", name: "Mac" },
+        quota: { usedBytes: 0, limitBytes: 1 },
+        devices: [
+          { id: "d1", name: "Mac", platform: "mac" },
+          { id: "d2", name: "Browser", platform: "web" },
+          { id: "d3", name: "Gadget", platform: "future-thing" },
+        ],
+      })
+    );
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+
+    const me = await api.me();
+
+    expect(me.devices.map((d) => d.name)).toEqual(["Mac", "Browser", "Gadget"]);
+  });
+
   it("putRelease PUTs JSON to /v1/releases/:id with the record as the body", async () => {
     mockNextResponse(jsonResponse({ version: 5 }));
     const api = new HttpSyncApi("http://localhost:4000", "tok");
@@ -132,6 +152,22 @@ describe("HttpSyncApi request shape", () => {
     const result = await api.listReleases(7, 200);
 
     expect(result.hasMore).toBe(false);
+  });
+
+  it("listReleases keeps a record from the web or an unknown origin: the page does not fail (#185)", async () => {
+    const web = { ...validWireRecord, id: "from-web", origin: "web", version: 4 };
+    const future = { ...validWireRecord, id: "from-future", origin: "future-thing", version: 5 };
+    mockNextResponse(jsonResponse({ releases: [validWireRecord, web, future], nextVersion: 5, hasMore: false }));
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+
+    const result = await api.listReleases(0, 200);
+
+    expect(result.releases.map((r) => [r.id, r.origin])).toEqual([
+      ["good", "ios"],
+      ["from-web", "web"],
+      ["from-future", "future-thing"],
+    ]);
+    expect(result.nextVersion).toBe(5);
   });
 
   it("listReleases skips a record with a refused extension, keeps the others, and still returns nextVersion/hasMore", async () => {
@@ -364,6 +400,25 @@ describe("HttpSyncApi play counts", () => {
     expect(calls[0].init?.method).toBeUndefined();
     expect((calls[0].init?.headers as Record<string, string>)["Authorization"]).toBe("Bearer tok-123");
     expect(calls[0].init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("releasePlays parses a device with a platform this build has never heard of (#185)", async () => {
+    const body = {
+      tracks: [
+        {
+          trackId: entry.trackId,
+          total: 5,
+          devices: [
+            { deviceId: "d2", name: "Browser", platform: "web", count: 3, current: false },
+            { deviceId: "d3", name: "Gadget", platform: "future-thing", count: 2, current: false },
+          ],
+        },
+      ],
+    };
+    mockNextResponse(jsonResponse(body));
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+
+    await expect(api.releasePlays(entry.releaseId)).resolves.toEqual(body);
   });
 
   it("releasePlays encodes the id and rejects a 404 and a reply of the wrong shape", async () => {

@@ -15,7 +15,7 @@ export interface SyncState {
    * `uploadedFiles` alone can't tell a cover replace from a no-op, since the name never changes.
    */
   coverHash: Record<string, string>;
-  /** releaseId -> the full remote record, offered in the "From your phone" inbox until accepted. */
+  /** releaseId -> the full remote record, offered in the "From your devices" inbox until accepted. */
   pendingFromPhone: Record<string, SyncRecord>;
 }
 
