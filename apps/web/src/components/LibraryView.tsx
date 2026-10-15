@@ -32,10 +32,8 @@ import {
 import BulkEditDialog from "./BulkEditDialog";
 import {
   ChevronRightIcon,
-  CoverGridIcon,
   CoverLargeIcon,
   CoverSmallIcon,
-  ListViewIcon,
   MusicNoteIcon,
   SearchIcon,
 } from "./Icons";
@@ -294,27 +292,24 @@ export default function LibraryView({
               <CoverLargeIcon className="h-4 w-4" />
             </div>
           )}
-          <div className="flex items-center gap-0.5 rounded-full bg-elevated/60 p-0.5">
+          <div role="group" aria-label="Library layout" className="btn-seg">
+            <span aria-hidden className="btn-seg-dot">
+              <span />
+            </span>
             {(
               [
-                { value: "list", label: "List view", Icon: ListViewIcon },
-                { value: "covers", label: "Cover view", Icon: CoverGridIcon },
+                { value: "list", label: "List" },
+                { value: "covers", label: "Grid" },
               ] as const
-            ).map(({ value, label, Icon }) => (
+            ).map(({ value, label }) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => changeLayout(value)}
-                aria-label={label}
-                title={label}
                 aria-pressed={layout === value}
-                className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                  layout === value
-                    ? "bg-elevated-hover text-text"
-                    : "text-text-dim hover:text-text-muted"
-                }`}
+                className="btn-seg-opt"
               >
-                <Icon className="h-4 w-4" />
+                {label}
               </button>
             ))}
           </div>
@@ -361,9 +356,9 @@ export default function LibraryView({
                 type="button"
                 onClick={() => setConfirmingDelete(false)}
                 disabled={busy}
-                className="rounded-full px-4 py-2 text-sm text-text-muted hover:text-text disabled:opacity-50"
+                className="btn-ink"
               >
-                Cancel
+                <span className="btn-ink-label">Cancel</span>
               </button>
             </div>
           ) : (
@@ -372,25 +367,25 @@ export default function LibraryView({
                 type="button"
                 onClick={() => setEditing(true)}
                 disabled={busy || selectedCount === 0}
-                className="rounded-full bg-elevated px-5 py-2 text-sm font-bold text-text transition-colors hover:bg-elevated-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-ink"
               >
-                Edit details…
+                <span className="btn-ink-label">Edit details…</span>
               </button>
               <button
                 type="button"
                 onClick={() => setConfirmingDelete(true)}
                 disabled={busy || selectedCount === 0}
-                className="px-3 py-2 text-sm font-semibold text-danger transition-colors hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-ink-danger"
               >
-                Delete…
+                <span className="btn-ink-label">Delete…</span>
               </button>
               <button
                 type="button"
                 onClick={exitSelecting}
                 disabled={busy}
-                className="px-3 py-2 text-sm text-text-muted transition-colors hover:text-text disabled:opacity-40"
+                className="btn-ink"
               >
-                Done
+                <span className="btn-ink-label">Done</span>
               </button>
             </div>
           )}
@@ -434,9 +429,9 @@ export default function LibraryView({
             <button
               type="button"
               onClick={() => setSelecting(true)}
-              className="shrink-0 rounded-full bg-elevated px-6 py-3 text-sm font-bold text-text transition-colors hover:bg-elevated-hover active:scale-95"
+              className="btn-ink"
             >
-              Select
+              <span className="btn-ink-label">Select</span>
             </button>
           )}
         </div>
@@ -451,9 +446,9 @@ export default function LibraryView({
           <button
             type="button"
             onClick={() => onQueryChange("")}
-            className="mt-2 rounded-full bg-elevated px-6 py-2 text-sm font-bold text-text transition-colors hover:bg-elevated-hover active:scale-95"
+            className="btn-ink mt-2"
           >
-            Clear search
+            <span className="btn-ink-label">Clear search</span>
           </button>
         </div>
       )}
@@ -501,7 +496,7 @@ export default function LibraryView({
           onClick={() => onImport()}
           disabled={IS_DEMO}
           title={IS_DEMO ? "Not available in the demo" : undefined}
-          className="rounded-full bg-accent px-8 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn-save"
         >
           Add a song
         </button>
@@ -750,7 +745,7 @@ function LibraryEmptyState({
           onClick={() => onImport("single")}
           disabled={IS_DEMO}
           title={IS_DEMO ? "Not available in the demo" : undefined}
-          className="w-full rounded-full bg-accent px-8 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn-save w-full"
         >
           Add your first single
         </button>
@@ -759,9 +754,9 @@ function LibraryEmptyState({
           onClick={() => onImport("album")}
           disabled={IS_DEMO}
           title={IS_DEMO ? "Not available in the demo" : undefined}
-          className="w-full rounded-full bg-elevated px-8 py-3 text-sm font-bold text-text transition-colors hover:bg-elevated-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn-ink w-full"
         >
-          Make an album
+          <span className="btn-ink-label">Make an album</span>
         </button>
       </div>
       <PlaysPromptCard onToast={onToast} className="mt-8" />

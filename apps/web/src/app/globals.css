@@ -519,6 +519,20 @@ body {
     backdrop-filter: none;
   }
 }
+/* The release dock (#163) rides over the scrolling track rows with no blur, so a bare
+   `.glass-fake` lets their text show through its buttons. This darker body, used together with
+   `.glass-fake`, keeps the dock legible over rows and over a bright cover's wash; the lit edge
+   and glow still come from `.glass-fake`. */
+.glass-fake.glass-dock {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.03) 55%),
+    rgb(14 14 18 / 0.88);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass-fake.glass-dock {
+    background: rgb(30 30 34);
+  }
+}
 
 /* Track list (#118): rows sit on the page; the held row is the one place a tile appears. The
    list drives these by data attributes and inline `translate` (no re-render per pointer move):
@@ -634,20 +648,478 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
- * Streams page prototype (#145, dev only, /dev/streams; delete with src/components/dev/streams).
- * The motion for all three directions lives here, as everywhere: `.st-*` is shared, `.st-a-*`,
- * `.st-b-*` and `.st-c-*` belong to one direction each. The budget: one entrance (rise and fade,
- * transform and opacity only, 480ms or less, a small stagger from `--st-i`), one shine across
- * each medal the first time it is seen, and a hover lift on sleeves. Nothing loops and nothing
- * follows the scroll. Content is never hidden without the animation: every entrance runs with
- * `backwards` fill, so with no motion the page is simply there. The glass is faked (no
- * backdrop-filter), like the sidebar's.
+ * Buttons (#155): the owner's pick from the three gallery directions, as five classes.
+ *   .btn-save               the primary. Just its label at rest, no fill or border. On hover it
+ *                           lights up into the phone-tray cloud button's glass (`.glass-fake`,
+ *                           unchanged) with a mild glow of the cover's colour (--btn-tint, else a
+ *                           clear light blue), and one soft shimmer crosses it. Used for every main action.
+ *   .btn-ink                the secondary: plain text with an ink line under it (wrap the label
+ *                           in `.btn-ink-label`) and a soft white halo on hover.
+ *   .btn-ink-danger         the destructive trigger: the same in pink, with a soft red halo on
+ *                           hover. The final confirm
+ *                           ("Confirm delete", "Delete account") stays a solid `bg-danger`.
+ *   .btn-icon               a round icon button with no chrome until hover.
+ *   .btn-seg, .btn-seg-opt  a two-option toggle: words, and a dot that slides under the chosen one.
+ * The sheet at /dev/buttons pins states with data-state="hover|press|focus"; each rule lists the
+ * pinned selector next to the real :hover / :active / :focus-visible one. Only transform (written
+ * as the individual scale / translate properties, as elsewhere in this file) and opacity animate.
+ * Reduced-motion fallbacks are in the block at the end of the file.
+ * ------------------------------------------------------------------------- */
+:root {
+  --btn-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  /* The Save glow where no cover sets --btn-tint: a clear, light sky blue, kept faint so on a dark
+     panel it lifts the glass as gently as a cover's own colour does on its wash. */
+  --btn-tint-default: rgb(176 212 255 / 0.32);
+}
+
+/* Shared by every button. */
+.btn-save,
+.btn-ink,
+.btn-ink-danger,
+.btn-icon,
+.btn-seg-opt {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-save:disabled,
+.btn-ink:disabled,
+.btn-ink-danger:disabled,
+.btn-icon:disabled,
+.btn-seg-opt:disabled {
+  cursor: not-allowed;
+}
+
+/* ===== Save: the primary ==================================================== */
+/* At rest it is only its white, bold label: no fill, no border, no glow. On hover it lights up
+   into the phone-tray cloud button's glass (the `.glass-fake` recipe unchanged, so the page shows
+   through the way it does on the cloud) with a mild glow of colour rising from its lower edge: the
+   cover's colour where the page sets --btn-tint (the release dock does), else a clear light blue.
+   ::before is the glass and the glow, ::after is the shimmer. */
+.btn-save {
+  height: 2.5rem;
+  padding: 0 1.5rem;
+  border-radius: 9999px;
+  overflow: hidden;
+  color: #fff;
+  font-weight: 600;
+  background: transparent;
+  transition: scale 200ms var(--btn-ease);
+}
+/* It fades in as opacity; there is no backdrop-filter. Layers, top first: `.glass-fake`'s corner
+   highlight, the colour glow, `.glass-fake`'s body. */
+.btn-save::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(120% 70% at 15% -15%, rgb(255 255 255 / 0.18), transparent 60%),
+    radial-gradient(
+      90% 140% at 50% 135%,
+      color-mix(in oklab, var(--btn-tint, var(--btn-tint-default)) 55%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.04) 55%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    inset 0 -1px 0 rgb(255 255 255 / 0.08),
+    inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  transition: opacity 260ms var(--btn-ease);
+}
+/* The shimmer: a thin, soft diagonal band of white at about 14%, parked off the left edge. */
+.btn-save::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  translate: -110% 0;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgb(255 255 255 / 0.05) 45%,
+    rgb(255 255 255 / 0.14) 50%,
+    rgb(255 255 255 / 0.05) 55%,
+    transparent 62%
+  );
+}
+.btn-save:where(:not(:disabled)):is(:hover, :active)::before,
+.btn-save:is([data-state="hover"], [data-state="press"])::before {
+  opacity: 1;
+}
+/* One pass per hover, not a loop. The sweep eases in and out like the Import label's shimmer;
+   the expo-out used elsewhere would cross the face in about 100 ms. */
+.btn-save:where(:not(:disabled)):hover::after {
+  animation: btn-save-shimmer 720ms cubic-bezier(0.45, 0, 0.55, 1);
+}
+/* Pinned hover: the shimmer frozen mid-sweep. */
+.btn-save[data-state="hover"]::after {
+  opacity: 1;
+  translate: 6% 0;
+}
+.btn-save:where(:not(:disabled)):active,
+.btn-save[data-state="press"] {
+  scale: 0.97;
+}
+@keyframes btn-save-shimmer {
+  0% {
+    translate: -110% 0;
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
+  }
+  100% {
+    translate: 110% 0;
+    opacity: 0;
+  }
+}
+.btn-save:focus-visible,
+.btn-save[data-state="focus"] {
+  outline: 2px solid color-mix(in oklab, var(--accent) 45%, white);
+  outline-offset: 3px;
+}
+.btn-save:disabled {
+  opacity: 0.4;
+}
+
+/* ===== Ink: secondary and destructive ======================================= */
+/* Just ink on the page. A hairline sits under the word at rest and a full-strength line draws in
+   from the left on hover. */
+.btn-ink,
+.btn-ink-danger {
+  --btn-ink-ring: rgb(255 255 255 / 0.85);
+  height: 2.5rem;
+  padding: 0 0.5rem;
+  border-radius: 0.5rem;
+  color: #f1efec;
+  font-weight: 500;
+  transition: scale 160ms var(--btn-ease);
+}
+.btn-ink-danger {
+  color: #ff9ea8;
+}
+/* The halo: a soft glow behind the word that fades in on hover and stays while pressed, as
+   opacity: clear white on the ink buttons, red on Delete. It reaches a little past the button so
+   it reads as light, not a filled shape. */
+.btn-ink {
+  --btn-halo: 255 255 255;
+  --btn-halo-strength: 0.24;
+}
+.btn-ink-danger {
+  --btn-halo: 255 72 92;
+  --btn-halo-strength: 0.34;
+}
+.btn-ink::before,
+.btn-ink-danger::before {
+  content: "";
+  position: absolute;
+  inset: -0.375rem -0.625rem;
+  z-index: -1;
+  border-radius: 9999px;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    closest-side,
+    rgb(var(--btn-halo) / var(--btn-halo-strength)),
+    rgb(var(--btn-halo) / calc(var(--btn-halo-strength) * 0.35)) 60%,
+    transparent
+  );
+  transition: opacity 260ms var(--btn-ease);
+}
+:is(.btn-ink, .btn-ink-danger):where(:not(:disabled)):is(:hover, :active)::before,
+:is(.btn-ink, .btn-ink-danger):is([data-state="hover"], [data-state="press"])::before {
+  opacity: 1;
+}
+/* The padding makes room for the line; the matching negative margin keeps it out of the
+   button's layout, so the word itself sits on the button's centre line. */
+.btn-ink-label {
+  position: relative;
+  padding-bottom: 4px;
+  margin-bottom: -4px;
+}
+.btn-ink-label::before,
+.btn-ink-label::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: currentColor;
+}
+.btn-ink-label::before {
+  opacity: 0.22;
+}
+.btn-ink-label::after {
+  height: 1.5px;
+  transform-origin: left center;
+  scale: 0 1;
+  transition: scale 380ms var(--btn-ease);
+}
+:is(.btn-ink, .btn-ink-danger):where(:not(:disabled)):hover .btn-ink-label::after,
+:is(.btn-ink, .btn-ink-danger)[data-state="hover"] .btn-ink-label::after,
+:is(.btn-ink, .btn-ink-danger):where(:not(:disabled)):active .btn-ink-label::after,
+:is(.btn-ink, .btn-ink-danger)[data-state="press"] .btn-ink-label::after {
+  scale: 1 1;
+}
+:is(.btn-ink, .btn-ink-danger):where(:not(:disabled)):active,
+:is(.btn-ink, .btn-ink-danger)[data-state="press"] {
+  scale: 0.97;
+}
+:is(.btn-ink, .btn-ink-danger):where(:not(:disabled)):active .btn-ink-label::after,
+:is(.btn-ink, .btn-ink-danger)[data-state="press"] .btn-ink-label::after {
+  scale: 1 1.6;
+}
+:is(.btn-ink, .btn-ink-danger):focus-visible,
+:is(.btn-ink, .btn-ink-danger)[data-state="focus"] {
+  outline: 1.5px solid var(--btn-ink-ring);
+  outline-offset: 3px;
+}
+:is(.btn-ink, .btn-ink-danger):disabled {
+  opacity: 0.4;
+}
+
+/* ===== Icon ================================================================= */
+/* No chrome until hover, then a soft disc fades in behind the glyph. */
+.btn-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  color: #fff;
+  transition: scale 160ms var(--btn-ease);
+}
+.btn-icon svg {
+  opacity: 0.66;
+  transition: opacity 200ms var(--btn-ease);
+}
+.btn-icon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: rgb(255 255 255 / 0.13);
+  pointer-events: none;
+  opacity: 0;
+  scale: 0.8;
+  transition:
+    opacity 200ms var(--btn-ease),
+    scale 260ms var(--btn-ease);
+}
+.btn-icon:where(:not(:disabled)):hover::before,
+.btn-icon[data-state="hover"]::before,
+.btn-icon:where(:not(:disabled)):active::before,
+.btn-icon[data-state="press"]::before {
+  opacity: 1;
+  scale: 1;
+}
+.btn-icon:where(:not(:disabled)):hover svg,
+.btn-icon[data-state="hover"] svg,
+.btn-icon:where(:not(:disabled)):active svg,
+.btn-icon[data-state="press"] svg {
+  opacity: 1;
+}
+.btn-icon:where(:not(:disabled)):active,
+.btn-icon[data-state="press"] {
+  scale: 0.92;
+}
+.btn-icon:focus-visible,
+.btn-icon[data-state="focus"] {
+  outline: 1.5px solid rgb(255 255 255 / 0.85);
+  outline-offset: 3px;
+}
+.btn-icon:disabled {
+  opacity: 0.4;
+}
+
+/* ===== Toggle =============================================================== */
+/* Two options as plain words, and a dot that slides under the chosen one. The dot follows
+   aria-pressed on the second option, so it needs no value attribute from the caller. */
+.btn-seg {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+}
+.btn-seg-dot {
+  position: absolute;
+  bottom: 1px;
+  left: 0;
+  display: flex;
+  width: 50%;
+  justify-content: center;
+  pointer-events: none;
+  transition: translate 340ms var(--btn-ease);
+}
+.btn-seg-dot > span {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: #fff;
+}
+.btn-seg:has(.btn-seg-opt:last-of-type[aria-pressed="true"]) .btn-seg-dot {
+  translate: 100% 0;
+}
+.btn-seg-opt {
+  height: 2.25rem;
+  padding: 0 0.9rem 0.25rem;
+  border-radius: 0.5rem;
+  color: #fff;
+  font-weight: 500;
+  opacity: 0.5;
+  transition:
+    opacity 200ms var(--btn-ease),
+    scale 160ms var(--btn-ease);
+}
+.btn-seg-opt[aria-pressed="true"] {
+  opacity: 1;
+}
+.btn-seg-opt:where(:not(:disabled)):hover,
+.btn-seg[data-state="hover"] .btn-seg-opt[aria-pressed="false"] {
+  opacity: 0.85;
+}
+.btn-seg-opt:where(:not(:disabled)):active,
+.btn-seg[data-state="press"] .btn-seg-opt[aria-pressed="false"] {
+  scale: 0.94;
+}
+.btn-seg-opt:focus-visible,
+.btn-seg[data-state="focus"] .btn-seg-opt[aria-pressed="true"] {
+  outline: 1.5px solid rgb(255 255 255 / 0.85);
+  outline-offset: 3px;
+}
+.btn-seg:has(.btn-seg-opt:disabled) {
+  opacity: 0.4;
+}
+
+/* ---------------------------------------------------------------------------
+ * Glass toggle (#145): a row of options where the chosen one sits on the Save button's hover glass,
+ * for any number of options. Built from the pieces of `.btn-save`'s hover (the corner highlight,
+ * the faint glow of --btn-tint / --btn-tint-default off the lower edge, `.glass-fake`'s body and
+ * edges), so it stays in step with it; there is no backdrop-filter.
+ *   .seg-glass        the row. Inline: --n (how many options) and --i (the chosen one, from 0).
+ *   .seg-glass-thumb  an aria-hidden span, first child: the glass under the chosen option. It slides
+ *                     with the house easing (translate only); reduced motion = it jumps.
+ *   .seg-glass-opt    one option button (aria-pressed): a plain label; hover shows the same glass
+ *                     at low opacity.
+ *   .seg-glass-face   the same glass as a static backdrop for any element (isolate it), shown when
+ *                     it has data-on="true"; the Stats stepper uses it for a period stepped back to.
+ * ------------------------------------------------------------------------- */
+.seg-glass {
+  position: relative;
+  isolation: isolate;
+  display: inline-grid;
+  grid-template-columns: repeat(var(--n), 1fr);
+}
+.seg-glass-thumb,
+.seg-glass-opt::before,
+.seg-glass-face::before {
+  background:
+    radial-gradient(120% 70% at 15% -15%, rgb(255 255 255 / 0.18), transparent 60%),
+    radial-gradient(
+      90% 140% at 50% 135%,
+      color-mix(in oklab, var(--btn-tint, var(--btn-tint-default)) 55%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.04) 55%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    inset 0 -1px 0 rgb(255 255 255 / 0.08),
+    inset 0 0 0 1px rgb(255 255 255 / 0.12);
+}
+.seg-glass-thumb {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: -1;
+  width: calc(100% / var(--n));
+  border-radius: 9999px;
+  pointer-events: none;
+  translate: calc(var(--i) * 100%) 0;
+  transition: translate 340ms var(--btn-ease);
+}
+.seg-glass-opt {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.25rem;
+  padding: 0 1.1rem;
+  border-radius: 9999px;
+  color: rgb(255 255 255 / 0.62);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color 200ms var(--btn-ease),
+    scale 160ms var(--btn-ease);
+}
+.seg-glass-opt::before,
+.seg-glass-face::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms var(--btn-ease);
+}
+.seg-glass-opt[aria-pressed="true"] {
+  color: #fff;
+}
+.seg-glass-opt[aria-pressed="false"]:hover {
+  color: rgb(255 255 255 / 0.9);
+}
+.seg-glass-opt[aria-pressed="false"]:hover::before {
+  opacity: 0.35;
+}
+.seg-glass-opt:active {
+  scale: 0.96;
+}
+.seg-glass-opt:focus-visible {
+  outline: 1.5px solid rgb(255 255 255 / 0.85);
+  outline-offset: 3px;
+}
+.seg-glass-face[data-on="true"]::before {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------------------------
+ * Stats page prototype (#145, dev only, /dev/stats and /dev/streams; delete with
+ * src/components/dev/streams). The motion for the whole page lives here, as everywhere. The
+ * budget: one entrance (rise and fade, transform and opacity only, 480ms or less, a small stagger
+ * from `--st-i`), the fan's fan-out when the tab or time frame changes, the lift and record slide
+ * of its active sleeve, and a hover lift on the grid's covers. Nothing loops and nothing follows
+ * the scroll. Content is never hidden without the animation: every entrance runs with `backwards`
+ * fill, so with no motion the page is simply there. The glass is faked (no backdrop-filter), like
+ * the sidebar's. Reduced-motion fallbacks are in the block at the end of the file.
  * ------------------------------------------------------------------------- */
 .st-root {
   --st-ease: cubic-bezier(0.16, 1, 0.3, 1);
-  --st-gold: #f4c84a;
-  --st-silver: #d3dae3;
-  --st-bronze: #d89560;
   font-variant-numeric: tabular-nums;
 }
 
@@ -657,130 +1129,52 @@ body {
     transform: translateY(14px);
   }
 }
-@keyframes st-b-rise {
-  from {
-    opacity: 0;
-    transform: translateY(26px);
-  }
-}
-@keyframes st-shine {
-  0% {
-    translate: -140% 0;
-    opacity: 0;
-  }
-  25% {
-    opacity: 1;
-  }
-  100% {
-    translate: 140% 0;
-    opacity: 0;
-  }
-}
-.st-a-rise {
+.st-rise {
   animation: st-rise 480ms var(--st-ease) backwards;
   animation-delay: calc(var(--st-i, 0) * 70ms);
 }
-/* The podium rises from its baseline, bronze first, so gold lands last. */
-.st-b-rise {
-  animation: st-b-rise 480ms var(--st-ease) backwards;
-  animation-delay: calc(var(--st-i, 0) * 80ms);
+
+/* The button set's toggle is two-option only (a dot at 0 or 50%). With more options, `.st-seg`
+   spreads the columns and the dot over `--n` options and puts the dot under option `--i`. Delete
+   this when the set's toggle takes any number of options. */
+.st-seg {
+  grid-template-columns: repeat(var(--n), 1fr);
 }
-.st-c-rise {
-  animation: st-rise 480ms var(--st-ease) backwards;
-  animation-delay: calc(var(--st-i, 0) * 60ms);
+.st-seg .btn-seg-dot,
+.st-seg:has(.btn-seg-opt:last-of-type[aria-pressed="true"]) .btn-seg-dot {
+  width: calc(100% / var(--n));
+  translate: calc(var(--i) * 100%) 0;
 }
 
-/* Sleeves lift on hover or focus, the record with them; the sleeve's shadow takes the cover's
-   own colour (`--st-accent`). */
+/* Ranks in the list and the fan: gold, silver and bronze for the first three. */
+.st-rank[data-medal="gold"],
+.st-fan-rank[data-medal="gold"] {
+  color: #ecce78;
+}
+.st-rank[data-medal="silver"],
+.st-fan-rank[data-medal="silver"] {
+  color: #d3d8e0;
+}
+.st-rank[data-medal="bronze"],
+.st-fan-rank[data-medal="bronze"] {
+  color: #dc9a5e;
+}
+
+/* The grid's covers lift on hover; the sleeve's shadow takes the cover's own colour
+   (`--st-accent`). */
 .st-lift {
   transition: translate 320ms var(--st-ease);
 }
 .st-lift .record-sleeve {
   transition: box-shadow 320ms var(--st-ease);
 }
-.st-lift:hover,
-.st-lift:focus-visible {
+.st-lift:hover {
   translate: 0 -6px;
 }
-.st-lift:hover .record-sleeve,
-.st-lift:focus-visible .record-sleeve {
+.st-lift:hover .record-sleeve {
   box-shadow:
     0 30px 50px -18px color-mix(in srgb, var(--st-accent, #fff) 65%, black),
     0 10px 20px -10px rgb(0 0 0 / 0.55);
-}
-
-/* Medals: a metal coin on two ribbon tails. The numeral is part of the medal; the label says it. */
-.st-medal {
-  --m: 40px;
-  position: relative;
-  display: block;
-  width: var(--m);
-  height: var(--m);
-}
-.st-medal[data-ribbon="true"] {
-  height: calc(var(--m) * 1.3);
-}
-.st-medal-ribbon {
-  position: absolute;
-  left: 50%;
-  top: 48%;
-  width: 64%;
-  height: 56%;
-  translate: -50% 0;
-  background: var(--st-ribbon);
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 74%, 0 100%);
-}
-.st-medal-coin {
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: grid;
-  place-items: center;
-  width: var(--m);
-  height: var(--m);
-  overflow: hidden;
-  border-radius: 9999px;
-  background: var(--st-coin);
-  color: var(--st-ink);
-  font-size: calc(var(--m) * 0.5);
-  font-weight: 800;
-  line-height: 1;
-  text-shadow: 0 1px 0 rgb(255 255 255 / 0.45);
-  box-shadow:
-    inset 0 0 0 calc(var(--m) * 0.07) var(--st-rim),
-    inset 0 calc(var(--m) * 0.05) calc(var(--m) * 0.08) rgb(255 255 255 / 0.6),
-    inset 0 calc(var(--m) * -0.08) calc(var(--m) * 0.1) rgb(0 0 0 / 0.28),
-    0 6px 14px -4px rgb(0 0 0 / 0.6);
-}
-.st-medal-coin::after {
-  content: "";
-  position: absolute;
-  inset: -20%;
-  opacity: 0;
-  translate: -140% 0;
-  background: linear-gradient(105deg, transparent 38%, rgb(255 255 255 / 0.8) 50%, transparent 62%);
-}
-/* One pass, the first time the medal scrolls into view (the component sets data-seen once). */
-.st-medal[data-seen="true"] .st-medal-coin::after {
-  animation: st-shine 700ms var(--st-ease) 250ms both;
-}
-.st-medal[data-rank="1"] {
-  --st-coin: radial-gradient(circle at 30% 22%, #fff8d6 0%, #f8d56b 30%, #dfa93a 68%, #b07a1c 100%);
-  --st-rim: #f6d77a;
-  --st-ink: #6b4608;
-  --st-ribbon: linear-gradient(#b3791f, #7a4f10);
-}
-.st-medal[data-rank="2"] {
-  --st-coin: radial-gradient(circle at 30% 22%, #ffffff 0%, #dfe5ec 30%, #aeb8c4 68%, #7f8a98 100%);
-  --st-rim: #eef2f6;
-  --st-ink: #414b59;
-  --st-ribbon: linear-gradient(#7d8896, #566070);
-}
-.st-medal[data-rank="3"] {
-  --st-coin: radial-gradient(circle at 30% 22%, #ffe3c2 0%, #e0a26b 30%, #bb7a42 68%, #8a5128 100%);
-  --st-rim: #efbf8f;
-  --st-ink: #52290f;
-  --st-ribbon: linear-gradient(#9a5d33, #6a3a1c);
 }
 
 /* Artists are round discs: the cover cropped to a circle with a spindle hole and a faint groove. */
@@ -804,85 +1198,195 @@ body {
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
 }
 
-/* Direction B: the podium's steps are faked glass with the rank engraved in the face. */
-.st-b-step {
+/* The fan (mirrors the sidebar's `.sb-shelf*` and `.sb-sleeve*`, at page size): five sleeves
+   overlap like a hand of cards, number one in the middle. Everything is a multiple of --w, the
+   sleeve's width. Per sleeve: --a tilts it, --k orders the fan-out from the middle. The active one
+   lifts, straightens a little and shows its tag, and its record slides out of the top. The shelf
+   is tall enough for the lift and for the record. */
+.st-fan {
+  --w: clamp(150px, 19vw, 210px);
   position: relative;
-  isolation: isolate;
-  display: flex;
-  justify-content: center;
-  overflow: hidden;
-  border-radius: 18px 18px 0 0;
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0.03));
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.35),
-    inset 0 0 0 1px rgb(255 255 255 / 0.1);
+  height: calc(var(--w) * 2.1);
 }
-.st-b-step-rank {
-  margin-top: 0.15em;
-  font-size: 64px;
-  font-weight: 900;
-  line-height: 1;
-  letter-spacing: -0.04em;
-  color: transparent;
-  background: var(--st-metal);
-  -webkit-background-clip: text;
-  background-clip: text;
-  opacity: 0.9;
+.st-fan-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-.st-b-step[data-rank="1"] {
-  --st-metal: linear-gradient(180deg, #fff3bd, #e0a93a 70%);
-}
-.st-b-step[data-rank="2"] {
-  --st-metal: linear-gradient(180deg, #ffffff, #a9b3c0 70%);
-}
-.st-b-step[data-rank="3"] {
-  --st-metal: linear-gradient(180deg, #ffd9b3, #bb7a42 70%);
-}
-
-/* Direction C: a huge outlined rank numeral across the sleeve's lower corner. Gold, silver and
-   bronze strokes for the top three; the rest are a quieter white. The faint fill and the shadow
-   keep the stroke readable over bright covers. */
-.st-c-numeral {
+.st-fan-ground {
   position: absolute;
-  left: -8px;
-  bottom: -30px;
-  z-index: 2;
-  /* A static face on purpose: the variable system font has overlapping contours, and a stroke
-     draws every one of them (stray lines inside the 2 and the 4). */
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  font-size: 212px;
+  left: 10%;
+  right: 10%;
+  bottom: calc(var(--w) * 0.214);
+  height: calc(var(--w) * 0.25);
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.55), transparent);
+}
+.st-fan-plank {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--w) * 0.348);
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgb(255 255 255 / 0.2) 20%,
+    rgb(255 255 255 / 0.2) 80%,
+    transparent
+  );
+}
+.st-fan-sleeve {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--w) * 0.357);
+  width: var(--w);
+  height: var(--w);
+  margin-left: calc(var(--w) / -2);
+  list-style: none;
+  /* A pivot well below the shelf, so the five tilt around one point like a hand of cards. */
+  transform-origin: 50% 330%;
+  transform: rotate(var(--a));
+  transition: transform 300ms var(--st-ease);
+  animation: st-fan-in 420ms var(--st-ease) calc(60ms + var(--k) * 52ms) backwards;
+}
+@keyframes st-fan-in {
+  from {
+    opacity: 0;
+    transform: rotate(0deg) translate3d(0, calc(var(--w) * 0.3), 0);
+  }
+}
+.st-fan-sleeve[data-active="true"] {
+  transform: rotate(calc(var(--a) * 0.8)) translate3d(0, calc(var(--w) * -0.232), 0);
+}
+/* The button scales about its own bottom centre; scaling the sleeve itself would swing it out
+   from the far pivot. */
+.st-fan-hit {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  transform-origin: 50% 100%;
+  transition: transform 300ms var(--st-ease);
+}
+.st-fan-sleeve[data-shape="disc"] .st-fan-hit {
+  border-radius: 9999px;
+}
+.st-fan-sleeve[data-active="true"] .st-fan-hit {
+  transform: scale(1.07);
+}
+.st-fan-hit:focus-visible {
+  outline: 1.5px solid rgb(255 255 255 / 0.85);
+  outline-offset: 6px;
+}
+.st-fan-art {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 12px;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.14),
+    0 24px 44px -20px rgb(0 0 0 / 0.8);
+}
+.st-fan-sleeve[data-shape="disc"] .st-fan-art {
+  border-radius: 9999px;
+}
+/* Gold, silver and bronze rims for the first three: a thin ring and a faint glow. */
+.st-fan-art[data-medal="gold"] {
+  box-shadow: 0 0 0 3px #dcb860, 0 0 34px -6px rgb(220 184 96 / 0.5), 0 24px 44px -20px rgb(0 0 0 / 0.8);
+}
+.st-fan-art[data-medal="silver"] {
+  box-shadow: 0 0 0 3px #c5cad3, 0 0 30px -7px rgb(197 202 211 / 0.4), 0 24px 44px -20px rgb(0 0 0 / 0.8);
+}
+.st-fan-art[data-medal="bronze"] {
+  box-shadow: 0 0 0 3px #c98a4e, 0 0 30px -7px rgb(201 138 78 / 0.4), 0 24px 44px -20px rgb(0 0 0 / 0.8);
+}
+/* The record behind the sleeve; it slides out of the top on the active one. */
+.st-fan-record {
+  position: absolute;
+  left: 6%;
+  top: 0;
+  width: 88%;
+  aspect-ratio: 1;
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle, transparent 0 63%, rgb(0 0 0 / 0.35) 63.5% 64.5%, transparent 65%),
+    repeating-radial-gradient(circle, rgb(255 255 255 / 0.05) 0 1px, transparent 1px 3px),
+    #111;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.1),
+    0 10px 22px -10px rgb(0 0 0 / 0.8);
+  transition: transform 340ms var(--st-ease);
+}
+.st-fan-sleeve[data-active="true"] .st-fan-record {
+  transform: translate3d(0, -40%, 0);
+}
+.st-fan-record-label {
+  position: absolute;
+  inset: 33%;
+  border-radius: 9999px;
+  background: var(--accent) center / cover;
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.5);
+}
+.st-fan-rank {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  z-index: 1;
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  background: rgb(0 0 0 / 0.62);
+  color: rgb(255 255 255 / 0.85);
+  font-size: 14px;
   font-weight: 700;
-  line-height: 0.78;
-  letter-spacing: -0.05em;
-  color: rgb(0 0 0 / 0.18);
-  -webkit-text-stroke: 3px var(--st-stroke, rgb(255 255 255 / 0.85));
-  filter: drop-shadow(0 4px 12px rgb(0 0 0 / 0.5));
-  pointer-events: none;
-  user-select: none;
+  line-height: 28px;
+  text-align: center;
 }
-.st-c-numeral[data-wide="true"] {
-  font-size: 160px;
-  letter-spacing: -0.08em;
+/* The sleeves left of the middle show their left strip, so their number sits there. */
+.st-fan-sleeve[data-side="left"] .st-fan-rank {
+  left: 9px;
+  right: auto;
 }
-.st-c-numeral[data-rank="1"] {
-  --st-stroke: var(--st-gold);
+/* On a disc the number sits inside the circle, not out in the square's empty corner. */
+.st-fan-sleeve[data-shape="disc"] .st-fan-rank {
+  top: 13%;
+  right: 13%;
 }
-.st-c-numeral[data-rank="2"] {
-  --st-stroke: var(--st-silver);
+.st-fan-sleeve[data-shape="disc"][data-side="left"] .st-fan-rank {
+  left: 13%;
+  right: auto;
 }
-.st-c-numeral[data-rank="3"] {
-  --st-stroke: var(--st-bronze);
+.st-fan-tag {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  padding: 44px 14px 12px;
+  border-radius: 0 0 12px 12px;
+  text-align: left;
+  background: linear-gradient(to top, rgb(0 0 0 / 0.84), transparent);
+  opacity: 0;
+  transform: translate3d(0, 6px, 0);
+  transition:
+    opacity 220ms var(--st-ease),
+    transform 260ms var(--st-ease);
 }
-/* The shelf scrolls sideways under the page's column with its own quiet scrollbar. */
-.st-c-shelf {
-  scroll-snap-type: x proximity;
-  scrollbar-width: none;
+.st-fan-sleeve[data-active="true"] .st-fan-tag {
+  opacity: 1;
+  transform: none;
 }
-.st-c-shelf::-webkit-scrollbar {
-  display: none;
-}
-.st-c-shelf > * {
-  scroll-snap-align: start;
+.st-fan-sleeve[data-shape="disc"] .st-fan-tag {
+  left: 12%;
+  right: 12%;
+  bottom: 9%;
+  padding: 6px 10px 7px;
+  border-radius: 18px;
+  text-align: center;
+  background: rgb(0 0 0 / 0.72);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -922,16 +1426,44 @@ body {
   .track-list[data-sorting] .track-row[data-lifted] {
     scale: 1;
   }
-  /* Streams prototype (#145): no entrances and no medal shine; the sleeve lift still happens
-     but jumps. */
-  .st-a-rise,
-  .st-b-rise,
-  .st-c-rise,
-  .st-medal[data-seen="true"] .st-medal-coin::after {
+  /* Buttons (#155): states still switch, nothing glides or sweeps. The save button still lights
+     up into its glass, as a short plain opacity fade, and its shimmer does not exist. */
+  .btn-save,
+  .btn-ink,
+  .btn-ink-danger,
+  .btn-ink-label::after,
+  .btn-icon,
+  .btn-icon::before,
+  .btn-icon svg,
+  .btn-seg-dot,
+  .btn-seg-opt {
+    transition: none;
+  }
+  .btn-save::before {
+    transition: opacity 160ms linear;
+  }
+  .btn-save::after {
+    display: none;
+  }
+  /* Stats prototype (#145): no entrances and no fan-out; the grid's lift and the fan's lift, record
+     slide and tag still change, but jump. */
+  .st-rise,
+  .st-fan-sleeve {
     animation: none;
   }
+  /* Glass toggle (#145): the thumb jumps, the hover glass and the colours switch without fading. */
+  .seg-glass-thumb,
+  .seg-glass-opt,
+  .seg-glass-opt::before,
+  .seg-glass-face::before {
+    transition: none;
+  }
   .st-lift,
-  .st-lift .record-sleeve {
+  .st-lift .record-sleeve,
+  .st-fan-sleeve,
+  .st-fan-hit,
+  .st-fan-record,
+  .st-fan-tag {
     transition: none;
   }
 }

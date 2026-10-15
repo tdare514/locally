@@ -106,9 +106,11 @@ export interface ReleasePlaysResponse {
   tracks: TrackPlays[];
 }
 
-/** One release from the phone that hasn't been imported into the local library yet. */
+/** One release from another device (the phone, the web) that hasn't been imported into the local library yet. */
 export interface PendingFromPhone {
   id: string;
+  /** The record's `origin` token: "ios", "web" or any other a newer client writes (#185). */
+  origin: string;
   title: string;
   artist: string;
   kind: ReleaseKind;

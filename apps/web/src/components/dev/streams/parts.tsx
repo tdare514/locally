@@ -1,27 +1,19 @@
 "use client";
 
-import Link from "next/link";
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, type CSSProperties } from "react";
 import { ChevronRightIcon } from "../../Icons";
 import {
-  VARIANTS,
   ago,
   fmt,
+  maxBack,
+  periodDetail,
+  periodLabel,
   playsLabel,
+  type Period,
   type Row,
-  type Tab,
-  type Variant,
 } from "./sample-data";
 
-/** Pieces shared by the three directions of the #145 Streams page prototype. */
+/** Pieces shared by the parts of the #145 Stats page prototype. */
 
 /** Cover id -> data URI. The server page builds it from the demo library's drawn SVGs. */
 export const CoversContext = createContext<Record<string, string>>({});
@@ -31,8 +23,13 @@ export function vars(values: Record<string, string | number>): CSSProperties {
   return values as CSSProperties;
 }
 
+/** "gold", "silver" or "bronze" for the first three ranks. */
+export function medalFor(rank: number | null): "gold" | "silver" | "bronze" | undefined {
+  return rank === 1 ? "gold" : rank === 2 ? "silver" : rank === 3 ? "bronze" : undefined;
+}
+
 // ---------------------------------------------------------------------------------------------
-// Covers: sleeve, disc, fluid cover
+// Covers
 // ---------------------------------------------------------------------------------------------
 
 export function Cover({ coverId, className = "" }: { coverId: string; className?: string }) {
@@ -44,82 +41,7 @@ export function Cover({ coverId, className = "" }: { coverId: string; className?
   );
 }
 
-/** A record sleeve of `size` px with the disc peeking out of its right edge (the release page's
- * look, #112, at any size). The layout box is the sleeve alone, so the disc overhangs into the
- * gap; `children` sit on top and are positioned against the sleeve's corner. */
-export function Sleeve({
-  coverId,
-  size,
-  peek = 0.2,
-  accent,
-  className = "",
-  children,
-}: {
-  coverId: string;
-  size: number;
-  /** How far the disc shows, as a fraction of the sleeve. 0 hides it. */
-  peek?: number;
-  accent: string;
-  className?: string;
-  children?: ReactNode;
-}) {
-  const src = useContext(CoversContext)[coverId];
-  const peekPx = Math.round(size * peek);
-  const disc = Math.round(size * 0.92);
-  return (
-    <div
-      className={`record st-lift relative w-fit ${className}`}
-      style={vars({ "--st-accent": accent, marginRight: -peekPx, paddingRight: peekPx })}
-    >
-      {peek > 0 && (
-        <div aria-hidden className="record-disc" style={{ width: disc, height: disc }}>
-          <div className="record-face">
-            <div
-              className="record-label"
-              style={src ? { backgroundImage: `url("${src}")` } : undefined}
-            />
-          </div>
-          <div className="record-sheen" />
-        </div>
-      )}
-      <div className="relative">
-        <div
-          className="record-sleeve relative overflow-hidden rounded-[4px] bg-card"
-          style={{ width: size, height: size }}
-        >
-          <Cover coverId={coverId} className="size-full" />
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-/** An artist: the cover of their most-played release cut to a record, with a spindle hole. */
-export function ArtistDisc({
-  coverId,
-  size,
-  accent,
-  className = "",
-  children,
-}: {
-  coverId: string;
-  size: number;
-  accent: string;
-  className?: string;
-  children?: ReactNode;
-}) {
-  return (
-    <div className={`st-lift relative w-fit ${className}`} style={vars({ "--st-accent": accent })}>
-      <div className="st-disc overflow-hidden" style={{ width: size, height: size }}>
-        <Cover coverId={coverId} className="size-full" />
-      </div>
-      {children}
-    </div>
-  );
-}
-
-/** A small square (or round) cover for list rows and tiles. */
+/** A small square (or round) cover for list rows. */
 export function Thumb({ row, size }: { row: Pick<Row, "coverId" | "round">; size: number }) {
   return (
     <span
@@ -134,80 +56,13 @@ export function Thumb({ row, size }: { row: Pick<Row, "coverId" | "round">; size
 }
 
 // ---------------------------------------------------------------------------------------------
-// Medals
+// Controls (the #155 button set)
 // ---------------------------------------------------------------------------------------------
 
-/** True once the element has been at least mostly on screen; never goes back. The medal's one
- * shine plays off this, so a medal far down the page shines when you reach it, not on load. */
-function useSeenOnce<T extends Element>() {
-  const ref = useRef<T>(null);
-  const [seen, setSeen] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || seen || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          setSeen(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.6 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [seen]);
-  return [ref, seen] as const;
-}
-
-const MEDAL_NAMES = ["Gold", "Silver", "Bronze"];
-
-export function medalRank(rank: number | null): 1 | 2 | 3 | null {
-  return rank === 1 || rank === 2 || rank === 3 ? rank : null;
-}
-
-/** #1 gold, #2 silver, #3 bronze: a metal coin, on ribbon tails when it is big enough. */
-export function Medal({
-  rank,
-  size = 40,
-  ribbon = true,
-  className = "",
-}: {
-  rank: 1 | 2 | 3;
-  size?: number;
-  ribbon?: boolean;
-  className?: string;
-}) {
-  const [ref, seen] = useSeenOnce<HTMLSpanElement>();
-  // `className` positions the wrapper; `.st-medal` is unlayered CSS and would beat a utility like
-  // `absolute` if it were set on the same element.
-  return (
-    <span className={`inline-block ${className}`}>
-      <span
-        ref={ref}
-        role="img"
-        aria-label={`${MEDAL_NAMES[rank - 1]} medal, number ${rank}`}
-        data-rank={rank}
-        data-ribbon={ribbon}
-        data-seen={seen}
-        className="st-medal"
-        style={vars({ "--m": `${size}px` })}
-      >
-        {ribbon && <span className="st-medal-ribbon" />}
-        <span aria-hidden className="st-medal-coin">
-          {rank}
-        </span>
-      </span>
-    </span>
-  );
-}
-
-// ---------------------------------------------------------------------------------------------
-// Controls
-// ---------------------------------------------------------------------------------------------
-
-/** A pill group: faked glass track, the chosen option a solid white pill. */
-export function Segmented<T extends string>({
+/** The set's toggle: words, and a dot that slides under the chosen one. Two options is exactly
+ * `.btn-seg`; more adds `.st-seg`, which spreads the dot over `--n` columns and puts it at `--i`
+ * (the set's toggle is two-option only, see the Streams block in globals.css). */
+export function Toggle<T extends string>({
   label,
   value,
   options,
@@ -216,37 +71,127 @@ export function Segmented<T extends string>({
 }: {
   label: string;
   value: T;
-  options: { value: T; label: string; count?: number }[];
+  options: { value: T; label: string }[];
   onChange: (value: T) => void;
   className?: string;
 }) {
+  const index = Math.max(
+    0,
+    options.findIndex((o) => o.value === value),
+  );
   return (
     <div
       role="group"
       aria-label={label}
-      className={`glass-fake relative isolate inline-flex rounded-full p-1 ${className}`}
+      className={`btn-seg ${options.length > 2 ? "st-seg" : ""} ${className}`}
+      style={options.length > 2 ? vars({ "--n": options.length, "--i": index }) : undefined}
     >
-      {options.map((o) => {
-        const on = o.value === value;
-        return (
-          <button
-            key={o.value}
-            type="button"
-            aria-pressed={on}
-            onClick={() => onChange(o.value)}
-            className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-[background-color,color,transform] duration-200 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-              on ? "bg-white text-black" : "text-text-soft hover:text-white"
-            }`}
-          >
-            {o.label}
-            {o.count !== undefined && (
-              <span className={`ml-1.5 font-medium ${on ? "text-black/55" : "text-text-hint"}`}>
-                {o.count}
-              </span>
-            )}
-          </button>
-        );
-      })}
+      <span aria-hidden className="btn-seg-dot">
+        <span />
+      </span>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          aria-pressed={o.value === value}
+          onClick={() => onChange(o.value)}
+          className="btn-seg-opt"
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The glass toggle (`.seg-glass`, globals.css): the chosen option sits on the Save button's hover
+ * glass, which slides to the next one. Any number of options. */
+export function GlassToggle<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  className = "",
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+  className?: string;
+}) {
+  const index = Math.max(
+    0,
+    options.findIndex((o) => o.value === value),
+  );
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className={`seg-glass ${className}`}
+      style={vars({ "--n": options.length, "--i": index })}
+    >
+      <span aria-hidden className="seg-glass-thumb" />
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          aria-pressed={o.value === value}
+          onClick={() => onChange(o.value)}
+          className="seg-glass-opt"
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const STEP_NOUN = { day: "day", week: "week", month: "month", year: "year", all: "" } as const;
+
+/** Steps the chosen time frame back and forward: earlier is the left chevron. A period stepped back
+ * to sits on the same glass as the chosen time frame. All time has nothing to step through, so it
+ * only says what it covers. */
+export function PeriodStepper({
+  period,
+  onChange,
+}: {
+  period: Period;
+  onChange: (period: Period) => void;
+}) {
+  const noun = STEP_NOUN[period.kind];
+  const step = (by: number) => onChange({ kind: period.kind, back: period.back + by });
+  return (
+    <div role="group" aria-label="Step through time" className="flex items-center gap-1">
+      {noun && (
+        <button
+          type="button"
+          className="btn-icon"
+          aria-label={`Previous ${noun}`}
+          disabled={period.back >= maxBack(period.kind)}
+          onClick={() => step(1)}
+        >
+          <ChevronRightIcon className="h-[18px] w-[18px] rotate-180" />
+        </button>
+      )}
+      <p
+        aria-live="polite"
+        data-on={period.back > 0}
+        className="seg-glass-face relative isolate min-w-[9.5rem] rounded-full px-4 py-1.5 text-center"
+      >
+        <span className="block text-sm font-semibold leading-tight">{periodLabel(period)}</span>
+        <span className="block text-xs leading-tight text-text-muted">{periodDetail(period)}</span>
+      </p>
+      {noun && (
+        <button
+          type="button"
+          className="btn-icon"
+          aria-label={`Next ${noun}`}
+          disabled={period.back === 0}
+          onClick={() => step(-1)}
+        >
+          <ChevronRightIcon className="h-[18px] w-[18px]" />
+        </button>
+      )}
     </div>
   );
 }
@@ -283,7 +228,7 @@ export function SelectMenu<T extends string>({
 }
 
 // ---------------------------------------------------------------------------------------------
-// The ranked list (A, and C's denser version)
+// The ranked list
 // ---------------------------------------------------------------------------------------------
 
 function PlayBar({ plays, max, accent }: { plays: number; max: number; accent: string }) {
@@ -298,64 +243,34 @@ function PlayBar({ plays, max, accent }: { plays: number; max: number; accent: s
   );
 }
 
-function RankCell({ rank }: { rank: number | null }) {
-  const medal = medalRank(rank);
-  if (medal) return <Medal rank={medal} size={28} ribbon={false} />;
-  return (
-    <span className="w-7 text-center text-sm font-medium tabular-nums text-text-hint">
-      {rank ?? "-"}
-    </span>
-  );
-}
-
-/** Rows keep their plays rank (and medals) under any sort, so a name or recency sort still
- * shows who is on top. The bar is scaled to the most-played row in view. */
-export function RankedList({
-  rows,
-  dense = false,
-  label,
-}: {
-  rows: Row[];
-  dense?: boolean;
-  label: string;
-}) {
+/** Rows keep their plays rank under any sort, so a name or recency sort still shows who is on
+ * top. The first three are tinted gold, silver and bronze, like the fan's rims. The bar is
+ * scaled to the most-played row in view. */
+export function RankedList({ rows, label }: { rows: Row[]; label: string }) {
   const max = Math.max(0, ...rows.map((r) => r.plays));
-  const grid = dense
-    ? "grid-cols-[1.75rem_2rem_minmax(0,1fr)_6.5rem_9rem] lg:grid-cols-[1.75rem_2rem_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_6.5rem_10rem]"
-    : "grid-cols-[1.75rem_2.75rem_minmax(0,1fr)_7rem_10rem] lg:grid-cols-[1.75rem_2.75rem_minmax(0,1fr)_11rem_7rem_13rem]";
   return (
     <ol aria-label={label} className="mt-3">
       {rows.map((r) => (
         <li
           key={r.id}
-          className={`-mx-3 grid items-center gap-x-4 rounded-xl px-3 transition-colors duration-150 hover:bg-white/[0.06] ${grid} ${
-            dense ? "py-1.5" : "py-2.5"
-          }`}
+          className="-mx-3 grid grid-cols-[1.75rem_2.75rem_minmax(0,1fr)_7rem_10rem] items-center gap-x-4 rounded-xl px-3 py-2.5 transition-colors duration-150 hover:bg-white/[0.06] lg:grid-cols-[1.75rem_2.75rem_minmax(0,1fr)_11rem_7rem_13rem]"
         >
-          <RankCell rank={r.rank} />
-          <Thumb row={r} size={dense ? 32 : 44} />
-          {dense ? (
-            <>
-              <span className="truncate text-sm font-semibold">{r.title}</span>
-              <span className="hidden truncate text-sm text-text-muted lg:block">{r.subtitle}</span>
-              <span className="hidden truncate text-sm text-text-muted lg:block">{r.detail}</span>
-            </>
-          ) : (
-            <div className="min-w-0">
-              <p className="truncate text-[15px] font-semibold">{r.title}</p>
-              <p className="truncate text-sm text-text-muted">{r.subtitle}</p>
-            </div>
-          )}
-          {!dense && <span className="hidden truncate text-sm text-text-muted lg:block">{r.detail}</span>}
+          <span
+            className="st-rank w-7 text-center text-sm font-semibold tabular-nums text-text-hint"
+            data-medal={medalFor(r.rank)}
+          >
+            {r.rank}
+          </span>
+          <Thumb row={r} size={44} />
+          <div className="min-w-0">
+            <p className="truncate text-[15px] font-semibold">{r.title}</p>
+            <p className="truncate text-sm text-text-muted">{r.subtitle}</p>
+          </div>
+          <span className="hidden truncate text-sm text-text-muted lg:block">{r.detail}</span>
           <span className="text-sm text-text-hint">{ago(r.lastMins)}</span>
           <div className="flex items-center gap-3">
             <PlayBar plays={r.plays} max={max} accent={r.accent} />
-            <span
-              className={`w-12 shrink-0 text-right text-[15px] font-semibold tabular-nums ${
-                r.plays === 0 ? "text-text-dim" : ""
-              }`}
-              title={playsLabel(r.plays)}
-            >
+            <span className="w-12 shrink-0 text-right text-[15px] font-semibold tabular-nums" title={playsLabel(r.plays)}>
               {fmt(r.plays)}
             </span>
           </div>
@@ -369,30 +284,16 @@ export function RankedList({
 // Page furniture
 // ---------------------------------------------------------------------------------------------
 
-/** Dev-only strip: what this is, and the switch between the three directions. */
-export function DevStrip({ variant, tab }: { variant: Variant; tab: Tab }) {
+/** Dev-only strip: what this is. */
+export function DevStrip() {
   return (
-    <div className="mx-auto flex max-w-[1180px] flex-wrap items-center justify-between gap-3 px-10 pt-4 text-xs text-text-muted">
-      <p>Streams page prototype for #145. Sample data, dev only.</p>
-      <nav aria-label="Direction" className="flex gap-1.5">
-        {VARIANTS.map((v) => (
-          <Link
-            key={v.value}
-            href={`/dev/streams?v=${v.value}&tab=${tab}`}
-            aria-current={v.value === variant ? "page" : undefined}
-            className={`rounded-full px-3 py-1 font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-              v.value === variant ? "bg-white text-black" : "bg-white/10 text-text-soft hover:bg-white/15"
-            }`}
-          >
-            {v.label}
-          </Link>
-        ))}
-      </nav>
+    <div className="mx-auto max-w-[1180px] px-10 pt-4 text-xs text-text-muted">
+      <p>Stats page prototype for #145. Sample data, dev only.</p>
     </div>
   );
 }
 
-/** The quiet line on every direction, and the dev note on what the real data can and cannot do. */
+/** The quiet line on the page, and the dev note on what the real data can and cannot do. */
 export function FooterNotes() {
   return (
     <footer className="mx-auto mt-16 max-w-[1180px] px-10">
@@ -411,8 +312,9 @@ export function FooterNotes() {
         </p>
         <p className="mt-2">
           So from real data we can build all-time plays per track (one total across devices), per album (the
-          sum of its tracks) and per artist (the sum of their releases). We cannot build this week, this month,
-          last week or recently played: those figures here are sample numbers.
+          sum of its tracks) and per artist (the sum of their releases). We cannot build today, this week, this
+          month, this year, any step back or recently played: those figures here are sample numbers, summed
+          from an invented day-by-day history.
         </p>
         <p className="mt-2">
           To get them: a count per device, per track, per day (absolute for the day, merged with max like

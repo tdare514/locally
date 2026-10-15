@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Release, UpdateReleaseMeta } from "../shared/types";
 import {
@@ -382,13 +383,16 @@ export default function ReleaseView({
             lg:p-16 plus top-4 leaves the dock 5rem below the pane's top: clear of the phone-tray
             button AppShell pins there (md:top-6 + --tray-size = 4rem, and a rem of air). Keep
             that sum if the pane's padding changes. */}
-        <div className="sticky top-4 z-10 -my-4 flex w-fit max-w-full flex-wrap items-center gap-2 self-start rounded-[26px] bg-black/70 p-1.5 pr-3 sm:rounded-full shadow-[0_16px_40px_-12px_rgb(0_0_0/0.8)] ring-1 ring-white/10 backdrop-blur-xl lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:my-0 lg:w-auto lg:flex-col lg:items-stretch lg:gap-1 lg:rounded-[26px] lg:p-2">
+        <div
+          // The Save button's hover glow takes the cover's colour (#155); without a cover it stays the accent.
+          style={palette ? ({ "--btn-tint": palette.primary } as CSSProperties) : undefined}
+          className="sticky top-4 z-10 -my-4 flex w-fit max-w-full flex-wrap items-center gap-2 self-start rounded-[26px] glass-fake glass-dock p-1.5 pr-3 sm:rounded-full lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:my-0 lg:w-auto lg:flex-col lg:items-stretch lg:gap-1 lg:rounded-[26px] lg:p-2">
           <button
             type="button"
             onClick={handleSave}
             disabled={saving || IS_DEMO}
             title={IS_DEMO ? "Not available in the demo" : undefined}
-            className="rounded-full bg-accent px-7 py-2.5 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+            className="btn-save"
           >
             {saving ? "Saving…" : "Save to library"}
           </button>
@@ -400,7 +404,7 @@ export default function ReleaseView({
             onClick={handleReveal}
             disabled={IS_DEMO}
             title={IS_DEMO ? "Not available in the demo" : undefined}
-            className="rounded-full px-4 py-2.5 text-sm font-medium text-text transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+            className="btn-save"
           >
             Show in Finder
           </button>
@@ -420,9 +424,9 @@ export default function ReleaseView({
               <button
                 type="button"
                 onClick={() => setConfirmingDelete(false)}
-                className="rounded-full px-4 py-2 text-sm text-text-muted hover:text-text"
+                className="btn-ink"
               >
-                Cancel
+                <span className="btn-ink-label">Cancel</span>
               </button>
             </span>
           ) : (
@@ -431,9 +435,9 @@ export default function ReleaseView({
               onClick={handleDelete}
               disabled={IS_DEMO}
               title={IS_DEMO ? "Not available in the demo" : undefined}
-              className="rounded-full px-3 py-2.5 text-sm font-semibold text-danger transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              className="btn-ink-danger"
             >
-              Delete
+              <span className="btn-ink-label">Delete</span>
             </button>
           )}
         </div>
@@ -461,10 +465,10 @@ export default function ReleaseView({
               <button
                 type="button"
                 onClick={handleCopyTitle}
-                className="inline-flex items-center gap-1.5 rounded-full border border-text-dim px-4 py-1.5 text-xs font-medium text-text transition-colors hover:border-text"
+                className="btn-ink"
               >
                 <CopyIcon className="h-3.5 w-3.5" />
-                {copied ? COPIED_LABEL : COPY_LABEL}
+                <span className="btn-ink-label">{copied ? COPIED_LABEL : COPY_LABEL}</span>
               </button>
             </div>
             <p className="text-sm text-text-muted">{playlistSteps(release.title, tracks.length)}</p>

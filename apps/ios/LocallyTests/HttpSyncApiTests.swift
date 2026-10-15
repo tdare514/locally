@@ -89,6 +89,30 @@ struct HttpSyncApiTests {
         #expect(result.quota.usedBytes == 10)
     }
 
+    /// #185: `GET /v1/me` lists the account's devices with their platform;
+    /// a platform this build has never heard of ("web", or a newer one) must
+    /// not fail the call.
+    @Test func meToleratesDevicesOnAPlatformItHasNeverHeardOf() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { _ in
+            (200, [:], self.jsonData([
+                "user": ["id": "user-1", "email": "toby@example.com"],
+                "device": ["id": "device-1", "name": "Toby's iPhone"],
+                "quota": ["usedBytes": 10, "limitBytes": 100],
+                "devices": [
+                    ["id": "device-1", "name": "Toby's iPhone", "platform": "ios"],
+                    ["id": "device-2", "name": "Browser", "platform": "web"],
+                    ["id": "device-3", "name": "Gadget", "platform": "future-thing"],
+                ],
+                "devicesHasMore": false,
+            ]))
+        }
+
+        let result = try await api.me()
+        #expect(result.deviceId == "device-1")
+        #expect(result.quota.limitBytes == 100)
+    }
+
     @Test func requestCodeSendsPostWithEmailBodyAndNoAuthHeader() async throws {
         let (api, _) = makeApi(token: nil)
         StubURLProtocol.handler = { request in

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { INBOX_TITLE, originLabel } from "../lib/inbox-copy";
 import type { PendingFromPhone } from "../shared/types";
 import { CloudDownIcon, MusicNoteIcon, PlusIcon, XIcon } from "./Icons";
 
@@ -16,12 +17,12 @@ interface PhoneInboxProps {
 function triggerLabel(count: number, open: boolean): string {
   const base =
     count === 0
-      ? "Nothing from your phone"
-      : `${count} release${count === 1 ? "" : "s"} from your phone`;
+      ? "Nothing from your devices"
+      : `${count} release${count === 1 ? "" : "s"} from your devices`;
   return open ? `${base}, close` : base;
 }
 
-/** Round inbox button in the pane's top-right corner that opens a "From your phone" tray. */
+/** Round inbox button in the pane's top-right corner that opens a "From your devices" tray. */
 export default function PhoneInbox({ pending, onAccept }: PhoneInboxProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -107,13 +108,13 @@ export default function PhoneInbox({ pending, onAccept }: PhoneInboxProps) {
           ref={panelRef}
           id={panelId}
           role="dialog"
-          aria-label="From your phone"
+          aria-label={INBOX_TITLE}
           tabIndex={-1}
           data-state={open ? "open" : "closed"}
           className="phone-tray glass-fake glass-frost absolute right-full top-full z-30 isolate w-[17rem] max-w-[calc(100vw-2rem)] rounded-[22px] p-2 outline-none"
         >
           {pending.length === 0 && (
-            <p className="px-3 py-3 text-sm text-text-muted">Nothing waiting from your phone.</p>
+            <p className="px-3 py-3 text-sm text-text-muted">Nothing waiting from your devices.</p>
           )}
           {pending.map((p) => (
             <div key={p.id} className="phone-tray-row" data-leaving={leaving.has(p.id)}>
@@ -174,6 +175,7 @@ function PendingRow({
             {item.trackCount} track{item.trackCount === 1 ? "" : "s"}
           </span>
         </span>
+        <span className="block truncate text-[12px] text-text-dim">{originLabel(item.origin)}</span>
       </span>
     </div>
   );

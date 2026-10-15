@@ -73,8 +73,17 @@ describe("SyncRecordSchema / parseSyncRecord", () => {
     expect(() => parseSyncRecord(validRecord({ kind: "ep" as never }))).toThrow();
   });
 
-  it("rejects an unknown origin", () => {
-    expect(() => parseSyncRecord(validRecord({ origin: "android" as never }))).toThrow();
+  it("accepts any short lowercase origin token, so a record from a newer client never fails the page (#185)", () => {
+    for (const origin of ["mac", "ios", "web", "future-thing", "android", "a", "pwa2", "a234567890123456"]) {
+      expect(() => parseSyncRecord(validRecord({ origin })), origin).not.toThrow();
+    }
+  });
+
+  it("still rejects an origin that is not a short lowercase token", () => {
+    for (const origin of ["", "WEB", "Web", "1web", "-web", "web_app", "my web", "a2345678901234567", "web\n"]) {
+      expect(() => parseSyncRecord(validRecord({ origin })), JSON.stringify(origin)).toThrow();
+    }
+    expect(() => parseSyncRecord({ ...validRecord(), origin: 7 })).toThrow();
   });
 
   it("rejects a track with a non-numeric trackNumber", () => {

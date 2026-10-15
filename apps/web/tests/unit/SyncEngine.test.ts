@@ -468,7 +468,7 @@ describe("SyncEngine", () => {
 
     const statusAfterReconcile = await engine.status();
     expect(statusAfterReconcile.pendingFromPhone).toEqual([
-      { id: "ios-release-1", title: "Phone Song", artist: "Phone Artist", kind: "single", trackCount: 1 },
+      { id: "ios-release-1", origin: "ios", title: "Phone Song", artist: "Phone Artist", kind: "single", trackCount: 1 },
     ]);
 
     const imported = await engine.acceptFromPhone("ios-release-1");
@@ -483,6 +483,39 @@ describe("SyncEngine", () => {
 
     const statusAfterAccept = await engine.status();
     expect(statusAfterAccept.pendingFromPhone).toHaveLength(0);
+  });
+
+  it("offers a record from the web or from an origin it has never heard of as pending, labelled by its origin (#185)", async () => {
+    const fromOrigin = (id: string, origin: string, originDevice: string): SyncRecord => ({
+      syncVersion: 2,
+      id,
+      kind: "single",
+      title: `Song ${id}`,
+      artist: "Other Artist",
+      year: null,
+      genre: null,
+      cover: null,
+      coverHash: null,
+      tracks: [],
+      origin,
+      originDevice,
+      createdAt: "2026-10-01T10:00:00.000Z",
+      updatedAt: "2026-10-01T10:00:00.000Z",
+      deleted: false,
+    });
+    api.seedRemoteRecord(fromOrigin("from-web", "web", "Browser"));
+    api.seedRemoteRecord(fromOrigin("from-future", "future-thing", "Gadget"));
+    // A record from some other Mac is still not offered, and nothing here is mistaken for this Mac's own.
+    api.seedRemoteRecord(fromOrigin("from-other-mac", "mac", "Another Mac"));
+
+    await engine.reconcile();
+
+    const status = await engine.status();
+    expect(status.lastError).toBeNull();
+    expect(status.pendingFromPhone.map((p) => [p.id, p.origin]).sort()).toEqual([
+      ["from-future", "future-thing"],
+      ["from-web", "web"],
+    ]);
   });
 
   it("re-tags a local release in place when the remote copy is newer, without renaming", async () => {
