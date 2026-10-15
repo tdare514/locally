@@ -10,13 +10,15 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from "react";
-
-import type { PanelStart } from "./sample-data";
+import { menuButtonClick, pinChange, type PanelChange, type PinShift } from "../../lib/sidebar-panel";
+import {
+  loadSidebarPrefs,
+  saveSidebarOpenOnHover,
+  saveSidebarPinned,
+} from "../../lib/sidebar-prefs";
 
 /** How long the pointer can be off the panel and its trigger before the panel hides (#154). */
 export const GRACE_MS = 300;
-
-export type { PanelStart };
 
 /** The DOM nodes the panel logic needs. Kept apart from the hook's result: the React Compiler lint
  * treats any object holding a ref as a ref, which would flag every plain read of `panel.pinned`. */
@@ -30,23 +32,26 @@ export function usePanelRefs() {
 export type PanelRefs = ReturnType<typeof usePanelRefs>;
 
 /**
- * Hover-revealed floating panel (#154 prototype).
+ * The sidebar's hover-revealed panel (#154).
  *
- * - With `hoverReveal` on, hovering a "zone" (the whole rail) reveals the panel. It stays while the
+ * - With Open on hover on, hovering a "zone" (the whole rail) reveals the panel. It stays while the
  *   pointer is anywhere over the root (rail plus panel) and hides GRACE_MS after the pointer
- *   leaves. A keyboard user's focus inside the root also keeps it open. With `hoverReveal` off,
- *   hovering and focusing the rail do nothing: only the trigger (the menu button) opens the panel.
+ *   leaves. A keyboard user's focus inside the root also keeps it open. With it off, hovering and
+ *   focusing the rail do nothing: only the trigger (the menu button) opens the panel.
  * - Clicking the trigger with the mouse pins a hover-opened panel; clicking again unpins and
- *   closes it. With `hoverReveal` off, a click opens it and a second click closes it.
+ *   closes it. With Open on hover off, a click opens it and a second click closes it.
  * - Pressing Enter or Space on the trigger opens the panel and moves focus into it.
  * - Escape closes an unpinned panel and gives focus back to the trigger. A pinned panel is
  *   layout, so Escape leaves it alone.
+ * - Pinned and Open on hover are remembered (lib/sidebar-prefs). What each click means is decided
+ *   by lib/sidebar-panel.
  */
-export function useFloatingPanel(start: PanelStart, refs: PanelRefs, hoverReveal: boolean) {
-  const [open, setOpen] = useState(start === "open");
-  const [pinned, setPinned] = useState(start === "pinned");
+export function useFloatingPanel(refs: PanelRefs) {
+  const [open, setOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [hoverReveal, setHoverReveal] = useState(true);
   // Which way the content area should slide after the last pin change; null until it changes.
-  const [shift, setShift] = useState<"in" | "out" | null>(null);
+  const [shift, setShift] = useState<PinShift | null>(null);
   const [focusTick, setFocusTick] = useState(0);
 
   const panelId = useId();
@@ -57,6 +62,14 @@ export function useFloatingPanel(start: PanelStart, refs: PanelRefs, hoverReveal
   const quiet = useRef(false);
 
   const shown = open || pinned;
+
+  // Saved prefs load after mount so the server and first client render agree.
+  useEffect(() => {
+    const prefs = loadSidebarPrefs();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPinned(prefs.pinned);
+    setHoverReveal(prefs.openOnHover);
+  }, []);
 
   const clearTimer = useCallback(() => {
     if (timer.current !== null) {
@@ -109,6 +122,18 @@ export function useFloatingPanel(start: PanelStart, refs: PanelRefs, hoverReveal
     (first ?? panel).focus({ preventScroll: true });
   }, [focusTick, panelRef]);
 
+  const apply = useCallback(
+    (change: PanelChange) => {
+      clearTimer();
+      setOpen(change.open);
+      if (change.pinned !== pinned) saveSidebarPinned(change.pinned);
+      setPinned(change.pinned);
+      if (change.shift) setShift(change.shift);
+      if (change.focusPanel) setFocusTick((t) => t + 1);
+    },
+    [clearTimer, pinned],
+  );
+
   const reveal = useCallback(
     (e: PointerEvent) => {
       if (e.pointerType === "touch") return;
@@ -128,41 +153,20 @@ export function useFloatingPanel(start: PanelStart, refs: PanelRefs, hoverReveal
     [clearTimer, hoverReveal],
   );
 
-  const pin = useCallback(
-    (next: boolean) => {
-      clearTimer();
-      setPinned(next);
-      setShift(next ? "in" : "out");
-      setOpen(true);
-    },
-    [clearTimer],
-  );
-
-  const onTriggerClick = (e: MouseEvent) => {
-    clearTimer();
-    if (pinned) {
-      setPinned(false);
-      setShift("out");
-      setOpen(false);
-      return;
-    }
-    if (e.detail === 0) {
-      // Enter or Space: open if needed, then move focus into the panel.
-      setOpen(true);
-      setFocusTick((t) => t + 1);
-      return;
-    }
-    if (!open) setOpen(true);
-    else if (hoverReveal) pin(true);
-    else setOpen(false);
-  };
+  const changeHoverReveal = useCallback((next: boolean) => {
+    setHoverReveal(next);
+    saveSidebarOpenOnHover(next);
+  }, []);
 
   return {
     shown,
     pinned,
     shift,
     panelId,
-    pin,
+    hoverReveal,
+    setHoverReveal: changeHoverReveal,
+    /** "Pin open" on or off. */
+    pin: (next: boolean) => apply(pinChange(next)),
     /** On the element that wraps the rail and the panel. */
     rootProps: {
       onPointerEnter: (e: PointerEvent) => {
@@ -187,7 +191,9 @@ export function useFloatingPanel(start: PanelStart, refs: PanelRefs, hoverReveal
     triggerProps: {
       "aria-expanded": shown,
       "aria-controls": panelId,
-      onClick: onTriggerClick,
+      // A click with no pointer position (detail 0) came from Enter or Space.
+      onClick: (e: MouseEvent) =>
+        apply(menuButtonClick({ open, pinned }, { keyboard: e.detail === 0, hoverReveal })),
     },
   };
 }

@@ -306,59 +306,6 @@ body {
   box-shadow: 0 14px 24px -8px color-mix(in srgb, var(--ambient-primary) 80%, black);
 }
 
-/* Sidebar (#116): a translucent surface over the window-level library sky. No backdrop-filter:
-   the sky animates under it and a blur would repaint every frame. */
-.sidebar {
-  position: relative;
-  background: linear-gradient(to right, rgb(0 0 0 / 0.38), rgb(0 0 0 / 0.22));
-}
-.sidebar::after {
-  content: "";
-  position: absolute;
-  pointer-events: none;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    rgb(255 255 255 / 0.08) 20%,
-    rgb(255 255 255 / 0.08) 80%,
-    transparent
-  );
-}
-@media (min-width: 48rem) {
-  .sidebar::after {
-    top: 0;
-    bottom: 0;
-    right: 0;
-    left: auto;
-    width: 1px;
-    height: auto;
-    background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(255 255 255 / 0.08) 20%,
-      rgb(255 255 255 / 0.08) 80%,
-      transparent
-    );
-  }
-}
-.side-thumb {
-  box-shadow: 0 6px 14px -8px rgb(0 0 0 / 0.7);
-  transition:
-    translate 320ms cubic-bezier(0.16, 1, 0.3, 1),
-    scale 320ms cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 320ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.side-row:hover .side-thumb,
-.side-row:focus-visible .side-thumb {
-  translate: 0 -2px;
-  scale: 1.06;
-  box-shadow: 0 12px 20px -8px rgb(0 0 0 / 0.8);
-}
-
 /* Import pill: black ink at rest. On hover or focus the plus spins like a fan and winds down to
    rest upright while the ink snaps to bright white; once the plus has landed the ink settles to a
    dimmer white and a bright glint keeps sweeping through the letters, like a "thinking" shimmer.
@@ -1010,14 +957,14 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
- * #154 PROTOTYPE (dev only, /dev/sidebar): the floating sidebar, "Rail + bloom" (.sb-*).
+ * #154 the sidebar, "Rail + bloom" (.sb-*): a slim rail, and a panel that blooms out of it.
  * Effect budget, all transform and opacity on cubic-bezier(0.16, 1, 0.3, 1):
  *   1. card reveal and hide (300ms in, 240ms out)   2. a brief stagger of its groups
  *   3. rank bars growing on reveal, sliding when the period changes
  *   4. segmented thumb and tab underline sliding    5. switch knob
  *   6. the "Edit widgets" popover                   7. the stats shelf: sleeves fan out, the
  *   active one lifts, its record slides out of the top
- *   8. the content area sliding over when the card is pinned or unpinned
+ *   8. the pane sliding over when the card is pinned or unpinned
  * Every one of them has a fallback in the reduced-motion block at the end of this file.
  * The glass is faked on purpose (no backdrop-filter): the library sky animates behind it and a
  * blur would repaint every frame. The fill tints itself from the --ambient-* cover colours.
@@ -1107,25 +1054,29 @@ body {
 .sb-card[data-pinned="true"]::before {
   display: none;
 }
-/* The header (logo and "On this Mac") lines up with the logo on the rail. */
+/* The header ("On this Mac", or the signed-in email) lines up with the logo on the rail. */
 .sb-brand {
   position: absolute;
   left: 22px;
+  right: 22px;
   top: 8px;
 }
 .sb-card[data-pinned="true"] .sb-brand {
   top: 20px;
 }
+/* The pane (AppShell gives it .sb-stage and puts it right after .sb) leaves room for the rail, and
+   for the card too while it is pinned. The pane's layout changes at once; the slide is a transform
+   that starts partway back and settles. */
 .sb-stage {
   padding-left: 64px;
 }
-.sb-stage[data-pinned="true"] {
+.sb[data-pinned="true"] ~ .sb-stage {
   padding-left: 368px;
 }
-.sb-stage-inner[data-shift="in"] {
+.sb[data-shift="in"] ~ .sb-stage > main {
   animation: sb-shift-in 320ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-.sb-stage-inner[data-shift="out"] {
+.sb[data-shift="out"] ~ .sb-stage > main {
   animation: sb-shift-out 320ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes sb-shift-in {
@@ -1381,6 +1332,13 @@ body {
 .sb-sleeve[data-shape="disc"] .sb-art {
   border-radius: 9999px;
 }
+/* A release with no cover: a quiet tile with a music note in place of the picture. */
+.sb-art:not(img) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(255 255 255 / 0.08);
+}
 /* Gold, silver and bronze rims for the first three: a thin ring and a faint glow. */
 .sb-art[data-medal="gold"] {
   box-shadow: 0 0 0 2px #dcb860, 0 0 22px -4px rgb(220 184 96 / 0.5), 0 14px 26px -12px rgb(0 0 0 / 0.8);
@@ -1496,8 +1454,7 @@ body {
     translate: 0 -50%;
   }
   .shelf-cover,
-  .list-thumb,
-  .side-thumb {
+  .list-thumb {
     transition: none;
   }
   .phone-tray,
@@ -1537,7 +1494,7 @@ body {
     display: none;
   }
 
-  /* #154 prototype (.sb-*): the card shows and hides instantly and the stagger, fan, bars and pin
+  /* #154 sidebar (.sb-*): the card shows and hides instantly and the stagger, fan, bars and pin
      slide are switched off. State changes (a lifted sleeve, a moved thumb) still happen, just
      without the travel. */
   .sb-card,
@@ -1552,7 +1509,7 @@ body {
   .sb-card[data-state="open"] .sb-bar,
   .sb-card[data-state="open"] .sb-sleeve,
   .sb-swap,
-  .sb-stage-inner[data-shift] {
+  .sb[data-shift] ~ .sb-stage > main {
     animation: none;
   }
   .sb-bar,

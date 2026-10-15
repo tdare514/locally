@@ -1,26 +1,27 @@
 "use client";
 
 import { useState, type CSSProperties } from "react";
+import { STAT_KINDS, medalFor, type PlayStats, type StatItem, type StatKind } from "../../lib/play-stats";
+import { playsLabel } from "../../lib/plays-copy";
+import { MusicNoteIcon } from "../Icons";
 import { Choice, focusRing } from "./controls";
-import { KINDS, medalFor, topFor, type Period, type StatItem, type StatKind } from "./sample-data";
-import { useCovers } from "./use-stats";
+import { statCoverUrl } from "./StatCover";
 
 /** Where each rank sits across the fan, left to right: number one in the middle with silver on its
  * left and bronze on its right, like a podium. The DOM stays in rank order for the keyboard. */
 const SLOT_OF_RANK = [1, 0, 2];
 
 /**
- * The optional "Stats shelf" widget (#154 prototype): the top three as overlapping record sleeves
+ * The optional "Stats shelf" widget (#154): the top three as overlapping record sleeves
  * that fan out, with a Tracks / Albums / Artists switch above. The active sleeve (hovered, focused,
  * else number one) lifts and shows its title and plays; its record slides out of the top. The
  * first three carry a gold, silver and bronze rim.
  */
-export default function StatShelf({ period }: { period: Period }) {
+export default function StatShelf({ stats }: { stats: PlayStats }) {
   const [kind, setKind] = useState<StatKind>("tracks");
-  const covers = useCovers();
-  const items = topFor(kind, period);
+  const items = stats[kind];
   const [active, setActive] = useState(0);
-  const title = KINDS.find((k) => k.key === kind)?.title ?? "";
+  const title = STAT_KINDS.find((k) => k.key === kind)?.title ?? "";
 
   return (
     <section aria-label="Stats shelf">
@@ -28,7 +29,7 @@ export default function StatShelf({ period }: { period: Period }) {
         kind="tabs"
         label="Show top"
         value={kind}
-        options={KINDS.map((k) => ({ value: k.key, label: k.tab }))}
+        options={STAT_KINDS.map((k) => ({ value: k.key, label: k.tab }))}
         onChange={(next) => {
           setKind(next);
           setActive(0);
@@ -43,7 +44,7 @@ export default function StatShelf({ period }: { period: Period }) {
               key={item.id}
               item={item}
               index={i}
-              cover={covers[item.coverId]}
+              cover={statCoverUrl(item.cover)}
               disc={kind === "artists"}
               active={i === active}
               onActive={() => setActive(i)}
@@ -66,7 +67,7 @@ function Sleeve({
 }: {
   item: StatItem;
   index: number;
-  cover: string | undefined;
+  cover: string | null;
   /** Artists are round, with no record behind them. */
   disc: boolean;
   active: boolean;
@@ -91,7 +92,7 @@ function Sleeve({
         type="button"
         onPointerEnter={onActive}
         onFocus={onActive}
-        aria-label={`${item.rank}. ${item.title}, ${item.subtitle}, ${item.plays} plays`}
+        aria-label={`${item.rank}. ${item.title}, ${item.subtitle}, ${playsLabel(item.plays)}`}
         className={`sb-hit rounded-lg ${focusRing}`}
       >
         {!disc && (
@@ -99,14 +100,20 @@ function Sleeve({
             <span className="sb-record-label" style={cover ? { backgroundImage: `url("${cover}")` } : undefined} />
           </span>
         )}
-        {/* eslint-disable-next-line @next/next/no-img-element -- inline SVG data URI */}
-        <img src={cover} alt="" data-medal={medalFor(item.rank)} className="sb-art" />
+        {cover ? (
+          // eslint-disable-next-line @next/next/no-img-element -- local cover route, no optimisation needed
+          <img src={cover} alt="" data-medal={medalFor(item.rank)} className="sb-art" />
+        ) : (
+          <span data-medal={medalFor(item.rank)} className="sb-art text-text-muted">
+            <MusicNoteIcon className="h-6 w-6" />
+          </span>
+        )}
         <span aria-hidden className="sb-rank" data-medal={medalFor(item.rank)}>
           {item.rank}
         </span>
         <span aria-hidden className="sb-tag">
           <span className="line-clamp-2 text-xs font-semibold leading-tight text-white">{item.title}</span>
-          <span className="block text-[11px] tabular-nums text-white/75">{item.plays} plays</span>
+          <span className="block text-[11px] tabular-nums text-white/75">{playsLabel(item.plays)}</span>
         </span>
       </button>
     </li>

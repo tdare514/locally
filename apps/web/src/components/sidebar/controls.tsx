@@ -9,14 +9,14 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { PencilIcon } from "../../Icons";
+import { PencilIcon } from "../Icons";
+import { WIDGETS, widgetsOnCount, type WidgetKey, type WidgetState } from "../../lib/sidebar-panel";
 import { PinIcon } from "./icons";
-import { WIDGETS, type WidgetKey } from "./sample-data";
 
 export const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
 
 /** A full-width row in the column's stack (Library, Import, Settings, Stats), styled like the
- * existing sidebar's quiet nav items: a label and a soft pill on the active one. No icon: each row
+ * old sidebar's quiet nav items: a label and a soft pill on the active one. No icon: each row
  * sits level with its icon on the rail beside it, so the rail is the compact view of the same
  * list. `end` is a quiet note at the right, inside the same hit area. Every row has the same
  * height, hover and focus ring; the active page also gets `aria-current="page"`. */
@@ -24,11 +24,15 @@ export function NavItem({
   active = false,
   onClick,
   end,
+  disabled = false,
+  title,
   children,
 }: {
   active?: boolean;
   onClick?: () => void;
   end?: ReactNode;
+  disabled?: boolean;
+  title?: string;
   children: ReactNode;
 }) {
   return (
@@ -36,7 +40,9 @@ export function NavItem({
       type="button"
       aria-current={active ? "page" : undefined}
       onClick={onClick}
-      className={`flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition-colors ${focusRing} ${
+      disabled={disabled}
+      title={title}
+      className={`flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-text-muted ${focusRing} ${
         active ? "bg-white/[0.1] text-text" : "text-text-muted hover:bg-white/[0.07] hover:text-text"
       }`}
     >
@@ -147,20 +153,20 @@ export function Switch({
   );
 }
 
-/** "Edit widgets": a small popover with a switch per widget (prototype state only). The one widget
- * left on is locked, so at least one always shows. */
+/** "Edit widgets": a small popover with a switch per widget. The one widget left on is locked, so
+ * at least one always shows. */
 export function EditWidgets({
   enabled,
   onToggle,
 }: {
-  enabled: Record<WidgetKey, boolean>;
+  enabled: WidgetState;
   onToggle: (key: WidgetKey) => void;
 }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const onCount = WIDGETS.filter((w) => enabled[w.key]).length;
+  const onCount = widgetsOnCount(enabled);
 
   useEffect(() => {
     if (!open) return;

@@ -1,6 +1,6 @@
 import type { ReactNode, SVGProps } from "react";
 
-/** The few glyphs the #154 prototype needs that components/Icons.tsx does not have. Same
+/** The few glyphs the sidebar (#154) needs that components/Icons.tsx does not have. Same
  * conventions as that file: 24-unit viewBox, stroked paths, round caps. */
 function IconBase({ children, ...props }: { children: ReactNode } & SVGProps<SVGSVGElement>) {
   return (
