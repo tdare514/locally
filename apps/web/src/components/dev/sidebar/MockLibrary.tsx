@@ -54,3 +54,13 @@ export default function MockLibrary() {
     </div>
   );
 }
+
+/** What Settings and Stats show in the prototype: a title, so a click on them is observable. */
+export function PlaceholderPage({ title, note }: { title: string; note: string }) {
+  return (
+    <div className="mx-auto w-full max-w-[920px]">
+      <h1 className="text-[28px] font-bold tracking-[-0.02em] text-text">{title}</h1>
+      <p className="mt-1 text-sm text-text-muted">{note}</p>
+    </div>
+  );
+}

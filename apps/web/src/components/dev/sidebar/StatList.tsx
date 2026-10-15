@@ -2,8 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { MusicNoteIcon } from "../../Icons";
-import type { Ns } from "./controls";
-import { medalFor, topFor, WIDGETS, type Period, type StatItem, type WidgetKey } from "./sample-data";
+import { KINDS, medalFor, topFor, type Period, type StatItem, type WidgetKey } from "./sample-data";
 import { useCovers } from "./use-stats";
 
 const medalText =
@@ -35,43 +34,30 @@ function Plays({ n }: { n: number }) {
 }
 
 /**
- * The stat widgets (#154 prototype): one ranked top-five per switched-on widget. Each row has a
- * quiet bar behind it showing its plays against the leader. `rows` is a uniform list with a small
- * cover on one line; `lead` gives the number one a larger cover and sets the rest as plain text.
+ * The list widgets (#154 prototype): a ranked top three for each of Top tracks, Top albums and Top
+ * artists that is switched on. Each row has a quiet bar behind it showing its plays against the
+ * leader. The number one gets a larger cover and its subtitle; the rest are plain text.
  */
-export default function StatList({
-  ns,
-  period,
-  enabled,
-  variant,
-}: {
-  ns: Ns;
-  period: Period;
-  enabled: Record<WidgetKey, boolean>;
-  variant: "rows" | "lead";
-}) {
-  const shown = WIDGETS.filter((w) => enabled[w.key]);
-  if (shown.length === 0) {
-    return <p className="px-1.5 py-2 text-xs text-text-muted">No widgets on. Use Edit widgets to add one.</p>;
-  }
+export default function StatList({ period, enabled }: { period: Period; enabled: Record<WidgetKey, boolean> }) {
+  const shown = KINDS.filter((k) => enabled[k.key]);
+  if (shown.length === 0) return null;
   return (
     <div className="flex flex-col gap-3">
-      {shown.map((w, wi) => {
-        const items = topFor(w.key, period);
+      {shown.map((k, ki) => {
+        const items = topFor(k.key, period);
         const top = items[0]?.plays || 1;
         return (
-          <section key={w.key} aria-label={w.title}>
-            <h3 className="px-1.5 pb-1 text-xs font-semibold text-text-soft">{w.title}</h3>
+          <section key={k.key} aria-label={k.title}>
+            <h3 className="px-1.5 pb-1 text-xs font-semibold text-text-soft">{k.title}</h3>
             <ol className="flex flex-col">
               {items.map((item, i) => (
                 <Row
                   key={i}
-                  ns={ns}
                   item={item}
-                  round={w.key === "artists"}
-                  look={variant === "rows" ? "compact" : i === 0 ? "lead" : "plain"}
+                  round={k.key === "artists"}
+                  lead={i === 0}
                   share={item.plays / top}
-                  order={wi * 5 + i}
+                  order={ki * 3 + i}
                 />
               ))}
             </ol>
@@ -82,31 +68,28 @@ export default function StatList({
   );
 }
 
-/** compact: a small cover and the title on one line. lead: a larger cover with the subtitle under
- * the title. plain: the title alone. The subtitle is always there for screen readers. */
+/** lead: a larger cover with the subtitle under the title. Otherwise the title alone. The subtitle
+ * is always there for screen readers. */
 function Row({
-  ns,
   item,
   round,
-  look,
+  lead,
   share,
   order,
 }: {
-  ns: Ns;
   item: StatItem;
   round: boolean;
-  look: "compact" | "lead" | "plain";
+  lead: boolean;
   share: number;
   order: number;
 }) {
   const medal = medalFor(item.rank);
-  const lead = look === "lead";
   return (
     <li
-      className={`${ns}-row relative flex items-center gap-2.5 rounded-xl px-1.5 ${lead ? "py-1" : "py-0.5"}`}
+      className={`sb-row relative flex items-center gap-2.5 rounded-xl px-1.5 ${lead ? "py-1" : "py-0.5"}`}
       style={{ "--w": share, "--d": order } as CSSProperties}
     >
-      <span aria-hidden className={`${ns}-bar`} />
+      <span aria-hidden className="sb-bar" />
       <span
         data-medal={medal}
         className={`relative w-4 shrink-0 text-center text-xs font-bold tabular-nums text-text-dim ${medalText}`}
@@ -114,8 +97,8 @@ function Row({
         {item.rank}
       </span>
       {/* Keyed by the item, so a row whose item changes with the period fades its new content in. */}
-      <span key={item.id} className={`${ns}-swap relative flex min-w-0 flex-1 items-center gap-2.5`}>
-        {look !== "plain" && <Cover id={item.coverId} round={round} className={lead ? "h-10 w-10" : "h-7 w-7"} />}
+      <span key={item.id} className="sb-swap relative flex min-w-0 flex-1 items-center gap-2.5">
+        {lead && <Cover id={item.coverId} round={round} className="h-10 w-10" />}
         <span className="min-w-0 flex-1">
           <span className={`block truncate ${lead ? "text-sm font-semibold" : "text-[13px] font-medium"} text-text`}>
             {item.title}

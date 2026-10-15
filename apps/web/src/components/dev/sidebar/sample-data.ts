@@ -15,7 +15,10 @@ export function parsePanelStart(value: string | undefined): PanelStart {
 }
 
 export type Period = "today" | "week" | "month";
-export type WidgetKey = "tracks" | "albums" | "artists";
+/** The three ranked lists. */
+export type StatKind = "tracks" | "albums" | "artists";
+/** What "Edit widgets" can switch on and off: the stats shelf, or one of the lists. */
+export type WidgetKey = "shelf" | StatKind;
 
 export const PERIODS: { value: Period; label: string; heading: string }[] = [
   { value: "today", label: "Today", heading: "Your day" },
@@ -23,10 +26,15 @@ export const PERIODS: { value: Period; label: string; heading: string }[] = [
   { value: "month", label: "This month", heading: "Your month" },
 ];
 
-export const WIDGETS: { key: WidgetKey; title: string; tab: string }[] = [
+export const KINDS: { key: StatKind; title: string; tab: string }[] = [
   { key: "tracks", title: "Top tracks", tab: "Tracks" },
   { key: "albums", title: "Top albums", tab: "Albums" },
   { key: "artists", title: "Top artists", tab: "Artists" },
+];
+
+export const WIDGETS: { key: WidgetKey; title: string }[] = [
+  { key: "shelf", title: "Stats shelf" },
+  ...KINDS.map(({ key, title }) => ({ key, title })),
 ];
 
 /** Demo release ids, used to look up the drawn SVG covers. */
@@ -87,14 +95,15 @@ const ARTISTS: SampleRow[] = [
   { id: "r-pale", title: "Pale Meridian", subtitle: "Electronic", coverId: "demo-static-bloom", plays: [7, 39, 121] },
 ];
 
-const POOLS: Record<WidgetKey, SampleRow[]> = { tracks: TRACKS, albums: ALBUMS, artists: ARTISTS };
+const POOLS: Record<StatKind, SampleRow[]> = { tracks: TRACKS, albums: ALBUMS, artists: ARTISTS };
 
-/** The top five of a widget for a period, most played first. */
-export function topFor(widget: WidgetKey, period: Period): StatItem[] {
+/** The top three of a list for a period, most played first: what the sidebar shows. The Stats page
+ * is meant to show five. */
+export function topFor(kind: StatKind, period: Period): StatItem[] {
   const at = period === "today" ? 0 : period === "week" ? 1 : 2;
-  return [...POOLS[widget]]
+  return [...POOLS[kind]]
     .sort((a, b) => b.plays[at] - a.plays[at])
-    .slice(0, 5)
+    .slice(0, 3)
     .map((row, i) => ({
       id: row.id,
       rank: i + 1,

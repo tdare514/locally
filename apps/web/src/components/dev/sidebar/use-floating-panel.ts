@@ -30,21 +30,21 @@ export function usePanelRefs() {
 export type PanelRefs = ReturnType<typeof usePanelRefs>;
 
 /**
- * Hover-revealed floating panel (#154 prototype), shared by the three variants.
+ * Hover-revealed floating panel (#154 prototype).
  *
- * - Hovering a "zone" (the trigger, or the whole rail in variant 2) reveals the panel. It stays
- *   while the pointer is anywhere over the root (trigger plus panel) and hides GRACE_MS after the
- *   pointer leaves. A keyboard user's focus inside the root also keeps it open.
+ * - With `hoverReveal` on, hovering a "zone" (the whole rail) reveals the panel. It stays while the
+ *   pointer is anywhere over the root (rail plus panel) and hides GRACE_MS after the pointer
+ *   leaves. A keyboard user's focus inside the root also keeps it open. With `hoverReveal` off,
+ *   hovering and focusing the rail do nothing: only the trigger (the menu button) opens the panel.
  * - Clicking the trigger with the mouse pins a hover-opened panel; clicking again unpins and
- *   closes it. With "Open on hover" off, a click opens it and a second click closes it.
+ *   closes it. With `hoverReveal` off, a click opens it and a second click closes it.
  * - Pressing Enter or Space on the trigger opens the panel and moves focus into it.
  * - Escape closes an unpinned panel and gives focus back to the trigger. A pinned panel is
  *   layout, so Escape leaves it alone.
  */
-export function useFloatingPanel(start: PanelStart, refs: PanelRefs) {
+export function useFloatingPanel(start: PanelStart, refs: PanelRefs, hoverReveal: boolean) {
   const [open, setOpen] = useState(start === "open");
   const [pinned, setPinned] = useState(start === "pinned");
-  const [hoverReveal, setHoverReveal] = useState(true);
   // Which way the content area should slide after the last pin change; null until it changes.
   const [shift, setShift] = useState<"in" | "out" | null>(null);
   const [focusTick, setFocusTick] = useState(0);
@@ -160,12 +160,10 @@ export function useFloatingPanel(start: PanelStart, refs: PanelRefs) {
   return {
     shown,
     pinned,
-    hoverReveal,
     shift,
     panelId,
     pin,
-    setHoverReveal,
-    /** On the element that wraps the trigger and the panel. */
+    /** On the element that wraps the rail and the panel. */
     rootProps: {
       onPointerEnter: (e: PointerEvent) => {
         if (e.pointerType === "touch") return;
@@ -185,7 +183,7 @@ export function useFloatingPanel(start: PanelStart, refs: PanelRefs) {
     },
     /** On whatever should reveal the panel when hovered or keyboard-focused. */
     zoneProps: { onPointerEnter: reveal, onFocus: revealOnFocus },
-    /** On the button(s) that toggle the panel. */
+    /** On the button that toggles the panel. */
     triggerProps: {
       "aria-expanded": shown,
       "aria-controls": panelId,

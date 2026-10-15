@@ -648,28 +648,22 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
- * #154 PROTOTYPE (dev only, /dev/sidebar): three floating-sidebar variants.
- *   .sb1-*  Floating panel     .sb2-*  Rail + bloom     .sb3-*  Stats shelf
- * Pieces the variants share (segmented control, tabs, switch, edit popover, stat rows) are
- * written as selector lists over the prefixes that use them, so one variant can be lifted out on
- * its own. When a variant is picked, delete the other two and this note.
+ * #154 PROTOTYPE (dev only, /dev/sidebar): the floating sidebar, "Rail + bloom" (.sb-*).
  * Effect budget, all transform and opacity on cubic-bezier(0.16, 1, 0.3, 1):
- *   1. panel or card reveal and hide (300ms in, 240ms out)   2. a brief stagger of its groups
+ *   1. card reveal and hide (300ms in, 240ms out)   2. a brief stagger of its groups
  *   3. rank bars growing on reveal, sliding when the period changes
- *   4. segmented thumb and tab underline sliding            5. switch knob
- *   6. the "Edit widgets" popover                           7. variant 3: sleeves fan out,
- *   the active one lifts, its record slides out of the top  8. the content area sliding over
- *   when the panel is pinned or unpinned
+ *   4. segmented thumb and tab underline sliding    5. switch knob
+ *   6. the "Edit widgets" popover                   7. the stats shelf: sleeves fan out, the
+ *   active one lifts, its record slides out of the top
+ *   8. the content area sliding over when the card is pinned or unpinned
  * Every one of them has a fallback in the reduced-motion block at the end of this file.
  * The glass is faked on purpose (no backdrop-filter): the library sky animates behind it and a
  * blur would repaint every frame. The fill tints itself from the --ambient-* cover colours.
  * Rules here are unlayered, so they beat Tailwind utilities: geometry that changes with state
- * (position, size, padding of the panels) lives in this file, not in class names.
+ * (position, size, padding of the card) lives in this file, not in class names.
  * ------------------------------------------------------------------------- */
 
-.sb1-panel,
-.sb2-card,
-.sb3-card {
+.sb-card {
   position: absolute;
   isolation: isolate;
   background:
@@ -682,9 +676,7 @@ body {
     0 40px 80px -28px rgb(0 0 0 / 0.85),
     0 10px 28px -14px rgb(0 0 0 / 0.6);
 }
-.sb1-panel::before,
-.sb2-card::before,
-.sb3-card::before {
+.sb-card::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -694,59 +686,12 @@ body {
   background: radial-gradient(90% 38% at 14% -8%, rgb(255 255 255 / 0.16), transparent 70%);
 }
 
-/* Variant 1: a 300px panel inset 12px from the top, left and bottom. The trigger and the Import
-   pill sit above it and are its header row, so the panel pads 56px to clear them. */
-.sb1-panel {
-  left: 12px;
-  top: 12px;
-  bottom: 12px;
-  width: 300px;
-  padding: 56px 8px 10px;
-  border-radius: 28px;
-}
-.sb1-panel {
-  transform-origin: 28px 28px;
-  opacity: 0;
-  visibility: hidden;
-  transform: translate3d(0, -8px, 0) scale(0.95);
-  transition:
-    opacity 240ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 240ms cubic-bezier(0.16, 1, 0.3, 1),
-    visibility 0s linear 240ms;
-}
-.sb1-panel[data-state="open"] {
-  opacity: 1;
-  visibility: visible;
-  transform: none;
-  transition-duration: 300ms, 300ms, 0s;
-  transition-delay: 0s;
-}
-.sb1-stage {
-  padding-left: 0;
-}
-.sb1-stage[data-pinned="true"] {
-  padding-left: 324px;
-}
-/* The pane re-centres its column when the panel docks, so it slides half the dock width. */
-.sb1-stage-inner[data-shift="in"] {
-  animation: sb1-shift-in 320ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.sb1-stage-inner[data-shift="out"] {
-  animation: sb1-shift-out 320ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-@keyframes sb1-shift-in {
-  from { transform: translate3d(-162px, 0, 0); }
-}
-@keyframes sb1-shift-out {
-  from { transform: translate3d(162px, 0, 0); }
-}
-
-/* Variant 2: a full-height 64px rail (see-through, like the #116 sidebar) and a card that blooms
-   from its right edge. Pinned, the card docks flush against the rail as a column. */
-.sb2-rail {
+/* A full-height 64px rail (see-through, like the #116 sidebar) and a card that blooms from its
+   right edge. Pinned, the card docks flush against the rail as a column. */
+.sb-rail {
   background: linear-gradient(to right, rgb(0 0 0 / 0.5), rgb(0 0 0 / 0.34));
 }
-.sb2-rail::after {
+.sb-rail::after {
   content: "";
   position: absolute;
   top: 0;
@@ -762,7 +707,7 @@ body {
     transparent
   );
 }
-.sb2-card {
+.sb-card {
   left: 72px;
   top: 12px;
   bottom: 12px;
@@ -770,7 +715,7 @@ body {
   padding: 52px 10px 10px;
   border-radius: 28px;
 }
-.sb2-card {
+.sb-card {
   transform-origin: 0 150px;
   opacity: 0;
   visibility: hidden;
@@ -780,14 +725,14 @@ body {
     transform 240ms cubic-bezier(0.16, 1, 0.3, 1),
     visibility 0s linear 240ms;
 }
-.sb2-card[data-state="open"] {
+.sb-card[data-state="open"] {
   opacity: 1;
   visibility: visible;
   transform: none;
   transition-duration: 300ms, 300ms, 0s;
   transition-delay: 0s;
 }
-.sb2-card[data-pinned="true"] {
+.sb-card[data-pinned="true"] {
   left: 64px;
   top: 0;
   bottom: 0;
@@ -797,134 +742,67 @@ body {
   background: linear-gradient(to right, rgb(0 0 0 / 0.42), rgb(0 0 0 / 0.3));
   box-shadow: inset -1px 0 0 rgb(255 255 255 / 0.08);
 }
-.sb2-card[data-pinned="true"]::before {
+.sb-card[data-pinned="true"]::before {
   display: none;
 }
-/* The brand label lines up with the logo on the rail. */
-.sb2-brand {
+/* The header (logo and "On this Mac") lines up with the logo on the rail. */
+.sb-brand {
   position: absolute;
   left: 22px;
   top: 8px;
 }
-.sb2-card[data-pinned="true"] .sb2-brand {
+.sb-card[data-pinned="true"] .sb-brand {
   top: 20px;
 }
-.sb2-stage {
+.sb-stage {
   padding-left: 64px;
 }
-.sb2-stage[data-pinned="true"] {
+.sb-stage[data-pinned="true"] {
   padding-left: 368px;
 }
-.sb2-stage-inner[data-shift="in"] {
-  animation: sb2-shift-in 320ms cubic-bezier(0.16, 1, 0.3, 1);
+.sb-stage-inner[data-shift="in"] {
+  animation: sb-shift-in 320ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-.sb2-stage-inner[data-shift="out"] {
-  animation: sb2-shift-out 320ms cubic-bezier(0.16, 1, 0.3, 1);
+.sb-stage-inner[data-shift="out"] {
+  animation: sb-shift-out 320ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-@keyframes sb2-shift-in {
+@keyframes sb-shift-in {
   from { transform: translate3d(-152px, 0, 0); }
 }
-@keyframes sb2-shift-out {
+@keyframes sb-shift-out {
   from { transform: translate3d(152px, 0, 0); }
 }
 
-/* Variant 3: the nav is a glass pill; the card drops from under it. */
-.sb3-pill {
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0.05)),
-    rgb(12 12 16 / 0.5);
+.sb-card[data-state="open"] .sb-item {
+  animation: sb-item-in 320ms cubic-bezier(0.16, 1, 0.3, 1) calc(40ms + var(--d, 0) * 40ms) backwards;
 }
-.sb3-card {
-  left: 20px;
-  top: 76px;
-  width: 560px;
-  padding: 16px 16px 12px;
-  border-radius: 28px;
-}
-.sb3-card {
-  transform-origin: 36px 0;
-  opacity: 0;
-  visibility: hidden;
-  transform: translate3d(0, -10px, 0) scale(0.96);
-  transition:
-    opacity 240ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 240ms cubic-bezier(0.16, 1, 0.3, 1),
-    visibility 0s linear 240ms;
-}
-.sb3-card[data-state="open"] {
-  opacity: 1;
-  visibility: visible;
-  transform: none;
-  transition-duration: 300ms, 300ms, 0s;
-  transition-delay: 0s;
-}
-
-.sb1-panel[data-state="open"] .sb1-item {
-  animation: sb1-item-in 320ms cubic-bezier(0.16, 1, 0.3, 1) calc(40ms + var(--d, 0) * 40ms) backwards;
-}
-@keyframes sb1-item-in {
+@keyframes sb-item-in {
   from { opacity: 0; transform: translate3d(0, 8px, 0); }
 }
-.sb1-panel[data-state="open"] .sb1-row {
-  animation: sb1-item-in 300ms cubic-bezier(0.16, 1, 0.3, 1) calc(80ms + var(--d, 0) * 18ms) backwards;
+.sb-card[data-state="open"] .sb-row {
+  animation: sb-item-in 300ms cubic-bezier(0.16, 1, 0.3, 1) calc(80ms + var(--d, 0) * 18ms) backwards;
 }
-.sb1-panel[data-state="open"] .sb1-bar {
-  animation: sb1-bar-in 520ms cubic-bezier(0.16, 1, 0.3, 1) calc(140ms + var(--d, 0) * 24ms) backwards;
+.sb-card[data-state="open"] .sb-bar {
+  animation: sb-bar-in 520ms cubic-bezier(0.16, 1, 0.3, 1) calc(140ms + var(--d, 0) * 24ms) backwards;
 }
-@keyframes sb1-bar-in {
+@keyframes sb-bar-in {
   from { transform: scaleX(0); }
 }
 /* A row whose item changed with the period fades its new content in. */
-.sb1-swap {
-  animation: sb1-swap 260ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+.sb-swap {
+  animation: sb-swap 260ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
-@keyframes sb1-swap {
+@keyframes sb-swap {
   from { opacity: 0; transform: translate3d(0, 3px, 0); }
 }
-.sb1-scroll {
+.sb-scroll {
   padding-bottom: 20px;
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
   mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
-}
-
-.sb2-card[data-state="open"] .sb2-item {
-  animation: sb2-item-in 320ms cubic-bezier(0.16, 1, 0.3, 1) calc(40ms + var(--d, 0) * 40ms) backwards;
-}
-@keyframes sb2-item-in {
-  from { opacity: 0; transform: translate3d(0, 8px, 0); }
-}
-.sb2-card[data-state="open"] .sb2-row {
-  animation: sb2-item-in 300ms cubic-bezier(0.16, 1, 0.3, 1) calc(80ms + var(--d, 0) * 18ms) backwards;
-}
-.sb2-card[data-state="open"] .sb2-bar {
-  animation: sb2-bar-in 520ms cubic-bezier(0.16, 1, 0.3, 1) calc(140ms + var(--d, 0) * 24ms) backwards;
-}
-@keyframes sb2-bar-in {
-  from { transform: scaleX(0); }
-}
-/* A row whose item changed with the period fades its new content in. */
-.sb2-swap {
-  animation: sb2-swap 260ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
-}
-@keyframes sb2-swap {
-  from { opacity: 0; transform: translate3d(0, 3px, 0); }
-}
-.sb2-scroll {
-  padding-bottom: 20px;
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
-}
-
-.sb3-card[data-state="open"] .sb3-item {
-  animation: sb3-item-in 320ms cubic-bezier(0.16, 1, 0.3, 1) calc(40ms + var(--d, 0) * 40ms) backwards;
-}
-@keyframes sb3-item-in {
-  from { opacity: 0; transform: translate3d(0, 8px, 0); }
 }
 
 /* Rank bar behind a stat row: plays against the leader, on transform only. */
-.sb1-bar,
-.sb2-bar {
+.sb-bar {
   position: absolute;
   inset: 1px 0;
   border-radius: 12px;
@@ -936,9 +814,7 @@ body {
 }
 
 /* Segmented control (the Today / This week / This month toggle). */
-.sb1-seg,
-.sb2-seg,
-.sb3-seg {
+.sb-seg {
   position: relative;
   display: grid;
   grid-template-columns: repeat(var(--n), 1fr);
@@ -949,9 +825,7 @@ body {
     inset 0 1px 2px rgb(0 0 0 / 0.35),
     inset 0 0 0 1px rgb(255 255 255 / 0.07);
 }
-.sb1-seg-thumb,
-.sb2-seg-thumb,
-.sb3-seg-thumb {
+.sb-seg-thumb {
   position: absolute;
   top: 2px;
   bottom: 2px;
@@ -965,13 +839,15 @@ body {
   transform: translate3d(calc(var(--i) * 100%), 0, 0);
   transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-/* Text tabs (variant 3): equal columns, an accent underline slides under the chosen one. */
-.sb3-tabs {
+/* Text tabs (the shelf's Tracks / Albums / Artists): equal columns, an accent underline slides
+   under the chosen one. */
+.sb-tabs {
   position: relative;
   display: grid;
   grid-template-columns: repeat(var(--n), 76px);
+  width: max-content;
 }
-.sb3-tabs-thumb {
+.sb-tabs-thumb {
   position: absolute;
   left: 0;
   bottom: -2px;
@@ -980,7 +856,7 @@ body {
   transform: translate3d(calc(var(--i) * 100%), 0, 0);
   transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-.sb3-tabs-thumb::after {
+.sb-tabs-thumb::after {
   content: "";
   position: absolute;
   inset: 0 20px;
@@ -989,9 +865,7 @@ body {
 }
 
 /* Switch: the accent fill fades in on opacity, the knob slides on transform. */
-.sb1-switch-track,
-.sb2-switch-track,
-.sb3-switch-track {
+.sb-switch-track {
   position: relative;
   flex: none;
   width: 28px;
@@ -1000,9 +874,7 @@ body {
   border-radius: 9999px;
   background: rgb(255 255 255 / 0.2);
 }
-.sb1-switch-track::before,
-.sb2-switch-track::before,
-.sb3-switch-track::before {
+.sb-switch-track::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -1010,9 +882,7 @@ body {
   opacity: 0;
   transition: opacity 240ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-.sb1-switch-knob,
-.sb2-switch-knob,
-.sb3-switch-knob {
+.sb-switch-knob {
   position: absolute;
   top: 2px;
   left: 2px;
@@ -1024,27 +894,21 @@ body {
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
   transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-.sb1-switch[aria-checked="true"] .sb1-switch-track::before,
-.sb2-switch[aria-checked="true"] .sb2-switch-track::before,
-.sb3-switch[aria-checked="true"] .sb3-switch-track::before {
+.sb-switch[aria-checked="true"] .sb-switch-track::before {
   opacity: 1;
 }
-.sb1-switch[aria-checked="true"] .sb1-switch-knob,
-.sb2-switch[aria-checked="true"] .sb2-switch-knob,
-.sb3-switch[aria-checked="true"] .sb3-switch-knob {
+.sb-switch[aria-checked="true"] .sb-switch-knob {
   transform: translate3d(12px, 0, 0);
 }
 
-/* "Edit widgets" popover. Opens below the button (variants 1, 2) or above it (variant 3). */
-.sb1-pop,
-.sb2-pop,
-.sb3-pop {
+/* "Edit widgets" popover, opening below its button. */
+.sb-pop {
   position: absolute;
-  z-index: 5;
+  z-index: 20;
   width: 220px;
   padding: 6px;
   border-radius: 18px;
-  background: rgb(28 28 34 / 0.97);
+  background: rgb(28 28 34);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.18),
     inset 0 0 0 1px rgb(255 255 255 / 0.1),
@@ -1058,13 +922,7 @@ body {
     transform 240ms cubic-bezier(0.16, 1, 0.3, 1),
     visibility 0s linear 240ms;
 }
-.sb3-pop {
-  transform: translate3d(0, 6px, 0) scale(0.97);
-  transform-origin: bottom left;
-}
-.sb1-pop[data-state="open"],
-.sb2-pop[data-state="open"],
-.sb3-pop[data-state="open"] {
+.sb-pop[data-state="open"] {
   opacity: 1;
   visibility: visible;
   transform: none;
@@ -1072,26 +930,27 @@ body {
   transition-delay: 0s;
 }
 
-/* Variant 3 shelf: five sleeves overlap in a fan. Per sleeve: --a tilts it, --k orders the
-   fan-out from the middle (--k). The active one lifts, straightens a little and shows its tag. */
-.sb3-shelf {
+/* The stats shelf: three sleeves overlap in a fan, number one in the middle. Per sleeve: --a tilts
+   it, --k orders the fan-out from the middle. The active one lifts, straightens a little and shows
+   its tag. The shelf is tall enough for the lift and for the record to slide out above it. */
+.sb-shelf {
   position: relative;
-  height: 292px;
-  margin: 6px 0 4px;
+  height: 236px;
+  margin-top: 2px;
 }
-.sb3-ground {
+.sb-ground {
   position: absolute;
   left: 10%;
   right: 10%;
-  bottom: 30px;
-  height: 30px;
+  bottom: 24px;
+  height: 28px;
   background: radial-gradient(closest-side, rgb(0 0 0 / 0.55), transparent);
 }
-.sb3-plank {
+.sb-plank {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 45px;
+  bottom: 39px;
   height: 1px;
   background: linear-gradient(
     to right,
@@ -1101,25 +960,25 @@ body {
     transparent
   );
 }
-.sb3-sleeve {
+.sb-sleeve {
   position: absolute;
   left: 50%;
-  bottom: 46px;
-  width: 136px;
-  height: 136px;
-  margin-left: -68px;
+  bottom: 40px;
+  width: 112px;
+  height: 112px;
+  margin-left: -56px;
   list-style: none;
-  /* A pivot well below the shelf, so the five tilt around one point like a hand of cards. */
+  /* A pivot well below the shelf, so the three tilt around one point like a hand of cards. */
   transform-origin: 50% 330%;
   transform: rotate(var(--a));
   transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-.sb3-sleeve[data-active="true"] {
-  transform: rotate(calc(var(--a) * 0.8)) translate3d(0, -30px, 0);
+.sb-sleeve[data-active="true"] {
+  transform: rotate(calc(var(--a) * 0.8)) translate3d(0, -26px, 0);
 }
 /* The button scales about its own bottom centre; scaling the sleeve itself would swing it out
    from the far pivot. */
-.sb3-hit {
+.sb-hit {
   position: relative;
   display: block;
   width: 100%;
@@ -1127,16 +986,16 @@ body {
   transform-origin: 50% 100%;
   transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-.sb3-sleeve[data-active="true"] .sb3-hit {
+.sb-sleeve[data-active="true"] .sb-hit {
   transform: scale(1.07);
 }
-.sb3-card[data-state="open"] .sb3-sleeve {
-  animation: sb3-fan 380ms cubic-bezier(0.16, 1, 0.3, 1) calc(60ms + var(--k) * 52ms) backwards;
+.sb-card[data-state="open"] .sb-sleeve {
+  animation: sb-fan 380ms cubic-bezier(0.16, 1, 0.3, 1) calc(60ms + var(--k) * 52ms) backwards;
 }
-@keyframes sb3-fan {
+@keyframes sb-fan {
   from { opacity: 0; transform: rotate(0deg) translate3d(0, 34px, 0); }
 }
-.sb3-art {
+.sb-art {
   position: relative;
   display: block;
   width: 100%;
@@ -1147,21 +1006,21 @@ body {
     inset 0 0 0 1px rgb(255 255 255 / 0.14),
     0 14px 26px -12px rgb(0 0 0 / 0.8);
 }
-.sb3-sleeve[data-shape="disc"] .sb3-art {
+.sb-sleeve[data-shape="disc"] .sb-art {
   border-radius: 9999px;
 }
 /* Gold, silver and bronze rims for the first three: a thin ring and a faint glow. */
-.sb3-art[data-medal="gold"] {
+.sb-art[data-medal="gold"] {
   box-shadow: 0 0 0 2px #dcb860, 0 0 22px -4px rgb(220 184 96 / 0.5), 0 14px 26px -12px rgb(0 0 0 / 0.8);
 }
-.sb3-art[data-medal="silver"] {
+.sb-art[data-medal="silver"] {
   box-shadow: 0 0 0 2px #c5cad3, 0 0 20px -5px rgb(197 202 211 / 0.4), 0 14px 26px -12px rgb(0 0 0 / 0.8);
 }
-.sb3-art[data-medal="bronze"] {
+.sb-art[data-medal="bronze"] {
   box-shadow: 0 0 0 2px #c98a4e, 0 0 20px -5px rgb(201 138 78 / 0.4), 0 14px 26px -12px rgb(0 0 0 / 0.8);
 }
 /* The record behind the sleeve; it slides out of the top on the active one. */
-.sb3-record {
+.sb-record {
   position: absolute;
   left: 6%;
   top: 0;
@@ -1177,17 +1036,17 @@ body {
     0 6px 14px -6px rgb(0 0 0 / 0.8);
   transition: transform 340ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-.sb3-sleeve[data-active="true"] .sb3-record {
+.sb-sleeve[data-active="true"] .sb-record {
   transform: translate3d(0, -40%, 0);
 }
-.sb3-record-label {
+.sb-record-label {
   position: absolute;
   inset: 33%;
   border-radius: 9999px;
   background: var(--accent) center / cover;
   box-shadow: 0 0 0 2px rgb(0 0 0 / 0.5);
 }
-.sb3-rank {
+.sb-rank {
   position: absolute;
   top: 6px;
   right: 6px;
@@ -1202,15 +1061,15 @@ body {
   line-height: 20px;
   text-align: center;
 }
-/* Sleeves left of the middle show their left strip, so their number sits there. */
-.sb3-sleeve[data-side="left"] .sb3-rank {
+/* The silver sleeve sits left of the middle and shows its left strip, so its number sits there. */
+.sb-sleeve[data-side="left"] .sb-rank {
   left: 6px;
   right: auto;
 }
-.sb3-rank[data-medal="gold"] { color: #ecce78; }
-.sb3-rank[data-medal="silver"] { color: #d3d8e0; }
-.sb3-rank[data-medal="bronze"] { color: #dc9a5e; }
-.sb3-tag {
+.sb-rank[data-medal="gold"] { color: #ecce78; }
+.sb-rank[data-medal="silver"] { color: #d3d8e0; }
+.sb-rank[data-medal="bronze"] { color: #dc9a5e; }
+.sb-tag {
   position: absolute;
   left: 0;
   right: 0;
@@ -1226,11 +1085,11 @@ body {
     opacity 220ms cubic-bezier(0.16, 1, 0.3, 1),
     transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
-.sb3-sleeve[data-active="true"] .sb3-tag {
+.sb-sleeve[data-active="true"] .sb-tag {
   opacity: 1;
   transform: none;
 }
-.sb3-sleeve[data-shape="disc"] .sb3-tag {
+.sb-sleeve[data-shape="disc"] .sb-tag {
   left: 12%;
   right: 12%;
   bottom: 9%;
@@ -1241,13 +1100,10 @@ body {
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .sb1-panel,
-  .sb2-card,
-  .sb3-card,
-  .sb3-pill {
+  .sb-card {
     background: rgb(30 30 34);
   }
-  .sb2-rail {
+  .sb-rail {
     background: rgb(20 20 24);
   }
 }
@@ -1290,54 +1146,33 @@ body {
     scale: 1;
   }
 
-  /* #154 prototype (.sb1-* .sb2-* .sb3-*): the panels show and hide instantly and the stagger,
-     fan, bars and pin slide are switched off. State changes (a lifted sleeve, a moved thumb) still
-     happen, just without the travel. */
-  .sb1-panel,
-  .sb2-card,
-  .sb3-card,
-  .sb1-panel[data-state="open"],
-  .sb2-card[data-state="open"],
-  .sb3-card[data-state="open"],
-  .sb1-pop,
-  .sb2-pop,
-  .sb3-pop,
-  .sb1-pop[data-state="open"],
-  .sb2-pop[data-state="open"],
-  .sb3-pop[data-state="open"] {
+  /* #154 prototype (.sb-*): the card shows and hides instantly and the stagger, fan, bars and pin
+     slide are switched off. State changes (a lifted sleeve, a moved thumb) still happen, just
+     without the travel. */
+  .sb-card,
+  .sb-card[data-state="open"],
+  .sb-pop,
+  .sb-pop[data-state="open"] {
     transition: none;
     transform: none;
   }
-  .sb1-panel[data-state="open"] .sb1-item,
-  .sb1-panel[data-state="open"] .sb1-row,
-  .sb1-panel[data-state="open"] .sb1-bar,
-  .sb1-swap,
-  .sb1-stage-inner[data-shift],
-  .sb2-card[data-state="open"] .sb2-item,
-  .sb2-card[data-state="open"] .sb2-row,
-  .sb2-card[data-state="open"] .sb2-bar,
-  .sb2-swap,
-  .sb2-stage-inner[data-shift],
-  .sb3-card[data-state="open"] .sb3-item,
-  .sb3-card[data-state="open"] .sb3-sleeve {
+  .sb-card[data-state="open"] .sb-item,
+  .sb-card[data-state="open"] .sb-row,
+  .sb-card[data-state="open"] .sb-bar,
+  .sb-card[data-state="open"] .sb-sleeve,
+  .sb-swap,
+  .sb-stage-inner[data-shift] {
     animation: none;
   }
-  .sb1-bar,
-  .sb2-bar,
-  .sb1-seg-thumb,
-  .sb2-seg-thumb,
-  .sb3-seg-thumb,
-  .sb3-tabs-thumb,
-  .sb1-switch-track::before,
-  .sb2-switch-track::before,
-  .sb3-switch-track::before,
-  .sb1-switch-knob,
-  .sb2-switch-knob,
-  .sb3-switch-knob,
-  .sb3-sleeve,
-  .sb3-hit,
-  .sb3-record,
-  .sb3-tag {
+  .sb-bar,
+  .sb-seg-thumb,
+  .sb-tabs-thumb,
+  .sb-switch-track::before,
+  .sb-switch-knob,
+  .sb-sleeve,
+  .sb-hit,
+  .sb-record,
+  .sb-tag {
     transition: none;
   }
 }

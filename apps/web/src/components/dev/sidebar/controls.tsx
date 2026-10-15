@@ -11,59 +11,46 @@ import {
   type ReactNode,
   type SVGProps,
 } from "react";
-import { PencilIcon, PlusIcon } from "../../Icons";
+import { PencilIcon } from "../../Icons";
 import { PinIcon } from "./icons";
 import { WIDGETS, type WidgetKey } from "./sample-data";
 
-/** Class prefix of a variant. Shared pieces build their class names from it, so each variant's
- * CSS in globals.css can be lifted out on its own. */
-export type Ns = "sb1" | "sb2" | "sb3";
-
 export const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
 
-/** The sidebar's Import pill, same markup and motion classes as components/Sidebar.tsx. */
-export function ImportButton({ compact = false }: { compact?: boolean }) {
-  return (
-    <button
-      type="button"
-      className={`import-pill flex shrink-0 items-center justify-center gap-2 rounded-full bg-accent text-sm font-semibold hover:bg-accent-hover ${focusRing} ${
-        compact ? "h-9 px-3.5" : "h-10 px-4"
-      }`}
-    >
-      <PlusIcon className="import-plus h-4 w-4" />
-      <span className="import-label">Import</span>
-    </button>
-  );
-}
-
-/** A Library or Settings item, styled like the existing sidebar's quiet nav items. */
+/** A full-width row in the column's stack (Library, Import, Settings, Stats), styled like the
+ * existing sidebar's quiet nav items: an icon and a label, a soft pill on the active one. `end` is
+ * a quiet note at the right, inside the same hit area. Every row has the same height, hover and
+ * focus ring; the active page also gets `aria-current="page"`. */
 export function NavItem({
   icon: Icon,
   active = false,
-  className = "",
+  onClick,
+  end,
   children,
 }: {
   icon: ComponentType<SVGProps<SVGSVGElement>>;
   active?: boolean;
-  className?: string;
+  onClick?: () => void;
+  end?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <button
       type="button"
       aria-current={active ? "page" : undefined}
-      className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${focusRing} ${
-        active ? "bg-white/[0.09] text-text" : "text-text-muted hover:bg-white/[0.06] hover:text-text"
-      } ${className}`}
+      onClick={onClick}
+      className={`flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition-colors ${focusRing} ${
+        active ? "bg-white/[0.1] text-text" : "text-text-muted hover:bg-white/[0.07] hover:text-text"
+      }`}
     >
       <Icon className="h-4 w-4 shrink-0" />
-      {children}
+      <span className="flex-1">{children}</span>
+      {end}
     </button>
   );
 }
 
 interface ChoiceProps<T extends string> {
-  ns: Ns;
   /** `seg` is a segmented control (a radio group); `tabs` is a row of text tabs. */
   kind: "seg" | "tabs";
   label: string;
@@ -75,7 +62,6 @@ interface ChoiceProps<T extends string> {
 
 /** One choice out of a few, with a thumb that slides on transform. Arrow keys move the choice. */
 export function Choice<T extends string>({
-  ns,
   kind,
   label,
   value,
@@ -103,10 +89,10 @@ export function Choice<T extends string>({
       role={kind === "seg" ? "radiogroup" : "tablist"}
       aria-label={label}
       onKeyDown={onKeyDown}
-      className={`${ns}-${kind} ${className}`}
+      className={`sb-${kind} ${className}`}
       style={{ "--n": options.length, "--i": index } as CSSProperties}
     >
-      <span aria-hidden className={`${ns}-${kind}-thumb`} />
+      <span aria-hidden className={`sb-${kind}-thumb`} />
       {options.map((o) => {
         const selected = o.value === value;
         return (
@@ -131,56 +117,54 @@ export function Choice<T extends string>({
 
 /** An on/off switch with its label. The knob slides on transform. */
 export function Switch({
-  ns,
   checked,
   onChange,
-  trackFirst = false,
+  locked = false,
   className = "",
   children,
 }: {
-  ns: Ns;
   checked: boolean;
   onChange: (next: boolean) => void;
-  trackFirst?: boolean;
+  /** Stays focusable and announced, but a click does nothing (the last widget cannot go off). */
+  locked?: boolean;
   className?: string;
   children: ReactNode;
 }) {
-  const track = (
-    <span aria-hidden className={`${ns}-switch-track`}>
-      <span className={`${ns}-switch-knob`} />
-    </span>
-  );
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className={`${ns}-switch flex items-center gap-2 rounded-full text-xs font-medium text-text-muted transition-colors hover:text-text ${focusRing} ${className}`}
+      aria-disabled={locked || undefined}
+      onClick={() => {
+        if (!locked) onChange(!checked);
+      }}
+      className={`sb-switch flex items-center gap-2 rounded-full text-xs font-medium text-text-muted transition-colors ${
+        locked ? "opacity-60" : "hover:text-text"
+      } ${focusRing} ${className}`}
     >
-      {trackFirst && track}
       {children}
-      {!trackFirst && track}
+      <span aria-hidden className="sb-switch-track">
+        <span className="sb-switch-knob" />
+      </span>
     </button>
   );
 }
 
-/** "Edit widgets": a small popover with a switch per widget (prototype state only). */
+/** "Edit widgets": a small popover with a switch per widget (prototype state only). The one widget
+ * left on is locked, so at least one always shows. */
 export function EditWidgets({
-  ns,
   enabled,
   onToggle,
-  placement = "below",
 }: {
-  ns: Ns;
   enabled: Record<WidgetKey, boolean>;
   onToggle: (key: WidgetKey) => void;
-  placement?: "below" | "above";
 }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const onCount = WIDGETS.filter((w) => enabled[w.key]).length;
 
   useEffect(() => {
     if (!open) return;
@@ -223,21 +207,21 @@ export function EditWidgets({
         role="group"
         aria-label="Widgets to show"
         data-state={open ? "open" : "closed"}
-        data-placement={placement}
-        className={`${ns}-pop ${placement === "below" ? "right-0 top-full mt-2" : "bottom-full left-0 mb-2"}`}
+        className="sb-pop right-0 top-full mt-2"
       >
         <p className="px-2.5 pb-1 pt-1.5 text-xs text-text-dim">Show in this panel</p>
         {WIDGETS.map((w) => (
           <Switch
             key={w.key}
-            ns={ns}
             checked={enabled[w.key]}
             onChange={() => onToggle(w.key)}
+            locked={enabled[w.key] && onCount === 1}
             className="w-full justify-between rounded-xl px-2.5 py-2 text-[13px] hover:bg-white/[0.06]"
           >
             {w.title}
           </Switch>
         ))}
+        {onCount === 1 && <p className="px-2.5 pb-1.5 pt-1 text-xs text-text-dim">At least one stays on.</p>}
       </div>
     </div>
   );
@@ -245,13 +229,11 @@ export function EditWidgets({
 
 /** The panel footer: pin it open, or stop it opening on hover (keep it closed). */
 export function PanelControls({
-  ns,
   pinned,
   onPinChange,
   hoverReveal,
   onHoverRevealChange,
 }: {
-  ns: Ns;
   pinned: boolean;
   onPinChange: (next: boolean) => void;
   hoverReveal: boolean;
@@ -263,14 +245,14 @@ export function PanelControls({
         type="button"
         aria-pressed={pinned}
         onClick={() => onPinChange(!pinned)}
-        className={`${ns}-pin flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${focusRing} ${
+        className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${focusRing} ${
           pinned ? "bg-white/[0.14] text-text" : "text-text-muted hover:bg-white/[0.08] hover:text-text"
         }`}
       >
         <PinIcon className={`h-3.5 w-3.5 ${pinned ? "text-accent-hover" : ""}`} />
         {pinned ? "Pinned" : "Pin open"}
       </button>
-      <Switch ns={ns} checked={hoverReveal} onChange={onHoverRevealChange} className="py-1 pl-2 pr-1">
+      <Switch checked={hoverReveal} onChange={onHoverRevealChange} className="py-1 pl-2 pr-1">
         Open on hover
       </Switch>
     </div>
