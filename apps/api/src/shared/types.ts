@@ -148,6 +148,8 @@ export interface MissingFilesRelease {
 export interface MissingFilesResponse {
   releases: MissingFilesRelease[];
   checkedAt: string;
+  /** `true` only when a cap cut the check short, so the list may be incomplete; omitted otherwise. */
+  truncated?: boolean;
 }
 
 /** Response of `POST /v1/files/resync-request`. */

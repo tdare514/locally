@@ -2,13 +2,18 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDb, migrateDb, type Db } from "../../src/db/client";
 import { users } from "../../src/db/schema";
 import type { CreateUploadParams, FileStore, UploadTicket } from "../../src/server/files/FileStore";
 import { LocalFileStore } from "../../src/server/files/LocalFileStore";
 import { expectedContentTypeFor } from "../../src/server/files/contentTypes";
-import { ReleaseFilesService, storageKeyFor, userStoragePrefix } from "../../src/server/files/ReleaseFilesService";
+import {
+  DEFAULT_MISSING_FILES_LIMITS,
+  ReleaseFilesService,
+  storageKeyFor,
+  userStoragePrefix,
+} from "../../src/server/files/ReleaseFilesService";
 import { MAX_FILE_BYTES, QuotaService } from "../../src/server/quota/QuotaService";
 import { ReleaseSyncService } from "../../src/server/releases/ReleaseSyncService";
 import { NotFoundError, ValidationError } from "../../src/shared/errors";
@@ -23,6 +28,8 @@ class FakeFileStore implements FileStore {
   public stored = new Set<string>();
   /** The prefix of every `listKeys` call, in order. */
   public listed: string[] = [];
+  /** How many keys `listKeys` has handed out, to show a caller stopped reading. */
+  public keysYielded = 0;
 
   async createUpload(params: CreateUploadParams): Promise<UploadTicket> {
     this.created.push(params);
@@ -43,7 +50,11 @@ class FakeFileStore implements FileStore {
 
   async *listKeys(prefix: string): AsyncGenerator<string> {
     this.listed.push(prefix);
-    for (const key of this.stored) if (key.startsWith(prefix)) yield key;
+    for (const key of this.stored) {
+      if (!key.startsWith(prefix)) continue;
+      this.keysYielded++;
+      yield key;
+    }
   }
 }
 
@@ -333,6 +344,130 @@ describe("ReleaseFilesService", () => {
         await issueTickets(userId, record, [record.tracks[0]!.file]);
         land(userId, record, [record.tracks[0]!.file]);
         expect((await checker.missingFiles(userId)).releases).toEqual([]);
+      });
+    });
+
+    describe("caps (#170)", () => {
+      let warn: ReturnType<typeof vi.spyOn>;
+
+      beforeEach(() => {
+        warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      });
+
+      afterEach(() => {
+        warn.mockRestore();
+      });
+
+      const capped = (limits: { maxReleases?: number; maxListedKeys?: number }) =>
+        new ReleaseFilesService(db, store, new QuotaService(db), () => CLOCK, limits);
+
+      it("defaults to 2000 releases and 50,000 listed keys (50 pages of 1000)", () => {
+        expect(DEFAULT_MISSING_FILES_LIMITS).toEqual({ maxReleases: 2000, maxListedKeys: 50_000 });
+      });
+
+      it("considers only the newest `maxReleases` releases, says truncated, and logs one line without names", async () => {
+        const oldest = await pushRelease(userId, { title: "Oldest" });
+        const middle = await pushRelease(userId, { title: "Middle" });
+        const newest = await pushRelease(userId, { title: "Newest" });
+
+        const result = await capped({ maxReleases: 2 }).missingFiles(userId);
+        expect(result.releases.map((r) => r.id)).toEqual([newest.id, middle.id]);
+        expect(result.releases.map((r) => r.id)).not.toContain(oldest.id);
+        expect(result.truncated).toBe(true);
+
+        expect(warn).toHaveBeenCalledTimes(1);
+        const line = JSON.parse(warn.mock.calls[0]![0] as string);
+        expect(line).toMatchObject({
+          level: "warn",
+          event: "missing_files_truncated",
+          userId,
+          releasesChecked: 2,
+          maxReleases: 2,
+          releasesTruncated: true,
+          listingTruncated: false,
+        });
+        const text = JSON.stringify(line);
+        for (const record of [oldest, middle, newest]) expect(text).not.toContain(record.tracks[0]!.file);
+      });
+
+      it("a rewrite moves a release to the front, since the order is by version", async () => {
+        const first = await pushRelease(userId);
+        await pushRelease(userId);
+        await releaseSync.upsert(userId, first.id, { ...first, updatedAt: new Date(Date.parse(first.updatedAt) + 1000).toISOString() });
+        await pushRelease(userId);
+
+        const ids = (await capped({ maxReleases: 2 }).missingFiles(userId)).releases.map((r) => r.id);
+        expect(ids).toHaveLength(2);
+        expect(ids[1]).toBe(first.id);
+      });
+
+      it("is not truncated, and says nothing, when the releases exactly fit the cap", async () => {
+        await pushRelease(userId);
+        await pushRelease(userId);
+        const result = await capped({ maxReleases: 2 }).missingFiles(userId);
+        expect(result.releases).toHaveLength(2);
+        expect("truncated" in result).toBe(false);
+        expect(warn).not.toHaveBeenCalled();
+      });
+
+      it("stops reading the listing at `maxListedKeys` and says truncated", async () => {
+        const base = makeReleaseRecord();
+        const tracks = ["a", "b", "c", "d"].map((n, i) => ({ ...base.tracks[0]!, id: crypto.randomUUID(), trackNumber: i + 1, file: `${n}.mp3` }));
+        const record = await pushRelease(userId, { kind: "album", tracks });
+        await issueTickets(userId, record, ["a.mp3", "b.mp3", "c.mp3", "d.mp3"]);
+        land(userId, record, ["a.mp3", "b.mp3", "c.mp3", "d.mp3"]);
+
+        const result = await capped({ maxListedKeys: 2 }).missingFiles(userId);
+        expect(store.keysYielded).toBe(2);
+        expect(result.truncated).toBe(true);
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(warn.mock.calls[0]![0] as string)).toMatchObject({
+          userId,
+          keysListed: 2,
+          maxListedKeys: 2,
+          listingTruncated: true,
+          releasesTruncated: false,
+        });
+      });
+
+      it("does not report a name as missing just because a cut-short listing never reached its blob", async () => {
+        const base = makeReleaseRecord();
+        const tracks = ["a", "b", "c"].map((n, i) => ({ ...base.tracks[0]!, id: crypto.randomUUID(), trackNumber: i + 1, file: `${n}.mp3` }));
+        const record = await pushRelease(userId, { kind: "album", tracks });
+        // a and b have rows and blobs; c has neither. The listing reaches only a's blob.
+        await issueTickets(userId, record, ["a.mp3", "b.mp3"]);
+        land(userId, record, ["a.mp3", "b.mp3"]);
+
+        const result = await capped({ maxListedKeys: 1 }).missingFiles(userId);
+        expect(result.truncated).toBe(true);
+        // b is unverified, so it is left out; c has no row, which no listing can change.
+        expect(result.releases).toEqual([{ id: record.id, missing: ["c.mp3"], recordUpdatedAt: record.updatedAt }]);
+      });
+
+      it("reports both caps on one line when both are hit", async () => {
+        await pushRelease(userId);
+        const newer = await pushRelease(userId);
+        await issueTickets(userId, newer, [newer.tracks[0]!.file]);
+        land(userId, newer, [newer.tracks[0]!.file]);
+
+        const result = await capped({ maxReleases: 1, maxListedKeys: 1 }).missingFiles(userId);
+        expect(result).toEqual({ releases: [], checkedAt: new Date(CLOCK).toISOString(), truncated: true });
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(warn.mock.calls[0]![0] as string)).toMatchObject({
+          releasesChecked: 1,
+          releasesTruncated: true,
+          keysListed: 1,
+          listingTruncated: true,
+        });
+      });
+
+      it("is not truncated when the listing is read in full under the cap", async () => {
+        const record = await pushRelease(userId);
+        await issueTickets(userId, record, [record.tracks[0]!.file]);
+        land(userId, record, [record.tracks[0]!.file]);
+        const result = await capped({ maxListedKeys: 2 }).missingFiles(userId);
+        expect(result).toEqual({ releases: [], checkedAt: new Date(CLOCK).toISOString() });
+        expect(warn).not.toHaveBeenCalled();
       });
     });
 

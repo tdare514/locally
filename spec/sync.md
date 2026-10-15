@@ -117,7 +117,7 @@ sync at runtime.
 | DELETE `/v1/releases/:id` | | tombstone; `{ version }` |
 | POST `/v1/releases/:id/files` | `{ files: [{ name, bytes, contentType }] }` | `{ uploads: [{ name, url, method, headers }] }`; enforces quota, 200 MB per file, and that `contentType` matches the name's extension |
 | GET `/v1/releases/:id/files/:name` | | `{ url, expiresAt }` download URL |
-| GET `/v1/files/missing` | | `{ releases: [{ id, missing: [names], recordUpdatedAt }], checkedAt }`; the caller's live releases with files that are not stored; see "Missing files" |
+| GET `/v1/files/missing` | | `{ releases: [{ id, missing: [names], recordUpdatedAt }], checkedAt, truncated? }`; the caller's live releases with files that are not stored; `truncated` is `true` only when a cap cut the check short; see "Missing files" |
 | POST `/v1/files/resync-request` | none | `{ resyncRequestedAt }` (ISO); records that this account asked its devices to re-send files; see "Missing files" |
 | PUT `/v1/plays` | `{ counts: [{ releaseId, trackId, count }] }`, 1 to 500 entries | `{ accepted, ignored }`; see "Play counts" |
 | GET `/v1/releases/:id/plays` | | `{ tracks: [{ trackId, total, devices: [{ deviceId, name, platform, count, current }] }] }`; 404 for a release that isn't the user's or is tombstoned |
@@ -174,6 +174,13 @@ route. Plan: `docs/plans/119-missing-files.md`.
   `recordUpdatedAt` is the record's own `updatedAt`, so a client can tell which version was
   checked. `checkedAt` is the server time the check started. The response holds file names only,
   never signed URLs.
+- The check is bounded. It considers at most 2000 live releases (the most recently written first,
+  by `version`) and reads at most 50,000 keys (50 pages) of the listing. When either cap is hit the
+  response carries `"truncated": true` (the field is absent otherwise) and the list may be
+  incomplete: releases past the cap are not checked, and a name that has a `files` row but was not
+  reached by the cut-short listing is left out rather than reported missing, because a partial
+  listing cannot show a blob is absent. A name with no `files` row is still reported. A client
+  treats `truncated` as informational and may ignore it; an old client never sees it.
 - `POST /v1/files/resync-request` takes no body and sets `resyncRequestedAt` on the account to the
   server time. The server contacts no device: a device that sees `GET /v1/me` return a
   `resyncRequestedAt` newer than its last check runs that check now.
