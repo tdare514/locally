@@ -52,14 +52,14 @@ function buildServices(): Services {
   const releases = new ReleaseService(settings, library, converter, tags, fs, layout);
   const syncState = new FileSyncStateStore();
   const syncApiFactory: SyncApiFactory = (baseUrl, token) => new HttpSyncApi(baseUrl, token);
-  const syncEngine = new SyncEngine(settings, syncState, releases, fs, syncApiFactory);
+  const playStore = new FilePlayCountStore();
+  const syncEngine = new SyncEngine(settings, syncState, releases, fs, syncApiFactory, undefined, playStore);
 
   // Late-wire the engine as ReleaseService's sync hooks (see ReleaseSyncHooks
   // for why this can't be a constructor parameter: SyncEngine itself depends
   // on this same ReleaseService instance).
   // A local delete also drops that release's play counts (#106); composed here so
   // sync/ stays untouched.
-  const playStore = new FilePlayCountStore();
   const hooks: ReleaseSyncHooks = {
     onImported: (release) => syncEngine.onImported(release),
     onUpdated: (release) => syncEngine.onUpdated(release),

@@ -14,6 +14,7 @@ invariants. Paths below are relative to `apps/web`.
 src/shared/            # imported by both client and server; NO node imports
   types.ts             # API/DB shapes shared by client and server
   errors.ts            # ValidationError, NotFoundError, PublicError
+  discs.ts             # pure: per-disc tag numbers (deriveTagNumbers), "Disc N" headings, import ordering; trackNumber stays release-wide (#113)
 src/server/
   config/
     SettingsStore.ts        # interface: get()/set() app settings
@@ -39,7 +40,7 @@ src/server/
     NodeFileSystem.ts         # node:fs implementation
   sync/
     SyncApi.ts                # interface + HttpSyncApi: sign-in code/verify, list/push records, upload files
-    SyncEngine.ts             # reconcile loop, push local changes, accept "From your phone" releases
+    SyncEngine.ts             # reconcile loop, push local changes, accept "From your devices" releases
     SyncRecord.ts             # zod schema for the wire record, plain-name + extension guards, to/fromSyncRecord
     SyncState.ts              # SyncState + SyncStateStore interface: pushed/uploaded/pending bookkeeping
     FileSyncStateStore.ts     # JSON-file impl (sync-state.json next to settings.json), zod-validated
@@ -69,6 +70,7 @@ electron/build/licenses/  # committed LGPL/licence texts and SOURCES.md; shipped
 electron/vendor/          # git-ignored: the built ffmpeg binary, per uname -m arch
 src/proxy.ts              # loopback-only + same-origin CSRF guard (Next middleware)
 src/lib/api-client.ts     # client-side typed fetch wrappers (imports src/shared/types)
+src/lib/inbox-copy.ts     # tray title and the origin label under a pending release ("from your iPhone", "from the web", "from another device"; #185)
 src/lib/crop-geometry.ts  # pure: square/original crop geometry, mirrors iOS ImageCropper.swift
 src/lib/crop-image.ts     # crops and downscales image files, respects EXIF orientation
 src/components/**         # UI, unaffected by this architecture

@@ -7,6 +7,8 @@ import { PlayCounter } from "./PlayCounter";
 import type { SpotifyNowPlaying } from "./SpotifyNowPlaying";
 
 export const DEFAULT_POLL_INTERVAL_MS = 5000;
+/** Poll interval while the last poll found Spotify closed, so an idle app rarely spawns osascript (#162). */
+export const IDLE_POLL_INTERVAL_MS = 30_000;
 
 /**
  * Polls Spotify while the user has opted in, feeds samples to {@link PlayCounter} and
@@ -16,7 +18,7 @@ export const DEFAULT_POLL_INTERVAL_MS = 5000;
 export class PlayTracker {
   private readonly counter = new PlayCounter();
   private enabled = false;
-  private timer: ReturnType<typeof setInterval> | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
   private polling = false;
   private lastStatus: Exclude<PlaysStatus, "off"> = "on";
   private warnedAmbiguous = new Set<string>();
@@ -29,6 +31,7 @@ export class PlayTracker {
     private readonly store: Pick<PlayCountStore, "increment">,
     private readonly now: () => number = Date.now,
     private readonly intervalMs: number = DEFAULT_POLL_INTERVAL_MS,
+    private readonly idleIntervalMs: number = IDLE_POLL_INTERVAL_MS,
   ) {}
 
   setEnabled(enabled: boolean): void {
@@ -36,9 +39,7 @@ export class PlayTracker {
     this.enabled = enabled;
     if (enabled) {
       this.lastStatus = "on";
-      this.timer = setInterval(() => void this.poll(), this.intervalMs);
-      this.timer.unref?.();
-      void this.poll();
+      void this.run();
     } else {
       this.clearTimer();
     }
@@ -51,6 +52,16 @@ export class PlayTracker {
   stop(): void {
     this.enabled = false;
     this.clearTimer();
+  }
+
+  /** Polls, then schedules the next poll once this one has finished, so polls never stack. */
+  private async run(): Promise<void> {
+    await this.poll();
+    if (!this.enabled) return;
+    this.clearTimer();
+    const delay = this.lastStatus === "spotify-not-running" ? this.idleIntervalMs : this.intervalMs;
+    this.timer = setTimeout(() => void this.run(), delay);
+    this.timer.unref?.();
   }
 
   /** One poll. Never overlaps with another; exposed for tests. */
@@ -103,7 +114,7 @@ export class PlayTracker {
   }
 
   private clearTimer(): void {
-    if (this.timer) clearInterval(this.timer);
+    if (this.timer) clearTimeout(this.timer);
     this.timer = null;
   }
 }

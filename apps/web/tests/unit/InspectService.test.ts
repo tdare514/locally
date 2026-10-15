@@ -11,6 +11,7 @@ import type { ReadTagsResult, TagService } from "../../src/server/audio/TagServi
 class FakeTagService implements TagService {
   failFor = new Set<string>();
   readCalls: string[] = [];
+  extra: Partial<ReadTagsResult> = {};
 
   async write(): Promise<void> {
     throw new Error("not used by InspectService");
@@ -29,6 +30,7 @@ class FakeTagService implements TagService {
       genre: "Electronic",
       durationSec: 180.5,
       hasCover: true,
+      ...this.extra,
     };
   }
 }
@@ -62,6 +64,15 @@ describe("InspectService.inspect", () => {
       await fs.rm(dir, { recursive: true, force: true });
     }
     vi.restoreAllMocks();
+  });
+
+  it("passes the file's own track and disc tags through, so the import can order a multi-disc album", async () => {
+    tags.extra = { trackNumber: 3, discNumber: 2 };
+
+    const [file] = await service.inspect([audioFile("d2t3.mp3")]);
+
+    expect(file.trackNumber).toBe(3);
+    expect(file.discNumber).toBe(2);
   });
 
   it("reads tags for each uploaded file and returns them keyed by original name", async () => {

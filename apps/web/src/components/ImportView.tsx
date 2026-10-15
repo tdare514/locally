@@ -9,6 +9,7 @@ import CoverPicker from "./CoverPicker";
 import { UploadCloudIcon } from "./Icons";
 import { IS_DEMO } from "../lib/demo";
 import { applyTrackEdits } from "../lib/track-order";
+import { orderByDisc } from "../shared/discs";
 
 interface ImportViewProps {
   /** Prefill Single | Album when opened from the library empty-state CTAs. */
@@ -22,17 +23,15 @@ interface Entry {
   key: string;
   file: File;
   title: string;
+  /** From the file's disc tag, when it has one. */
+  discNumber?: number;
+  /** From the file's own track tag; only used to order a multi-disc import. */
+  tagTrackNumber?: number;
 }
 
 function stripExtension(name: string): string {
   const idx = name.lastIndexOf(".");
   return idx > 0 ? name.slice(0, idx) : name;
-}
-
-function segmentClass(active: boolean): string {
-  return `rounded-full px-5 py-1.5 text-sm font-medium transition-colors ${
-    active ? "bg-accent text-black shadow-sm" : "text-text-muted hover:text-text"
-  }`;
 }
 
 export default function ImportView({
@@ -96,10 +95,19 @@ export default function ImportView({
               title:
                 (info.title && info.title.trim()) ||
                 stripExtension(next[idx].file.name),
+              discNumber: info.discNumber ?? undefined,
+              tagTrackNumber: info.trackNumber ?? undefined,
             };
           }
         });
-        return next;
+        // Files tagged with a disc go in (disc, track) order; untagged files keep the order they came in.
+        // Only this batch is reordered, so rows the user already arranged stay where they are.
+        const end = startIndex + res.files.length;
+        return [
+          ...next.slice(0, startIndex),
+          ...orderByDisc(next.slice(startIndex, end)),
+          ...next.slice(end),
+        ];
       });
 
       if (startIndex === 0) {
@@ -145,6 +153,7 @@ export default function ImportView({
         tracks: entries.map((e, i) => ({
           title: e.title.trim() || `Track ${i + 1}`,
           trackNumber: i + 1,
+          ...(e.discNumber !== undefined ? { discNumber: e.discNumber } : {}),
         })),
       };
       const release = await importRelease(
@@ -191,18 +200,23 @@ export default function ImportView({
         </p>
       </div>
 
-      <div className="inline-flex w-fit rounded-full bg-elevated p-1">
+      <div role="group" aria-label="Release type" className="btn-seg w-fit">
+        <span aria-hidden className="btn-seg-dot">
+          <span />
+        </span>
         <button
           type="button"
           onClick={() => switchKind("single")}
-          className={segmentClass(kind === "single")}
+          aria-pressed={kind === "single"}
+          className="btn-seg-opt"
         >
           Single
         </button>
         <button
           type="button"
           onClick={() => switchKind("album")}
-          className={segmentClass(kind === "album")}
+          aria-pressed={kind === "album"}
+          className="btn-seg-opt"
         >
           Album
         </button>
@@ -288,7 +302,7 @@ export default function ImportView({
             </p>
           </div>
           <TrackList
-            tracks={entries.map((e) => ({ key: e.key, title: e.title }))}
+            tracks={entries.map((e) => ({ key: e.key, title: e.title, discNumber: e.discNumber }))}
             onChange={handleTracksChange}
             onRemove={handleRemove}
           />
@@ -301,7 +315,7 @@ export default function ImportView({
           type="button"
           disabled={!canSubmit}
           onClick={handleSubmit}
-          className="rounded-full bg-accent px-8 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+          className="btn-save"
         >
           {importing ? "Importing…" : "Import to Spotify"}
         </button>

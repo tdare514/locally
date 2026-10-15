@@ -41,6 +41,8 @@ export async function DELETE() {
     // Same reasoning as sign-out: this device's push bookkeeping and pending
     // phone releases belong to the now-deleted account.
     await services.syncState.set(emptySyncState());
+    // The deleted account held this Mac's pushed play counts; a new account gets them again (#107).
+    await services.playStore.resetPushed();
 
     const body = toSettingsResponse(updated);
     return NextResponse.json(alreadySignedOut ? { ...body, ok: true, alreadySignedOut: true } : { ...body, ok: true });

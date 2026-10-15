@@ -124,6 +124,11 @@ final class ReleaseCoordinator {
 
         let releaseId = UUID()
         let total = files.count
+        // `trackNumber` (file name, sync key) is the release-wide position; the number in each
+        // file's track tag is per disc when the files carry discs.
+        let tagNumbers = DiscNumbering.tagNumbers(
+            for: album.tracks.enumerated().map { (trackNumber: $0.offset + 1, discNumber: $0.element.discNumber) }
+        )
         var movedURLs: [URL] = []
         var tracks: [Track] = []
 
@@ -141,10 +146,12 @@ final class ReleaseCoordinator {
                     title: album.tracks[index].title,
                     artist: album.artist,
                     album: album.title,
-                    trackNumber: trackNumber,
-                    totalTracks: total,
+                    trackNumber: tagNumbers[index].trackNumber,
+                    totalTracks: tagNumbers[index].totalTracks,
                     year: album.year,
-                    genre: album.genre
+                    genre: album.genre,
+                    discNumber: tagNumbers[index].discNumber,
+                    totalDiscs: tagNumbers[index].totalDiscs
                 )
 
                 let writer = writer(for: prepared.ext)
@@ -164,6 +171,7 @@ final class ReleaseCoordinator {
                     id: album.tracks[index].id,
                     title: album.tracks[index].title,
                     trackNumber: trackNumber,
+                    discNumber: album.tracks[index].discNumber,
                     filePath: destinationURL.path,
                     originalName: stagedFile.originalName
                 ))
@@ -217,6 +225,9 @@ final class ReleaseCoordinator {
             if let newTitle = changes.trackTitles[tracks[index].id] {
                 tracks[index].title = newTitle
             }
+            if let disc = changes.trackDiscs[tracks[index].id], DiscNumbering.isValidDisc(disc) {
+                tracks[index].discNumber = disc
+            }
         }
 
         let newTitle = changes.title ?? existing.title
@@ -233,11 +244,11 @@ final class ReleaseCoordinator {
         // writers only re-add when handed the bytes again.
         let coverForWrite: Data? = changes.cover ?? (existing.coverPath != nil ? coverStore.load(id) : nil)
 
-        let totalTracks = tracks.count
         let finalTracks = tracks
+        let tagNumbers = DiscNumbering.tagNumbers(for: finalTracks.map { (trackNumber: $0.trackNumber, discNumber: $0.discNumber) })
 
         try await folder.withAccess { folderURL in
-            for track in finalTracks {
+            for (index, track) in finalTracks.enumerated() {
                 let fileURL = Self.resolvedFileURL(for: track, in: folderURL)
                 guard self.layout.isInside(folder: folderURL, path: fileURL.path) else {
                     throw LocallyError.pathOutsideFolder
@@ -249,10 +260,12 @@ final class ReleaseCoordinator {
                     title: track.title,
                     artist: newArtist,
                     album: newTitle,
-                    trackNumber: track.trackNumber,
-                    totalTracks: totalTracks,
+                    trackNumber: tagNumbers[index].trackNumber,
+                    totalTracks: tagNumbers[index].totalTracks,
                     year: newYear,
-                    genre: newGenre
+                    genre: newGenre,
+                    discNumber: tagNumbers[index].discNumber,
+                    totalDiscs: tagNumbers[index].totalDiscs
                 )
                 let writer = self.writer(for: fileURL.pathExtension.lowercased())
                 try await writer.write(tags, cover: coverForWrite, to: fileURL)
@@ -375,11 +388,11 @@ final class ReleaseCoordinator {
 
         let tracksById = Dictionary(uniqueKeysWithValues: existing.tracks.map { ($0.id, $0) })
         let coverForWrite: Data? = newCoverData ?? (existing.coverPath != nil ? coverStore.load(releaseId) : nil)
-        let totalTracks = record.tracks.count
+        let tagNumbers = DiscNumbering.tagNumbers(for: record.tracks.map { (trackNumber: $0.trackNumber, discNumber: $0.discNumber) })
         var updatedTracks = existing.tracks
 
         try await folder.withAccess { folderURL in
-            for syncTrack in record.tracks {
+            for (position, syncTrack) in record.tracks.enumerated() {
                 guard let trackId = UUID(uuidString: syncTrack.id), let track = tracksById[trackId] else {
                     continue
                 }
@@ -396,10 +409,12 @@ final class ReleaseCoordinator {
                     title: syncTrack.title,
                     artist: record.artist,
                     album: record.title,
-                    trackNumber: syncTrack.trackNumber,
-                    totalTracks: totalTracks,
+                    trackNumber: tagNumbers[position].trackNumber,
+                    totalTracks: tagNumbers[position].totalTracks,
                     year: record.year,
-                    genre: record.genre
+                    genre: record.genre,
+                    discNumber: tagNumbers[position].discNumber,
+                    totalDiscs: tagNumbers[position].totalDiscs
                 )
                 let writer = self.writer(for: fileURL.pathExtension.lowercased())
                 try await writer.write(tags, cover: coverForWrite, to: fileURL)
@@ -407,6 +422,8 @@ final class ReleaseCoordinator {
                 if let index = updatedTracks.firstIndex(where: { $0.id == trackId }) {
                     updatedTracks[index].title = syncTrack.title
                     updatedTracks[index].trackNumber = syncTrack.trackNumber
+                    // The record is the source of truth for the disc: absent there means no disc.
+                    updatedTracks[index].discNumber = syncTrack.discNumber
                 }
             }
         }
@@ -497,6 +514,7 @@ final class ReleaseCoordinator {
                     id: UUID(uuidString: syncTrack.id) ?? UUID(),
                     title: syncTrack.title,
                     trackNumber: syncTrack.trackNumber,
+                    discNumber: syncTrack.discNumber,
                     filePath: destinationURL.path,
                     originalName: syncTrack.file,
                     durationSec: syncTrack.durationSec

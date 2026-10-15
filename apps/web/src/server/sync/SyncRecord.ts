@@ -1,9 +1,19 @@
 import path from "node:path";
 import { z } from "zod";
 import type { Release, ReleaseKind } from "../../shared/types";
+import { MAX_DISC_NUMBER } from "../../shared/discs";
 
-/** Which platform wrote a given version of a release record. */
-export type SyncOrigin = "mac" | "ios";
+/**
+ * Which platform wrote a given version of a release record. "mac" and "ios" are the clients that
+ * exist today; any other short token (such as "web", #137) is another device, so a record from a
+ * future client never fails a pull page. Only `origin === "mac"` plus a matching `originDevice`
+ * is this Mac's own.
+ */
+export type SyncOrigin = "mac" | "ios" | (string & {});
+
+/** The wire shape of `origin`: any short lowercase token, so a release from a client this build has
+ * never heard of is read as "another device" instead of failing the whole pull page. */
+const SYNC_ORIGIN_PATTERN = /^[a-z][a-z0-9-]{0,15}$/;
 
 /** Longest name accepted for a record's file names and ids: the filename limit on every common filesystem. */
 export const MAX_SYNC_NAME_LENGTH = 255;
@@ -46,6 +56,8 @@ export const SyncTrackSchema = z.object({
   id: plainName("track id"),
   title: z.string(),
   trackNumber: z.number().int().positive(),
+  /** Omitted, never null, on a single-disc release (spec/sync.md). */
+  discNumber: z.number().int().min(1).max(MAX_DISC_NUMBER).optional(),
   file: syncFileName("track file"),
   bytes: z.number().int().nonnegative(),
   durationSec: z.number().nullable(),
@@ -73,7 +85,7 @@ export const SyncRecordSchema = z.object({
   /** Absent on a `syncVersion` 1 record (no signal, leave the cover alone); `null` on a v2 record with no cover. */
   coverHash: CoverHashSchema.nullable().optional(),
   tracks: z.array(SyncTrackSchema),
-  origin: z.enum(["mac", "ios"]),
+  origin: z.string().regex(SYNC_ORIGIN_PATTERN),
   originDevice: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -142,6 +154,7 @@ export function toSyncRecord(
       id: t.id,
       title: t.title,
       trackNumber: t.trackNumber,
+      ...(t.discNumber !== undefined ? { discNumber: t.discNumber } : {}),
       file: path.basename(t.filePath),
       bytes: trackBytesById[t.id] ?? 0,
       durationSec: t.durationSec,
@@ -182,7 +195,14 @@ export interface SyncRecordMeta {
   cover: string | null;
   /** `null` for no cover, or for a `syncVersion` 1 record that carried no `coverHash` at all. */
   coverHash: string | null;
-  tracks: { id: string; title: string; trackNumber: number; file: string; durationSec: number | null }[];
+  tracks: {
+    id: string;
+    title: string;
+    trackNumber: number;
+    discNumber?: number;
+    file: string;
+    durationSec: number | null;
+  }[];
   createdAt: string;
   updatedAt: string;
 }
@@ -204,6 +224,7 @@ export function fromSyncRecord(record: SyncRecord): SyncRecordMeta {
         id: t.id,
         title: t.title,
         trackNumber: t.trackNumber,
+        ...(t.discNumber !== undefined ? { discNumber: t.discNumber } : {}),
         file: t.file,
         durationSec: t.durationSec,
       })),
