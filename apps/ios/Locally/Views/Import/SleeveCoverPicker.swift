@@ -42,7 +42,10 @@ struct SleeveCoverPicker: View {
         // previous list stays visible while the new one loads.
         .task(id: isSheetPresented) {
             guard let container, isSheetPresented || recents.isEmpty else { return }
-            recents = await RecentCoversLoader(library: container.library, coverStore: container.coverStore).load()
+            let loaded = await RecentCoversLoader(library: container.library, coverStore: container.coverStore).load()
+            // A cancelled load is cut short; keep the list already on screen rather than a partial one.
+            guard !Task.isCancelled else { return }
+            recents = loaded
         }
         // As in `CoverPicker`: the Photos picker hangs off a persistent background
         // node, never off the sheet, which is torn down when it closes.
