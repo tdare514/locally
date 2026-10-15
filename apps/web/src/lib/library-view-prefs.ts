@@ -28,9 +28,10 @@ export function parseLibraryWidth(raw: string | null): LibraryWidth {
   return raw === "comfortable" ? "comfortable" : "full";
 }
 
-/** Tailwind classes for the library container at each width. Full has no max width. */
+/** Tailwind classes for the library container at each width. Full has no max width and reaches into
+ * the pane's own padding (AppShell's p-10 / lg:p-16), leaving about 24px at md and 32px from lg. */
 export function libraryWidthClass(width: LibraryWidth): string {
-  return width === "comfortable" ? "mx-auto max-w-[920px]" : "";
+  return width === "comfortable" ? "mx-auto w-full max-w-[920px]" : "md:-mx-4 lg:-mx-8";
 }
 
 /** The saved layout and cover size, or the defaults (list, medium). */

@@ -260,7 +260,7 @@ export default function LibraryView({
   return (
     <div
       ref={rootRef}
-      className={`flex flex-col gap-8 px-8 pb-16 xl:px-12 ${libraryWidthClass(width)}`}
+      className={`flex flex-col gap-8 pb-16 ${libraryWidthClass(width)}`}
     >
       <div className="flex items-baseline justify-between gap-4 pr-[calc(var(--tray-size)+0.75rem)] lg:pr-0">
         <div>
@@ -533,10 +533,10 @@ const LIST_GRID =
   "grid items-center gap-x-4 grid-cols-[minmax(0,1fr)_16px] " +
   "@[520px]:grid-cols-[minmax(0,1fr)_56px_56px_16px] " +
   "@[680px]:grid-cols-[minmax(0,1fr)_minmax(0,180px)_56px_56px_16px] " +
-  "@[820px]:grid-cols-[minmax(0,1fr)_minmax(0,180px)_56px_56px_120px_16px]";
+  "@[820px]:grid-cols-[minmax(0,1fr)_minmax(0,180px)_56px_56px_144px_16px]";
 const COL_GENRE = "hidden @[680px]:block";
 const COL_NUMBER = "hidden @[520px]:block text-right tabular-nums";
-const COL_ADDED = "hidden @[820px]:block tabular-nums";
+const COL_ADDED = "hidden @[820px]:block pl-6 tabular-nums";
 
 /** "Feb 6, 2026" style date in the user's locale. */
 export function formatAddedDate(iso: string, locale?: string): string {

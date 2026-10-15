@@ -56,6 +56,7 @@ describe("parseLibraryWidth", () => {
 describe("libraryWidthClass", () => {
   it("has no max width when full and 920px when comfortable", () => {
     expect(libraryWidthClass("full")).not.toContain("max-w");
+    expect(libraryWidthClass("full")).toContain("lg:-mx-8");
     expect(libraryWidthClass("comfortable")).toContain("max-w-[920px]");
   });
 });
