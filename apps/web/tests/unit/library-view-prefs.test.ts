@@ -3,6 +3,7 @@ import {
   loadLibraryWidth,
   parseCoverSize,
   parseLibraryLayout,
+  libraryWidthClass,
   parseLibraryWidth,
   saveLibraryWidth,
 } from "../../src/lib/library-view-prefs";
@@ -45,10 +46,18 @@ describe("parseLibraryWidth", () => {
     expect(parseLibraryWidth("full")).toBe("full");
   });
   it("defaults to comfortable for null and garbage", () => {
-    expect(parseLibraryWidth(null)).toBe("comfortable");
-    expect(parseLibraryWidth("")).toBe("comfortable");
-    expect(parseLibraryWidth("wide")).toBe("comfortable");
-    expect(parseLibraryWidth("FULL")).toBe("comfortable");
+    expect(parseLibraryWidth(null)).toBe("full");
+    expect(parseLibraryWidth("")).toBe("full");
+    expect(parseLibraryWidth("wide")).toBe("full");
+    expect(parseLibraryWidth("FULL")).toBe("full");
+  });
+});
+
+describe("libraryWidthClass", () => {
+  it("has no max width when full and 920px when comfortable", () => {
+    expect(libraryWidthClass("full")).not.toContain("max-w");
+    expect(libraryWidthClass("full")).toContain("lg:-mx-8");
+    expect(libraryWidthClass("comfortable")).toContain("max-w-[920px]");
   });
 });
 
@@ -65,8 +74,13 @@ describe("library width storage", () => {
     });
   }
 
-  it("defaults to comfortable when nothing is saved", () => {
+  it("defaults to full when nothing is saved", () => {
     stubStorage();
+    expect(loadLibraryWidth()).toBe("full");
+  });
+  it("keeps a saved comfortable width", () => {
+    stubStorage();
+    saveLibraryWidth("comfortable");
     expect(loadLibraryWidth()).toBe("comfortable");
   });
   it("round-trips a saved width", () => {
@@ -76,7 +90,7 @@ describe("library width storage", () => {
     saveLibraryWidth("comfortable");
     expect(loadLibraryWidth()).toBe("comfortable");
   });
-  it("falls back to comfortable when storage throws", () => {
+  it("falls back to full when storage throws", () => {
     vi.stubGlobal("window", {
       localStorage: {
         getItem: () => {
@@ -87,7 +101,7 @@ describe("library width storage", () => {
         },
       },
     });
-    expect(loadLibraryWidth()).toBe("comfortable");
+    expect(loadLibraryWidth()).toBe("full");
     expect(() => saveLibraryWidth("full")).not.toThrow();
   });
 });
