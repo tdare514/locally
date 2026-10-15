@@ -284,11 +284,19 @@ eyebrows still apply to those labels.
   one line of `text-muted` 14 body, then a primary "Add your first single" and a secondary "Make
   an album" pinned low. The full empty state lives in the main Library view.
 - **Web sidebar (#154)**: a slim 64 px rail, always there and see-through over the page, holds the
-  brand mark, Library, the accent Import circle, Settings and a menu button. Hovering it (or the
-  menu button) blooms a glass panel out of its right edge: "On this Mac" (or the signed-in email),
-  rows for Library, Import and Settings, then "Your plays" with Top tracks, Top albums, Top artists
-  and an optional record-sleeve shelf (the #1 row larger, with its cover). Pin open docks the panel
-  as a column. The glass is faked (no blur), motion is transform and opacity only, and all of it
+  menu button (three lines) at the very top, then Library, the accent Import circle and Settings
+  in the order the panel lists them, and the brand mark at the foot as a quiet, non-interactive
+  mark. Hovering the rail blooms a glass panel out of its right edge: "On this Mac" (or the
+  signed-in email) level with the menu button, rows for Library, Import and Settings each level
+  with its rail icon, then "Your plays" with Top tracks, Top albums, Top artists and an optional
+  record-sleeve shelf (the #1 row larger, with its cover). How the panel opened decides how it
+  closes: a hover-opened panel hides 300 ms after the pointer leaves; one opened with the menu
+  button stays when the pointer leaves, and closes only on a second click of the button, Escape
+  or choosing a page (never on a click outside); with Open on hover off the hover never opens it
+  and leaving never closes it. Choosing a page, on the rail or in the panel, closes an unpinned
+  panel at once so the new page is in view, and hovering does not reopen it until the pointer has
+  left the sidebar and come back. Pin open docks the panel as a column, which a page choice
+  leaves alone. The glass is faked (no blur), motion is transform and opacity only, and all of it
   stands still under reduced motion. The MagicPath sidebar is not used.
 - **Library list (desktop main)**: same sectioning as mobile — YOUR COLLECTION (replaced 13 Oct 2026: sentence case) / All music
   header with track-count meta, Singles then Albums in `card` containers (radius 12), "Add a

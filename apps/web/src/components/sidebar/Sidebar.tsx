@@ -51,6 +51,7 @@ function RailPageButton({
       type="button"
       aria-label={label}
       aria-current={active ? "page" : undefined}
+      data-page={page}
       onClick={onSelect}
       className={`${railButton} ${className} ${
         active ? "bg-white/[0.1] text-text" : "text-text-muted hover:bg-white/[0.07] hover:text-text"
@@ -79,12 +80,14 @@ interface SidebarProps {
 }
 
 /**
- * The sidebar (#154): a slim 64px rail is always there with Library, Import, Settings, a divider,
- * Stats (once its page exists) and the menu button. With Open on hover on, hovering the rail
- * blooms a wider glass panel out of its right edge; with it off only the menu button opens the
- * panel. Either way a click on a page goes straight there. The panel names each rail icon on a
- * row beside it and holds the play widgets. Pinned, the panel docks as a column beside the rail
- * and the pane shifts over.
+ * The sidebar (#154): a slim 64px rail is always there with the menu button at the top, then
+ * Library, Import, Settings, a divider, Stats (once its page exists), and the logo as a quiet
+ * mark at the bottom. With Open on hover on, hovering the rail blooms a wider glass panel out of
+ * its right edge, and it hides again after the pointer leaves; a click on the menu button opens it
+ * (in either mode) and it then stays until the menu button is clicked again, Escape, or a page is
+ * chosen. Choosing a page, on the rail or in the panel, goes straight there and closes an unpinned
+ * panel. The panel names each rail icon on a row beside it and holds the play widgets. Pinned, the
+ * panel docks as a column beside the rail and the pane shifts over.
  *
  * The pane is this component's next sibling with the class `sb-stage`: the CSS in globals.css
  * pads it and slides it from the `data-pinned` and `data-shift` on `.sb`.
@@ -107,7 +110,15 @@ export default function Sidebar({
   const { widgets, toggle } = useWidgets();
   const [period, setPeriod] = useState<StatsPeriod>(DEFAULT_PERIOD);
   const stats = useStats(period, releases, panel.shown);
-  const goToStats = HAS_STATS_PAGE ? onStatsClick : undefined;
+  /** A page handler that also closes an unpinned panel and keeps focus on the page's rail icon. */
+  const choose = (page: SidebarPage, go: () => void) => () => {
+    panel.pageChosen(page);
+    go();
+  };
+  const toLibrary = choose("library", onLibraryClick);
+  const toImport = choose("import", onImportClick);
+  const toSettings = choose("settings", onSettingsClick);
+  const goToStats = HAS_STATS_PAGE && onStatsClick ? choose("stats", onStatsClick) : undefined;
   const state = panel.shown ? "open" : "closed";
 
   const ambient = palette
@@ -129,16 +140,25 @@ export default function Sidebar({
     >
       <nav
         aria-label="Main"
-        className="sb-rail absolute inset-y-0 left-0 z-20 flex w-16 flex-col items-center pt-5"
+        className="sb-rail absolute inset-y-0 left-0 z-20 flex w-16 flex-col items-center py-5"
         {...panel.zoneProps}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element -- static SVG, no optimisation needed */}
-        <img src="/brand/listener-line.svg" alt="" className="mb-4 h-7 w-7" />
-        <RailPageButton page="library" active={activePage === "library"} onSelect={onLibraryClick} />
+        <button
+          ref={triggerRef}
+          type="button"
+          {...panel.triggerProps}
+          className={`${railButton} hover:bg-white/[0.07] hover:text-text ${
+            panel.shown ? "text-text" : "text-text-muted"
+          }`}
+        >
+          <MenuIcon className="h-[18px] w-[18px]" />
+        </button>
+        <RailPageButton page="library" active={activePage === "library"} onSelect={toLibrary} className="mt-2" />
         <button
           type="button"
           aria-label="Import"
-          onClick={onImportClick}
+          data-page="import"
+          onClick={toImport}
           disabled={IS_DEMO}
           title={IS_DEMO ? "Not available in the demo" : undefined}
           aria-current={activePage === "import" ? "page" : undefined}
@@ -151,24 +171,16 @@ export default function Sidebar({
         <RailPageButton
           page="settings"
           active={activePage === "settings"}
-          onSelect={onSettingsClick}
+          onSelect={toSettings}
           className="mt-2"
         />
         <div className="my-3 h-px w-6 bg-white/[0.14]" />
         {goToStats && (
           <RailPageButton page="stats" active={activePage === "stats"} onSelect={goToStats} />
         )}
-        <button
-          ref={triggerRef}
-          type="button"
-          aria-label="Sidebar menu"
-          {...panel.triggerProps}
-          className={`${railButton} ${goToStats ? "mt-2" : ""} hover:bg-white/[0.07] hover:text-text ${
-            panel.shown ? "text-text" : "text-text-muted"
-          }`}
-        >
-          <MenuIcon className="h-[18px] w-[18px]" />
-        </button>
+        {/* The logo is a quiet mark at the foot of the rail, not a button. */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- static SVG, no optimisation needed */}
+        <img src="/brand/listener-line.svg" alt="" aria-hidden className="mt-auto h-7 w-7 opacity-50" />
       </nav>
 
       <aside
@@ -180,7 +192,7 @@ export default function Sidebar({
         data-pinned={panel.pinned}
         className="sb-card z-10 flex flex-col outline-none"
       >
-        {/* No logo here: the rail beside it already carries one. */}
+        {/* Level with the menu button at the top of the rail. */}
         <div className="sb-item sb-brand flex h-7 items-center gap-2 text-xs text-text-muted" style={step(0)}>
           {IS_DEMO ? (
             <>
@@ -201,7 +213,7 @@ export default function Sidebar({
         <nav aria-label="Pages" className="sb-item flex flex-col gap-2" style={step(0)}>
           <NavItem
             active={activePage === "library"}
-            onClick={onLibraryClick}
+            onClick={toLibrary}
             end={
               loading ? undefined : (
                 <span className="text-xs font-normal text-text-dim">{releaseCountLabel(releases.length)}</span>
@@ -212,13 +224,13 @@ export default function Sidebar({
           </NavItem>
           <NavItem
             active={activePage === "import"}
-            onClick={onImportClick}
+            onClick={toImport}
             disabled={IS_DEMO}
             title={IS_DEMO ? "Not available in the demo" : undefined}
           >
             Import
           </NavItem>
-          <NavItem active={activePage === "settings"} onClick={onSettingsClick}>
+          <NavItem active={activePage === "settings"} onClick={toSettings}>
             {PAGES.settings.label}
           </NavItem>
           {goToStats && (
@@ -266,7 +278,7 @@ export default function Sidebar({
               Plays show up here once Locally has counted some. Turn it on in{" "}
               <button
                 type="button"
-                onClick={onSettingsClick}
+                onClick={toSettings}
                 className={`rounded font-medium text-text-muted underline underline-offset-2 transition-colors hover:text-text ${focusRing}`}
               >
                 Settings

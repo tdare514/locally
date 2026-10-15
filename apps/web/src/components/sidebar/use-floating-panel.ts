@@ -4,13 +4,19 @@ import {
   useCallback,
   useEffect,
   useId,
+  useReducer,
   useRef,
-  useState,
   type FocusEvent,
   type MouseEvent,
   type PointerEvent,
 } from "react";
-import { menuButtonClick, pinChange, type PanelChange, type PinShift } from "../../lib/sidebar-panel";
+import {
+  INITIAL_PANEL,
+  isHeldOpen,
+  isShown,
+  panelReduce,
+  type PanelEvent,
+} from "../../lib/sidebar-panel";
 import {
   loadSidebarPrefs,
   saveSidebarOpenOnHover,
@@ -34,41 +40,39 @@ export type PanelRefs = ReturnType<typeof usePanelRefs>;
 /**
  * The sidebar's hover-revealed panel (#154).
  *
- * - With Open on hover on, hovering a "zone" (the whole rail) reveals the panel. It stays while the
- *   pointer is anywhere over the root (rail plus panel) and hides GRACE_MS after the pointer
- *   leaves. A keyboard user's focus inside the root also keeps it open. With it off, hovering and
- *   focusing the rail do nothing: only the trigger (the menu button) opens the panel.
- * - Clicking the trigger with the mouse pins a hover-opened panel; clicking again unpins and
- *   closes it. With Open on hover off, a click opens it and a second click closes it.
- * - Pressing Enter or Space on the trigger opens the panel and moves focus into it.
+ * - With Open on hover on, hovering the rail reveals the panel. A panel the hover opened stays
+ *   while the pointer is anywhere over the root (rail plus panel) and hides GRACE_MS after the
+ *   pointer leaves; a keyboard user's focus inside the root also keeps it open. With it off,
+ *   hovering and focusing the rail do nothing: only the menu button opens the panel.
+ * - A panel the menu button opened (a click, or Enter or Space, which also moves focus into it)
+ *   stays when the pointer leaves, in either mode. Clicking the menu button on a hover-opened panel
+ *   holds it open the same way. A second click closes it; so does Escape or choosing a page.
+ *   Clicking outside the sidebar does not.
+ * - Choosing a page closes an unpinned panel at once and gives focus to that page's rail icon. If
+ *   the pointer is still over the sidebar, hovering cannot reopen it until the pointer has left and
+ *   come back. A pinned panel stays docked.
  * - Escape closes an unpinned panel and gives focus back to the trigger. A pinned panel is
  *   layout, so Escape leaves it alone.
- * - Pinned and Open on hover are remembered (lib/sidebar-prefs). What each click means is decided
- *   by lib/sidebar-panel.
+ * - Pinned and Open on hover are remembered (lib/sidebar-prefs). What each event means is decided
+ *   by panelReduce in lib/sidebar-panel.
  */
 export function useFloatingPanel(refs: PanelRefs) {
-  const [open, setOpen] = useState(false);
-  const [pinned, setPinned] = useState(false);
-  const [hoverReveal, setHoverReveal] = useState(true);
-  // Which way the content area should slide after the last pin change; null until it changes.
-  const [shift, setShift] = useState<PinShift | null>(null);
-  const [focusTick, setFocusTick] = useState(0);
+  const [model, dispatch] = useReducer(panelReduce, INITIAL_PANEL);
+  const { pinned, hoverReveal, shift, focusTick } = model;
 
   const panelId = useId();
   const { root: rootRef, trigger: triggerRef, panel: panelRef } = refs;
   const timer = useRef<number | null>(null);
-  const hovering = useRef(false);
-  // True while we move focus to the trigger ourselves, so that does not reveal the panel again.
+  // True while we move focus ourselves, so that does not reveal the panel again.
   const quiet = useRef(false);
 
-  const shown = open || pinned;
+  const shown = isShown(model);
+  const held = isHeldOpen(model);
 
   // Saved prefs load after mount so the server and first client render agree.
   useEffect(() => {
     const prefs = loadSidebarPrefs();
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPinned(prefs.pinned);
-    setHoverReveal(prefs.openOnHover);
+    dispatch({ type: "prefs", pinned: prefs.pinned, hoverReveal: prefs.openOnHover });
   }, []);
 
   const clearTimer = useCallback(() => {
@@ -85,12 +89,19 @@ export function useFloatingPanel(refs: PanelRefs) {
       const active = document.activeElement;
       const keyboardInside =
         !!rootRef.current && !!active && rootRef.current.contains(active) && active.matches(":focus-visible");
-      if (hovering.current || keyboardInside) return;
-      setOpen(false);
+      dispatch({ type: "grace-elapsed", keyboardInside });
     }, GRACE_MS);
   }, [clearTimer, rootRef]);
 
   useEffect(() => clearTimer, [clearTimer]);
+
+  /** Moves focus without that counting as a keyboard visit to the rail. */
+  const focusQuietly = useCallback((el: HTMLElement | null | undefined) => {
+    if (!el) return;
+    quiet.current = true;
+    el.focus({ preventScroll: true });
+    quiet.current = false;
+  }, []);
 
   // Escape closes an unpinned panel.
   useEffect(() => {
@@ -100,16 +111,12 @@ export function useFloatingPanel(refs: PanelRefs) {
       if (e.key !== "Escape" || e.defaultPrevented) return;
       const hadFocus = !!rootRef.current && rootRef.current.contains(document.activeElement);
       clearTimer();
-      setOpen(false);
-      if (hadFocus) {
-        quiet.current = true;
-        triggerRef.current?.focus();
-        quiet.current = false;
-      }
+      dispatch({ type: "escape" });
+      if (hadFocus) focusQuietly(triggerRef.current);
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [shown, pinned, clearTimer, rootRef, triggerRef]);
+  }, [shown, pinned, clearTimer, rootRef, triggerRef, focusQuietly]);
 
   // Focus moves into the panel after a keyboard open. Runs after the commit that shows it.
   useEffect(() => {
@@ -122,78 +129,78 @@ export function useFloatingPanel(refs: PanelRefs) {
     (first ?? panel).focus({ preventScroll: true });
   }, [focusTick, panelRef]);
 
-  const apply = useCallback(
-    (change: PanelChange) => {
+  /** Sends an event the user caused; anything pending from the pointer leaving is dropped. Pinning
+   * is remembered when the event changes it. */
+  const send = useCallback(
+    (event: PanelEvent) => {
       clearTimer();
-      setOpen(change.open);
-      if (change.pinned !== pinned) saveSidebarPinned(change.pinned);
-      setPinned(change.pinned);
-      if (change.shift) setShift(change.shift);
-      if (change.focusPanel) setFocusTick((t) => t + 1);
+      const next = panelReduce(model, event);
+      if (next.pinned !== model.pinned) saveSidebarPinned(next.pinned);
+      dispatch(event);
     },
-    [clearTimer, pinned],
+    [clearTimer, model],
   );
 
-  const reveal = useCallback(
-    (e: PointerEvent) => {
-      if (e.pointerType === "touch") return;
-      clearTimer();
-      if (hoverReveal) setOpen(true);
-    },
-    [clearTimer, hoverReveal],
-  );
-
-  const revealOnFocus = useCallback(
-    (e: FocusEvent<HTMLElement>) => {
-      if (quiet.current || !hoverReveal) return;
-      if (!e.target.matches(":focus-visible")) return;
-      clearTimer();
-      setOpen(true);
-    },
-    [clearTimer, hoverReveal],
-  );
-
-  const changeHoverReveal = useCallback((next: boolean) => {
-    setHoverReveal(next);
-    saveSidebarOpenOnHover(next);
+  const changeHoverReveal = useCallback((on: boolean) => {
+    dispatch({ type: "hover-reveal", on });
+    saveSidebarOpenOnHover(on);
   }, []);
 
   return {
     shown,
+    /** Docked, or opened by the menu button: the next click on the menu button closes it. */
+    held,
     pinned,
     shift,
     panelId,
     hoverReveal,
     setHoverReveal: changeHoverReveal,
     /** "Pin open" on or off. */
-    pin: (next: boolean) => apply(pinChange(next)),
+    pin: (next: boolean) => send({ type: "pin", pinned: next }),
+    /** A page was chosen, on the rail or in the panel. Closes an unpinned panel and puts focus on
+     * the page's rail icon (the one with that `data-page`), so it is not lost when the panel hides.
+     * A docked panel stays, and focus stays where it is. */
+    pageChosen: (page: string) => {
+      send({ type: "page-chosen" });
+      if (!pinned) {
+        focusQuietly(rootRef.current?.querySelector<HTMLElement>(`.sb-rail [data-page="${page}"]`));
+      }
+    },
     /** On the element that wraps the rail and the panel. */
     rootProps: {
       onPointerEnter: (e: PointerEvent) => {
         if (e.pointerType === "touch") return;
-        hovering.current = true;
-        clearTimer();
+        send({ type: "pointer-enter" });
       },
       onPointerLeave: (e: PointerEvent) => {
         if (e.pointerType === "touch") return;
-        hovering.current = false;
+        send({ type: "pointer-leave" });
         scheduleClose();
       },
       onBlur: (e: FocusEvent) => {
         const next = e.relatedTarget as Node | null;
         if (next && rootRef.current?.contains(next)) return;
-        if (!hovering.current) scheduleClose();
+        scheduleClose();
       },
     },
-    /** On whatever should reveal the panel when hovered or keyboard-focused. */
-    zoneProps: { onPointerEnter: reveal, onFocus: revealOnFocus },
-    /** On the button that toggles the panel. */
+    /** On whatever should reveal the panel when hovered or keyboard-focused (the rail). */
+    zoneProps: {
+      onPointerEnter: (e: PointerEvent) => {
+        if (e.pointerType === "touch") return;
+        send({ type: "hover-rail" });
+      },
+      onFocus: (e: FocusEvent<HTMLElement>) => {
+        if (quiet.current || !e.target.matches(":focus-visible")) return;
+        send({ type: "focus-rail" });
+      },
+    },
+    /** On the menu button. The label says what a click does; aria-expanded says what is on screen. */
     triggerProps: {
       "aria-expanded": shown,
       "aria-controls": panelId,
+      "aria-label": held ? "Close sidebar" : "Open sidebar",
       // A click with no pointer position (detail 0) came from Enter or Space.
-      onClick: (e: MouseEvent) =>
-        apply(menuButtonClick({ open, pinned }, { keyboard: e.detail === 0, hoverReveal })),
+      onClick: (e: MouseEvent) => send({ type: "menu-click", keyboard: e.detail === 0 }),
     },
   };
 }

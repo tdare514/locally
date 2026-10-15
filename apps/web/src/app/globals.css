@@ -1287,7 +1287,7 @@ body {
   top: 12px;
   bottom: 12px;
   width: 344px;
-  padding: 52px 10px 10px;
+  padding: 56px 10px 10px;
   border-radius: 28px;
 }
 .sb-card {
@@ -1312,7 +1312,7 @@ body {
   top: 0;
   bottom: 0;
   width: 304px;
-  padding-top: 64px;
+  padding-top: 68px;
   border-radius: 0;
   background: linear-gradient(to right, rgb(0 0 0 / 0.42), rgb(0 0 0 / 0.3));
   box-shadow: inset -1px 0 0 rgb(255 255 255 / 0.08);
@@ -1320,15 +1320,17 @@ body {
 .sb-card[data-pinned="true"]::before {
   display: none;
 }
-/* The header ("On this Mac", or the signed-in email) lines up with the logo on the rail. */
+/* The header ("On this Mac", or the signed-in email) is level with the menu button at the top of
+   the rail (centre 40px down the window), and the rows below it with the page icons (the first
+   centre is 88px down). The card sits 12px down, or flush when pinned. */
 .sb-brand {
   position: absolute;
   left: 22px;
   right: 22px;
-  top: 8px;
+  top: 14px;
 }
 .sb-card[data-pinned="true"] .sb-brand {
-  top: 20px;
+  top: 26px;
 }
 /* The pane (AppShell gives it .sb-stage and puts it right after .sb) leaves room for the rail, and
    for the card too while it is pinned. The pane's layout changes at once; the slide is a transform
