@@ -98,7 +98,7 @@ describe("PendingRow files states (#172)", () => {
   it("a waiting phone row shows the copy and the Resync button, and offers no Send", () => {
     const { html, text } = render({ ...base, filesState: "waiting" });
     expect(text).toContain("Waiting on your phone");
-    expect(text).toContain("This song's files never reached the server.");
+    expect(text).toContain("The audio hasn't arrived yet.");
     expect(text).toContain("Resync Mac and phone");
     expect(html).toContain("<button");
     expect(html).not.toContain("Send Phone Song to Spotify");
@@ -107,9 +107,9 @@ describe("PendingRow files states (#172)", () => {
     expect(html.match(/<button/g)).toHaveLength(1);
   });
 
-  it("a waiting album row names the album, not a song", () => {
+  it("a waiting album row uses the same line, which never calls it a song", () => {
     const { text } = render({ ...base, kind: "album", trackCount: 6, filesState: "waiting" });
-    expect(text).toContain("This album's files never reached the server.");
+    expect(text).toContain("The audio hasn't arrived yet.");
     expect(text).not.toContain("This song's");
   });
 

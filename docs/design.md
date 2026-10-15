@@ -331,9 +331,9 @@ eyebrows still apply to those labels.
     three dots stand still (the steps are declared only when reduced motion is not requested).
   - *Waiting on your phone*: once a later check still finds the files missing, or the record is
     an hour old. The sleeve is a still picture at 60 %; under the origin label "Waiting on your
-    phone" (12 semibold, `text`), then "This song's files never reached the server." ("This
-    album's files…" for an album) and a
-    secondary pill, **Resync Mac and phone** (another origin: "Waiting on that device", **Resync**).
+    phone" (12 semibold, `text`), then one quiet line, "The audio hasn't arrived yet." (owner's
+    choice, 15 Oct 2026, from Codex's review: lighter than the earlier "This song's files never
+    reached the server.", and no stronger than a repeated check can prove), and a secondary pill, **Resync Mac and phone** (another origin: "Waiting on that device", **Resync**).
     After a press: "Asked your phone to send it again. Open Locally on your iPhone to finish." If
     the service asks to wait: "Try again in a few minutes." under the pill.
   - A re-sent release (a newer server version of it) returns to *Still sending*, never straight

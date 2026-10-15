@@ -193,7 +193,7 @@ export function PendingRow({
   const title = item.title || item.artist;
   const waiting = item.filesState === "waiting";
   const arriving = item.filesState === "arriving";
-  const copy = waitingCopy(item.origin, item.kind);
+  const copy = waitingCopy(item.origin);
   // The group/send hover and focus effects only fire under the Send button, so the same sleeve
   // sits still when it is not one.
   const sleeve = (

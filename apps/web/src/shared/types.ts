@@ -107,7 +107,7 @@ export interface ReleasePlaysResponse {
 }
 
 /** Where a pending release's files stand (#172). Absent means they are on the server: Send works.
- * "arriving" is the quiet "still uploading"; "waiting" means they never reached the server. */
+ * "arriving" is the quiet "still uploading"; "waiting" means a later check still finds them missing. */
 export type PendingFilesState = "arriving" | "waiting";
 
 /** One track's all-time play count on this Mac, in GET /api/plays/totals. */

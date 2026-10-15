@@ -42,17 +42,18 @@ describe("files missing copy (#172)", () => {
   it("uses the phone wording for the iPhone", () => {
     expect(waitingCopy("ios")).toEqual({
       title: "Waiting on your phone",
-      body: "This song's files never reached the server.",
+      body: "The audio hasn't arrived yet.",
       action: "Resync Mac and phone",
       asked: "Asked your phone to send it again. Open Locally on your iPhone to finish.",
       later: "Try again in a few minutes.",
     });
   });
 
-  it("names an album's files for an album and a song's for a single", () => {
-    expect(waitingCopy("ios", "album").body).toBe("This album's files never reached the server.");
-    expect(waitingCopy("web", "album").body).toBe("This album's files never reached the server.");
-    expect(waitingCopy("ios", "single").body).toBe("This song's files never reached the server.");
+  it("says the audio hasn't arrived yet, with no song or album wording, for every origin", () => {
+    for (const origin of ["ios", "web", "watch"]) {
+      expect(waitingCopy(origin).body, origin).toBe("The audio hasn't arrived yet.");
+      expect(waitingCopy(origin).body, origin).not.toMatch(/song|album|never/i);
+    }
   });
 
   it("is generic for the web and any origin it has no name for", () => {
@@ -62,7 +63,7 @@ describe("files missing copy (#172)", () => {
       expect(copy.action, origin).toBe("Resync");
       expect(copy.asked, origin).toBe("Asked that device to send it again. Open Locally there to finish.");
       expect(sendingFooter([origin]), origin).toBe("Still sending this one from that device…");
-      expect(copy.body, origin).toBe("This song's files never reached the server.");
+      expect(copy.body, origin).toBe("The audio hasn't arrived yet.");
     }
   });
 

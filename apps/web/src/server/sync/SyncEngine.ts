@@ -651,7 +651,7 @@ export class SyncEngine implements ReleaseSyncHooks {
     }
     if (filesState === "waiting") {
       throw new PublicError(
-        `${record.kind === "album" ? "This album's" : "This song's"} files never reached the server. Use Resync in the tray to ask for them again.`
+        "The audio hasn't arrived yet. Use Resync in the tray to ask for it again."
       );
     }
 

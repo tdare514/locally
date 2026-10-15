@@ -29,7 +29,7 @@ export function sendingFooter(origins: string[]): string {
   return several ? "Still sending these from your phone…" : "Still sending this one from your phone…";
 }
 
-/** The words for a release whose files never reached the server (#172). */
+/** The words for a release whose files are still missing on a later check (#172). */
 export interface WaitingCopy {
   /** The headline state, under the origin label. */
   title: string;
@@ -42,9 +42,10 @@ export interface WaitingCopy {
   later: string;
 }
 
-/** The body names what is missing: an album's files, or a single's (a song). */
-export function waitingCopy(origin: string, kind: "single" | "album" = "single"): WaitingCopy {
-  const body = kind === "album" ? "This album's files never reached the server." : "This song's files never reached the server.";
+export function waitingCopy(origin: string): WaitingCopy {
+  // The owner's choice (15 Oct): one plain line that fits a single or an album and claims no more
+  // than a repeated check shows.
+  const body = "The audio hasn't arrived yet.";
   const later = "Try again in a few minutes.";
   if (isPhone(origin)) {
     return {

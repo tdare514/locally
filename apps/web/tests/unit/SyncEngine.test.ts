@@ -1125,7 +1125,7 @@ describe("SyncEngine", () => {
       await clocked.reconcile();
       expect(await stateOf("a")).toBe("waiting");
 
-      await expect(clocked.acceptFromPhone("a")).rejects.toThrow(/files never reached the server/i);
+      await expect(clocked.acceptFromPhone("a")).rejects.toThrow(/audio hasn't arrived yet/i);
 
       expect(api.downloadUrlCalls).toEqual([]);
       expect((await clocked.status()).pendingFromPhone.map((p) => p.id)).toEqual(["a"]);
