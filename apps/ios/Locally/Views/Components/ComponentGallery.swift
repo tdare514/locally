@@ -5,8 +5,8 @@ import SwiftUI
 /// with `-componentGallery <name>`; see `LocallyApp`.
 struct ComponentGallery: View {
     static let names = ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "sleeve-bright", "sleeve-dark", "backdrop-a", "backdrop-b", "inline-field", "cover-sheet",
-        // #160 design prototypes: three Settings directions, the shared studio backdrop, and today's Settings for comparison.
-        "settings-a", "settings-b", "settings-c", "studio-backdrop", "settings-current"]
+        // #160: the studio backdrop and the real Settings with sample sync state.
+        "studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-scrolled"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -23,9 +23,9 @@ struct ComponentGallery: View {
         deep: Color(red: 0.02, green: 0.10, blue: 0.10)
     )
 
-    /// The #160 screens draw their own backdrop (or, for `settings-current`, the real screen's black).
+    /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        ["settings-a", "settings-b", "settings-c", "studio-backdrop", "settings-current"].contains(name)
+        ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-scrolled"].contains(name)
     }
 
     var body: some View {
@@ -90,37 +90,42 @@ struct ComponentGallery: View {
                     onChoose: { _ in }
                 )
             }
-        case "settings-a":
-            SettingsPrototypeA()
-        case "settings-b":
-            SettingsPrototypeB()
-        case "settings-c":
-            SettingsPrototypeC()
         case "studio-backdrop":
             StudioBackdrop()
-        case "settings-current":
-            // Today's Settings, signed in with the same sample state, for side-by-side screenshots.
-            TabView {
-                SettingsView()
-                    .tabItem { Label(Copy.Settings.title, systemImage: "gearshape") }
-            }
-            .tint(Theme.accent)
-            .environment(FolderStatus(isConnected: true))
-            .environment(PurchaseStatus(isFullUnlocked: false))
-            .environment(Self.sampleSyncStatus)
+        case "settings-signed-in":
+            Self.settings(signedIn: true)
+        case "settings-signed-out":
+            Self.settings(signedIn: false)
+        case "settings-scrolled":
+            // Opens at the bottom of the page, to see the lower groups and the edge fade.
+            Self.settings(signedIn: true).defaultScrollAnchor(.bottom)
         default:
             EmptyView()
         }
     }
 
-    private static var sampleSyncStatus: SyncStatus {
+    /// The real Settings in a tab bar, with sample state: no container, so nothing reaches a
+    /// service or the network.
+    private static func settings(signedIn: Bool) -> some View {
+        TabView {
+            SettingsView()
+                .tabItem { Label(Copy.Settings.title, systemImage: "gearshape") }
+        }
+        .tint(Theme.accent)
+        .environment(FolderStatus(isConnected: true))
+        .environment(PurchaseStatus(isFullUnlocked: false))
+        .environment(sampleSyncStatus(signedIn: signedIn))
+    }
+
+    private static func sampleSyncStatus(signedIn: Bool) -> SyncStatus {
+        guard signedIn else { return SyncStatus() }
         let status = SyncStatus(
             signedIn: true,
-            email: SettingsSample.email,
-            deviceName: SettingsSample.device,
+            email: "sample@example.com",
+            deviceName: "iPhone 17",
             lastRunAt: Date().addingTimeInterval(-120)
         )
-        status.quota = SyncQuota(usedBytes: SettingsSample.usedMB * 1_048_576, limitBytes: SettingsSample.limitMB * 1_048_576)
+        status.quota = SyncQuota(usedBytes: 42 * 1_048_576, limitBytes: 500 * 1_048_576)
         return status
     }
 }

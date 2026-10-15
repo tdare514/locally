@@ -1,21 +1,20 @@
-#if DEBUG
 import SwiftUI
 import UIKit
 
-/// The calm "studio" backdrop for every screen except the library (#160): the app's black with a
-/// very soft, slow two-tone glow, accent blue and a cool violet. It reuses `ArtworkBackdrop` with a
-/// fixed brand palette, so the drift, the Reduce Motion behaviour and the luminance caps are the
-/// release page's own, and adds one quiet low glow and a faint film grain on top. Nothing blurs or
-/// draws a hard edge: every colour change is a gradient.
+/// The calm "studio" backdrop for screens with no cover to colour them (Settings, #160): the app's
+/// black with a very soft, slow two-tone glow, accent blue and a cool violet. It reuses
+/// `ArtworkBackdrop` with a fixed brand palette, so the drift, the Reduce Motion behaviour and the
+/// luminance caps are the release page's own, and adds one quiet low glow and a faint film grain on
+/// top. Nothing blurs or draws a hard edge: every colour change is a gradient.
 struct StudioBackdrop: View {
     /// 1 is the library sky's own strength; the default sits a little under it so a screen of
-    /// controls stays calm. Lower keeps more of the page black (the Quiet list uses about half).
+    /// controls stays calm. Lower keeps more of the page black.
     var intensity: Double = 0.8
 
     var body: some View {
         ZStack {
             Theme.background
-            ArtworkBackdrop(primary: StudioPalette.blue, secondary: StudioPalette.violet, deep: StudioPalette.deep)
+            ArtworkBackdrop(primary: Theme.Studio.blue, secondary: Theme.Studio.violet, deep: Theme.Studio.deep)
                 .opacity(intensity)
             LowGlow()
                 .opacity(intensity)
@@ -27,21 +26,13 @@ struct StudioBackdrop: View {
     }
 }
 
-/// Where the brand colours live until a direction is picked (then they move to `Theme`).
-enum StudioPalette {
-    /// Accent blue (#1E7DF0), pulled down by `ArtworkBackdrop`'s luminance cap.
-    static let blue = Color(red: 0.10, green: 0.42, blue: 0.90)
-    static let violet = Color(red: 0.46, green: 0.30, blue: 0.92)
-    static let deep = Color(red: 0.02, green: 0.04, blue: 0.11)
-}
-
 /// A static violet pool in the lower corner, so the bottom of a long screen is not flat black.
 /// A gradient only: no blur, no animation, nothing to redraw.
 private struct LowGlow: View {
     var body: some View {
         GeometryReader { geo in
             RadialGradient(
-                colors: [StudioPalette.violet.opacity(0.14), StudioPalette.violet.opacity(0.05), .clear],
+                colors: [Theme.Studio.violet.opacity(0.14), Theme.Studio.violet.opacity(0.05), .clear],
                 center: UnitPoint(x: 0.95, y: 1.02),
                 startRadius: 0,
                 endRadius: max(geo.size.width, geo.size.height) * 0.62
@@ -102,6 +93,7 @@ private struct FilmGrain: View {
     }()
 }
 
+#if DEBUG
 #Preview("Studio backdrop") {
     StudioBackdrop()
         .preferredColorScheme(.dark)

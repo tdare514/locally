@@ -234,6 +234,8 @@ enum Copy {
         static let title = "Settings"
         static let folderConnected = "Spotify's folder is connected."
         static let folderNotConnected = "Spotify's folder isn't connected."
+        static let folderSection = "Spotify folder"
+        static let purchaseSection = "Purchase"
         static let reconnect = "Reconnect"
         static let folderLost = "We can't reach Spotify's folder any more. This happens after Spotify is reinstalled or Local Files is turned off. Tap to reconnect."
         static let about = "About"
@@ -302,8 +304,10 @@ enum Copy {
         static let serverAddress = "Server address (development)"
         static let serverAddressHint = "Point this at your Mac's address on the same network, e.g. http://192.168.1.23:4000, so this simulator or phone can reach it."
 
-        static func lastSynced(_ relativeTime: String) -> String { "Last synced \(relativeTime)." }
-        static let neverSynced = "Not synced yet."
+        /// The account card's pill: "Synced 2 min ago".
+        static func syncedPill(_ relativeTime: String) -> String { "Synced \(relativeTime)" }
+        static let syncedJustNow = "Synced just now"
+        static let neverSyncedPill = "Not synced yet"
 
         static func quota(usedMB: Int, limitMB: Int) -> String { "\(usedMB) MB of \(limitMB) MB used" }
 
