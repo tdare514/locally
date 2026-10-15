@@ -388,7 +388,7 @@ export default function ReleaseView({
             onClick={handleSave}
             disabled={saving || IS_DEMO}
             title={IS_DEMO ? "Not available in the demo" : undefined}
-            className="rounded-full bg-accent px-7 py-2.5 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+            className="btn-save"
           >
             {saving ? "Saving…" : "Save to library"}
           </button>
@@ -400,9 +400,9 @@ export default function ReleaseView({
             onClick={handleReveal}
             disabled={IS_DEMO}
             title={IS_DEMO ? "Not available in the demo" : undefined}
-            className="rounded-full px-4 py-2.5 text-sm font-medium text-text transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+            className="btn-ink"
           >
-            Show in Finder
+            <span className="btn-ink-label">Show in Finder</span>
           </button>
           {confirmingDelete ? (
             <span className="flex items-center gap-2 text-sm lg:flex-col lg:items-stretch lg:gap-1">
@@ -420,9 +420,9 @@ export default function ReleaseView({
               <button
                 type="button"
                 onClick={() => setConfirmingDelete(false)}
-                className="rounded-full px-4 py-2 text-sm text-text-muted hover:text-text"
+                className="btn-ink"
               >
-                Cancel
+                <span className="btn-ink-label">Cancel</span>
               </button>
             </span>
           ) : (
@@ -431,9 +431,9 @@ export default function ReleaseView({
               onClick={handleDelete}
               disabled={IS_DEMO}
               title={IS_DEMO ? "Not available in the demo" : undefined}
-              className="rounded-full px-3 py-2.5 text-sm font-semibold text-danger transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              className="btn-ink-danger"
             >
-              Delete
+              <span className="btn-ink-label">Delete</span>
             </button>
           )}
         </div>
@@ -461,10 +461,10 @@ export default function ReleaseView({
               <button
                 type="button"
                 onClick={handleCopyTitle}
-                className="inline-flex items-center gap-1.5 rounded-full border border-text-dim px-4 py-1.5 text-xs font-medium text-text transition-colors hover:border-text"
+                className="btn-ink"
               >
                 <CopyIcon className="h-3.5 w-3.5" />
-                {copied ? COPIED_LABEL : COPY_LABEL}
+                <span className="btn-ink-label">{copied ? COPIED_LABEL : COPY_LABEL}</span>
               </button>
             </div>
             <p className="text-sm text-text-muted">{playlistSteps(release.title, tracks.length)}</p>

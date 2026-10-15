@@ -34,12 +34,6 @@ function stripExtension(name: string): string {
   return idx > 0 ? name.slice(0, idx) : name;
 }
 
-function segmentClass(active: boolean): string {
-  return `rounded-full px-5 py-1.5 text-sm font-medium transition-colors ${
-    active ? "bg-accent text-black shadow-sm" : "text-text-muted hover:text-text"
-  }`;
-}
-
 export default function ImportView({
   initialKind,
   onImported,
@@ -206,18 +200,23 @@ export default function ImportView({
         </p>
       </div>
 
-      <div className="inline-flex w-fit rounded-full bg-elevated p-1">
+      <div role="group" aria-label="Release type" className="btn-seg w-fit">
+        <span aria-hidden className="btn-seg-dot">
+          <span />
+        </span>
         <button
           type="button"
           onClick={() => switchKind("single")}
-          className={segmentClass(kind === "single")}
+          aria-pressed={kind === "single"}
+          className="btn-seg-opt"
         >
           Single
         </button>
         <button
           type="button"
           onClick={() => switchKind("album")}
-          className={segmentClass(kind === "album")}
+          aria-pressed={kind === "album"}
+          className="btn-seg-opt"
         >
           Album
         </button>
@@ -316,7 +315,7 @@ export default function ImportView({
           type="button"
           disabled={!canSubmit}
           onClick={handleSubmit}
-          className="rounded-full bg-accent px-8 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+          className="btn-save"
         >
           {importing ? "Importing…" : "Import to Spotify"}
         </button>
