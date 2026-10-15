@@ -1,18 +1,18 @@
 "use client";
 
-import { useState, type ComponentType, type CSSProperties, type SVGProps } from "react";
+import type { ComponentType, CSSProperties, SVGProps } from "react";
 import type { Release } from "../../shared/types";
 import type { AmbientPalette } from "../../lib/artwork-palette";
 import { IS_DEMO } from "../../lib/demo";
-import { PERIODS, periodHeading, releaseCountLabel, type StatsPeriod } from "../../lib/play-stats";
+import { PERIODS, periodEmptyLine, periodHeading, releaseCountLabel } from "../../lib/play-stats";
 import { ChevronRightIcon, LibraryIcon, PlusIcon, SettingsIcon } from "../Icons";
 import { Choice, EditWidgets, NavItem, PanelControls, focusRing } from "./controls";
-import { HAS_DAILY_COUNTS, HAS_STATS_PAGE } from "./flags";
+import { HAS_STATS_PAGE } from "./flags";
 import { MenuIcon, StatsIcon } from "./icons";
 import StatList from "./StatList";
 import StatShelf from "./StatShelf";
 import { useFloatingPanel, usePanelRefs } from "./use-floating-panel";
-import { DEFAULT_PERIOD, useStats, useWidgets } from "./use-stats";
+import { usePeriod, useStats, useWidgets } from "./use-stats";
 
 const rule =
   "h-px shrink-0 bg-[linear-gradient(to_right,transparent,rgb(255_255_255/0.14)_18%,rgb(255_255_255/0.14)_82%,transparent)]";
@@ -108,7 +108,7 @@ export default function Sidebar({
   const { root: rootRef, trigger: triggerRef, panel: panelRef } = refs;
   const panel = useFloatingPanel(refs);
   const { widgets, toggle } = useWidgets();
-  const [period, setPeriod] = useState<StatsPeriod>(DEFAULT_PERIOD);
+  const { period, choose: choosePeriod } = usePeriod();
   const stats = useStats(period, releases, panel.shown);
   /** A page handler that also closes an unpinned panel and keeps focus on the page's rail icon. */
   const choose = (page: SidebarPage, go: () => void) => () => {
@@ -249,17 +249,14 @@ export default function Sidebar({
               stay clickable, invisibly, over the library) and the panel never reopens with it open. */}
           <EditWidgets key={state} enabled={widgets} onToggle={toggle} />
         </div>
-        {/* Hidden until the Mac stores per-day counts (#193). */}
-        {HAS_DAILY_COUNTS && (
-          <Choice
-            kind="seg"
-            label="Time period"
-            value={period}
-            options={PERIODS}
-            onChange={setPeriod}
-            className="sb-item mt-1 shrink-0"
-          />
-        )}
+        <Choice
+          kind="seg"
+          label="Time period"
+          value={period}
+          options={PERIODS}
+          onChange={choosePeriod}
+          className="sb-item mt-1 shrink-0"
+        />
 
         <div className="sb-scroll mt-3 min-h-0 flex-1 overflow-y-auto" aria-busy={stats.status === "loading"}>
           {stats.status === "ready" && (
@@ -271,6 +268,11 @@ export default function Sidebar({
           {stats.status === "error" && (
             <p className="sb-item px-3 py-1 text-[13px] leading-snug text-text-dim" style={step(2)}>
               Couldn&apos;t load your plays. It will try again the next time this opens.
+            </p>
+          )}
+          {stats.status === "quiet" && (
+            <p className="sb-item px-3 py-1 text-[13px] leading-snug text-text-dim" style={step(2)}>
+              {periodEmptyLine(period)}
             </p>
           )}
           {stats.status === "empty" && !loading && (

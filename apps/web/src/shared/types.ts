@@ -106,19 +106,6 @@ export interface ReleasePlaysResponse {
   tracks: TrackPlays[];
 }
 
-/** One track's all-time play count on this Mac, in GET /api/plays/totals. */
-export interface PlayTotal {
-  releaseId: string;
-  trackId: string;
-  total: number;
-}
-
-/** Response shape for GET /api/plays/totals: this Mac's counts for every track of every release in
- * the library, in one list. Only tracks with at least one play are listed. */
-export interface PlayTotalsResponse {
-  tracks: PlayTotal[];
-}
-
 /** One track's plays inside the requested range, in GET /api/plays/summary (#200). `lastPlayedDay` is the latest day in the range with a play, `YYYY-MM-DD` in the Mac's local zone. */
 export interface PlaysSummaryTrack {
   trackId: string;

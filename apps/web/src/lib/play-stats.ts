@@ -1,9 +1,8 @@
 /** Play-count rankings for the sidebar widgets (#154): the top tracks, albums and artists, from
- * the library list plus this Mac's `GET /api/plays/totals`. Pure: no fetch of its own, no DOM.
- * The counts are all-time totals on this Mac; per-day counts do not exist yet (#193), so a period
- * other than "all" has nothing to read. Each play is counted once. */
+ * the library list plus this Mac's `GET /api/plays/summary` (#200): the plays in the chosen period
+ * (#203), or `allTime`. Pure: no fetch of its own, no DOM. Each play is counted once. */
 
-import type { PlayTotal, Release } from "../shared/types";
+import type { PlaysSummaryTrack, Release } from "../shared/types";
 
 /** The three ranked lists. */
 export type StatKind = "tracks" | "albums" | "artists";
@@ -15,27 +14,35 @@ export const STAT_KINDS: { key: StatKind; title: string; tab: string }[] = [
   { key: "artists", title: "Top artists", tab: "Artists" },
 ];
 
-/** What the widgets cover. Only "all" can be read today; the daily periods join the data in #193. */
-export type StatsPeriod = "all" | "today" | "week" | "month";
+/** What the widgets cover (the ranges are in lib/play-periods). All time is not in the sidebar. */
+export type StatsPeriod = "today" | "week" | "month";
 
-/** The periods the (hidden, see HAS_DAILY_COUNTS) switch offers, with the panel heading for each. */
+/** The period the panel starts on. */
+export const DEFAULT_PERIOD: StatsPeriod = "week";
+
+/** The periods the switch offers. */
 export const PERIODS: { value: StatsPeriod; label: string }[] = [
   { value: "today", label: "Today" },
   { value: "week", label: "This week" },
   { value: "month", label: "This month" },
 ];
 
+/** The panel heading for a period. */
 export function periodHeading(period: StatsPeriod): string {
   switch (period) {
     case "today":
-      return "Your day";
+      return "Today";
     case "week":
       return "Your week";
     case "month":
       return "Your month";
-    default:
-      return "Your plays";
   }
+}
+
+/** The quiet line for a period with no plays (when plays exist from before it). */
+export function periodEmptyLine(period: StatsPeriod): string {
+  const when = period === "today" ? "today" : period === "week" ? "this week" : "this month";
+  return `No plays yet ${when}.`;
 }
 
 /** How many of each list the sidebar shows. */
@@ -119,6 +126,9 @@ interface ArtistTotals {
   coverFallback: StatCover | null;
 }
 
+/** One track's plays on this Mac: a row of the summary's `tracks` (the chosen period) or `allTime`. */
+export type TrackPlayCount = Pick<PlaysSummaryTrack, "releaseId" | "trackId" | "plays">;
+
 /**
  * The top three tracks, albums (releases, singles included) and artists by plays.
  * Only tracks still in the library count, so a count left behind for a removed track is ignored.
@@ -126,7 +136,7 @@ interface ArtistTotals {
  */
 export function aggregatePlays(
   releases: Release[],
-  totals: PlayTotal[],
+  counts: TrackPlayCount[],
   limit: number = TOP_COUNT,
 ): PlayStats {
   const trackRows: Row[] = [];
@@ -135,10 +145,10 @@ export function aggregatePlays(
   let total = 0;
 
   const countsByRelease = new Map<string, Map<string, number>>();
-  for (const t of totals) {
-    const counts = countsByRelease.get(t.releaseId) ?? new Map<string, number>();
-    counts.set(t.trackId, t.total);
-    countsByRelease.set(t.releaseId, counts);
+  for (const t of counts) {
+    const forRelease = countsByRelease.get(t.releaseId) ?? new Map<string, number>();
+    forRelease.set(t.trackId, t.plays);
+    countsByRelease.set(t.releaseId, forRelease);
   }
 
   for (const release of releases) {
