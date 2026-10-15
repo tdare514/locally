@@ -37,7 +37,9 @@ struct SleeveCoverPicker: View {
         .sheet(isPresented: $isSheetPresented, onDismiss: openPendingPicker) {
             CoverChoiceSheet(recents: recents, hasCover: imageData != nil, onChoose: choose)
         }
-        .task {
+        // Reload whenever the sheet opens, so a release saved or synced while this screen
+        // is up still shows; the previous list stays visible while the new one loads.
+        .task(id: isSheetPresented) {
             guard let container else { return }
             recents = await RecentCoversLoader(library: container.library, coverStore: container.coverStore).load()
         }
