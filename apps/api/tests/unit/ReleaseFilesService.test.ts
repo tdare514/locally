@@ -7,15 +7,22 @@ import { createDb, migrateDb, type Db } from "../../src/db/client";
 import { users } from "../../src/db/schema";
 import type { CreateUploadParams, FileStore, UploadTicket } from "../../src/server/files/FileStore";
 import { LocalFileStore } from "../../src/server/files/LocalFileStore";
-import { ReleaseFilesService, storageKeyFor } from "../../src/server/files/ReleaseFilesService";
+import { expectedContentTypeFor } from "../../src/server/files/contentTypes";
+import { ReleaseFilesService, storageKeyFor, userStoragePrefix } from "../../src/server/files/ReleaseFilesService";
 import { MAX_FILE_BYTES, QuotaService } from "../../src/server/quota/QuotaService";
+import { ReleaseSyncService } from "../../src/server/releases/ReleaseSyncService";
 import { NotFoundError, ValidationError } from "../../src/shared/errors";
-import type { DownloadTicket } from "../../src/shared/types";
+import type { DownloadTicket, ReleaseRecord } from "../../src/shared/types";
+import { makeReleaseRecord } from "../support/fixtures";
 
 /** In-memory `FileStore` fake, so this suite tests only the service's own bookkeeping. */
 class FakeFileStore implements FileStore {
   public created: CreateUploadParams[] = [];
   public deleted: string[] = [];
+  /** Keys `listKeys` reports as stored, standing in for blobs that finished uploading. */
+  public stored = new Set<string>();
+  /** The prefix of every `listKeys` call, in order. */
+  public listed: string[] = [];
 
   async createUpload(params: CreateUploadParams): Promise<UploadTicket> {
     this.created.push(params);
@@ -32,6 +39,11 @@ class FakeFileStore implements FileStore {
 
   async deleteMany(keys: string[]): Promise<void> {
     this.deleted.push(...keys);
+  }
+
+  async *listKeys(prefix: string): AsyncGenerator<string> {
+    this.listed.push(prefix);
+    for (const key of this.stored) if (key.startsWith(prefix)) yield key;
   }
 }
 
@@ -178,6 +190,194 @@ describe("ReleaseFilesService", () => {
       const pruned = await realService.pruneUnreferenced(userId, releaseId, []);
       expect(pruned).toBe(1);
       expect(await realStore.readFile(storageKeyFor(userId, releaseId, "only.mp3"))).toBeNull();
+    });
+  });
+
+  describe("missingFiles", () => {
+    const CLOCK = Date.UTC(2026, 9, 15, 12, 0, 0);
+    const coverHash = "a".repeat(64);
+    const otherUserId = crypto.randomUUID();
+    let releaseSync: ReleaseSyncService;
+    let checker: ReleaseFilesService;
+
+    beforeEach(async () => {
+      releaseSync = new ReleaseSyncService(db);
+      checker = new ReleaseFilesService(db, store, new QuotaService(db), () => CLOCK);
+      await db
+        .insert(users)
+        .values({ id: otherUserId, email: "other@example.com", createdAt: Date.now(), storageLimitBytes: 1_000_000 });
+    });
+
+    async function pushRelease(owner: string, overrides: Partial<ReleaseRecord> = {}): Promise<ReleaseRecord> {
+      const record = makeReleaseRecord(overrides);
+      await releaseSync.upsert(owner, record.id, record);
+      return record;
+    }
+
+    /** A ticket was issued for each name: this is what writes the `files` rows. */
+    async function issueTickets(owner: string, record: ReleaseRecord, names: string[]): Promise<void> {
+      await service.createUploads(
+        owner,
+        record.id,
+        names.map((name) => ({ name, bytes: 10, contentType: expectedContentTypeFor(name)! }))
+      );
+    }
+
+    /** The bytes reached storage. */
+    function land(owner: string, record: ReleaseRecord, names: string[]): void {
+      for (const name of names) store.stored.add(storageKeyFor(owner, record.id, name));
+    }
+
+    it("builds the per-user prefix every one of that user's keys starts with, and no other user's", () => {
+      expect(storageKeyFor(userId, releaseId, "a.mp3").startsWith(userStoragePrefix(userId))).toBe(true);
+      expect(storageKeyFor(otherUserId, releaseId, "a.mp3").startsWith(userStoragePrefix(userId))).toBe(false);
+    });
+
+    it("returns no releases for an account with none, without listing storage", async () => {
+      expect(await checker.missingFiles(userId)).toEqual({ releases: [], checkedAt: new Date(CLOCK).toISOString() });
+      expect(store.listed).toEqual([]);
+    });
+
+    it("reports a name with no files row as missing, without a priced listing", async () => {
+      const record = await pushRelease(userId);
+      const result = await checker.missingFiles(userId);
+      expect(result.releases).toEqual([
+        { id: record.id, missing: [record.tracks[0]!.file], recordUpdatedAt: record.updatedAt },
+      ]);
+      expect(store.listed).toEqual([]);
+    });
+
+    it("reports a name whose row exists but whose blob never landed as missing", async () => {
+      const record = await pushRelease(userId);
+      await issueTickets(userId, record, [record.tracks[0]!.file]);
+      const result = await checker.missingFiles(userId);
+      expect(result.releases).toEqual([
+        { id: record.id, missing: [record.tracks[0]!.file], recordUpdatedAt: record.updatedAt },
+      ]);
+      expect(store.listed).toEqual([userStoragePrefix(userId)]);
+    });
+
+    it("treats a name with both a row and a blob as stored, and leaves the release out", async () => {
+      const record = await pushRelease(userId);
+      await issueTickets(userId, record, [record.tracks[0]!.file]);
+      land(userId, record, [record.tracks[0]!.file]);
+      expect(await checker.missingFiles(userId)).toEqual({ releases: [], checkedAt: new Date(CLOCK).toISOString() });
+    });
+
+    it("treats a blob with no files row as missing", async () => {
+      const record = await pushRelease(userId);
+      land(userId, record, [record.tracks[0]!.file]);
+      expect((await checker.missingFiles(userId)).releases).toHaveLength(1);
+    });
+
+    it("lists only the names that are missing, in record order, and only for releases that need it", async () => {
+      const base = makeReleaseRecord();
+      const track = (n: number, file: string) => ({ ...base.tracks[0]!, id: crypto.randomUUID(), trackNumber: n, file });
+      const album = await pushRelease(userId, {
+        kind: "album",
+        tracks: [track(1, "01 - A.mp3"), track(2, "02 - B.mp3"), track(3, "03 - C.mp3")],
+      });
+      const healthy = await pushRelease(userId);
+      await issueTickets(userId, album, ["01 - A.mp3", "02 - B.mp3"]);
+      land(userId, album, ["01 - A.mp3"]);
+      await issueTickets(userId, healthy, [healthy.tracks[0]!.file]);
+      land(userId, healthy, [healthy.tracks[0]!.file]);
+
+      const result = await checker.missingFiles(userId);
+      expect(result.releases).toEqual([
+        { id: album.id, missing: ["02 - B.mp3", "03 - C.mp3"], recordUpdatedAt: album.updatedAt },
+      ]);
+      expect(store.listed).toHaveLength(1);
+    });
+
+    it("names a file once even when two tracks point at it", async () => {
+      const base = makeReleaseRecord();
+      const record = await pushRelease(userId, {
+        tracks: [base.tracks[0]!, { ...base.tracks[0]!, id: crypto.randomUUID(), trackNumber: 2 }],
+      });
+      expect((await checker.missingFiles(userId)).releases[0]?.missing).toEqual([record.tracks[0]!.file]);
+    });
+
+    it("excludes tombstoned releases", async () => {
+      const record = await pushRelease(userId);
+      await releaseSync.tombstone(userId, record.id);
+      expect((await checker.missingFiles(userId)).releases).toEqual([]);
+      expect(store.listed).toEqual([]);
+    });
+
+    describe("the cover", () => {
+      it("is included when the record has a coverHash", async () => {
+        const record = await pushRelease(userId, { syncVersion: 2, cover: "cover.jpg", coverHash });
+        await issueTickets(userId, record, [record.tracks[0]!.file]);
+        land(userId, record, [record.tracks[0]!.file]);
+        expect((await checker.missingFiles(userId)).releases).toEqual([
+          { id: record.id, missing: ["cover.jpg"], recordUpdatedAt: record.updatedAt },
+        ]);
+
+        await issueTickets(userId, record, ["cover.jpg"]);
+        expect((await checker.missingFiles(userId)).releases).toHaveLength(1);
+
+        land(userId, record, ["cover.jpg"]);
+        expect((await checker.missingFiles(userId)).releases).toEqual([]);
+      });
+
+      it("is not required when the record has no coverHash (a syncVersion 1 record)", async () => {
+        const record = await pushRelease(userId, { syncVersion: 1, cover: "cover.jpg" });
+        await issueTickets(userId, record, [record.tracks[0]!.file]);
+        land(userId, record, [record.tracks[0]!.file]);
+        expect((await checker.missingFiles(userId)).releases).toEqual([]);
+      });
+
+      it("is not required when coverHash is null (a v2 record with no cover)", async () => {
+        const record = await pushRelease(userId, { syncVersion: 2, cover: null, coverHash: null });
+        await issueTickets(userId, record, [record.tracks[0]!.file]);
+        land(userId, record, [record.tracks[0]!.file]);
+        expect((await checker.missingFiles(userId)).releases).toEqual([]);
+      });
+    });
+
+    describe("isolation", () => {
+      it("never reports another account's releases", async () => {
+        await pushRelease(otherUserId);
+        expect((await checker.missingFiles(userId)).releases).toEqual([]);
+        expect(store.listed).toEqual([]);
+      });
+
+      it("does not count another account's blob as this account's", async () => {
+        const record = await pushRelease(userId);
+        await issueTickets(userId, record, [record.tracks[0]!.file]);
+        land(otherUserId, record, [record.tracks[0]!.file]);
+        expect((await checker.missingFiles(userId)).releases).toHaveLength(1);
+        expect(store.listed).toEqual([userStoragePrefix(userId)]);
+      });
+    });
+  });
+
+  describe("resync request", () => {
+    const otherUserId = crypto.randomUUID();
+
+    beforeEach(async () => {
+      await db
+        .insert(users)
+        .values({ id: otherUserId, email: "other@example.com", createdAt: Date.now(), storageLimitBytes: 1_000_000 });
+    });
+
+    it("is null until a request is made, then holds the request time", async () => {
+      let clock = Date.UTC(2026, 9, 15, 12, 0, 0);
+      const timed = new ReleaseFilesService(db, store, new QuotaService(db), () => clock);
+      expect(await timed.resyncRequestedAt(userId)).toBeNull();
+
+      expect(await timed.requestResync(userId)).toBe("2026-10-15T12:00:00.000Z");
+      expect(await timed.resyncRequestedAt(userId)).toBe("2026-10-15T12:00:00.000Z");
+
+      clock += 60_000;
+      await timed.requestResync(userId);
+      expect(await timed.resyncRequestedAt(userId)).toBe("2026-10-15T12:01:00.000Z");
+    });
+
+    it("only touches the requesting account", async () => {
+      await service.requestResync(userId);
+      expect(await service.resyncRequestedAt(otherUserId)).toBeNull();
     });
   });
 });

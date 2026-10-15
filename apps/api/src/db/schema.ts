@@ -10,6 +10,8 @@ export const users = sqliteTable("users", {
   email: text("email").notNull(),
   createdAt: integer("created_at").notNull(),
   storageLimitBytes: integer("storage_limit_bytes").notNull().default(DEFAULT_STORAGE_LIMIT_BYTES),
+  /** Epoch ms of the last `POST /v1/files/resync-request`; `null` until one is made. Read back by `GET /v1/me`. */
+  resyncRequestedAt: integer("resync_requested_at"),
 }, (table) => ({
   emailIdx: uniqueIndex("users_email_idx").on(table.email),
 }));

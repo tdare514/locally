@@ -27,6 +27,9 @@ class RecordingFileStore implements FileStore {
       await this.delete(key);
     }
   }
+  listKeys(): AsyncIterable<string> {
+    throw new Error("not used in this test");
+  }
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;

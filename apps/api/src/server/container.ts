@@ -31,12 +31,17 @@ export interface Services {
   cronSecret: string | undefined;
   storageAlertBytes: number;
   allowedOrigins: string[];
-  /** Sliding-window rate limiters for the two unauthenticated auth routes, keyed separately by email and by IP. */
+  /**
+   * Rate limiters: the two unauthenticated auth routes, keyed separately by email and by IP, and the
+   * two missing-files routes, keyed by the authenticated user id.
+   */
   rateLimiters: {
     codeByEmail: RateLimiter;
     codeByIp: RateLimiter;
     verifyByEmail: RateLimiter;
     verifyByIp: RateLimiter;
+    missingFilesByUser: RateLimiter;
+    resyncRequestByUser: RateLimiter;
   };
 }
 
@@ -79,6 +84,9 @@ async function buildServices(): Promise<Services> {
       // 5-guesses-per-code limit already enforced inside AuthService.verify).
       verifyByEmail: new DbRateLimiter(db, 10, 15 * 60 * 1000, "verify:email"),
       verifyByIp: new DbRateLimiter(db, 30, 15 * 60 * 1000, "verify:ip"),
+      // 6 missing-files checks and 6 resync requests per user, per hour (#119).
+      missingFilesByUser: new DbRateLimiter(db, 6, 60 * 60 * 1000, "files-missing:user"),
+      resyncRequestByUser: new DbRateLimiter(db, 6, 60 * 60 * 1000, "resync-request:user"),
     },
   };
 }

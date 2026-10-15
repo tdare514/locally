@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { files } from "../../db/schema";
+import { files, users } from "../../db/schema";
 import { NotFoundError, ValidationError } from "../../shared/errors";
-import type { DownloadTicket, UploadTicket } from "../../shared/types";
+import type { DownloadTicket, MissingFilesResponse, ReleaseRecord, UploadTicket } from "../../shared/types";
 import { expectedContentTypeFor } from "./contentTypes";
 import type { FileStore } from "./FileStore";
 import type { QuotaService } from "../quota/QuotaService";
@@ -21,6 +21,23 @@ export interface RegisterFileInput {
  */
 export function storageKeyFor(userId: string, releaseId: string, name: string): string {
   return `users/${userId}/releases/${releaseId}/${name}`;
+}
+
+/** Prefix shared by every key `storageKeyFor` builds for `userId`, and by no other user's. */
+export function userStoragePrefix(userId: string): string {
+  return `users/${userId}/releases/`;
+}
+
+/**
+ * The file names a live release's record points at: every track's `file`, plus
+ * the cover's name when the record carries a `coverHash` (a `syncVersion` 1
+ * record has none, so its cover is not checked; a v2 record with no cover has
+ * `null`). Each name once, in record order.
+ */
+function referencedNames(record: ReleaseRecord): string[] {
+  const names = new Set(record.tracks.map((track) => track.file));
+  if (record.coverHash && record.cover) names.add(record.cover);
+  return [...names];
 }
 
 /**
@@ -121,6 +138,65 @@ export class ReleaseFilesService {
       throw new NotFoundError("File not found");
     }
     return this.fileStore.createDownload(row.storageKey);
+  }
+
+  /**
+   * The caller's live releases with files that are not stored. A name is
+   * stored only if a `files` row exists (rows are written when a ticket is
+   * issued, so a row alone proves nothing) AND its key is in the store's
+   * listing of the user's prefix. One SQL query reads every live release with
+   * its file rows folded into a JSON map, and at most one paged `listKeys`
+   * follows, skipped when no referenced name has a row. Releases with nothing
+   * missing are left out. Tombstones are never read.
+   */
+  async missingFiles(userId: string): Promise<MissingFilesResponse> {
+    const checkedAt = new Date(this.now()).toISOString();
+    // Raw SQL on purpose: Drizzle drops the table qualifier from columns in a
+    // single-table select, which would turn the correlated subquery's
+    // `f.release_id = r.id` into a compare against the inner table's own columns.
+    const rows = await this.db.all<{ id: string; record: string; row_keys: string }>(sql`
+      SELECT r.id AS id, r.record AS record,
+        (SELECT json_group_object(f.name, f.storage_key) FROM files f
+          WHERE f.release_id = r.id AND f.user_id = r.user_id) AS row_keys
+      FROM releases r
+      WHERE r.user_id = ${userId} AND r.deleted = 0
+    `);
+
+    const checks = rows.map((row) => {
+      const record = JSON.parse(row.record) as ReleaseRecord;
+      const keysByName = new Map(Object.entries(JSON.parse(row.row_keys) as Record<string, string>));
+      return { id: row.id, record, names: referencedNames(record), keysByName };
+    });
+
+    // A priced listing is only worth making when some referenced name has a row to confirm.
+    const anyRow = checks.some((check) => check.names.some((name) => check.keysByName.has(name)));
+    const stored = new Set<string>();
+    if (anyRow) {
+      for await (const key of this.fileStore.listKeys(userStoragePrefix(userId))) stored.add(key);
+    }
+
+    const result: MissingFilesResponse["releases"] = [];
+    for (const check of checks) {
+      const missing = check.names.filter((name) => {
+        const key = check.keysByName.get(name);
+        return key === undefined || !stored.has(key);
+      });
+      if (missing.length > 0) result.push({ id: check.id, missing, recordUpdatedAt: check.record.updatedAt });
+    }
+    return { releases: result, checkedAt };
+  }
+
+  /** Stamp the account's "please resync" request with the current time and return it as ISO. */
+  async requestResync(userId: string): Promise<string> {
+    const at = this.now();
+    await this.db.update(users).set({ resyncRequestedAt: at }).where(eq(users.id, userId));
+    return new Date(at).toISOString();
+  }
+
+  /** When the account last asked for a resync (ISO), or `null` if it never did. */
+  async resyncRequestedAt(userId: string): Promise<string | null> {
+    const [row] = await this.db.select({ at: users.resyncRequestedAt }).from(users).where(eq(users.id, userId));
+    return row?.at == null ? null : new Date(row.at).toISOString();
   }
 
   /**

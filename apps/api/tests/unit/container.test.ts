@@ -39,4 +39,16 @@ describe("getServices", () => {
     expect(await getServices()).toBe(services);
     expect(createDbMock).toHaveBeenCalledTimes(2);
   });
+
+  it("wires the shared limiters for the missing-files routes at 6 an hour per user (#119)", async () => {
+    const actual = await vi.importActual<typeof import("../../src/db/client")>("../../src/db/client");
+    createDbMock.mockImplementation(() => actual.createDb(":memory:"));
+
+    const { missingFilesByUser, resyncRequestByUser } = (await getServices()).rateLimiters;
+    for (const limiter of [missingFilesByUser, resyncRequestByUser]) {
+      for (let call = 1; call <= 6; call++) expect(await limiter.consume("user-a"), `call ${call}`).toBe(true);
+      expect(await limiter.consume("user-a")).toBe(false);
+      expect(await limiter.consume("user-b")).toBe(true);
+    }
+  });
 });
