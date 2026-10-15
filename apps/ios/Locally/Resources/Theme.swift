@@ -254,8 +254,42 @@ enum Theme {
         static let coverSheetGrabberRoom: CGFloat = 24
     }
 
+    /// The "studio" backdrop behind Settings (#160): the accent blue and a cool violet, with a deep
+    /// navy at the top. `ArtworkBackdrop` pulls each down by its luminance cap.
+    enum Studio {
+        static let blue = Color(red: 0.10, green: 0.42, blue: 0.90)
+        static let violet = Color(red: 0.46, green: 0.30, blue: 0.92)
+        static let deep = Color(red: 0.02, green: 0.04, blue: 0.11)
+    }
+
+    /// Cool tints for Settings' icon tiles and highlights, kept beside the accent blue.
+    enum Tint {
+        static let violet = Color(red: 0.62, green: 0.50, blue: 1.0)
+        static let teal = Color(red: 0.30, green: 0.80, blue: 0.84)
+        static let slate = Color(red: 0.62, green: 0.68, blue: 0.80)
+        /// Text and glyphs on the faint accent fill of a pill.
+        static let accentText = Color(red: 0.45, green: 0.70, blue: 1.0)
+    }
+
+    /// Type roles as Dynamic Type styles, for screens that must scale with the reader's text size
+    /// (Settings, #160). `Font` above is fixed points.
+    enum ScaledFont {
+        static let largeTitle = SwiftUI.Font.system(.largeTitle, weight: .bold)
+        static let sectionTitle = SwiftUI.Font.system(.subheadline, weight: .semibold)
+        static let headline = SwiftUI.Font.system(.headline, weight: .semibold)
+        static let subheadline = SwiftUI.Font.system(.subheadline)
+        static let button = SwiftUI.Font.system(.subheadline, weight: .semibold)
+        static let rowTitle = SwiftUI.Font.system(.body, weight: .regular)
+        static let value = SwiftUI.Font.system(.body, weight: .regular)
+        static let input = SwiftUI.Font.system(.body, weight: .regular)
+        static let caption = SwiftUI.Font.system(.footnote, weight: .regular)
+        static let pill = SwiftUI.Font.system(.footnote, weight: .semibold)
+    }
+
     /// Opaque black tab and navigation bars, so a bright cover scrolling
-    /// underneath never bleeds through the system blur.
+    /// underneath never bleeds through the system blur. Settings (#160) opts out: it has no
+    /// navigation bar and clears its own tab bar's background (`toolbarBackground`), so the studio
+    /// backdrop runs under the bar with no black block or line. The other tabs keep these bars.
     static func applyChrome() {
         let tab = UITabBarAppearance()
         tab.configureWithOpaqueBackground()
