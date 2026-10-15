@@ -10,6 +10,7 @@ import {
   slotAfterMove,
   stepTarget,
 } from "../lib/track-order";
+import { playsLabel } from "../lib/plays-copy";
 import { adoptDiscAfterMove, discHeadings } from "../shared/discs";
 import { XIcon } from "./Icons";
 
@@ -31,6 +32,8 @@ interface TrackListProps {
   onRemove?: (index: number) => void;
   /** Demo: titles can be read but not edited or reordered. */
   readOnly?: boolean;
+  /** Each track's total plays by `key` (#107). A track with none, or no entry, shows nothing. */
+  plays?: Record<string, number>;
 }
 
 /** Pixels the pointer must travel before a press turns into a drag. */
@@ -105,7 +108,7 @@ interface Drag {
  * fields. Reorder by dragging a row (or its grip) or from the keyboard: focus the grip, then
  * Alt+Up/Down, or Space to pick up, the arrows to move, Space or Enter to drop, Escape to
  * cancel. Track numbers are implicit: they always equal the row's position (1-based). */
-export default function TrackList({ tracks, onChange, onRemove, readOnly = false }: TrackListProps) {
+export default function TrackList({ tracks, onChange, onRemove, readOnly = false, plays }: TrackListProps) {
   const listRef = useRef<HTMLOListElement>(null);
   const hintId = useId();
   const [announcement, setAnnouncement] = useState("");
@@ -394,6 +397,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
         {tracks.map((track, index) => {
           const grabbed = grabbedKey === track.key;
           const heading = headings[index];
+          const playTotal = plays?.[track.key] ?? 0;
           const row = (
             <li
               key={track.key}
@@ -418,6 +422,11 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
                 className="field-sizing-content -mx-1.5 min-w-[8ch] cursor-text rounded-md bg-transparent px-1.5 py-0.5 text-[15px] font-semibold tracking-[-0.01em] text-text outline-none placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
               />
               <span aria-hidden className="min-w-0 flex-1" />
+              {playTotal > 0 && (
+                <span data-plays className="shrink-0 text-sm tabular-nums text-text-muted">
+                  {playsLabel(playTotal)}
+                </span>
+              )}
               {!readOnly && (
                 <button
                   type="button"

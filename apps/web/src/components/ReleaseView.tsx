@@ -6,6 +6,7 @@ import {
   coverUrl,
   deleteRelease,
   getRelease,
+  getReleasePlays,
   replaceCover,
   reveal,
   updateRelease,
@@ -17,6 +18,7 @@ import AmbientBackdrop from "./AmbientBackdrop";
 import SpotifySourceBanner from "./SpotifySourceBanner";
 import { ChevronRightIcon, CopyIcon } from "./Icons";
 import { COPIED_LABEL, COPY_LABEL, PLAYLIST_FALLBACK, playlistSteps } from "../lib/playlist-copy";
+import { PLAYS_ACROSS_DEVICES } from "../lib/plays-copy";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
 import { IS_DEMO } from "../lib/demo";
 
@@ -162,6 +164,8 @@ export default function ReleaseView({
   const [deleting, setDeleting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [spin, setSpin] = useState(0);
+  // Each track's total plays across devices, by track id (#107). Empty until the one fetch lands.
+  const [plays, setPlays] = useState<Record<string, number>>({});
   const copiedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const artworkUrl = release?.coverPath ? coverUrl(release.id, release.updatedAt) : null;
@@ -211,6 +215,21 @@ export default function ReleaseView({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
+
+  useEffect(() => {
+    // One request per release page open (ReleaseView is remounted per release), never per row or
+    // render, and no polling. A failure just leaves the counts off the page.
+    if (IS_DEMO) return;
+    let cancelled = false;
+    getReleasePlays(releaseId)
+      .then(({ tracks: counted }) => {
+        if (!cancelled) setPlays(Object.fromEntries(counted.map((t) => [t.trackId, t.total])));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [releaseId]);
 
   function handleTracksChange(next: EditableTrack[]) {
     setTracks(next);
@@ -420,7 +439,10 @@ export default function ReleaseView({
         </div>
         <div className="flex flex-col gap-3 lg:col-start-1 lg:row-start-2">
           <h2 className="text-lg font-bold tracking-[-0.03em] text-text">Tracks</h2>
-          <TrackList tracks={tracks} onChange={handleTracksChange} readOnly={IS_DEMO} />
+          <TrackList tracks={tracks} onChange={handleTracksChange} readOnly={IS_DEMO} plays={plays} />
+          {tracks.some((t) => (plays[t.key] ?? 0) > 0) && (
+            <p className="text-xs text-text-muted">{PLAYS_ACROSS_DEVICES}</p>
+          )}
         </div>
       </div>
 
