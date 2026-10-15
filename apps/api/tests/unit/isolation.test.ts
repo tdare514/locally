@@ -1,4 +1,6 @@
+import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { devices } from "../../src/db/schema";
 import { createTestServices, type TestServices } from "../support/testServices";
 import { makeReleaseRecord } from "../support/fixtures";
 
@@ -222,5 +224,36 @@ describe("cross-user isolation", () => {
       { params: Promise.resolve({ id: record.id, name: track.file }) }
     );
     expect(aliceDownload.status).toBe(200);
+  });
+
+  it("never revives another account's signed-out Mac when the device name matches (#175)", async () => {
+    const alice = await signIn("alice-revive@example.com", "MacBook Pro");
+    const signOut = await devicesRoute.DELETE(
+      new Request(`http://localhost/v1/devices/${alice.deviceId}`, { method: "DELETE", headers: { authorization: `Bearer ${alice.token}` } }),
+      { params: Promise.resolve({ id: alice.deviceId }) }
+    );
+    expect(signOut.status).toBe(200);
+
+    // Bob signs in as a Mac with the very same name: he gets his own new device, not Alice's.
+    const bob = await signIn("bob-revive@example.com", "MacBook Pro");
+    expect(bob.userId).not.toBe(alice.userId);
+    expect(bob.deviceId).not.toBe(alice.deviceId);
+
+    // Alice's old token is still refused, and it never resolves to Bob's account.
+    const aliceOld = await meRoute.GET(new Request("http://localhost/v1/me", { headers: { authorization: `Bearer ${alice.token}` } }));
+    expect(aliceOld.status).toBe(401);
+    const bobMe = await meRoute.GET(new Request("http://localhost/v1/me", { headers: { authorization: `Bearer ${bob.token}` } }));
+    expect(bobMe.status).toBe(200);
+    const bobMeBody = await bobMe.json();
+    expect(bobMeBody.user.id).toBe(bob.userId);
+    expect(bobMeBody.devices.map((d: { id: string }) => d.id)).toEqual([bob.deviceId]);
+
+    // Alice's own device is still signed out; when she signs back in it is hers again.
+    const [aliceRow] = await testServices.db.select().from(devices).where(eq(devices.id, alice.deviceId));
+    expect(aliceRow!.userId).toBe(alice.userId);
+    expect(aliceRow!.revokedAt).not.toBeNull();
+    const aliceAgain = await signIn("alice-revive@example.com", "MacBook Pro");
+    expect(aliceAgain.deviceId).toBe(alice.deviceId);
+    expect(aliceAgain.userId).toBe(alice.userId);
   });
 });

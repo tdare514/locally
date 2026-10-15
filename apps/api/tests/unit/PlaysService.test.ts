@@ -105,6 +105,23 @@ describe("PlaysService", () => {
     expect(b.devices).toHaveLength(1);
   });
 
+  it("does not double a Mac's plays when it signs out, signs back in and pushes its counts again (#175)", async () => {
+    const counts = [{ releaseId, trackId: trackA, count: 5 }];
+    await services.plays.push(alice.userId, alice.deviceId, counts);
+
+    await services.auth.revokeDevice(alice.userId, alice.deviceId);
+    const back = await signIn("alice@example.com", "Alice Mac", "mac");
+    expect(back.deviceId).toBe(alice.deviceId);
+    await services.plays.push(alice.userId, back.deviceId, counts);
+
+    const result = await services.plays.forRelease(alice.userId, releaseId, back.deviceId);
+    const a = result!.tracks.find((t) => t.trackId === trackA)!;
+    expect(a.total).toBe(5);
+    expect(a.devices).toEqual([
+      { deviceId: alice.deviceId, name: "Alice Mac", platform: "mac", count: 5, current: true },
+    ]);
+  });
+
   it("returns an empty track list for a release with no plays", async () => {
     expect(await services.plays.forRelease(alice.userId, releaseId, alice.deviceId)).toEqual({ tracks: [] });
   });
