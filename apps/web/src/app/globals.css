@@ -633,6 +633,841 @@ body {
   transform: rotate(0deg);
 }
 
+/* ---------------------------------------------------------------------------
+ * Button specimen for #155 (dev only, /dev/buttons). Three directions for the owner to pick
+ * from; nothing in the app uses these classes yet, and the two not chosen get deleted.
+ *   .btn-a-*  Pressed vinyl: depth on solid, faked glass for everything that is not primary
+ *   .btn-b-*  Cover-tinted: fills and hairlines taken from the page's --ambient-* palette
+ *   .btn-c-*  Soft ink: one matte filled button, everything else is ink on the page
+ * The side-by-side sheet pins states with data-state="hover|press|focus"; each rule below lists
+ * the pinned selector next to the real :hover / :active / :focus-visible one. Only transform
+ * (written as the individual scale / translate / rotate properties, as elsewhere in this file)
+ * and opacity animate, plus box-shadow on press. Reduced-motion fallbacks are in the block at
+ * the end of the file.
+ * ------------------------------------------------------------------------- */
+:root {
+  --btn-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Shared by every button in all three directions. */
+.btn-a-primary,
+.btn-a-glass,
+.btn-a-danger,
+.btn-a-icon,
+.btn-a-seg-opt,
+.btn-b-primary,
+.btn-b-ghost,
+.btn-b-danger,
+.btn-b-icon,
+.btn-b-seg-opt,
+.btn-c-primary,
+.btn-c-text,
+.btn-c-icon,
+.btn-c-seg-opt {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-a-primary:disabled,
+.btn-a-glass:disabled,
+.btn-a-danger:disabled,
+.btn-a-icon:disabled,
+.btn-a-seg-opt:disabled,
+.btn-b-primary:disabled,
+.btn-b-ghost:disabled,
+.btn-b-danger:disabled,
+.btn-b-icon:disabled,
+.btn-b-seg-opt:disabled,
+.btn-c-primary:disabled,
+.btn-c-text:disabled,
+.btn-c-icon:disabled,
+.btn-c-seg-opt:disabled {
+  cursor: not-allowed;
+}
+
+/* ===== A. Pressed vinyl ===================================================== */
+.btn-a-primary,
+.btn-a-glass,
+.btn-a-danger,
+.btn-a-icon {
+  --btn-a-ring: color-mix(in oklab, var(--accent) 45%, white);
+}
+.btn-a-primary,
+.btn-a-glass,
+.btn-a-danger {
+  height: 2.5rem;
+  padding: 0 1.5rem;
+  border-radius: 9999px;
+}
+
+/* Primary: accent with a lighter top (about +8% lightness), a lit top edge and a soft accent
+   shadow. Hover brightens and runs one sheen across; press sinks and the shadow tightens. */
+.btn-a-primary {
+  --btn-a-top: color-mix(in oklab, var(--accent) 80%, white);
+  --btn-a-glow: color-mix(in srgb, var(--accent) 60%, transparent);
+  overflow: hidden;
+  color: #06111f;
+  font-weight: 700;
+  background: linear-gradient(180deg, var(--btn-a-top), var(--accent));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.2),
+    inset 0 -1px 0 rgb(0 20 60 / 0.18),
+    0 1px 2px rgb(0 0 0 / 0.3),
+    0 9px 20px -7px var(--btn-a-glow);
+  transition:
+    scale 200ms var(--btn-ease),
+    box-shadow 200ms var(--btn-ease);
+}
+.btn-a-primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 38%, rgb(255 255 255 / 0.4) 50%, transparent 62%);
+  translate: -100% 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.btn-a-primary:where(:not(:disabled)):hover::after {
+  opacity: 1;
+  animation: btn-a-sheen 760ms var(--btn-ease) both;
+}
+/* Pinned hover: the sheen frozen mid-sweep. */
+.btn-a-primary[data-state="hover"]::after {
+  opacity: 1;
+  translate: 14% 0;
+}
+.btn-a-primary:where(:not(:disabled)):active,
+.btn-a-primary[data-state="press"] {
+  scale: 0.97;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.1),
+    inset 0 -1px 0 rgb(0 20 60 / 0.2),
+    inset 0 3px 6px -2px rgb(0 20 60 / 0.35),
+    0 1px 1px rgb(0 0 0 / 0.3),
+    0 3px 7px -3px var(--btn-a-glow);
+}
+@keyframes btn-a-sheen {
+  from { translate: -100% 0; }
+  to { translate: 100% 0; }
+}
+
+/* Glass surface shared by the secondary, destructive, icon and toggle: the .glass-fake recipe
+   (clear, lit top edge, inner glow, no backdrop-filter), cooled slightly and sat on a dark tint
+   so text stays readable over a bright cover. The shadow is small: .glass-fake's is for panels. */
+.btn-a-glass,
+.btn-a-danger,
+.btn-a-icon,
+.btn-a-seg {
+  --btn-a-tint: rgb(12 18 30 / 0.22);
+  background:
+    radial-gradient(130% 90% at 16% -25%, rgb(220 236 255 / 0.24), transparent 62%),
+    linear-gradient(180deg, rgb(228 240 255 / 0.15), rgb(228 240 255 / 0.04) 62%),
+    var(--btn-a-tint);
+  box-shadow:
+    inset 0 1px 0 rgb(226 239 255 / 0.42),
+    inset 0 -1px 0 rgb(200 220 255 / 0.08),
+    inset 0 0 0 1px rgb(210 228 255 / 0.14),
+    0 7px 16px -9px rgb(0 0 0 / 0.6);
+}
+.btn-a-glass,
+.btn-a-icon {
+  color: #fff;
+}
+.btn-a-glass {
+  font-weight: 600;
+  transition:
+    scale 200ms var(--btn-ease),
+    translate 200ms var(--btn-ease);
+}
+.btn-a-glass:where(:not(:disabled)):hover,
+.btn-a-glass[data-state="hover"] {
+  translate: 0 -1px;
+}
+.btn-a-glass:where(:not(:disabled)):active,
+.btn-a-glass[data-state="press"] {
+  scale: 0.97;
+  translate: 0 0;
+}
+
+/* Destructive: red on a dark red-tinted glass; hover fills it with a muted red. The text keeps
+   its colour so only opacity moves. */
+.btn-a-danger {
+  --btn-a-tint: rgb(34 8 12 / 0.42);
+  color: #ffadb5;
+  font-weight: 600;
+  transition:
+    scale 200ms var(--btn-ease),
+    translate 200ms var(--btn-ease);
+}
+.btn-a-danger:where(:not(:disabled)):hover,
+.btn-a-danger[data-state="hover"] {
+  translate: 0 -1px;
+}
+.btn-a-danger:where(:not(:disabled)):active,
+.btn-a-danger[data-state="press"] {
+  scale: 0.97;
+  translate: 0 0;
+}
+
+/* The hover layer under the text: a light veil on primary and glass, the red fill on destructive. */
+.btn-a-primary::before,
+.btn-a-glass::before,
+.btn-a-danger::before,
+.btn-a-icon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 220ms var(--btn-ease);
+}
+.btn-a-primary::before {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.24), rgb(255 255 255 / 0.07));
+}
+.btn-a-glass::before,
+.btn-a-icon::before {
+  background: linear-gradient(180deg, rgb(235 244 255 / 0.22), rgb(235 244 255 / 0.07));
+}
+.btn-a-danger::before {
+  background: linear-gradient(180deg, #a3404c, #7d2933);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);
+}
+:is(.btn-a-primary, .btn-a-glass, .btn-a-danger, .btn-a-icon):where(:not(:disabled)):hover::before,
+:is(.btn-a-primary, .btn-a-glass, .btn-a-danger, .btn-a-icon)[data-state="hover"]::before {
+  opacity: 1;
+}
+:is(.btn-a-primary, .btn-a-glass, .btn-a-danger, .btn-a-icon):where(:not(:disabled)):active::before,
+:is(.btn-a-primary, .btn-a-glass, .btn-a-danger, .btn-a-icon)[data-state="press"]::before {
+  opacity: 0.45;
+}
+.btn-a-danger:where(:not(:disabled)):active::before,
+.btn-a-danger[data-state="press"]::before {
+  opacity: 1;
+}
+
+/* Icon: round glass, glyph tinted with the accent. */
+.btn-a-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  color: #a8cfff;
+  transition: scale 200ms var(--btn-ease);
+}
+.btn-a-icon svg {
+  transition: translate 240ms var(--btn-ease);
+}
+.btn-a-icon:where(:not(:disabled)):hover svg,
+.btn-a-icon[data-state="hover"] svg {
+  translate: 0 1.5px;
+}
+.btn-a-icon:where(:not(:disabled)):active,
+.btn-a-icon[data-state="press"] {
+  scale: 0.92;
+}
+
+/* Toggle: a glass track with a lit thumb that slides under the chosen option. */
+.btn-a-seg {
+  --btn-a-tint: rgb(8 12 22 / 0.4);
+  position: relative;
+  isolation: isolate;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  border-radius: 9999px;
+}
+.btn-a-seg-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  z-index: -1;
+  width: calc((100% - 6px) / 2);
+  border-radius: 9999px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.34), rgb(255 255 255 / 0.14)),
+    color-mix(in srgb, var(--accent) 38%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.6),
+    inset 0 0 0 1px rgb(255 255 255 / 0.14),
+    0 4px 10px -3px rgb(0 0 0 / 0.55);
+  transition: translate 320ms var(--btn-ease);
+}
+.btn-a-seg[data-value="grid"] .btn-a-seg-thumb {
+  translate: 100% 0;
+}
+.btn-a-seg-opt {
+  width: 2.5rem;
+  height: 2rem;
+  border-radius: 9999px;
+  color: #fff;
+  opacity: 0.62;
+  transition:
+    opacity 200ms var(--btn-ease),
+    scale 200ms var(--btn-ease);
+}
+.btn-a-seg-opt[aria-pressed="true"] {
+  opacity: 1;
+}
+.btn-a-seg-opt:where(:not(:disabled)):hover,
+.btn-a-seg[data-state="hover"] .btn-a-seg-opt[aria-pressed="false"] {
+  opacity: 0.95;
+}
+.btn-a-seg-opt:where(:not(:disabled)):active,
+.btn-a-seg[data-state="press"] .btn-a-seg-opt[aria-pressed="false"] {
+  scale: 0.88;
+}
+
+.btn-a-primary:focus-visible,
+.btn-a-primary[data-state="focus"],
+.btn-a-glass:focus-visible,
+.btn-a-glass[data-state="focus"],
+.btn-a-danger:focus-visible,
+.btn-a-danger[data-state="focus"],
+.btn-a-icon:focus-visible,
+.btn-a-icon[data-state="focus"],
+.btn-a-seg-opt:focus-visible,
+.btn-a-seg[data-state="focus"] .btn-a-seg-opt[aria-pressed="true"] {
+  outline: 2px solid var(--btn-a-ring, color-mix(in oklab, var(--accent) 45%, white));
+  outline-offset: 3px;
+}
+.btn-a-primary:disabled,
+.btn-a-glass:disabled,
+.btn-a-danger:disabled,
+.btn-a-icon:disabled {
+  opacity: 0.4;
+}
+.btn-a-seg:has(.btn-a-seg-opt:disabled) {
+  opacity: 0.4;
+}
+
+/* ===== B. Cover-tinted ===================================================== */
+/* Put on any element that carries the --ambient-* colours (the specimen stage does). The cover
+   colours are dark by design, so they are lifted to a usable lightness in OKLCH. With no
+   cover (no data-cover) everything falls back to the accent blue. */
+.btn-b-scope {
+  --btn-b-a: color-mix(in oklab, var(--accent) 84%, white);
+  --btn-b-b: var(--accent);
+  --btn-b-ink: #06111f;
+}
+@supports (color: oklch(from red l c h)) {
+  .btn-b-scope[data-cover="on"] {
+    --btn-b-a: oklch(from var(--ambient-primary) 0.8 calc(c * 1.3) h);
+    --btn-b-b: oklch(from var(--ambient-secondary) 0.74 calc(c * 1.3) h);
+    --btn-b-ink: color-mix(in oklab, var(--ambient-deep) 55%, black);
+  }
+}
+.btn-b-scope {
+  --btn-b-glow: color-mix(in oklab, var(--btn-b-b) 58%, transparent);
+  --btn-b-hair: color-mix(in oklab, var(--btn-b-a) 55%, transparent);
+  --btn-b-wash: color-mix(in oklab, var(--btn-b-a) 18%, transparent);
+  --btn-b-text: color-mix(in oklab, var(--btn-b-a) 28%, white);
+  --btn-b-ring: color-mix(in oklab, var(--btn-b-a) 55%, white);
+}
+.btn-b-primary,
+.btn-b-ghost,
+.btn-b-danger {
+  height: 2.5rem;
+  padding: 0 1.4rem;
+  border-radius: 9999px;
+}
+
+/* Primary: the fill is the cover (lifted primary into lifted secondary) and a small cover chip
+   sits at the left, so the button reads as "send this". Hover wakes a palette glow and tilts
+   the chip like a sleeve being picked up. */
+.btn-b-primary {
+  color: var(--btn-b-ink);
+  font-weight: 700;
+  background: linear-gradient(115deg, var(--btn-b-a), var(--btn-b-b));
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.16),
+    0 1px 1px rgb(0 0 0 / 0.25),
+    0 6px 14px -8px var(--btn-b-glow);
+  transition:
+    scale 200ms var(--btn-ease),
+    box-shadow 200ms var(--btn-ease);
+}
+.btn-b-primary:has(.btn-b-chip) {
+  padding-left: 0.7rem;
+}
+.btn-b-chip {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 5px;
+  background:
+    radial-gradient(circle at 68% 34%, rgb(255 255 255 / 0.85) 0 1.5px, transparent 2px),
+    linear-gradient(150deg, var(--ambient-primary), var(--ambient-deep));
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.28),
+    0 1px 2px rgb(0 0 0 / 0.4);
+  transition:
+    rotate 320ms var(--btn-ease),
+    scale 320ms var(--btn-ease);
+}
+.btn-b-primary::before,
+.btn-b-ghost::before,
+.btn-b-icon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 220ms var(--btn-ease);
+}
+.btn-b-primary::before {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.26), rgb(255 255 255 / 0.04));
+}
+.btn-b-ghost::before,
+.btn-b-icon::before {
+  background: var(--btn-b-wash);
+}
+/* The glow layer: a box-shadow that only fades in, so nothing but opacity animates. */
+.btn-b-primary::after,
+.btn-b-ghost::after,
+.btn-b-icon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 260ms var(--btn-ease);
+}
+.btn-b-primary::after {
+  box-shadow: 0 10px 28px -6px var(--btn-b-glow);
+}
+.btn-b-ghost::after,
+.btn-b-icon::after {
+  box-shadow:
+    inset 0 0 0 1px var(--btn-b-a),
+    0 4px 22px -4px var(--btn-b-glow);
+}
+:is(.btn-b-primary, .btn-b-ghost, .btn-b-icon):where(:not(:disabled)):hover::before,
+:is(.btn-b-primary, .btn-b-ghost, .btn-b-icon):where(:not(:disabled)):hover::after,
+:is(.btn-b-primary, .btn-b-ghost, .btn-b-icon)[data-state="hover"]::before,
+:is(.btn-b-primary, .btn-b-ghost, .btn-b-icon)[data-state="hover"]::after {
+  opacity: 1;
+}
+.btn-b-primary:where(:not(:disabled)):hover .btn-b-chip,
+.btn-b-primary[data-state="hover"] .btn-b-chip {
+  rotate: -9deg;
+  scale: 1.14;
+}
+.btn-b-primary:where(:not(:disabled)):active,
+.btn-b-primary[data-state="press"] {
+  scale: 0.97;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.12),
+    inset 0 2px 5px -1px rgb(0 0 0 / 0.28),
+    0 1px 1px rgb(0 0 0 / 0.25),
+    0 2px 6px -3px var(--btn-b-glow);
+}
+.btn-b-primary:where(:not(:disabled)):active::after,
+.btn-b-primary[data-state="press"]::after {
+  opacity: 0.3;
+}
+.btn-b-primary:where(:not(:disabled)):active .btn-b-chip,
+.btn-b-primary[data-state="press"] .btn-b-chip {
+  rotate: 0deg;
+  scale: 1;
+}
+
+/* Secondary: no fill, a hairline in the palette; hover adds a faint wash and a soft glow. */
+.btn-b-ghost {
+  color: var(--btn-b-text);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--btn-b-hair);
+  transition: scale 200ms var(--btn-ease);
+}
+.btn-b-ghost:where(:not(:disabled)):active,
+.btn-b-ghost[data-state="press"] {
+  scale: 0.97;
+}
+
+/* Destructive: quiet text. On hover a line strikes through the word, then grows into a muted
+   red fill behind it; the text keeps its colour so only transform and opacity move. */
+.btn-b-danger {
+  color: color-mix(in oklab, var(--danger) 42%, white);
+  font-weight: 600;
+  text-shadow: 0 1px 8px rgb(0 0 0 / 0.35);
+  transition: scale 200ms var(--btn-ease);
+}
+.btn-b-danger::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(180deg, #a3404c, #84303b);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2);
+  scale: 1 0.06;
+  opacity: 0;
+  transition:
+    scale 260ms var(--btn-ease),
+    opacity 120ms linear;
+}
+.btn-b-danger::after {
+  content: "";
+  position: absolute;
+  left: 1.1rem;
+  right: 1.1rem;
+  top: 50%;
+  height: 1.5px;
+  margin-top: -0.75px;
+  border-radius: 1px;
+  background: currentColor;
+  transform-origin: left center;
+  scale: 0 1;
+  transition:
+    scale 220ms var(--btn-ease),
+    opacity 160ms linear;
+}
+.btn-b-danger:where(:not(:disabled)):hover::after,
+.btn-b-danger[data-state="hover"]::after {
+  scale: 1 1;
+  opacity: 0;
+  transition:
+    scale 260ms var(--btn-ease),
+    opacity 160ms linear 240ms;
+}
+.btn-b-danger:where(:not(:disabled)):hover::before,
+.btn-b-danger[data-state="hover"]::before {
+  scale: 1 1;
+  opacity: 1;
+  transition:
+    scale 300ms var(--btn-ease) 180ms,
+    opacity 100ms linear 180ms;
+}
+.btn-b-danger:where(:not(:disabled)):active,
+.btn-b-danger[data-state="press"] {
+  scale: 0.97;
+}
+.btn-b-danger:where(:not(:disabled)):active::before,
+.btn-b-danger[data-state="press"]::before {
+  scale: 1 1;
+  opacity: 1;
+}
+
+/* Icon: a tonal disc in the palette. */
+.btn-b-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  color: var(--btn-b-text);
+  background: color-mix(in oklab, var(--btn-b-a) 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--btn-b-a) 32%, transparent);
+  transition: scale 200ms var(--btn-ease);
+}
+.btn-b-icon:where(:not(:disabled)):active,
+.btn-b-icon[data-state="press"] {
+  scale: 0.92;
+}
+
+/* Toggle: a bare row of glyphs over a palette-coloured underline that slides to the choice. */
+.btn-b-seg {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--btn-b-a) 26%, transparent);
+}
+.btn-b-seg-line {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  width: 50%;
+  justify-content: center;
+  pointer-events: none;
+  transition: translate 340ms var(--btn-ease);
+}
+.btn-b-seg-line > span {
+  width: 70%;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--btn-b-a);
+  box-shadow: 0 0 12px 1px var(--btn-b-glow);
+}
+.btn-b-seg[data-value="grid"] .btn-b-seg-line {
+  translate: 100% 0;
+}
+.btn-b-seg-opt {
+  width: 2.75rem;
+  height: 2.25rem;
+  border-radius: 0.6rem;
+  color: var(--btn-b-text);
+  opacity: 0.55;
+  transition:
+    opacity 200ms var(--btn-ease),
+    scale 200ms var(--btn-ease);
+}
+.btn-b-seg-opt[aria-pressed="true"] {
+  opacity: 1;
+}
+.btn-b-seg-opt:where(:not(:disabled)):hover,
+.btn-b-seg[data-state="hover"] .btn-b-seg-opt[aria-pressed="false"] {
+  opacity: 0.95;
+}
+.btn-b-seg-opt:where(:not(:disabled)):active,
+.btn-b-seg[data-state="press"] .btn-b-seg-opt[aria-pressed="false"] {
+  scale: 0.88;
+}
+.btn-b-seg:has(.btn-b-seg-opt:disabled) {
+  opacity: 0.4;
+}
+
+.btn-b-primary:focus-visible,
+.btn-b-primary[data-state="focus"],
+.btn-b-ghost:focus-visible,
+.btn-b-ghost[data-state="focus"],
+.btn-b-danger:focus-visible,
+.btn-b-danger[data-state="focus"],
+.btn-b-icon:focus-visible,
+.btn-b-icon[data-state="focus"],
+.btn-b-seg-opt:focus-visible,
+.btn-b-seg[data-state="focus"] .btn-b-seg-opt[aria-pressed="true"] {
+  outline: 2px solid var(--btn-b-ring, #fff);
+  outline-offset: 3px;
+}
+.btn-b-primary:disabled,
+.btn-b-ghost:disabled,
+.btn-b-danger:disabled,
+.btn-b-icon:disabled {
+  opacity: 0.4;
+}
+
+/* ===== C. Soft ink ========================================================= */
+.btn-c-primary,
+.btn-c-text,
+.btn-c-icon,
+.btn-c-seg-opt {
+  --btn-c-ring: rgb(255 255 255 / 0.85);
+}
+
+/* The one filled button: a matte accent, pulled toward navy, with a faint grain (a 72px
+   feTurbulence tile at 20% alpha, inline so there is no file to load). Press sinks it. */
+.btn-c-primary {
+  height: 2.5rem;
+  padding: 0 1.35rem;
+  border-radius: 0.75rem;
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.005em;
+  background-color: color-mix(in oklab, var(--accent) 80%, #0b1730);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 0 0 0 0 .2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 72px 72px;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.07),
+    0 1px 0 rgb(0 0 0 / 0.5);
+  transition:
+    scale 180ms var(--btn-ease),
+    box-shadow 180ms var(--btn-ease);
+}
+.btn-c-primary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: rgb(255 255 255 / 0.09);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms var(--btn-ease);
+}
+.btn-c-primary:where(:not(:disabled)):hover::before,
+.btn-c-primary[data-state="hover"]::before {
+  opacity: 1;
+}
+.btn-c-primary:where(:not(:disabled)):active,
+.btn-c-primary[data-state="press"] {
+  scale: 0.985;
+  box-shadow:
+    inset 0 2px 8px rgb(0 0 0 / 0.5),
+    inset 0 0 0 1px rgb(0 0 0 / 0.28),
+    0 1px 0 rgb(255 255 255 / 0.05);
+}
+.btn-c-primary:where(:not(:disabled)):active::before,
+.btn-c-primary[data-state="press"]::before {
+  opacity: 0;
+}
+
+/* Secondary and destructive: just ink. A hairline sits under the word at rest and a full-strength
+   line draws in from the left on hover. */
+.btn-c-text {
+  height: 2.5rem;
+  padding: 0 0.5rem;
+  border-radius: 0.5rem;
+  color: #f1efec;
+  font-weight: 500;
+  transition: scale 160ms var(--btn-ease);
+}
+.btn-c-danger {
+  color: #ff9ea8;
+}
+.btn-c-label {
+  position: relative;
+  padding-bottom: 4px;
+}
+.btn-c-label::before,
+.btn-c-label::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: currentColor;
+}
+.btn-c-label::before {
+  opacity: 0.22;
+}
+.btn-c-label::after {
+  height: 1.5px;
+  transform-origin: left center;
+  scale: 0 1;
+  transition: scale 380ms var(--btn-ease);
+}
+.btn-c-text:where(:not(:disabled)):hover .btn-c-label::after,
+.btn-c-text[data-state="hover"] .btn-c-label::after,
+.btn-c-text:where(:not(:disabled)):active .btn-c-label::after,
+.btn-c-text[data-state="press"] .btn-c-label::after {
+  scale: 1 1;
+}
+.btn-c-text:where(:not(:disabled)):active,
+.btn-c-text[data-state="press"] {
+  scale: 0.97;
+}
+.btn-c-text:where(:not(:disabled)):active .btn-c-label::after,
+.btn-c-text[data-state="press"] .btn-c-label::after {
+  scale: 1 1.6;
+}
+
+/* Icon: no chrome until hover, then a soft disc fades in behind the glyph. */
+.btn-c-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  color: #fff;
+  transition: scale 160ms var(--btn-ease);
+}
+.btn-c-icon svg {
+  opacity: 0.66;
+  transition: opacity 200ms var(--btn-ease);
+}
+.btn-c-icon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: rgb(255 255 255 / 0.13);
+  pointer-events: none;
+  opacity: 0;
+  scale: 0.8;
+  transition:
+    opacity 200ms var(--btn-ease),
+    scale 260ms var(--btn-ease);
+}
+.btn-c-icon:where(:not(:disabled)):hover::before,
+.btn-c-icon[data-state="hover"]::before,
+.btn-c-icon:where(:not(:disabled)):active::before,
+.btn-c-icon[data-state="press"]::before {
+  opacity: 1;
+  scale: 1;
+}
+.btn-c-icon:where(:not(:disabled)):hover svg,
+.btn-c-icon[data-state="hover"] svg,
+.btn-c-icon:where(:not(:disabled)):active svg,
+.btn-c-icon[data-state="press"] svg {
+  opacity: 1;
+}
+.btn-c-icon:where(:not(:disabled)):active,
+.btn-c-icon[data-state="press"] {
+  scale: 0.92;
+}
+
+/* Toggle: plain words, and a dot that slides under the chosen one. */
+.btn-c-seg {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+}
+.btn-c-seg-dot {
+  position: absolute;
+  bottom: 1px;
+  left: 0;
+  display: flex;
+  width: 50%;
+  justify-content: center;
+  pointer-events: none;
+  transition: translate 340ms var(--btn-ease);
+}
+.btn-c-seg-dot > span {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: #fff;
+}
+.btn-c-seg[data-value="grid"] .btn-c-seg-dot {
+  translate: 100% 0;
+}
+.btn-c-seg-opt {
+  height: 2.25rem;
+  padding: 0 0.9rem 0.25rem;
+  border-radius: 0.5rem;
+  color: #fff;
+  font-weight: 500;
+  opacity: 0.5;
+  transition:
+    opacity 200ms var(--btn-ease),
+    scale 160ms var(--btn-ease);
+}
+.btn-c-seg-opt[aria-pressed="true"] {
+  opacity: 1;
+}
+.btn-c-seg-opt:where(:not(:disabled)):hover,
+.btn-c-seg[data-state="hover"] .btn-c-seg-opt[aria-pressed="false"] {
+  opacity: 0.85;
+}
+.btn-c-seg-opt:where(:not(:disabled)):active,
+.btn-c-seg[data-state="press"] .btn-c-seg-opt[aria-pressed="false"] {
+  scale: 0.94;
+}
+.btn-c-seg:has(.btn-c-seg-opt:disabled) {
+  opacity: 0.4;
+}
+
+.btn-c-primary:focus-visible,
+.btn-c-primary[data-state="focus"],
+.btn-c-text:focus-visible,
+.btn-c-text[data-state="focus"],
+.btn-c-icon:focus-visible,
+.btn-c-icon[data-state="focus"],
+.btn-c-seg-opt:focus-visible,
+.btn-c-seg[data-state="focus"] .btn-c-seg-opt[aria-pressed="true"] {
+  outline: 1.5px solid var(--btn-c-ring, #fff);
+  outline-offset: 3px;
+}
+.btn-c-primary:disabled,
+.btn-c-text:disabled,
+.btn-c-icon:disabled {
+  opacity: 0.4;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ambient-backdrop,
   .record-disc {
@@ -669,5 +1504,13 @@ body {
   }
   .track-list[data-sorting] .track-row[data-lifted] {
     scale: 1;
+  }
+  /* Button specimen (#155): states still switch, nothing glides or sweeps. !important because
+     the hover rules that set the transitions and the sheen animation are more specific. */
+  :is([class*="btn-a-"], [class*="btn-b-"], [class*="btn-c-"]),
+  :is([class*="btn-a-"], [class*="btn-b-"], [class*="btn-c-"])::before,
+  :is([class*="btn-a-"], [class*="btn-b-"], [class*="btn-c-"])::after {
+    transition: none !important;
+    animation: none !important;
   }
 }
