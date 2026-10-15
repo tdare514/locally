@@ -47,6 +47,16 @@ describe("pendingPlayEntries", () => {
     ]);
   });
 
+  it("never carries day buckets: an entry with days is pushed as releaseId, trackId and count only (#200)", () => {
+    const counts: PlayCounts = {
+      version: 1,
+      tracks: { [t(1)]: { releaseId: REL, count: 5, pushed: 0, days: { "2026-10-15": 5 } } },
+    };
+    const [entry] = pendingPlayEntries(counts);
+    expect(entry).toEqual({ releaseId: REL, trackId: t(1), count: 5 });
+    expect(Object.keys(entry).sort()).toEqual(["count", "releaseId", "trackId"]);
+  });
+
   it("leaves out entries the service would refuse", () => {
     const counts = local({
       "not-a-uuid": { releaseId: REL, count: 1 },
