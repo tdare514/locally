@@ -1,9 +1,9 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { medalFor, type StatItem } from "../../lib/play-stats";
 import { formatCount, lastPlayedLabel, playsCount } from "../../lib/stats-copy";
-import { seaTiers } from "../../lib/stats-layout";
+import { STATS_PAGE_SIZE, moreLabel, nextShown, seaTiers } from "../../lib/stats-layout";
 import StatCover, { statCoverUrl } from "../sidebar/StatCover";
 
 /** The ranked list and the sorted sea under the fan on the Stats page (#145). Each row and each
@@ -12,6 +12,30 @@ import StatCover, { statCoverUrl } from "../sidebar/StatCover";
 /** What opening an item does, for the tooltip. */
 function openHint(item: StatItem): string {
   return item.releaseId ? "Open release" : "Show in Library";
+}
+
+/** Shows the first page of `total`, and a button for the next. When the last page is shown the
+ * button goes, so focus moves to the first row that appeared (`firstNew` finds it in the list). */
+function usePaging(total: number, firstNew: (index: number) => HTMLElement | null | undefined) {
+  const [shown, setShown] = useState(STATS_PAGE_SIZE);
+  const focusAt = useRef<number | null>(null);
+  useEffect(() => {
+    if (focusAt.current === null) return;
+    firstNew(focusAt.current)?.focus();
+    focusAt.current = null;
+  });
+  const more = () => {
+    const next = nextShown(shown, total);
+    if (next >= total) focusAt.current = shown;
+    setShown(next);
+  };
+  const button =
+    shown < total ? (
+      <button type="button" className="btn-ink mt-4" onClick={more}>
+        <span className="btn-ink-label">{moreLabel(shown, total)}</span>
+      </button>
+    ) : null;
+  return { shown, button };
 }
 
 function PlayBar({ plays, max }: { plays: number; max: number }) {
@@ -40,10 +64,12 @@ export function StatsList({
   onOpen: (item: StatItem) => void;
 }) {
   const max = Math.max(0, ...items.map((i) => i.plays));
+  const list = useRef<HTMLOListElement>(null);
+  const { shown, button } = usePaging(items.length, (i) => list.current?.querySelectorAll<HTMLElement>("button")[i]);
   return (
     <div className="st-list">
-      <ol aria-label={label} className="mt-3">
-        {items.map((item) => (
+      <ol ref={list} aria-label={label} className="mt-3">
+        {items.slice(0, shown).map((item) => (
           <li key={item.id}>
             <button type="button" className="st-row st-focus" title={openHint(item)} onClick={() => onOpen(item)}>
               <span className="st-rank text-center text-sm font-semibold tabular-nums text-text-muted" data-medal={medalFor(item.rank)}>
@@ -66,6 +92,7 @@ export function StatsList({
           </li>
         ))}
       </ol>
+      {button}
     </div>
   );
 }
@@ -92,7 +119,7 @@ function Tile({ item, tier, round, onOpen }: { item: StatItem; tier: number; rou
           >
             {url ? (
               // eslint-disable-next-line @next/next/no-img-element -- local cover route, no optimisation needed
-              <img src={url} alt="" draggable={false} className="size-full object-cover" />
+              <img src={url} alt="" loading="lazy" decoding="async" draggable={false} className="size-full object-cover" />
             ) : (
               <span className="block size-full bg-elevated" />
             )}
@@ -136,9 +163,11 @@ export function StatsSea({
   round: boolean;
   onOpen: (item: StatItem) => void;
 }) {
-  const groups = seaTiers(items);
+  const wrap = useRef<HTMLElement>(null);
+  const { shown, button } = usePaging(items.length, (i) => wrap.current?.querySelectorAll<HTMLElement>("button")[i]);
+  const groups = seaTiers(items.slice(0, shown));
   return (
-    <section aria-label={label} className="st-sea-wrap mt-4">
+    <section ref={wrap} aria-label={label} className="st-sea-wrap mt-4">
       <p className="text-sm text-text-muted">Ranked by plays, left to right. Bigger covers have more plays.</p>
       <div className="mt-5 space-y-9">
         {groups.map((group, tier) => (
@@ -149,6 +178,7 @@ export function StatsSea({
           </ol>
         ))}
       </div>
+      {button}
     </section>
   );
 }

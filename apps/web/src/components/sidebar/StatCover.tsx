@@ -29,6 +29,6 @@ export default function StatCover({
   }
   return (
     // eslint-disable-next-line @next/next/no-img-element -- local cover route, no optimisation needed
-    <img src={src} alt="" className={`shrink-0 object-cover ${shape} ${className}`} />
+    <img src={src} alt="" loading="lazy" decoding="async" className={`shrink-0 object-cover ${shape} ${className}`} />
   );
 }

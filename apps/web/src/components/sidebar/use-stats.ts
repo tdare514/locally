@@ -13,6 +13,7 @@ import {
 } from "../../lib/play-periods";
 import { DEFAULT_PERIOD, TOP_COUNT, aggregatePlays, type PlayStats, type StatsPeriod } from "../../lib/play-stats";
 import { DEFAULT_WIDGETS, toggleWidget, type WidgetKey, type WidgetState } from "../../lib/sidebar-panel";
+import { keepRecent } from "../../lib/stats-layout";
 import { loadSidebarPrefs, saveSidebarPeriod, saveSidebarWidgets } from "../../lib/sidebar-prefs";
 
 /** A period's plays already read are reused for this long; opening the panel again after it reads them again. */
@@ -148,7 +149,14 @@ export function usePlayStats(
       .then((summary) => {
         if (inFlight.current[key] !== dates) return; // a newer day's request took over
         readAt.current[key] = { dates, at: Date.now() };
-        if (mounted.current) setReads((prev) => ({ ...prev, [key]: { status: "ok", dates, summary } }));
+        if (mounted.current) {
+          setReads((prev) => {
+            const { next, evicted } = keepRecent(prev, key, { status: "ok", dates, summary } as Read);
+            // An evicted period is read again when it is opened, not shown as loading for good.
+            for (const k of evicted) delete readAt.current[k];
+            return next;
+          });
+        }
       })
       .catch(() => {
         if (inFlight.current[key] !== dates) return;

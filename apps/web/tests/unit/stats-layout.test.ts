@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { StatItem } from "../../src/lib/play-stats";
-import { SEA_TIER_SIZES, seaTiers, sortItems } from "../../src/lib/stats-layout";
+import { SEA_TIER_SIZES, STATS_PAGE_SIZE, keepRecent, moreLabel, nextShown, seaTiers, sortItems } from "../../src/lib/stats-layout";
 
 function item(rank: number, title: string, lastPlayedDay: string | null): StatItem {
   return { id: title, rank, title, subtitle: "Artist", plays: 100 - rank, cover: null, releaseId: "r", lastPlayedDay };
@@ -49,5 +49,43 @@ describe("seaTiers", () => {
     expect(seaTiers([])).toEqual([]);
     expect(seaTiers(many(4))).toEqual([many(4)]);
     expect(seaTiers(many(10))).toHaveLength(2);
+  });
+});
+
+describe("paging", () => {
+  it("adds a page and stops at the total", () => {
+    expect(nextShown(STATS_PAGE_SIZE, 1000)).toBe(200);
+    expect(nextShown(STATS_PAGE_SIZE, 137)).toBe(137);
+    expect(nextShown(200, 137)).toBe(137);
+  });
+
+  it("labels the button", () => {
+    expect(moreLabel(100, 1000)).toBe("Show 100 more");
+    expect(moreLabel(100, 200)).toBe("Show 100 more");
+    expect(moreLabel(100, 137)).toBe("Show the last 37");
+    expect(moreLabel(100, 101)).toBe("Show the last 1");
+  });
+});
+
+describe("keepRecent", () => {
+  const filled = (n: number) => Object.fromEntries(Array.from({ length: n }, (_, i) => [`k${i}`, i]));
+
+  it("keeps everything while under the limit", () => {
+    const { next, evicted } = keepRecent(filled(3), "new", 99);
+    expect(Object.keys(next)).toEqual(["k0", "k1", "k2", "new"]);
+    expect(evicted).toEqual([]);
+  });
+
+  it("keeps the new key and the 7 newest others, naming the rest", () => {
+    const { next, evicted } = keepRecent(filled(10), "new", 99);
+    expect(Object.keys(next)).toEqual(["k3", "k4", "k5", "k6", "k7", "k8", "k9", "new"]);
+    expect(evicted).toEqual(["k0", "k1", "k2"]);
+  });
+
+  it("moves a stored key to the newest place without evicting it", () => {
+    const { next, evicted } = keepRecent(filled(8), "k0", 5);
+    expect(Object.keys(next)).toEqual(["k1", "k2", "k3", "k4", "k5", "k6", "k7", "k0"]);
+    expect(next.k0).toBe(5);
+    expect(evicted).toEqual([]);
   });
 });
