@@ -20,7 +20,7 @@ export type View =
   | { type: "library" }
   | { type: "import"; kind?: ReleaseKind }
   | { type: "release"; id: string; justImported?: boolean }
-  | { type: "settings" }
+  | { type: "settings"; section?: "account" }
   | { type: "stats" };
 
 export default function AppShell() {
@@ -185,6 +185,7 @@ export default function AppShell() {
         onLibraryClick={() => setView({ type: "library" })}
         onImportClick={() => openImport()}
         onSettingsClick={() => setView({ type: "settings" })}
+        onProfileClick={() => setView({ type: "settings", section: "account" })}
         onStatsClick={() => setView({ type: "stats" })}
         signedIn={syncStatus?.signedIn ?? false}
         email={syncStatus?.email ?? null}
@@ -254,6 +255,7 @@ export default function AppShell() {
               onToast={showToast}
               syncStatus={syncStatus}
               onSyncStatusChange={refreshSyncStatus}
+              section={view.section}
             />
           )}
         </main>

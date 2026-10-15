@@ -298,18 +298,25 @@ eyebrows still apply to those labels.
   one line of `text-muted` 14 body, then a primary "Add your first single" and a secondary "Make
   an album" pinned low. The full empty state lives in the main Library view.
 - **Web sidebar (#154)**: a slim 64 px rail, always there and see-through over the page, holds the
-  menu button (three lines) at the very top, then Library, the accent Import circle and Settings
-  in the order the panel lists them, and the brand mark at the foot as a quiet, non-interactive
-  mark. Hovering the rail blooms a glass panel out of its right edge: "On this Mac" (or the
-  signed-in email) level with the menu button, rows for Library, Import and Settings each level
-  with its rail icon, then "Your plays" with Top tracks, Top albums, Top artists and an optional
-  record-sleeve shelf (the #1 row larger, with its cover). How the panel opened decides how it
+  menu button (three lines) at the very top, then Library and the accent Import circle in the
+  order the panel lists them; at its foot sit Settings and, at the very bottom, the profile: a
+  32 px circle with the first letter of the signed-in email (white on an `accent` tint), or a
+  person glyph when not signed in. *Since 15 Oct 2026 the profile replaces the quiet brand mark
+  that used to sit at the foot, and Settings moved down from under Import.* Hovering the rail
+  blooms a glass panel out of its right edge: the panel controls (**Pin down**, which shows
+  "Pinned" while docked, and the Open on hover switch) level with the menu button, rows for
+  Library and Import each level with its rail icon, then "Your plays" with Top tracks, Top
+  albums, Top artists and an optional record-sleeve shelf (the #1 row larger, with its cover),
+  and at the bottom a hairline, the Settings row and the profile row (the circle, then the
+  signed-in email, "Syncing with your phone", "On this Mac", or the Demo pill with "Read-only
+  sample"), each level with its rail icon. The profile, on the rail or in the panel, opens
+  Settings at its account and sync section. How the panel opened decides how it
   closes: a hover-opened panel hides 300 ms after the pointer leaves; one opened with the menu
   button stays when the pointer leaves, and closes only on a second click of the button, Escape
   or choosing a page (never on a click outside); with Open on hover off the hover never opens it
   and leaving never closes it. Choosing a page, on the rail or in the panel, closes an unpinned
   panel at once so the new page is in view, and hovering does not reopen it until the pointer has
-  left the sidebar and come back. Pin open docks the panel as a column, which a page choice
+  left the sidebar and come back. Pin down docks the panel as a column, which a page choice
   leaves alone. The glass is faked (no blur), motion is transform and opacity only, and all of it
   stands still under reduced motion. The MagicPath sidebar is not used.
 - **Stats page (#145; `apps/web/src/components/stats/`, built 15 Oct 2026, the source of truth)**:

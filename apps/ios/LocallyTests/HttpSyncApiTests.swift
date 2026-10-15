@@ -113,6 +113,119 @@ struct HttpSyncApiTests {
         #expect(result.quota.limitBytes == 100)
     }
 
+    // MARK: - Missing files and the resync nudge (#171)
+
+    private func meBody(resyncRequestedAt: Any? = nil, includeKey: Bool) -> Data {
+        var object: [String: Any] = [
+            "user": ["id": "user-1", "email": "toby@example.com"],
+            "device": ["id": "device-1", "name": "Toby's iPhone"],
+            "quota": ["usedBytes": 10, "limitBytes": 100],
+        ]
+        if includeKey { object["resyncRequestedAt"] = resyncRequestedAt ?? NSNull() }
+        return jsonData(object)
+    }
+
+    @Test func meDecodesWithoutResyncRequestedAt() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { _ in (200, [:], self.meBody(includeKey: false)) }
+
+        let result = try await api.me()
+        #expect(result.resyncRequestedAt == nil)
+        #expect(result.quota.limitBytes == 100)
+    }
+
+    @Test func meDecodesANullResyncRequestedAt() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { _ in (200, [:], self.meBody(includeKey: true)) }
+
+        #expect(try await api.me().resyncRequestedAt == nil)
+    }
+
+    @Test func meDecodesResyncRequestedAtWithAndWithoutFractionalSeconds() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { _ in (200, [:], self.meBody(resyncRequestedAt: "2026-10-15T09:30:00.250Z", includeKey: true)) }
+        let fractional = try await api.me().resyncRequestedAt
+        #expect(fractional == Date(timeIntervalSince1970: 1_792_056_600.25))
+
+        StubURLProtocol.handler = { _ in (200, [:], self.meBody(resyncRequestedAt: "2026-10-15T09:30:00Z", includeKey: true)) }
+        let whole = try await api.me().resyncRequestedAt
+        #expect(whole == Date(timeIntervalSince1970: 1_792_056_600))
+    }
+
+    @Test func meIgnoresAResyncRequestedAtItCannotParseInsteadOfFailing() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { _ in (200, [:], self.meBody(resyncRequestedAt: "last tuesday", includeKey: true)) }
+
+        let result = try await api.me()
+        #expect(result.resyncRequestedAt == nil)
+        #expect(result.quota.usedBytes == 10)
+    }
+
+    @Test func missingFilesSendsGetWithBearerTokenAndDecodesTheList() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { request in
+            #expect(request.httpMethod == "GET")
+            #expect(request.url?.absoluteString == "https://sync.example.test/v1/files/missing")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer device-token")
+            return (200, [:], self.jsonData([
+                "releases": [
+                    ["id": "r-1", "missing": ["01 - Intro.mp3", "cover.jpg"], "recordUpdatedAt": "2026-10-15T09:30:00.000Z"],
+                    ["id": "r-2", "missing": ["a.m4a"], "recordUpdatedAt": "2026-10-15T09:31:00.000Z"],
+                ],
+                "checkedAt": "2026-10-15T10:00:00.000Z",
+            ]))
+        }
+
+        let result = try await api.missingFiles()
+        #expect(result.releases == [
+            SyncMissingRelease(id: "r-1", missing: ["01 - Intro.mp3", "cover.jpg"]),
+            SyncMissingRelease(id: "r-2", missing: ["a.m4a"]),
+        ])
+    }
+
+    @Test func missingFilesDecodesAHealthyAccount() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { _ in (200, [:], self.jsonData(["releases": [], "checkedAt": "2026-10-15T10:00:00.000Z"])) }
+
+        #expect(try await api.missingFiles().releases.isEmpty)
+    }
+
+    @Test func missingFiles404ThrowsNotFoundSoAnOldApiCanBeSkipped() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { _ in (404, [:], self.jsonData(["error": "not found"])) }
+
+        do {
+            _ = try await api.missingFiles()
+            Issue.record("expected .notFound")
+        } catch let error as SyncApiError {
+            #expect(error == .notFound)
+        }
+    }
+
+    @Test func missingFiles429ThrowsRateLimited() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { _ in (429, ["Retry-After": "60"], self.jsonData(["error": "slow down"])) }
+
+        do {
+            _ = try await api.missingFiles()
+            Issue.record("expected .rateLimited")
+        } catch let error as SyncApiError {
+            #expect(error == .rateLimited)
+        }
+    }
+
+    @Test func missingFiles401StillThrowsUnauthorized() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { _ in (401, [:], self.jsonData(["error": "expired token"])) }
+
+        do {
+            _ = try await api.missingFiles()
+            Issue.record("expected .unauthorized")
+        } catch let error as SyncApiError {
+            #expect(error == .unauthorized)
+        }
+    }
+
     @Test func requestCodeSendsPostWithEmailBodyAndNoAuthHeader() async throws {
         let (api, _) = makeApi(token: nil)
         StubURLProtocol.handler = { request in
