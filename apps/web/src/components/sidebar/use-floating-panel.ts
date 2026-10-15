@@ -198,7 +198,7 @@ export function useFloatingPanel(refs: PanelRefs) {
     triggerProps: {
       "aria-expanded": shown,
       "aria-controls": panelId,
-      "aria-label": held ? "Close sidebar" : "Open sidebar",
+      "aria-label": held ? "Close sidebar" : shown ? "Keep sidebar open" : "Open sidebar",
       // A click with no pointer position (detail 0) came from Enter or Space.
       onClick: (e: MouseEvent) => send({ type: "menu-click", keyboard: e.detail === 0 }),
     },
