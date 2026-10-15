@@ -155,7 +155,7 @@ export function useFloatingPanel(refs: PanelRefs) {
     panelId,
     hoverReveal,
     setHoverReveal: changeHoverReveal,
-    /** "Pin open" on or off. */
+    /** "Pin down" on or off. */
     pin: (next: boolean) => send({ type: "pin", pinned: next }),
     /** A page was chosen, on the rail or in the panel. Closes an unpinned panel and puts focus on
      * the page's rail icon (the one with that `data-page`), so it is not lost when the panel hides.
