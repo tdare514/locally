@@ -1,15 +1,31 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState, type DragEvent } from "react";
 import type { ImportMeta, Release, ReleaseKind } from "../shared/types";
 import { importRelease, inspectFiles } from "../lib/api-client";
-import Field from "./Field";
-import TrackList, { type EditableTrack } from "./TrackList";
-import CoverPicker from "./CoverPicker";
-import { UploadCloudIcon } from "./Icons";
+import AmbientBackdrop from "./AmbientBackdrop";
+import ImportInvitation from "./import/ImportInvitation";
+import ImportRecord from "./import/ImportRecord";
+import ImportSky from "./import/ImportSky";
 import { IS_DEMO } from "../lib/demo";
+import type { AmbientPalette } from "../lib/artwork-palette";
+import {
+  INITIAL_BEAT,
+  INVITE_PALETTE,
+  beatReducer,
+  beatTimes,
+  discKeyFor,
+  isAudioFile,
+  isPlaying,
+  planAdd,
+  trimForKind,
+} from "../lib/import-flow";
 import { applyTrackEdits } from "../lib/track-order";
+import { useArtworkPalette } from "../lib/use-artwork-palette";
+import { useObjectUrl } from "../lib/use-object-url";
+import { usePrefersReducedMotion } from "../lib/use-reduced-motion";
 import { orderByDisc } from "../shared/discs";
+import type { EditableTrack } from "./TrackList";
 
 interface ImportViewProps {
   /** Prefill Single | Album when opened from the library empty-state CTAs. */
@@ -48,10 +64,58 @@ export default function ImportView({
   const [genre, setGenre] = useState("");
   const [inspecting, setInspecting] = useState(false);
   const [importing, setImporting] = useState(false);
+  // Audio is being dragged over the pane.
   const [dragOver, setDragOver] = useState(false);
+  // The record replaces the invitation once a track is added, and stays even if all are removed.
+  const [started, setStarted] = useState(false);
+
+  // The cover beat (#159): see lib/import-flow.ts and the .imp-* rules in globals.css.
+  const [beat, dispatchBeat] = useReducer(beatReducer, INITIAL_BEAT);
+  const playing = isPlaying(beat);
+  const reducedMotion = usePrefersReducedMotion();
+  const times = beatTimes(reducedMotion);
+  // The run whose colour wash has started (it starts with the flash, not with the cover).
+  const [washedRun, setWashedRun] = useState(0);
+  // The palette the backdrop shows: the calm invite tones until a cover's colours arrive, then
+  // those (the previous cover's, while a replacement's wash waits for its flash).
+  const [shown, setShown] = useState<AmbientPalette>(INVITE_PALETTE);
+
+  const coverUrl = useObjectUrl(coverFile);
+  const livePalette = useArtworkPalette(coverUrl);
+  const washOn = washedRun === beat.run;
+  const washPalette = beat.hasCover && livePalette && (washOn || !playing) ? livePalette : null;
+  if (washPalette && washPalette !== shown) setShown(washPalette);
 
   const audioInputRef = useRef<HTMLInputElement>(null);
   const nextKeyRef = useRef(0);
+
+  useEffect(() => {
+    if (!playing) return;
+    const id = window.setTimeout(() => setWashedRun(beat.run), times.washAt);
+    return () => window.clearTimeout(id);
+  }, [playing, beat.run, times.washAt]);
+
+  useEffect(() => {
+    if (!playing) return;
+    const id = window.setTimeout(() => dispatchBeat({ type: "end" }), times.endAt);
+    return () => window.clearTimeout(id);
+  }, [playing, beat.run, times.endAt]);
+
+  // Input never waits for the beat: a click or key press anywhere jumps it to the end. The event
+  // itself carries on (typing still types, a button still clicks).
+  useEffect(() => {
+    if (!playing) return;
+    const skip = () => dispatchBeat({ type: "skip" });
+    const skipOnKey = (e: KeyboardEvent) => {
+      if (!e.repeat) skip();
+    };
+    window.addEventListener("pointerdown", skip, true);
+    window.addEventListener("keydown", skipOnKey, true);
+    return () => {
+      window.removeEventListener("pointerdown", skip, true);
+      window.removeEventListener("keydown", skipOnKey, true);
+    };
+  }, [playing]);
 
   function newKey(): string {
     nextKeyRef.current += 1;
@@ -61,18 +125,19 @@ export default function ImportView({
   function switchKind(next: ReleaseKind) {
     if (next === kind) return;
     setKind(next);
-    if (next === "single" && entries.length > 1) {
-      setEntries((prev) => prev.slice(0, 1));
-    }
+    setEntries((prev) => trimForKind(prev, next));
+  }
+
+  function chooseCover(file: File) {
+    setCoverFile(file);
+    dispatchBeat({ type: "cover" });
   }
 
   async function addFiles(fileList: FileList | File[]) {
     const incoming = Array.from(fileList).filter((f) => f.size > 0);
     if (incoming.length === 0) return;
 
-    const single = kind === "single";
-    const filesToUse = single ? [incoming[0]] : incoming;
-    const startIndex = single ? 0 : entries.length;
+    const { files: filesToUse, startIndex, replace } = planAdd(kind, entries.length, incoming);
 
     const optimistic: Entry[] = filesToUse.map((f) => ({
       key: newKey(),
@@ -80,7 +145,8 @@ export default function ImportView({
       title: stripExtension(f.name),
     }));
 
-    setEntries((prev) => (single ? optimistic : [...prev, ...optimistic]));
+    setStarted(true);
+    setEntries((prev) => (replace ? optimistic : [...prev, ...optimistic]));
 
     setInspecting(true);
     try {
@@ -165,6 +231,8 @@ export default function ImportView({
       onImported(release);
       setEntries([]);
       setCoverFile(null);
+      dispatchBeat({ type: "reset" });
+      setStarted(false);
       setTitle("");
       setArtist("");
       setYear("");
@@ -188,138 +256,91 @@ export default function ImportView({
     );
   }
 
+  // Dropping audio anywhere on the pane adds it; anything else (an image on the sleeve) is left to
+  // whatever it landed on.
+  function handleDragOver(e: DragEvent) {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    setDragOver(true);
+  }
+
+  function handleDrop(e: DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const audio = Array.from(e.dataTransfer.files).filter(isAudioFile);
+    if (audio.length > 0 && !importing) void addFiles(audio);
+  }
+
+  const beatStage = !beat.hasCover ? "none" : playing ? "playing" : "settled";
+  const tracks: EditableTrack[] = entries.map((e) => ({
+    key: e.key,
+    title: e.title,
+    discNumber: e.discNumber,
+  }));
+
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-8 pb-16">
-      <div>
-        <p className="text-sm font-semibold text-accent">
-          Local library
-        </p>
-        <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">Import</h1>
-        <p className="mt-2 text-base text-text-muted">
-          Add a song or album to your Spotify library.
-        </p>
-      </div>
-
-      <div role="group" aria-label="Release type" className="btn-seg w-fit">
-        <span aria-hidden className="btn-seg-dot">
-          <span />
-        </span>
-        <button
-          type="button"
-          onClick={() => switchKind("single")}
-          aria-pressed={kind === "single"}
-          className="btn-seg-opt"
-        >
-          Single
-        </button>
-        <button
-          type="button"
-          onClick={() => switchKind("album")}
-          aria-pressed={kind === "album"}
-          className="btn-seg-opt"
-        >
-          Album
-        </button>
-      </div>
-
-      {/* Cover first, compact, beside title and artist so it stays in view
-          while those are typed. Year and genre follow; tracks follow below. */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-start gap-4">
-          <CoverPicker file={coverFile} onChange={setCoverFile} presentation="compact" />
-          <div className="flex min-w-0 flex-1 flex-col gap-4">
-            <Field
-              label="Title"
-              value={title}
-              onChange={setTitle}
-              placeholder={kind === "single" ? "Same as track title" : "Album title"}
-            />
-            <Field label="Artist" value={artist} onChange={setArtist} placeholder="Artist name" />
-          </div>
-        </div>
-        <p className="text-xs text-text-hint">Square artwork works best</p>
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Year" value={year} onChange={setYear} placeholder="2024" />
-          <Field label="Genre" value={genre} onChange={setGenre} placeholder="Genre" />
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <p className="text-sm font-bold text-text">Audio files</p>
-        <div
-          onClick={() => audioInputRef.current?.click()}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragOver(true);
-          }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragOver(false);
-            addFiles(e.dataTransfer.files);
-          }}
-          role="button"
-          tabIndex={0}
-          className={`flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-card px-4 py-10 text-center transition-colors ${
-            dragOver ? "border-accent" : "border-border-dashed"
-          }`}
-        >
-          <UploadCloudIcon
-            className={`h-[26px] w-[26px] ${dragOver ? "text-accent" : "text-text-muted"}`}
-          />
-          <p className="text-sm font-medium text-text-soft">
-            Drop audio files here, or click to choose
-          </p>
-          {kind === "single" ? (
-            <p className="text-xs text-text-hint">
-              Singles are one file. Switch to Album for multiple.
-            </p>
-          ) : (
-            <p className="text-xs text-text-hint">You can select or drop multiple files.</p>
-          )}
-          <input
-            ref={audioInputRef}
-            type="file"
-            accept="audio/*,.mp3,.wav,.flac,.m4a,.aac,.ogg,.aiff,.aif"
-            multiple={kind === "album"}
-            className="hidden"
-            onChange={(e) => {
-              addFiles(e.target.files ?? []);
-              e.target.value = "";
-            }}
-          />
-        </div>
-      </div>
-
-      {entries.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-bold text-text">Tracks</p>
-            <p className="text-xs text-text-muted">
-              {inspecting
-                ? "Reading tags…"
-                : `${entries.length} file${entries.length === 1 ? "" : "s"}`}
-            </p>
-          </div>
-          <TrackList
-            tracks={entries.map((e) => ({ key: e.key, title: e.title, discNumber: e.discNumber }))}
-            onChange={handleTracksChange}
-            onRemove={handleRemove}
-          />
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
+      }}
+      onDrop={handleDrop}
+      className="flex min-h-full flex-col"
+    >
+      <ImportSky state={beatStage === "none" ? "on" : playing ? "out" : "off"} />
+      {/* The cover's colours wash the pane. Not positioned itself, so this and the accent wash
+          below fill <main>, as the release page's backdrop does. */}
+      {beat.hasCover && (
+        <div aria-hidden className="imp-backdrop-in" data-beat={playing}>
+          <AmbientBackdrop key={beat.skipped ? "skipped" : undefined} palette={shown} />
         </div>
       )}
-
-      <div className="flex items-center justify-between gap-4 border-t border-border pt-6">
-        <p className="text-sm text-text-dim">Your files stay on this device.</p>
-        <button
-          type="button"
-          disabled={!canSubmit}
-          onClick={handleSubmit}
-          className="btn-save"
-        >
-          {importing ? "Importing…" : "Import to Spotify"}
-        </button>
-      </div>
+      {started ? (
+        <ImportRecord
+          kind={kind}
+          onKindChange={switchKind}
+          title={title}
+          onTitleChange={setTitle}
+          artist={artist}
+          onArtistChange={setArtist}
+          year={year}
+          onYearChange={setYear}
+          genre={genre}
+          onGenreChange={setGenre}
+          tracks={tracks}
+          onTracksChange={handleTracksChange}
+          onRemoveTrack={handleRemove}
+          inspecting={inspecting}
+          coverFile={coverFile}
+          onCover={chooseCover}
+          beat={{ stage: beatStage, replay: beat.replay, discKey: discKeyFor(beat) }}
+          labelUrl={beat.hasCover ? coverUrl : null}
+          tint={beat.hasCover && shown !== INVITE_PALETTE ? shown.primary : undefined}
+          canSubmit={canSubmit}
+          importing={importing}
+          onSubmit={handleSubmit}
+          onAddTrack={() => audioInputRef.current?.click()}
+        />
+      ) : (
+        <>
+          <ImportInvitation over={dragOver} onAdd={() => audioInputRef.current?.click()} />
+          {/* #122: the Import pill's accent, swept left to right across the pane. */}
+          <div aria-hidden className="imp-wash">
+            <div className="imp-wash-band" />
+          </div>
+        </>
+      )}
+      <input
+        ref={audioInputRef}
+        type="file"
+        accept="audio/*,.mp3,.wav,.flac,.m4a,.aac,.ogg,.aiff,.aif"
+        multiple={kind === "album"}
+        className="hidden"
+        onChange={(e) => {
+          addFiles(e.target.files ?? []);
+          e.target.value = "";
+        }}
+      />
     </div>
   );
 }
