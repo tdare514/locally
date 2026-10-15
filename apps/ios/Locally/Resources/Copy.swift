@@ -176,10 +176,8 @@ enum Copy {
         static func playCount(_ count: Int) -> String {
             count == 1 ? "1 play" : "\(count) plays"
         }
-        /// A device line under a track's play count; marks the phone the user is holding.
-        static func playDevice(_ name: String, current: Bool) -> String {
-            current ? "\(name) (This iPhone)" : name
-        }
+        /// Under the tracks when any has plays: the totals add up every signed-in device.
+        static let playsAcrossDevices = "Plays are counted across all your devices."
         static let saveChanges = "Save changes"
         static let saving = "Saving…"
         static let replaceCover = "Replace cover"

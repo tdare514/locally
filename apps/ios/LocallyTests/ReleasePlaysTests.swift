@@ -53,7 +53,7 @@ struct ReleasePlaysTests {
         #expect(plays.tracks.isEmpty)
     }
 
-    @Test func totalsAndDevicesLandPerTrackSortedByCount() async {
+    @Test func totalsLandPerTrackAcrossDevices() async {
         let first = UUID(), second = UUID(), third = UUID()
         let api = FakeSyncApi()
         api.releasePlaysResult = .success(SyncReleasePlays(tracks: [
@@ -64,12 +64,10 @@ struct ReleasePlaysTests {
         let model = makeModel(trackIds: [first, second, third], api: api, signedIn: true)
         await model.loadPlays()
 
-        let one = model.plays(for: model.trackRows[0])
-        #expect(one?.total == 12)
-        #expect(one?.devices.map(\.name) == ["Mac", "Phone"])
-        #expect(one?.devices.map(\.count) == [9, 3])
-        #expect(model.plays(for: model.trackRows[1]) == nil)
-        #expect(model.plays(for: model.trackRows[2]) == nil)
+        #expect(model.playTotal(for: model.trackRows[0]) == 12)
+        #expect(model.playTotal(for: model.trackRows[1]) == nil)
+        #expect(model.playTotal(for: model.trackRows[2]) == 5)
+        #expect(model.hasPlays)
         #expect(api.releasePlaysCalls == [model.releaseId.uuidString])
     }
 
@@ -80,7 +78,8 @@ struct ReleasePlaysTests {
         let model = makeModel(trackIds: [id], api: api, signedIn: false)
         await model.loadPlays()
         #expect(api.releasePlaysCalls.isEmpty)
-        #expect(model.plays(for: model.trackRows[0]) == nil)
+        #expect(model.playTotal(for: model.trackRows[0]) == nil)
+        #expect(!model.hasPlays)
     }
 
     @Test func aThrowingApiShowsNothing() async {
@@ -90,6 +89,7 @@ struct ReleasePlaysTests {
         let model = makeModel(trackIds: [id], api: api, signedIn: true)
         await model.loadPlays()
         #expect(api.releasePlaysCalls.count == 1)
-        #expect(model.plays(for: model.trackRows[0]) == nil)
+        #expect(model.playTotal(for: model.trackRows[0]) == nil)
+        #expect(!model.hasPlays)
     }
 }

@@ -27,8 +27,8 @@ final class ReleaseDetailViewModel {
     var genre: String
     var coverData: Data?
     var trackRows: [TrackRow]
-    /// Per-device Spotify play counts by lowercased track id; empty when signed out or offline.
-    private(set) var playsByTrack: [String: SyncTrackPlays] = [:]
+    /// Spotify play totals across all devices, by lowercased track id; empty when signed out or offline.
+    private(set) var playTotals: [String: Int] = [:]
 
     private var originalTitle: String
     private var originalArtist: String
@@ -106,21 +106,22 @@ final class ReleaseDetailViewModel {
         guard let syncApi, isSignedIn() else { return }
         do {
             let result = try await syncApi.releasePlays(releaseId: releaseId.uuidString)
-            var byTrack: [String: SyncTrackPlays] = [:]
-            for var track in result.tracks where track.total > 0 && !track.devices.isEmpty {
-                track.devices.sort { $0.count > $1.count }
-                byTrack[track.trackId.lowercased()] = track
+            var totals: [String: Int] = [:]
+            for track in result.tracks where track.total > 0 {
+                totals[track.trackId.lowercased()] = track.total
             }
-            playsByTrack = byTrack
+            playTotals = totals
         } catch {
-            playsByTrack = [:]
+            playTotals = [:]
         }
     }
 
-    /// The plays to show under a track row, or nil when it has none.
-    func plays(for row: TrackRow) -> SyncTrackPlays? {
-        playsByTrack[row.id.uuidString.lowercased()]
+    /// The play total to show under a track row, or nil when it has none.
+    func playTotal(for row: TrackRow) -> Int? {
+        playTotals[row.id.uuidString.lowercased()]
     }
+
+    var hasPlays: Bool { !playTotals.isEmpty }
 
     func moveTracks(from source: IndexSet, to destination: Int) {
         trackRows.move(fromOffsets: source, toOffset: destination)

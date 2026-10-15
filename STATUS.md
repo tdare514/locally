@@ -44,7 +44,7 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 - Sync pushes and deletes queue in a persistent outbox, retried each reconcile until the server confirms; a delete during reconcile or offline is no longer lost (#19)
 - Each release records which files the server holds, so a push retry after a partial failure uploads only what's missing and a cover replace re-uploads only the cover (#27)
 - "Make it a playlist" guide on the album done screen and release page: Copy button for the title, per-track iPhone steps and a fallback line (#21)
-- The release page shows per-device Spotify play counts per track, read from the sync API when signed in; shown nowhere else and never counted on the phone (#108)
+- The release page shows each track's Spotify play total across all devices, with a line saying so, read from the sync API when signed in; nothing when signed out, offline or unplayed; the phone counts no plays itself (#108, spike #103)
 - Share extension verified on an iPhone 12 Pro (iOS 18.7) and sync verified end to end on a phone, both 27 Sep 2026
 - Security backlog (#12) closed: M4ATagWriter checks `replaceItemAt` and removes its temp export, ID3TagWriter guards the synchsafe size limit and streams audio, the share extension allow-lists audio extensions and the Inbox sweeps orphaned files
 - Sync device name persists across relaunch and verify sends the model marketing name, e.g. "iPhone 14" (#38). A phone that signed in before this change keeps "iPhone" on the server until it signs out and back in; the model table covers through the iPhone 17 family and iPhone Air, with a note in `SyncDeviceName.swift` on extending it (#64)

@@ -64,6 +64,7 @@ struct ReleaseDetailView: View {
                     tracksHeader(model.trackRows.count).panelRow(.top)
                     if model.trackRows.count >= 2 { reorderHint.panelRow(.middle) }
                     trackRows(model)
+                    if model.hasPlays { playsFootnote.panelRow(.middle) }
                     if isAlbum { playlistGuide(model).panelRow(.middle) }
                     messages(model)
                     deleteButton.panelRow(.bottom)
@@ -210,31 +211,22 @@ struct ReleaseDetailView: View {
                 onTitleChange: { newValue in setTitle(newValue, for: row, in: model) }
             )
             .panelRow(.middle)
-            if let plays = model.plays(for: row) {
-                playsLines(plays).panelRow(.middle)
+            if let total = model.playTotal(for: row) {
+                Text(Copy.Detail.playCount(total))
+                    .font(Theme.Font.meta)
+                    .foregroundStyle(Theme.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .panelRow(.middle)
             }
         }
         .onMove(perform: model.trackRows.count >= 2 ? model.moveTracks : nil)
     }
 
-    /// Quiet per-device play counts under a track row.
-    private func playsLines(_ plays: SyncTrackPlays) -> some View {
-        VStack(alignment: .leading, spacing: Theme.Spacing.rowGap) {
-            Text(Copy.Detail.playCount(plays.total))
-                .font(Theme.Font.meta)
-                .foregroundStyle(Theme.secondaryText)
-            ForEach(plays.devices, id: \.deviceId) { device in
-                HStack {
-                    Text(Copy.Detail.playDevice(device.name, current: device.current))
-                    Spacer()
-                    Text("\(device.count)")
-                }
-                .font(Theme.Font.rowSubtitle)
-                .foregroundStyle(Theme.textDim)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
+    /// One line under the tracks saying where the play totals come from.
+    private var playsFootnote: some View {
+        Text(Copy.Detail.playsAcrossDevices)
+            .font(Theme.Font.dropZoneHint)
+            .foregroundStyle(Theme.textDim)
     }
 
     private func playlistGuide(_ model: ReleaseDetailViewModel) -> some View {
