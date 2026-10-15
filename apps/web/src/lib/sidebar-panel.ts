@@ -59,7 +59,7 @@ export type PanelEvent =
   | { type: "escape" }
   /** A page was chosen, on the rail or in the panel. */
   | { type: "page-chosen" }
-  /** "Pin open" switched on or off. */
+  /** "Pin down" switched on or off. */
   | { type: "pin"; pinned: boolean }
   /** "Open on hover" switched on or off. */
   | { type: "hover-reveal"; on: boolean };
