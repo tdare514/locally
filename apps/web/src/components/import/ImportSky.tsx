@@ -11,12 +11,12 @@ export type SkyState = "on" | "out" | "off";
 /** The library's drifting colour sky (AmbientSpace), in calm accent tones, for the Import page
  * until its first cover (#159). The library's own sky lives in AppShell, outside the scrolling
  * pane, so it paints under the see-through sidebar too; this one is portalled into the same
- * element (the full-window shell, found from where this renders) to sit exactly there. If the shell
+ * element (the full-window shell, `[data-app-shell]`, found from where this renders) to sit exactly there. If the shell
  * is not found it renders nothing and the page simply has no sky. */
 export default function ImportSky({ state }: { state: SkyState }) {
   const [shell, setShell] = useState<Element | null>(null);
   const anchor = useCallback((el: HTMLSpanElement | null) => {
-    setShell(el ? el.closest(".h-screen") : null);
+    setShell(el ? el.closest("[data-app-shell]") : null);
   }, []);
 
   return (

@@ -162,6 +162,8 @@ export default function AppShell() {
   return (
     <div
       ref={shellRef}
+      // The Import page's sky portals in here (#159), so it sits under the sidebar like the library's.
+      data-app-shell=""
       className="relative isolate flex h-screen w-screen flex-col overflow-hidden md:flex-row"
     >
       {/* The library sky fills the whole window, outside the scroller so it never scrolls away,
