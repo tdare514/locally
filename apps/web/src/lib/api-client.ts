@@ -70,6 +70,17 @@ export async function putTrackPlays(trackPlays: boolean): Promise<SettingsRespon
   return handle<SettingsResponse>(res);
 }
 
+/** The one-time "Count your Spotify plays?" card (#110): both answers mark it answered; "Turn on" also
+ * sets trackPlays, which runs the first check (and the macOS Automation prompt). */
+export async function answerPlaysPrompt(turnOn: boolean): Promise<SettingsResponse> {
+  const res = await fetch("/api/settings", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(turnOn ? { trackPlays: true, playsPromptAnswered: true } : { playsPromptAnswered: true }),
+  });
+  return handle<SettingsResponse>(res);
+}
+
 export async function getPlaysStatus(): Promise<PlaysStatusResponse> {
   const res = await fetch("/api/plays/status");
   return handle<PlaysStatusResponse>(res);

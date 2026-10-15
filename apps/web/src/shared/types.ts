@@ -58,6 +58,7 @@ export interface Settings {
   sync: SyncSettings | null;
   spotifySourceDismissed?: boolean;  // user clicked "Done, I added it" on the Spotify source prompt
   trackPlays?: boolean;  // opt-in: count plays of Locally tracks in Spotify on this Mac (#106); default false
+  playsPromptAnswered?: boolean;  // user answered the one-time "Count your Spotify plays?" card, either button (#110)
 }
 
 /** The `sync` field as returned to the browser by GET/PUT /api/settings: no token. */
@@ -73,6 +74,7 @@ export interface SettingsResponse {
   libraryDir: string;
   sync: SyncStatusSummary;
   trackPlays: boolean;
+  playsPromptAnswered: boolean;
 }
 
 /** Response shape for GET /api/plays/status. */

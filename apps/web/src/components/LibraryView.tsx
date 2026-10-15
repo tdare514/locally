@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Release, ReleaseKind } from "../shared/types";
 import { coverUrl, deleteRelease, updateRelease } from "../lib/api-client";
 import { IS_DEMO } from "../lib/demo";
+import PlaysPromptCard from "./PlaysPromptCard";
 import {
   bulkDetailsPatch,
   bulkSummary,
@@ -178,7 +179,7 @@ export default function LibraryView({
   }
 
   if (releases.length === 0) {
-    return <LibraryEmptyState onImport={onImport} />;
+    return <LibraryEmptyState onImport={onImport} onToast={onToast} />;
   }
 
   const totalTracks = releases.reduce((n, r) => n + r.tracks.length, 0);
@@ -319,6 +320,8 @@ export default function LibraryView({
           </div>
         </div>
       </div>
+
+      <PlaysPromptCard onToast={onToast} />
 
       {selecting ? (
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-border bg-card px-4 py-3">
@@ -721,14 +724,16 @@ function SelectBox({ checked }: { checked: boolean }) {
 /** Empty library doubles as onboarding — same copy and diagram as iOS. */
 function LibraryEmptyState({
   onImport,
+  onToast,
 }: {
   onImport: (kind?: ReleaseKind) => void;
+  onToast: LibraryViewProps["onToast"];
 }) {
   return (
     <div className="mx-auto flex min-h-[min(70vh,640px)] max-w-lg flex-col items-center px-4 pb-8 pt-10 text-center">
       <div className="flex flex-1 flex-col items-center justify-center">
         <EmptyDiagram />
-        <p className="mt-9 text-xs font-bold uppercase tracking-[0.18em] text-accent">
+        <p className="mt-9 text-sm font-semibold text-accent">
           Your library
         </p>
         <h1 className="mt-2 text-4xl font-bold tracking-[-0.02em] text-text">
@@ -759,6 +764,7 @@ function LibraryEmptyState({
           Make an album
         </button>
       </div>
+      <PlaysPromptCard onToast={onToast} className="mt-8" />
     </div>
   );
 }

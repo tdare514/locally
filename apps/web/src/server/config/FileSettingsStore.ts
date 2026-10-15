@@ -40,7 +40,12 @@ export class FileSettingsStore implements SettingsStore {
     } catch (err) {
       const code = (err as NodeJS.ErrnoException)?.code;
       if (code === "ENOENT") {
-        const defaults: Settings = { libraryDir: defaultLibraryDir(), sync: null, trackPlays: false };
+        const defaults: Settings = {
+          libraryDir: defaultLibraryDir(),
+          sync: null,
+          trackPlays: false,
+          playsPromptAnswered: false,
+        };
         await this.set(defaults);
         return defaults;
       }
@@ -57,7 +62,12 @@ export class FileSettingsStore implements SettingsStore {
       const corruptPath = `${file}.corrupt-${Date.now()}`;
       await fs.rename(file, corruptPath);
       console.warn(`${file} contained invalid JSON; moved it to ${corruptPath} and reset to defaults.`);
-      const defaults: Settings = { libraryDir: defaultLibraryDir(), sync: null, trackPlays: false };
+      const defaults: Settings = {
+        libraryDir: defaultLibraryDir(),
+        sync: null,
+        trackPlays: false,
+        playsPromptAnswered: false,
+      };
       await this.set(defaults);
       return defaults;
     }
@@ -69,7 +79,15 @@ export class FileSettingsStore implements SettingsStore {
     const spotifySourceDismissed =
       typeof parsed.spotifySourceDismissed === "boolean" ? parsed.spotifySourceDismissed : false;
     const trackPlays = typeof parsed.trackPlays === "boolean" ? parsed.trackPlays : false;
-    return { libraryDir, sync: parseSyncSettings(parsed.sync), spotifySourceDismissed, trackPlays };
+    const playsPromptAnswered =
+      typeof parsed.playsPromptAnswered === "boolean" ? parsed.playsPromptAnswered : false;
+    return {
+      libraryDir,
+      sync: parseSyncSettings(parsed.sync),
+      spotifySourceDismissed,
+      trackPlays,
+      playsPromptAnswered,
+    };
   }
 
   async set(settings: Settings): Promise<Settings> {
