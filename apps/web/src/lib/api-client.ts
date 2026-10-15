@@ -12,7 +12,7 @@ import type {
   SyncStatus,
   SpotifySourceStatus,
   PlaysStatusResponse,
-  PlayTotalsResponse,
+  PlaysSummaryResponse,
   ReleasePlaysResponse,
 } from "../shared/types";
 
@@ -97,10 +97,11 @@ export async function getReleasePlays(releaseId: string): Promise<ReleasePlaysRe
   return handle<ReleasePlaysResponse>(res);
 }
 
-/** This Mac's play count for every track in the library, in one request (the sidebar widgets, #154). */
-export async function getPlayTotals(): Promise<PlayTotalsResponse> {
-  const res = await fetch("/api/plays/totals");
-  return handle<PlayTotalsResponse>(res);
+/** This Mac's plays between two local dates (`YYYY-MM-DD`, inclusive) and all time, for the
+ * releases in the library, in one request (the sidebar widgets, #154, #203). */
+export async function getPlaysSummary(from: string, to: string): Promise<PlaysSummaryResponse> {
+  const res = await fetch(`/api/plays/summary?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+  return handle<PlaysSummaryResponse>(res);
 }
 
 export async function putSyncBaseUrl(baseUrl: string): Promise<SettingsResponse> {

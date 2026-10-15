@@ -21,6 +21,8 @@ export default function StatShelf({ stats }: { stats: PlayStats }) {
   const [kind, setKind] = useState<StatKind>("tracks");
   const items = stats[kind];
   const [active, setActive] = useState(0);
+  // A period with fewer sleeves than the one before falls back to number one.
+  const current = active < items.length ? active : 0;
   const title = STAT_KINDS.find((k) => k.key === kind)?.title ?? "";
 
   return (
@@ -46,7 +48,7 @@ export default function StatShelf({ stats }: { stats: PlayStats }) {
               index={i}
               cover={statCoverUrl(item.cover)}
               disc={kind === "artists"}
-              active={i === active}
+              active={i === current}
               onActive={() => setActive(i)}
             />
           ))}

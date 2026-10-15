@@ -55,7 +55,8 @@ struct SyncEngineTests {
         library: InMemoryLibraryStore = InMemoryLibraryStore(),
         outbox: any SyncOutbox = InMemorySyncOutbox(),
         api: FakeSyncApi = FakeSyncApi(),
-        account: InMemorySyncAccountStore? = nil
+        account: InMemorySyncAccountStore? = nil,
+        now: @escaping () -> Date = { Date() }
     ) -> Harness {
         let folderDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let folder = FakeSpotifyFolder(directory: folderDir)
@@ -77,7 +78,7 @@ struct SyncEngineTests {
             resolvedAccount = InMemorySyncAccountStore()
             resolvedAccount.save(email: "toby@example.com", deviceToken: "test-token", deviceId: "device-1")
         }
-        let engine = SyncEngine(api: api, account: resolvedAccount, library: library, coordinator: coordinator, coverStore: coverStore, outbox: outbox, deviceName: { "Toby's iPhone" })
+        let engine = SyncEngine(api: api, account: resolvedAccount, library: library, coordinator: coordinator, coverStore: coverStore, outbox: outbox, now: now, deviceName: { "Toby's iPhone" })
         return Harness(coordinator: coordinator, folder: folder, library: library, tagWriter: tagWriter, coverStore: coverStore, api: api, account: resolvedAccount, outbox: outbox, engine: engine)
     }
 
@@ -1261,6 +1262,286 @@ struct SyncEngineTests {
 
         #expect(h.account.deviceName == nil)
         #expect(h.engine.status.deviceName == nil)
+    }
+
+    // MARK: - Missing files self-heal (#171)
+
+    /// A settable clock for the 6-hour spacing.
+    private final class TestClock {
+        var current: Date
+        init(_ start: Date) { current = start }
+        func advance(hours: Double = 0, minutes: Double = 0) {
+            current = current.addingTimeInterval(hours * 3600 + minutes * 60)
+        }
+    }
+
+    private let healStart = Date(timeIntervalSince1970: 1_790_000_000)
+
+    /// A two-track album with a cover, pushed in full: the fake server has the
+    /// record and every marker is set, as on a phone that finished its upload.
+    private func pushedAlbum(_ h: Harness, title: String = "Album") async throws -> (release: Release, first: String, second: String) {
+        let album = AlbumDraft(title: title, artist: "Artist", year: "2026", genre: "Rock", tracks: [
+            TrackDraft(title: "First"), TrackDraft(title: "Second")
+        ])
+        let files = try [makeSourceFile(named: "one.mp3"), makeSourceFile(named: "two.mp3")]
+        let release = try await h.coordinator.importAlbum(files: files, album: album, cover: Data([0xFF, 0xD8, 0xFF, 0xE0, 1]))
+        await h.engine.push(release)
+        let first = (release.tracks[0].filePath as NSString).lastPathComponent
+        let second = (release.tracks[1].filePath as NSString).lastPathComponent
+        let stored = try #require(h.library.all().first { $0.id == release.id })
+        #expect(Set(stored.uploadedFileNames) == [first, second, "cover.jpg"])
+        return (release, first, second)
+    }
+
+    private func missing(_ entries: (id: String, names: [String])...) -> Result<SyncMissingFiles, Error> {
+        .success(SyncMissingFiles(releases: entries.map { SyncMissingRelease(id: $0.id, missing: $0.names) }))
+    }
+
+    private func me(resyncRequestedAt: Date?) -> Result<SyncMeResult, Error> {
+        .success(SyncMeResult(
+            email: "toby@example.com", deviceId: "device-1", deviceName: "Test Device",
+            quota: SyncQuota(usedBytes: 0, limitBytes: 1_073_741_824), resyncRequestedAt: resyncRequestedAt
+        ))
+    }
+
+    @Test func theMissingListClearsOnlyThoseNamesMarkersAndQueuesOneRePush() async throws {
+        let h = makeHarness(now: { self.healStart })
+        let (release, first, second) = try await pushedAlbum(h)
+        // The re-push is made to fail so the state it leaves behind can be read.
+        h.api.uploadFailCountRemaining[second] = 1
+        h.api.missingFilesResult = missing((release.id.uuidString, [second, "cover.jpg"]))
+        let putsBefore = h.api.putCalls.count
+
+        await h.engine.reconcile()
+
+        #expect(h.api.missingFilesCallCount == 1)
+        let stored = try #require(h.library.all().first { $0.id == release.id })
+        #expect(stored.uploadedFileNames == [first], "only the listed names lost their marker")
+        #expect(h.api.putCalls.count == putsBefore + 1, "exactly one re-push")
+        #expect(h.api.requestUploadsCalls.last?.files.map(\.name) == [second, "cover.jpg"], "tickets asked for only the missing files")
+        let queued = try h.outbox.all()
+        #expect(queued.map(\.releaseId) == [release.id])
+        #expect(queued.first?.operation == .push)
+        #expect(h.engine.status.lastError == nil)
+    }
+
+    @Test func theRePushUploadsOnlyTheMissingFilesAndRestoresTheMarkers() async throws {
+        let h = makeHarness(now: { self.healStart })
+        let (release, first, second) = try await pushedAlbum(h)
+        let uploadsBefore = h.api.uploadedFileNames
+        h.api.missingFilesResult = missing((release.id.uuidString, [second]))
+
+        await h.engine.reconcile()
+
+        #expect(Array(h.api.uploadedFileNames.dropFirst(uploadsBefore.count)) == [second])
+        #expect(h.api.uploadedFileNames.filter { $0 == first }.count == 1, "a file the server holds is never sent again")
+        let stored = try #require(h.library.all().first { $0.id == release.id })
+        #expect(Set(stored.uploadedFileNames) == [first, second, "cover.jpg"])
+        #expect(try h.outbox.all().isEmpty)
+    }
+
+    @Test func aReleaseThePhoneDoesNotOwnIsLeftAloneAndOwnedOnesAreNotTouchedUnlessListed() async throws {
+        let h = makeHarness(now: { self.healStart })
+        let (listed, _, listedSecond) = try await pushedAlbum(h, title: "Listed")
+        let (other, _, _) = try await pushedAlbum(h, title: "Not listed")
+        let otherBefore = try #require(h.library.all().first { $0.id == other.id })
+        let strangerId = UUID().uuidString
+        h.api.missingFilesResult = missing(
+            (strangerId, ["x.mp3"]),
+            ("not-a-uuid", ["y.mp3"]),
+            (listed.id.uuidString, [listedSecond])
+        )
+        let putsBefore = h.api.putCalls.count
+
+        await h.engine.reconcile()
+
+        #expect(h.api.putCalls.count == putsBefore + 1)
+        #expect(h.api.putCalls.last?.id == listed.id.uuidString)
+        #expect(!h.api.putCalls.contains { $0.id == strangerId || $0.id == "not-a-uuid" })
+        let otherAfter = try #require(h.library.all().first { $0.id == other.id })
+        #expect(otherAfter == otherBefore)
+        #expect(try h.library.all().count == 2, "no release was created for the stranger")
+        #expect(try h.outbox.all().isEmpty)
+        #expect(h.engine.status.lastError == nil)
+    }
+
+    @Test func aHealthyAccountDoesNothing() async throws {
+        let clock = TestClock(healStart)
+        let h = makeHarness(now: { clock.current })
+        let (release, _, _) = try await pushedAlbum(h)
+        let before = try #require(h.library.all().first { $0.id == release.id })
+        let putsBefore = h.api.putCalls.count
+        h.api.missingFilesResult = .success(SyncMissingFiles(releases: []))
+
+        await h.engine.reconcile()
+
+        #expect(h.api.missingFilesCallCount == 1)
+        #expect(h.api.putCalls.count == putsBefore)
+        #expect(try h.library.all().first { $0.id == release.id } == before)
+        #expect(try h.outbox.all().isEmpty)
+        #expect(h.engine.status.lastError == nil)
+        #expect(h.account.lastMissingFilesCheckAt == healStart, "a healthy answer still counts as a check")
+    }
+
+    @Test func theCheckRunsAtMostOnceEverySixHours() async throws {
+        let clock = TestClock(healStart)
+        let h = makeHarness(now: { clock.current })
+
+        await h.engine.reconcile()
+        #expect(h.api.missingFilesCallCount == 1)
+
+        clock.advance(hours: 5, minutes: 59)
+        await h.engine.reconcile()
+        #expect(h.api.missingFilesCallCount == 1, "still inside the 6 hours")
+
+        clock.advance(minutes: 1)
+        await h.engine.reconcile()
+        #expect(h.api.missingFilesCallCount == 2)
+        #expect(h.account.lastMissingFilesCheckAt == clock.current)
+    }
+
+    @Test func aNewerResyncRequestBypassesTheSpacingOnce() async throws {
+        let clock = TestClock(healStart)
+        let h = makeHarness(now: { clock.current })
+        await h.engine.reconcile()
+        #expect(h.api.missingFilesCallCount == 1)
+
+        clock.advance(hours: 1)
+        let nudge = healStart.addingTimeInterval(30 * 60)
+        h.api.meResult = me(resyncRequestedAt: nudge)
+        await h.engine.reconcile()
+        #expect(h.api.missingFilesCallCount == 2, "the Mac asked after the last check")
+
+        clock.advance(minutes: 1)
+        await h.engine.reconcile()
+        #expect(h.api.missingFilesCallCount == 2, "the same request is not newer than the check it caused")
+    }
+
+    @Test func anOlderResyncRequestDoesNotBypassTheSpacing() async throws {
+        let clock = TestClock(healStart)
+        let h = makeHarness(now: { clock.current })
+        await h.engine.reconcile()
+
+        clock.advance(hours: 1)
+        h.api.meResult = me(resyncRequestedAt: healStart.addingTimeInterval(-600))
+        await h.engine.reconcile()
+        #expect(h.api.missingFilesCallCount == 1)
+
+        h.api.meResult = me(resyncRequestedAt: healStart)
+        await h.engine.reconcile()
+        #expect(h.api.missingFilesCallCount == 1, "a request made at the moment of the last check is not newer")
+    }
+
+    @Test func aResyncRequestAheadOfThePhonesClockStillSettlesAfterOneCheck() async throws {
+        let clock = TestClock(healStart)
+        let h = makeHarness(now: { clock.current })
+        await h.engine.reconcile()
+
+        clock.advance(minutes: 10)
+        h.api.meResult = me(resyncRequestedAt: clock.current.addingTimeInterval(120))
+        await h.engine.reconcile()
+        #expect(h.api.missingFilesCallCount == 2)
+
+        clock.advance(minutes: 1)
+        await h.engine.reconcile()
+        #expect(h.api.missingFilesCallCount == 2, "a few minutes of clock skew does not make every reconcile check again")
+    }
+
+    @Test func aNotFoundIsASilentSkipThatWaitsForTheNextWindow() async throws {
+        let clock = TestClock(healStart)
+        let h = makeHarness(now: { clock.current })
+        let (release, _, _) = try await pushedAlbum(h)
+        let before = try #require(h.library.all().first { $0.id == release.id })
+        let putsBefore = h.api.putCalls.count
+        h.api.missingFilesResult = .failure(SyncApiError.notFound)
+
+        await h.engine.reconcile()
+
+        #expect(h.api.missingFilesCallCount == 1)
+        #expect(h.engine.status.lastError == nil)
+        #expect(h.engine.status.lastRunAt != nil)
+        #expect(h.api.putCalls.count == putsBefore)
+        #expect(try h.library.all().first { $0.id == release.id } == before)
+        #expect(try h.outbox.all().isEmpty)
+
+        clock.advance(hours: 1)
+        await h.engine.reconcile()
+        #expect(h.api.missingFilesCallCount == 1, "an old API is not asked again every reconcile")
+
+        clock.advance(hours: 5)
+        await h.engine.reconcile()
+        #expect(h.api.missingFilesCallCount == 2)
+    }
+
+    @Test func aRateLimitIsASilentSkipRetriedOnEachReconcileWithoutResettingTheTimer() async throws {
+        let clock = TestClock(healStart)
+        let h = makeHarness(now: { clock.current })
+        let (release, first, second) = try await pushedAlbum(h)
+        h.api.missingFilesResult = .failure(SyncApiError.rateLimited)
+
+        await h.engine.reconcile()
+        #expect(h.api.missingFilesCallCount == 1)
+        #expect(h.engine.status.lastError == nil)
+        #expect(h.account.lastMissingFilesCheckAt == nil, "a 429 does not start the 6 hours")
+
+        clock.advance(minutes: 1)
+        await h.engine.reconcile()
+        #expect(h.api.missingFilesCallCount == 2, "once per reconcile, not in a loop")
+
+        h.api.missingFilesResult = missing((release.id.uuidString, [second]))
+        clock.advance(minutes: 1)
+        await h.engine.reconcile()
+        #expect(h.api.missingFilesCallCount == 3)
+        #expect(h.account.lastMissingFilesCheckAt == clock.current)
+        let stored = try #require(h.library.all().first { $0.id == release.id })
+        #expect(Set(stored.uploadedFileNames) == [first, second, "cover.jpg"])
+    }
+
+    @Test func aFailedCheckOtherThanNotFoundOrRateLimitedIsRetriedNextReconcileAndStaysQuiet() async throws {
+        let h = makeHarness(now: { self.healStart })
+        h.api.missingFilesResult = .failure(SyncApiError.network("offline"))
+
+        await h.engine.reconcile()
+        await h.engine.reconcile()
+
+        #expect(h.api.missingFilesCallCount == 2)
+        #expect(h.account.lastMissingFilesCheckAt == nil)
+        #expect(h.engine.status.lastError == nil)
+    }
+
+    @Test func aSignOutWhileMeIsInFlightSkipsTheCheck() async throws {
+        let h = makeHarness(now: { self.healStart })
+        h.api.onMe = { await h.engine.signOut() }
+
+        await h.engine.reconcile()
+
+        #expect(h.api.missingFilesCallCount == 0)
+        #expect(h.account.lastMissingFilesCheckAt == nil)
+    }
+
+    @Test func aSignOutWhileTheCheckIsInFlightQueuesAndWritesNothing() async throws {
+        let h = makeHarness(now: { self.healStart })
+        let (release, _, second) = try await pushedAlbum(h)
+        h.api.missingFilesResult = missing((release.id.uuidString, [second]))
+        h.api.onMissingFiles = { await h.engine.signOut() }
+        let putsBefore = h.api.putCalls.count
+
+        await h.engine.reconcile()
+
+        #expect(h.api.missingFilesCallCount == 1)
+        #expect(h.api.putCalls.count == putsBefore, "nothing is pushed for an account that was signed out")
+        #expect(try h.outbox.all().isEmpty)
+        #expect(h.account.lastMissingFilesCheckAt == nil)
+    }
+
+    @Test func signOutForgetsTheLastCheckSoTheNextAccountIsCheckedAtOnce() async throws {
+        let h = makeHarness(now: { self.healStart })
+        await h.engine.reconcile()
+        #expect(h.account.lastMissingFilesCheckAt == healStart)
+
+        await h.engine.signOut()
+
+        #expect(h.account.lastMissingFilesCheckAt == nil)
     }
 }
 

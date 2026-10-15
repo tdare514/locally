@@ -31,6 +31,10 @@ protocol SyncAccountStore: AnyObject {
     /// The device name the server echoed from `POST /v1/auth/verify`, shown in
     /// Settings; `nil` when signed out or when signed in before it was stored.
     var deviceName: String? { get set }
+    /// When `SyncEngine` last asked the service which files it never received
+    /// (`GET /v1/files/missing`, #171), so that check runs at most every few
+    /// hours. `nil` before the first check and after a sign-out.
+    var lastMissingFilesCheckAt: Date? { get set }
 
     /// Records a successful `POST /v1/auth/verify`, making `email`,
     /// `deviceId` and `deviceToken` non-nil. Throws (and persists nothing)
@@ -62,6 +66,7 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
         static let deviceId = "com.tdare.locally.sync.deviceId"
         static let lastVersion = "com.tdare.locally.sync.lastVersion"
         static let deviceName = "com.tdare.locally.sync.deviceName"
+        static let lastMissingFilesCheckAt = "com.tdare.locally.sync.lastMissingFilesCheckAt"
     }
 
     private let defaults: UserDefaults
@@ -117,6 +122,17 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
         }
     }
 
+    var lastMissingFilesCheckAt: Date? {
+        get { defaults.object(forKey: Key.lastMissingFilesCheckAt) as? Date }
+        set {
+            if let newValue {
+                defaults.set(newValue, forKey: Key.lastMissingFilesCheckAt)
+            } else {
+                defaults.removeObject(forKey: Key.lastMissingFilesCheckAt)
+            }
+        }
+    }
+
     func save(email: String, deviceToken: String, deviceId: String) throws {
         // Write the token first: if the Keychain write fails, nothing else
         // is persisted, so we never end up half signed-in.
@@ -130,6 +146,7 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
         defaults.removeObject(forKey: Key.deviceId)
         defaults.removeObject(forKey: Key.lastVersion)
         defaults.removeObject(forKey: Key.deviceName)
+        defaults.removeObject(forKey: Key.lastMissingFilesCheckAt)
         tokenStore.delete()
     }
 }

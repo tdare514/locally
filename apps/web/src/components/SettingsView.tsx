@@ -25,6 +25,8 @@ interface SettingsViewProps {
   onToast: (kind: "success" | "error", text: string) => void;
   syncStatus: SyncStatus | null;
   onSyncStatusChange: () => void;
+  /** Scrolls this section into view once when the page opens (the sidebar profile asks for "account"). */
+  section?: "account";
 }
 
 const STEPS = [
@@ -52,7 +54,7 @@ function formatLastSync(iso: string | null): string {
   return new Date(iso).toLocaleString();
 }
 
-export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }: SettingsViewProps) {
+export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, section }: SettingsViewProps) {
   const [libraryDir, setLibraryDir] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -63,6 +65,11 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLibraryWidth(loadLibraryWidth());
   }, []);
+
+  // Opened from the sidebar profile: bring the account and sync section to the top, once.
+  useEffect(() => {
+    if (section === "account") document.getElementById("account")?.scrollIntoView({ block: "start", behavior: "auto" });
+  }, [section]);
 
   function changeLibraryWidth(next: LibraryWidth) {
     setLibraryWidth(next);
@@ -373,7 +380,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
         </fieldset>
       </section>
 
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-6">
+      <section id="account" className="flex flex-col gap-4 rounded-lg border border-border bg-card p-6">
         <div>
           <p className="text-sm font-bold text-text">Sync with your phone</p>
           <p className="mt-1 text-sm text-text-muted">

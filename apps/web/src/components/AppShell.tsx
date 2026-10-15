@@ -19,7 +19,7 @@ export type View =
   | { type: "library" }
   | { type: "import"; kind?: ReleaseKind }
   | { type: "release"; id: string; justImported?: boolean }
-  | { type: "settings" };
+  | { type: "settings"; section?: "account" };
 
 export default function AppShell() {
   const [view, setView] = useState<View>({ type: "library" });
@@ -193,6 +193,7 @@ export default function AppShell() {
         onLibraryClick={() => setView({ type: "library" })}
         onImportClick={() => openImport()}
         onSettingsClick={() => setView({ type: "settings" })}
+        onProfileClick={() => setView({ type: "settings", section: "account" })}
         signedIn={syncStatus?.signedIn ?? false}
         email={syncStatus?.email ?? null}
         palette={view.type === "library" ? libraryPalette : null}
@@ -246,6 +247,7 @@ export default function AppShell() {
               onToast={showToast}
               syncStatus={syncStatus}
               onSyncStatusChange={refreshSyncStatus}
+              section={view.section}
             />
           )}
         </main>

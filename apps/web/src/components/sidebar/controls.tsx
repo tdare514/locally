@@ -23,6 +23,7 @@ export const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-
 export function NavItem({
   active = false,
   onClick,
+  start,
   end,
   disabled = false,
   title,
@@ -30,6 +31,8 @@ export function NavItem({
 }: {
   active?: boolean;
   onClick?: () => void;
+  /** A leading mark (the profile circle), before the label. */
+  start?: ReactNode;
   end?: ReactNode;
   disabled?: boolean;
   title?: string;
@@ -46,7 +49,8 @@ export function NavItem({
         active ? "bg-white/[0.1] text-text" : "text-text-muted hover:bg-white/[0.07] hover:text-text"
       }`}
     >
-      <span className="flex-1">{children}</span>
+      {start}
+      <span className="min-w-0 flex-1">{children}</span>
       {end}
     </button>
   );
@@ -229,7 +233,7 @@ export function EditWidgets({
   );
 }
 
-/** The panel footer: pin it open, or stop it opening on hover (keep it closed). */
+/** The panel controls at the top: pin it down, or stop it opening on hover (keep it closed). */
 export function PanelControls({
   pinned,
   onPinChange,
@@ -242,19 +246,19 @@ export function PanelControls({
   onHoverRevealChange: (next: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex h-7 items-center justify-between gap-2">
       <button
         type="button"
         aria-pressed={pinned}
         onClick={() => onPinChange(!pinned)}
-        className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${focusRing} ${
+        className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${focusRing} ${
           pinned ? "bg-white/[0.14] text-text" : "text-text-muted hover:bg-white/[0.08] hover:text-text"
         }`}
       >
         <PinIcon className={`h-3.5 w-3.5 ${pinned ? "text-accent-hover" : ""}`} />
-        {pinned ? "Pinned" : "Pin open"}
+        {pinned ? "Pinned" : "Pin down"}
       </button>
-      <Switch checked={hoverReveal} onChange={onHoverRevealChange} className="py-1 pl-2 pr-1">
+      <Switch checked={hoverReveal} onChange={onHoverRevealChange} className="whitespace-nowrap py-1 pl-2 pr-1">
         Open on hover
       </Switch>
     </div>
