@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { firstDayForLanguage, firstDayOf, periodRange } from "../../src/lib/play-periods";
+import {
+  firstDayForLanguage,
+  firstDayOf,
+  localDayString,
+  msUntilNextLocalMidnight,
+  periodRange,
+  periodRangeOfDay,
+} from "../../src/lib/play-periods";
 
 // "Today" is built from local parts, so these hold in whatever zone the tests run in.
 const day = (y: number, m: number, d: number, h = 12, min = 0) => new Date(y, m - 1, d, h, min);
@@ -121,6 +128,64 @@ describe("periodRange: always a range the summary accepts", () => {
           expect(days).toBeGreaterThanOrEqual(1);
           expect(days).toBeLessThanOrEqual(31);
         }
+      }
+    }
+  });
+});
+
+describe("periodRangeOfDay", () => {
+  it("is periodRange for a date written YYYY-MM-DD", () => {
+    for (const [y, m, d] of [[2026, 10, 15], [2026, 3, 1], [2027, 1, 1], [2028, 3, 1], [2026, 11, 2]]) {
+      for (const period of ["today", "week", "month"] as const) {
+        for (const first of [MON, SAT, SUN]) {
+          expect(periodRangeOfDay(period, localDayString(day(y, m, d)), first)).toEqual(
+            periodRange(period, day(y, m, d), first),
+          );
+        }
+      }
+    }
+    expect(periodRangeOfDay("week", "2026-10-15", SUN)).toEqual({ from: "2026-10-11", to: "2026-10-15" });
+    expect(periodRangeOfDay("month", "2026-10-15")).toEqual({ from: "2026-10-01", to: "2026-10-15" });
+  });
+});
+
+describe("localDayString", () => {
+  it("is the date on the clock, padded", () => {
+    expect(localDayString(day(2026, 10, 15))).toBe("2026-10-15");
+    expect(localDayString(day(2026, 3, 5, 0, 0))).toBe("2026-03-05");
+    expect(localDayString(day(2026, 12, 31, 23, 59))).toBe("2026-12-31");
+    expect(localDayString(day(2027, 1, 1, 0, 1))).toBe("2027-01-01");
+  });
+});
+
+describe("msUntilNextLocalMidnight", () => {
+  const SECOND = 1000;
+  const HOUR = 3_600_000;
+
+  it("counts down to the next midnight on the clock", () => {
+    // Mid-June has no clock change in any zone.
+    expect(msUntilNextLocalMidnight(new Date(2026, 5, 15, 23, 59, 30))).toBe(30 * SECOND);
+    expect(msUntilNextLocalMidnight(new Date(2026, 5, 15, 12, 0, 0))).toBe(12 * HOUR);
+    expect(msUntilNextLocalMidnight(new Date(2026, 5, 15, 0, 0, 1))).toBe(24 * HOUR - SECOND);
+  });
+
+  it("is a whole day at midnight, never zero", () => {
+    expect(msUntilNextLocalMidnight(new Date(2026, 5, 15, 0, 0, 0))).toBe(24 * HOUR);
+  });
+
+  it("lands on the next date at the start of it, across a whole year of clock changes", () => {
+    // In a zone with daylight saving this walks over the 23- and 25-hour days.
+    for (let d = 0; d < 366; d++) {
+      for (const hour of [0, 1, 2, 3, 12, 23]) {
+        const now = new Date(2026, 0, 1 + d, hour, 30);
+        const ms = msUntilNextLocalMidnight(now);
+        expect(ms).toBeGreaterThan(0);
+        expect(ms).toBeLessThanOrEqual(25 * HOUR);
+        const later = new Date(now.getTime() + ms);
+        const tomorrow = new Date(2026, 0, 2 + d);
+        expect(localDayString(later)).toBe(localDayString(tomorrow));
+        // Midnight itself, unless the zone skips it that night.
+        expect(later.getHours() <= 1).toBe(true);
       }
     }
   });

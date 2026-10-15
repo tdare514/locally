@@ -212,10 +212,10 @@ describe("small labels", () => {
     expect(periodHeading("month")).toBe("Your month");
   });
 
-  it("says a quiet period has no plays, and why", () => {
-    expect(periodEmptyLine("today")).toBe("No plays yet today. Counting by day started with this update.");
-    expect(periodEmptyLine("week")).toBe("No plays yet this week. Counting by day started with this update.");
-    expect(periodEmptyLine("month")).toBe("No plays yet this month. Counting by day started with this update.");
+  it("says a quiet period has no plays yet", () => {
+    expect(periodEmptyLine("today")).toBe("No plays yet today.");
+    expect(periodEmptyLine("week")).toBe("No plays yet this week.");
+    expect(periodEmptyLine("month")).toBe("No plays yet this month.");
   });
 
   it("gives the first three ranks a medal", () => {

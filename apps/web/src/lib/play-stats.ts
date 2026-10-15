@@ -39,10 +39,10 @@ export function periodHeading(period: StatsPeriod): string {
   }
 }
 
-/** The quiet line for a period with no plays when other plays exist (counting by day is new). */
+/** The quiet line for a period with no plays (when plays exist from before it). */
 export function periodEmptyLine(period: StatsPeriod): string {
   const when = period === "today" ? "today" : period === "week" ? "this week" : "this month";
-  return `No plays yet ${when}. Counting by day started with this update.`;
+  return `No plays yet ${when}.`;
 }
 
 /** How many of each list the sidebar shows. */
