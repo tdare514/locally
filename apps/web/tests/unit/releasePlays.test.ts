@@ -14,6 +14,7 @@ import { FakePlayCountStore } from "./FakePlayCountStore";
 
 const REL = "3f2a6c1e-8b7d-4e5a-9c1d-2a4b6c8d0e1f";
 const OTHER_REL = "9b1c2d3e-4f50-4a61-8b72-93a4b5c6d7e8";
+const MAC = "Tobys-MacBook-Pro.local";
 const t = (n: number) => `a1b2c3d4-${String(n).padStart(4, "0")}-4a5b-8c9d-0123456789ab`;
 
 function local(tracks: Record<string, { releaseId: string; count: number; pushed?: number }>): PlayCounts {
@@ -157,6 +158,80 @@ describe("mergeReleasePlays", () => {
     );
     expect(merged).toEqual({ tracks: [] });
   });
+
+  describe("this Mac's old device row after a sign-out and sign-in", () => {
+    const merge = (local_: PlayCounts, srv: ServerReleasePlays, deviceName?: string) =>
+      mergeReleasePlays(local_, REL, srv, deviceName);
+
+    it("folds a revoked Mac row with this Mac's name into this Mac, not on top of it", () => {
+      const merged = merge(
+        local({ [t(1)]: { releaseId: REL, count: 5 } }),
+        server({ trackId: t(1), devices: [device(MAC, 5, true, "mac"), device(MAC, 5, false, "mac")] }),
+        MAC,
+      );
+      expect(merged.tracks).toEqual([
+        { trackId: t(1), total: 5, devices: [{ name: "This Mac", platform: "mac", count: 5, current: true }] },
+      ]);
+    });
+
+    it("uses the biggest of local, current row and old rows, several old rows included", () => {
+      const merged = merge(
+        local({ [t(1)]: { releaseId: REL, count: 2 } }),
+        server({
+          trackId: t(1),
+          devices: [device(MAC, 1, true, "mac"), device(MAC, 9, false, "mac"), device(MAC, 6, false, "mac")],
+        }),
+        MAC,
+      );
+      expect(merged.tracks[0].total).toBe(9);
+    });
+
+    it("folds an old row when the service holds no row for the current device yet", () => {
+      const merged = merge(
+        local({ [t(1)]: { releaseId: REL, count: 5 } }),
+        server({ trackId: t(1), devices: [device(MAC, 5, false, "mac")] }),
+        MAC,
+      );
+      expect(merged.tracks[0].total).toBe(5);
+    });
+
+    it("also matches the name the service holds for the current row, if the hostname has drifted", () => {
+      const merged = merge(
+        local({ [t(1)]: { releaseId: REL, count: 4 } }),
+        server({
+          trackId: t(1),
+          devices: [device("Tobys-MacBook-Pro", 4, true, "mac"), device("Tobys-MacBook-Pro", 4, false, "mac")],
+        }),
+        MAC,
+      );
+      expect(merged.tracks[0].total).toBe(4);
+    });
+
+    it("still adds a Mac with a different name", () => {
+      const merged = merge(
+        local({ [t(1)]: { releaseId: REL, count: 5 } }),
+        server({
+          trackId: t(1),
+          devices: [device(MAC, 5, true, "mac"), device(MAC, 5, false, "mac"), device("Studio Mac", 3, false, "mac")],
+        }),
+        MAC,
+      );
+      expect(merged.tracks[0].total).toBe(8);
+      expect(merged.tracks[0].devices).toEqual([
+        { name: "Studio Mac", platform: "mac", count: 3, current: false },
+        { name: "This Mac", platform: "mac", count: 5, current: true },
+      ]);
+    });
+
+    it("never folds a phone that happens to share the name", () => {
+      const merged = merge(
+        local({ [t(1)]: { releaseId: REL, count: 5 } }),
+        server({ trackId: t(1), devices: [device(MAC, 2, false, "ios")] }),
+        MAC,
+      );
+      expect(merged.tracks[0].total).toBe(7);
+    });
+  });
 });
 
 describe("loadReleasePlays", () => {
@@ -180,7 +255,7 @@ describe("loadReleasePlays", () => {
     plays.seed(t(1), REL, 3);
     const factory = vi.fn();
 
-    const res = await loadReleasePlays({ settings: settingsStore(signedOut), playStore: plays, syncApiFactory: factory }, REL);
+    const res = await loadReleasePlays({ settings: settingsStore(signedOut), playStore: plays, syncApiFactory: factory, deviceName: MAC }, REL);
 
     expect(factory).not.toHaveBeenCalled();
     expect(res.tracks).toHaveLength(1);
@@ -195,12 +270,26 @@ describe("loadReleasePlays", () => {
     );
     const factory = vi.fn(() => ({ releasePlays }) as unknown as SyncApi);
 
-    const res = await loadReleasePlays({ settings: settingsStore(signedIn), playStore: plays, syncApiFactory: factory }, REL);
+    const res = await loadReleasePlays({ settings: settingsStore(signedIn), playStore: plays, syncApiFactory: factory, deviceName: MAC }, REL);
 
     expect(factory).toHaveBeenCalledTimes(1);
     expect(factory).toHaveBeenCalledWith("http://sync.test", "secret-token-123");
     expect(releasePlays).toHaveBeenCalledTimes(1);
     expect(releasePlays).toHaveBeenCalledWith(REL);
+    expect(res.tracks[0].total).toBe(5);
+  });
+
+  it("folds this Mac's old device row using the device name it is given", async () => {
+    const plays = new FakePlayCountStore();
+    plays.seed(t(1), REL, 5);
+    const factory = () =>
+      ({
+        releasePlays: async () =>
+          server({ trackId: t(1), devices: [device(MAC, 5, true, "mac"), device(MAC, 5, false, "mac")] }),
+      }) as unknown as SyncApi;
+
+    const res = await loadReleasePlays({ settings: settingsStore(signedIn), playStore: plays, syncApiFactory: factory, deviceName: MAC }, REL);
+
     expect(res.tracks[0].total).toBe(5);
   });
 
@@ -214,7 +303,7 @@ describe("loadReleasePlays", () => {
         },
       }) as unknown as SyncApi;
 
-    const res = await loadReleasePlays({ settings: settingsStore(signedIn), playStore: plays, syncApiFactory: factory }, REL);
+    const res = await loadReleasePlays({ settings: settingsStore(signedIn), playStore: plays, syncApiFactory: factory, deviceName: MAC }, REL);
 
     expect(res.tracks[0].total).toBe(3);
     expect(warn).toHaveBeenCalledTimes(1);

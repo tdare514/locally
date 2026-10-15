@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ReleaseService } from "../../src/server/releases/ReleaseService";
 import { ReleaseLayout } from "../../src/server/releases/ReleaseLayout";
@@ -15,7 +15,9 @@ import type { Release, Settings } from "../../src/shared/types";
 import { SyncEngine } from "../../src/server/sync/SyncEngine";
 import { emptySyncState, type SyncState, type SyncStateStore } from "../../src/server/sync/SyncState";
 import {
+  SyncAuthError,
   SyncConflictError,
+  SyncRequestError,
   type MeResult,
   type SyncApi,
   type SyncFileToUpload,
@@ -118,8 +120,12 @@ class FakeSyncApi implements SyncApi {
   playPushes: PlayEntry[][] = [];
   /** "put" / "plays" in the order the calls were accepted, to check plays go after their release. */
   order: string[] = [];
-  private failPlayPushCalls = new Set<number>();
+  private failPlayPushCalls = new Map<number, Error>();
   private playPushAttempts = 0;
+  /** What the fake reports as `ignored` for every accepted push. */
+  ignoredPerPush = 0;
+  /** Runs once a push has been accepted and before the reply returns: a sign-out mid-request. */
+  afterPlayPush: (() => Promise<void>) | null = null;
 
   private conflictOnce = new Set<string>();
   private serverRecords = new Map<string, SyncRecord & { version: number }>();
@@ -222,12 +228,12 @@ class FakeSyncApi implements SyncApi {
 
   async pushPlays(counts: PlayEntry[]) {
     this.playPushAttempts++;
-    if (this.failPlayPushCalls.has(this.playPushAttempts)) {
-      throw new Error(`FakeSyncApi: injected failure on pushPlays call #${this.playPushAttempts}`);
-    }
+    const injected = this.failPlayPushCalls.get(this.playPushAttempts);
+    if (injected) throw injected;
     this.playPushes.push(counts);
     this.order.push("plays");
-    return { accepted: counts.length, ignored: 0 };
+    await this.afterPlayPush?.();
+    return { accepted: counts.length - this.ignoredPerPush, ignored: this.ignoredPerPush };
   }
 
   async releasePlays() {
@@ -267,8 +273,11 @@ class FakeSyncApi implements SyncApi {
   }
 
   /** Throws on the given 1-based `pushPlays` call number (counted across the fake's whole life). */
-  failPlayPushOnCall(callNumber: number): void {
-    this.failPlayPushCalls.add(callNumber);
+  failPlayPushOnCall(
+    callNumber: number,
+    error: Error = new Error(`FakeSyncApi: injected failure on pushPlays call #${callNumber}`)
+  ): void {
+    this.failPlayPushCalls.set(callNumber, error);
   }
 
   /** Throws on the given 1-based `listReleases` call number (e.g. `2` fails the second page). */
@@ -1013,6 +1022,92 @@ describe("SyncEngine", () => {
 
       expect(api.playPushes).toHaveLength(2);
       expect(api.playPushes[1]).toEqual([{ releaseId: RELEASE_ID, trackId: trackId(1), count: 5 }]);
+    });
+
+    it("a sign-out while a push is in flight leaves nothing marked and sends no further batches", async () => {
+      for (let i = 1; i <= 600; i++) plays.seed(trackId(i), RELEASE_ID, 2);
+      api.afterPlayPush = () => plays.resetPushed(); // the user signs out as the first request lands
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes.map((batch) => batch.length)).toEqual([500]);
+      const entries = Object.values((await plays.get()).tracks);
+      expect(entries.every((e) => e.pushed === 0)).toBe(true);
+      expect(entries.every((e) => e.count === 2)).toBe(true);
+    });
+
+    it("skips a batch the service refuses with a 4xx, still sends the later ones, and leaves it pending", async () => {
+      for (let i = 1; i <= 600; i++) plays.seed(trackId(i), RELEASE_ID, 2);
+      api.failPlayPushOnCall(1, new SyncRequestError("Invalid body", 400));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes.map((batch) => batch.length)).toEqual([100]);
+      const entries = Object.values((await plays.get()).tracks);
+      expect(entries.filter((e) => e.pushed === 0)).toHaveLength(500);
+      expect(entries.filter((e) => e.pushed === 2)).toHaveLength(100);
+      expect((await playsEngine.status()).lastError).toBeNull();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0].join(" ")).toMatch(/refused a batch of 500 .*HTTP 400/);
+      warn.mockRestore();
+    });
+
+    it("logs a batch the service keeps refusing once, not on every reconcile, and retries it each time", async () => {
+      for (let i = 1; i <= 600; i++) plays.seed(trackId(i), RELEASE_ID, 2);
+      api.failPlayPushOnCall(1, new SyncRequestError("Invalid body", 422)); // reconcile 1, batch of 500
+      api.failPlayPushOnCall(3, new SyncRequestError("Invalid body", 422)); // reconcile 2, same batch again
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+      await playsEngine.reconcile();
+      await playsEngine.reconcile();
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(Object.values((await plays.get()).tracks).filter((e) => e.pushed === 0)).toHaveLength(500);
+      warn.mockRestore();
+    });
+
+    it.each([
+      ["a 429", new SyncRequestError("Slow down", 429)],
+      ["a 503", new SyncRequestError("Down", 503)],
+      ["a 401", new SyncAuthError("Sync sign-in has expired; please sign in again")],
+    ])("does not skip past %s: the push stops, shows the error, and everything stays pending", async (_n, error) => {
+      for (let i = 1; i <= 600; i++) plays.seed(trackId(i), RELEASE_ID, 2);
+      api.failPlayPushOnCall(1, error);
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toEqual([]);
+      expect((await playsEngine.status()).lastError).toBe(error.message);
+      expect(Object.values((await plays.get()).tracks).every((e) => e.pushed === 0)).toBe(true);
+    });
+
+    it("logs how many counts the service ignored, with no ids or token", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 2);
+      plays.seed(trackId(2), RELEASE_ID, 3);
+      plays.seed(trackId(3), RELEASE_ID, 4);
+      api.ignoredPerPush = 2;
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+      await playsEngine.reconcile();
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      const line = warn.mock.calls[0].join(" ");
+      expect(line).toContain("ignored 2 of 3 play counts");
+      expect(line).not.toContain(RELEASE_ID);
+      expect(line).not.toContain(trackId(1));
+      expect(line).not.toContain("tok");
+      warn.mockRestore();
+    });
+
+    it("says nothing when the service ignored none", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 2);
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+      await playsEngine.reconcile();
+
+      expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
     });
 
     it("does not touch plays when no store is wired", async () => {

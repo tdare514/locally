@@ -208,6 +208,22 @@ describe("PUT /api/settings", () => {
     expect((await playStore.get()).tracks).toEqual({ t1: { releaseId: "r1", count: 5, pushed: 0 } });
   });
 
+  it("clears the pushed play markers after the new settings are saved, as sign-out does (#107)", async () => {
+    settingsValue = {
+      libraryDir: "/tmp/lib",
+      sync: { baseUrl: "http://localhost:4000", deviceToken: "secret-token", email: "a@b.com", lastVersion: 3 },
+    };
+    const saved = vi.spyOn(services.settings, "set");
+    const reset = vi.spyOn(playStore, "resetPushed");
+
+    const res = await PUT(putRequest({ sync: { baseUrl: "https://sync.example.com" } }));
+    expect(res.status).toBe(200);
+
+    expect(saved).toHaveBeenCalledTimes(1);
+    expect(reset).toHaveBeenCalledTimes(1);
+    expect(saved.mock.invocationCallOrder[0]).toBeLessThan(reset.mock.invocationCallOrder[0]);
+  });
+
   it("re-saving the same sync.baseUrl leaves the pushed play markers alone (#107)", async () => {
     settingsValue = {
       libraryDir: "/tmp/lib",

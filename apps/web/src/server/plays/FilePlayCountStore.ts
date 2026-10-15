@@ -21,6 +21,8 @@ const PlayCountsSchema = z.object({
 export class FilePlayCountStore implements PlayCountStore {
   /** Serialises read-modify-write cycles so concurrent increments never lose updates. */
   private queue: Promise<unknown> = Promise.resolve();
+  /** In memory only: bumped by `resetPushed` so a push that began before it can't mark anything. */
+  private epoch = 0;
 
   async get(): Promise<PlayCounts> {
     const file = playsFilePath();
@@ -58,8 +60,15 @@ export class FilePlayCountStore implements PlayCountStore {
     });
   }
 
-  markPushed(sent: Record<string, number>): Promise<void> {
+  pushedEpoch(): number {
+    return this.epoch;
+  }
+
+  markPushed(sent: Record<string, number>, epoch: number): Promise<void> {
+    if (epoch !== this.epoch) return Promise.resolve();
     return this.mutate((counts) => {
+      // Checked again when this runs: a reset can land while the write waits its turn.
+      if (epoch !== this.epoch) return;
       for (const [trackId, count] of Object.entries(sent)) {
         const entry = counts.tracks[trackId];
         if (entry && count > entry.pushed) entry.pushed = count;
@@ -68,6 +77,7 @@ export class FilePlayCountStore implements PlayCountStore {
   }
 
   resetPushed(): Promise<void> {
+    this.epoch++;
     return this.mutate((counts) => {
       for (const entry of Object.values(counts.tracks)) entry.pushed = 0;
     });

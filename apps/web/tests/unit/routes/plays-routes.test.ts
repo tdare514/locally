@@ -1,3 +1,4 @@
+import os from "node:os";
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Services } from "../../../src/server/container";
@@ -98,6 +99,27 @@ describe("GET /api/plays", () => {
     expect(syncApiFactory).toHaveBeenCalledWith("http://localhost:4000", "tok-123");
     expect(releasePlays).toHaveBeenCalledWith(REL);
     expect(JSON.stringify(body)).not.toContain("tok-123");
+  });
+
+  it("counts this Mac's revoked old device row once, matching it by os.hostname()", async () => {
+    settingsValue = {
+      libraryDir: "/tmp/lib",
+      sync: { baseUrl: "http://localhost:4000", deviceToken: "tok-123", email: "a@b.com", lastVersion: 0 },
+    };
+    playStore.seed(TRACK, REL, 5);
+    releasePlays.mockResolvedValueOnce({
+      tracks: [
+        {
+          trackId: TRACK,
+          total: 5,
+          devices: [{ deviceId: "old", name: os.hostname(), platform: "mac", count: 5, current: false }],
+        },
+      ],
+    });
+
+    const res = await playsGET(playsRequest(`?releaseId=${REL}`));
+
+    expect(((await res.json()) as ReleasePlaysResponse).tracks[0].total).toBe(5);
   });
 
   it("still answers with this Mac's counts when the service is unreachable", async () => {

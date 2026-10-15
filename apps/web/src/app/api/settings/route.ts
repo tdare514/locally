@@ -32,12 +32,11 @@ export async function PUT(request: NextRequest) {
 
     const plan = planSettingsUpdate(current, body, homeDir());
     if (!plan.ok) return badRequest(plan.error);
-    if (plan.resetSyncState) {
-      await services.syncState.set(emptySyncState());
-      // A new host is a new account: its play counts were never pushed there (#107).
-      await services.playStore.resetPushed();
-    }
+    if (plan.resetSyncState) await services.syncState.set(emptySyncState());
     const settings = await services.settings.set(plan.settings);
+    // After the settings are saved, as sign-out does it: a new host is a new account, and its play
+    // counts were never pushed there (#107).
+    if (plan.resetSyncState) await services.playStore.resetPushed();
     services.playTracker.setEnabled(settings.trackPlays === true);
     return NextResponse.json(toSettingsResponse(settings));
   } catch (err) {

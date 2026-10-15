@@ -1,3 +1,4 @@
+import os from "node:os";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getServices } from "../../../server/container";
@@ -18,7 +19,9 @@ export async function GET(request: NextRequest) {
     const releaseId = releaseIdSchema.safeParse(request.nextUrl.searchParams.get("releaseId"));
     if (!releaseId.success) return badRequest("releaseId must be a UUID");
     const { settings, playStore, syncApiFactory } = getServices();
-    return NextResponse.json(await loadReleasePlays({ settings, playStore, syncApiFactory }, releaseId.data));
+    // `os.hostname()` is the device name the sync client sends at sign-in (api/sync/verify).
+    const deps = { settings, playStore, syncApiFactory, deviceName: os.hostname() };
+    return NextResponse.json(await loadReleasePlays(deps, releaseId.data));
   } catch (err) {
     return errorResponse(err);
   }

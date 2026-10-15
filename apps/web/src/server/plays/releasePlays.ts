@@ -34,6 +34,13 @@ const THIS_MAC = "This Mac";
  * The merged view of one release's plays. Other devices come from the service as they are; this
  * Mac is `max(local count, the service's count for this device)`, because the local count can be
  * ahead of the last push and the service's can be ahead after a reinstall; the total is the sum.
+ *
+ * Signing out revokes this Mac's device row and signing in makes a new one, and the service keeps
+ * counting the old row ("revoked devices still count"). That row would show up as another device
+ * holding the same plays this Mac has, so any other Mac row with this Mac's device name (the one
+ * the sync client sends at sign-in, or the name the service holds for the current row) is folded
+ * into this Mac with `max`, never added. A Mac with another name still adds.
+ *
  * `server` is null when signed out or the service could not be read: this Mac only. Tracks with
  * no plays are left out.
  */
@@ -41,17 +48,23 @@ export function mergeReleasePlays(
   local: PlayCounts,
   releaseId: string,
   server: ServerReleasePlays | null,
+  deviceName?: string,
 ): ReleasePlaysResponse {
   const localByTrack = new Map<string, number>();
   for (const [trackId, entry] of Object.entries(local.tracks)) {
     if (entry.releaseId === releaseId) localByTrack.set(trackId, entry.count);
   }
 
+  const thisMacNames = new Set<string>(deviceName ? [deviceName] : []);
+  for (const track of server?.tracks ?? []) {
+    for (const device of track.devices) if (device.current) thisMacNames.add(device.name);
+  }
+
   const others = new Map<string, TrackPlaysDevice[]>();
   const serverMine = new Map<string, number>();
   for (const track of server?.tracks ?? []) {
     for (const device of track.devices) {
-      if (device.current) {
+      if (device.current || (device.platform === "mac" && thisMacNames.has(device.name))) {
         serverMine.set(track.trackId, Math.max(serverMine.get(track.trackId) ?? 0, device.count));
       } else {
         const list = others.get(track.trackId) ?? [];
@@ -79,6 +92,8 @@ export interface ReleasePlaysDeps {
   settings: SettingsStore;
   playStore: PlayCountStore;
   syncApiFactory: SyncApiFactory;
+  /** This Mac's device name, as the sync client sends it when signing in (`os.hostname()`). */
+  deviceName: string;
 }
 
 /**
@@ -97,5 +112,5 @@ export async function loadReleasePlays(deps: ReleasePlaysDeps, releaseId: string
       console.warn("Play counts: showing this Mac only:", err instanceof Error ? err.message : "unknown error");
     }
   }
-  return mergeReleasePlays(local, releaseId, server);
+  return mergeReleasePlays(local, releaseId, server, deps.deviceName);
 }

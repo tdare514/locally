@@ -57,9 +57,9 @@ describe("FilePlayCountStore", () => {
     const store = new FilePlayCountStore();
     await store.increment("t1", "r1");
     await store.increment("t1", "r1");
-    await store.markPushed({ t1: 2, gone: 4 });
+    await store.markPushed({ t1: 2, gone: 4 }, store.pushedEpoch());
     expect((await store.get()).tracks.t1.pushed).toBe(2);
-    await store.markPushed({ t1: 1 });
+    await store.markPushed({ t1: 1 }, store.pushedEpoch());
     expect((await store.get()).tracks.t1.pushed).toBe(2);
     expect(Object.keys((await store.get()).tracks)).toEqual(["t1"]);
   });
@@ -67,7 +67,7 @@ describe("FilePlayCountStore", () => {
   it("a play counted after a push stays pending", async () => {
     const store = new FilePlayCountStore();
     await store.increment("t1", "r1");
-    await store.markPushed({ t1: 1 });
+    await store.markPushed({ t1: 1 }, store.pushedEpoch());
     await store.increment("t1", "r1");
     expect((await store.get()).tracks.t1).toEqual({ releaseId: "r1", count: 2, pushed: 1 });
   });
@@ -77,12 +77,35 @@ describe("FilePlayCountStore", () => {
     await store.increment("t1", "r1");
     await store.increment("t2", "r2");
     await store.increment("t2", "r2");
-    await store.markPushed({ t1: 1, t2: 2 });
+    await store.markPushed({ t1: 1, t2: 2 }, store.pushedEpoch());
     await store.resetPushed();
     expect((await store.get()).tracks).toEqual({
       t1: { releaseId: "r1", count: 1, pushed: 0 },
       t2: { releaseId: "r2", count: 2, pushed: 0 },
     });
+  });
+
+  it("resetPushed between a push and its markPushed leaves pushed at 0 (sign-out race)", async () => {
+    const store = new FilePlayCountStore();
+    await store.increment("t1", "r1");
+    const epoch = store.pushedEpoch(); // the push begins
+    await store.resetPushed(); // sign-out while the request is in flight
+    await store.markPushed({ t1: 1 }, epoch); // the request comes back accepted
+    expect((await store.get()).tracks.t1).toEqual({ releaseId: "r1", count: 1, pushed: 0 });
+    expect(store.pushedEpoch()).not.toBe(epoch);
+    // A push that begins after the reset marks normally.
+    await store.markPushed({ t1: 1 }, store.pushedEpoch());
+    expect((await store.get()).tracks.t1.pushed).toBe(1);
+  });
+
+  it("a reset that lands while markPushed is queued still wins", async () => {
+    const store = new FilePlayCountStore();
+    await store.increment("t1", "r1");
+    const epoch = store.pushedEpoch();
+    const marked = store.markPushed({ t1: 1 }, epoch);
+    const reset = store.resetPushed();
+    await Promise.all([marked, reset]);
+    expect((await store.get()).tracks.t1.pushed).toBe(0);
   });
 
   it("reads an invalid or corrupt file as empty", async () => {

@@ -21,7 +21,14 @@ export class FakePlayCountStore implements PlayCountStore {
     }
   }
 
-  async markPushed(sent: Record<string, number>): Promise<void> {
+  private epoch = 0;
+
+  pushedEpoch(): number {
+    return this.epoch;
+  }
+
+  async markPushed(sent: Record<string, number>, epoch: number): Promise<void> {
+    if (epoch !== this.epoch) return;
     for (const [trackId, count] of Object.entries(sent)) {
       const entry = this.counts.tracks[trackId];
       if (entry && count > entry.pushed) entry.pushed = count;
@@ -29,6 +36,7 @@ export class FakePlayCountStore implements PlayCountStore {
   }
 
   async resetPushed(): Promise<void> {
+    this.epoch++;
     for (const entry of Object.values(this.counts.tracks)) entry.pushed = 0;
   }
 

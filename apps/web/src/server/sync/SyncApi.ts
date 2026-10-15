@@ -68,9 +68,22 @@ export const RELEASE_PAGE_LIMIT = 200;
 
 /** How long `releasePlays` waits for the service before giving up. */
 const PLAYS_READ_TIMEOUT_MS = 5_000;
+/** How long `pushPlays` waits; a batch of 500 entries is a small body, so this is generous. */
+const PLAYS_PUSH_TIMEOUT_MS = 15_000;
 
 /** Thrown by `putRelease` on a 409: the server's stored `updatedAt` is newer than ours. */
 export class SyncConflictError extends Error {}
+
+/** Thrown for any other failed response (not 401 or 409), carrying its HTTP status. Still a
+ * `PublicError`, so callers that only care that it failed behave as before. */
+export class SyncRequestError extends PublicError {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
+  }
+}
 
 /** Thrown on a 401: the device token has been revoked or is otherwise no longer valid. */
 export class SyncAuthError extends Error {}
@@ -139,7 +152,7 @@ export class HttpSyncApi implements SyncApi {
       } catch {
         // ignore parse errors, fall back to the generic message
       }
-      throw new PublicError(message);
+      throw new SyncRequestError(message, res.status);
     }
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
@@ -258,6 +271,7 @@ export class HttpSyncApi implements SyncApi {
       method: "PUT",
       headers: this.headers(true),
       body: JSON.stringify({ counts }),
+      signal: AbortSignal.timeout(PLAYS_PUSH_TIMEOUT_MS),
     });
     const parsed = PlayCountsResultSchema.safeParse(await this.handle<unknown>(res));
     if (!parsed.success) throw new PublicError("Sync service sent an unexpected reply to a play count push");

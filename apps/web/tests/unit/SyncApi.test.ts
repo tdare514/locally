@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { HttpSyncApi, SyncAuthError, SyncConflictError } from "../../src/server/sync/SyncApi";
+import { HttpSyncApi, SyncAuthError, SyncConflictError, SyncRequestError } from "../../src/server/sync/SyncApi";
 import { SyncRecordRejectedError } from "../../src/server/sync/SyncRecord";
 import { PublicError } from "../../src/shared/errors";
 
@@ -308,6 +308,28 @@ describe("HttpSyncApi play counts", () => {
     expect(headers["Authorization"]).toBe("Bearer tok-123");
     expect(headers["Content-Type"]).toBe("application/json");
     expect(JSON.parse(calls[0].init?.body as string)).toEqual({ counts: [entry] });
+  });
+
+  it("pushPlays gives up after a timeout instead of waiting forever", async () => {
+    mockNextResponse(jsonResponse({ accepted: 1, ignored: 0 }));
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+
+    await api.pushPlays([entry]);
+
+    const signal = calls[0].init?.signal as AbortSignal;
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal.aborted).toBe(false);
+  });
+
+  it("pushPlays throws a SyncRequestError carrying the status on a failed response", async () => {
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+    for (const status of [400, 404, 422, 429, 500, 503]) {
+      mockNextResponse(jsonResponse({ error: "no" }, status));
+      const err = await api.pushPlays([entry]).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(SyncRequestError);
+      expect(err).toBeInstanceOf(PublicError);
+      expect((err as SyncRequestError).status).toBe(status);
+    }
   });
 
   it("pushPlays throws SyncAuthError on 401 and PublicError on 5xx or an odd reply", async () => {
