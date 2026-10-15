@@ -467,19 +467,19 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-text-muted">
+                <p className="text-sm font-medium text-text-muted">
                   Signed in as
                 </p>
                 <p className="mt-1 text-sm text-text">{syncStatus.email}</p>
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-text-muted">
+                <p className="text-sm font-medium text-text-muted">
                   This device
                 </p>
                 <p className="mt-1 text-sm text-text">{syncStatus.deviceName ?? "This Mac"}</p>
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-text-muted">
+                <p className="text-sm font-medium text-text-muted">
                   Storage used
                 </p>
                 <p className="mt-1 text-sm text-text">
@@ -489,7 +489,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
                 </p>
               </div>
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-text-muted">
+                <p className="text-sm font-medium text-text-muted">
                   Last synced
                 </p>
                 <p className="mt-1 text-sm text-text">{formatLastSync(syncStatus.lastRunAt)}</p>
