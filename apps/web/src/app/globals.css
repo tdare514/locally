@@ -2447,8 +2447,9 @@ body {
     display: block;
   }
 }
-/* Room for the page sleeve to be 152px or more (22cqw), so the crown is 64px wide or more: the full drawing. */
-@container (min-width: 700px) {
+/* The full drawing only where every crown is 64px wide or more: the outermost sleeves are scaled to
+   0.88 for depth, so the page sleeve (22cqw) must be 173px or more, 0.42 x 173 x 0.88 = 64. */
+@container (min-width: 788px) {
   .fan[data-size="page"] .fan-crown .fan-crown-full {
     display: block;
   }
