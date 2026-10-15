@@ -2,20 +2,20 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import AmbientBackdrop from "../../AmbientBackdrop";
+import AmbientSpace from "../../AmbientSpace";
 import Sidebar from "../../Sidebar";
-import { NEUTRAL_PALETTE, type AmbientPalette } from "../../../lib/artwork-palette";
+import type { AmbientPalette } from "../../../lib/artwork-palette";
 import { useArtworkPalette } from "../../../lib/use-artwork-palette";
 import Invitation from "./Invitation";
 import MakeRecord from "./MakeRecord";
 import { SAMPLE_COVERS } from "./sampleCovers";
 
-/** Design prototype for #159, dev only (see app/dev/import/page.tsx). Three cover beats, one
- * shared invitation (with the #122 accent wash) and one shared empty record. */
-export type Variant = 1 | 2 | 3;
+/** Design prototype for #159, dev only (see app/dev/import/page.tsx). One cover beat (slide in,
+ * the disc settles, the cover develops, the disc tucks away), an invitation (with the #122 accent
+ * wash) and an empty record, both over the library's drifting colour sky. */
 export type Stage = "invite" | "empty" | "beat" | "done";
 
 interface ImportPrototypeProps {
-  variant: Variant;
   /** Where the prototype opens. The dev bar moves between stages without a reload. */
   stage: Stage;
   /** Freeze every animation at this many ms into its run, for frame capture. Null runs live. */
@@ -25,18 +25,24 @@ interface ImportPrototypeProps {
   bar: boolean;
 }
 
-const VARIANTS: { value: Variant; label: string }[] = [
-  { value: 1, label: "Slide in" },
-  { value: 2, label: "Press" },
-  { value: 3, label: "Develop" },
-];
+/** Calm accent tones for the colour sky while there is no cover yet: the Import accent (#1E7DF0)
+ * toned down the way artwork-palette.ts tones a cover (dark enough for white text), with a second
+ * cloud leaning toward indigo. */
+const INVITE_PALETTE: AmbientPalette = {
+  primary: "#1f5bb5",
+  secondary: "#3547a3",
+  deep: "#0a1a3a",
+};
 
-/** The colour wash starts this far into the beat and then uses the backdrop's own 900ms fade,
- * so every beat is over by about a second. */
-const WASH_AT = 100;
+/* The beat's clock, in ms from the moment the cover is chosen. The keyframes in globals.css
+ * (.imp-cover, .imp-sharp, .record-face, .record-disc under .imp-beat) hold the rest of it: slide
+ * 0 for 400, disc turn 160 for 520, develop 480 for 560, disc tucks in 960 for 560. */
+/** The colour wash starts with the develop and then uses the backdrop's own 900ms fade. */
+const WASH_AT = 480;
 const WASH_MS = 900;
-/** When the disc's centre label takes the cover: about when the cover lands. */
-const LABEL_AT: Record<Variant, number> = { 1: 240, 2: 260, 3: 420 };
+/** The disc's centre label takes the cover when the disc starts to turn. It is the one asymmetric
+ * thing on the disc, so it is what makes the turn visible (the blurred copy is too washed out to). */
+const LABEL_AT = 160;
 
 const noop = () => {};
 
@@ -80,7 +86,7 @@ function BarButton({ label, on, onClick }: { label: string; on: boolean; onClick
   );
 }
 
-export default function ImportPrototype({ variant, stage, t, coverIndex, bar }: ImportPrototypeProps) {
+export default function ImportPrototype({ stage, t, coverIndex, bar }: ImportPrototypeProps) {
   const frozen = t !== null;
   const [screen, setScreen] = useState<"invite" | "record">(stage === "invite" ? "invite" : "record");
   const [cover, setCover] = useState<number | null>(
@@ -88,6 +94,8 @@ export default function ImportPrototype({ variant, stage, t, coverIndex, bar }: 
   );
   // A cover that is simply there, with no beat (the "done" stage).
   const [still, setStill] = useState(stage === "done");
+  // A click or key press mid-beat jumps the beat to its end state.
+  const [skipped, setSkipped] = useState(false);
   // Bumped to replay the entrance.
   const [run, setRun] = useState(0);
   // The record fades in only when it arrives from the invitation, never when opened directly.
@@ -103,19 +111,36 @@ export default function ImportPrototype({ variant, stage, t, coverIndex, bar }: 
   );
 
   const sample = cover === null ? null : SAMPLE_COVERS[cover];
-  const beat = sample !== null && !still;
+  const finished = still || skipped;
+  const beat = sample !== null && !finished;
 
-  // Colour wash: from the cover, starting a moment into the beat.
+  // Input never waits for the beat: a click or key press anywhere jumps it to the end state. The
+  // event itself carries on (typing still types, a button still clicks).
+  useEffect(() => {
+    if (!beat || frozen) return;
+    const skip = () => setSkipped(true);
+    const skipOnKey = (e: KeyboardEvent) => {
+      if (!e.repeat) skip();
+    };
+    window.addEventListener("pointerdown", skip, true);
+    window.addEventListener("keydown", skipOnKey, true);
+    return () => {
+      window.removeEventListener("pointerdown", skip, true);
+      window.removeEventListener("keydown", skipOnKey, true);
+    };
+  }, [beat, frozen]);
+
+  // Colour wash: from the cover, starting as the develop does. It leaves the calm invite colours.
   const live = useArtworkPalette(sample?.src ?? null);
   const washOn = useAfter(WASH_AT, beat, t);
   let palette: AmbientPalette | null = null;
   if (sample && live) {
-    if (still) palette = live;
-    else if (frozen) palette = mixPalette(NEUTRAL_PALETTE, live, smooth(Math.min(1, Math.max(0, (t - WASH_AT) / WASH_MS))));
+    if (finished) palette = live;
+    else if (frozen) palette = mixPalette(INVITE_PALETTE, live, smooth(Math.min(1, Math.max(0, (t - WASH_AT) / WASH_MS))));
     else if (washOn) palette = live;
   }
-  const labelOn = useAfter(LABEL_AT[variant], beat, t);
-  const labelUrl = sample && (still || labelOn) ? sample.src : null;
+  const labelOn = useAfter(LABEL_AT, beat, t);
+  const labelUrl = sample && (finished || labelOn) ? sample.src : null;
 
   function clearTimer() {
     if (timer.current !== null) window.clearTimeout(timer.current);
@@ -123,6 +148,7 @@ export default function ImportPrototype({ variant, stage, t, coverIndex, bar }: 
   }
   function chooseCover() {
     setStill(false);
+    setSkipped(false);
     setCover((coverIndex + picks.current++) % SAMPLE_COVERS.length);
   }
   function pickCover() {
@@ -132,6 +158,7 @@ export default function ImportPrototype({ variant, stage, t, coverIndex, bar }: 
     clearTimer();
     setCover(null);
     setStill(false);
+    setSkipped(false);
     setScreen("invite");
     setRun((r) => r + 1);
   }
@@ -145,12 +172,14 @@ export default function ImportPrototype({ variant, stage, t, coverIndex, bar }: 
     setScreen("record");
     setCover(null);
     setStill(false);
+    setSkipped(false);
   }
   function showDone() {
     clearTimer();
     setEnter(screen === "invite");
     setScreen("record");
     setStill(true);
+    setSkipped(false);
     setCover((coverIndex + picks.current++) % SAMPLE_COVERS.length);
   }
   function replayBeat() {
@@ -162,10 +191,15 @@ export default function ImportPrototype({ variant, stage, t, coverIndex, bar }: 
   const current: Stage = screen === "invite" ? "invite" : cover === null ? "empty" : still ? "done" : "beat";
   const style = frozen ? ({ "--imp-t": `${t}ms`, "--imp-run": "paused" } as CSSProperties) : undefined;
   // A frozen or finished page puts its final colours on the first paint; no 900ms fade to wait for.
-  const settled = frozen || still;
+  const settled = frozen || finished;
 
   return (
     <div style={style} className="relative isolate flex h-screen w-screen flex-col overflow-hidden md:flex-row">
+      {/* The library's drifting colour sky, in calm accent tones, until the first cover. It fills
+          the window, under the see-through sidebar and the pane, as in the library. */}
+      <div aria-hidden className="imp-sky" data-sky={sample === null ? "on" : beat ? "out" : "off"}>
+        <AmbientSpace palette={INVITE_PALETTE} />
+      </div>
       <Sidebar
         releases={[]}
         loading={false}
@@ -182,7 +216,11 @@ export default function ImportPrototype({ variant, stage, t, coverIndex, bar }: 
       />
       <div className="relative isolate min-h-0 min-w-0 flex-1">
         <main className="relative isolate h-full overflow-y-auto p-6 md:p-10 lg:p-16">
-          <AmbientBackdrop key={settled ? (palette ? "ready" : "wait") : undefined} palette={palette} />
+          {sample && (
+            <div aria-hidden className="imp-backdrop-in" data-beat={beat}>
+              <AmbientBackdrop key={settled ? (palette ? "ready" : "wait") : undefined} palette={palette ?? INVITE_PALETTE} />
+            </div>
+          )}
           {screen === "invite" ? (
             <>
               <Invitation key={run} onAdd={addTrack} />
@@ -193,10 +231,10 @@ export default function ImportPrototype({ variant, stage, t, coverIndex, bar }: 
             </>
           ) : (
             <MakeRecord
-              variant={variant}
               enter={enter}
               cover={sample}
               beat={beat}
+              finished={finished}
               labelUrl={labelUrl}
               onPickCover={pickCover}
             />
@@ -206,19 +244,8 @@ export default function ImportPrototype({ variant, stage, t, coverIndex, bar }: 
       {bar && (
         <nav
           aria-label="Prototype"
-          className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/75 p-1 text-xs text-white/70 shadow-[0_16px_40px_-12px_rgb(0_0_0/0.8)] ring-1 ring-white/10 backdrop-blur-xl"
+          className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/75 p-1 text-xs text-white/70 shadow-[0_16px_40px_-12px_rgb(0_0_0/0.8)] ring-1 ring-white/10"
         >
-          {VARIANTS.map((v) => (
-            <a
-              key={v.value}
-              href={`/dev/import?v=${v.value}&stage=${current}&c=${coverIndex}`}
-              aria-current={v.value === variant ? "page" : undefined}
-              className={`rounded-full px-3 py-1.5 transition-colors hover:text-white aria-[current=page]:bg-white/15 aria-[current=page]:text-white`}
-            >
-              {v.value} {v.label}
-            </a>
-          ))}
-          <span aria-hidden className="mx-1 h-4 w-px bg-white/15" />
           <BarButton label="Invitation" on={current === "invite"} onClick={showInvitation} />
           <BarButton label="Empty record" on={current === "empty"} onClick={showEmpty} />
           <BarButton label="Replay beat" on={current === "beat"} onClick={replayBeat} />

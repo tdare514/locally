@@ -5,16 +5,17 @@ import RecordSleeve from "../../RecordSleeve";
 import TrackList, { type EditableTrack } from "../../TrackList";
 import CoverSleeve from "./CoverSleeve";
 import type { SampleCover } from "./sampleCovers";
-import type { Variant } from "./ImportPrototype";
 
 interface MakeRecordProps {
-  variant: Variant;
   /** Fade the page in (it arrived from the invitation). */
   enter: boolean;
   cover: SampleCover | null;
   /** The cover is landing now (keyframes run). False with a cover shows the finished record. */
   beat: boolean;
-  /** The cover for the disc's centre label; it follows the sleeve a moment after the cover lands. */
+  /** The finished record, reached by letting the beat play out or by jumping to its end. Switching
+   * to it remounts the record, so the disc lands in the sleeve at once instead of gliding. */
+  finished: boolean;
+  /** The cover for the disc's centre label; it appears as the disc starts to turn. */
   labelUrl: string | null;
   onPickCover: () => void;
 }
@@ -61,12 +62,12 @@ function InlineField({
 }
 
 /** The release page (#112) with nothing in it yet: the sleeve and disc, blank inline fields and
- * the tracks. The cover is the moment; the variants differ only in how it arrives. */
+ * the tracks. The cover is the moment: it slides in, develops, and the disc tucks away. */
 export default function MakeRecord({
-  variant,
   enter,
   cover,
   beat,
+  finished,
   labelUrl,
   onPickCover,
 }: MakeRecordProps) {
@@ -78,8 +79,8 @@ export default function MakeRecord({
   const nextKey = useRef(1);
 
   const trackCount = `${tracks.length} track${tracks.length === 1 ? "" : "s"}`;
-  // The wrapper's class is how the variant reaches the disc inside RecordSleeve.
-  const stateClass = cover === null ? "" : beat ? `imp${variant}-beat` : variant === 3 ? "imp3-rest" : "";
+  // The wrapper's class is how the beat reaches the disc inside RecordSleeve.
+  const stateClass = cover === null ? "" : beat ? "imp-beat" : "imp-rest";
 
   function addSampleTrack() {
     setTracks((t) => [...t, { key: `n${nextKey.current++}`, title: `Track ${t.length + 1}` }]);
@@ -89,9 +90,9 @@ export default function MakeRecord({
     <div className={`${enter ? "imp-page-in " : ""}mx-auto flex max-w-[920px] flex-col gap-12 pb-16`}>
       <div className="flex flex-col gap-12 lg:grid lg:grid-cols-[minmax(0,1fr)_13rem] lg:items-start lg:gap-x-10">
         <header className="flex flex-col gap-8 pt-2 lg:col-start-1 lg:row-start-1 lg:pt-4">
-          <div className={stateClass}>
+          <div key={finished ? "end" : "run"} className={stateClass}>
             <RecordSleeve labelUrl={labelUrl} spin={0}>
-              <CoverSleeve variant={variant} cover={cover} beat={beat} onPick={onPickCover} />
+              <CoverSleeve cover={cover} beat={beat} onPick={onPickCover} />
             </RecordSleeve>
           </div>
 
@@ -122,8 +123,9 @@ export default function MakeRecord({
           </div>
         </header>
 
-        {/* The dock, as on the release page, with the import actions. Prototype: neither saves. */}
-        <div className="sticky top-4 z-10 -my-4 flex w-fit max-w-full flex-wrap items-center gap-2 self-start rounded-[26px] bg-black/70 p-1.5 pr-3 sm:rounded-full shadow-[0_16px_40px_-12px_rgb(0_0_0/0.8)] ring-1 ring-white/10 backdrop-blur-xl lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:my-0 lg:w-auto lg:flex-col lg:items-stretch lg:gap-1 lg:rounded-[26px] lg:p-2">
+        {/* The dock, as on the release page, with the import actions. Prototype: neither saves.
+            Faked glass, not backdrop-blur: the colour sky drifts behind it before there is a cover. */}
+        <div className="glass-fake sticky top-4 z-10 -my-4 flex w-fit max-w-full flex-wrap items-center gap-2 self-start rounded-[26px] p-1.5 pr-3 sm:rounded-full lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:my-0 lg:w-auto lg:flex-col lg:items-stretch lg:gap-1 lg:rounded-[26px] lg:p-2">
           <button
             type="button"
             className="rounded-full bg-accent px-7 py-2.5 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95"

@@ -1,21 +1,19 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { isDemo } from "../../../server/demo";
-import ImportPrototype, {
-  type Stage,
-  type Variant,
-} from "../../../components/dev/import/ImportPrototype";
+import ImportPrototype, { type Stage } from "../../../components/dev/import/ImportPrototype";
 
 /**
- * Design prototype for #159, dev only: three cover beats for an immersive "make a record"
- * Import. Nothing here is wired to the real import. It 404s in any production build (including
- * the desktop app) and in the public demo (LOCALLY_DEMO=1).
+ * Design prototype for #159, dev only: the cover beat (slide in, the disc settles, the cover
+ * develops, the disc tucks away) for an immersive "make a record" Import. Nothing here is wired to
+ * the real import. It 404s in any production build (including the desktop app) and in the public
+ * demo (LOCALLY_DEMO=1).
  *
- *   /dev/import?v=1|2|3            variant (default 1)
- *   &stage=invite|empty|beat|done  where to open (default invite)
+ *   /dev/import?stage=invite|empty|beat|done   where to open (default invite)
  *   &t=<ms>                        freeze animations that many ms into their run (frame capture)
  *   &c=0|1|2                       which sample cover the beat uses
  *   &bar=0                         hide the prototype bar (always hidden when t is set)
+ * (An old ?v= from the three-variant draft is ignored.)
  */
 export const metadata: Metadata = {
   title: "Import prototype (#159)",
@@ -32,8 +30,6 @@ export default async function ImportPrototypePage({ searchParams }: PageProps<"/
   if (process.env.NODE_ENV === "production" || isDemo()) notFound();
 
   const params = await searchParams;
-  const v = Number(first(params.v));
-  const variant: Variant = v === 2 || v === 3 ? v : 1;
   const stageParam = first(params.stage);
   const stage = STAGES.find((s) => s === stageParam) ?? "invite";
   const tParam = first(params.t);
@@ -43,7 +39,6 @@ export default async function ImportPrototypePage({ searchParams }: PageProps<"/
 
   return (
     <ImportPrototype
-      variant={variant}
       stage={stage}
       t={t}
       coverIndex={coverIndex}
