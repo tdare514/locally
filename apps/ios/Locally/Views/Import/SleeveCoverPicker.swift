@@ -37,10 +37,11 @@ struct SleeveCoverPicker: View {
         .sheet(isPresented: $isSheetPresented, onDismiss: openPendingPicker) {
             CoverChoiceSheet(recents: recents, hasCover: imageData != nil, onChoose: choose)
         }
-        // Reload whenever the sheet opens, so a release saved or synced while this screen
-        // is up still shows; the previous list stays visible while the new one loads.
+        // Load when the screen appears, then again each time the sheet opens (not when it
+        // closes), so a release saved or synced while this screen is up still shows; the
+        // previous list stays visible while the new one loads.
         .task(id: isSheetPresented) {
-            guard let container else { return }
+            guard let container, isSheetPresented || recents.isEmpty else { return }
             recents = await RecentCoversLoader(library: container.library, coverStore: container.coverStore).load()
         }
         // As in `CoverPicker`: the Photos picker hangs off a persistent background
