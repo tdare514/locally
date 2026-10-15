@@ -4,7 +4,9 @@ import SwiftUI
 /// Debug-only harness for deterministic screenshots of the immersive components. Launch the app
 /// with `-componentGallery <name>`; see `LocallyApp`.
 struct ComponentGallery: View {
-    static let names = ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "sleeve-bright", "sleeve-dark", "backdrop-a", "backdrop-b", "inline-field", "cover-sheet"]
+    static let names = ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "sleeve-bright", "sleeve-dark", "backdrop-a", "backdrop-b", "inline-field", "cover-sheet",
+        // #160 design prototypes: three Settings directions, the shared studio backdrop, and today's Settings for comparison.
+        "settings-a", "settings-b", "settings-c", "studio-backdrop", "settings-current"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -21,9 +23,22 @@ struct ComponentGallery: View {
         deep: Color(red: 0.02, green: 0.10, blue: 0.10)
     )
 
+    /// The #160 screens draw their own backdrop (or, for `settings-current`, the real screen's black).
+    private var drawsOwnBackdrop: Bool {
+        ["settings-a", "settings-b", "settings-c", "studio-backdrop", "settings-current"].contains(name)
+    }
+
     var body: some View {
+        if drawsOwnBackdrop {
+            content.preferredColorScheme(.dark)
+        } else {
+            sleeveGallery
+        }
+    }
+
+    private var sleeveGallery: some View {
         let palette = name == "backdrop-b" ? Self.paletteB : Self.paletteA
-        ZStack {
+        return ZStack {
             if let cover = Self.edgeCover(name) {
                 // As on the release page: the wash is derived from the cover itself.
                 ArtworkBackdrop(palette: ArtworkPalette.palette(forCover: cover.pngData()))
@@ -75,9 +90,38 @@ struct ComponentGallery: View {
                     onChoose: { _ in }
                 )
             }
+        case "settings-a":
+            SettingsPrototypeA()
+        case "settings-b":
+            SettingsPrototypeB()
+        case "settings-c":
+            SettingsPrototypeC()
+        case "studio-backdrop":
+            StudioBackdrop()
+        case "settings-current":
+            // Today's Settings, signed in with the same sample state, for side-by-side screenshots.
+            TabView {
+                SettingsView()
+                    .tabItem { Label(Copy.Settings.title, systemImage: "gearshape") }
+            }
+            .tint(Theme.accent)
+            .environment(FolderStatus(isConnected: true))
+            .environment(PurchaseStatus(isFullUnlocked: false))
+            .environment(Self.sampleSyncStatus)
         default:
             EmptyView()
         }
+    }
+
+    private static var sampleSyncStatus: SyncStatus {
+        let status = SyncStatus(
+            signedIn: true,
+            email: SettingsSample.email,
+            deviceName: SettingsSample.device,
+            lastRunAt: Date().addingTimeInterval(-120)
+        )
+        status.quota = SyncQuota(usedBytes: SettingsSample.usedMB * 1_048_576, limitBytes: SettingsSample.limitMB * 1_048_576)
+        return status
     }
 }
 #endif
