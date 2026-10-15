@@ -81,7 +81,7 @@ export default function PhoneInbox({ pending, onAccept }: PhoneInboxProps) {
         aria-expanded={open}
         aria-controls={panelId}
         aria-label={triggerLabel(count, open)}
-        className={`relative isolate flex h-10 w-10 items-center justify-center rounded-full transition-[filter,background-color,box-shadow] active:scale-95 ${
+        className={`relative isolate flex h-[var(--tray-size)] w-[var(--tray-size)] items-center justify-center rounded-full transition-[filter,background-color,box-shadow] active:scale-95 ${
           // Open: the glass drops away and the red X stands alone.
           open ? "bg-transparent" : "glass-fake hover:brightness-125"
         } ${

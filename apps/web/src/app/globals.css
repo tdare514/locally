@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
 :root {
+  /* Footprint of the floating phone-tray button (#115). PhoneInbox sizes itself from this and
+     views that run under it reserve room with it, so the two can't drift (#149). */
+  --tray-size: 2.5rem;
   --bg: #000000;
   --card: #121212;
   /* Legacy alias — kept so any code still referencing --panel/bg-panel keeps working. */
