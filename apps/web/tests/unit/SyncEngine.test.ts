@@ -12,7 +12,7 @@ import type { LibraryRepository } from "../../src/server/storage/LibraryReposito
 import type { AudioConverter } from "../../src/server/audio/AudioConverter";
 import type { ReadTagsResult, TagService, WriteTagsInput } from "../../src/server/audio/TagService";
 import type { Release, Settings } from "../../src/shared/types";
-import { SyncEngine } from "../../src/server/sync/SyncEngine";
+import { RESENT_RECHECK_MS, SyncEngine } from "../../src/server/sync/SyncEngine";
 import { emptySyncState, type SyncState, type SyncStateStore } from "../../src/server/sync/SyncState";
 import {
   SyncAuthError,
@@ -1131,15 +1131,20 @@ describe("SyncEngine", () => {
       expect((await clocked.status()).pendingFromPhone.map((p) => p.id)).toEqual(["a"]);
     });
 
-    it("still lets an 'arriving' release be sent, and its old 404 message remains the fallback", async () => {
+    it("refuses an 'arriving' release with the phone message, or a generic one for another origin", async () => {
       seedPhone("a", 5 * MIN);
-      api.missingIds.add("a");
+      seedPhone("w", 5 * MIN, "web");
+      api.missingIds.add("a").add("w");
       await clocked.reconcile();
       expect(await stateOf("a")).toBe("arriving");
 
-      await expect(clocked.acceptFromPhone("a")).resolves.toMatchObject({ id: "a" });
+      await expect(clocked.acceptFromPhone("a")).rejects.toThrow("Your phone is still sending this one.");
+      await expect(clocked.acceptFromPhone("w")).rejects.toThrow("That device is still sending this one.");
+      expect(api.downloadUrlCalls).toEqual([]);
+      expect((await clocked.status()).pendingFromPhone.map((p) => p.id)).toEqual(["a", "w"]);
+    });
 
-      // A file that really isn't there still maps to the old message.
+    it("keeps the old 404 message as the fallback for a release not marked missing", async () => {
       seedPhone("b", 5 * MIN);
       await clocked.reconcile();
       api.downloadFile = async () => {
@@ -1225,7 +1230,7 @@ describe("SyncEngine", () => {
         expect(api.listReleasesCallCount).toBe(0);
       });
 
-      it("does not hurry the missing check: the row goes back to normal at the next eligible check", async () => {
+      it("checks the missing files right away, even within 10 minutes of the last check", async () => {
         seedPhone("a", 90 * MIN);
         api.missingIds.add("a");
         await clocked.reconcile();
@@ -1234,12 +1239,84 @@ describe("SyncEngine", () => {
         api.missingIds.delete("a"); // the phone re-uploaded
         nowMs += MIN;
         await clocked.resync();
-        expect(api.missingCalls).toBe(1);
-        expect(await stateOf("a")).toBe("waiting");
+        expect(api.missingCalls).toBe(2);
+        expect(await stateOf("a")).toBeUndefined();
+      });
+    });
 
-        nowMs += 9 * MIN;
+    describe("a release the phone sends again", () => {
+      /** A waiting release, then the phone re-pushes it (the server version bumps). */
+      async function resendWaiting(): Promise<void> {
+        seedPhone("a", 90 * MIN);
+        api.missingIds.add("a");
+        await clocked.reconcile();
+        expect(await stateOf("a")).toBe("waiting");
+        nowMs += MIN;
+        seedPhone("a", MIN); // same id, newer record
+      }
+
+      it("shows as arriving with a resentAt mark, and the next check is due 2 minutes later, not before", async () => {
+        await resendWaiting();
+        await clocked.reconcile();
+
+        expect(await stateOf("a")).toBe("arriving");
+        expect((await syncState.get()).missingFiles.a).toEqual({
+          firstSeenMissingAt: new Date(nowMs).toISOString(),
+          stillMissing: false,
+          resentAt: new Date(nowMs).toISOString(),
+        });
+        expect(api.missingCalls).toBe(1);
+
+        nowMs += RESENT_RECHECK_MS - 1_000;
+        await clocked.reconcile();
+        expect(api.missingCalls).toBe(1);
+
+        nowMs += 1_000;
+        await clocked.reconcile();
+        expect(api.missingCalls).toBe(2);
+      });
+
+      it("stays arriving when the early check still lists it, and waits only after the usual gap", async () => {
+        await resendWaiting();
+        await clocked.reconcile();
+        nowMs += RESENT_RECHECK_MS;
+        await clocked.reconcile();
+        expect(api.missingCalls).toBe(2);
+        expect(await stateOf("a")).toBe("arriving");
+
+        nowMs += 10 * MIN;
+        await clocked.reconcile();
+        expect(api.missingCalls).toBe(3);
+        expect(await stateOf("a")).toBe("waiting");
+      });
+
+      it("returns to normal and can be sent once the files land", async () => {
+        await resendWaiting();
+        await clocked.reconcile();
+        api.missingIds.delete("a");
+        nowMs += RESENT_RECHECK_MS;
+        await clocked.reconcile();
+
+        expect(await stateOf("a")).toBeUndefined();
+        await expect(clocked.acceptFromPhone("a")).resolves.toMatchObject({ id: "a" });
+      });
+
+      it("counts the one-hour rule from the re-send, not from the record's age", async () => {
+        await resendWaiting();
+        await clocked.reconcile();
+        nowMs += 59 * MIN;
+        expect(await stateOf("a")).toBe("arriving");
+        nowMs += MIN;
+        expect(await stateOf("a")).toBe("waiting");
+      });
+
+      it("does not touch a release that had no missing mark", async () => {
+        seedPhone("a", 5 * MIN);
+        await clocked.reconcile();
+        seedPhone("a", MIN);
         await clocked.reconcile();
         expect(await stateOf("a")).toBeUndefined();
+        expect((await syncState.get()).missingFiles).toEqual({});
       });
     });
   });

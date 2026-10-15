@@ -1,12 +1,22 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { arrivingLine, INBOX_TITLE, originLabel, waitingCopy } from "../lib/inbox-copy";
+import { INBOX_TITLE, sendingFooter, originLabel, waitingCopy } from "../lib/inbox-copy";
 import type { PendingFromPhone } from "../shared/types";
 import { CloudDownIcon, MusicNoteIcon, PlusIcon, XIcon } from "./Icons";
 
 /** Matches the .phone-tray exit transition in globals.css. */
 const EXIT_MS = 200;
+
+/** Ready rows first, then waiting, then arriving, so the grey rows sit just above the footer. */
+const FILES_STATE_ORDER = { ready: 0, waiting: 1, arriving: 2 } as const;
+
+export function orderRows(pending: PendingFromPhone[]): PendingFromPhone[] {
+  return pending
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => FILES_STATE_ORDER[a.p.filesState ?? "ready"] - FILES_STATE_ORDER[b.p.filesState ?? "ready"] || a.i - b.i)
+    .map(({ p }) => p);
+}
 
 /** How "Resync Mac and phone" went: asked the other device, couldn't yet (rate limit), or failed (a toast says why). */
 export type ResyncOutcome = "asked" | "later" | "failed";
@@ -40,6 +50,7 @@ export default function PhoneInbox({ pending, onAccept, onResync }: PhoneInboxPr
   const panelRef = useRef<HTMLDivElement>(null);
 
   const count = pending.length;
+  const rows = orderRows(pending);
 
   // The panel renders while open or mounted: focus it on open; on close keep it mounted for its
   // exit, then unmount.
@@ -133,7 +144,7 @@ export default function PhoneInbox({ pending, onAccept, onResync }: PhoneInboxPr
           {pending.length === 0 && (
             <p className="px-3 py-3 text-sm text-text-muted">Nothing waiting from your devices.</p>
           )}
-          {pending.map((p) => (
+          {rows.map((p) => (
             <div key={p.id} className="phone-tray-row" data-leaving={leaving.has(p.id)}>
               <div className="min-h-0 overflow-hidden">
                 <PendingRow
@@ -147,10 +158,18 @@ export default function PhoneInbox({ pending, onAccept, onResync }: PhoneInboxPr
               </div>
             </div>
           ))}
+          <SendingFooter pending={pending} />
         </div>
       )}
     </div>
   );
+}
+
+/** The one quiet line at the bottom of the tray while any row is still being sent. */
+export function SendingFooter({ pending }: { pending: PendingFromPhone[] }) {
+  const origins = pending.filter((p) => p.filesState === "arriving").map((p) => p.origin);
+  if (origins.length === 0) return null;
+  return <p className="px-3 pb-2 pt-1 text-[12px] leading-snug text-text-muted">{sendingFooter(origins)}</p>;
 }
 
 /** One pending release as a small record sleeve, echoing the release page. The sleeve is the
@@ -173,6 +192,7 @@ export function PendingRow({
 }) {
   const title = item.title || item.artist;
   const waiting = item.filesState === "waiting";
+  const arriving = item.filesState === "arriving";
   const copy = waitingCopy(item.origin);
   // The group/send hover and focus effects only fire under the Send button, so the same sleeve
   // sits still when it is not one.
@@ -180,18 +200,34 @@ export function PendingRow({
     <>
       <span className="absolute right-0 top-1/2 h-11 w-11 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,#3a3a40_0_12%,#0c0c0e_13%_17%,#26262b_18%_40%,#1a1a1e_41%_62%,#2a2a30_63%_100%)] shadow-[0_4px_12px_-4px_rgb(0_0_0/0.8)] ring-1 ring-white/15 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover/send:translate-x-1.5 group-hover/send:rotate-45 group-focus-visible/send:translate-x-1.5" />
       <span className="absolute left-0 top-0 flex h-12 w-12 items-center justify-center rounded-[10px] bg-[linear-gradient(140deg,color-mix(in_srgb,var(--accent)_55%,#1a1a1f),#121216)] text-white/70 shadow-[0_6px_16px_-6px_rgb(0_0_0/0.8)] ring-1 ring-white/10 transition-colors group-hover/send:bg-accent group-hover/send:bg-none group-focus-visible/send:bg-accent group-focus-visible/send:bg-none group-focus-visible/send:ring-2 group-focus-visible/send:ring-white">
-        <MusicNoteIcon className="h-4 w-4 transition-opacity group-hover/send:opacity-0 group-focus-visible/send:opacity-0" />
-        <PlusIcon
-          className="absolute h-5 w-5 text-black opacity-0 transition-opacity group-hover/send:opacity-100 group-focus-visible/send:opacity-100"
-          strokeWidth={2.5}
-        />
+        {!arriving && (
+          <>
+            <MusicNoteIcon className="h-4 w-4 transition-opacity group-hover/send:opacity-0 group-focus-visible/send:opacity-0" />
+            <PlusIcon
+              className="absolute h-5 w-5 text-black opacity-0 transition-opacity group-hover/send:opacity-100 group-focus-visible/send:opacity-100"
+              strokeWidth={2.5}
+            />
+          </>
+        )}
       </span>
     </>
   );
   return (
     <div>
       <div className="flex items-center gap-3.5 rounded-2xl px-2.5 py-2.5">
-        {waiting ? (
+        {arriving ? (
+          // Still being sent: greyed out and not a button. The dots are decorative; the words follow.
+          <div className="relative h-12 w-[4.25rem] shrink-0">
+            <div aria-hidden="true" className="absolute inset-0 opacity-50 grayscale">
+              {sleeve}
+            </div>
+            <span aria-hidden="true" className="sending-dots absolute left-0 top-0 flex h-12 w-12 items-center justify-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-white" />
+              <span className="h-1.5 w-1.5 rounded-full bg-white" />
+              <span className="h-1.5 w-1.5 rounded-full bg-white" />
+            </span>
+          </div>
+        ) : waiting ? (
           // Waiting on the other device: nothing to send yet, so the sleeve is only a picture.
           <div aria-hidden="true" className="relative h-12 w-[4.25rem] shrink-0 opacity-60">
             {sleeve}
@@ -209,9 +245,9 @@ export function PendingRow({
           </button>
         )}
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-semibold text-text">{title}</span>
+          <span className={`block truncate text-[15px] font-semibold ${arriving ? "text-text-muted" : "text-text"}`}>{title}</span>
           {/* A long artist name gives way first; the track count always shows. */}
-          <span className="flex text-[13px] text-text-muted">
+          <span className={`flex text-[13px] ${arriving ? "text-text-dim" : "text-text-muted"}`}>
             <span className="truncate">{item.artist}</span>
             <span className="shrink-0 whitespace-pre">
               {" · "}
@@ -220,11 +256,9 @@ export function PendingRow({
           </span>
           <span className="block truncate text-[12px] text-text-dim">{originLabel(item.origin)}</span>
           {waiting && <span className="block truncate text-[12px] font-semibold text-text">{copy.title}</span>}
+          {arriving && <span className="sr-only">Still being sent from your {item.origin === "ios" ? "phone" : "other device"}.</span>}
         </span>
       </div>
-      {item.filesState === "arriving" && (
-        <p className="px-2.5 pb-3 pt-0.5 text-[12px] leading-snug text-text-muted">{arrivingLine(item.origin)}</p>
-      )}
       {waiting && (
         <div className="px-2.5 pb-3 pt-0.5" aria-live="polite">
           {outcome === "asked" ? (

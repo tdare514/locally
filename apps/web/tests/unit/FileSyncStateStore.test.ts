@@ -239,6 +239,8 @@ describe("FileSyncStateStore", () => {
       pendingFromPhone: {},
       missingFiles: {
         good: { firstSeenMissingAt: "2026-10-15T10:00:00.000Z", stillMissing: false },
+        resent: { firstSeenMissingAt: "2026-10-15T10:05:00.000Z", stillMissing: false, resentAt: "2026-10-15T10:05:00.000Z" },
+        badResent: { firstSeenMissingAt: "2026-10-15T10:00:00.000Z", stillMissing: false, resentAt: 7 },
         bad: { firstSeenMissingAt: 5 },
         worse: "nope",
       },
@@ -248,6 +250,7 @@ describe("FileSyncStateStore", () => {
     expect(state.pushedUpdatedAt).toEqual({ "rel-1": "2026-01-01T00:00:00.000Z" });
     expect(state.missingFiles).toEqual({
       good: { firstSeenMissingAt: "2026-10-15T10:00:00.000Z", stillMissing: false },
+      resent: { firstSeenMissingAt: "2026-10-15T10:05:00.000Z", stillMissing: false, resentAt: "2026-10-15T10:05:00.000Z" },
     });
   });
 });

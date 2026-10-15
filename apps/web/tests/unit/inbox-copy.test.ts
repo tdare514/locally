@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { arrivingLine, INBOX_TITLE, originLabel, waitingCopy } from "../../src/lib/inbox-copy";
+import { INBOX_TITLE, originLabel, sendingFooter, waitingCopy } from "../../src/lib/inbox-copy";
 
 describe("incoming tray copy (#185)", () => {
   it("is titled 'From your devices'", () => {
@@ -28,8 +28,15 @@ describe("incoming tray copy (#185)", () => {
 });
 
 describe("files missing copy (#172)", () => {
-  it("says a phone release is still arriving, in the owner's words", () => {
-    expect(arrivingLine("ios")).toBe("Still arriving from your phone…");
+  it("says a phone release is still being sent, in the owner's words", () => {
+    expect(sendingFooter(["ios"])).toBe("Still sending this one from your phone…");
+    expect(sendingFooter(["ios", "ios"])).toBe("Still sending these from your phone…");
+  });
+
+  it("names no phone when any arriving row came from another device", () => {
+    expect(sendingFooter(["web"])).toBe("Still sending this one from that device…");
+    expect(sendingFooter(["ios", "web"])).toBe("Still sending these…");
+    expect(sendingFooter(["web", "future-thing"])).toBe("Still sending these…");
   });
 
   it("uses the phone wording for the iPhone", () => {
@@ -48,14 +55,14 @@ describe("files missing copy (#172)", () => {
       expect(copy.title, origin).toBe("Waiting on that device");
       expect(copy.action, origin).toBe("Resync");
       expect(copy.asked, origin).toBe("Asked that device to send it again. Open Locally there to finish.");
-      expect(arrivingLine(origin), origin).toBe("Still arriving from that device…");
+      expect(sendingFooter([origin]), origin).toBe("Still sending this one from that device…");
       expect(copy.body, origin).toBe("This song's files never reached the server.");
     }
   });
 
   it("is sentence case, with no all-capitals labels", () => {
     for (const origin of ["ios", "web"]) {
-      const lines = [arrivingLine(origin), ...Object.values(waitingCopy(origin))];
+      const lines = [sendingFooter([origin]), sendingFooter([origin, origin]), ...Object.values(waitingCopy(origin))];
       for (const line of lines) {
         expect(line, line).not.toBe(line.toUpperCase());
       }

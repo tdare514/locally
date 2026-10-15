@@ -4,7 +4,7 @@ import { SyncRecordSchema } from "./SyncRecord";
 import { emptySyncState, type SyncState, type SyncStateStore } from "./SyncState";
 import { z } from "zod";
 
-const MissingMarkSchema = z.object({ firstSeenMissingAt: z.string(), stillMissing: z.boolean() });
+const MissingMarkSchema = z.object({ firstSeenMissingAt: z.string(), stillMissing: z.boolean(), resentAt: z.string().optional() });
 
 const SyncStateFileSchema = z.object({
   pushedUpdatedAt: z.record(z.string(), z.string()).default({}),

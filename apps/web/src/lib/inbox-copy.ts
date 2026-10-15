@@ -21,9 +21,12 @@ function isPhone(origin: string): boolean {
   return origin === "ios";
 }
 
-/** The quiet line under a release whose files are still on their way: not an error. */
-export function arrivingLine(origin: string): string {
-  return isPhone(origin) ? "Still arriving from your phone…" : "Still arriving from that device…";
+/** The one quiet line at the bottom of the tray while some releases are still being sent (not an
+ * error). The phone is named only when every arriving row came from it. */
+export function sendingFooter(origins: string[]): string {
+  const several = origins.length > 1;
+  if (!origins.every(isPhone)) return several ? "Still sending these…" : "Still sending this one from that device…";
+  return several ? "Still sending these from your phone…" : "Still sending this one from your phone…";
 }
 
 /** The words for a release whose files never reached the server (#172). */

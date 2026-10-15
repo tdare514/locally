@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { PendingRow } from "../../src/components/PhoneInbox";
+import { orderRows, PendingRow, SendingFooter } from "../../src/components/PhoneInbox";
 import type { PendingFromPhone } from "../../src/shared/types";
 
 const base: PendingFromPhone = {
@@ -45,12 +45,54 @@ describe("PendingRow files states (#172)", () => {
     expect(text).not.toMatch(/arriving|waiting|resync/i);
   });
 
-  it("an arriving row says so quietly, keeps Send, and shows no Resync", () => {
+  it("an arriving row is greyed out with three dots, cannot be sent, and shows no Resync", () => {
     const { html, text } = render({ ...base, filesState: "arriving" });
-    expect(text).toContain("Still arriving from your phone…");
-    expect(html).toContain('aria-label="Send Phone Song to Spotify"');
-    expect(text).not.toMatch(/resync|never reached/i);
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("Send Phone Song to Spotify");
+    expect(html).not.toContain("group/send");
+    expect(html).toContain("opacity-50 grayscale");
+    expect(html.match(/sending-dots/g)).toHaveLength(1);
+    expect(html.match(/h-1\.5 w-1\.5 rounded-full/g)).toHaveLength(3);
+    expect(html).not.toContain("<svg"); // no music note or plus
+    // Title and artist stay readable in muted colours.
+    expect(text).toContain("Phone Song");
+    expect(text).toContain("Phone Artist");
+    expect(text).toContain("1 track");
+    expect(html).toContain("text-text-muted\">Phone Song");
+    expect(html).toContain("text-text-dim");
+    expect(html).toContain("sr-only");
+    expect(text).toContain("Still being sent from your phone.");
+    expect(text).not.toMatch(/resync|never reached|Still arriving/i);
     expect(html).not.toMatch(/text-danger|role="alert"/);
+  });
+
+  it("orders ready, then waiting, then arriving, keeping the order within each group", () => {
+    const row = (id: string, filesState?: PendingFromPhone["filesState"]): PendingFromPhone => ({
+      ...base,
+      id,
+      ...(filesState ? { filesState } : {}),
+    });
+    const ordered = orderRows([
+      row("a1", "arriving"),
+      row("w1", "waiting"),
+      row("r1"),
+      row("a2", "arriving"),
+      row("r2"),
+      row("w2", "waiting"),
+    ]);
+    expect(ordered.map((p) => p.id)).toEqual(["r1", "r2", "w1", "w2", "a1", "a2"]);
+  });
+
+  it("shows the footer once when rows are arriving, and not at all otherwise", () => {
+    const foot = (pending: PendingFromPhone[]) =>
+      renderToStaticMarkup(createElement(SendingFooter, { pending })).replace(/<[^>]+>/g, "");
+    const arriving = (id: string, origin = "ios"): PendingFromPhone => ({ ...base, id, origin, filesState: "arriving" });
+    expect(foot([arriving("a")])).toBe("Still sending this one from your phone…");
+    expect(foot([arriving("a"), arriving("b")])).toBe("Still sending these from your phone…");
+    expect(foot([arriving("a", "web")])).toBe("Still sending this one from that device…");
+    expect(foot([arriving("a"), arriving("b", "web")])).toBe("Still sending these…");
+    expect(foot([base, { ...base, id: "w", filesState: "waiting" }])).toBe("");
+    expect(foot([])).toBe("");
   });
 
   it("a waiting phone row shows the copy and the Resync button, and offers no Send", () => {
@@ -95,7 +137,7 @@ describe("PendingRow files states (#172)", () => {
     const asked = render({ ...base, origin: "web", filesState: "waiting" }, { outcome: "asked" });
     expect(asked.text).toContain("Asked that device to send it again. Open Locally there to finish.");
     expect(render({ ...base, origin: "web", filesState: "arriving" }).text).toContain(
-      "Still arriving from that device…"
+      "Still being sent from your other device."
     );
   });
 

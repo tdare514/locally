@@ -70,7 +70,7 @@ electron/build/licenses/  # committed LGPL/licence texts and SOURCES.md; shipped
 electron/vendor/          # git-ignored: the built ffmpeg binary, per uname -m arch
 src/proxy.ts              # loopback-only + same-origin CSRF guard (Next middleware)
 src/lib/api-client.ts     # client-side typed fetch wrappers (imports src/shared/types)
-src/lib/inbox-copy.ts     # tray title, the origin label under a pending release ("from your iPhone", "from the web", "from another device"; #185), and the "Still arriving" / "Waiting on your phone" copy (#172)
+src/lib/inbox-copy.ts     # tray title, the origin label under a pending release ("from your iPhone", "from the web", "from another device"; #185), and the "Still sending…" footer / "Waiting on your phone" copy (#172)
 src/lib/crop-geometry.ts  # pure: square/original crop geometry, mirrors iOS ImageCropper.swift
 src/lib/crop-image.ts     # crops and downscales image files, respects EXIF orientation
 src/components/**         # UI, unaffected by this architecture

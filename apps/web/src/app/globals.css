@@ -448,6 +448,26 @@ body {
   .import-pill:focus-visible .import-plus {
     animation: none;
   }
+  .sending-dots span {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* The three dots on a tray row whose files are still being sent: opacity only, one then two then
+   three, a 1.2s loop with each dot starting 0.2s after the last. */
+.sending-dots span {
+  animation: sending-dot 1.2s ease-in-out infinite;
+}
+.sending-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.sending-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes sending-dot {
+  0%, 60%, 100% { opacity: 0.25; }
+  30% { opacity: 1; }
 }
 
 .cover-in {

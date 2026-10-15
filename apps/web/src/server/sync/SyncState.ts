@@ -6,6 +6,8 @@ export interface MissingMark {
   firstSeenMissingAt: string;
   /** True once a later check listed them as missing again, so they have not arrived: "Waiting". */
   stillMissing: boolean;
+  /** ISO time a pull delivered a newer version of this release while it was missing: the phone re-sent it. */
+  resentAt?: string;
 }
 
 /**

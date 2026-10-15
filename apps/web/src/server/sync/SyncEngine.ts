@@ -42,14 +42,18 @@ export const MISSING_CHECK_SPACING_MS = 10 * 60_000;
 /** A release whose record is this old and whose files are still missing has "never reached" the server. */
 export const NEVER_REACHED_AFTER_MS = 60 * 60_000;
 
+/** After the phone re-sends a release, the next files-missing check is due within this long. */
+export const RESENT_RECHECK_MS = 2 * 60_000;
+
 /**
  * Where a pending release's files stand. No mark (the check did not list it, or never ran) is the
  * normal case. A mark is "arriving" on a release's first sighting while its record is under an hour
- * old, and "waiting" once a later check lists it again or the record is an hour old.
+ * old, and "waiting" once a later check lists it again or the record is an hour old (counted from
+ * the phone's re-send when there was one).
  */
 function filesStateFor(record: SyncRecord, mark: MissingMark | undefined, nowMs: number): PendingFilesState | undefined {
   if (!mark) return undefined;
-  const ageMs = nowMs - Date.parse(record.updatedAt);
+  const ageMs = nowMs - Date.parse(mark.resentAt ?? record.updatedAt);
   return mark.stillMissing || ageMs >= NEVER_REACHED_AFTER_MS ? "waiting" : "arriving";
 }
 
@@ -102,8 +106,8 @@ export class SyncEngine implements ReleaseSyncHooks {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   /** So a batch the service keeps refusing logs once, not on every reconcile. */
   private loggedPlayRejection = false;
-  /** When the files-missing check last ran (#172): in memory, so a restart simply checks again. */
-  private lastMissingCheckMs: number | null = null;
+  /** When the files-missing check is next due (#172); null is due now. In memory, so a restart simply checks again. */
+  private nextMissingCheckMs: number | null = null;
 
   constructor(
     private readonly settings: SettingsStore,
@@ -343,7 +347,20 @@ export class SyncEngine implements ReleaseSyncHooks {
           // Any origin but "mac" is another device ("ios", "web", or one this build has never
           // heard of): offered in the tray, never mistaken for this Mac's own.
           if (record.origin !== "mac") {
+            const wasMissing = record.id in state.pendingFromPhone && record.id in state.missingFiles;
             state.pendingFromPhone[record.id] = record;
+            if (wasMissing) {
+              // The phone re-sent it: show "arriving" again and look again soon.
+              const nowMs = this.now().getTime();
+              state.missingFiles[record.id] = {
+                firstSeenMissingAt: new Date(nowMs).toISOString(),
+                stillMissing: false,
+                resentAt: new Date(nowMs).toISOString(),
+              };
+              const soon = nowMs + RESENT_RECHECK_MS;
+              this.nextMissingCheckMs =
+                this.nextMissingCheckMs === null ? null : Math.min(this.nextMissingCheckMs, soon);
+            }
           }
           continue;
         }
@@ -550,10 +567,10 @@ export class SyncEngine implements ReleaseSyncHooks {
     if (Object.keys((await this.syncState.get()).pendingFromPhone).length === 0) return;
 
     const nowMs = this.now().getTime();
-    const sinceLast = this.lastMissingCheckMs === null ? Infinity : nowMs - this.lastMissingCheckMs;
-    // A negative gap means the clock moved back; check rather than wait out the difference.
-    if (sinceLast >= 0 && sinceLast < MISSING_CHECK_SPACING_MS) return;
-    this.lastMissingCheckMs = nowMs;
+    // A due time further off than one spacing means the clock moved back; check rather than wait.
+    const untilDue = this.nextMissingCheckMs === null ? 0 : this.nextMissingCheckMs - nowMs;
+    if (untilDue > 0 && untilDue <= MISSING_CHECK_SPACING_MS) return;
+    this.nextMissingCheckMs = nowMs + MISSING_CHECK_SPACING_MS;
 
     let result;
     try {
@@ -570,7 +587,12 @@ export class SyncEngine implements ReleaseSyncHooks {
       if (!listed.has(id)) continue;
       const earlier = state.missingFiles[id];
       marks[id] = earlier
-        ? { firstSeenMissingAt: earlier.firstSeenMissingAt, stillMissing: true }
+        ? {
+            ...earlier,
+            // An early re-check after a re-send must not flip it to waiting mid-upload.
+            stillMissing:
+              earlier.stillMissing || nowMs - Date.parse(earlier.firstSeenMissingAt) >= MISSING_CHECK_SPACING_MS,
+          }
         : { firstSeenMissingAt: new Date(nowMs).toISOString(), stillMissing: false };
     }
     state.missingFiles = marks;
@@ -590,6 +612,7 @@ export class SyncEngine implements ReleaseSyncHooks {
     if (!settings.sync?.deviceToken) {
       throw new PublicError("Sign in to sync first");
     }
+    this.nextMissingCheckMs = null;
     await this.reconcile();
     const api = this.apiFactory(settings.sync.baseUrl, settings.sync.deviceToken);
     try {
@@ -613,7 +636,13 @@ export class SyncEngine implements ReleaseSyncHooks {
       throw new NotFoundError(`No pending release ${id} from your phone`);
     }
     // The tray never offers Send here; this stops a stale tray from walking into the 404 below.
-    if (filesStateFor(record, state.missingFiles[id], this.now().getTime()) === "waiting") {
+    const filesState = filesStateFor(record, state.missingFiles[id], this.now().getTime());
+    if (filesState === "arriving") {
+      throw new PublicError(
+        record.origin === "ios" ? "Your phone is still sending this one." : "That device is still sending this one."
+      );
+    }
+    if (filesState === "waiting") {
       throw new PublicError(
         "This song's files never reached the server. Use Resync in the tray to ask for them again."
       );
