@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import { z } from "zod";
 import { playsFilePath, settingsDir } from "../config/paths";
 import { emptyPlayCounts, type PlayCounts, type PlayCountStore } from "./PlayCountStore";
+import { cleanStoredDays, localDay, pruneDays } from "./playDays";
 
 const FILE_MODE = 0o600;
 
@@ -13,6 +14,8 @@ const PlayCountsSchema = z.object({
       releaseId: z.string(),
       count: z.number().int().min(0),
       pushed: z.number().int().min(0),
+      // Read loosely, then cleaned by `cleanStoredDays`: a bad `days` must never cost the totals (#200).
+      days: z.unknown().optional(),
     }),
   ),
 });
@@ -23,6 +26,15 @@ export class FilePlayCountStore implements PlayCountStore {
   private queue: Promise<unknown> = Promise.resolve();
   /** In memory only: bumped by `resetPushed` so a push that began before it can't mark anything. */
   private epoch = 0;
+
+  /**
+   * `now` and `timeZone` decide which day is "today" for dropping day buckets older than 400 days
+   * when the file is written; tests inject them, the app uses the system clock and zone.
+   */
+  constructor(
+    private readonly now: () => number = Date.now,
+    private readonly timeZone?: string,
+  ) {}
 
   async get(): Promise<PlayCounts> {
     const file = playsFilePath();
@@ -40,15 +52,25 @@ export class FilePlayCountStore implements PlayCountStore {
       return emptyPlayCounts();
     }
     const parsed = PlayCountsSchema.safeParse(json);
-    return parsed.success ? parsed.data : emptyPlayCounts();
+    if (!parsed.success) return emptyPlayCounts();
+    const tracks: PlayCounts["tracks"] = {};
+    for (const [trackId, entry] of Object.entries(parsed.data.tracks)) {
+      const days = cleanStoredDays(entry.days);
+      tracks[trackId] = days
+        ? { releaseId: entry.releaseId, count: entry.count, pushed: entry.pushed, days }
+        : { releaseId: entry.releaseId, count: entry.count, pushed: entry.pushed };
+    }
+    return { version: 1, tracks };
   }
 
-  increment(trackId: string, releaseId: string): Promise<void> {
+  increment(trackId: string, releaseId: string, day: string): Promise<void> {
     return this.mutate((counts) => {
       const entry = counts.tracks[trackId];
+      const days = { ...entry?.days };
+      days[day] = (days[day] ?? 0) + 1;
       counts.tracks[trackId] = entry
-        ? { ...entry, releaseId, count: entry.count + 1 }
-        : { releaseId, count: 1, pushed: 0 };
+        ? { ...entry, releaseId, count: entry.count + 1, days }
+        : { releaseId, count: 1, pushed: 0, days };
     });
   }
 
@@ -94,11 +116,23 @@ export class FilePlayCountStore implements PlayCountStore {
   }
 
   private async write(counts: PlayCounts): Promise<void> {
+    this.dropOldDays(counts);
     await fs.mkdir(settingsDir(), { recursive: true, mode: 0o700 });
     const file = playsFilePath();
     const tmp = `${file}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     await fs.writeFile(tmp, JSON.stringify(counts, null, 2), { encoding: "utf-8", mode: FILE_MODE });
     await fs.chmod(tmp, FILE_MODE);
     await fs.rename(tmp, file);
+  }
+
+  /** Day buckets older than 400 days go when the file is written; the all-time counts stay. */
+  private dropOldDays(counts: PlayCounts): void {
+    const today = localDay(this.now(), this.timeZone);
+    for (const entry of Object.values(counts.tracks)) {
+      if (!entry.days) continue;
+      const days = pruneDays(entry.days, today);
+      if (days) entry.days = days;
+      else delete entry.days;
+    }
   }
 }

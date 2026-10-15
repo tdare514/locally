@@ -8,11 +8,13 @@ export class FakePlayCountStore implements PlayCountStore {
     return structuredClone(this.counts);
   }
 
-  async increment(trackId: string, releaseId: string): Promise<void> {
+  async increment(trackId: string, releaseId: string, day: string): Promise<void> {
     const entry = this.counts.tracks[trackId];
+    const days = { ...entry?.days };
+    days[day] = (days[day] ?? 0) + 1;
     this.counts.tracks[trackId] = entry
-      ? { ...entry, releaseId, count: entry.count + 1 }
-      : { releaseId, count: 1, pushed: 0 };
+      ? { ...entry, releaseId, count: entry.count + 1, days }
+      : { releaseId, count: 1, pushed: 0, days };
   }
 
   async removeRelease(releaseId: string): Promise<void> {
@@ -41,7 +43,7 @@ export class FakePlayCountStore implements PlayCountStore {
   }
 
   /** Test helper: set an entry directly. */
-  seed(trackId: string, releaseId: string, count: number, pushed = 0): void {
-    this.counts.tracks[trackId] = { releaseId, count, pushed };
+  seed(trackId: string, releaseId: string, count: number, pushed = 0, days?: Record<string, number>): void {
+    this.counts.tracks[trackId] = days ? { releaseId, count, pushed, days } : { releaseId, count, pushed };
   }
 }
