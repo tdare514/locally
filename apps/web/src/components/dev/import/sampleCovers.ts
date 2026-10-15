@@ -1,7 +1,7 @@
 /**
  * Sample covers for the #159 import prototype (dev only): square, no text, no scripts, no
  * external references, drawn here so the prototype needs no asset in `public/`. Each cover also
- * has a pre-blurred, washed-out copy (`blurSrc`) for the "Develop" beat, which cross-fades
+ * has a pre-blurred, washed-out copy (`blurSrc`) for the develop beat, which cross-fades
  * opacity between two stacked images instead of animating a filter on a large one.
  */
 export interface SampleCover {
@@ -10,6 +10,8 @@ export interface SampleCover {
   src: string;
   /** The same artwork with the blur and desaturation baked into the image. */
   blurSrc: string;
+  /** A lighter version of `blurSrc`, for the disc's centre label while it is undeveloped. */
+  labelSrc: string;
 }
 
 interface Drawing {
@@ -50,7 +52,13 @@ const DRAWINGS: Drawing[] = [
 
 const OPEN = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600">`;
 // Blur, drain most of the colour, then lift the blacks: a print that has barely started to show.
-const DEVELOPING = `<filter id="dev" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="26"/><feColorMatrix type="saturate" values="0.18"/><feColorMatrix type="matrix" values="0.8 0 0 0 0.1  0 0.8 0 0 0.1  0 0 0.8 0 0.1  0 0 0 1 0"/></filter>`;
+// The disc label is a small print of the same art, so its version is blurred less and drained
+// less: its shapes still read while the disc turns.
+function developing(blur: number, saturation: number, gain: number, lift: number): string {
+  return `<filter id="dev" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB"><feGaussianBlur stdDeviation="${blur}"/><feColorMatrix type="saturate" values="${saturation}"/><feColorMatrix type="matrix" values="${gain} 0 0 0 ${lift}  0 ${gain} 0 0 ${lift}  0 0 ${gain} 0 ${lift}  0 0 0 1 0"/></filter>`;
+}
+const DEVELOPING = developing(26, 0.18, 0.8, 0.1);
+const DEVELOPING_LABEL = developing(8, 0.4, 0.9, 0.05);
 
 function dataUri(svg: string): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
@@ -60,4 +68,5 @@ export const SAMPLE_COVERS: SampleCover[] = DRAWINGS.map(({ id, defs, body }) =>
   id,
   src: dataUri(`${OPEN}<defs>${defs}</defs>${body}</svg>`),
   blurSrc: dataUri(`${OPEN}<defs>${defs}${DEVELOPING}</defs><g filter="url(#dev)">${body}</g></svg>`),
+  labelSrc: dataUri(`${OPEN}<defs>${defs}${DEVELOPING_LABEL}</defs><g filter="url(#dev)">${body}</g></svg>`),
 }));

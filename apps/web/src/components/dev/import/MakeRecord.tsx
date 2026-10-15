@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import RecordSleeve from "../../RecordSleeve";
 import TrackList, { type EditableTrack } from "../../TrackList";
 import CoverSleeve from "./CoverSleeve";
@@ -15,7 +15,8 @@ interface MakeRecordProps {
   /** The finished record, reached by letting the beat play out or by jumping to its end. Switching
    * to it remounts the record, so the disc lands in the sleeve at once instead of gliding. */
   finished: boolean;
-  /** The cover for the disc's centre label; it appears as the disc starts to turn. */
+  /** The art for the disc's centre label: the undeveloped print while the beat runs (the CSS
+   * develops it with the sleeve), the cover itself once the record is finished. */
   labelUrl: string | null;
   onPickCover: () => void;
 }
@@ -82,6 +83,10 @@ export default function MakeRecord({
   // The wrapper's class is how the beat reaches the disc inside RecordSleeve.
   const stateClass = cover === null ? "" : beat ? "imp-beat" : "imp-rest";
 
+  // The sharp label art, for the CSS that develops the label over its undeveloped print.
+  const labelStyle =
+    cover && beat ? ({ "--imp-label-sharp": `url("${cover.src}")` } as CSSProperties) : undefined;
+
   function addSampleTrack() {
     setTracks((t) => [...t, { key: `n${nextKey.current++}`, title: `Track ${t.length + 1}` }]);
   }
@@ -90,7 +95,7 @@ export default function MakeRecord({
     <div className={`${enter ? "imp-page-in " : ""}mx-auto flex max-w-[920px] flex-col gap-12 pb-16`}>
       <div className="flex flex-col gap-12 lg:grid lg:grid-cols-[minmax(0,1fr)_13rem] lg:items-start lg:gap-x-10">
         <header className="flex flex-col gap-8 pt-2 lg:col-start-1 lg:row-start-1 lg:pt-4">
-          <div key={finished ? "end" : "run"} className={stateClass}>
+          <div key={finished ? "end" : "run"} className={stateClass} style={labelStyle}>
             <RecordSleeve labelUrl={labelUrl} spin={0}>
               <CoverSleeve cover={cover} beat={beat} onPick={onPickCover} />
             </RecordSleeve>

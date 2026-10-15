@@ -36,13 +36,10 @@ const INVITE_PALETTE: AmbientPalette = {
 
 /* The beat's clock, in ms from the moment the cover is chosen. The keyframes in globals.css
  * (.imp-cover, .imp-sharp, .record-face, .record-disc under .imp-beat) hold the rest of it: slide
- * 0 for 400, disc turn 160 for 520, develop 480 for 560, disc tucks in 960 for 560. */
+ * 0 for 420, disc turn 280 for 460, develop 740 for 560, disc tucks in 1360 for 500. */
 /** The colour wash starts with the develop and then uses the backdrop's own 900ms fade. */
-const WASH_AT = 480;
+const WASH_AT = 740;
 const WASH_MS = 900;
-/** The disc's centre label takes the cover when the disc starts to turn. It is the one asymmetric
- * thing on the disc, so it is what makes the turn visible (the blurred copy is too washed out to). */
-const LABEL_AT = 160;
 
 const noop = () => {};
 
@@ -139,8 +136,9 @@ export default function ImportPrototype({ stage, t, coverIndex, bar }: ImportPro
     else if (frozen) palette = mixPalette(INVITE_PALETTE, live, smooth(Math.min(1, Math.max(0, (t - WASH_AT) / WASH_MS))));
     else if (washOn) palette = live;
   }
-  const labelOn = useAfter(LABEL_AT, beat, t);
-  const labelUrl = sample && (finished || labelOn) ? sample.src : null;
+  // The disc label carries the undeveloped print (a lighter blur than the sleeve's, so its shapes
+  // read while the disc turns) and develops with the sleeve; see .record-label::before.
+  const labelUrl = !sample ? null : finished ? sample.src : sample.labelSrc;
 
   function clearTimer() {
     if (timer.current !== null) window.clearTimeout(timer.current);
