@@ -667,8 +667,9 @@ body {
  * ------------------------------------------------------------------------- */
 :root {
   --btn-ease: cubic-bezier(0.16, 1, 0.3, 1);
-  /* The Save glow where no cover sets --btn-tint: a clear, light sky blue, lighter than the accent. */
-  --btn-tint-default: rgb(160 206 255);
+  /* The Save glow where no cover sets --btn-tint: a clear, light sky blue, kept faint so on a dark
+     panel it lifts the glass as gently as a cover's own colour does on its wash. */
+  --btn-tint-default: rgb(176 212 255 / 0.32);
 }
 
 /* Shared by every button. */
