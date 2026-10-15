@@ -733,7 +733,7 @@ function LibraryEmptyState({
     <div className="mx-auto flex min-h-[min(70vh,640px)] max-w-lg flex-col items-center px-4 pb-8 pt-10 text-center">
       <div className="flex flex-1 flex-col items-center justify-center">
         <EmptyDiagram />
-        <p className="mt-9 text-xs font-bold uppercase tracking-[0.18em] text-accent">
+        <p className="mt-9 text-sm font-semibold text-accent">
           Your library
         </p>
         <h1 className="mt-2 text-4xl font-bold tracking-[-0.02em] text-text">
