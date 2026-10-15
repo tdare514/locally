@@ -247,6 +247,11 @@ enum Theme {
         static let inlineFieldFocusFade: Double = 0.15
         /// Empty-sleeve caption spacing.
         static let sleeveCaptionPadding: CGFloat = 16
+        /// The cover sheet's recent covers: square thumbnails in a scrolling row.
+        static let recentCoverSize: CGFloat = 68
+        static let recentCoverGap: CGFloat = 12
+        /// Height the sheet's drag indicator takes above the content.
+        static let coverSheetGrabberRoom: CGFloat = 24
     }
 
     /// Opaque black tab and navigation bars, so a bright cover scrolling
