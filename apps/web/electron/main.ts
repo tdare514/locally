@@ -25,6 +25,7 @@ const userDataOverride = process.env.LOCALLY_DESKTOP_USER_DATA?.trim();
 app.setPath("userData", userDataOverride || path.join(app.getPath("appData"), "Locally"));
 
 let child: ChildProcess | null = null;
+let quitting = false;
 let killTimer: NodeJS.Timeout | null = null;
 let mainWindow: BrowserWindow | null = null;
 // Set once the server answers; `activate` ignores Dock clicks before that.
@@ -114,7 +115,16 @@ async function startServer(): Promise<string> {
   child = proc;
   pipeLines(proc.stdout!, (l) => console.log(`[server] ${l}`));
   pipeLines(proc.stderr!, (l) => console.error(`[server] ${l}`));
-  proc.on("exit", (code, signal) => console.log(`[server] exited code=${code} signal=${signal}`));
+  proc.on("exit", (code, signal) => {
+    console.log(`[server] exited code=${code} signal=${signal}`);
+    // The app now outlives its window (#105). If the server dies after startup, quit rather
+    // than sit in the Dock with sync and play counting silently stopped and a Dock click
+    // opening a window on a dead port. Start-up failures are handled by waitForServer/fail.
+    if (!quitting && !SMOKE && serverUrl) {
+      console.error("[desktop] server stopped unexpectedly; quitting");
+      app.quit();
+    }
+  });
 
   const url = `http://127.0.0.1:${port}/`;
   await waitForServer(url, { timeoutMs: 20000, isAlive: () => proc.exitCode === null && proc.signalCode === null });
@@ -179,7 +189,10 @@ app.on("window-all-closed", () => {
 app.on("activate", () => {
   if (serverUrl && BrowserWindow.getAllWindows().length === 0) showWindow(serverUrl);
 });
-app.on("before-quit", stopChild);
+app.on("before-quit", () => {
+  quitting = true;
+  stopChild();
+});
 app.on("will-quit", stopChild);
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
   process.on(sig, () => {
