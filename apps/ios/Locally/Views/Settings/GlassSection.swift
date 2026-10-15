@@ -207,18 +207,23 @@ struct SoftPressStyle: ButtonStyle {
 }
 
 /// A text field for inside a glass card: a faint fill, no outline at rest and a soft accent ring
-/// while typing. The label is for VoiceOver; the placeholder is what is drawn.
+/// while typing. The label is for VoiceOver; the placeholder is what is drawn. Never capitalised or
+/// autocorrected: it holds an email, a code or an address.
 struct GlassField: View {
     let label: String
     var placeholder = ""
     @Binding var text: String
     var keyboardType: UIKeyboardType = .default
+    var contentType: UITextContentType?
     @FocusState private var isFocused: Bool
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
         TextField(placeholder, text: $text)
             .keyboardType(keyboardType)
+            .textContentType(contentType)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
             .focused($isFocused)
             .font(Theme.ScaledFont.input)
             .foregroundStyle(Theme.primaryText)

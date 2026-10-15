@@ -115,7 +115,7 @@ struct SettingsHeroCard: View {
                 .font(Theme.ScaledFont.caption)
                 .foregroundStyle(Theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-            GlassField(label: Copy.Sync.codeFieldLabel, placeholder: Copy.Sync.codePlaceholder, text: $code, keyboardType: .numberPad)
+            GlassField(label: Copy.Sync.codeFieldLabel, placeholder: Copy.Sync.codePlaceholder, text: $code, keyboardType: .numberPad, contentType: .oneTimeCode)
             Button {
                 Task { await signIn() }
             } label: {
@@ -136,7 +136,7 @@ struct SettingsHeroCard: View {
             }
             .buttonStyle(HeroButtonStyle(isPrimary: false))
         } else {
-            GlassField(label: Copy.Sync.emailFieldLabel, placeholder: Copy.Sync.emailPlaceholder, text: $email, keyboardType: .emailAddress)
+            GlassField(label: Copy.Sync.emailFieldLabel, placeholder: Copy.Sync.emailPlaceholder, text: $email, keyboardType: .emailAddress, contentType: .emailAddress)
             Button {
                 Task { await sendCode() }
             } label: {

@@ -60,7 +60,9 @@ private struct GlassIconChoice: View {
     let name: String
     let isSelected: Bool
     let action: () -> Void
-    @ScaledMetric(relativeTo: .body) private var side: CGFloat = 64
+    @ScaledMetric(relativeTo: .body) private var scaledSide: CGFloat = 64
+    /// Grows with text, but stops short of filling the card at the largest sizes.
+    private var side: CGFloat { min(scaledSide, 96) }
 
     var body: some View {
         Button(action: action) {

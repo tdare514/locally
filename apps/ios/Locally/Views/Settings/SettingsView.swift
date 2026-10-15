@@ -15,6 +15,9 @@ struct SettingsView: View {
     @State private var errorMessage: String?
 
     private static var edgeFade: CGFloat { 22 }
+    /// The bottom fade follows the safe area (home indicator, tab bar), but never more than this,
+    /// so the keyboard's inset can't stretch it over the sign-in form.
+    private static var maxBottomFade: CGFloat { 90 }
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
@@ -52,7 +55,7 @@ struct SettingsView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .scrollIndicators(.hidden)
-                .mask(edgeMask(bottom: max(Self.edgeFade, geo.safeAreaInsets.bottom)))
+                .mask(edgeMask(bottom: min(max(Self.edgeFade, geo.safeAreaInsets.bottom), Self.maxBottomFade)))
             }
         }
         // The tab bar sits straight on the backdrop (no black block, no line); the fade above keeps

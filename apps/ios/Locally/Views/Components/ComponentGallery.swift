@@ -6,7 +6,7 @@ import SwiftUI
 struct ComponentGallery: View {
     static let names = ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "sleeve-bright", "sleeve-dark", "backdrop-a", "backdrop-b", "inline-field", "cover-sheet",
         // #160: the studio backdrop and the real Settings with sample sync state.
-        "studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-scrolled"]
+        "studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -25,7 +25,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-scrolled"].contains(name)
+        ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled"].contains(name)
     }
 
     var body: some View {
@@ -96,6 +96,9 @@ struct ComponentGallery: View {
             Self.settings(signedIn: true)
         case "settings-signed-out":
             Self.settings(signedIn: false)
+        case "settings-code-sent":
+            // The sign-in's second step (a code was sent), without sending one.
+            Self.settings(signedIn: false, codeSentTo: "sample@example.com")
         case "settings-scrolled":
             // Opens at the bottom of the page, to see the lower groups and the edge fade.
             Self.settings(signedIn: true).defaultScrollAnchor(.bottom)
@@ -106,7 +109,7 @@ struct ComponentGallery: View {
 
     /// The real Settings in a tab bar, with sample state: no container, so nothing reaches a
     /// service or the network.
-    private static func settings(signedIn: Bool) -> some View {
+    private static func settings(signedIn: Bool, codeSentTo: String? = nil) -> some View {
         TabView {
             SettingsView()
                 .tabItem { Label(Copy.Settings.title, systemImage: "gearshape") }
@@ -114,11 +117,15 @@ struct ComponentGallery: View {
         .tint(Theme.accent)
         .environment(FolderStatus(isConnected: true))
         .environment(PurchaseStatus(isFullUnlocked: false))
-        .environment(sampleSyncStatus(signedIn: signedIn))
+        .environment(sampleSyncStatus(signedIn: signedIn, codeSentTo: codeSentTo))
     }
 
-    private static func sampleSyncStatus(signedIn: Bool) -> SyncStatus {
-        guard signedIn else { return SyncStatus() }
+    private static func sampleSyncStatus(signedIn: Bool, codeSentTo: String?) -> SyncStatus {
+        guard signedIn else {
+            let status = SyncStatus()
+            status.codeSentTo = codeSentTo
+            return status
+        }
         let status = SyncStatus(
             signedIn: true,
             email: "sample@example.com",

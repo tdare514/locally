@@ -35,6 +35,16 @@ struct SyncSettingsSection: View {
                     .buttonStyle(SoftPressStyle())
                     .disabled(isDeletingAccount)
 
+                    // A failed delete lands on the sync error line; show it where it was asked for.
+                    if let lastError = syncStatus.lastError {
+                        Text(lastError)
+                            .font(Theme.ScaledFont.caption)
+                            .foregroundStyle(Theme.danger)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 12)
+                    }
+
                     #if DEBUG
                     GlassDivider()
                     DevelopmentServerField().padding(16)
