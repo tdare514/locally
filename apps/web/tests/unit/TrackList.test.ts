@@ -77,6 +77,33 @@ describe("TrackList markup", () => {
     expect(render({ tracks: tracks.map((t) => ({ ...t, discNumber: 1 })) })).not.toContain("data-disc-heading");
   });
 
+  it("shows each track's total plays at the right, quietly, before the grip (#107)", () => {
+    const html = render({ plays: { "t-c": 12, "t-a": 1 } });
+    expect([...html.matchAll(/data-plays[^>]*>([^<]*)</g)].map((m) => m[1])).toEqual(["12 plays", "1 play"]);
+    const tag = html.match(/<span[^>]*data-plays[^>]*>/)?.[0] ?? "";
+    expect(tag).toContain("tabular-nums");
+    expect(tag).toContain("text-text-muted");
+    expect(tag).not.toMatch(/uppercase|tracking-/);
+    // Within the first row: after the title field, before its grip.
+    const row = html.slice(html.indexOf('data-key="t-c"'), html.indexOf('data-key="t-a"'));
+    expect(row.indexOf("data-plays")).toBeGreaterThan(row.indexOf("<input"));
+    expect(row.indexOf("data-plays")).toBeLessThan(row.indexOf("data-handle"));
+    // The numbers still read 1, 2, 3 for the drag code to rewrite.
+    expect([...html.matchAll(/data-number[^>]*>(\d+)</g)].map((m) => m[1])).toEqual(["1", "2", "3"]);
+  });
+
+  it("shows nothing for a track with no plays, no entry, or no plays prop", () => {
+    expect(render({ plays: { "t-c": 0 } })).not.toContain("data-plays");
+    expect(render({ plays: { other: 5 } })).not.toContain("data-plays");
+    expect(render()).not.toContain("data-plays");
+  });
+
+  it("shows the plays in the demo's read-only list too, without a grip", () => {
+    const html = render({ readOnly: true, plays: { "t-b": 3 } });
+    expect(html).toContain("3 plays");
+    expect(html).not.toContain("data-handle");
+  });
+
   it("says so when there are no tracks", () => {
     expect(render({ tracks: [] })).toContain("No tracks yet.");
   });

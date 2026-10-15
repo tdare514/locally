@@ -23,6 +23,8 @@ import {
   type VerifyCodeResult,
 } from "../../src/server/sync/SyncApi";
 import { toSyncRecord, type SyncRecord } from "../../src/server/sync/SyncRecord";
+import type { PlayEntry } from "../../src/server/plays/playsWire";
+import { FakePlayCountStore } from "./FakePlayCountStore";
 
 /** In-memory `SettingsStore` fake, mutable so tests can flip sign-in state. */
 class FakeSettingsStore implements SettingsStore {
@@ -112,6 +114,12 @@ class FakeSyncApi implements SyncApi {
   listReleasesCallCount = 0;
   meCallCount = 0;
   downloadUrlCalls: { id: string; name: string }[] = [];
+  /** Every accepted `pushPlays` request, in order. */
+  playPushes: PlayEntry[][] = [];
+  /** "put" / "plays" in the order the calls were accepted, to check plays go after their release. */
+  order: string[] = [];
+  private failPlayPushCalls = new Set<number>();
+  private playPushAttempts = 0;
 
   private conflictOnce = new Set<string>();
   private serverRecords = new Map<string, SyncRecord & { version: number }>();
@@ -171,6 +179,7 @@ class FakeSyncApi implements SyncApi {
       throw new SyncConflictError("conflict");
     }
     this.putCalls.push(record);
+    this.order.push("put");
     this.version++;
     this.serverRecords.set(record.id, { ...record, version: this.version });
     return { version: this.version };
@@ -211,6 +220,20 @@ class FakeSyncApi implements SyncApi {
     return { url: `fake://${id}/${name}`, expiresAt: new Date(Date.now() + 60_000).toISOString() };
   }
 
+  async pushPlays(counts: PlayEntry[]) {
+    this.playPushAttempts++;
+    if (this.failPlayPushCalls.has(this.playPushAttempts)) {
+      throw new Error(`FakeSyncApi: injected failure on pushPlays call #${this.playPushAttempts}`);
+    }
+    this.playPushes.push(counts);
+    this.order.push("plays");
+    return { accepted: counts.length, ignored: 0 };
+  }
+
+  async releasePlays() {
+    return { tracks: [] };
+  }
+
   async uploadFile(upload: SyncUploadTarget, filePath: string): Promise<void> {
     this.uploadCalls.push({ name: upload.name, filePath });
     const bytes = await fs.readFile(filePath);
@@ -241,6 +264,11 @@ class FakeSyncApi implements SyncApi {
 
   failNextPutWithConflict(id: string): void {
     this.conflictOnce.add(id);
+  }
+
+  /** Throws on the given 1-based `pushPlays` call number (counted across the fake's whole life). */
+  failPlayPushOnCall(callNumber: number): void {
+    this.failPlayPushCalls.add(callNumber);
   }
 
   /** Throws on the given 1-based `listReleases` call number (e.g. `2` fails the second page). */
@@ -843,6 +871,153 @@ describe("SyncEngine", () => {
 
       const status = await engine.status();
       expect(status.lastError).toMatch(/stalled|advanc/i);
+    });
+  });
+
+  describe("play counts (#107)", () => {
+    const RELEASE_ID = "3f2a6c1e-8b7d-4e5a-9c1d-2a4b6c8d0e1f";
+    const trackId = (n: number) => `a1b2c3d4-${String(n).padStart(4, "0")}-4a5b-8c9d-0123456789ab`;
+    let plays: FakePlayCountStore;
+    let playsEngine: SyncEngine;
+
+    beforeEach(() => {
+      plays = new FakePlayCountStore();
+      playsEngine = new SyncEngine(
+        settingsStore,
+        syncState,
+        releaseService,
+        fsSvc,
+        () => api,
+        () => "Toby's MacBook",
+        plays
+      );
+    });
+
+    it("pushes only entries whose count is above what was pushed, as absolute counts", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5, 0); // never pushed
+      plays.seed(trackId(2), RELEASE_ID, 7, 3); // grew since the last push
+      plays.seed(trackId(3), RELEASE_ID, 4, 4); // nothing new
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toEqual([
+        [
+          { releaseId: RELEASE_ID, trackId: trackId(1), count: 5 },
+          { releaseId: RELEASE_ID, trackId: trackId(2), count: 7 },
+        ],
+      ]);
+    });
+
+    it("records pushed on success, so the next reconcile sends nothing", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5);
+
+      await playsEngine.reconcile();
+      expect((await plays.get()).tracks[trackId(1)]).toEqual({ releaseId: RELEASE_ID, count: 5, pushed: 5 });
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toHaveLength(1);
+      expect((await playsEngine.status()).lastError).toBeNull();
+    });
+
+    it("sends a track again when its count grows after a push", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5);
+      await playsEngine.reconcile();
+      await plays.increment(trackId(1), RELEASE_ID);
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toHaveLength(2);
+      expect(api.playPushes[1]).toEqual([{ releaseId: RELEASE_ID, trackId: trackId(1), count: 6 }]);
+    });
+
+    it("sends at most 500 entries per request and marks each request once it is accepted", async () => {
+      for (let i = 1; i <= 1200; i++) plays.seed(trackId(i), RELEASE_ID, 1);
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes.map((batch) => batch.length)).toEqual([500, 500, 200]);
+      const left = Object.values((await plays.get()).tracks).filter((e) => e.count > e.pushed);
+      expect(left).toHaveLength(0);
+    });
+
+    it("leaves entries pending when a push fails, shows the error, and catches up on the next reconcile", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5);
+      api.failPlayPushOnCall(1);
+
+      await playsEngine.reconcile();
+
+      expect((await playsEngine.status()).lastError).toMatch(/injected failure/);
+      expect((await plays.get()).tracks[trackId(1)].pushed).toBe(0);
+      expect(api.playPushes).toEqual([]);
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toHaveLength(1);
+      expect((await plays.get()).tracks[trackId(1)].pushed).toBe(5);
+      expect((await playsEngine.status()).lastError).toBeNull();
+    });
+
+    it("keeps the batches that were accepted when a later batch fails", async () => {
+      for (let i = 1; i <= 600; i++) plays.seed(trackId(i), RELEASE_ID, 2);
+      api.failPlayPushOnCall(2);
+
+      await playsEngine.reconcile();
+
+      const entries = Object.values((await plays.get()).tracks);
+      expect(entries.filter((e) => e.pushed === 2)).toHaveLength(500);
+      expect(entries.filter((e) => e.pushed === 0)).toHaveLength(100);
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes.map((batch) => batch.length)).toEqual([500, 100]);
+      expect(Object.values((await plays.get()).tracks).every((e) => e.pushed === 2)).toBe(true);
+    });
+
+    it("leaves out an entry the service would refuse, without holding back the rest", async () => {
+      plays.seed("not-a-uuid", RELEASE_ID, 3);
+      plays.seed(trackId(1), RELEASE_ID, 2_000_000);
+      plays.seed(trackId(2), RELEASE_ID, 4);
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toEqual([[{ releaseId: RELEASE_ID, trackId: trackId(2), count: 4 }]]);
+      expect((await playsEngine.status()).lastError).toBeNull();
+    });
+
+    it("pushes nothing while signed out, and the counts stay pending", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5);
+      const settings = await settingsStore.get();
+      await settingsStore.set({ ...settings, sync: { ...settings.sync!, deviceToken: null, email: null } });
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toEqual([]);
+      expect((await plays.get()).tracks[trackId(1)]).toEqual({ releaseId: RELEASE_ID, count: 5, pushed: 0 });
+    });
+
+    it("pushes counts after the release records, so the service already holds the release", async () => {
+      const release = await importOne();
+      plays.seed(release.tracks[0].id, release.id, 1);
+
+      await playsEngine.reconcile();
+
+      expect(api.order).toEqual(["put", "plays"]);
+    });
+
+    it("sends everything again after the pushed markers are reset (sign-out, new account)", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5);
+      await playsEngine.reconcile();
+      await plays.resetPushed();
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toHaveLength(2);
+      expect(api.playPushes[1]).toEqual([{ releaseId: RELEASE_ID, trackId: trackId(1), count: 5 }]);
+    });
+
+    it("does not touch plays when no store is wired", async () => {
+      await engine.reconcile();
+      expect(api.playPushes).toEqual([]);
     });
   });
 });

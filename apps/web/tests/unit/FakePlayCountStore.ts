@@ -20,4 +20,20 @@ export class FakePlayCountStore implements PlayCountStore {
       if (entry.releaseId === releaseId) delete this.counts.tracks[id];
     }
   }
+
+  async markPushed(sent: Record<string, number>): Promise<void> {
+    for (const [trackId, count] of Object.entries(sent)) {
+      const entry = this.counts.tracks[trackId];
+      if (entry && count > entry.pushed) entry.pushed = count;
+    }
+  }
+
+  async resetPushed(): Promise<void> {
+    for (const entry of Object.values(this.counts.tracks)) entry.pushed = 0;
+  }
+
+  /** Test helper: set an entry directly. */
+  seed(trackId: string, releaseId: string, count: number, pushed = 0): void {
+    this.counts.tracks[trackId] = { releaseId, count, pushed };
+  }
 }

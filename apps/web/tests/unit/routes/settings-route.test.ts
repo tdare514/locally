@@ -4,6 +4,7 @@ import type { Settings } from "../../../src/shared/types";
 import type { Services } from "../../../src/server/container";
 import { emptySyncState, type SyncState, type SyncStateStore } from "../../../src/server/sync/SyncState";
 import type { SyncRecord } from "../../../src/server/sync/SyncRecord";
+import { FakePlayCountStore } from "../FakePlayCountStore";
 
 let services: Services;
 
@@ -52,12 +53,14 @@ function putRequest(body: unknown): NextRequest {
 
 let syncState: FakeSyncStateStore;
 let playTracker: { setEnabled: ReturnType<typeof vi.fn> };
+let playStore: FakePlayCountStore;
 
 beforeEach(() => {
   settingsValue = { libraryDir: "/tmp/lib", sync: null };
   syncState = new FakeSyncStateStore();
   playTracker = { setEnabled: vi.fn() };
-  services = { settings: new FakeSettingsStore(), syncState, playTracker } as unknown as Services;
+  playStore = new FakePlayCountStore();
+  services = { settings: new FakeSettingsStore(), syncState, playTracker, playStore } as unknown as Services;
 });
 
 describe("GET /api/settings", () => {
@@ -190,6 +193,32 @@ describe("PUT /api/settings", () => {
     const state = await syncState.get();
     expect(state.pushedUpdatedAt).toEqual({});
     expect(state.pendingFromPhone).toEqual({});
+  });
+
+  it("changing sync.baseUrl clears the pushed play markers and keeps the counts (#107)", async () => {
+    settingsValue = {
+      libraryDir: "/tmp/lib",
+      sync: { baseUrl: "http://localhost:4000", deviceToken: "secret-token", email: "a@b.com", lastVersion: 3 },
+    };
+    playStore.seed("t1", "r1", 5, 5);
+
+    const res = await PUT(putRequest({ sync: { baseUrl: "https://sync.example.com" } }));
+    expect(res.status).toBe(200);
+
+    expect((await playStore.get()).tracks).toEqual({ t1: { releaseId: "r1", count: 5, pushed: 0 } });
+  });
+
+  it("re-saving the same sync.baseUrl leaves the pushed play markers alone (#107)", async () => {
+    settingsValue = {
+      libraryDir: "/tmp/lib",
+      sync: { baseUrl: "http://localhost:4000", deviceToken: "secret-token", email: "a@b.com", lastVersion: 3 },
+    };
+    playStore.seed("t1", "r1", 5, 5);
+
+    const res = await PUT(putRequest({ sync: { baseUrl: "http://localhost:4000" } }));
+    expect(res.status).toBe(200);
+
+    expect((await playStore.get()).tracks.t1.pushed).toBe(5);
   });
 
   it("re-saving the same sync.baseUrl leaves pre-seeded local sync state untouched", async () => {

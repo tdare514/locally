@@ -53,6 +53,38 @@ describe("FilePlayCountStore", () => {
     expect(Object.keys((await store.get()).tracks)).toEqual(["t2"]);
   });
 
+  it("markPushed records what was sent, only moves up, and ignores a dropped track", async () => {
+    const store = new FilePlayCountStore();
+    await store.increment("t1", "r1");
+    await store.increment("t1", "r1");
+    await store.markPushed({ t1: 2, gone: 4 });
+    expect((await store.get()).tracks.t1.pushed).toBe(2);
+    await store.markPushed({ t1: 1 });
+    expect((await store.get()).tracks.t1.pushed).toBe(2);
+    expect(Object.keys((await store.get()).tracks)).toEqual(["t1"]);
+  });
+
+  it("a play counted after a push stays pending", async () => {
+    const store = new FilePlayCountStore();
+    await store.increment("t1", "r1");
+    await store.markPushed({ t1: 1 });
+    await store.increment("t1", "r1");
+    expect((await store.get()).tracks.t1).toEqual({ releaseId: "r1", count: 2, pushed: 1 });
+  });
+
+  it("resetPushed clears every marker and keeps every count", async () => {
+    const store = new FilePlayCountStore();
+    await store.increment("t1", "r1");
+    await store.increment("t2", "r2");
+    await store.increment("t2", "r2");
+    await store.markPushed({ t1: 1, t2: 2 });
+    await store.resetPushed();
+    expect((await store.get()).tracks).toEqual({
+      t1: { releaseId: "r1", count: 1, pushed: 0 },
+      t2: { releaseId: "r2", count: 2, pushed: 0 },
+    });
+  });
+
   it("reads an invalid or corrupt file as empty", async () => {
     await fs.mkdir(path.dirname(playsFilePath()), { recursive: true });
     await fs.writeFile(playsFilePath(), JSON.stringify({ version: 1, tracks: { t: { count: "x" } } }));

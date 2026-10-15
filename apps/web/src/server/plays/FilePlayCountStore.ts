@@ -58,6 +58,21 @@ export class FilePlayCountStore implements PlayCountStore {
     });
   }
 
+  markPushed(sent: Record<string, number>): Promise<void> {
+    return this.mutate((counts) => {
+      for (const [trackId, count] of Object.entries(sent)) {
+        const entry = counts.tracks[trackId];
+        if (entry && count > entry.pushed) entry.pushed = count;
+      }
+    });
+  }
+
+  resetPushed(): Promise<void> {
+    return this.mutate((counts) => {
+      for (const entry of Object.values(counts.tracks)) entry.pushed = 0;
+    });
+  }
+
   private mutate(change: (counts: PlayCounts) => void): Promise<void> {
     const run = this.queue.then(async () => {
       const counts = await this.get();

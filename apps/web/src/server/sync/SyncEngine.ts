@@ -8,6 +8,8 @@ import type { SettingsStore } from "../config/SettingsStore";
 import type { FileSystem } from "../fs/FileSystem";
 import type { ReleaseService } from "../releases/ReleaseService";
 import type { ReleaseSyncHooks } from "../releases/ReleaseSyncHooks";
+import type { PlayCountStore } from "../plays/PlayCountStore";
+import { batchPlayEntries, pendingPlayEntries } from "../plays/releasePlays";
 import { fromSyncRecord, toSyncRecord, type SyncRecord } from "./SyncRecord";
 import { RELEASE_PAGE_LIMIT, SyncConflictError, type SyncApi, type SyncFileToUpload } from "./SyncApi";
 import type { SyncStateStore } from "./SyncState";
@@ -64,7 +66,9 @@ export class SyncEngine implements ReleaseSyncHooks {
     private readonly releases: ReleaseService,
     private readonly fs: FileSystem,
     private readonly apiFactory: SyncApiFactory,
-    private readonly deviceName: () => string = () => os.hostname()
+    private readonly deviceName: () => string = () => os.hostname(),
+    /** This Mac's play counts (#107); null in tests that don't care, which skips the play push. */
+    private readonly playStore: PlayCountStore | null = null
   ) {}
 
   // --- ReleaseSyncHooks -----------------------------------------------------
@@ -422,12 +426,31 @@ export class SyncEngine implements ReleaseSyncHooks {
         // Quota is a nice-to-have on the status card; don't fail the whole run for it.
       }
 
+      // After the releases above, so the service already holds the release each count belongs to
+      // (it ignores counts for a release it doesn't have).
+      await this.pushPlays(api);
+
       this.lastError = null;
     } catch (err) {
       this.lastError = err instanceof Error ? err.message : String(err);
     } finally {
       this.lastRunAt = new Date().toISOString();
       this.running = false;
+    }
+  }
+
+  /**
+   * Sends every play count that is ahead of what was last pushed, at most 500 per request, and
+   * records each request as pushed once the service accepts it. A failure throws with the rest
+   * still pending, so the next reconcile (offline, 5xx) picks them up; a count that grew while a
+   * request was in flight stays pending too, because the marker is the value that was sent.
+   */
+  private async pushPlays(api: SyncApi): Promise<void> {
+    if (!this.playStore) return;
+    const pending = pendingPlayEntries(await this.playStore.get());
+    for (const batch of batchPlayEntries(pending)) {
+      await api.pushPlays(batch);
+      await this.playStore.markPushed(Object.fromEntries(batch.map((e) => [e.trackId, e.count])));
     }
   }
 
