@@ -648,7 +648,197 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
- * Buttons (#155): the owner's pick from the three gallery directions, as five classes.
+ * Import, "make a record" (#159). Everything is .imp-*. The descendant selectors reach the disc
+ * inside RecordSleeve from a wrapper class (.imp-beat while the beat runs, .imp-rest once it is
+ * over), so RecordSleeve carries no import styles. lib/import-flow.ts holds the same clock.
+ *
+ * Transform and opacity only (the disc uses the individual `translate` / `rotate` properties, as
+ * the record animations above do). Reduced-motion fallbacks are in the block at the end of the file.
+ * ------------------------------------------------------------------------- */
+
+/* #122: the accent wash. A soft band in the Import pill's colours (accent, with the white glint
+ * the pill flashes on hover) sweeps left to right across the pane, then fades. The clip box is
+ * needed because the pane scrolls: an overflowing child would add a horizontal scrollbar. */
+.imp-wash {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.imp-wash-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 120%;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    color-mix(in srgb, var(--accent) 9%, transparent) 35%,
+    color-mix(in srgb, var(--accent) 38%, transparent) 78%,
+    color-mix(in srgb, color-mix(in srgb, white 35%, var(--accent)) 62%, transparent) 92%,
+    transparent 100%
+  );
+  animation:
+    imp-wash-sweep 700ms cubic-bezier(0.16, 1, 0.3, 1) both,
+    imp-wash-fade 700ms linear both;
+}
+@keyframes imp-wash-sweep {
+  from { transform: translateX(-100%) skewX(-12deg); }
+  to { transform: translateX(-8%) skewX(-12deg); }
+}
+@keyframes imp-wash-fade {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  55% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+/* Then the invitation fades in and rises 6px. */
+.imp-invite {
+  animation: imp-invite-in 480ms cubic-bezier(0.16, 1, 0.3, 1) 280ms both;
+}
+@keyframes imp-invite-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+/* The empty record appears. Fill is `backwards` so no opacity animation outlives it (it would
+ * make the dock's glass sample this element instead of the colour wash). */
+.imp-page-in {
+  animation: imp-fade 260ms ease-out backwards;
+}
+@keyframes imp-fade {
+  from { opacity: 0; }
+}
+/* The sleeve's "Add cover art" gives way as a cover arrives. */
+.imp-empty-out {
+  animation: imp-empty-out 140ms ease-out both;
+}
+@keyframes imp-empty-out {
+  to { opacity: 0; }
+}
+/* The pencil badge comes back once the beat is over. */
+.imp-settle {
+  animation: imp-fade 400ms ease-out backwards;
+}
+
+/* The cover beat, in ms from the moment a cover is chosen, full colour from the first frame
+ * (ImportView holds the colour wash time that goes with it):
+ *    0 for 420  the cover slides in from the right (V1's original slide: 48px and a fade)
+ *  420 for 880  a soft flash over the whole sleeve (.imp-flash) as soon as the slide is done: it
+ *               swells over 300ms to fully white (the cover is consumed), holds 100ms (720 to
+ *               820ms), then fades over 480ms so the colour comes back through it; the
+ *               colour wash starts with it, on the backdrop's own 900ms fade. Warm white, never
+ *               pure, and the spill past the sleeve stays faint
+ * 1340 for 950  once the flash has faded (it ends at 1300), the disc slides all the way into the
+ *               sleeve and turns 240deg as it goes, one motion that eases in gently and settles
+ *               (.record-disc and .record-face; not the snappy expo-out): sealed at 2290
+ * After the beat the disc rests in the sleeve and hovering the record brings it out again (the
+ * `.record:hover` rule above). A cover that replaces another starts with the disc already in the
+ * sleeve (data-replay), so it first eases out (600ms) and then seals as above. */
+.imp-beat,
+.imp-rest {
+  --imp-back: -100px;
+}
+@media (min-width: 40rem) {
+  .imp-beat,
+  .imp-rest {
+    --imp-back: -126px;
+  }
+}
+.imp-cover {
+  animation: imp-slide 420ms cubic-bezier(0.3, 0.5, 0.3, 1) backwards;
+}
+@keyframes imp-slide {
+  from { opacity: 0; transform: translateX(48px); }
+}
+/* Soft warm-white light over the whole sleeve, opaque so that at its midpoint the cover is fully
+ * white, with a faint feathered spill past the edges that fades to nothing within about 20px (it
+ * never goes fully white outside the sleeve). Opacity only; it rests at 0 so nothing is left once
+ * it has run. The curves are not the expo-out house easing: the swell is ease-in-out so it never
+ * pops, and the fade holds the light so the colour returns through it instead of vanishing. */
+.imp-flash {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    circle farthest-corner at 50% 50%,
+    rgb(255 252 246) 0%,
+    rgb(255 248 238) 100%
+  );
+  box-shadow: 0 0 16px 2px rgb(255 248 238 / 0.4);
+  animation: imp-flash 880ms linear 420ms backwards;
+}
+@keyframes imp-flash {
+  0% { opacity: 0; animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1); }
+  34.1% { opacity: 1; }
+  45.5% { opacity: 1; animation-timing-function: cubic-bezier(0.5, 0, 0.7, 1); }
+  100% { opacity: 0; }
+}
+/* The grooves are rotationally symmetric, so the turn is carried by the label's art. */
+.imp-beat .record-face {
+  animation: imp-turn 950ms cubic-bezier(0.33, 0, 0.15, 1) 1340ms backwards;
+}
+@keyframes imp-turn {
+  from { rotate: -240deg; }
+}
+.imp-beat .record-disc,
+.imp-rest .record-disc {
+  translate: var(--imp-back) -50%;
+}
+.imp-rest .record-disc {
+  animation: none;
+}
+.imp-beat .record-disc {
+  animation: imp-away 950ms cubic-bezier(0.33, 0, 0.15, 1) 1340ms backwards;
+}
+@keyframes imp-away {
+  from { translate: 0 -50%; }
+}
+.imp-beat[data-replay="true"] .record-disc {
+  animation: imp-away-replay 2290ms backwards;
+}
+@keyframes imp-away-replay {
+  0% { translate: var(--imp-back) -50%; animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); }
+  26.2% { translate: 0 -50%; }
+  58.5% { translate: 0 -50%; animation-timing-function: cubic-bezier(0.33, 0, 0.15, 1); }
+  100% { translate: var(--imp-back) -50%; }
+}
+
+/* The invitation and the empty record share the library's drifting colour sky (.ambient-space,
+ * rendered by AmbientSpace into the full-window shell by ImportSky) in calm accent tones. It
+ * fades out as the first cover arrives and the pane's cover colours take over. */
+.imp-sky {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.imp-sky[data-sky="out"] {
+  animation: imp-sky-out 500ms ease-out both;
+}
+.imp-sky[data-sky="off"] {
+  display: none;
+}
+@keyframes imp-sky-out {
+  to { opacity: 0; visibility: hidden; }
+}
+/* The pane's cover backdrop fades in over it. Opacity animation with a backwards fill, so nothing
+ * outlives the fade. The wrapper keeps the backdrop's own -1 layer inside it. */
+.imp-backdrop-in {
+  position: absolute;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+}
+.imp-backdrop-in[data-beat="true"] {
+  animation: imp-fade 400ms ease-out backwards;
+}
+
+/* ---------------------------------------------------------------------------
+ * Buttons (#155): the owner's pick from the three gallery directions, as five classes, plus
+ * `.btn-glow` (#159), which goes with `.btn-save`.
  *   .btn-save               the primary. Just its label at rest, no fill or border. On hover it
  *                           lights up into the phone-tray cloud button's glass (`.glass-fake`,
  *                           unchanged) with a mild glow of the cover's colour (--btn-tint, else a
@@ -799,6 +989,82 @@ body {
 }
 .btn-save:disabled {
   opacity: 0.4;
+}
+
+/* ===== Glow: the Import invitation's main button (#159) ===================== */
+/* Used with `.btn-save`, which gives it the shape, the label, the press, the focus ring and the
+   one shimmer pass. At rest it is the phone-tray cloud button's glass (`.glass-fake`'s body, lit
+   top edge and corner highlight), a clear pill on the page. On hover, press or keyboard focus a
+   cloud of fluorescent blue light fills it, as opacity; while it is lit the light drifts slowly
+   (`translate` and `scale` on an oversized layer, clipped by the pill). No backdrop-filter. The
+   rim is a border, not an inset shadow, so the light never covers it. */
+.btn-save.btn-glow {
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-top-color: rgb(255 255 255 / 0.32);
+  background:
+    radial-gradient(120% 70% at 15% -15%, rgb(255 255 255 / 0.18), transparent 60%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.04) 55%);
+}
+/* The light: three soft clouds in bright blues (azure, ice and a violet-leaning cobalt) over a
+   thin wash, each feathered out over four stops so there is no rim. The layer is far larger than
+   the pill; its middle is what shows. */
+.btn-save.btn-glow::before {
+  inset: -60% -35%;
+  border-radius: 0;
+  box-shadow: none;
+  background:
+    radial-gradient(
+      40% 70% at 36% 56%,
+      rgb(70 160 255 / 0.95) 0%,
+      rgb(70 160 255 / 0.62) 28%,
+      rgb(70 160 255 / 0.24) 62%,
+      transparent 100%
+    ),
+    radial-gradient(
+      34% 62% at 58% 36%,
+      rgb(120 215 255 / 0.9) 0%,
+      rgb(120 215 255 / 0.55) 30%,
+      rgb(120 215 255 / 0.2) 64%,
+      transparent 100%
+    ),
+    radial-gradient(
+      38% 68% at 70% 64%,
+      rgb(90 120 255 / 0.92) 0%,
+      rgb(90 120 255 / 0.58) 30%,
+      rgb(90 120 255 / 0.2) 64%,
+      transparent 100%
+    ),
+    linear-gradient(rgb(60 130 255 / 0.3), rgb(60 130 255 / 0.3));
+  transition: opacity 300ms var(--btn-ease);
+  animation: btn-glow-drift 4s ease-in-out infinite alternate;
+  animation-play-state: paused;
+  will-change: transform, opacity;
+}
+.btn-save.btn-glow:where(:not(:disabled)):is(:hover, :active, :focus-visible)::before {
+  opacity: 1;
+  animation-play-state: running;
+}
+/* Pinned states (the /dev/buttons sheet): lit, with the drift held part-way so a frame is the same
+   every time. */
+.btn-save.btn-glow:is([data-state="hover"], [data-state="press"], [data-state="focus"])::before {
+  opacity: 1;
+  animation-play-state: paused;
+  animation-delay: -2s;
+}
+@keyframes btn-glow-drift {
+  from {
+    translate: -9% -5%;
+    scale: 1;
+  }
+  to {
+    translate: 9% 5%;
+    scale: 1.2;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .btn-save.btn-glow {
+    background: rgb(30 30 34);
+  }
 }
 
 /* ===== Ink: secondary and destructive ======================================= */
@@ -1046,6 +1312,41 @@ body {
   .track-list[data-sorting] .track-row[data-lifted] {
     scale: 1;
   }
+  /* #159 Import: no sweep, no slide, no spin, and no flash at all (photosensitivity). The
+     invitation and the cover just fade in (a short opacity fade), the disc is already in the
+     sleeve, and hovering still moves it instantly (transition: none above). */
+  .imp-wash,
+  .imp-flash {
+    display: none;
+  }
+  .imp-invite,
+  .imp-page-in,
+  .imp-cover {
+    animation: imp-fade 160ms linear backwards;
+  }
+  .imp-empty-out {
+    animation: none;
+    opacity: 0;
+  }
+  .imp-settle {
+    animation: none;
+  }
+  .imp-beat .record-face,
+  .imp-beat .record-disc,
+  .imp-beat[data-replay="true"] .record-disc {
+    animation: none;
+  }
+  .imp-sky .ambient-sky-paint {
+    animation: none;
+  }
+  .imp-sky[data-sky="out"] {
+    animation: none;
+    opacity: 0;
+    visibility: hidden;
+  }
+  .imp-backdrop-in[data-beat="true"] {
+    animation: none;
+  }
   /* Buttons (#155): states still switch, nothing glides or sweeps. The save button still lights
      up into its glass, as a short plain opacity fade, and its shimmer does not exist. */
   .btn-save,
@@ -1059,8 +1360,13 @@ body {
   .btn-seg-opt {
     transition: none;
   }
-  .btn-save::before {
+  .btn-save::before,
+  .btn-save.btn-glow::before {
     transition: opacity 160ms linear;
+  }
+  /* The glow's light fades in and stays put: no drift. */
+  .btn-save.btn-glow::before {
+    animation: none;
   }
   .btn-save::after {
     display: none;
