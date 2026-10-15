@@ -225,6 +225,9 @@ final class ReleaseCoordinator {
             if let newTitle = changes.trackTitles[tracks[index].id] {
                 tracks[index].title = newTitle
             }
+            if let disc = changes.trackDiscs[tracks[index].id], DiscNumbering.isValidDisc(disc) {
+                tracks[index].discNumber = disc
+            }
         }
 
         let newTitle = changes.title ?? existing.title

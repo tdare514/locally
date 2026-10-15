@@ -73,6 +73,24 @@ export function discHeadings(discs: readonly (number | undefined)[]): (number | 
   return resolved.map((d, i) => (i === 0 || d !== resolved[i - 1] ? d : null));
 }
 
+/**
+ * `tracks` as they stand after a move, with the moved track (at `movedIndex`) joined to the disc it
+ * now sits in: the disc of the track directly above it, or of the track below when it is now first.
+ * Only a release that has discs is touched, and a neighbour with no disc counts as disc 1, so a
+ * moved track always ends up with a number. Because a track only ever joins its neighbour's disc,
+ * `discHeadings` never repeats a heading after a move. Returns a new array; the input and the
+ * tracks other than the moved one are left as they are.
+ */
+export function adoptDiscAfterMove<T extends { discNumber?: number }>(tracks: readonly T[], movedIndex: number): T[] {
+  const out = tracks.slice();
+  if (!tracks.some((t) => t.discNumber !== undefined)) return out;
+  const neighbour = movedIndex > 0 ? tracks[movedIndex - 1] : tracks[movedIndex + 1];
+  if (!neighbour || movedIndex < 0 || movedIndex >= tracks.length) return out;
+  const disc = neighbour.discNumber ?? 1;
+  if (tracks[movedIndex].discNumber !== disc) out[movedIndex] = { ...tracks[movedIndex], discNumber: disc };
+  return out;
+}
+
 /** An imported file as far as ordering cares: the disc and track number its own tags carry. */
 export interface TaggedForOrder {
   discNumber?: number;

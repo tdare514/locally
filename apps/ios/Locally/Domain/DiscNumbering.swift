@@ -74,6 +74,21 @@ enum DiscNumbering {
         }
     }
 
+    /// `discs` as they stand after a move, with the moved row (at `movedIndex`) joined to the disc it
+    /// now sits in: the disc of the row directly above it, or of the row below when it is now first.
+    /// Only a release that has discs is touched, and a neighbour with no disc counts as disc 1, so a
+    /// moved row always ends up with a number. Because a row only ever joins its neighbour's disc,
+    /// `headings` never repeats a heading after a move.
+    static func adoptDiscAfterMove(_ discs: [Int?], movedIndex: Int) -> [Int?] {
+        var out = discs
+        let neighbour = movedIndex > 0 ? movedIndex - 1 : movedIndex + 1
+        guard discs.contains(where: { $0 != nil }), discs.indices.contains(movedIndex), discs.indices.contains(neighbour) else {
+            return out
+        }
+        out[movedIndex] = discs[neighbour] ?? 1
+        return out
+    }
+
     /// The items in (disc, the file's own track number) order, for an import whose files carry disc
     /// tags. Items that tie keep the order they came in, and an item with no track tag sorts after
     /// the numbered items of its disc. When no item has a disc tag the order is returned untouched

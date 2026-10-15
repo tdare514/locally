@@ -154,6 +154,8 @@ struct AlbumDraft {
 /// absent keep their current title. `trackOrder`, if given, is the full new
 /// track order by id; any known track id missing from it is appended after,
 /// so a caller can't accidentally drop a track by leaving it out.
+/// `trackDiscs` maps a track's `id` to the disc it now sits on (a row dropped in among another disc's
+/// rows joins that disc); tracks whose id is absent keep theirs.
 struct ReleaseChanges {
     var title: String?
     var artist: String?
@@ -162,6 +164,7 @@ struct ReleaseChanges {
     var cover: Data?
     var trackTitles: [UUID: String]
     var trackOrder: [UUID]?
+    var trackDiscs: [UUID: Int]
 
     init(
         title: String? = nil,
@@ -170,7 +173,8 @@ struct ReleaseChanges {
         genre: String? = nil,
         cover: Data? = nil,
         trackTitles: [UUID: String] = [:],
-        trackOrder: [UUID]? = nil
+        trackOrder: [UUID]? = nil,
+        trackDiscs: [UUID: Int] = [:]
     ) {
         self.title = title
         self.artist = artist
@@ -179,6 +183,7 @@ struct ReleaseChanges {
         self.cover = cover
         self.trackTitles = trackTitles
         self.trackOrder = trackOrder
+        self.trackDiscs = trackDiscs
     }
 }
 

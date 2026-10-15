@@ -6,10 +6,11 @@ import {
   moveAnnouncement,
   moveItem,
   nearestSlot,
+  roomShift,
   slotAfterMove,
   stepTarget,
 } from "../lib/track-order";
-import { discHeadings } from "../shared/discs";
+import { adoptDiscAfterMove, discHeadings } from "../shared/discs";
 import { XIcon } from "./Icons";
 
 export interface EditableTrack {
@@ -17,8 +18,9 @@ export interface EditableTrack {
    * for a not-yet-imported file. Travels with the row when the list is reordered. */
   key: string;
   title: string;
-  /** Which disc the track is on, when the release has discs. Read only: it sets the "Disc N"
-   * headings and travels with the row when the list is reordered. */
+  /** Which disc the track is on, when the release has discs. It sets the "Disc N" headings and
+   * travels with the row when the list is reordered; a row moved in among another disc's rows
+   * joins that disc (`moveTrack`). */
   discNumber?: number;
 }
 
@@ -60,6 +62,13 @@ function scrollParent(el: HTMLElement): HTMLElement {
   return (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
 }
 
+/** `moveItem`, then the moved row joins the disc it now sits in (`adoptDiscAfterMove`), so a
+ * drop or a keyboard step never leaves a disc split in two. */
+function moveTrack(tracks: EditableTrack[], from: number, to: number): EditableTrack[] {
+  const moved = moveItem(tracks, from, to);
+  return moved === tracks ? tracks : adoptDiscAfterMove(moved, to);
+}
+
 /** The track rows of the list, without the "Disc N" headings that sit between them. */
 function trackRows(list: HTMLElement): HTMLLIElement[] {
   return Array.from(list.querySelectorAll<HTMLLIElement>(":scope > li[data-key]"));
@@ -86,7 +95,7 @@ interface Drag {
   startScroll: number;
   scroller: HTMLElement;
   /** Vertical centre of every slot, measured when the drag starts. A heading between two rows
-   * makes the gap there larger, so rows slide by the difference between centres. */
+   * makes the gap there larger, so rows slide by the difference between centres (`roomShift`). */
   centers: number[];
   started: boolean;
   raf: number;
@@ -112,7 +121,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
 
   const drag = useRef<Drag | null>(null);
   const settleTimer = useRef<number | null>(null);
-  const grabOrigin = useRef<{ key: string; index: number } | null>(null);
+  const grabOrigin = useRef<{ key: string; index: number; discNumber?: number } | null>(null);
   const focusKey = useRef<string | null>(null);
   /** The Escape-to-cancel listener of the drag in progress, kept so it can be removed. */
   const escapeListener = useRef<((e: KeyboardEvent) => void) | null>(null);
@@ -165,7 +174,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
       settleTimer.current = null;
       const current = tracksRef.current;
       const from = current.findIndex((t) => t.key === d.key);
-      const next = moveItem(current, from, commitTo);
+      const next = moveTrack(current, from, commitTo);
       flushSync(() => {
         if (next !== current) onChangeRef.current(next);
       });
@@ -201,7 +210,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
     d.to = to;
     d.rows.forEach((li, i) => {
       if (i !== d.from) {
-        const shift = d.centers[slotAfterMove(i, d.from, to)] - d.centers[i];
+        const shift = roomShift(d.centers, i, d.from, to);
         li.style.translate = shift === 0 ? "" : `0 ${shift}px`;
       }
       const number = d.numbers[i];
@@ -320,7 +329,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
       return;
     }
     focusKey.current = track.key;
-    onChange(moveItem(tracks, index, target));
+    onChange(moveTrack(tracks, index, target));
     setAnnouncement(moveAnnouncement(track.title, target + 1, tracks.length));
   }
 
@@ -339,7 +348,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
         setGrabbedKey(null);
         setAnnouncement(`Dropped ${name} at position ${index + 1} of ${tracks.length}`);
       } else {
-        grabOrigin.current = { key: track.key, index };
+        grabOrigin.current = { key: track.key, index, discNumber: track.discNumber };
         setGrabbedKey(track.key);
         setAnnouncement(
           `Picked up ${name}, position ${index + 1} of ${tracks.length}. Use the up and down arrow keys to move it, Space to drop it, Escape to cancel.`,
@@ -351,9 +360,16 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
       const origin = grabOrigin.current;
       grabOrigin.current = null;
       setGrabbedKey(null);
-      if (origin && origin.index !== index) {
+      if (origin && (origin.index !== index || origin.discNumber !== track.discNumber)) {
         focusKey.current = track.key;
-        onChange(moveItem(tracks, index, origin.index));
+        // Back to where it was picked up, and to the disc it was on: steps along the way may have
+        // moved it into another disc.
+        const back = moveItem(tracks, index, origin.index).slice();
+        const restored: EditableTrack = { ...back[origin.index] };
+        if (origin.discNumber === undefined) delete restored.discNumber;
+        else restored.discNumber = origin.discNumber;
+        back[origin.index] = restored;
+        onChange(back);
       }
       setAnnouncement(`Cancelled. ${name} is back at position ${(origin?.index ?? index) + 1} of ${tracks.length}`);
     }

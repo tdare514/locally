@@ -98,7 +98,14 @@ final class AlbumBuilderViewModel {
     }
 
     func moveRows(from source: IndexSet, to destination: Int) {
+        let order = rows.map(\.id)
+        let movedIds = source.map { rows[$0].id }
         rows.move(fromOffsets: source, toOffset: destination)
+        guard rows.map(\.id) != order else { return }
+        // A row dropped in among another disc's rows joins that disc, so a disc is never split.
+        for index in rows.indices where movedIds.contains(rows[index].id) {
+            rows[index].discNumber = DiscNumbering.adoptDiscAfterMove(rows.map(\.discNumber), movedIndex: index)[index]
+        }
     }
 
     var canSend: Bool {

@@ -132,7 +132,14 @@ final class ReleaseDetailViewModel {
     }
 
     func moveTracks(from source: IndexSet, to destination: Int) {
+        let order = trackRows.map(\.id)
+        let movedIds = source.map { trackRows[$0].id }
         trackRows.move(fromOffsets: source, toOffset: destination)
+        guard trackRows.map(\.id) != order else { return }
+        // A row dropped in among another disc's rows joins that disc, so a disc is never split.
+        for index in trackRows.indices where movedIds.contains(trackRows[index].id) {
+            trackRows[index].discNumber = DiscNumbering.adoptDiscAfterMove(trackRows.map(\.discNumber), movedIndex: index)[index]
+        }
     }
 
     func save() async {
@@ -159,7 +166,8 @@ final class ReleaseDetailViewModel {
             genre: genre,
             cover: coverData != originalCoverData ? coverData : nil,
             trackTitles: trackTitles,
-            trackOrder: trackRows.map { $0.id }
+            trackOrder: trackRows.map { $0.id },
+            trackDiscs: Dictionary(uniqueKeysWithValues: trackRows.compactMap { row in row.discNumber.map { (row.id, $0) } })
         )
 
         do {

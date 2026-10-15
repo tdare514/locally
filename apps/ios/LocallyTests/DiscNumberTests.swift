@@ -50,6 +50,42 @@ struct DiscNumberingTests {
         #expect(DiscNumbering.headings(for: []).isEmpty)
     }
 
+    /// Moves the row at `from` to index `to`, then has it join the disc it now sits in.
+    private func move(_ discs: [Int?], from: Int, to: Int) -> [Int?] {
+        var moved = discs
+        moved.insert(moved.remove(at: from), at: to)
+        return DiscNumbering.adoptDiscAfterMove(moved, movedIndex: to)
+    }
+
+    @Test func aDiscTwoTrackMovedToTheTopTakesDiscOneThenTheLastDiscOneTrackMovedBelowTheDiscTwoHeadingTakesDiscTwo() {
+        let first = move([1, 1, 2, 2], from: 2, to: 0)
+        #expect(first == [1, 1, 1, 2])
+        #expect(DiscNumbering.headings(for: first) == [1, nil, nil, 2])
+
+        let second = move(first, from: 2, to: 3)
+        #expect(second == [1, 1, 2, 2])
+        #expect(DiscNumbering.headings(for: second) == [1, nil, 2, nil])
+    }
+
+    @Test func aRowTakesTheDiscBelowItWhenItIsNowFirstAndAReleaseWithoutDiscsIsUntouched() {
+        #expect(move([1, 2, 3], from: 2, to: 0) == [1, 1, 2])
+        #expect(move([nil, nil, nil], from: 2, to: 0) == [nil, nil, nil])
+        #expect(DiscNumbering.adoptDiscAfterMove([1, 2], movedIndex: 5) == [1, 2])
+    }
+
+    @Test func aNeighbourWithNoDiscCountsAsDiscOne() {
+        #expect(move([nil, 2, 2], from: 2, to: 1) == [nil, 1, 2])
+    }
+
+    @Test func headingsNeverRepeatWhateverSequenceOfMovesIsMade() {
+        var discs: [Int?] = [1, 1, 2, 2, 3]
+        for (from, to) in [(4, 0), (0, 3), (2, 4), (3, 1), (1, 0), (4, 2)] {
+            discs = move(discs, from: from, to: to)
+            let shown = DiscNumbering.headings(for: discs).compactMap { $0 }
+            #expect(Set(shown).count == shown.count)
+        }
+    }
+
     private struct File { var name: String; var disc: Int?; var track: Int? }
 
     private func order(_ files: [File]) -> [String] {
@@ -517,5 +553,78 @@ struct DiscAlbumBuilderTests {
         #expect(try headings([1, 1, 2]) == [1, nil, 2])
         #expect(try headings([1, 1, 1]) == [nil, nil, nil])
         #expect(try headings([nil, nil]) == [nil, nil])
+    }
+
+    private func rows(_ discs: [Int?]) -> [AlbumBuilderViewModel.TrackRow] {
+        discs.enumerated().map { index, disc in
+            AlbumBuilderViewModel.TrackRow(url: URL(fileURLWithPath: "/tmp/\(index).mp3"), title: "T\(index + 1)", discNumber: disc)
+        }
+    }
+
+    @Test func movingARowInTheAlbumBuilderJoinsItToTheDiscItLandsIn() {
+        let model = makeModel(importer: FakeFileImporter())
+        model.rows = rows([1, 1, 2, 2])
+
+        model.moveRows(from: IndexSet(integer: 2), to: 0)
+        #expect(model.rows.map(\.title) == ["T3", "T1", "T2", "T4"])
+        #expect(model.rows.map(\.discNumber) == [1, 1, 1, 2])
+
+        model.moveRows(from: IndexSet(integer: 2), to: 4)
+        #expect(model.rows.map(\.title) == ["T3", "T1", "T4", "T2"])
+        #expect(model.rows.map(\.discNumber) == [1, 1, 2, 2])
+        #expect(model.discHeadings == [1, nil, 2, nil])
+    }
+
+    @Test func aDropThatChangesNothingLeavesTheDiscsAlone() {
+        let model = makeModel(importer: FakeFileImporter())
+        model.rows = rows([1, 1, 2, 2])
+
+        model.moveRows(from: IndexSet(integer: 2), to: 2)
+        model.moveRows(from: IndexSet(integer: 2), to: 3)
+
+        #expect(model.rows.map(\.title) == ["T1", "T2", "T3", "T4"])
+        #expect(model.rows.map(\.discNumber) == [1, 1, 2, 2])
+    }
+
+    @Test func movingARowOnTheReleasePageSavesTheDiscItJoinedAndRetagsPerDisc() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let tagWriter = FakeTagWriter()
+        let library = InMemoryLibraryStore()
+        let coverStore = FakeCoverStore()
+        let coordinator = ReleaseCoordinator(
+            importer: FakeFileImporter(),
+            transcoder: FakeTranscoder(),
+            m4aTagWriter: tagWriter,
+            id3TagWriter: tagWriter,
+            folder: FakeSpotifyFolder(directory: dir),
+            library: library,
+            coverStore: coverStore
+        )
+        let files = try ["a.mp3", "b.mp3", "c.mp3"].map(makeAudioFile(named:))
+        let album = AlbumDraft(
+            title: "Double",
+            artist: "Band",
+            tracks: [TrackDraft(title: "A", discNumber: 1), TrackDraft(title: "B", discNumber: 1), TrackDraft(title: "C", discNumber: 2)]
+        )
+        let release = try await coordinator.importAlbum(files: files, album: album, cover: nil)
+        let model = ReleaseDetailViewModel(release: release, coordinator: coordinator, coverStore: coverStore)
+        #expect(model.discHeadings == [1, nil, 2])
+
+        model.moveTracks(from: IndexSet(integer: 2), to: 0)
+        #expect(model.trackRows.map(\.title) == ["C", "A", "B"])
+        #expect(model.trackRows.map(\.discNumber) == [1, 1, 1])
+        #expect(model.hasChanges)
+        #expect(model.discHeadings == [nil, nil, nil])
+
+        let before = tagWriter.calls.count
+        await model.save()
+
+        let stored = try #require(library.all().first)
+        #expect(stored.tracks.map(\.title) == ["C", "A", "B"])
+        #expect(stored.tracks.map(\.trackNumber) == [1, 2, 3])
+        #expect(stored.tracks.map(\.discNumber) == [1, 1, 1])
+        let calls = tagWriter.calls.suffix(from: before)
+        #expect(calls.map(\.tags.trackNumber) == [1, 2, 3])
+        #expect(calls.map(\.tags.totalDiscs) == [1, 1, 1])
     }
 }

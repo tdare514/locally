@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { deriveTagNumbers, discHeadings, isDiscNumber, orderByDisc } from "../../src/shared/discs";
+import { moveItem } from "../../src/lib/track-order";
+import { adoptDiscAfterMove, deriveTagNumbers, discHeadings, isDiscNumber, orderByDisc } from "../../src/shared/discs";
 
 describe("deriveTagNumbers", () => {
   it("numbers each track within its disc: discs [1,1,1,2,2] give 1/3 2/3 3/3 1/2 2/2", () => {
@@ -102,5 +103,83 @@ describe("isDiscNumber", () => {
   it("accepts integers 1 to 99 only", () => {
     expect([1, 2, 99].every(isDiscNumber)).toBe(true);
     expect([0, 100, 1.5, -1, NaN, null, undefined, "1"].some(isDiscNumber)).toBe(false);
+  });
+});
+
+describe("adoptDiscAfterMove", () => {
+  interface Row {
+    key: string;
+    discNumber?: number;
+  }
+  const rows = (discs: (number | undefined)[]): Row[] =>
+    discs.map((discNumber, i) => ({ key: `t${i + 1}`, ...(discNumber !== undefined ? { discNumber } : {}) }));
+  const discsOf = (list: Row[]) => list.map((r) => r.discNumber);
+  /** What TrackList does on a drop or a keyboard step. */
+  const move = (list: Row[], from: number, to: number) => {
+    const moved = moveItem(list, from, to);
+    return moved === list ? list : adoptDiscAfterMove(moved, to);
+  };
+
+  it("a disc-2 track moved to the top takes disc 1 from the track below it", () => {
+    const after = move(rows([1, 1, 2, 2]), 2, 0);
+    expect(after.map((r) => r.key)).toEqual(["t3", "t1", "t2", "t4"]);
+    expect(discsOf(after)).toEqual([1, 1, 1, 2]);
+    expect(discHeadings(discsOf(after))).toEqual([1, null, null, 2]);
+  });
+
+  it("then the last disc-1 track moved below the Disc 2 heading takes disc 2", () => {
+    const first = move(rows([1, 1, 2, 2]), 2, 0); // discs [1,1,1,2]
+    const after = move(first, 2, 3); // t2 now sits under the Disc 2 track
+    expect(after.map((r) => r.key)).toEqual(["t3", "t1", "t4", "t2"]);
+    expect(discsOf(after)).toEqual([1, 1, 2, 2]);
+    expect(discHeadings(discsOf(after))).toEqual([1, null, 2, null]);
+  });
+
+  it("a track dropped between two tracks of its own disc stays put, and one dropped at a boundary joins the disc above", () => {
+    expect(discsOf(move(rows([1, 1, 2, 2]), 0, 1))).toEqual([1, 1, 2, 2]);
+    // Disc 2's first track moved up one place sits under disc 1's first track.
+    expect(discsOf(move(rows([1, 1, 2, 2]), 2, 1))).toEqual([1, 1, 1, 2]);
+    // Disc 1's last track moved down one place sits under disc 2's first track.
+    expect(discsOf(move(rows([1, 1, 2, 2]), 1, 2))).toEqual([1, 2, 2, 2]);
+  });
+
+  it("takes the disc of the track below when the moved track is now first", () => {
+    expect(discsOf(move(rows([1, 2, 3]), 2, 0))).toEqual([1, 1, 2]);
+  });
+
+  it("never repeats a heading, whatever sequence of moves is made", () => {
+    let list = rows([1, 1, 2, 2, 3]);
+    for (const [from, to] of [[4, 0], [0, 3], [2, 4], [3, 1], [1, 0], [4, 2]]) {
+      list = move(list, from, to);
+      const headings = discHeadings(discsOf(list)).filter((h) => h !== null);
+      expect(new Set(headings).size).toBe(headings.length);
+    }
+  });
+
+  it("leaves a release without discs alone: no discNumber appears", () => {
+    const after = move(rows([undefined, undefined, undefined]), 2, 0);
+    expect(after.map((r) => r.key)).toEqual(["t3", "t1", "t2"]);
+    for (const r of after) expect(r).not.toHaveProperty("discNumber");
+  });
+
+  it("counts a neighbour with no disc as disc 1 once the release has discs", () => {
+    // The track above has no disc, so the moved track joins disc 1.
+    expect(discsOf(move(rows([undefined, 2, 2]), 2, 1))).toEqual([undefined, 1, 2]);
+    // A drop that changes nothing is not a move, so nothing is adopted.
+    expect(discsOf(move(rows([undefined, 2, 2]), 1, 1))).toEqual([undefined, 2, 2]);
+  });
+
+  it("does not change its input or the tracks that did not move", () => {
+    const list = rows([1, 2]);
+    const moved = moveItem(list, 1, 0);
+    const copy = structuredClone(moved);
+    const after = adoptDiscAfterMove(moved, 0);
+    expect(moved).toEqual(copy);
+    expect(after[1]).toBe(moved[1]);
+  });
+
+  it("ignores an index outside the list", () => {
+    expect(discsOf(adoptDiscAfterMove(rows([1, 2]), 5))).toEqual([1, 2]);
+    expect(adoptDiscAfterMove(rows([1]), 0)).toHaveLength(1);
   });
 });
