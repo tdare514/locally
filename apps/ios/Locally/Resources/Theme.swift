@@ -254,6 +254,73 @@ enum Theme {
         static let coverSheetGrabberRoom: CGFloat = 24
     }
 
+    /// "Make a record" (#205): the cover beat, the invitation and the glow pill, ported from the
+    /// `.imp-*` rules and `.btn-save.btn-glow` in `apps/web/src/app/globals.css`. The beat's clock
+    /// is in `Views/Import/ImportBeat.swift`.
+    enum Import {
+        /// `.imp-flash`: the flash's centre and edge, and the faint spill past the sleeve
+        /// (`box-shadow: 0 0 16px 2px rgb(255 248 238 / 0.4)`).
+        static let flashCenter = Color(red: 255 / 255, green: 252 / 255, blue: 246 / 255)
+        static let flashEdge = Color(red: 255 / 255, green: 248 / 255, blue: 238 / 255)
+        static let spillRadius: CGFloat = 16
+        static let spillOpacity: Double = 0.4
+        /// `imp-slide`: the new cover starts this far to the right.
+        static let slideDistance: Double = 48
+        /// `imp-turn`: the disc turns this far as it seals.
+        static let discTurnDegrees: Double = 240
+
+        /// `.imp-wash-band`: accent at 9 % at 35 %, 38 % at 78 %, a 35 % white-tinted accent at
+        /// 62 % at 92 %, clear at both ends.
+        static let washEarly = Theme.accent.opacity(0.09)
+        static let washEarlyAt = 0.35
+        static let washMid = Theme.accent.opacity(0.38)
+        static let washMidAt = 0.78
+        /// `color-mix(in srgb, white 35%, accent)`.
+        static let washGlint = Color(red: 0.35 + 0.65 * (0x1E / 255.0), green: 0.35 + 0.65 * (0x7D / 255.0), blue: 0.35 + 0.65 * (0xF0 / 255.0)).opacity(0.62)
+        static let washGlintAt = 0.92
+        static let washSkewDegrees: Double = 12
+        /// The band is 120 % of the screen's width and sweeps from -100 % to -8 % of its own width.
+        static let washWidthRatio: Double = 1.2
+        static let washStartX: Double = -1
+        static let washEndX: Double = -0.08
+        static let washSweepDuration: Double = 0.7
+        /// `imp-wash-fade` (linear): opacity 1 at 12 %, 0.85 at 55 %, 0 at 100 %.
+        static let washPeakAt = 0.12
+        static let washHoldAt = 0.55
+        static let washHoldOpacity = 0.85
+
+        /// `.imp-invite`: the bare disc, button and hint fade in and rise after the band.
+        static let inviteDiscSize: CGFloat = 176
+        static let inviteRise: CGFloat = 6
+        static let inviteFadeDuration: Double = 0.48
+        static let inviteFadeDelay: Double = 0.28
+        static let reducedFadeDuration: Double = 0.16
+        static let inviteGap: CGFloat = 20
+        static let inviteButtonGap: CGFloat = 8
+
+        /// `.btn-glow`: the clear glass pill, its rim and the corner highlight.
+        static let glowFillTop: Double = 0.14
+        static let glowFillBottom: Double = 0.04
+        static let glowFillBottomAt = 0.55
+        static let glowCornerHighlight: Double = 0.18
+        static let glowRim: Double = 0.12
+        static let glowRimTop: Double = 0.32
+        static let glowMinHeight: CGFloat = 48
+        /// The light layer is `inset: -60% -35%` of the pill.
+        static let glowInsetX: CGFloat = 0.35
+        static let glowInsetY: CGFloat = 0.60
+        static let glowFadeDuration: Double = 0.3
+        static let glowDriftDuration: Double = 4
+        static let glowDriftX: Double = 0.09
+        static let glowDriftY: Double = 0.05
+        static let glowDriftScale: Double = 0.2
+        /// The three clouds (azure, ice, cobalt) over a thin wash.
+        static let glowAzure = (r: 70.0, g: 160.0, b: 255.0)
+        static let glowIce = (r: 120.0, g: 215.0, b: 255.0)
+        static let glowCobalt = (r: 90.0, g: 120.0, b: 255.0)
+        static let glowWash = Color(red: 60 / 255, green: 130 / 255, blue: 255 / 255).opacity(0.3)
+    }
+
     /// The "studio" backdrop behind Settings (#160): the accent blue and a cool violet, with a deep
     /// navy at the top. `ArtworkBackdrop` pulls each down by its luminance cap.
     enum Studio {

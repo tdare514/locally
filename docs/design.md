@@ -263,6 +263,48 @@ eyebrows still apply to those labels.
     (`reducedMotionFadeDuration`), with no scale. The library sky is held still (STATUS, #128).
     Theme.swift has no reduced-motion values for the ceremony or the sleeve, so their behaviour
     under Reduce Motion is not written here and not verified.
+  - *Make a record* (import, #205): the Mac's Desktop import (#159) on iPhone, on the studio
+    backdrop (`StudioBackdrop`) until a cover is set, with the tab bar on the backdrop as in
+    Settings. Values in `Theme.Import`; the beat's clock and curves in
+    `Views/Import/ImportBeat.swift`, the same numbers as `apps/web/src/lib/import-flow.ts`.
+    - *Invitation* (no track yet): an accent band sweeps left to right across the screen once
+      (700 ms, skewed 12 degrees, fully showing by 12 % of the way and gone at the end), then a
+      bare disc (176 pt, accent house label), **Add a track** and "or add audio from Files" fade
+      in and rise 6 pt (480 ms, after 280 ms). It plays each time the invitation appears. Add a
+      track is a clear glass pill (a white 14 % to 4 % fill, a 12 % rim with a 32 % top edge)
+      that fills with three soft clouds of fluorescent blue light (azure, ice and cobalt over a
+      thin blue wash) while it is pressed: they fade in over 0.3 s and drift slowly back and forth
+      (4 s) while lit. It opens Files with several files allowed: one file starts a single, two
+      or more an album (the iPhone has no drop and no switch before the record, so the count
+      decides; the library's "Make an album" still starts an album). Files shared in from other
+      apps go straight to the record. The page title is gone; the waiting chips and toasts stay
+      at the top.
+    - *The record* (once a track is added; an album stays a record if every track is removed,
+      until it is saved): the release page's layout. The sleeve says "Add cover art" (the cover
+      sheet: recent covers, Photos, Files, then the crop) and the disc peeks out; a meta line
+      holds the Single / Album switch and the track count; then the title, artist, album (a
+      single only, "Same as track title"), year and genre as inline fields; then the tracks in
+      the faked-glass panel, ending in an **Add a track** text button (a single's replaces its
+      track, an album's adds more). Switching kind keeps the fields and the cover, and a single
+      keeps only the first track. Saving is unchanged: the Send button, the ceremony and the done
+      screen.
+    - *The beat*, whenever a cover is set (from Files, Photos or a recent cover): the cover
+      slides in from 48 pt to the right with a fade (0 to 420 ms, curve 0.3, 0.5, 0.3, 1); a
+      warm-white flash over the sleeve (255, 252, 246 at the centre to 255, 248, 238 at the
+      edges, with a faint 16 pt spill at 40 %) swells to fully opaque (420 to 720, curve 0.45, 0,
+      0.55, 1), holds (720 to 820) and fades (820 to 1300, curve 0.5, 0, 0.7, 1); the backdrop
+      takes the cover's colours from 420 ms (its own 900 ms cross-fade, the studio backdrop
+      fading out over 500 ms); then the disc slides all the way into the sleeve, its right edge
+      level with the sleeve's, turning 240 degrees (1340 to 2290, curve 0.33, 0, 0.15, 1). After
+      the beat the disc rests in the sleeve. A tap anywhere, or typing in a field, mid-beat
+      jumps to the end and still does its job. A cover that replaces another plays the beat
+      again, the disc first easing out of the sleeve (0 to 600, curve 0.2, 0.8, 0.2, 1).
+      Removing the cover brings back "Add cover art", the peeking disc and the studio backdrop.
+    - *Reduce Motion*: no sweep, slide, flash or turn. The invitation and a new cover fade in
+      over 160 ms, the colours change at once, the disc sits in the sleeve as soon as there is a
+      cover, and the glow's light shows on press without drifting.
+    - *Large text*: the fields, the buttons and the hint scale with Dynamic Type and wrap, and the
+      invitation scrolls when it doesn't fit; the sleeve and the discs keep their size.
 - **Make it a playlist (album release pages, both apps)**: a disclosure between the Tracks
   section and the action row, `card` with 1 px `border`, radius 9, padding 20, title "Make it a
   playlist" with a chevron that rotates open. Body: the album title beside a small secondary /

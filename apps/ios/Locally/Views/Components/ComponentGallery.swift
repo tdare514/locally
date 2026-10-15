@@ -29,7 +29,13 @@ struct ComponentGallery: View {
     }
 
     var body: some View {
-        if drawsOwnBackdrop {
+        if name.hasPrefix("import-") {
+            ZStack {
+                StudioBackdrop()
+                importContent
+            }
+            .preferredColorScheme(.dark)
+        } else if drawsOwnBackdrop {
             content.preferredColorScheme(.dark)
         } else {
             sleeveGallery
@@ -107,6 +113,35 @@ struct ComponentGallery: View {
         }
     }
 
+    /// #205: the Make a record invitation and the cover beat, on the studio backdrop. Names:
+    /// `import-invite`, `import-invite-lit`, `import-beat-<ms>`, `import-beat-replay-<ms>`,
+    /// `import-beat-reduced-<ms>` (a fixed frame) and `import-beat-live` (plays in real time).
+    @ViewBuilder
+    private var importContent: some View {
+        switch name {
+        case "import-invite":
+            ImportInvitation(onAddTrack: {})
+        case "import-invite-lit":
+            ImportInvitation(onAddTrack: {}, pinnedLit: true)
+        case "import-beat-live":
+            ImportBeatLive()
+        default:
+            if let beat = Self.beatFrame(name) {
+                RecordSleeve(cover: SampleArtwork.sunset, beat: beat, onAddCover: {})
+            }
+        }
+    }
+
+    /// The frame a `import-beat-[replay-|reduced-]<ms>` name asks for.
+    static func beatFrame(_ name: String) -> ImportBeat.Frame? {
+        for (prefix, replay, reduced) in [("import-beat-replay-", true, false), ("import-beat-reduced-", false, true), ("import-beat-", false, false)] {
+            if name.hasPrefix(prefix), let ms = Double(name.dropFirst(prefix.count)) {
+                return ImportBeat.frame(at: ms, replay: replay, reduced: reduced)
+            }
+        }
+        return nil
+    }
+
     /// The real Settings in a tab bar, with sample state: no container, so nothing reaches a
     /// service or the network.
     private static func settings(signedIn: Bool, codeSentTo: String? = nil) -> some View {
@@ -134,6 +169,24 @@ struct ComponentGallery: View {
         )
         status.quota = SyncQuota(usedBytes: 42 * 1_048_576, limitBytes: 500 * 1_048_576)
         return status
+    }
+}
+
+/// Plays the beat in real time and starts it again every 4 s (a replacing cover after the first).
+private struct ImportBeatLive: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var start = Date()
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            let elapsed = timeline.date.timeIntervalSince(start) * 1000
+            let cycle = (elapsed / 4000).rounded(.down)
+            RecordSleeve(
+                cover: SampleArtwork.sunset,
+                beat: ImportBeat.frame(at: elapsed - cycle * 4000, replay: cycle > 0, reduced: reduceMotion),
+                onAddCover: {}
+            )
+        }
     }
 }
 #endif

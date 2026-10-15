@@ -53,6 +53,9 @@ enum Copy {
         /// `docs/design.md`'s "Page header" component.
         static let eyebrow = "Local library"
         static let pickFile = "Choose a file"
+        /// The invitation's button and hint (#205).
+        static let addTrack = "Add a track"
+        static let addTrackHint = "or add audio from Files"
         static let chooseFiles = "Choose files"
         static let fieldTitle = "Title"
         static let fieldArtist = "Artist"

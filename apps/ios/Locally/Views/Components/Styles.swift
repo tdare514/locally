@@ -28,6 +28,162 @@ struct PrimaryPillButtonStyle: ButtonStyle {
     }
 }
 
+/// The Mac's `.btn-save.btn-glow` (#159, #205): a clear faked-glass capsule (gradients only, no
+/// Material, no blur) with a white label. While pressed, three soft clouds of fluorescent blue
+/// light fade in over 0.3 s, clipped by the capsule, and drift slowly back and forth while lit.
+/// Reduce Motion: the same opacity fade, no drift and no press scale. `pinnedLit` is for the
+/// component gallery: lit, with the drift held at its midpoint.
+struct GlowPillButtonStyle: ButtonStyle {
+    var pinnedLit: Bool = false
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .body) private var fontSize: CGFloat = 15
+    @ScaledMetric(relativeTo: .body) private var minHeight: CGFloat = Theme.Import.glowMinHeight
+
+    func makeBody(configuration: Configuration) -> some View {
+        let lit = pinnedLit || configuration.isPressed
+        configuration.label
+            .font(.system(size: fontSize, weight: .bold))
+            .foregroundStyle(Color.white)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, Theme.Spacing.primaryButtonH)
+            .padding(.vertical, Theme.Spacing.primaryButtonV)
+            .frame(minHeight: minHeight)
+            .background {
+                ZStack {
+                    GlowGlass()
+                    GlowClouds(lit: lit, drifts: !reduceMotion && !pinnedLit, pinned: pinnedLit || reduceMotion)
+                }
+                .clipShape(Capsule())
+            }
+            .overlay { GlowRim() }
+            .opacity(isEnabled ? 1 : 0.5)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.95 : 1)
+    }
+}
+
+/// The pill at rest: the phone-tray glass's body, a top-to-bottom fill and a corner highlight.
+private struct GlowGlass: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                stops: [
+                    .init(color: .white.opacity(Theme.Import.glowFillTop), location: 0),
+                    .init(color: .white.opacity(Theme.Import.glowFillBottom), location: Theme.Import.glowFillBottomAt),
+                    .init(color: .white.opacity(Theme.Import.glowFillBottom), location: 1),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            GeometryReader { geo in
+                RadialGradient(
+                    colors: [.white.opacity(Theme.Import.glowCornerHighlight), .clear],
+                    center: UnitPoint(x: 0.15, y: -0.15),
+                    startRadius: 0,
+                    endRadius: geo.size.width * 0.6
+                )
+                .scaleEffect(x: 1, y: 0.58, anchor: UnitPoint(x: 0.15, y: -0.15))
+            }
+        }
+    }
+}
+
+/// A 1 pt rim at 12 % white, brighter (32 %) along the top edge.
+private struct GlowRim: View {
+    var body: some View {
+        Capsule()
+            .strokeBorder(
+                LinearGradient(
+                    stops: [
+                        .init(color: .white.opacity(Theme.Import.glowRimTop), location: 0),
+                        .init(color: .white.opacity(Theme.Import.glowRim), location: 0.4),
+                        .init(color: .white.opacity(Theme.Import.glowRim), location: 1),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ),
+                lineWidth: 1
+            )
+            .allowsHitTesting(false)
+    }
+}
+
+/// The light: three feathered clouds over a thin wash on a layer far larger than the pill (its
+/// middle shows), faded with `lit` and drifting (translate and scale, back and forth) only while lit.
+private struct GlowClouds: View {
+    let lit: Bool
+    /// The drift runs; false holds it still.
+    let drifts: Bool
+    /// Held at the drift's midpoint (the gallery, and Reduce Motion).
+    let pinned: Bool
+
+    var body: some View {
+        GeometryReader { geo in
+            let layer = CGSize(width: geo.size.width * (1 + 2 * Theme.Import.glowInsetX),
+                               height: geo.size.height * (1 + 2 * Theme.Import.glowInsetY))
+            TimelineView(.animation(minimumInterval: nil, paused: !(lit && drifts))) { timeline in
+                let eased = pinned ? 0.5 : Self.drift(at: timeline.date.timeIntervalSinceReferenceDate)
+                cloudLayer(layer)
+                    .scaleEffect(1 + Theme.Import.glowDriftScale * eased)
+                    .offset(x: layer.width * Theme.Import.glowDriftX * (2 * eased - 1),
+                            y: layer.height * Theme.Import.glowDriftY * (2 * eased - 1))
+                    .frame(width: layer.width, height: layer.height)
+                    .position(x: geo.size.width / 2, y: geo.size.height / 2)
+            }
+        }
+        .opacity(lit ? 1 : 0)
+        .animation(.easeOut(duration: Theme.Import.glowFadeDuration), value: lit)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// 0 to 1 and back every 2 x `glowDriftDuration`, ease-in-out (`animation: ... alternate`).
+    private static func drift(at seconds: TimeInterval) -> Double {
+        let cycle = Theme.Import.glowDriftDuration * 2
+        var u = seconds.truncatingRemainder(dividingBy: cycle) / Theme.Import.glowDriftDuration
+        if u > 1 { u = 2 - u }
+        return UnitCurve.easeInOut.value(at: u)
+    }
+
+    private func cloudLayer(_ size: CGSize) -> some View {
+        ZStack {
+            Theme.Import.glowWash
+            cloud(Theme.Import.glowAzure, alphas: (0.95, 0.62, 0.24), stops: (0.28, 0.62),
+                  radii: (0.40, 0.70), at: (0.36, 0.56), in: size)
+            cloud(Theme.Import.glowIce, alphas: (0.9, 0.55, 0.2), stops: (0.30, 0.64),
+                  radii: (0.34, 0.62), at: (0.58, 0.36), in: size)
+            cloud(Theme.Import.glowCobalt, alphas: (0.92, 0.58, 0.2), stops: (0.30, 0.64),
+                  radii: (0.38, 0.68), at: (0.70, 0.64), in: size)
+        }
+        .frame(width: size.width, height: size.height)
+    }
+
+    /// `radial-gradient(rx ry at cx cy, c a0 0%, c a1 s0, c a2 s1, transparent 100%)`: a circle
+    /// of radius rx squashed to an ellipse, so it stays a gradient and needs no mask.
+    private func cloud(_ c: (r: Double, g: Double, b: Double), alphas: (Double, Double, Double),
+                       stops: (Double, Double), radii: (Double, Double), at centre: (Double, Double),
+                       in size: CGSize) -> some View {
+        let color = { (a: Double) in Color(red: c.r / 255, green: c.g / 255, blue: c.b / 255).opacity(a) }
+        let rx = size.width * radii.0
+        let ry = size.height * radii.1
+        return Rectangle()
+            .fill(RadialGradient(
+                stops: [
+                    .init(color: color(alphas.0), location: 0),
+                    .init(color: color(alphas.1), location: stops.0),
+                    .init(color: color(alphas.2), location: stops.1),
+                    .init(color: color(0), location: 1),
+                ],
+                center: .center,
+                startRadius: 0,
+                endRadius: rx
+            ))
+            .frame(width: rx * 2, height: rx * 2)
+            .scaleEffect(x: 1, y: ry / rx)
+            .position(x: size.width * centre.0, y: size.height * centre.1)
+    }
+}
+
 /// "Settings" / "Show in Finder"-style secondary actions: an `elevated`
 /// pill with a `text` (or `danger`, for destructive actions) label.
 struct SecondaryPillButtonStyle: ButtonStyle {
