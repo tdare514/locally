@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_DISC_NUMBER } from "../../shared/discs";
 
 /**
  * Zod mirror of `Release`/`Track` (`src/shared/types.ts`), used to validate entries read back
@@ -12,7 +13,7 @@ export const TrackSchema = z.looseObject({
   id: z.string(),
   title: z.string(),
   trackNumber: z.number(),
-  discNumber: z.number().optional(),
+  discNumber: z.number().int().min(1).max(MAX_DISC_NUMBER).optional(),
   filePath: z.string(),
   originalName: z.string(),
   durationSec: z.number().nullable(),

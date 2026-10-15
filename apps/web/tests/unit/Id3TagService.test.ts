@@ -104,6 +104,44 @@ describe("Id3TagService", () => {
     expect(result.discTotal).toBeNull();
   });
 
+  it("removes a TPOS already in the file when the next write sets no disc, and keeps the other tags", async () => {
+    const mp3Path = path.join(tmpDir, "dropdisc.mp3");
+    await fs.writeFile(mp3Path, silentMp3());
+    const service = new Id3TagService();
+    const base = { title: "T", artist: "A", albumArtist: "A", album: "Al", trackNumber: 1, trackTotal: 2 };
+
+    await service.write(mp3Path, { ...base, discNumber: 2, discTotal: 2 });
+    expect(NodeID3.read(mp3Path).raw).toHaveProperty("TPOS", "2/2");
+
+    await service.write(mp3Path, base);
+
+    const after = NodeID3.read(mp3Path);
+    expect(after.raw).not.toHaveProperty("TPOS");
+    expect(after.partOfSet).toBeUndefined();
+    expect(after.title).toBe("T");
+    expect(after.trackNumber).toBe("1/2");
+    const result = await service.read(mp3Path);
+    expect(result.discNumber).toBeNull();
+    expect(result.discTotal).toBeNull();
+  });
+
+  it("removes a TPOS that came from somewhere else, such as a converted source file", async () => {
+    const mp3Path = path.join(tmpDir, "foreigndisc.mp3");
+    await fs.writeFile(mp3Path, silentMp3());
+    NodeID3.write({ partOfSet: "1/3", title: "Old" }, mp3Path);
+
+    await new Id3TagService().write(mp3Path, {
+      title: "New",
+      artist: "A",
+      albumArtist: "A",
+      album: "Al",
+      trackNumber: 1,
+      trackTotal: 1,
+    });
+
+    expect(NodeID3.read(mp3Path).raw).not.toHaveProperty("TPOS");
+  });
+
   it("reads an out-of-range disc tag as null", async () => {
     const mp3Path = path.join(tmpDir, "baddisc.mp3");
     await fs.writeFile(mp3Path, silentMp3());

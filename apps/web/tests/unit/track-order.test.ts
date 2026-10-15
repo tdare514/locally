@@ -199,6 +199,23 @@ describe("applyTrackEdits (the import list follows the editor)", () => {
     expect(applyTrackEdits(entries, [{ key: "k1", title: "One" }])[0]).not.toHaveProperty("discNumber");
   });
 
+  it("clears a disc the editor no longer gives a row (Escape after an adopted move)", () => {
+    // k2 had no disc, a move gave it disc 1 in the import list, and Escape took it back.
+    const adopted = [
+      { key: "k1", file: "one.mp3", title: "One", discNumber: 1 },
+      { key: "k2", file: "two.mp3", title: "Two", discNumber: 1 },
+    ];
+    const next = applyTrackEdits(adopted, [
+      { key: "k1", title: "One", discNumber: 1 },
+      { key: "k2", title: "Two" },
+    ]);
+    expect(next[0].discNumber).toBe(1);
+    expect(next[1]).not.toHaveProperty("discNumber");
+    expect(next[1]).toEqual({ key: "k2", file: "two.mp3", title: "Two" });
+    // The entries it was given are left as they were.
+    expect(adopted[1].discNumber).toBe(1);
+  });
+
   it("ignores a row the import list does not hold", () => {
     expect(applyTrackEdits(entries, [{ key: "ghost", title: "x" }])).toEqual([]);
   });

@@ -179,9 +179,9 @@ struct DiscTagRoundTripTests {
         return out
     }
 
-    private func readBack(_ url: URL) async throws -> TagSet {
-        let staged = try await LocalFileImporter().stage([url])
-        return try #require(staged.first?.existingTags)
+    private func readBack(_ url: URL) async throws -> (tags: TagSet, trackNumber: Int?) {
+        let staged = try #require(try await LocalFileImporter().stage([url]).first)
+        return (try #require(staged.existingTags), staged.tagTrackNumber)
     }
 
     @Test func mp3WritesTposAndPerDiscTrckAndReadsThemBack() async throws {
@@ -196,10 +196,9 @@ struct DiscTagRoundTripTests {
         #expect(written["TPOS"] == "2/2")
 
         let read = try await readBack(url)
-        #expect(read.discNumber == 2)
-        #expect(read.totalDiscs == 2)
+        #expect(read.tags.discNumber == 2)
+        #expect(read.tags.totalDiscs == 2)
         #expect(read.trackNumber == 1)
-        #expect(read.totalTracks == 2)
     }
 
     @Test func mp3WithNoDiscWritesNoTposAndReadsBackNoDisc() async throws {
@@ -214,8 +213,19 @@ struct DiscTagRoundTripTests {
         #expect(written["TPOS"] == nil)
 
         let read = try await readBack(url)
-        #expect(read.discNumber == nil)
+        #expect(read.tags.discNumber == nil)
         #expect(read.trackNumber == 3)
+    }
+
+    @Test func mp3RewrittenWithNoDiscLosesItsEarlierTpos() async throws {
+        let (dir, url) = try makeMp3()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try await ID3TagWriter().write(TagSet(title: "T", artist: "A", album: "Al", trackNumber: 1, totalTracks: 2, discNumber: 2, totalDiscs: 2), cover: nil, to: url)
+
+        try await ID3TagWriter().write(TagSet(title: "T", artist: "A", album: "Al", trackNumber: 1, totalTracks: 2), cover: nil, to: url)
+
+        #expect(frames(in: try Data(contentsOf: url))["TPOS"] == nil)
+        #expect(try await readBack(url).tags.discNumber == nil)
     }
 
     @Test func m4aWritesDiskNextToTrknAndReadsThemBack() async throws {
@@ -226,10 +236,9 @@ struct DiscTagRoundTripTests {
         try await M4ATagWriter().write(tags, cover: nil, to: url)
 
         let read = try await readBack(url)
-        #expect(read.discNumber == 2)
-        #expect(read.totalDiscs == 2)
+        #expect(read.tags.discNumber == 2)
+        #expect(read.tags.totalDiscs == 2)
         #expect(read.trackNumber == 1)
-        #expect(read.totalTracks == 2)
     }
 
     @Test func m4aWithNoDiscWritesNoDisk() async throws {
@@ -240,9 +249,29 @@ struct DiscTagRoundTripTests {
         try await M4ATagWriter().write(tags, cover: nil, to: url)
 
         let read = try await readBack(url)
-        #expect(read.discNumber == nil)
+        #expect(read.tags.discNumber == nil)
         #expect(read.trackNumber == 3)
-        #expect(read.totalTracks == 10)
+    }
+
+    @Test func m4aRewrittenWithNoDiscLosesItsEarlierDisk() async throws {
+        let (dir, url) = try makeTinyM4A()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try await M4ATagWriter().write(TagSet(title: "T", artist: "A", album: "Al", trackNumber: 1, totalTracks: 2, discNumber: 2, totalDiscs: 2), cover: nil, to: url)
+        #expect(try await readBack(url).tags.discNumber == 2)
+
+        try await M4ATagWriter().write(TagSet(title: "T", artist: "A", album: "Al", trackNumber: 1, totalTracks: 2), cover: nil, to: url)
+
+        #expect(try await readBack(url).tags.discNumber == nil)
+    }
+
+    @Test func aFileWithNoTrackTagReadsBackNilNotOne() async throws {
+        let (dir, url) = try makeMp3()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let read = try await readBack(url)
+
+        #expect(read.trackNumber == nil)
+        #expect(read.tags.discNumber == nil)
     }
 }
 
@@ -463,9 +492,10 @@ struct DiscAlbumBuilderTests {
     @Test func pickedFilesWithDiscTagsAreOrderedByDiscThenTrackAndCarryTheirDiscs() async throws {
         let urls = try ["d2t1.mp3", "d1t2.mp3", "d1t1.mp3"].map(makeAudioFile(named:))
         let importer = FakeFileImporter()
-        importer.tagsByURL[urls[0]] = TagSet(title: "D2T1", artist: "A", album: "Al", trackNumber: 1, discNumber: 2, totalDiscs: 2)
-        importer.tagsByURL[urls[1]] = TagSet(title: "D1T2", artist: "A", album: "Al", trackNumber: 2, discNumber: 1, totalDiscs: 2)
-        importer.tagsByURL[urls[2]] = TagSet(title: "D1T1", artist: "A", album: "Al", trackNumber: 1, discNumber: 1, totalDiscs: 2)
+        importer.tagsByURL[urls[0]] = TagSet(title: "D2T1", artist: "A", album: "Al", discNumber: 2, totalDiscs: 2)
+        importer.tagsByURL[urls[1]] = TagSet(title: "D1T2", artist: "A", album: "Al", discNumber: 1, totalDiscs: 2)
+        importer.tagsByURL[urls[2]] = TagSet(title: "D1T1", artist: "A", album: "Al", discNumber: 1, totalDiscs: 2)
+        importer.trackTagsByURL = [urls[0]: 1, urls[1]: 2, urls[2]: 1]
         let model = makeModel(importer: importer)
 
         await model.addFiles(urls)
@@ -478,8 +508,9 @@ struct DiscAlbumBuilderTests {
     @Test func pickedFilesWithoutDiscTagsKeepTheOrderTheyWerePickedInAndShowNoHeadings() async throws {
         let urls = try ["b.mp3", "a.mp3"].map(makeAudioFile(named:))
         let importer = FakeFileImporter()
-        importer.tagsByURL[urls[0]] = TagSet(title: "B", artist: "A", album: "Al", trackNumber: 2)
-        importer.tagsByURL[urls[1]] = TagSet(title: "A", artist: "A", album: "Al", trackNumber: 1)
+        importer.tagsByURL[urls[0]] = TagSet(title: "B", artist: "A", album: "Al")
+        importer.tagsByURL[urls[1]] = TagSet(title: "A", artist: "A", album: "Al")
+        importer.trackTagsByURL = [urls[0]: 2, urls[1]: 1]
         let model = makeModel(importer: importer)
 
         await model.addFiles(urls)
@@ -493,9 +524,10 @@ struct DiscAlbumBuilderTests {
         let laterTwo = try makeAudioFile(named: "later2.mp3")
         let laterOne = try makeAudioFile(named: "later1.mp3")
         let importer = FakeFileImporter()
-        importer.tagsByURL[first] = TagSet(title: "First", artist: "A", album: "Al", trackNumber: 1, discNumber: 2, totalDiscs: 2)
-        importer.tagsByURL[laterTwo] = TagSet(title: "Later2", artist: "A", album: "Al", trackNumber: 2, discNumber: 1, totalDiscs: 2)
-        importer.tagsByURL[laterOne] = TagSet(title: "Later1", artist: "A", album: "Al", trackNumber: 1, discNumber: 1, totalDiscs: 2)
+        importer.tagsByURL[first] = TagSet(title: "First", artist: "A", album: "Al", discNumber: 2, totalDiscs: 2)
+        importer.tagsByURL[laterTwo] = TagSet(title: "Later2", artist: "A", album: "Al", discNumber: 1, totalDiscs: 2)
+        importer.tagsByURL[laterOne] = TagSet(title: "Later1", artist: "A", album: "Al", discNumber: 1, totalDiscs: 2)
+        importer.trackTagsByURL = [first: 1, laterTwo: 2, laterOne: 1]
         let model = makeModel(importer: importer)
 
         await model.addFiles([first])
@@ -504,11 +536,44 @@ struct DiscAlbumBuilderTests {
         #expect(model.rows.map(\.title) == ["First", "Later1", "Later2"])
     }
 
+    @Test func aFileWithNoTrackTagSortsLastWithinItsDiscNotFirst() async throws {
+        let urls = try ["untagged.mp3", "t2.mp3", "t1.mp3", "d2.mp3"].map(makeAudioFile(named:))
+        let importer = FakeFileImporter()
+        importer.tagsByURL[urls[0]] = TagSet(title: "Untagged", artist: "A", album: "Al", discNumber: 1, totalDiscs: 2)
+        importer.tagsByURL[urls[1]] = TagSet(title: "T2", artist: "A", album: "Al", discNumber: 1, totalDiscs: 2)
+        importer.tagsByURL[urls[2]] = TagSet(title: "T1", artist: "A", album: "Al", discNumber: 1, totalDiscs: 2)
+        importer.tagsByURL[urls[3]] = TagSet(title: "D2", artist: "A", album: "Al", discNumber: 2, totalDiscs: 2)
+        importer.trackTagsByURL = [urls[1]: 2, urls[2]: 1, urls[3]: 1]
+        let model = makeModel(importer: importer)
+
+        await model.addFiles(urls)
+
+        #expect(model.rows.map(\.title) == ["T1", "T2", "Untagged", "D2"])
+    }
+
+    @Test func deleteAndMoveIndicesAreTrackIndicesWithHeadingsShowing() {
+        let model = makeModel(importer: FakeFileImporter())
+        model.rows = rows([1, 1, 2, 2])
+        #expect(model.discHeadings == [1, nil, 2, nil])
+
+        // The list's ForEach is over the rows, so SwiftUI's IndexSet counts tracks, never headings:
+        // index 2 is the third track (the first of disc 2, the one the "Disc 2" heading sits above).
+        model.removeRows(at: IndexSet(integer: 2))
+        #expect(model.rows.map(\.title) == ["T1", "T2", "T4"])
+        #expect(model.discHeadings == [1, nil, 2])
+
+        model.moveRows(from: IndexSet(integer: 2), to: 0)
+        #expect(model.rows.map(\.title) == ["T4", "T1", "T2"])
+        #expect(model.rows.map(\.discNumber) == [1, 1, 1])
+        #expect(model.discHeadings == [nil, nil, nil])
+    }
+
     @Test func sendHandsTheDiscsToTheImportSoTagsGoPerDisc() async throws {
         let urls = try ["d1.mp3", "d2.mp3"].map(makeAudioFile(named:))
         let importer = FakeFileImporter()
-        importer.tagsByURL[urls[0]] = TagSet(title: "One", artist: "A", album: "Al", trackNumber: 1, discNumber: 1, totalDiscs: 2)
-        importer.tagsByURL[urls[1]] = TagSet(title: "Two", artist: "A", album: "Al", trackNumber: 1, discNumber: 2, totalDiscs: 2)
+        importer.tagsByURL[urls[0]] = TagSet(title: "One", artist: "A", album: "Al", discNumber: 1, totalDiscs: 2)
+        importer.tagsByURL[urls[1]] = TagSet(title: "Two", artist: "A", album: "Al", discNumber: 2, totalDiscs: 2)
+        importer.trackTagsByURL = [urls[0]: 1, urls[1]: 1]
         let tagWriter = FakeTagWriter()
         let model = makeModel(importer: importer, tagWriter: tagWriter)
         await model.addFiles(urls)

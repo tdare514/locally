@@ -173,6 +173,8 @@ final class FakeCoverStore: CoverStore {
 /// drives from `AVAsset` metadata.
 final class FakeFileImporter: FileImporter {
     var tagsByURL: [URL: TagSet] = [:]
+    /// The track number a URL's own track tag carries; a URL not listed has none.
+    var trackTagsByURL: [URL: Int] = [:]
 
     func stage(_ urls: [URL]) async throws -> [StagedFile] {
         try urls.map { url in
@@ -180,7 +182,7 @@ final class FakeFileImporter: FileImporter {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let dest = dir.appendingPathComponent(url.lastPathComponent)
             try FileManager.default.copyItem(at: url, to: dest)
-            return StagedFile(url: dest, originalName: url.lastPathComponent, existingTags: tagsByURL[url])
+            return StagedFile(url: dest, originalName: url.lastPathComponent, existingTags: tagsByURL[url], tagTrackNumber: trackTagsByURL[url])
         }
     }
 }

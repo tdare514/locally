@@ -113,4 +113,28 @@ describe("JsonLibraryRepository", () => {
     expect(raw.releases).toHaveLength(2);
     expect(raw.releases.some((r: { id: string }) => r.id === "bad")).toBe(true);
   });
+
+  it("keeps a track's discNumber from 1 to 99, and treats a release with any other disc as malformed", async () => {
+    const repo = new JsonLibraryRepository();
+    const track = (discNumber?: number) => ({
+      id: crypto.randomUUID(),
+      title: "T",
+      trackNumber: 1,
+      ...(discNumber !== undefined ? { discNumber } : {}),
+      filePath: "/nowhere/01 - T.mp3",
+      originalName: "t.mp3",
+      durationSec: null,
+    });
+    const withDisc = (discNumber?: number) => makeRelease({ tracks: [track(discNumber)] });
+    const ok = [withDisc(), withDisc(1), withDisc(99)];
+    const bad = [0, 100, 1.5, -1].map((n) => withDisc(n));
+    const file = libraryFilePath(libraryDir);
+    await fs.mkdir(libraryDir, { recursive: true });
+    await fs.writeFile(file, JSON.stringify({ version: 1, releases: [...ok, ...bad] }, null, 2), "utf-8");
+
+    const stored = await repo.list(libraryDir);
+
+    expect(stored).toEqual(ok);
+    for (const r of bad) expect(await repo.find(libraryDir, r.id)).toBeNull();
+  });
 });

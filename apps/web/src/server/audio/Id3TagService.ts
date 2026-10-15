@@ -22,9 +22,11 @@ export class Id3TagService implements TagService {
       trackNumber: `${input.trackNumber}/${input.trackTotal}`,
     };
 
-    if (input.discNumber != null && input.discTotal != null) {
-      tags.partOfSet = `${input.discNumber}/${input.discTotal}`;
-    }
+    // `NodeID3.update` merges into the tags already in the file, so a TPOS left by an earlier write
+    // (or carried over by ffmpeg) would survive. Naming the frame with `undefined` replaces it with
+    // nothing, so a release with no discs ends up with no TPOS.
+    tags.partOfSet =
+      input.discNumber != null && input.discTotal != null ? `${input.discNumber}/${input.discTotal}` : undefined;
     if (input.year) tags.year = input.year;
     if (input.genre) tags.genre = input.genre;
 

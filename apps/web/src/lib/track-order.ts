@@ -69,8 +69,12 @@ export function applyTrackEdits<E extends { key: string; title: string; discNumb
   for (const t of tracks) {
     const original = byKey.get(t.key);
     if (!original) continue;
-    // A row dropped in among another disc's rows has joined that disc; take it from the editor.
-    next.push({ ...original, title: t.title, ...(t.discNumber !== undefined ? { discNumber: t.discNumber } : {}) });
+    // The editor is the source of truth for the disc: a row dropped in among another disc's rows
+    // has joined it, and one put back (Escape after a move) may have none again.
+    const edited: E & { discNumber?: number } = { ...original, title: t.title };
+    if (t.discNumber !== undefined) edited.discNumber = t.discNumber;
+    else delete edited.discNumber;
+    next.push(edited);
   }
   return next;
 }

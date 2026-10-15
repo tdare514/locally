@@ -70,7 +70,7 @@ final class AlbumBuilderViewModel {
                     title = tags.title
                 }
                 discNumber = file.existingTags?.discNumber
-                tagTrackNumber = file.existingTags?.trackNumber
+                tagTrackNumber = file.tagTrackNumber
             }
             batch.append(TrackRow(url: rowURL, title: title, discNumber: discNumber, tagTrackNumber: tagTrackNumber))
             if let inboxFile {

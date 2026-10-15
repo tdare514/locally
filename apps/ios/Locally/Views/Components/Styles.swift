@@ -191,6 +191,10 @@ struct DiscHeading: View {
             .foregroundStyle(Theme.secondaryText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityAddTraits(.isHeader)
+            // It sits in the same `ForEach` as the track rows, so without these a swipe on it would
+            // delete, and a lift would move, the track it heads.
+            .deleteDisabled(true)
+            .moveDisabled(true)
     }
 }
 
