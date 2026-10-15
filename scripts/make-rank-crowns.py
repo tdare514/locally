@@ -105,6 +105,8 @@ def crown(rank, metal, gemkey):
     for i in order:
         bx, by, hw, tx, ty = bl[i]
         outline, left, right, ridge, streak, guard = blade(bx, by, hw, tx, ty)
+        if rank == 1:
+            guard = ""  # five blades are busy enough; guards would crowd the two short ones
         parts.append(
             (f'<path d="{guard}" fill="url(#T{rank})" stroke="{INK}" stroke-width="1.2" stroke-linejoin="miter"/>' if guard else "") +
             f'<path d="{left}" fill="url(#L{rank})"/><path d="{right}" fill="url(#R{rank})"/>'
