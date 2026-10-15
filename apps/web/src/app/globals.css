@@ -633,6 +633,258 @@ body {
   transform: rotate(0deg);
 }
 
+/* ---------------------------------------------------------------------------
+ * Streams page prototype (#145, dev only, /dev/streams; delete with src/components/dev/streams).
+ * The motion for all three directions lives here, as everywhere: `.st-*` is shared, `.st-a-*`,
+ * `.st-b-*` and `.st-c-*` belong to one direction each. The budget: one entrance (rise and fade,
+ * transform and opacity only, 480ms or less, a small stagger from `--st-i`), one shine across
+ * each medal the first time it is seen, and a hover lift on sleeves. Nothing loops and nothing
+ * follows the scroll. Content is never hidden without the animation: every entrance runs with
+ * `backwards` fill, so with no motion the page is simply there. The glass is faked (no
+ * backdrop-filter), like the sidebar's.
+ * ------------------------------------------------------------------------- */
+.st-root {
+  --st-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --st-gold: #f4c84a;
+  --st-silver: #d3dae3;
+  --st-bronze: #d89560;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes st-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@keyframes st-b-rise {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+}
+@keyframes st-shine {
+  0% {
+    translate: -140% 0;
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    translate: 140% 0;
+    opacity: 0;
+  }
+}
+.st-a-rise {
+  animation: st-rise 480ms var(--st-ease) backwards;
+  animation-delay: calc(var(--st-i, 0) * 70ms);
+}
+/* The podium rises from its baseline, bronze first, so gold lands last. */
+.st-b-rise {
+  animation: st-b-rise 480ms var(--st-ease) backwards;
+  animation-delay: calc(var(--st-i, 0) * 80ms);
+}
+.st-c-rise {
+  animation: st-rise 480ms var(--st-ease) backwards;
+  animation-delay: calc(var(--st-i, 0) * 60ms);
+}
+
+/* Sleeves lift on hover or focus, the record with them; the sleeve's shadow takes the cover's
+   own colour (`--st-accent`). */
+.st-lift {
+  transition: translate 320ms var(--st-ease);
+}
+.st-lift .record-sleeve {
+  transition: box-shadow 320ms var(--st-ease);
+}
+.st-lift:hover,
+.st-lift:focus-visible {
+  translate: 0 -6px;
+}
+.st-lift:hover .record-sleeve,
+.st-lift:focus-visible .record-sleeve {
+  box-shadow:
+    0 30px 50px -18px color-mix(in srgb, var(--st-accent, #fff) 65%, black),
+    0 10px 20px -10px rgb(0 0 0 / 0.55);
+}
+
+/* Medals: a metal coin on two ribbon tails. The numeral is part of the medal; the label says it. */
+.st-medal {
+  --m: 40px;
+  position: relative;
+  display: block;
+  width: var(--m);
+  height: var(--m);
+}
+.st-medal[data-ribbon="true"] {
+  height: calc(var(--m) * 1.3);
+}
+.st-medal-ribbon {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  width: 64%;
+  height: 56%;
+  translate: -50% 0;
+  background: var(--st-ribbon);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 74%, 0 100%);
+}
+.st-medal-coin {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  width: var(--m);
+  height: var(--m);
+  overflow: hidden;
+  border-radius: 9999px;
+  background: var(--st-coin);
+  color: var(--st-ink);
+  font-size: calc(var(--m) * 0.5);
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 1px 0 rgb(255 255 255 / 0.45);
+  box-shadow:
+    inset 0 0 0 calc(var(--m) * 0.07) var(--st-rim),
+    inset 0 calc(var(--m) * 0.05) calc(var(--m) * 0.08) rgb(255 255 255 / 0.6),
+    inset 0 calc(var(--m) * -0.08) calc(var(--m) * 0.1) rgb(0 0 0 / 0.28),
+    0 6px 14px -4px rgb(0 0 0 / 0.6);
+}
+.st-medal-coin::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  opacity: 0;
+  translate: -140% 0;
+  background: linear-gradient(105deg, transparent 38%, rgb(255 255 255 / 0.8) 50%, transparent 62%);
+}
+/* One pass, the first time the medal scrolls into view (the component sets data-seen once). */
+.st-medal[data-seen="true"] .st-medal-coin::after {
+  animation: st-shine 700ms var(--st-ease) 250ms both;
+}
+.st-medal[data-rank="1"] {
+  --st-coin: radial-gradient(circle at 30% 22%, #fff8d6 0%, #f8d56b 30%, #dfa93a 68%, #b07a1c 100%);
+  --st-rim: #f6d77a;
+  --st-ink: #6b4608;
+  --st-ribbon: linear-gradient(#b3791f, #7a4f10);
+}
+.st-medal[data-rank="2"] {
+  --st-coin: radial-gradient(circle at 30% 22%, #ffffff 0%, #dfe5ec 30%, #aeb8c4 68%, #7f8a98 100%);
+  --st-rim: #eef2f6;
+  --st-ink: #414b59;
+  --st-ribbon: linear-gradient(#7d8896, #566070);
+}
+.st-medal[data-rank="3"] {
+  --st-coin: radial-gradient(circle at 30% 22%, #ffe3c2 0%, #e0a26b 30%, #bb7a42 68%, #8a5128 100%);
+  --st-rim: #efbf8f;
+  --st-ink: #52290f;
+  --st-ribbon: linear-gradient(#9a5d33, #6a3a1c);
+}
+
+/* Artists are round discs: the cover cropped to a circle with a spindle hole and a faint groove. */
+.st-disc {
+  position: relative;
+  border-radius: 9999px;
+  box-shadow:
+    0 24px 48px -18px rgb(0 0 0 / 0.8),
+    0 8px 16px -8px rgb(0 0 0 / 0.5);
+}
+.st-disc::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, var(--bg) 0 3.2%, rgb(255 255 255 / 0.35) 3.4% 4.2%, transparent 4.4%),
+    radial-gradient(circle, transparent 0 62%, rgb(0 0 0 / 0.28) 62.5% 63.5%, transparent 64%),
+    linear-gradient(135deg, rgb(255 255 255 / 0.1), transparent 40%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+}
+
+/* Direction B: the podium's steps are faked glass with the rank engraved in the face. */
+.st-b-step {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 18px 18px 0 0;
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0.03));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    inset 0 0 0 1px rgb(255 255 255 / 0.1);
+}
+.st-b-step-rank {
+  margin-top: 0.15em;
+  font-size: 64px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: transparent;
+  background: var(--st-metal);
+  -webkit-background-clip: text;
+  background-clip: text;
+  opacity: 0.9;
+}
+.st-b-step[data-rank="1"] {
+  --st-metal: linear-gradient(180deg, #fff3bd, #e0a93a 70%);
+}
+.st-b-step[data-rank="2"] {
+  --st-metal: linear-gradient(180deg, #ffffff, #a9b3c0 70%);
+}
+.st-b-step[data-rank="3"] {
+  --st-metal: linear-gradient(180deg, #ffd9b3, #bb7a42 70%);
+}
+
+/* Direction C: a huge outlined rank numeral across the sleeve's lower corner. Gold, silver and
+   bronze strokes for the top three; the rest are a quieter white. The faint fill and the shadow
+   keep the stroke readable over bright covers. */
+.st-c-numeral {
+  position: absolute;
+  left: -8px;
+  bottom: -30px;
+  z-index: 2;
+  /* A static face on purpose: the variable system font has overlapping contours, and a stroke
+     draws every one of them (stray lines inside the 2 and the 4). */
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 212px;
+  font-weight: 700;
+  line-height: 0.78;
+  letter-spacing: -0.05em;
+  color: rgb(0 0 0 / 0.18);
+  -webkit-text-stroke: 3px var(--st-stroke, rgb(255 255 255 / 0.85));
+  filter: drop-shadow(0 4px 12px rgb(0 0 0 / 0.5));
+  pointer-events: none;
+  user-select: none;
+}
+.st-c-numeral[data-wide="true"] {
+  font-size: 160px;
+  letter-spacing: -0.08em;
+}
+.st-c-numeral[data-rank="1"] {
+  --st-stroke: var(--st-gold);
+}
+.st-c-numeral[data-rank="2"] {
+  --st-stroke: var(--st-silver);
+}
+.st-c-numeral[data-rank="3"] {
+  --st-stroke: var(--st-bronze);
+}
+/* The shelf scrolls sideways under the page's column with its own quiet scrollbar. */
+.st-c-shelf {
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.st-c-shelf::-webkit-scrollbar {
+  display: none;
+}
+.st-c-shelf > * {
+  scroll-snap-align: start;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ambient-backdrop,
   .record-disc {
@@ -669,5 +921,17 @@ body {
   }
   .track-list[data-sorting] .track-row[data-lifted] {
     scale: 1;
+  }
+  /* Streams prototype (#145): no entrances and no medal shine; the sleeve lift still happens
+     but jumps. */
+  .st-a-rise,
+  .st-b-rise,
+  .st-c-rise,
+  .st-medal[data-seen="true"] .st-medal-coin::after {
+    animation: none;
+  }
+  .st-lift,
+  .st-lift .record-sleeve {
+    transition: none;
   }
 }
