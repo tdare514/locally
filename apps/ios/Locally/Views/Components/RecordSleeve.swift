@@ -90,7 +90,11 @@ struct RecordSleeve: View {
         let coverID = cover.map { ObjectIdentifier($0) }
         return Button(action: onAddCover) {
             ZStack {
-                Theme.card
+                // The card is the empty sleeve only. Under a cover it showed as a rim while a new
+                // cover scaled in from 0.96 (#158); with a cover, the wash shows at the edges instead.
+                if cover == nil {
+                    Theme.card.transition(.opacity)
+                }
                 if let cover {
                     Image(uiImage: cover)
                         .resizable()
