@@ -4,6 +4,8 @@ import { SyncRecordSchema } from "./SyncRecord";
 import { emptySyncState, type SyncState, type SyncStateStore } from "./SyncState";
 import { z } from "zod";
 
+const MissingMarkSchema = z.object({ firstSeenMissingAt: z.string(), stillMissing: z.boolean() });
+
 const SyncStateFileSchema = z.object({
   pushedUpdatedAt: z.record(z.string(), z.string()).default({}),
   uploadedFiles: z.record(z.string(), z.array(z.string())).default({}),
@@ -15,6 +17,19 @@ const SyncStateFileSchema = z.object({
       Object.fromEntries(
         Object.entries(entries).flatMap(([id, raw]) => {
           const parsed = SyncRecordSchema.safeParse(raw);
+          return parsed.success ? [[id, parsed.data]] : [];
+        }),
+      ),
+    ),
+  // Written by builds from #172 on; a file without it, or an entry that doesn't parse, just means
+  // the next check starts that release afresh.
+  missingFiles: z
+    .record(z.string(), z.unknown())
+    .default({})
+    .transform((entries) =>
+      Object.fromEntries(
+        Object.entries(entries).flatMap(([id, raw]) => {
+          const parsed = MissingMarkSchema.safeParse(raw);
           return parsed.success ? [[id, parsed.data]] : [];
         }),
       ),

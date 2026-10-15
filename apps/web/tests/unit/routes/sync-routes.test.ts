@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Settings, Release, SyncStatus } from "../../../src/shared/types";
 import type { Services } from "../../../src/server/container";
 import { SyncAuthError, type MeResult, type SyncApi, type VerifyCodeResult } from "../../../src/server/sync/SyncApi";
-import { NotFoundError } from "../../../src/shared/errors";
+import { NotFoundError, PublicError } from "../../../src/shared/errors";
 import { emptySyncState, type SyncState, type SyncStateStore } from "../../../src/server/sync/SyncState";
 import type { SyncRecord } from "../../../src/server/sync/SyncRecord";
 import { FakePlayCountStore } from "../FakePlayCountStore";
@@ -27,6 +27,7 @@ import { DELETE as deleteAccountDELETE } from "../../../src/app/api/sync/account
 import { GET as statusGET } from "../../../src/app/api/sync/status/route";
 import { POST as reconcilePOST } from "../../../src/app/api/sync/reconcile/route";
 import { POST as acceptPOST } from "../../../src/app/api/sync/accept/[id]/route";
+import { POST as resyncPOST } from "../../../src/app/api/sync/resync/route";
 
 let settingsValue: Settings;
 
@@ -87,6 +88,7 @@ class FakeSyncStateStore implements SyncStateStore {
       uploadedFiles: Object.fromEntries(Object.entries(this.state.uploadedFiles).map(([k, v]) => [k, [...v]])),
       coverHash: { ...this.state.coverHash },
       pendingFromPhone: { ...this.state.pendingFromPhone },
+      missingFiles: { ...this.state.missingFiles },
     };
   }
   async set(state: SyncState): Promise<SyncState> {
@@ -106,7 +108,12 @@ const fixedStatus: SyncStatus = {
   quota: null,
 };
 
-let syncEngine: { status: ReturnType<typeof vi.fn>; reconcile: ReturnType<typeof vi.fn>; acceptFromPhone: ReturnType<typeof vi.fn> };
+let syncEngine: {
+  status: ReturnType<typeof vi.fn>;
+  reconcile: ReturnType<typeof vi.fn>;
+  acceptFromPhone: ReturnType<typeof vi.fn>;
+  resync: ReturnType<typeof vi.fn>;
+};
 let syncState: FakeSyncStateStore;
 let playStore: FakePlayCountStore;
 
@@ -129,6 +136,7 @@ beforeEach(() => {
     status: vi.fn().mockResolvedValue(fixedStatus),
     reconcile: vi.fn().mockResolvedValue(undefined),
     acceptFromPhone: vi.fn(),
+    resync: vi.fn(),
   };
   syncState = new FakeSyncStateStore();
   playStore = new FakePlayCountStore();
@@ -211,6 +219,7 @@ describe("POST /api/sync/signout", () => {
       uploadedFiles: {},
       coverHash: {},
       pendingFromPhone: { "rel-2": {} as SyncRecord },
+      missingFiles: {},
     });
 
     const res = await signoutPOST();
@@ -253,6 +262,7 @@ describe("DELETE /api/sync/account", () => {
       uploadedFiles: {},
       coverHash: {},
       pendingFromPhone: { "rel-2": {} as SyncRecord },
+      missingFiles: {},
     });
 
     const res = await deleteAccountDELETE();
@@ -361,5 +371,25 @@ describe("POST /api/sync/accept/[id]", () => {
     });
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /api/sync/resync (#172)", () => {
+  it("asks the engine to resync and says whether the other device was asked", async () => {
+    syncEngine.resync.mockResolvedValue({ asked: true });
+    const res = await resyncPOST();
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ ok: true, asked: true });
+    expect(syncEngine.resync).toHaveBeenCalledTimes(1);
+
+    syncEngine.resync.mockResolvedValue({ asked: false });
+    await expect((await resyncPOST()).json()).resolves.toEqual({ ok: true, asked: false });
+  });
+
+  it("returns the engine's message as an error when the request fails", async () => {
+    syncEngine.resync.mockRejectedValue(new PublicError("Sign in to sync first"));
+    const res = await resyncPOST();
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    await expect(res.json()).resolves.toEqual({ error: "Sign in to sync first" });
   });
 });

@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import os from "node:os";
 import path from "node:path";
-import type { PendingFromPhone, Release, SyncStatus } from "../../shared/types";
+import type { PendingFilesState, PendingFromPhone, Release, SyncStatus } from "../../shared/types";
 import { DEFAULT_SYNC_BASE_URL } from "../../shared/types";
 import { NotFoundError, PublicError, ValidationError } from "../../shared/errors";
 import type { SettingsStore } from "../config/SettingsStore";
@@ -18,7 +18,7 @@ import {
   type SyncApi,
   type SyncFileToUpload,
 } from "./SyncApi";
-import type { SyncStateStore } from "./SyncState";
+import type { MissingMark, SyncStateStore } from "./SyncState";
 
 /** Builds a `SyncApi` for a given base URL/token; a factory (not a singleton) because both can change while the app runs. */
 export type SyncApiFactory = (baseUrl: string, token: string | null) => SyncApi;
@@ -36,7 +36,24 @@ function permanentPlayRejection(err: unknown): number | null {
 /** Guard against a misbehaving or hostile server: a `pullOnce` reconcile stops after this many pages. */
 export const MAX_PULL_PAGES_PER_RECONCILE = 100;
 
-function pendingSummary(record: SyncRecord): PendingFromPhone {
+/** The files-missing check (#172) runs at most this often, and only while releases are pending. */
+export const MISSING_CHECK_SPACING_MS = 10 * 60_000;
+
+/** A release whose record is this old and whose files are still missing has "never reached" the server. */
+export const NEVER_REACHED_AFTER_MS = 60 * 60_000;
+
+/**
+ * Where a pending release's files stand. No mark (the check did not list it, or never ran) is the
+ * normal case. A mark is "arriving" on a release's first sighting while its record is under an hour
+ * old, and "waiting" once a later check lists it again or the record is an hour old.
+ */
+function filesStateFor(record: SyncRecord, mark: MissingMark | undefined, nowMs: number): PendingFilesState | undefined {
+  if (!mark) return undefined;
+  const ageMs = nowMs - Date.parse(record.updatedAt);
+  return mark.stillMissing || ageMs >= NEVER_REACHED_AFTER_MS ? "waiting" : "arriving";
+}
+
+function pendingSummary(record: SyncRecord, filesState: PendingFilesState | undefined): PendingFromPhone {
   const meta = fromSyncRecord(record);
   return {
     id: meta.id,
@@ -45,6 +62,7 @@ function pendingSummary(record: SyncRecord): PendingFromPhone {
     artist: meta.artist,
     kind: meta.kind,
     trackCount: meta.tracks.length,
+    ...(filesState ? { filesState } : {}),
   };
 }
 
@@ -84,6 +102,8 @@ export class SyncEngine implements ReleaseSyncHooks {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   /** So a batch the service keeps refusing logs once, not on every reconcile. */
   private loggedPlayRejection = false;
+  /** When the files-missing check last ran (#172): in memory, so a restart simply checks again. */
+  private lastMissingCheckMs: number | null = null;
 
   constructor(
     private readonly settings: SettingsStore,
@@ -93,7 +113,9 @@ export class SyncEngine implements ReleaseSyncHooks {
     private readonly apiFactory: SyncApiFactory,
     private readonly deviceName: () => string = () => os.hostname(),
     /** This Mac's play counts (#107); null in tests that don't care, which skips the play push. */
-    private readonly playStore: PlayCountStore | null = null
+    private readonly playStore: PlayCountStore | null = null,
+    /** The clock; tests pass a fake one to step through the "arriving" and "waiting" states. */
+    private readonly now: () => Date = () => new Date()
   ) {}
 
   // --- ReleaseSyncHooks -----------------------------------------------------
@@ -120,6 +142,7 @@ export class SyncEngine implements ReleaseSyncHooks {
     const settings = await this.settings.get();
     const state = await this.syncState.get();
     const signedIn = !!settings.sync?.deviceToken;
+    const nowMs = this.now().getTime();
     return {
       signedIn,
       email: settings.sync?.email ?? null,
@@ -127,7 +150,9 @@ export class SyncEngine implements ReleaseSyncHooks {
       deviceName: signedIn ? this.deviceName() : null,
       lastRunAt: this.lastRunAt,
       lastError: this.lastError,
-      pendingFromPhone: Object.values(state.pendingFromPhone).map(pendingSummary),
+      pendingFromPhone: Object.values(state.pendingFromPhone).map((record) =>
+        pendingSummary(record, filesStateFor(record, state.missingFiles[record.id], nowMs))
+      ),
       quota: this.quota,
     };
   }
@@ -166,6 +191,7 @@ export class SyncEngine implements ReleaseSyncHooks {
       delete state.uploadedFiles[id];
       delete state.coverHash[id];
       delete state.pendingFromPhone[id];
+      delete state.missingFiles[id];
       await this.syncState.set(state);
 
       // `lastVersion` only advances on a pull (see `pullOnce`): the version a
@@ -308,6 +334,7 @@ export class SyncEngine implements ReleaseSyncHooks {
           delete state.uploadedFiles[record.id];
           delete state.coverHash[record.id];
           delete state.pendingFromPhone[record.id];
+          delete state.missingFiles[record.id];
           continue;
         }
 
@@ -322,6 +349,7 @@ export class SyncEngine implements ReleaseSyncHooks {
         }
 
         delete state.pendingFromPhone[record.id];
+        delete state.missingFiles[record.id];
         if (record.updatedAt > local.updatedAt) {
           // A v1 record (no `coverHash` key) or one without a cover carries no
           // change signal, so the cover is left alone as before.
@@ -446,6 +474,8 @@ export class SyncEngine implements ReleaseSyncHooks {
         }
       }
 
+      await this.checkMissingFiles(api);
+
       try {
         const me = await api.me();
         this.quota = me.quota;
@@ -507,6 +537,69 @@ export class SyncEngine implements ReleaseSyncHooks {
     if (!refused) this.loggedPlayRejection = false;
   }
 
+  /**
+   * Asks the service which pending releases have files that never landed (#172) and updates their
+   * marks: a release listed for the first time is "arriving", one listed again is "waiting", and
+   * one no longer listed drops out. Runs only while something is pending and at most every
+   * `MISSING_CHECK_SPACING_MS`, an attempt counting even when it fails so an outage or a rate limit
+   * is not hammered. Never fails the reconcile: a failed check, a 429 from the per-device limit
+   * included, leaves the marks as they were and waits for the next eligible check with no error
+   * line, and a service that answers 404 (before #170) clears them, which is today's plain tray.
+   */
+  private async checkMissingFiles(api: SyncApi): Promise<void> {
+    if (Object.keys((await this.syncState.get()).pendingFromPhone).length === 0) return;
+
+    const nowMs = this.now().getTime();
+    const sinceLast = this.lastMissingCheckMs === null ? Infinity : nowMs - this.lastMissingCheckMs;
+    // A negative gap means the clock moved back; check rather than wait out the difference.
+    if (sinceLast >= 0 && sinceLast < MISSING_CHECK_SPACING_MS) return;
+    this.lastMissingCheckMs = nowMs;
+
+    let result;
+    try {
+      result = await api.missingFiles();
+    } catch {
+      return; // quiet skip: 429, an outage or a bad reply all keep the marks as they are
+    }
+
+    // Read again: an accept during the request may have taken a release out of the tray.
+    const state = await this.syncState.get();
+    const listed = new Set((result?.releases ?? []).map((r) => r.id));
+    const marks: Record<string, MissingMark> = {};
+    for (const id of Object.keys(state.pendingFromPhone)) {
+      if (!listed.has(id)) continue;
+      const earlier = state.missingFiles[id];
+      marks[id] = earlier
+        ? { firstSeenMissingAt: earlier.firstSeenMissingAt, stillMissing: true }
+        : { firstSeenMissingAt: new Date(nowMs).toISOString(), stillMissing: false };
+    }
+    state.missingFiles = marks;
+    await this.syncState.set(state);
+  }
+
+  /**
+   * "Resync Mac and phone" (#172): reconciles now, then asks the account's other devices to upload
+   * again. `asked` is false when the request did not go through for a reason that passes with time:
+   * the per-device limit (429, the Mac's own checks share it) or a service with no such request
+   * (404, before #170). The reconcile has run either way, and the tray says "Try again in a few
+   * minutes" rather than showing an error. The phone does the uploading; when the files land, a
+   * later check drops the release from the missing list.
+   */
+  async resync(): Promise<{ asked: boolean }> {
+    const settings = await this.settings.get();
+    if (!settings.sync?.deviceToken) {
+      throw new PublicError("Sign in to sync first");
+    }
+    await this.reconcile();
+    const api = this.apiFactory(settings.sync.baseUrl, settings.sync.deviceToken);
+    try {
+      return { asked: (await api.requestResync()) !== null };
+    } catch (err) {
+      if (err instanceof SyncRequestError && err.status === 429) return { asked: false };
+      throw err;
+    }
+  }
+
   // --- Inbox ("From your devices") ----------------------------------------
 
   async acceptFromPhone(id: string): Promise<Release> {
@@ -518,6 +611,12 @@ export class SyncEngine implements ReleaseSyncHooks {
     const record = state.pendingFromPhone[id];
     if (!record) {
       throw new NotFoundError(`No pending release ${id} from your phone`);
+    }
+    // The tray never offers Send here; this stops a stale tray from walking into the 404 below.
+    if (filesStateFor(record, state.missingFiles[id], this.now().getTime()) === "waiting") {
+      throw new PublicError(
+        "This song's files never reached the server. Use Resync in the tray to ask for them again."
+      );
     }
 
     const api = this.apiFactory(settings.sync.baseUrl, settings.sync.deviceToken);
@@ -542,6 +641,7 @@ export class SyncEngine implements ReleaseSyncHooks {
 
       const fresh = await this.syncState.get();
       delete fresh.pendingFromPhone[id];
+      delete fresh.missingFiles[id];
       fresh.pushedUpdatedAt[id] = record.updatedAt;
       fresh.uploadedFiles[id] = names;
       await this.syncState.set(fresh);

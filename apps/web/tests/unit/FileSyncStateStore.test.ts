@@ -78,6 +78,7 @@ describe("FileSyncStateStore", () => {
         "rel-1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       },
       pendingFromPhone: { "rel-1": pending },
+      missingFiles: { "rel-1": { firstSeenMissingAt: "2026-01-01T00:05:00.000Z", stillMissing: true } },
     };
 
     await store.set(state);
@@ -146,6 +147,7 @@ describe("FileSyncStateStore", () => {
         "rel-1": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       },
       pendingFromPhone: {},
+      missingFiles: {},
     });
   });
 
@@ -209,9 +211,43 @@ describe("FileSyncStateStore", () => {
           id: "11111111-1111-4111-8111-111111111111",
         }),
       },
+      missingFiles: {},
     };
     await store.set(input);
     const loaded = await store.get();
     expect(loaded).toEqual(input);
+  });
+
+  it("loads a file written before the missing-files marks existed, keeping everything else (#172)", async () => {
+    await writeSyncStateFile({
+      pushedUpdatedAt: { "rel-1": "2026-01-01T00:00:00.000Z" },
+      uploadedFiles: {},
+      coverHash: {},
+      pendingFromPhone: {},
+    });
+
+    const state = await new FileSyncStateStore().get();
+    expect(state.pushedUpdatedAt).toEqual({ "rel-1": "2026-01-01T00:00:00.000Z" });
+    expect(state.missingFiles).toEqual({});
+  });
+
+  it("keeps a valid missing-files mark and drops a malformed one, not the whole file (#172)", async () => {
+    await writeSyncStateFile({
+      pushedUpdatedAt: { "rel-1": "2026-01-01T00:00:00.000Z" },
+      uploadedFiles: {},
+      coverHash: {},
+      pendingFromPhone: {},
+      missingFiles: {
+        good: { firstSeenMissingAt: "2026-10-15T10:00:00.000Z", stillMissing: false },
+        bad: { firstSeenMissingAt: 5 },
+        worse: "nope",
+      },
+    });
+
+    const state = await new FileSyncStateStore().get();
+    expect(state.pushedUpdatedAt).toEqual({ "rel-1": "2026-01-01T00:00:00.000Z" });
+    expect(state.missingFiles).toEqual({
+      good: { firstSeenMissingAt: "2026-10-15T10:00:00.000Z", stillMissing: false },
+    });
   });
 });

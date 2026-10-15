@@ -106,6 +106,10 @@ export interface ReleasePlaysResponse {
   tracks: TrackPlays[];
 }
 
+/** Where a pending release's files stand (#172). Absent means they are on the server: Send works.
+ * "arriving" is the quiet "still uploading"; "waiting" means they never reached the server. */
+export type PendingFilesState = "arriving" | "waiting";
+
 /** One release from another device (the phone, the web) that hasn't been imported into the local library yet. */
 export interface PendingFromPhone {
   id: string;
@@ -115,6 +119,8 @@ export interface PendingFromPhone {
   artist: string;
   kind: ReleaseKind;
   trackCount: number;
+  /** Set only while the files-missing check lists this release; an older service never sets it. */
+  filesState?: PendingFilesState;
 }
 
 export interface SyncQuota {

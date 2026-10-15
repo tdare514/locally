@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Library, Release, ReleaseKind, SyncStatus } from "../shared/types";
-import { acceptFromPhone, getLibrary, getSyncStatus } from "../lib/api-client";
+import { acceptFromPhone, getLibrary, getSyncStatus, resyncFromPhone } from "../lib/api-client";
 import Sidebar from "./Sidebar";
 import LibraryView from "./LibraryView";
 import { IS_DEMO } from "../lib/demo";
@@ -12,7 +12,7 @@ import SettingsView from "./SettingsView";
 import type { LibrarySort } from "../lib/library-sections";
 import AmbientSpace from "./AmbientSpace";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
-import PhoneInbox from "./PhoneInbox";
+import PhoneInbox, { type ResyncOutcome } from "./PhoneInbox";
 import Toast, { type ToastMessage } from "./Toast";
 
 export type View =
@@ -159,6 +159,18 @@ export default function AppShell() {
     }
   }
 
+  /** "Resync Mac and phone": reconciles, asks the other devices to upload again, then reloads the tray. */
+  async function handleResync(): Promise<ResyncOutcome> {
+    try {
+      const { asked } = await resyncFromPhone();
+      await refreshSyncStatus();
+      return asked ? "asked" : "later";
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "Failed to ask your phone to resync");
+      return "failed";
+    }
+  }
+
   return (
     <div
       ref={shellRef}
@@ -238,6 +250,7 @@ export default function AppShell() {
             <PhoneInbox
               pending={syncStatus?.pendingFromPhone ?? []}
               onAccept={handleAcceptFromPhone}
+              onResync={handleResync}
             />
           </div>
         )}

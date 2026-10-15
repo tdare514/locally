@@ -1,17 +1,22 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { INBOX_TITLE, originLabel } from "../lib/inbox-copy";
+import { arrivingLine, INBOX_TITLE, originLabel, waitingCopy } from "../lib/inbox-copy";
 import type { PendingFromPhone } from "../shared/types";
 import { CloudDownIcon, MusicNoteIcon, PlusIcon, XIcon } from "./Icons";
 
 /** Matches the .phone-tray exit transition in globals.css. */
 const EXIT_MS = 200;
 
+/** How "Resync Mac and phone" went: asked the other device, couldn't yet (rate limit), or failed (a toast says why). */
+export type ResyncOutcome = "asked" | "later" | "failed";
+
 interface PhoneInboxProps {
   pending: PendingFromPhone[];
   /** Resolves true when the release was imported; false brings the row back. */
   onAccept: (id: string) => Promise<boolean>;
+  /** Reconciles, then asks the other devices to upload again. */
+  onResync: () => Promise<ResyncOutcome>;
 }
 
 function triggerLabel(count: number, open: boolean): string {
@@ -23,10 +28,13 @@ function triggerLabel(count: number, open: boolean): string {
 }
 
 /** Round inbox button in the pane's top-right corner that opens a "From your devices" tray. */
-export default function PhoneInbox({ pending, onAccept }: PhoneInboxProps) {
+export default function PhoneInbox({ pending, onAccept, onResync }: PhoneInboxProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [leaving, setLeaving] = useState<Set<string>>(new Set());
+  const [resyncing, setResyncing] = useState(false);
+  // The request goes to the whole account, so one press answers every waiting row.
+  const [outcomes, setOutcomes] = useState<Record<string, "asked" | "later">>({});
   const panelId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -71,6 +79,15 @@ export default function PhoneInbox({ pending, onAccept }: PhoneInboxProps) {
       next.delete(id);
       return next;
     });
+  }
+
+  async function resync() {
+    const waiting = pending.filter((p) => p.filesState === "waiting").map((p) => p.id);
+    setResyncing(true);
+    const outcome = await onResync();
+    setResyncing(false);
+    if (outcome === "failed") return;
+    setOutcomes((prev) => ({ ...prev, ...Object.fromEntries(waiting.map((id) => [id, outcome])) }));
   }
 
   return (
@@ -123,6 +140,9 @@ export default function PhoneInbox({ pending, onAccept }: PhoneInboxProps) {
                   item={p}
                   leaving={leaving.has(p.id)}
                   onSend={() => accept(p.id)}
+                  onResync={resync}
+                  resyncing={resyncing}
+                  outcome={outcomes[p.id]}
                 />
               </div>
             </div>
@@ -136,47 +156,95 @@ export default function PhoneInbox({ pending, onAccept }: PhoneInboxProps) {
 /** One pending release as a small record sleeve, echoing the release page. The sleeve is the
  * Send to Spotify button: on hover the cover turns accent with a plus (Spotify's own "add" mark)
  * and the disc rolls out; the title and artist sit beside it. */
-function PendingRow({
+export function PendingRow({
   item,
   leaving,
   onSend,
+  onResync,
+  resyncing,
+  outcome,
 }: {
   item: PendingFromPhone;
   leaving: boolean;
   onSend: () => void;
+  onResync: () => void;
+  resyncing: boolean;
+  outcome?: "asked" | "later";
 }) {
   const title = item.title || item.artist;
-  return (
-    <div className="flex items-center gap-3.5 rounded-2xl px-2.5 py-2.5">
-      <button
-        type="button"
-        disabled={leaving}
-        onClick={onSend}
-        aria-label={`Send ${title} to Spotify`}
-        title="Send to Spotify"
-        className="group/send relative h-12 w-[4.25rem] shrink-0 rounded-[10px] active:scale-95 disabled:opacity-60"
-      >
-        <span className="absolute right-0 top-1/2 h-11 w-11 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,#3a3a40_0_12%,#0c0c0e_13%_17%,#26262b_18%_40%,#1a1a1e_41%_62%,#2a2a30_63%_100%)] shadow-[0_4px_12px_-4px_rgb(0_0_0/0.8)] ring-1 ring-white/15 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover/send:translate-x-1.5 group-hover/send:rotate-45 group-focus-visible/send:translate-x-1.5" />
-        <span className="absolute left-0 top-0 flex h-12 w-12 items-center justify-center rounded-[10px] bg-[linear-gradient(140deg,color-mix(in_srgb,var(--accent)_55%,#1a1a1f),#121216)] text-white/70 shadow-[0_6px_16px_-6px_rgb(0_0_0/0.8)] ring-1 ring-white/10 transition-colors group-hover/send:bg-accent group-hover/send:bg-none group-focus-visible/send:bg-accent group-focus-visible/send:bg-none group-focus-visible/send:ring-2 group-focus-visible/send:ring-white">
-          <MusicNoteIcon className="h-4 w-4 transition-opacity group-hover/send:opacity-0 group-focus-visible/send:opacity-0" />
-          <PlusIcon
-            className="absolute h-5 w-5 text-black opacity-0 transition-opacity group-hover/send:opacity-100 group-focus-visible/send:opacity-100"
-            strokeWidth={2.5}
-          />
-        </span>
-      </button>
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-semibold text-text">{title}</span>
-        {/* A long artist name gives way first; the track count always shows. */}
-        <span className="flex text-[13px] text-text-muted">
-          <span className="truncate">{item.artist}</span>
-          <span className="shrink-0 whitespace-pre">
-            {" · "}
-            {item.trackCount} track{item.trackCount === 1 ? "" : "s"}
-          </span>
-        </span>
-        <span className="block truncate text-[12px] text-text-dim">{originLabel(item.origin)}</span>
+  const waiting = item.filesState === "waiting";
+  const copy = waitingCopy(item.origin);
+  // The group/send hover and focus effects only fire under the Send button, so the same sleeve
+  // sits still when it is not one.
+  const sleeve = (
+    <>
+      <span className="absolute right-0 top-1/2 h-11 w-11 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,#3a3a40_0_12%,#0c0c0e_13%_17%,#26262b_18%_40%,#1a1a1e_41%_62%,#2a2a30_63%_100%)] shadow-[0_4px_12px_-4px_rgb(0_0_0/0.8)] ring-1 ring-white/15 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover/send:translate-x-1.5 group-hover/send:rotate-45 group-focus-visible/send:translate-x-1.5" />
+      <span className="absolute left-0 top-0 flex h-12 w-12 items-center justify-center rounded-[10px] bg-[linear-gradient(140deg,color-mix(in_srgb,var(--accent)_55%,#1a1a1f),#121216)] text-white/70 shadow-[0_6px_16px_-6px_rgb(0_0_0/0.8)] ring-1 ring-white/10 transition-colors group-hover/send:bg-accent group-hover/send:bg-none group-focus-visible/send:bg-accent group-focus-visible/send:bg-none group-focus-visible/send:ring-2 group-focus-visible/send:ring-white">
+        <MusicNoteIcon className="h-4 w-4 transition-opacity group-hover/send:opacity-0 group-focus-visible/send:opacity-0" />
+        <PlusIcon
+          className="absolute h-5 w-5 text-black opacity-0 transition-opacity group-hover/send:opacity-100 group-focus-visible/send:opacity-100"
+          strokeWidth={2.5}
+        />
       </span>
+    </>
+  );
+  return (
+    <div>
+      <div className="flex items-center gap-3.5 rounded-2xl px-2.5 py-2.5">
+        {waiting ? (
+          // Waiting on the other device: nothing to send yet, so the sleeve is only a picture.
+          <div aria-hidden="true" className="relative h-12 w-[4.25rem] shrink-0 opacity-60">
+            {sleeve}
+          </div>
+        ) : (
+          <button
+            type="button"
+            disabled={leaving}
+            onClick={onSend}
+            aria-label={`Send ${title} to Spotify`}
+            title="Send to Spotify"
+            className="group/send relative h-12 w-[4.25rem] shrink-0 rounded-[10px] active:scale-95 disabled:opacity-60"
+          >
+            {sleeve}
+          </button>
+        )}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-semibold text-text">{title}</span>
+          {/* A long artist name gives way first; the track count always shows. */}
+          <span className="flex text-[13px] text-text-muted">
+            <span className="truncate">{item.artist}</span>
+            <span className="shrink-0 whitespace-pre">
+              {" · "}
+              {item.trackCount} track{item.trackCount === 1 ? "" : "s"}
+            </span>
+          </span>
+          <span className="block truncate text-[12px] text-text-dim">{originLabel(item.origin)}</span>
+          {waiting && <span className="block truncate text-[12px] font-semibold text-text">{copy.title}</span>}
+        </span>
+      </div>
+      {item.filesState === "arriving" && (
+        <p className="px-2.5 pb-3 pt-0.5 text-[12px] leading-snug text-text-muted">{arrivingLine(item.origin)}</p>
+      )}
+      {waiting && (
+        <div className="px-2.5 pb-3 pt-0.5" aria-live="polite">
+          {outcome === "asked" ? (
+            <p className="text-[12px] leading-snug text-text-muted">{copy.asked}</p>
+          ) : (
+            <>
+              <p className="text-[12px] leading-snug text-text-muted">{copy.body}</p>
+              <button
+                type="button"
+                disabled={resyncing}
+                onClick={onResync}
+                className="mt-2 rounded-full bg-elevated px-3.5 py-1.5 text-[13px] font-semibold text-text transition-colors hover:bg-elevated-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {copy.action}
+              </button>
+              {outcome === "later" && <p className="mt-1.5 text-[12px] text-text-dim">{copy.later}</p>}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
