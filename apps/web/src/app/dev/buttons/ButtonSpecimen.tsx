@@ -5,11 +5,12 @@ import AmbientBackdrop from "../../../components/AmbientBackdrop";
 import { CloudDownIcon } from "../../../components/Icons";
 import type { AmbientPalette } from "../../../lib/artwork-palette";
 
-/** Gallery of the final button set for #155. The styles live in globals.css (`.btn-save`,
- * `.btn-ink`, `.btn-ink-danger`, `.btn-icon`, `.btn-seg`). */
+/** Gallery of the final button set for #155, plus the Import invitation's glow (#159). The
+ * styles live in globals.css (`.btn-save`, `.btn-glow`, `.btn-ink`, `.btn-ink-danger`,
+ * `.btn-icon`, `.btn-seg`). */
 
 type Pin = "rest" | "hover" | "press" | "focus" | "disabled";
-type Kind = "save" | "secondary" | "delete" | "icon" | "toggle";
+type Kind = "save" | "glow" | "secondary" | "delete" | "icon" | "toggle";
 
 const PINS: { id: Pin; label: string }[] = [
   { id: "rest", label: "Rest" },
@@ -21,6 +22,7 @@ const PINS: { id: Pin; label: string }[] = [
 
 const KINDS: { id: Kind; label: string }[] = [
   { id: "save", label: "Primary" },
+  { id: "glow", label: "Glow" },
   { id: "secondary", label: "Secondary" },
   { id: "delete", label: "Destructive" },
   { id: "icon", label: "Icon" },
@@ -81,6 +83,12 @@ function Cell({ kind, state }: { kind: Kind; state: Pin }) {
           Save to library
         </button>
       );
+    case "glow":
+      return (
+        <button type="button" className="btn-save btn-glow" {...p}>
+          Add a track
+        </button>
+      );
     case "secondary":
       return (
         <button type="button" className="btn-ink" {...p}>
@@ -115,7 +123,7 @@ function Sheet() {
   return (
     <div
       className="grid items-center gap-x-4 gap-y-3"
-      style={{ gridTemplateColumns: "4rem repeat(5, auto)", justifyContent: "space-between" }}
+      style={{ gridTemplateColumns: "4rem repeat(6, auto)", justifyContent: "space-between" }}
     >
       <span />
       {KINDS.map((k) => (
@@ -189,7 +197,7 @@ export default function ButtonSpecimen() {
           can sit side by side; every button is also live, so hover, press and tab through them.
         </p>
       </header>
-      <div className="mt-8 grid grid-cols-2 gap-5">
+      <div className="mt-8 grid grid-cols-1 gap-5">
         <Stage title="Dark panel">
           <Sheet />
         </Stage>

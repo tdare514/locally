@@ -12,6 +12,7 @@ import { GET as getRelease, PATCH as patchRelease, DELETE as deleteRelease } fro
 import { GET as getCover, PUT as putCover } from "../../../src/app/api/releases/[id]/cover/route";
 import { GET as getSettings, PUT as putSettings } from "../../../src/app/api/settings/route";
 import { GET as getSyncStatus } from "../../../src/app/api/sync/status/route";
+import { GET as getPlayTotals } from "../../../src/app/api/plays/totals/route";
 import { GET as getSpotifySource } from "../../../src/app/api/spotify/source/route";
 import { POST as postImport } from "../../../src/app/api/import/route";
 import { POST as postInspect } from "../../../src/app/api/inspect/route";
@@ -66,6 +67,12 @@ describe("demo GET routes", () => {
     expect(sync).toMatchObject({ signedIn: false, pendingFromPhone: [] });
     const source = await (await getSpotifySource()).json();
     expect(source.watching).toBe(true);
+  });
+
+  it("play totals are empty, without touching the services", async () => {
+    const res = await getPlayTotals();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ tracks: [] });
   });
 
   it("cover is a locked-down SVG for a known id and 404 for an unknown one", async () => {

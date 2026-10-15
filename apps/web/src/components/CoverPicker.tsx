@@ -21,7 +21,15 @@ interface CoverPickerProps {
   /** `compact` sits beside title and artist on import. `thumb` is a small
    * header cover. `sleeve` is the release page's hero cover (#112). */
   presentation: CoverPresentation;
+  /** `sleeve` only: take part in the Import page's cover beat (#159). "playing" lands a new cover
+   * with the beat (it slides in under a soft flash of light; globals.css `.imp-*`), "settled"
+   * shows it with no motion at all (the beat is over, or input skipped it). Leave it out for the
+   * normal cross-fade. */
+  beat?: "playing" | "settled";
 }
+
+/** How long a replaced cover's object URL stays valid: longer than the Import beat (2.3 s). */
+const REVOKE_DELAY_MS = 3000;
 
 /** Fixed side in px, or null when the size is responsive (set by `frameClass`). */
 function sideFor(presentation: CoverPresentation): number | null {
@@ -44,9 +52,11 @@ function frameClass(presentation: CoverPresentation, dragOver: boolean): string 
 }
 
 /** 28 px circular pencil, inset on the thumb (and on a filled compact square). */
-function PencilBadge() {
+function PencilBadge({ settle }: { settle?: boolean }) {
   return (
-    <span className="absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/80 text-white backdrop-blur-sm">
+    <span
+      className={`${settle ? "imp-settle " : ""}absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/80 text-white backdrop-blur-sm`}
+    >
       <PencilIcon className="h-3 w-3" />
     </span>
   );
@@ -64,6 +74,7 @@ export default function CoverPicker({
   disabled,
   readOnly,
   presentation,
+  beat,
 }: CoverPickerProps) {
   const inert = disabled || readOnly;
   const inputRef = useRef<HTMLInputElement>(null);
@@ -85,7 +96,12 @@ export default function CoverPicker({
     }
     const url = URL.createObjectURL(file);
     setObjectUrl(url);
-    return () => URL.revokeObjectURL(url);
+    return () => {
+      // Revoked a little late, not at once: on a replacement the outgoing cover stays mounted
+      // under the new one while it lands (`layers.previous`), and a revoked blob URL there shows
+      // as a broken image.
+      window.setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS);
+    };
   }, [file]);
 
   const previewUrl = objectUrl ?? existingUrl ?? null;
@@ -96,6 +112,24 @@ export default function CoverPicker({
   if (layers.current !== previewUrl) {
     setLayers({ current: previewUrl, previous: layers.current });
   }
+
+  const beating = presentation === "sleeve" && beat === "playing";
+  const coverMotion = beat === undefined ? "cover-in" : beating ? "imp-cover" : "";
+
+  /** The sleeve's empty state. During the beat it stays under the arriving cover and fades out. */
+  const sleeveEmpty = (leaving: boolean) => (
+    <div
+      className={
+        leaving
+          ? "imp-empty-out absolute inset-0 flex flex-col items-center justify-center gap-2 px-6"
+          : "flex flex-col items-center gap-2 px-6"
+      }
+    >
+      <ImagePlusIcon className={`h-8 w-8 ${dragOver ? "text-accent" : "text-text-muted"}`} />
+      <p className="text-sm font-semibold text-text">Add cover art</p>
+      <p className="text-xs leading-snug text-text-muted">Drop an image or click to choose</p>
+    </div>
+  );
 
   function acceptFiles(files: FileList | null) {
     if (inert || !files || files.length === 0) return;
@@ -128,10 +162,15 @@ export default function CoverPicker({
           dragOver
         )} ${disabled ? "cursor-not-allowed opacity-60" : ""} ${readOnly ? "!cursor-default" : ""}`}
       >
+        {/* The first cover of the beat: the empty state fades out under it (an outgoing cover, when
+            there is one, sits above this and hides it). */}
+        {beating && previewUrl && !layers.previous ? sleeveEmpty(true) : null}
         {/* Object URLs / local API image routes aren't compatible with next/image's optimizer. */}
         {presentation === "sleeve" && previewUrl ? (
           <>
-            {layers.previous && (
+            {/* Not once the motion is skipped or over (coverMotion ""): a cancelled animation never
+                reaches onAnimationEnd, so the outgoing cover would stay mounted. */}
+            {layers.previous && coverMotion !== "" && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={layers.previous}
@@ -145,20 +184,14 @@ export default function CoverPicker({
               src={previewUrl}
               alt=""
               onAnimationEnd={() => setLayers((l) => ({ ...l, previous: null }))}
-              className="cover-in relative h-full w-full object-cover"
+              className={`${coverMotion} relative h-full w-full object-cover`}
             />
           </>
         ) : previewUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={previewUrl} alt="" className="h-full w-full object-cover" />
         ) : presentation === "sleeve" ? (
-          <div className="flex flex-col items-center gap-2 px-6">
-            <ImagePlusIcon
-              className={`h-8 w-8 ${dragOver ? "text-accent" : "text-text-muted"}`}
-            />
-            <p className="text-sm font-semibold text-text">Add cover art</p>
-            <p className="text-xs leading-snug text-text-muted">Drop an image or click to choose</p>
-          </div>
+          sleeveEmpty(false)
         ) : presentation === "thumb" ? (
           <MusicNoteIcon className="h-7 w-7 text-text-muted" />
         ) : (
@@ -171,8 +204,8 @@ export default function CoverPicker({
             </p>
           </div>
         )}
-        {!readOnly && (presentation === "thumb" || previewUrl) ? (
-          <PencilBadge />
+        {!readOnly && !beating && (presentation === "thumb" || previewUrl) ? (
+          <PencilBadge settle={beat === "settled"} />
         ) : null}
         <input
           ref={inputRef}
@@ -186,6 +219,9 @@ export default function CoverPicker({
           }}
         />
       </div>
+      {/* The flash, over the whole sleeve and a little past its edge, so it sits beside the sleeve's
+          clip, not inside it. Keyed by the cover so a replacement plays it again. */}
+      {beating && previewUrl ? <div key={previewUrl} aria-hidden className="imp-flash" /> : null}
       <CoverCropDialog
         file={pendingFile}
         onCancel={() => setPendingFile(null)}

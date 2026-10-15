@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import UIKit
 
@@ -6,7 +7,9 @@ import UIKit
 /// It takes plain colours (the caller derives them from the cover), so it knows nothing
 /// about artwork. A new set of colours cross-fades over `Theme.Immersive.backdropCrossFade`;
 /// the glows drift slowly by transform only (no blur or material sits over the animation).
-/// With Reduce Motion on there is no drift and colours change instantly.
+/// With Reduce Motion on there is no drift and colours change instantly. The drift also pauses
+/// (`BackdropMotion`) while the app is in the background, the backdrop's tab is not the selected
+/// one, or Low Power Mode is on.
 /// `progress` (screens scrolled) turns the two glows against each other on top of the
 /// drift, by `Immersive.scrollTurnPrimary` / `scrollTurnSecondary` degrees per screen as
 /// the web's `.ambient-sky-1/-2` do, so a caller can link the wash to scrolling (the
@@ -27,6 +30,9 @@ struct ArtworkBackdrop: View {
     private let progress: Double
     @State private var layers: [Layer]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.isTabSelected) private var isTabSelected
+    @State private var isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
 
     init(primary: Color, secondary: Color, deep: Color, progress: Double = 0) {
         self.progress = progress
@@ -64,13 +70,19 @@ struct ArtworkBackdrop: View {
         ZStack {
             Theme.background
             ForEach(layers) { layer in
-                Wash(palette: layer.palette, progress: reduceMotion ? 0 : progress, reduceMotion: reduceMotion)
+                Wash(
+                    palette: layer.palette, progress: reduceMotion ? 0 : progress, reduceMotion: reduceMotion,
+                    isActive: BackdropMotion.isActive(scenePhase: scenePhase, isTabSelected: isTabSelected, isLowPowerMode: isLowPowerMode)
+                )
                     .transition(.opacity)
             }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+        .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange).receive(on: DispatchQueue.main)) { _ in
+            isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+        }
         .onChange(of: palette) { _, new in
             let layer = Layer(palette: new)
             if reduceMotion {
@@ -120,10 +132,12 @@ struct ArtworkBackdrop: View {
         let palette: Palette
         let progress: Double
         let reduceMotion: Bool
+        /// False stops the per-frame redraw; the glows stay where they are.
+        let isActive: Bool
 
         var body: some View {
             GeometryReader { geo in
-                TimelineView(.animation(paused: reduceMotion)) { context in
+                TimelineView(.animation(paused: reduceMotion || !isActive)) { context in
                     let t = reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate
                     ZStack {
                         LinearGradient(

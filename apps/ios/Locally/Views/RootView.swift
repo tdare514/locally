@@ -33,14 +33,17 @@ struct RootView: View {
             } else {
                 TabView(selection: $selectedTab) {
                     LibraryView(selectedTab: $selectedTab, requestedImportKind: $requestedImportKind)
+                        .environment(\.isTabSelected, selectedTab == .library)
                         .tabItem { Label(Copy.Library.title, systemImage: "music.note.list") }
                         .tag(Tab.library)
 
                     ImportView(requestedKind: $requestedImportKind)
+                        .environment(\.isTabSelected, selectedTab == .importSong)
                         .tabItem { Label(Copy.Import.title, systemImage: "plus.circle") }
                         .tag(Tab.importSong)
 
                     SettingsView()
+                        .environment(\.isTabSelected, selectedTab == .settings)
                         .tabItem { Label(Copy.Settings.title, systemImage: "gearshape") }
                         .tag(Tab.settings)
                 }
