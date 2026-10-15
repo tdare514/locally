@@ -1438,6 +1438,22 @@ describe("SyncEngine", () => {
       ]);
     });
 
+    it("pushes no days: a track with day buckets goes out as the same three fields as before (#200)", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5, 0, { "2026-10-14": 2, "2026-10-15": 3 });
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toEqual([[{ releaseId: RELEASE_ID, trackId: trackId(1), count: 5 }]]);
+      expect(JSON.stringify(api.playPushes)).not.toMatch(/days|2026-10/);
+      // The days stay on this Mac.
+      expect((await plays.get()).tracks[trackId(1)]).toEqual({
+        releaseId: RELEASE_ID,
+        count: 5,
+        pushed: 5,
+        days: { "2026-10-14": 2, "2026-10-15": 3 },
+      });
+    });
+
     it("records pushed on success, so the next reconcile sends nothing", async () => {
       plays.seed(trackId(1), RELEASE_ID, 5);
 
@@ -1452,7 +1468,7 @@ describe("SyncEngine", () => {
     it("sends a track again when its count grows after a push", async () => {
       plays.seed(trackId(1), RELEASE_ID, 5);
       await playsEngine.reconcile();
-      await plays.increment(trackId(1), RELEASE_ID);
+      await plays.increment(trackId(1), RELEASE_ID, "2026-10-15");
 
       await playsEngine.reconcile();
 

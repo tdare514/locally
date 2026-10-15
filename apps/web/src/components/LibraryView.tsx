@@ -28,14 +28,13 @@ import {
   type CoverSize,
   type LibraryLayout,
   type LibraryWidth,
+  libraryWidthClass,
 } from "../lib/library-view-prefs";
 import BulkEditDialog from "./BulkEditDialog";
 import {
   ChevronRightIcon,
-  CoverGridIcon,
   CoverLargeIcon,
   CoverSmallIcon,
-  ListViewIcon,
   MusicNoteIcon,
   SearchIcon,
 } from "./Icons";
@@ -83,7 +82,7 @@ export default function LibraryView({
   const [busy, setBusy] = useState(false);
   const [layout, setLayout] = useState<LibraryLayout>("list");
   const [coverSize, setCoverSize] = useState<CoverSize>(1);
-  const [width, setWidth] = useState<LibraryWidth>("comfortable");
+  const [width, setWidth] = useState<LibraryWidth>("full");
   const [focusId, setFocusId] = useState<string | null>(null);
   const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
 
@@ -261,9 +260,7 @@ export default function LibraryView({
   return (
     <div
       ref={rootRef}
-      className={`mx-auto flex flex-col gap-8 pb-16 ${
-        width === "full" ? "max-w-[1240px]" : "max-w-[920px]"
-      }`}
+      className={`flex flex-col gap-8 pb-16 ${libraryWidthClass(width)}`}
     >
       <div className="flex items-baseline justify-between gap-4 pr-[calc(var(--tray-size)+0.75rem)] lg:pr-0">
         <div>
@@ -294,27 +291,24 @@ export default function LibraryView({
               <CoverLargeIcon className="h-4 w-4" />
             </div>
           )}
-          <div className="flex items-center gap-0.5 rounded-full bg-elevated/60 p-0.5">
+          <div role="group" aria-label="Library layout" className="btn-seg">
+            <span aria-hidden className="btn-seg-dot">
+              <span />
+            </span>
             {(
               [
-                { value: "list", label: "List view", Icon: ListViewIcon },
-                { value: "covers", label: "Cover view", Icon: CoverGridIcon },
+                { value: "list", label: "List" },
+                { value: "covers", label: "Grid" },
               ] as const
-            ).map(({ value, label, Icon }) => (
+            ).map(({ value, label }) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => changeLayout(value)}
-                aria-label={label}
-                title={label}
                 aria-pressed={layout === value}
-                className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                  layout === value
-                    ? "bg-elevated-hover text-text"
-                    : "text-text-dim hover:text-text-muted"
-                }`}
+                className="btn-seg-opt"
               >
-                <Icon className="h-4 w-4" />
+                {label}
               </button>
             ))}
           </div>
@@ -361,9 +355,9 @@ export default function LibraryView({
                 type="button"
                 onClick={() => setConfirmingDelete(false)}
                 disabled={busy}
-                className="rounded-full px-4 py-2 text-sm text-text-muted hover:text-text disabled:opacity-50"
+                className="btn-ink"
               >
-                Cancel
+                <span className="btn-ink-label">Cancel</span>
               </button>
             </div>
           ) : (
@@ -372,25 +366,25 @@ export default function LibraryView({
                 type="button"
                 onClick={() => setEditing(true)}
                 disabled={busy || selectedCount === 0}
-                className="rounded-full bg-elevated px-5 py-2 text-sm font-bold text-text transition-colors hover:bg-elevated-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-ink"
               >
-                Edit details…
+                <span className="btn-ink-label">Edit details…</span>
               </button>
               <button
                 type="button"
                 onClick={() => setConfirmingDelete(true)}
                 disabled={busy || selectedCount === 0}
-                className="px-3 py-2 text-sm font-semibold text-danger transition-colors hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-ink-danger"
               >
-                Delete…
+                <span className="btn-ink-label">Delete…</span>
               </button>
               <button
                 type="button"
                 onClick={exitSelecting}
                 disabled={busy}
-                className="px-3 py-2 text-sm text-text-muted transition-colors hover:text-text disabled:opacity-40"
+                className="btn-ink"
               >
-                Done
+                <span className="btn-ink-label">Done</span>
               </button>
             </div>
           )}
@@ -434,9 +428,9 @@ export default function LibraryView({
             <button
               type="button"
               onClick={() => setSelecting(true)}
-              className="shrink-0 rounded-full bg-elevated px-6 py-3 text-sm font-bold text-text transition-colors hover:bg-elevated-hover active:scale-95"
+              className="btn-ink"
             >
-              Select
+              <span className="btn-ink-label">Select</span>
             </button>
           )}
         </div>
@@ -451,9 +445,9 @@ export default function LibraryView({
           <button
             type="button"
             onClick={() => onQueryChange("")}
-            className="mt-2 rounded-full bg-elevated px-6 py-2 text-sm font-bold text-text transition-colors hover:bg-elevated-hover active:scale-95"
+            className="btn-ink mt-2"
           >
-            Clear search
+            <span className="btn-ink-label">Clear search</span>
           </button>
         </div>
       )}
@@ -501,7 +495,7 @@ export default function LibraryView({
           onClick={() => onImport()}
           disabled={IS_DEMO}
           title={IS_DEMO ? "Not available in the demo" : undefined}
-          className="rounded-full bg-accent px-8 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn-save"
         >
           Add a song
         </button>
@@ -533,7 +527,25 @@ interface SectionProps {
   onFocusRelease: (id: string) => void;
 }
 
-function LibrarySection({
+/** Shared grid for the list header and every row. Columns drop as the section narrows:
+ * Added under 820px, Genre under 680px, Year and Tracks under 520px. */
+const LIST_GRID =
+  "grid items-center gap-x-4 grid-cols-[minmax(0,1fr)_16px] " +
+  "@[520px]:grid-cols-[minmax(0,1fr)_56px_56px_16px] " +
+  "@[680px]:grid-cols-[minmax(0,1fr)_minmax(0,180px)_56px_56px_16px] " +
+  "@[820px]:grid-cols-[minmax(0,1fr)_minmax(0,180px)_56px_56px_144px_16px]";
+const COL_GENRE = "hidden @[680px]:block";
+const COL_NUMBER = "hidden @[520px]:block text-right tabular-nums";
+const COL_ADDED = "hidden @[820px]:block pl-6 tabular-nums";
+
+/** "Feb 6, 2026" style date in the user's locale. */
+export function formatAddedDate(iso: string, locale?: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(d);
+}
+
+export function LibrarySection({
   label,
   count,
   releases,
@@ -545,12 +557,24 @@ function LibrarySection({
   onFocusRelease,
 }: SectionProps) {
   return (
-    <section className="flex flex-col gap-2">
+    <section className="@container flex flex-col gap-2">
       <div className="flex items-baseline gap-2 px-1">
         <h2 className="text-[22px] font-bold tracking-[-0.03em] text-text">
           {label}
         </h2>
         <span className="text-sm text-text-dim">{count}</span>
+      </div>
+      {/* Presentational: each row's button already carries the full accessible name. */}
+      <div
+        aria-hidden="true"
+        className={`${LIST_GRID} -mb-1 px-[13px] text-[12px] text-text-dim`}
+      >
+        <span>Title</span>
+        <span className={COL_GENRE}>Genre</span>
+        <span className={COL_NUMBER}>Year</span>
+        <span className={COL_NUMBER}>Tracks</span>
+        <span className={COL_ADDED}>Added</span>
+        <span />
       </div>
       <ul className="overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.04]">
         {releases.map((r, index) => {
@@ -570,33 +594,49 @@ function LibrarySection({
                 data-release-id={r.id}
                 disabled={selecting && disabled}
                 aria-pressed={selecting ? isSelected : undefined}
-                className={`list-row flex min-h-[78px] w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-white/[0.06] focus-visible:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60 ${
+                className={`list-row ${LIST_GRID} min-h-[78px] w-full px-3 py-3 text-left transition-colors hover:bg-white/[0.06] focus-visible:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60 ${
                   isSelected ? "bg-white/[0.06]" : ""
                 }`}
               >
-                {selecting && <SelectBox checked={isSelected} />}
-                {r.coverPath ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={coverUrl(r.id, r.updatedAt)}
-                    alt=""
-                    className="list-thumb h-14 w-14 shrink-0 rounded object-cover"
-                  />
-                ) : (
-                  <span className="list-thumb flex h-14 w-14 shrink-0 items-center justify-center rounded bg-elevated text-text-muted">
-                    <MusicNoteIcon className="h-5 w-5" />
-                  </span>
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-text">
-                    {r.title || r.artist}
-                  </span>
-                  <span className="block truncate text-xs text-text-muted">
-                    {libraryRowSubtitle(r)}
+                <span className="flex min-w-0 items-center gap-3">
+                  {selecting && <SelectBox checked={isSelected} />}
+                  {r.coverPath ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={coverUrl(r.id, r.updatedAt)}
+                      alt=""
+                      className="list-thumb h-14 w-14 shrink-0 rounded object-cover"
+                    />
+                  ) : (
+                    <span className="list-thumb flex h-14 w-14 shrink-0 items-center justify-center rounded bg-elevated text-text-muted">
+                      <MusicNoteIcon className="h-5 w-5" />
+                    </span>
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-text">
+                      {r.title || r.artist}
+                    </span>
+                    <span className="block truncate text-xs text-text-muted">
+                      {r.artist}
+                    </span>
                   </span>
                 </span>
-                {!selecting && (
+                <span className={`${COL_GENRE} truncate text-xs text-text-muted`}>
+                  {r.genre ?? ""}
+                </span>
+                <span className={`${COL_NUMBER} text-xs text-text-muted`}>
+                  {r.year ?? ""}
+                </span>
+                <span className={`${COL_NUMBER} text-xs text-text-muted`}>
+                  {r.tracks.length}
+                </span>
+                <span className={`${COL_ADDED} text-xs text-text-muted`}>
+                  {formatAddedDate(r.createdAt)}
+                </span>
+                {!selecting ? (
                   <ChevronRightIcon className="h-4 w-4 shrink-0 text-text-dim" />
+                ) : (
+                  <span />
                 )}
               </button>
             </li>
@@ -750,7 +790,7 @@ function LibraryEmptyState({
           onClick={() => onImport("single")}
           disabled={IS_DEMO}
           title={IS_DEMO ? "Not available in the demo" : undefined}
-          className="w-full rounded-full bg-accent px-8 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn-save w-full"
         >
           Add your first single
         </button>
@@ -759,9 +799,9 @@ function LibraryEmptyState({
           onClick={() => onImport("album")}
           disabled={IS_DEMO}
           title={IS_DEMO ? "Not available in the demo" : undefined}
-          className="w-full rounded-full bg-elevated px-8 py-3 text-sm font-bold text-text transition-colors hover:bg-elevated-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn-ink w-full"
         >
-          Make an album
+          <span className="btn-ink-label">Make an album</span>
         </button>
       </div>
       <PlaysPromptCard onToast={onToast} className="mt-8" />

@@ -1,7 +1,10 @@
 import SwiftUI
 
-/// Folder connection status (with reconnect) and the About section with
-/// the required Spotify trademark line.
+/// Settings (#160, direction A "Glass groups"): the account card, then the Spotify folder with
+/// Reconnect, the sync group, the purchase, the app icon and About with the required Spotify
+/// trademark line, each in a faked-glass card on the studio backdrop. The title is part of the
+/// page (no navigation bar), and the content fades out at the top and bottom of the screen instead
+/// of being cut off by it.
 struct SettingsView: View {
     @Environment(\.appContainer) private var container
     @Environment(FolderStatus.self) private var folderStatus
@@ -11,96 +14,132 @@ struct SettingsView: View {
     @State private var isPresentingPaywall = false
     @State private var errorMessage: String?
 
+    private static var edgeFade: CGFloat { 22 }
+    /// The bottom fade follows the safe area (home indicator, tab bar), but never more than this,
+    /// so the keyboard's inset can't stretch it over the sign-in form.
+    private static var maxBottomFade: CGFloat { 90 }
+
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    HStack {
-                        Image(systemName: folderStatus.isConnected ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                            .foregroundStyle(folderStatus.isConnected ? Theme.accent : .yellow)
-                        Text(folderStatus.isConnected ? Copy.Settings.folderConnected : Copy.Settings.folderNotConnected)
-                            .font(Theme.Font.body)
+        GeometryReader { geo in
+            ZStack {
+                StudioBackdrop()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 26) {
+                        Text(Copy.Settings.title)
+                            .font(Theme.ScaledFont.largeTitle)
                             .foregroundStyle(Theme.primaryText)
-                    }
+                            .padding(.horizontal, 6)
+                            .accessibilityAddTraits(.isHeader)
 
-                    if !folderStatus.isConnected {
-                        Text(Copy.Settings.folderLost)
-                            .font(Theme.Font.rowSubtitle)
-                            .foregroundStyle(Theme.secondaryText)
-                    }
+                        SettingsHeroCard()
 
-                    Button(Copy.Settings.reconnect) {
-                        isPresentingFolderPicker = true
-                    }
-                    .buttonStyle(SecondaryPillButtonStyle())
-                    .listRowSeparator(.hidden)
+                        GlassSection(title: Copy.Settings.folderSection) { folderCard }
 
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(Theme.Font.rowSubtitle)
-                            .foregroundStyle(Theme.danger)
-                    }
-                }
-                .listRowBackground(Theme.card)
+                        SyncSettingsSection()
 
-                SyncSettingsSection()
+                        GlassSection(title: Copy.Settings.purchaseSection) { purchaseCard }
 
-                Section {
-                    if purchaseStatus.isFullUnlocked {
-                        LabeledContent(Copy.Purchase.rowTitle, value: Copy.Purchase.unlocked)
-                            .font(Theme.Font.body)
-                            .foregroundStyle(Theme.primaryText)
-                    } else {
-                        Button {
-                            isPresentingPaywall = true
-                        } label: {
-                            HStack {
-                                Text(Copy.Purchase.rowTitle)
-                                    .font(Theme.Font.body)
-                                    .foregroundStyle(Theme.primaryText)
-                                Spacer()
-                                Text(Copy.Purchase.buy)
-                                    .font(Theme.Font.body)
-                                    .foregroundStyle(Theme.secondaryText)
-                            }
+                        GlassSection(title: Copy.Settings.appIcon) {
+                            GlassCard { AppIconPicker().padding(16) }
                         }
+
+                        GlassSection(title: Copy.Settings.about) { aboutCard }
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.top, Self.edgeFade)
+                    .padding(.bottom, Self.edgeFade + 40)
+                    .frame(maxWidth: .infinity)
                 }
-                .listRowBackground(Theme.card)
-
-                Section {
-                    AppIconPicker()
-                        .listRowSeparator(.hidden)
-                } header: {
-                    Text(Copy.Settings.appIcon).eyebrow()
-                }
-                .listRowBackground(Theme.card)
-
-                Section {
-                    Text(Copy.Settings.trademarkLine)
-                        .font(Theme.Font.rowSubtitle)
-                        .foregroundStyle(Theme.secondaryText)
-                    LabeledContent(Copy.Settings.version, value: appVersion)
-                        .font(Theme.Font.body)
-                        .foregroundStyle(Theme.primaryText)
-                } header: {
-                    Text(Copy.Settings.about).eyebrow()
-                }
-                .listRowBackground(Theme.card)
+                .scrollIndicators(.hidden)
+                .mask(edgeMask(bottom: min(max(Self.edgeFade, geo.safeAreaInsets.bottom), Self.maxBottomFade)))
             }
-            .scrollContentBackground(.hidden)
-            .background(Theme.background)
-            .navigationTitle(Copy.Settings.title)
         }
+        // The tab bar sits straight on the backdrop (no black block, no line); the fade above keeps
+        // the content from running under its icons. The other tabs keep `Theme.applyChrome()`.
+        .toolbarBackground(.hidden, for: .tabBar)
         .fileImporter(isPresented: $isPresentingFolderPicker, allowedContentTypes: [.folder]) { result in
             handleFolderPick(result)
         }
         .sheet(isPresented: $isPresentingPaywall) {
             PaywallView()
+        }
+    }
+
+    // MARK: Cards
+
+    private var folderCard: some View {
+        GlassCard {
+            if folderStatus.isConnected {
+                GlassRow(symbol: "checkmark", tint: Theme.accent, title: Copy.Settings.folderConnected)
+            } else {
+                GlassRow(symbol: "exclamationmark.triangle.fill", tint: .yellow, title: Copy.Settings.folderNotConnected)
+                Text(Copy.Settings.folderLost)
+                    .font(Theme.ScaledFont.caption)
+                    .foregroundStyle(Theme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+            }
+            GlassDivider()
+            Button {
+                isPresentingFolderPicker = true
+            } label: {
+                GlassRow(symbol: "arrow.triangle.2.circlepath", tint: Theme.Tint.slate, title: Copy.Settings.reconnect, chevron: true)
+            }
+            .buttonStyle(SoftPressStyle())
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(Theme.ScaledFont.caption)
+                    .foregroundStyle(Theme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
+            }
+        }
+    }
+
+    private var purchaseCard: some View {
+        GlassCard {
+            if purchaseStatus.isFullUnlocked {
+                GlassRow(symbol: "sparkles", tint: Theme.Tint.violet, title: Copy.Purchase.rowTitle, value: Copy.Purchase.unlocked)
+            } else {
+                Button {
+                    isPresentingPaywall = true
+                } label: {
+                    GlassRow(symbol: "sparkles", tint: Theme.Tint.violet, title: Copy.Purchase.rowTitle, pill: Copy.Purchase.buy)
+                }
+                .buttonStyle(SoftPressStyle())
+            }
+        }
+    }
+
+    private var aboutCard: some View {
+        GlassCard {
+            Text(Copy.Settings.trademarkLine)
+                .font(Theme.ScaledFont.caption)
+                .foregroundStyle(Theme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(16)
+            GlassDivider()
+            GlassRow(symbol: "info", tint: Theme.Tint.slate, title: Copy.Settings.version, value: appVersion)
+        }
+    }
+
+    /// Content reaches full strength `edgeFade` points inside the top of the screen and `bottom`
+    /// points above its foot (at least the home indicator, and the tab bar when it is the screen's
+    /// foot), so nothing meets the status bar or the tab bar in a line.
+    private func edgeMask(bottom: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                .frame(height: Self.edgeFade)
+            Rectangle().fill(.black)
+            LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                .frame(height: bottom)
         }
     }
 

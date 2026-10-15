@@ -110,6 +110,40 @@ export interface ReleasePlaysResponse {
  * "arriving" is the quiet "still uploading"; "waiting" means they never reached the server. */
 export type PendingFilesState = "arriving" | "waiting";
 
+/** One track's all-time play count on this Mac, in GET /api/plays/totals. */
+export interface PlayTotal {
+  releaseId: string;
+  trackId: string;
+  total: number;
+}
+
+/** Response shape for GET /api/plays/totals: this Mac's counts for every track of every release in
+ * the library, in one list. Only tracks with at least one play are listed. */
+export interface PlayTotalsResponse {
+  tracks: PlayTotal[];
+}
+
+/** One track's plays inside the requested range, in GET /api/plays/summary (#200). `lastPlayedDay` is the latest day in the range with a play, `YYYY-MM-DD` in the Mac's local zone. */
+export interface PlaysSummaryTrack {
+  trackId: string;
+  releaseId: string;
+  plays: number;
+  lastPlayedDay: string;
+}
+
+/** One track's all-time plays on this Mac, in GET /api/plays/summary (#200). */
+export interface PlaysSummaryAllTime {
+  trackId: string;
+  releaseId: string;
+  plays: number;
+}
+
+/** Response shape for GET /api/plays/summary?from=YYYY-MM-DD&to=YYYY-MM-DD: this Mac's plays, live releases only (#200). */
+export interface PlaysSummaryResponse {
+  tracks: PlaysSummaryTrack[];
+  allTime: PlaysSummaryAllTime[];
+}
+
 /** One release from another device (the phone, the web) that hasn't been imported into the local library yet. */
 export interface PendingFromPhone {
   id: string;

@@ -4,6 +4,7 @@ import type { LibraryRepository } from "../storage/LibraryRepository";
 import { resolveLocalTrack } from "./LocalTrackResolver";
 import type { PlayCountStore } from "./PlayCountStore";
 import { PlayCounter } from "./PlayCounter";
+import { localDay } from "./playDays";
 import type { SpotifyNowPlaying } from "./SpotifyNowPlaying";
 
 export const DEFAULT_POLL_INTERVAL_MS = 5000;
@@ -32,6 +33,8 @@ export class PlayTracker {
     private readonly now: () => number = Date.now,
     private readonly intervalMs: number = DEFAULT_POLL_INTERVAL_MS,
     private readonly idleIntervalMs: number = IDLE_POLL_INTERVAL_MS,
+    /** IANA zone the day bucket is taken in; the system zone when omitted (#200). */
+    private readonly timeZone?: string,
   ) {}
 
   setEnabled(enabled: boolean): void {
@@ -93,7 +96,7 @@ export class PlayTracker {
       }
       this.lastStatus = "on";
       const counted = this.counter.push({ at, ...result });
-      if (counted) await this.record(counted);
+      if (counted) await this.record(counted, at);
     } catch (err) {
       console.warn("Play tracker poll failed:", err instanceof Error ? err.message : err);
     } finally {
@@ -101,12 +104,13 @@ export class PlayTracker {
     }
   }
 
-  private async record(spotifyId: string): Promise<void> {
+  private async record(spotifyId: string, at: number): Promise<void> {
     const settings: Settings = await this.settings.get();
     const releases: Release[] = await this.library.list(settings.libraryDir);
     const resolved = resolveLocalTrack(spotifyId, releases);
     if (resolved.kind === "match") {
-      await this.store.increment(resolved.trackId, resolved.releaseId);
+      // The day is the Mac's local date when the play counted, not when the library lookup finished.
+      await this.store.increment(resolved.trackId, resolved.releaseId, localDay(at, this.timeZone));
     } else if (resolved.kind === "ambiguous" && !this.warnedAmbiguous.has(spotifyId)) {
       this.warnedAmbiguous.add(spotifyId);
       console.warn("Play tracker: a Spotify local file matches more than one Locally track; not counted.");

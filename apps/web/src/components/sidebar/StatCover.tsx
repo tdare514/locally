@@ -1,0 +1,34 @@
+import { coverUrl } from "../../lib/api-client";
+import type { StatCover as StatCoverRef } from "../../lib/play-stats";
+import { MusicNoteIcon } from "../Icons";
+
+/** The URL of a stat's cover, or null when its release has none. */
+export function statCoverUrl(cover: StatCoverRef | null): string | null {
+  return cover ? coverUrl(cover.releaseId, cover.updatedAt) : null;
+}
+
+/** A small cover for a list row: the release's cover, round for artists, or a quiet music note
+ * when the release has none. */
+export default function StatCover({
+  cover,
+  round,
+  className,
+}: {
+  cover: StatCoverRef | null;
+  round: boolean;
+  className: string;
+}) {
+  const src = statCoverUrl(cover);
+  const shape = round ? "rounded-full" : "rounded-md";
+  if (!src) {
+    return (
+      <span className={`flex shrink-0 items-center justify-center bg-white/[0.08] text-text-muted ${shape} ${className}`}>
+        <MusicNoteIcon className="h-3.5 w-3.5" />
+      </span>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- local cover route, no optimisation needed
+    <img src={src} alt="" className={`shrink-0 object-cover ${shape} ${className}`} />
+  );
+}
