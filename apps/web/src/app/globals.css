@@ -2326,10 +2326,14 @@ body {
   line-height: 1.3;
 }
 /* Narrow room (the sleeves would be under about 120px): the caption replaces the in-sleeve tag, and
-   the sleeves step further apart so about 44px of each stays to tap. Desktop is untouched. */
+   the sleeves step further apart so about 44px of each stays to tap. The tilted fan is about five
+   sleeves wide here, so the sleeve is a fifth of the room plus the stage's side padding: it fits at
+   any width (no fixed minimum to spill past a phone's edge). Desktop is untouched. */
 @container (max-width: 545px) {
   .fan[data-size="page"] {
-    --fan-base: 18px;
+    --w: clamp(40px, calc((100cqw + 40px) / 5), 120px);
+    /* Keeps the sleeves at least 48px above the fan's foot, where the caption sits, however small they get. */
+    --fan-base: max(18px, calc(48px - var(--w) * 0.357));
     --fan-step: 0.56;
     --fan-lift: 0.45;
     --fan-pop: 1;
