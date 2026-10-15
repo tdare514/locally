@@ -2301,26 +2301,20 @@ body {
 .fan-rank[data-medal="gold"] { color: #ecce78; }
 .fan-rank[data-medal="silver"] { color: #d3d8e0; }
 .fan-rank[data-medal="bronze"] { color: #dc9a5e; }
-/* The rank crown (top five): perched on the badge's corner, its band just over the sleeve's top edge
-   and the badge beneath it. It lives inside the button so it tilts and lifts with the sleeve, lets
-   every click through (the hit area is the sleeve's) and has no motion of its own. The simpler
-   drawing shows by default; the full one only where the crown is 64px wide or more (see the
-   container query after the narrow block). 0.42 of the sleeve is the crown's width, 0.354 its height. */
+/* The rank crown (top five, tracks and albums only): centred on the sleeve's top edge, its band just
+   over the edge. It lives inside the button so it tilts and lifts with the sleeve, lets every click
+   through (the hit area is the sleeve's) and has no motion of its own. The simpler drawing shows by
+   default; the full one only where the crown is 64px wide or more (see the container query after the
+   narrow block). 0.42 of the sleeve is the crown's width, 0.354 its height. */
 .fan-crown {
   --fan-crown-w: calc(var(--w) * 0.42);
   position: absolute;
   z-index: 2;
   top: calc(var(--fan-crown-w) * -0.777);
-  right: calc(var(--w) * 0.02);
+  left: 50%;
   width: var(--fan-crown-w);
   pointer-events: none;
-  transform-origin: 50% 100%;
-  transform: rotate(7deg);
-}
-.fan-sleeve[data-side="left"] .fan-crown {
-  left: calc(var(--w) * 0.02);
-  right: auto;
-  transform: rotate(-7deg);
+  transform: translateX(-50%);
 }
 .fan-crown img {
   display: block;
@@ -2330,15 +2324,6 @@ body {
 }
 .fan-crown .fan-crown-full {
   display: none;
-}
-/* A disc's badge sits inside the circle, so the crown rides above it in the square's empty corner. */
-.fan[data-size="page"] .fan-sleeve[data-shape="disc"] .fan-crown {
-  top: calc(var(--fan-crown-w) * -0.777 + var(--w) * 0.1);
-  right: calc(var(--w) * 0.1);
-}
-.fan[data-size="page"] .fan-sleeve[data-shape="disc"][data-side="left"] .fan-crown {
-  left: calc(var(--w) * 0.1);
-  right: auto;
 }
 .fan-tag {
   position: absolute;
