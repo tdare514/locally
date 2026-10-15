@@ -404,9 +404,9 @@ export default function ReleaseView({
             onClick={handleReveal}
             disabled={IS_DEMO}
             title={IS_DEMO ? "Not available in the demo" : undefined}
-            className="btn-ink"
+            className="btn-save"
           >
-            <span className="btn-ink-label">Show in Finder</span>
+            Show in Finder
           </button>
           {confirmingDelete ? (
             <span className="flex items-center gap-2 text-sm lg:flex-col lg:items-stretch lg:gap-1">

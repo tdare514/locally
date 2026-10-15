@@ -655,7 +655,8 @@ body {
  *                           accent), and one soft shimmer crosses it. Used for every main action.
  *   .btn-ink                the secondary: plain text with an ink line under it (wrap the label
  *                           in `.btn-ink-label`).
- *   .btn-ink-danger         the destructive trigger: the same in pink. The final confirm
+ *   .btn-ink-danger         the destructive trigger: the same in pink, with a soft red halo on
+ *                           hover. The final confirm
  *                           ("Confirm delete", "Delete account") stays a solid `bg-danger`.
  *   .btn-icon               a round icon button with no chrome until hover.
  *   .btn-seg, .btn-seg-opt  a two-option toggle: words, and a dot that slides under the chosen one.
@@ -812,6 +813,28 @@ body {
 }
 .btn-ink-danger {
   color: #ff9ea8;
+}
+/* Delete's halo: a soft red glow behind the word that fades in on hover and stays while pressed,
+   as opacity. It reaches a little past the button so it reads as light, not a filled shape. */
+.btn-ink-danger::before {
+  content: "";
+  position: absolute;
+  inset: -0.375rem -0.625rem;
+  z-index: -1;
+  border-radius: 9999px;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    closest-side,
+    rgb(255 72 92 / 0.34),
+    rgb(255 72 92 / 0.12) 60%,
+    transparent
+  );
+  transition: opacity 260ms var(--btn-ease);
+}
+.btn-ink-danger:where(:not(:disabled)):is(:hover, :active)::before,
+.btn-ink-danger:is([data-state="hover"], [data-state="press"])::before {
+  opacity: 1;
 }
 /* The padding makes room for the line; the matching negative margin keeps it out of the
    button's layout, so the word itself sits on the button's centre line. */

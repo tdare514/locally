@@ -298,9 +298,9 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
             <button
               type="button"
               onClick={handleReveal}
-              className="btn-ink"
+              className="btn-save"
             >
-              <span className="btn-ink-label">Show in Finder</span>
+              Show in Finder
             </button>
           </div>
         </div>

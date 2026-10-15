@@ -84,7 +84,7 @@ function Cell({ kind, state }: { kind: Kind; state: Pin }) {
     case "secondary":
       return (
         <button type="button" className="btn-ink" {...p}>
-          <span className="btn-ink-label">Show in Finder</span>
+          <span className="btn-ink-label">Cancel</span>
         </button>
       );
     case "delete":
