@@ -103,9 +103,23 @@ eyebrows still apply to those labels.
 - **Page header**: eyebrow in `accent` (replaced 13 Oct 2026: sentence case), then the title; on desktop a `text-muted` subtitle under
   it ("Add a song or album to your Spotify library."). Section headers use the same eyebrow +
   title on the left with a `text-muted` meta on the right ("7 tracks", "Tap to edit", "1 file").
-- **Segmented pill** (Single | Album): `elevated` track with 4 padding, selected segment an
-  `accent` pill with black semibold text and a faint shadow, others `text-muted` (white on hover).
-- **Primary button**: `accent` pill, black bold text. **Secondary**: `elevated` pill, white text.
+- **Buttons on the Mac (#155, 15 Oct 2026; classes in `apps/web/src/app/globals.css`)**: no
+  filled blue. **Main actions** (`.btn-save`: Save to library, Show in Finder, Add to library,
+  Sign in, Sync now…) are just their bold white label at rest, no fill or border; on hover or press
+  they light up into the phone-tray cloud button's glass (`.glass-fake`, unchanged) with a mild
+  glow off the lower edge in the cover's colour (`--btn-tint`, set from the cover palette on the
+  release dock) or a faint clear blue (`--btn-tint-default`) elsewhere, and one soft shimmer per
+  hover. **Secondary** (`.btn-ink`: Cancel, Select, Sign out, Copy…) is underlined text whose line
+  draws in on hover, with a soft white halo; **destructive triggers** (`.btn-ink-danger`) are the
+  same in pink with a red halo, and final confirms stay a solid `danger` fill. **Toggles**
+  (`.btn-seg`: List / Grid, Single / Album, library width) are words with a dot under the chosen
+  one. **Glow** (`.btn-save.btn-glow`, the Import invitation's Add a track) is clear glass at rest
+  that fills with drifting fluorescent blue light on hover. A choice among several periods
+  (`.seg-glass`, the Stats page) puts the chosen option on the same glass as a hovered main
+  button. Not 2000s gloss: no gel highlight, no saturated fills, no coloured outer glow.
+- **Segmented pill and buttons on iOS** (until #160 carries the Mac set over): segmented pill is
+  an `elevated` track with 4 padding, selected segment an `accent` pill with black semibold text;
+  **Primary button**: `accent` pill, black bold text. **Secondary**: `elevated` pill, white text.
   **Outline**: transparent with a `text-dim` border, white text. **Text button** (Cancel):
   `text-muted`, white on hover, no background.
 - **Sticky footer CTA (mobile)**: fixed to the bottom, `bg` at 95 % with blur, 1 px `border` on
