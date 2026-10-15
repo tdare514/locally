@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-4 -8 128 108" width="128" height="108">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -16 132 112" width="132" height="112">
   <defs>
-    <linearGradient id="sm1" x1="0" y1="0" x2="1" y2=".25"><stop offset="0" stop-color="#ffe58a"/><stop offset=".3" stop-color="#e8b030"/><stop offset="1" stop-color="#6a4206"/></linearGradient>
-    <linearGradient id="sb1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6cc"/><stop offset=".4" stop-color="#ffe58a"/><stop offset="1" stop-color="#c08414"/></linearGradient>
-    <radialGradient id="sg1" cx="38%" cy="32%" r="78%"><stop offset="0" stop-color="#ffa3ad"/><stop offset=".45" stop-color="#ff3148"/><stop offset="1" stop-color="#7d0414"/></radialGradient>
+    <linearGradient id="sL1" x1="0" y1="1" x2=".3" y2="0"><stop offset="0" stop-color="#8a5a0c"/><stop offset=".5" stop-color="#d9a024"/><stop offset="1" stop-color="#fffbe8"/></linearGradient>
+    <linearGradient id="sB1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffbe8"/><stop offset=".45" stop-color="#ffe07a"/><stop offset="1" stop-color="#8a5a0c"/></linearGradient>
+    <radialGradient id="sG1" cx="40%" cy="30%" r="80%"><stop offset="0" stop-color="#ffb0b9"/><stop offset=".45" stop-color="#ff2a44"/><stop offset="1" stop-color="#6e0010"/></radialGradient>
   </defs>
-  <g fill="url(#sm1)" stroke="#120e17" stroke-width="5" stroke-linejoin="round"><path d="M34 58 C38.4 49.5 39.65 39.3 41 24 C42.73 39.3 45.6 49.5 50 58 Z"/><path d="M70 58 C74.4 49.5 77.27 39.3 79 24 C80.35 39.3 81.6 49.5 86 58 Z"/><path d="M14 60 C21.7 48 18.04 33.6 19 12 C23.43 33.6 34.3 48 42 60 Z"/><path d="M42 56 C51.9 42.5 56.53 26.3 60 2 C63.47 26.3 68.1 42.5 78 56 Z"/><path d="M78 60 C85.7 48 96.57 33.6 101 12 C101.96 33.6 98.3 48 106 60 Z"/></g>
-  <path d="M10 60 Q60 73 110 60 L108 80 Q60 95 12 80 Z" fill="url(#sb1)" stroke="#120e17" stroke-width="5" stroke-linejoin="round"/>
-  <path d="M60 64 L71 76 L60 90 L49 76 Z" fill="url(#sg1)" stroke="#120e17" stroke-width="3.5" stroke-linejoin="round"/>
+  <g fill="url(#sL1)" stroke="#0c0a10" stroke-width="4.5" stroke-linejoin="miter" stroke-miterlimit="14"><path d="M21 58 C21.72 35.5 13.14 18 18 8 C19.98 18 38.28 35.5 39 58 Z"/><path d="M48.5 56 C49.42 26.75 55.63 4 60 -9 C64.37 4 70.58 26.75 71.5 56 Z"/><path d="M81 58 C81.72 35.5 100.02 18 102 8 C106.86 18 98.28 35.5 99 58 Z"/><path d="M39 58 C39.48 41.8 38.24 29.2 41 22 C42.8 29.2 50.52 41.8 51 58 Z"/><path d="M69 58 C69.48 41.8 77.2 29.2 79 22 C81.76 29.2 80.52 41.8 81 58 Z"/></g>
+  <path d="M8 58 Q60 70 112 58 L110 78 Q60 92 10 78 Z" fill="url(#sB1)" stroke="#0c0a10" stroke-width="4.5" stroke-linejoin="miter"/>
+  <path d="M60 61 L72 74 L60 89 L48 74 Z" fill="url(#sG1)" stroke="#0c0a10" stroke-width="3.2" stroke-linejoin="miter"/>
 </svg>
