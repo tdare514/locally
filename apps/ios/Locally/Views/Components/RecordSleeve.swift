@@ -90,7 +90,11 @@ struct RecordSleeve: View {
         let coverID = cover.map { ObjectIdentifier($0) }
         return Button(action: onAddCover) {
             ZStack {
-                Theme.card
+                // The card is the empty sleeve only. Under a cover it showed as a rim while a new
+                // cover scaled in from 0.96 (#158); with a cover, the wash shows at the edges instead.
+                if cover == nil {
+                    Theme.card.transition(.opacity)
+                }
                 if let cover {
                     Image(uiImage: cover)
                         .resizable()
@@ -116,8 +120,6 @@ struct RecordSleeve: View {
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ))
-                shape
-                    .strokeBorder(.white.opacity(Theme.Immersive.sleeveEdgeOpacity), lineWidth: 1)
             }
             .frame(width: size, height: size)
             .clipShape(shape)
@@ -268,6 +270,17 @@ enum SampleArtwork {
 
     static let sunset = cover([.systemPurple, .systemPink, .systemOrange])
     static let ocean = cover([.systemTeal, .systemBlue, .systemIndigo])
+    /// Edge cases for the sleeve's rim: a near-white cover and a near-black one.
+    static let bright = cover([
+        UIColor(red: 1, green: 0.95, blue: 0.70, alpha: 1),
+        UIColor(red: 1, green: 1, blue: 1, alpha: 1),
+        UIColor(red: 1, green: 0.85, blue: 0.70, alpha: 1),
+    ])
+    static let dark = cover([
+        UIColor(red: 0.05, green: 0.06, blue: 0.12, alpha: 1),
+        UIColor(red: 0.09, green: 0.11, blue: 0.20, alpha: 1),
+        UIColor(red: 0.02, green: 0.02, blue: 0.05, alpha: 1),
+    ])
 }
 
 private struct CeremonyPreview: View {
