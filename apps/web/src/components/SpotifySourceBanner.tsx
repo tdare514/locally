@@ -97,9 +97,9 @@ export default function SpotifySourceBanner({ onOpenSettings, onToast }: Spotify
         <button
           type="button"
           onClick={handleCopyPath}
-          className="rounded-full border border-text-dim px-4 py-2 text-xs font-medium text-text transition-colors hover:border-text"
+          className="btn-ink"
         >
-          Copy path
+          <span className="btn-ink-label">Copy path</span>
         </button>
       </div>
 
@@ -119,7 +119,7 @@ export default function SpotifySourceBanner({ onOpenSettings, onToast }: Spotify
           type="button"
           onClick={handleOpenSpotifySettings}
           disabled={opening}
-          className="w-fit rounded-full bg-accent px-6 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+          className="btn-save w-fit"
         >
           {opening ? "Opening…" : "Open Spotify settings"}
         </button>
@@ -127,9 +127,9 @@ export default function SpotifySourceBanner({ onOpenSettings, onToast }: Spotify
           type="button"
           onClick={handleDismiss}
           disabled={dismissing}
-          className="w-fit rounded-full border border-text-dim px-6 py-3 text-sm font-medium text-text transition-colors hover:border-text disabled:cursor-not-allowed disabled:opacity-40"
+          className="btn-ink w-fit"
         >
-          {dismissing ? "Saving…" : "Done, I added it"}
+          <span className="btn-ink-label">{dismissing ? "Saving…" : "Done, I added it"}</span>
         </button>
         <button
           type="button"

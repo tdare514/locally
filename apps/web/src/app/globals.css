@@ -648,6 +648,368 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
+ * Buttons (#155): the owner's pick from the three gallery directions, as five classes.
+ *   .btn-save               the primary. Just its label at rest, no fill or border. On hover it
+ *                           lights up into the phone-tray cloud button's glass (`.glass-fake`,
+ *                           unchanged) with a mild glow of the cover's colour (--btn-tint, else a
+ *                           clear light blue), and one soft shimmer crosses it. Used for every main action.
+ *   .btn-ink                the secondary: plain text with an ink line under it (wrap the label
+ *                           in `.btn-ink-label`) and a soft white halo on hover.
+ *   .btn-ink-danger         the destructive trigger: the same in pink, with a soft red halo on
+ *                           hover. The final confirm
+ *                           ("Confirm delete", "Delete account") stays a solid `bg-danger`.
+ *   .btn-icon               a round icon button with no chrome until hover.
+ *   .btn-seg, .btn-seg-opt  a two-option toggle: words, and a dot that slides under the chosen one.
+ * The sheet at /dev/buttons pins states with data-state="hover|press|focus"; each rule lists the
+ * pinned selector next to the real :hover / :active / :focus-visible one. Only transform (written
+ * as the individual scale / translate properties, as elsewhere in this file) and opacity animate.
+ * Reduced-motion fallbacks are in the block at the end of the file.
+ * ------------------------------------------------------------------------- */
+:root {
+  --btn-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  /* The Save glow where no cover sets --btn-tint: a clear, light sky blue, kept faint so on a dark
+     panel it lifts the glass as gently as a cover's own colour does on its wash. */
+  --btn-tint-default: rgb(176 212 255 / 0.32);
+}
+
+/* Shared by every button. */
+.btn-save,
+.btn-ink,
+.btn-ink-danger,
+.btn-icon,
+.btn-seg-opt {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-save:disabled,
+.btn-ink:disabled,
+.btn-ink-danger:disabled,
+.btn-icon:disabled,
+.btn-seg-opt:disabled {
+  cursor: not-allowed;
+}
+
+/* ===== Save: the primary ==================================================== */
+/* At rest it is only its white, bold label: no fill, no border, no glow. On hover it lights up
+   into the phone-tray cloud button's glass (the `.glass-fake` recipe unchanged, so the page shows
+   through the way it does on the cloud) with a mild glow of colour rising from its lower edge: the
+   cover's colour where the page sets --btn-tint (the release dock does), else a clear light blue.
+   ::before is the glass and the glow, ::after is the shimmer. */
+.btn-save {
+  height: 2.5rem;
+  padding: 0 1.5rem;
+  border-radius: 9999px;
+  overflow: hidden;
+  color: #fff;
+  font-weight: 600;
+  background: transparent;
+  transition: scale 200ms var(--btn-ease);
+}
+/* It fades in as opacity; there is no backdrop-filter. Layers, top first: `.glass-fake`'s corner
+   highlight, the colour glow, `.glass-fake`'s body. */
+.btn-save::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(120% 70% at 15% -15%, rgb(255 255 255 / 0.18), transparent 60%),
+    radial-gradient(
+      90% 140% at 50% 135%,
+      color-mix(in oklab, var(--btn-tint, var(--btn-tint-default)) 55%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.04) 55%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    inset 0 -1px 0 rgb(255 255 255 / 0.08),
+    inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  transition: opacity 260ms var(--btn-ease);
+}
+/* The shimmer: a thin, soft diagonal band of white at about 14%, parked off the left edge. */
+.btn-save::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  translate: -110% 0;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgb(255 255 255 / 0.05) 45%,
+    rgb(255 255 255 / 0.14) 50%,
+    rgb(255 255 255 / 0.05) 55%,
+    transparent 62%
+  );
+}
+.btn-save:where(:not(:disabled)):is(:hover, :active)::before,
+.btn-save:is([data-state="hover"], [data-state="press"])::before {
+  opacity: 1;
+}
+/* One pass per hover, not a loop. The sweep eases in and out like the Import label's shimmer;
+   the expo-out used elsewhere would cross the face in about 100 ms. */
+.btn-save:where(:not(:disabled)):hover::after {
+  animation: btn-save-shimmer 720ms cubic-bezier(0.45, 0, 0.55, 1);
+}
+/* Pinned hover: the shimmer frozen mid-sweep. */
+.btn-save[data-state="hover"]::after {
+  opacity: 1;
+  translate: 6% 0;
+}
+.btn-save:where(:not(:disabled)):active,
+.btn-save[data-state="press"] {
+  scale: 0.97;
+}
+@keyframes btn-save-shimmer {
+  0% {
+    translate: -110% 0;
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  82% {
+    opacity: 1;
+  }
+  100% {
+    translate: 110% 0;
+    opacity: 0;
+  }
+}
+.btn-save:focus-visible,
+.btn-save[data-state="focus"] {
+  outline: 2px solid color-mix(in oklab, var(--accent) 45%, white);
+  outline-offset: 3px;
+}
+.btn-save:disabled {
+  opacity: 0.4;
+}
+
+/* ===== Ink: secondary and destructive ======================================= */
+/* Just ink on the page. A hairline sits under the word at rest and a full-strength line draws in
+   from the left on hover. */
+.btn-ink,
+.btn-ink-danger {
+  --btn-ink-ring: rgb(255 255 255 / 0.85);
+  height: 2.5rem;
+  padding: 0 0.5rem;
+  border-radius: 0.5rem;
+  color: #f1efec;
+  font-weight: 500;
+  transition: scale 160ms var(--btn-ease);
+}
+.btn-ink-danger {
+  color: #ff9ea8;
+}
+/* The halo: a soft glow behind the word that fades in on hover and stays while pressed, as
+   opacity: clear white on the ink buttons, red on Delete. It reaches a little past the button so
+   it reads as light, not a filled shape. */
+.btn-ink {
+  --btn-halo: 255 255 255;
+  --btn-halo-strength: 0.24;
+}
+.btn-ink-danger {
+  --btn-halo: 255 72 92;
+  --btn-halo-strength: 0.34;
+}
+.btn-ink::before,
+.btn-ink-danger::before {
+  content: "";
+  position: absolute;
+  inset: -0.375rem -0.625rem;
+  z-index: -1;
+  border-radius: 9999px;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    closest-side,
+    rgb(var(--btn-halo) / var(--btn-halo-strength)),
+    rgb(var(--btn-halo) / calc(var(--btn-halo-strength) * 0.35)) 60%,
+    transparent
+  );
+  transition: opacity 260ms var(--btn-ease);
+}
+:is(.btn-ink, .btn-ink-danger):where(:not(:disabled)):is(:hover, :active)::before,
+:is(.btn-ink, .btn-ink-danger):is([data-state="hover"], [data-state="press"])::before {
+  opacity: 1;
+}
+/* The padding makes room for the line; the matching negative margin keeps it out of the
+   button's layout, so the word itself sits on the button's centre line. */
+.btn-ink-label {
+  position: relative;
+  padding-bottom: 4px;
+  margin-bottom: -4px;
+}
+.btn-ink-label::before,
+.btn-ink-label::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: currentColor;
+}
+.btn-ink-label::before {
+  opacity: 0.22;
+}
+.btn-ink-label::after {
+  height: 1.5px;
+  transform-origin: left center;
+  scale: 0 1;
+  transition: scale 380ms var(--btn-ease);
+}
+:is(.btn-ink, .btn-ink-danger):where(:not(:disabled)):hover .btn-ink-label::after,
+:is(.btn-ink, .btn-ink-danger)[data-state="hover"] .btn-ink-label::after,
+:is(.btn-ink, .btn-ink-danger):where(:not(:disabled)):active .btn-ink-label::after,
+:is(.btn-ink, .btn-ink-danger)[data-state="press"] .btn-ink-label::after {
+  scale: 1 1;
+}
+:is(.btn-ink, .btn-ink-danger):where(:not(:disabled)):active,
+:is(.btn-ink, .btn-ink-danger)[data-state="press"] {
+  scale: 0.97;
+}
+:is(.btn-ink, .btn-ink-danger):where(:not(:disabled)):active .btn-ink-label::after,
+:is(.btn-ink, .btn-ink-danger)[data-state="press"] .btn-ink-label::after {
+  scale: 1 1.6;
+}
+:is(.btn-ink, .btn-ink-danger):focus-visible,
+:is(.btn-ink, .btn-ink-danger)[data-state="focus"] {
+  outline: 1.5px solid var(--btn-ink-ring);
+  outline-offset: 3px;
+}
+:is(.btn-ink, .btn-ink-danger):disabled {
+  opacity: 0.4;
+}
+
+/* ===== Icon ================================================================= */
+/* No chrome until hover, then a soft disc fades in behind the glyph. */
+.btn-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  color: #fff;
+  transition: scale 160ms var(--btn-ease);
+}
+.btn-icon svg {
+  opacity: 0.66;
+  transition: opacity 200ms var(--btn-ease);
+}
+.btn-icon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: rgb(255 255 255 / 0.13);
+  pointer-events: none;
+  opacity: 0;
+  scale: 0.8;
+  transition:
+    opacity 200ms var(--btn-ease),
+    scale 260ms var(--btn-ease);
+}
+.btn-icon:where(:not(:disabled)):hover::before,
+.btn-icon[data-state="hover"]::before,
+.btn-icon:where(:not(:disabled)):active::before,
+.btn-icon[data-state="press"]::before {
+  opacity: 1;
+  scale: 1;
+}
+.btn-icon:where(:not(:disabled)):hover svg,
+.btn-icon[data-state="hover"] svg,
+.btn-icon:where(:not(:disabled)):active svg,
+.btn-icon[data-state="press"] svg {
+  opacity: 1;
+}
+.btn-icon:where(:not(:disabled)):active,
+.btn-icon[data-state="press"] {
+  scale: 0.92;
+}
+.btn-icon:focus-visible,
+.btn-icon[data-state="focus"] {
+  outline: 1.5px solid rgb(255 255 255 / 0.85);
+  outline-offset: 3px;
+}
+.btn-icon:disabled {
+  opacity: 0.4;
+}
+
+/* ===== Toggle =============================================================== */
+/* Two options as plain words, and a dot that slides under the chosen one. The dot follows
+   aria-pressed on the second option, so it needs no value attribute from the caller. */
+.btn-seg {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+}
+.btn-seg-dot {
+  position: absolute;
+  bottom: 1px;
+  left: 0;
+  display: flex;
+  width: 50%;
+  justify-content: center;
+  pointer-events: none;
+  transition: translate 340ms var(--btn-ease);
+}
+.btn-seg-dot > span {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: #fff;
+}
+.btn-seg:has(.btn-seg-opt:last-of-type[aria-pressed="true"]) .btn-seg-dot {
+  translate: 100% 0;
+}
+.btn-seg-opt {
+  height: 2.25rem;
+  padding: 0 0.9rem 0.25rem;
+  border-radius: 0.5rem;
+  color: #fff;
+  font-weight: 500;
+  opacity: 0.5;
+  transition:
+    opacity 200ms var(--btn-ease),
+    scale 160ms var(--btn-ease);
+}
+.btn-seg-opt[aria-pressed="true"] {
+  opacity: 1;
+}
+.btn-seg-opt:where(:not(:disabled)):hover,
+.btn-seg[data-state="hover"] .btn-seg-opt[aria-pressed="false"] {
+  opacity: 0.85;
+}
+.btn-seg-opt:where(:not(:disabled)):active,
+.btn-seg[data-state="press"] .btn-seg-opt[aria-pressed="false"] {
+  scale: 0.94;
+}
+.btn-seg-opt:focus-visible,
+.btn-seg[data-state="focus"] .btn-seg-opt[aria-pressed="true"] {
+  outline: 1.5px solid rgb(255 255 255 / 0.85);
+  outline-offset: 3px;
+}
+.btn-seg:has(.btn-seg-opt:disabled) {
+  opacity: 0.4;
+}
+
+/* ---------------------------------------------------------------------------
  * #154 PROTOTYPE (dev only, /dev/sidebar): the floating sidebar, "Rail + bloom" (.sb-*).
  * Effect budget, all transform and opacity on cubic-bezier(0.16, 1, 0.3, 1):
  *   1. card reveal and hide (300ms in, 240ms out)   2. a brief stagger of its groups
@@ -1154,6 +1516,25 @@ body {
   }
   .track-list[data-sorting] .track-row[data-lifted] {
     scale: 1;
+  }
+  /* Buttons (#155): states still switch, nothing glides or sweeps. The save button still lights
+     up into its glass, as a short plain opacity fade, and its shimmer does not exist. */
+  .btn-save,
+  .btn-ink,
+  .btn-ink-danger,
+  .btn-ink-label::after,
+  .btn-icon,
+  .btn-icon::before,
+  .btn-icon svg,
+  .btn-seg-dot,
+  .btn-seg-opt {
+    transition: none;
+  }
+  .btn-save::before {
+    transition: opacity 160ms linear;
+  }
+  .btn-save::after {
+    display: none;
   }
 
   /* #154 prototype (.sb-*): the card shows and hides instantly and the stagger, fan, bars and pin

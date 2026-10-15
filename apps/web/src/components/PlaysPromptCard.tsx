@@ -130,7 +130,7 @@ export default function PlaysPromptCard({ onToast, className = "" }: PlaysPrompt
           type="button"
           onClick={() => void answer(true)}
           disabled={saving}
-          className="w-fit rounded-full bg-accent px-6 py-2.5 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+          className="btn-save w-fit"
         >
           {saving ? "Turning on…" : "Turn on"}
         </button>
@@ -138,9 +138,9 @@ export default function PlaysPromptCard({ onToast, className = "" }: PlaysPrompt
           type="button"
           onClick={() => void answer(false)}
           disabled={saving}
-          className="w-fit rounded-full border border-text-dim px-6 py-2.5 text-sm font-medium text-text transition-colors hover:border-text disabled:cursor-not-allowed disabled:opacity-40"
+          className="btn-ink w-fit"
         >
-          Not now
+          <span className="btn-ink-label">Not now</span>
         </button>
       </div>
     </section>
