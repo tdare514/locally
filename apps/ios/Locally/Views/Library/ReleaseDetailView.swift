@@ -38,11 +38,12 @@ struct ReleaseDetailView: View {
         }
         .task {
             if model == nil, let container {
-                let made = ReleaseDetailViewModel(release: release, coordinator: container.coordinator, coverStore: container.coverStore)
+                let made = ReleaseDetailViewModel(release: release, coordinator: container.coordinator, coverStore: container.coverStore, syncApi: container.syncApi, isSignedIn: { container.syncAccount.deviceToken != nil })
                 coverImage = made.coverData.flatMap(UIImage.init(data:))
                 coverImageData = made.coverData
                 model = made
             }
+            await model?.loadPlays()
         }
     }
 
@@ -63,6 +64,7 @@ struct ReleaseDetailView: View {
                     tracksHeader(model.trackRows.count).panelRow(.top)
                     if model.trackRows.count >= 2 { reorderHint.panelRow(.middle) }
                     trackRows(model)
+                    if model.hasPlays { playsFootnote.panelRow(.middle) }
                     if isAlbum { playlistGuide(model).panelRow(.middle) }
                     messages(model)
                     deleteButton.panelRow(.bottom)
@@ -209,8 +211,22 @@ struct ReleaseDetailView: View {
                 onTitleChange: { newValue in setTitle(newValue, for: row, in: model) }
             )
             .panelRow(.middle)
+            if let total = model.playTotal(for: row) {
+                Text(Copy.Detail.playCount(total))
+                    .font(Theme.Font.meta)
+                    .foregroundStyle(Theme.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .panelRow(.middle)
+            }
         }
         .onMove(perform: model.trackRows.count >= 2 ? model.moveTracks : nil)
+    }
+
+    /// One line under the tracks saying where the play totals come from.
+    private var playsFootnote: some View {
+        Text(Copy.Detail.playsAcrossDevices)
+            .font(Theme.Font.dropZoneHint)
+            .foregroundStyle(Theme.textDim)
     }
 
     private func playlistGuide(_ model: ReleaseDetailViewModel) -> some View {

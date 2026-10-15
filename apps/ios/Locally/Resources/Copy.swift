@@ -172,6 +172,12 @@ enum Copy {
         /// Hint under the Tracks header when there are 2+ tracks, since the
         /// compact layout dropped the Edit-mode toolbar button.
         static let reorderHint = "Hold and drag a track to reorder."
+        /// Under a track row: its total Spotify plays across devices.
+        static func playCount(_ count: Int) -> String {
+            count == 1 ? "1 play" : "\(count) plays"
+        }
+        /// Under the tracks when any has plays: the totals add up every signed-in device.
+        static let playsAcrossDevices = "Plays are counted across all your devices."
         static let saveChanges = "Save changes"
         static let saving = "Saving…"
         static let replaceCover = "Replace cover"
