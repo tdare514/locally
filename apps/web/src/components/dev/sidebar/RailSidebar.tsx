@@ -81,7 +81,6 @@ export default function RailSidebar({
 
   const pageRow = (p: Page) => (
     <NavItem
-      icon={PAGES[p].Icon}
       active={page === p}
       onClick={() => setPage(p)}
       end={
@@ -167,7 +166,7 @@ export default function RailSidebar({
               under the same divider. */}
           <nav aria-label="Pages" className="sb-item flex flex-col gap-2" style={step(0)}>
             {pageRow("library")}
-            <NavItem icon={PlusIcon}>Import</NavItem>
+            <NavItem>Import</NavItem>
             {pageRow("settings")}
             <div aria-hidden className={`${rule} my-1`} />
             {pageRow("stats")}

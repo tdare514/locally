@@ -5,11 +5,9 @@ import {
   useId,
   useRef,
   useState,
-  type ComponentType,
   type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
-  type SVGProps,
 } from "react";
 import { PencilIcon } from "../../Icons";
 import { PinIcon } from "./icons";
@@ -18,17 +16,16 @@ import { WIDGETS, type WidgetKey } from "./sample-data";
 export const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
 
 /** A full-width row in the column's stack (Library, Import, Settings, Stats), styled like the
- * existing sidebar's quiet nav items: an icon and a label, a soft pill on the active one. `end` is
- * a quiet note at the right, inside the same hit area. Every row has the same height, hover and
- * focus ring; the active page also gets `aria-current="page"`. */
+ * existing sidebar's quiet nav items: a label and a soft pill on the active one. No icon: each row
+ * sits level with its icon on the rail beside it, so the rail is the compact view of the same
+ * list. `end` is a quiet note at the right, inside the same hit area. Every row has the same
+ * height, hover and focus ring; the active page also gets `aria-current="page"`. */
 export function NavItem({
-  icon: Icon,
   active = false,
   onClick,
   end,
   children,
 }: {
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
   active?: boolean;
   onClick?: () => void;
   end?: ReactNode;
@@ -43,7 +40,6 @@ export function NavItem({
         active ? "bg-white/[0.1] text-text" : "text-text-muted hover:bg-white/[0.07] hover:text-text"
       }`}
     >
-      <Icon className="h-4 w-4 shrink-0" />
       <span className="flex-1">{children}</span>
       {end}
     </button>
