@@ -155,6 +155,8 @@ function Stage({
         "--ambient-primary": palette.primary,
         "--ambient-secondary": palette.secondary,
         "--ambient-deep": palette.deep,
+        // As the release dock does: the Save glow takes the cover's colour.
+        "--btn-tint": palette.primary,
       } as CSSProperties)
     : undefined;
   return (

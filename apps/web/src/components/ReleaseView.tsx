@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Release, UpdateReleaseMeta } from "../shared/types";
 import {
@@ -382,7 +383,10 @@ export default function ReleaseView({
             lg:p-16 plus top-4 leaves the dock 5rem below the pane's top: clear of the phone-tray
             button AppShell pins there (md:top-6 + --tray-size = 4rem, and a rem of air). Keep
             that sum if the pane's padding changes. */}
-        <div className="sticky top-4 z-10 -my-4 flex w-fit max-w-full flex-wrap items-center gap-2 self-start rounded-[26px] glass-fake glass-dock p-1.5 pr-3 sm:rounded-full lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:my-0 lg:w-auto lg:flex-col lg:items-stretch lg:gap-1 lg:rounded-[26px] lg:p-2">
+        <div
+          // The Save button's hover glow takes the cover's colour (#155); without a cover it stays the accent.
+          style={palette ? ({ "--btn-tint": palette.primary } as CSSProperties) : undefined}
+          className="sticky top-4 z-10 -my-4 flex w-fit max-w-full flex-wrap items-center gap-2 self-start rounded-[26px] glass-fake glass-dock p-1.5 pr-3 sm:rounded-full lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:my-0 lg:w-auto lg:flex-col lg:items-stretch lg:gap-1 lg:rounded-[26px] lg:p-2">
           <button
             type="button"
             onClick={handleSave}

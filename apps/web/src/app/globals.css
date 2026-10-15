@@ -649,9 +649,10 @@ body {
 
 /* ---------------------------------------------------------------------------
  * Buttons (#155): the owner's pick from the three gallery directions, as five classes.
- *   .btn-save               the primary. A near-black pill with a cool hairline. On hover the black
- *                           fades to the phone-tray cloud button's glass (`.glass-fake`, unchanged)
- *                           and one soft shimmer crosses it. Used for every filled action in the app.
+ *   .btn-save               the primary. Just its label at rest, no fill or border. On hover it
+ *                           lights up into the phone-tray cloud button's glass (`.glass-fake`,
+ *                           unchanged) with a mild glow of the cover's colour (--btn-tint, else the
+ *                           accent), and one soft shimmer crosses it. Used for every main action.
  *   .btn-ink                the secondary: plain text with an ink line under it (wrap the label
  *                           in `.btn-ink-label`).
  *   .btn-ink-danger         the destructive trigger: the same in pink. The final confirm
@@ -696,11 +697,11 @@ body {
 }
 
 /* ===== Save: the primary ==================================================== */
-/* At rest it is the colour of the black bar it usually sits on, lifted a step so it still reads
-   as a button, with a cool hairline and white text: no gradient, no gloss, no glow. On hover that
-   black fades away and underneath is the phone-tray cloud button's glass, the `.glass-fake`
-   recipe unchanged, so the page shows through the same way it does on the cloud. The glass is the
-   button's own background, ::before is the black it rests in, and ::after is the shimmer. */
+/* At rest it is only its white, bold label: no fill, no border, no glow. On hover it lights up
+   into the phone-tray cloud button's glass (the `.glass-fake` recipe unchanged, so the page shows
+   through the way it does on the cloud) with a mild glow of colour rising from its lower edge: the
+   cover's colour where the page sets --btn-tint (the release dock does), else the accent.
+   ::before is the glass and the glow, ::after is the shimmer. */
 .btn-save {
   height: 2.5rem;
   padding: 0 1.5rem;
@@ -708,18 +709,11 @@ body {
   overflow: hidden;
   color: #fff;
   font-weight: 600;
-  /* `.glass-fake`: its corner highlight (its ::before) over its body, as two background layers. */
-  background:
-    radial-gradient(120% 70% at 15% -15%, rgb(255 255 255 / 0.18), transparent 60%),
-    linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.04) 55%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.35),
-    inset 0 -1px 0 rgb(255 255 255 / 0.08),
-    inset 0 0 0 1px rgb(255 255 255 / 0.12),
-    0 18px 50px -18px rgb(0 0 0 / 0.55);
+  background: transparent;
   transition: scale 200ms var(--btn-ease);
 }
-/* The black it rests in. Fading it out is the reveal, as opacity; there is no backdrop-filter. */
+/* It fades in as opacity; there is no backdrop-filter. Layers, top first: `.glass-fake`'s corner
+   highlight, the colour glow, `.glass-fake`'s body. */
 .btn-save::before {
   content: "";
   position: absolute;
@@ -727,8 +721,19 @@ body {
   z-index: -1;
   border-radius: inherit;
   pointer-events: none;
-  background: rgb(22 24 30);
-  box-shadow: inset 0 0 0 1px rgb(210 228 255 / 0.16);
+  opacity: 0;
+  background:
+    radial-gradient(120% 70% at 15% -15%, rgb(255 255 255 / 0.18), transparent 60%),
+    radial-gradient(
+      90% 140% at 50% 135%,
+      color-mix(in oklab, var(--btn-tint, var(--accent)) 55%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.04) 55%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    inset 0 -1px 0 rgb(255 255 255 / 0.08),
+    inset 0 0 0 1px rgb(255 255 255 / 0.12);
   transition: opacity 260ms var(--btn-ease);
 }
 /* The shimmer: a thin, soft diagonal band of white at about 14%, parked off the left edge. */
@@ -749,9 +754,9 @@ body {
     transparent 62%
   );
 }
-.btn-save:where(:not(:disabled)):hover::before,
-.btn-save[data-state="hover"]::before {
-  opacity: 0;
+.btn-save:where(:not(:disabled)):is(:hover, :active)::before,
+.btn-save:is([data-state="hover"], [data-state="press"])::before {
+  opacity: 1;
 }
 /* One pass per hover, not a loop. The sweep eases in and out like the Import label's shimmer;
    the expo-out used elsewhere would cross the face in about 100 ms. */
@@ -1005,8 +1010,8 @@ body {
   .track-list[data-sorting] .track-row[data-lifted] {
     scale: 1;
   }
-  /* Buttons (#155): states still switch, nothing glides or sweeps. The save button's black
-     still gives way to the glass, as a short plain opacity fade, and its shimmer does not exist. */
+  /* Buttons (#155): states still switch, nothing glides or sweeps. The save button still lights
+     up into its glass, as a short plain opacity fade, and its shimmer does not exist. */
   .btn-save,
   .btn-ink,
   .btn-ink-danger,
