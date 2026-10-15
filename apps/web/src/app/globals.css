@@ -715,15 +715,15 @@ body {
 
 /* The cover beat, in ms from the moment a cover is chosen, as a sequence with no overlap between
  * the slide and the develop (ImportPrototype.tsx holds the colour wash time that goes with it):
- *    0 for 420  the cover slides in from the right, whole and undeveloped (.imp-cover)
+ *    0 for 420  the cover slides in from the right, sharp but undeveloped: a pale print (.imp-cover)
  *  280 for 460  the disc settles with a turn, 240deg decelerating into place (.record-face); it
  *               starts in the slide's tail and has landed before the develop begins
- *  740 for 560  the cover develops: the sharp copy fades in over the blurred one (.imp-sharp) and
+ *  740 for 560  the cover develops: the real art fades in over the pale print (.imp-sharp) and
  *               the disc label develops with it (.record-label::before); the colour wash starts
  *               on the backdrop's own 900ms fade
  * 1360 for 500  after a short hold, the disc slides all the way into the sleeve (.record-disc):
  *               it's sealed
- * The blur is baked into the first image, never animated: the layers only move and fade. After
+ * The paleness is baked into the first image, never animated: the layers only move and fade. After
  * the beat the disc rests in the sleeve and hovering the record brings it out again (the
  * `.record:hover` rule above). */
 .imp-beat,
@@ -750,9 +750,9 @@ body {
   animation-delay: calc(740ms - var(--imp-t, 0ms));
   animation-play-state: var(--imp-run, running);
 }
-/* The disc label is undeveloped too (a lightly blurred, drained print, so its shapes still read
- * while it turns) and develops with the sleeve: the sharp art fades in over it. MakeRecord puts
- * the sharp image in --imp-label-sharp. */
+/* The disc label is undeveloped too (the same pale print, sharp, so its shapes read while it
+ * turns) and develops with the sleeve: the real art fades in over it. MakeRecord puts that image
+ * in --imp-label-sharp. */
 .imp-beat .record-label::before {
   content: "";
   position: absolute;
@@ -856,11 +856,11 @@ body {
   .track-list[data-sorting] .track-row[data-lifted] {
     scale: 1;
   }
-  /* #159 prototype: no sweep, no slide, no spin, no blurred copy. The invitation and the cover
+  /* #159 prototype: no sweep, no slide, no spin, no pale copy. The invitation and the cover
      just fade in (a short opacity fade to the developed cover), the disc is already in the
      sleeve, and hovering still moves it instantly (transition: none above). */
   .imp-wash,
-  .imp-blur {
+  .imp-pale {
     display: none;
   }
   .imp-invite,

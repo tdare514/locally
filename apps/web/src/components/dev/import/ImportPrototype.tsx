@@ -136,9 +136,9 @@ export default function ImportPrototype({ stage, t, coverIndex, bar }: ImportPro
     else if (frozen) palette = mixPalette(INVITE_PALETTE, live, smooth(Math.min(1, Math.max(0, (t - WASH_AT) / WASH_MS))));
     else if (washOn) palette = live;
   }
-  // The disc label carries the undeveloped print (a lighter blur than the sleeve's, so its shapes
-  // read while the disc turns) and develops with the sleeve; see .record-label::before.
-  const labelUrl = !sample ? null : finished ? sample.src : sample.labelSrc;
+  // The disc label carries the same pale print, sharp, and develops with the sleeve; see
+  // .record-label::before.
+  const labelUrl = !sample ? null : finished ? sample.src : sample.paleSrc;
 
   function clearTimer() {
     if (timer.current !== null) window.clearTimeout(timer.current);

@@ -15,14 +15,14 @@ interface CoverSleeveProps {
 
 const LAYER = "absolute inset-0 size-full object-cover";
 
-/** The cover as it lands in the sleeve: a pre-blurred, drained copy slides in from the right and
- * the sharp image fades in over it, like a print developing. The blur is baked into the first
- * image and only the layers' opacity and position ever animate. */
+/** The cover as it lands in the sleeve: a pale, undeveloped print slides in from the right, sharp,
+ * and the real art fades in over it, like a Polaroid developing. The paleness is baked into the
+ * first image and only the layers' opacity and position ever animate. */
 function CoverLayers({ cover, beat }: { cover: SampleCover; beat: boolean }) {
   // Same tree at rest, so jumping to the end state keeps the sharp image on screen.
   return (
     <div className={`absolute inset-0 ${beat ? "imp-cover" : ""}`}>
-      {beat && <img src={cover.blurSrc} alt="" className={`imp-blur ${LAYER}`} />}
+      {beat && <img src={cover.paleSrc} alt="" className={`imp-pale ${LAYER}`} />}
       <img src={cover.src} alt="" className={`${beat ? "imp-sharp " : ""}${LAYER}`} />
     </div>
   );
