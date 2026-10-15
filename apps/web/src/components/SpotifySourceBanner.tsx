@@ -80,7 +80,7 @@ export default function SpotifySourceBanner({ onOpenSettings, onToast }: Spotify
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-border border-l-4 border-l-accent bg-card p-6">
       <div>
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">Spotify setup</p>
+        <p className="text-sm font-semibold text-accent">Spotify setup</p>
         <h2 className="mt-1 text-lg font-bold tracking-[-0.03em] text-text">
           Spotify can&apos;t see this yet.
         </h2>

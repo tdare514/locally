@@ -182,8 +182,8 @@ export default function ImportView({
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-8 pb-16">
       <div>
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">
-          Local Library
+        <p className="text-sm font-semibold text-accent">
+          Local library
         </p>
         <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">Import</h1>
         <p className="mt-2 text-base text-text-muted">
