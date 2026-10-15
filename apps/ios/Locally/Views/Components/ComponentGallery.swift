@@ -4,7 +4,7 @@ import SwiftUI
 /// Debug-only harness for deterministic screenshots of the immersive components. Launch the app
 /// with `-componentGallery <name>`; see `LocallyApp`.
 struct ComponentGallery: View {
-    static let names = ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "backdrop-a", "backdrop-b", "inline-field"]
+    static let names = ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "backdrop-a", "backdrop-b", "inline-field", "cover-sheet"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -45,6 +45,18 @@ struct ComponentGallery: View {
                 InlineField("Title", text: $title, font: Theme.Font.pageTitle)
             }
             .padding(Theme.Spacing.pagePadding)
+        case "cover-sheet":
+            // Two stub recent covers; the sheet is the real one, held open.
+            Color.clear.sheet(isPresented: .constant(true)) {
+                CoverChoiceSheet(
+                    recents: [
+                        RecentCover(id: UUID(), title: "Midnight Drive", artist: "Neon Harbor", thumbnail: SampleArtwork.sunset),
+                        RecentCover(id: UUID(), title: "Low Tide", artist: "The Salt Line", thumbnail: SampleArtwork.ocean)
+                    ],
+                    hasCover: true,
+                    onChoose: { _ in }
+                )
+            }
         default:
             EmptyView()
         }

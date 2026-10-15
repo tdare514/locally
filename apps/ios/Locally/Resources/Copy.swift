@@ -72,6 +72,12 @@ enum Copy {
         static let coverFromFiles = "Files"
         static let coverDialogTitle = "Add a cover"
         static let removeCover = "Remove cover"
+        /// The cover sheet's heading over the row of covers already in the library.
+        static let recentCovers = "Recent covers"
+        /// VoiceOver label of one recent cover: the release it came from.
+        static func recentCoverLabel(title: String, artist: String) -> String {
+            artist.isEmpty ? title : "\(title), \(artist)"
+        }
         /// The hint read after the record sleeve's own label.
         static let sleeveHint = "Choose a cover from Photos or Files"
         /// The file chooser panel's caption before a file is chosen. Matches
