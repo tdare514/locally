@@ -721,9 +721,9 @@ body {
  *               820ms), then fades over 480ms so the colour comes back through it; the
  *               colour wash starts with it, on the backdrop's own 900ms fade. Warm white, never
  *               pure, and the spill past the sleeve stays faint
- * 1340 for 600  once the flash has faded (it ends at 1300), the disc slides all the way into the
- *               sleeve and turns 240deg as it goes, one decelerating motion (.record-disc and
- *               .record-face): sealed at 1940
+ * 1340 for 950  once the flash has faded (it ends at 1300), the disc slides all the way into the
+ *               sleeve and turns 240deg as it goes, one motion that eases in gently and settles
+ *               (.record-disc and .record-face; not the snappy expo-out): sealed at 2290
  * After the beat the disc rests in the sleeve and hovering the record brings it out again (the
  * `.record:hover` rule above). */
 .imp-beat,
@@ -773,7 +773,7 @@ body {
 }
 /* The grooves are rotationally symmetric, so the turn is carried by the label's art. */
 .imp-beat .record-face {
-  animation: imp-turn 600ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation: imp-turn 950ms cubic-bezier(0.33, 0, 0.15, 1) backwards;
   animation-delay: calc(1340ms - var(--imp-t, 0ms));
   animation-play-state: var(--imp-run, running);
 }
@@ -788,7 +788,7 @@ body {
   animation: none;
 }
 .imp-beat .record-disc {
-  animation: imp-away 600ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation: imp-away 950ms cubic-bezier(0.33, 0, 0.15, 1) backwards;
   animation-delay: calc(1340ms - var(--imp-t, 0ms));
   animation-play-state: var(--imp-run, running);
 }
