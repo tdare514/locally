@@ -649,9 +649,9 @@ body {
 
 /* ---------------------------------------------------------------------------
  * Buttons (#155): the owner's pick from the three gallery directions, as five classes.
- *   .btn-save               the primary. A near-black pill with a cool hairline. On hover the
- *                           `.glass-fake` look of the phone-tray button fades in and one soft
- *                           shimmer crosses it. Used for every filled action in the app.
+ *   .btn-save               the primary. A near-black pill with a cool hairline. On hover the black
+ *                           fades to the phone-tray cloud button's glass (`.glass-fake`, unchanged)
+ *                           and one soft shimmer crosses it. Used for every filled action in the app.
  *   .btn-ink                the secondary: plain text with an ink line under it (wrap the label
  *                           in `.btn-ink-label`).
  *   .btn-ink-danger         the destructive trigger: the same in pink. The final confirm
@@ -697,8 +697,10 @@ body {
 
 /* ===== Save: the primary ==================================================== */
 /* At rest it is the colour of the black bar it usually sits on, lifted a step so it still reads
-   as a button, with a cool hairline and white text: no gradient, no gloss, no glow. Two layers
-   under the text carry the hover: ::before is the glass and ::after is the shimmer. */
+   as a button, with a cool hairline and white text: no gradient, no gloss, no glow. On hover that
+   black fades away and underneath is the phone-tray cloud button's glass, the `.glass-fake`
+   recipe unchanged, so the page shows through the same way it does on the cloud. The glass is the
+   button's own background, ::before is the black it rests in, and ::after is the shimmer. */
 .btn-save {
   height: 2.5rem;
   padding: 0 1.5rem;
@@ -706,12 +708,18 @@ body {
   overflow: hidden;
   color: #fff;
   font-weight: 600;
-  background: rgb(22 24 30);
-  box-shadow: inset 0 0 0 1px rgb(210 228 255 / 0.16);
+  /* `.glass-fake`: its corner highlight (its ::before) over its body, as two background layers. */
+  background:
+    radial-gradient(120% 70% at 15% -15%, rgb(255 255 255 / 0.18), transparent 60%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.04) 55%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    inset 0 -1px 0 rgb(255 255 255 / 0.08),
+    inset 0 0 0 1px rgb(255 255 255 / 0.12),
+    0 18px 50px -18px rgb(0 0 0 / 0.55);
   transition: scale 200ms var(--btn-ease);
 }
-/* The glass: the `.glass-fake` recipe (a faint white body, a lit top edge, a soft highlight at
-   the corner), cooled a touch. It fades in as opacity; there is no backdrop-filter. */
+/* The black it rests in. Fading it out is the reveal, as opacity; there is no backdrop-filter. */
 .btn-save::before {
   content: "";
   position: absolute;
@@ -719,14 +727,8 @@ body {
   z-index: -1;
   border-radius: inherit;
   pointer-events: none;
-  opacity: 0;
-  background:
-    radial-gradient(120% 70% at 15% -15%, rgb(226 239 255 / 0.12), transparent 60%),
-    linear-gradient(180deg, rgb(228 240 255 / 0.14), rgb(228 240 255 / 0.04) 55%);
-  box-shadow:
-    inset 0 1px 0 rgb(226 239 255 / 0.3),
-    inset 0 -1px 0 rgb(226 239 255 / 0.08),
-    inset 0 0 0 1px rgb(210 228 255 / 0.14);
+  background: rgb(22 24 30);
+  box-shadow: inset 0 0 0 1px rgb(210 228 255 / 0.16);
   transition: opacity 260ms var(--btn-ease);
 }
 /* The shimmer: a thin, soft diagonal band of white at about 14%, parked off the left edge. */
@@ -749,7 +751,7 @@ body {
 }
 .btn-save:where(:not(:disabled)):hover::before,
 .btn-save[data-state="hover"]::before {
-  opacity: 1;
+  opacity: 0;
 }
 /* One pass per hover, not a loop. The sweep eases in and out like the Import label's shimmer;
    the expo-out used elsewhere would cross the face in about 100 ms. */
@@ -1003,8 +1005,8 @@ body {
   .track-list[data-sorting] .track-row[data-lifted] {
     scale: 1;
   }
-  /* Buttons (#155): states still switch, nothing glides or sweeps. The save button's glass
-     still appears, as a short plain opacity fade, and its shimmer does not exist. */
+  /* Buttons (#155): states still switch, nothing glides or sweeps. The save button's black
+     still gives way to the glass, as a short plain opacity fade, and its shimmer does not exist. */
   .btn-save,
   .btn-ink,
   .btn-ink-danger,
