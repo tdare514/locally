@@ -3,7 +3,7 @@ import type { PlaysSummaryAllTime, PlaysSummaryResponse, PlaysSummaryTrack } fro
 import type { SettingsStore } from "../config/SettingsStore";
 import type { LibraryRepository } from "../storage/LibraryRepository";
 import type { PlayCounts, PlayCountStore } from "./PlayCountStore";
-import { localDay, parseDay } from "./playDays";
+import { RETENTION_DAYS, localDay, parseDay } from "./playDays";
 
 /** Most days one summary request may span, both ends counted (`docs/plans/193-plays-by-day.md`). */
 export const MAX_SUMMARY_DAYS = 400;
@@ -31,6 +31,10 @@ export function parseSummaryRange(from: string | null, to: string | null, today:
     throw new ValidationError(`The range can be at most ${MAX_SUMMARY_DAYS} days`);
   }
   if (toDay > todayDay + 1) throw new ValidationError("to must not be after tomorrow");
+  // Buckets are kept for RETENTION_DAYS, so an older start could only read days a stale file still holds.
+  if (fromDay < todayDay - RETENTION_DAYS) {
+    throw new ValidationError(`from must be within the last ${RETENTION_DAYS} days`);
+  }
   return { from, to };
 }
 

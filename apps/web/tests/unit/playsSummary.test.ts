@@ -76,6 +76,12 @@ describe("parseSummaryRange", () => {
     expect(() => parse(formatDay(to - 400), "2026-10-15")).toThrow(/at most 400 days/);
   });
 
+  it("refuses a start more than 400 days back, where no buckets are kept", () => {
+    const today = parseDay("2026-10-15") as number;
+    expect(() => parse(formatDay(today - 400), formatDay(today - 300))).not.toThrow();
+    expect(() => parse(formatDay(today - 401), formatDay(today - 300))).toThrow(/within the last 400 days/);
+  });
+
   it("allows tomorrow, for clock skew, and refuses anything later", () => {
     expect(() => parse("2026-10-14", "2026-10-16")).not.toThrow();
     expect(() => parse("2026-10-14", "2026-10-17")).toThrow(/after tomorrow/);

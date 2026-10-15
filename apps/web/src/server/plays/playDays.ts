@@ -1,10 +1,11 @@
 /** Days a play-day bucket is kept (`docs/plans/193-plays-by-day.md`, decision 6). */
 export const RETENTION_DAYS = 400;
 
+/** The most plays one track can hold in one day bucket, as for counts on the sync API (plan, Security). */
+export const MAX_DAY_COUNT = 1_000_000;
+
 const MS_PER_DAY = 86_400_000;
 const DAY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
-/** A key of a `days` map as read from `plays.json`: shape only, cheap enough for every key of a big file. */
-const STORED_DAY_PATTERN = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
 /**
  * The calendar date, as `YYYY-MM-DD`, that `ms` falls on in `timeZone` (the system zone when
@@ -36,8 +37,9 @@ export function formatDay(dayNumber: number): string {
 }
 
 /**
- * The `days` of a `plays.json` entry as it is read: keys that aren't dates and counts that aren't
- * positive whole numbers are dropped, so a bad `days` never costs the totals. Undefined when nothing is left.
+ * The `days` of a `plays.json` entry as it is read: keys that aren't real calendar dates and counts
+ * that aren't whole numbers from 1 to {@link MAX_DAY_COUNT} are dropped, so a bad `days` (a hand edit,
+ * `2026-02-31`, `1e308`) never costs the totals or overflows a sum. Undefined when nothing is left.
  */
 export function cleanStoredDays(raw: unknown): Record<string, number> | undefined {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
@@ -46,7 +48,13 @@ export function cleanStoredDays(raw: unknown): Record<string, number> | undefine
   let any = false;
   for (const day in source) {
     const count = source[day];
-    if (typeof count === "number" && Number.isInteger(count) && count >= 1 && STORED_DAY_PATTERN.test(day)) {
+    if (
+      typeof count === "number" &&
+      Number.isSafeInteger(count) &&
+      count >= 1 &&
+      count <= MAX_DAY_COUNT &&
+      parseDay(day) !== null
+    ) {
       days[day] = count;
       any = true;
     }
@@ -54,17 +62,21 @@ export function cleanStoredDays(raw: unknown): Record<string, number> | undefine
   return any ? days : undefined;
 }
 
-/** `days` without the buckets older than {@link RETENTION_DAYS} before `today` (that day's own bucket is kept); undefined when none are left. */
+/**
+ * `days` without the buckets older than {@link RETENTION_DAYS} before `today` (that day's own bucket is
+ * kept) or later than tomorrow (a clock that ran ahead); undefined when none are left.
+ */
 export function pruneDays(days: Record<string, number> | undefined, today: string): Record<string, number> | undefined {
   if (!days) return undefined;
   const todayNumber = parseDay(today);
   if (todayNumber === null) return days;
   // `YYYY-MM-DD` strings sort the same as the dates they name.
   const cutoff = formatDay(todayNumber - RETENTION_DAYS);
+  const tomorrow = formatDay(todayNumber + 1);
   const kept: Record<string, number> = {};
   let any = false;
   for (const day of Object.keys(days)) {
-    if (day >= cutoff) {
+    if (day >= cutoff && day <= tomorrow) {
       kept[day] = days[day];
       any = true;
     }

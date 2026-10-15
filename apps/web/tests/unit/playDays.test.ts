@@ -60,6 +60,11 @@ describe("cleanStoredDays", () => {
   it("is undefined when nothing usable is left", () => {
     for (const raw of [undefined, null, "x", 3, [], {}, { a: 1 }]) expect(cleanStoredDays(raw)).toBeUndefined();
   });
+
+  it("drops dates that don't exist and counts past the cap, so a hand edit can't overflow a sum", () => {
+    const raw = { "2026-02-31": 1, "2026-10-14": 1e308, "2026-10-13": 1_000_001, "2026-10-12": 1_000_000 };
+    expect(cleanStoredDays(raw)).toEqual({ "2026-10-12": 1_000_000 });
+  });
 });
 
 describe("pruneDays", () => {
@@ -68,6 +73,10 @@ describe("pruneDays", () => {
   it("keeps the day exactly 400 days back and drops older ones", () => {
     const days = { "2025-09-09": 1, "2025-09-10": 2, "2026-10-15": 3 };
     expect(pruneDays(days, today)).toEqual({ "2025-09-10": 2, "2026-10-15": 3 });
+  });
+
+  it("keeps tomorrow and drops days after it, left by a clock that ran ahead", () => {
+    expect(pruneDays({ "2026-10-16": 1, "2026-10-17": 2, "2027-01-01": 3 }, today)).toEqual({ "2026-10-16": 1 });
   });
 
   it("is undefined when every day is old, and when there are none", () => {
