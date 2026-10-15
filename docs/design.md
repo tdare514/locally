@@ -12,7 +12,7 @@ and both apps follow.
 | Token | Value | Use |
 | --- | --- | --- |
 | bg | #000000 | page background |
-| card | #121212 | cards, list containers, drop zones, dialogs, cover placeholder, web sidebar |
+| card | #121212 | cards, list containers, drop zones, dialogs, cover placeholder |
 | elevated | #282828 | inputs, segmented control track, secondary buttons, badges, icon tiles |
 | elevated-hover | #3A3A3A | hover on elevated surfaces (web) |
 | row-hover | #1C1C1C | pressed/hovered list rows |
@@ -120,9 +120,8 @@ eyebrows still apply to those labels.
 - **Library toolbar (desktop)**: under the "All music" header, a search field (magnifier at the
   left, placeholder "Search titles, artists, genres…", ⌘F focuses it, Escape clears it) beside a
   sort menu (Recently updated, Title A–Z, Artist A–Z, Year, newest first). Both use the text-field
-  style. The sidebar list follows the same query and sort and shows "Showing matches for …" with a
-  Clear link while a query is active. No matches shows "No matches for …" with a Clear search
-  pill; an empty library keeps the onboarding state.
+  style. No matches shows "No matches for …" with a Clear search pill; an empty library keeps the
+  onboarding state.
 - **Library selection (desktop)**: a "Select" pill on the toolbar swaps it for a selection bar
   ("{n} selected", Select all / Deselect all, "Edit details…", "Delete…" in `danger`, Done;
   Escape also leaves). Rows show a 20 checkbox (`accent` when ticked) in place of the chevron and
@@ -159,7 +158,7 @@ eyebrows still apply to those labels.
   "All music", meta "N tracks". The list is split into two sections, **Singles** then
   **Albums**, each with an 18 bold label and its count in `text-dim`, separated by a 1 px
   `border-dashed` rule (dash 4/4). A section with nothing in it is not shown. Desktop mirrors the
-  same sectioning in the main Library view (and in the sidebar list).
+  same sectioning in the main Library view.
 - **Editor / release detail (mobile)**: *Replaced by the immersive release page (#126).*
   Former layout: a slim, sleek layout rather than a full-width hero. Top
   bar with back and the release title. Below it a header row: a 112 pt square cover, radius 10,
@@ -263,10 +262,14 @@ eyebrows still apply to those labels.
   "Locally"), three accent dots and a chevron, a note icon (captioned "Spotify"; never Spotify's
   logo). Below: eyebrow "YOUR LIBRARY" (replaced 13 Oct 2026: sentence case), title "Nothing here yet" (24 bold mobile / 36 desktop),
   one line of `text-muted` 14 body, then a primary "Add your first single" and a secondary "Make
-  an album" pinned low. The web sidebar empty line stays the short `text-muted` hint; the full
-  empty state lives in the main Library view.
-- **Web sidebar**: nav pills (Library, + Import, Settings), Singles then Albums section labels
-  with counts, rows, brand mark, on `card`. The MagicPath sidebar is not used.
+  an album" pinned low. The full empty state lives in the main Library view.
+- **Web sidebar (#154)**: a slim 64 px rail, always there and see-through over the page, holds the
+  brand mark, Library, the accent Import circle, Settings and a menu button. Hovering it (or the
+  menu button) blooms a glass panel out of its right edge: "On this Mac" (or the signed-in email),
+  rows for Library, Import and Settings, then "Your plays" with Top tracks, Top albums, Top artists
+  and an optional record-sleeve shelf (the #1 row larger, with its cover). Pin open docks the panel
+  as a column. The glass is faked (no blur), motion is transform and opacity only, and all of it
+  stands still under reduced motion. The MagicPath sidebar is not used.
 - **Library list (desktop main)**: same sectioning as mobile — YOUR COLLECTION (replaced 13 Oct 2026: sentence case) / All music
   header with track-count meta, Singles then Albums in `card` containers (radius 12), "Add a
-  song" primary below. Sidebar rows stay compact (40 art) for quick jump.
+  song" primary below.

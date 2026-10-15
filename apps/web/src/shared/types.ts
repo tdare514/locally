@@ -106,6 +106,19 @@ export interface ReleasePlaysResponse {
   tracks: TrackPlays[];
 }
 
+/** One track's all-time play count on this Mac, in GET /api/plays/totals. */
+export interface PlayTotal {
+  releaseId: string;
+  trackId: string;
+  total: number;
+}
+
+/** Response shape for GET /api/plays/totals: this Mac's counts for every track of every release in
+ * the library, in one list. Only tracks with at least one play are listed. */
+export interface PlayTotalsResponse {
+  tracks: PlayTotal[];
+}
+
 /** One release from another device (the phone, the web) that hasn't been imported into the local library yet. */
 export interface PendingFromPhone {
   id: string;

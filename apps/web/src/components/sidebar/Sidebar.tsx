@@ -254,6 +254,11 @@ export default function Sidebar({
               <StatList stats={stats.stats} enabled={widgets} />
             </div>
           )}
+          {stats.status === "error" && (
+            <p className="sb-item px-3 py-1 text-[13px] leading-snug text-text-dim" style={step(2)}>
+              Couldn&apos;t load your plays. It will try again the next time this opens.
+            </p>
+          )}
           {stats.status === "empty" && !loading && (
             <p className="sb-item px-3 py-1 text-[13px] leading-snug text-text-dim" style={step(2)}>
               Plays show up here once Locally has counted some. Turn it on in{" "}

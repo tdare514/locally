@@ -1,16 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Release } from "../../shared/types";
-import { getReleasePlays } from "../../lib/api-client";
+import type { PlayTotal, Release } from "../../shared/types";
+import { getPlayTotals } from "../../lib/api-client";
 import { IS_DEMO } from "../../lib/demo";
-import {
-  aggregatePlays,
-  fetchPlaysForReleases,
-  type PlaysByRelease,
-  type PlayStats,
-  type StatsPeriod,
-} from "../../lib/play-stats";
+import { aggregatePlays, type PlayStats, type StatsPeriod } from "../../lib/play-stats";
 import { DEFAULT_WIDGETS, toggleWidget, type WidgetKey, type WidgetState } from "../../lib/sidebar-panel";
 import { loadSidebarPrefs, saveSidebarWidgets } from "../../lib/sidebar-prefs";
 import { HAS_DAILY_COUNTS } from "./flags";
@@ -25,25 +19,29 @@ export type StatsState =
   | { status: "loading" }
   /** No plays to show: play counting is off, nothing has been counted yet, or this is the demo. */
   | { status: "empty" }
+  /** The read failed and there is nothing older to show. It is tried again the next time the panel opens. */
+  | { status: "error" }
   | { status: "ready"; stats: PlayStats };
 
 const LOADING: StatsState = { status: "loading" };
 const EMPTY: StatsState = { status: "empty" };
+const FAILED: StatsState = { status: "error" };
+
+type Read = { status: "none" } | { status: "ok"; totals: PlayTotal[] } | { status: "error" };
 
 /**
  * The play rankings for the sidebar widgets.
  *
- * Only the "all" period can be read today: `GET /api/plays` answers one release at a time with
- * all-time totals, and there are no per-day counts yet (#193). Any other period reads as empty
- * until that data exists. Nothing is requested until `active` (the panel is showing), then each
- * release is asked for at a few at a time and kept for a minute; releases added since are the
- * only ones asked for again within that minute. The demo has no plays and asks for none.
+ * Only the "all" period can be read today, and only this Mac's plays: `GET /api/plays/totals` is
+ * one local request for every track's all-time count. There are no per-day counts yet (#193), so any
+ * other period reads as empty until that data exists. Nothing is requested until `active` (the
+ * panel is showing); the answer is kept for a minute, and a request that fails is not repeated
+ * until the next time the panel opens. The demo has no plays and asks for none.
  */
 export function useStats(period: StatsPeriod, releases: Release[], active: boolean): StatsState {
-  const [plays, setPlays] = useState<PlaysByRelease | null>(null);
-  const have = useRef<PlaysByRelease>({});
-  const readAt = useRef(0);
-  const inFlight = useRef(new Set<string>());
+  const [read, setRead] = useState<Read>({ status: "none" });
+  const readAt = useRef<number | null>(null);
+  const inFlight = useRef(false);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -53,32 +51,35 @@ export function useStats(period: StatsPeriod, releases: Release[], active: boole
     };
   }, []);
 
-  const idsKey = releases.map((r) => r.id).join(",");
   const readable = period === "all" && !IS_DEMO;
 
   useEffect(() => {
-    if (!active || !readable || idsKey === "") return;
-    const stale = Date.now() - readAt.current > STALE_MS;
-    const wanted = idsKey
-      .split(",")
-      .filter((id) => !inFlight.current.has(id) && (stale || !(id in have.current)));
-    if (wanted.length === 0) return;
-    for (const id of wanted) inFlight.current.add(id);
-    fetchPlaysForReleases(wanted, getReleasePlays)
-      .then((got) => {
-        have.current = { ...have.current, ...got };
+    if (!active || !readable || inFlight.current) return;
+    if (readAt.current !== null && Date.now() - readAt.current <= STALE_MS) return;
+    inFlight.current = true;
+    getPlayTotals()
+      .then(({ tracks }) => {
         readAt.current = Date.now();
-        if (mounted.current) setPlays(have.current);
+        if (mounted.current) setRead({ status: "ok", totals: tracks });
+      })
+      .catch(() => {
+        // Counts read earlier stay on screen; with none, say so. Either way the next open asks again.
+        readAt.current = null;
+        if (mounted.current) setRead((prev) => (prev.status === "ok" ? prev : { status: "error" }));
       })
       .finally(() => {
-        for (const id of wanted) inFlight.current.delete(id);
+        inFlight.current = false;
       });
-  }, [active, readable, idsKey]);
+  }, [active, readable]);
 
-  const stats = useMemo(() => aggregatePlays(releases, plays ?? {}), [releases, plays]);
+  const stats = useMemo(
+    () => aggregatePlays(releases, read.status === "ok" ? read.totals : []),
+    [releases, read],
+  );
 
   if (!readable || releases.length === 0) return EMPTY;
-  if (plays === null) return LOADING;
+  if (read.status === "none") return LOADING;
+  if (read.status === "error") return FAILED;
   return stats.total > 0 ? { status: "ready", stats } : EMPTY;
 }
 

@@ -1,10 +1,9 @@
 /** Play-count rankings for the sidebar widgets (#154): the top tracks, albums and artists, from
- * the library list plus each release's `GET /api/plays` answer. Pure: no fetch of its own, no
- * DOM. The counts are all-time totals; per-day counts do not exist yet (#193), so a period other
- * than "all" has nothing to read. Each play is counted once: a track's `total` already merges
- * this Mac and the other devices. */
+ * the library list plus this Mac's `GET /api/plays/totals`. Pure: no fetch of its own, no DOM.
+ * The counts are all-time totals on this Mac; per-day counts do not exist yet (#193), so a period
+ * other than "all" has nothing to read. Each play is counted once. */
 
-import type { Release, ReleasePlaysResponse } from "../shared/types";
+import type { PlayTotal, Release } from "../shared/types";
 
 /** The three ranked lists. */
 export type StatKind = "tracks" | "albums" | "artists";
@@ -67,9 +66,6 @@ export interface PlayStats {
   artists: StatItem[];
 }
 
-/** Each release's `GET /api/plays` answer, by release id. */
-export type PlaysByRelease = Record<string, ReleasePlaysResponse>;
-
 export type Medal = "gold" | "silver" | "bronze";
 
 /** The first three ranks get a gold, silver and bronze touch. */
@@ -130,13 +126,20 @@ interface ArtistTotals {
  */
 export function aggregatePlays(
   releases: Release[],
-  playsByRelease: PlaysByRelease,
+  totals: PlayTotal[],
   limit: number = TOP_COUNT,
 ): PlayStats {
   const trackRows: Row[] = [];
   const albumRows: Row[] = [];
   const artists = new Map<string, ArtistTotals>();
   let total = 0;
+
+  const countsByRelease = new Map<string, Map<string, number>>();
+  for (const t of totals) {
+    const counts = countsByRelease.get(t.releaseId) ?? new Map<string, number>();
+    counts.set(t.trackId, t.total);
+    countsByRelease.set(t.releaseId, counts);
+  }
 
   for (const release of releases) {
     const key = artistKey(release.artist);
@@ -154,13 +157,12 @@ export function aggregatePlays(
   }
 
   for (const release of releases) {
-    const counted = new Map<string, number>();
-    for (const t of playsByRelease[release.id]?.tracks ?? []) counted.set(t.trackId, t.total);
+    const counted = countsByRelease.get(release.id);
 
     const cover = coverOf(release);
     let releasePlays = 0;
     for (const track of release.tracks) {
-      const plays = counted.get(track.id) ?? 0;
+      const plays = counted?.get(track.id) ?? 0;
       if (!Number.isFinite(plays) || plays <= 0) continue;
       releasePlays += plays;
       trackRows.push({
@@ -206,33 +208,4 @@ export function aggregatePlays(
     albums: rankRows(albumRows, limit),
     artists: rankRows(artistRows, limit),
   };
-}
-
-/** How many release requests run at once. `GET /api/plays` answers for one release at a time. */
-export const MAX_PARALLEL_PLAYS_REQUESTS = 4;
-
-/**
- * Asks `get` for each release's plays, at most {@link MAX_PARALLEL_PLAYS_REQUESTS} at a time. A
- * release whose request fails is left out of the result (the caller asks again later) rather
- * than failing the rest.
- */
-export async function fetchPlaysForReleases(
-  ids: string[],
-  get: (releaseId: string) => Promise<ReleasePlaysResponse>,
-  parallel: number = MAX_PARALLEL_PLAYS_REQUESTS,
-): Promise<PlaysByRelease> {
-  const out: PlaysByRelease = {};
-  let next = 0;
-  async function worker() {
-    while (next < ids.length) {
-      const id = ids[next++];
-      try {
-        out[id] = await get(id);
-      } catch {
-        // This release shows no plays this time.
-      }
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(parallel, ids.length) }, worker));
-  return out;
 }
