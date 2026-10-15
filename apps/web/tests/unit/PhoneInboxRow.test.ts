@@ -52,7 +52,7 @@ describe("PendingRow files states (#172)", () => {
     expect(html).not.toContain("group/send");
     expect(html).toContain("opacity-50 grayscale");
     expect(html.match(/sending-dots/g)).toHaveLength(1);
-    expect(html.match(/h-1\.5 w-1\.5 rounded-full/g)).toHaveLength(3);
+    expect(html.match(/h-1 w-1 bg-white/g)).toHaveLength(3);
     expect(html).not.toContain("<svg"); // no music note or plus
     // Title and artist stay readable in muted colours.
     expect(text).toContain("Phone Song");

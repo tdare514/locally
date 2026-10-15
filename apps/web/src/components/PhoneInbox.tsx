@@ -221,10 +221,11 @@ export function PendingRow({
             <div aria-hidden="true" className="absolute inset-0 opacity-50 grayscale">
               {sleeve}
             </div>
-            <span aria-hidden="true" className="sending-dots absolute left-0 top-0 flex h-12 w-12 items-center justify-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-white" />
-              <span className="h-1.5 w-1.5 rounded-full bg-white" />
-              <span className="h-1.5 w-1.5 rounded-full bg-white" />
+            {/* Small square dots sitting low, on the cover's lower third, like a typed "..." on a line of text. */}
+            <span aria-hidden="true" className="sending-dots absolute left-0 top-0 flex h-12 w-12 items-start justify-center gap-[3px] pt-[30px]">
+              <span className="h-1 w-1 bg-white" />
+              <span className="h-1 w-1 bg-white" />
+              <span className="h-1 w-1 bg-white" />
             </span>
           </div>
         ) : waiting ? (
