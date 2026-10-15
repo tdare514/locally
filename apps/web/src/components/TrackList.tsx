@@ -10,6 +10,7 @@ import {
   slotAfterMove,
   stepTarget,
 } from "../lib/track-order";
+import { watchPaneEdges, type PaneEdgesWatch } from "../lib/pane-edges";
 import { playsLabel } from "../lib/plays-copy";
 import { adoptDiscAfterMove, discHeadings } from "../shared/discs";
 import { XIcon } from "./Icons";
@@ -97,6 +98,9 @@ interface Drag {
   clientY: number;
   startScroll: number;
   scroller: HTMLElement;
+  /** The scroller's visible edges, measured once when the drag begins and kept current on resize
+   * (#163), so the frame loop never reads layout. Set by `beginDrag`, released by `endDrag`. */
+  pane: PaneEdgesWatch | null;
   /** Vertical centre of every slot, measured when the drag starts. A heading between two rows
    * makes the gap there larger, so rows slide by the difference between centres (`roomShift`). */
   centers: number[];
@@ -168,6 +172,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
 
   function endDrag(d: Drag, commitTo: number) {
     cancelAnimationFrame(d.raf);
+    d.pane?.stop();
     removeEscapeListener();
     drag.current = null;
     if (d.row.hasPointerCapture(d.pointerId)) d.row.releasePointerCapture(d.pointerId);
@@ -223,9 +228,8 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
 
   /** Scrolls the pane while the held row is near its top or bottom edge. */
   function autoScroll(d: Drag) {
-    const rect = d.scroller.getBoundingClientRect();
-    const top = Math.max(rect.top, 0);
-    const bottom = Math.min(rect.bottom, window.innerHeight);
+    if (!d.pane) return;
+    const { top, bottom } = d.pane.edges;
     let speed = 0;
     if (d.clientY < top + EDGE_ZONE) speed = -EDGE_SPEED * Math.min(1, (top + EDGE_ZONE - d.clientY) / EDGE_ZONE);
     else if (d.clientY > bottom - EDGE_ZONE) speed = EDGE_SPEED * Math.min(1, (d.clientY - (bottom - EDGE_ZONE)) / EDGE_ZONE);
@@ -240,6 +244,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
     d.started = true;
     const list = listRef.current;
     if (!list) return;
+    d.pane = watchPaneEdges(d.scroller);
     list.dataset.sorting = "";
     d.row.dataset.lifted = "";
     escapeListener.current = (e) => {
@@ -282,6 +287,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
       clientY: e.clientY,
       startScroll: scroller.scrollTop,
       scroller,
+      pane: null,
       centers,
       started: false,
       raf: 0,
@@ -315,7 +321,10 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
   useEffect(() => {
     const state = { drag, settleTimer, escapeListener };
     return () => {
-      if (state.drag.current) cancelAnimationFrame(state.drag.current.raf);
+      if (state.drag.current) {
+        cancelAnimationFrame(state.drag.current.raf);
+        state.drag.current.pane?.stop();
+      }
       if (state.settleTimer.current !== null) window.clearTimeout(state.settleTimer.current);
       if (state.escapeListener.current) {
         window.removeEventListener("keydown", state.escapeListener.current, true);
