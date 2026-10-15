@@ -3,9 +3,11 @@ import { DEFAULT_WIDGETS } from "../../src/lib/sidebar-panel";
 import {
   loadSidebarPrefs,
   parseOpenOnHover,
+  parsePeriod,
   parsePinned,
   parseWidgets,
   saveSidebarOpenOnHover,
+  saveSidebarPeriod,
   saveSidebarPinned,
   saveSidebarWidgets,
 } from "../../src/lib/sidebar-prefs";
@@ -59,6 +61,19 @@ describe("parseWidgets", () => {
   });
 });
 
+describe("parsePeriod", () => {
+  it("reads the three periods and is this week otherwise", () => {
+    expect(parsePeriod("today")).toBe("today");
+    expect(parsePeriod("week")).toBe("week");
+    expect(parsePeriod("month")).toBe("month");
+    expect(parsePeriod(null)).toBe("week");
+    expect(parsePeriod("")).toBe("week");
+    expect(parsePeriod("all")).toBe("week");
+    expect(parsePeriod("Today")).toBe("week");
+    expect(parsePeriod("constructor")).toBe("week");
+  });
+});
+
 describe("sidebar storage", () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -75,18 +90,20 @@ describe("sidebar storage", () => {
 
   it("loads the defaults when nothing was saved", () => {
     stubStorage();
-    expect(loadSidebarPrefs()).toEqual({ pinned: false, openOnHover: true, widgets: DEFAULT_WIDGETS });
+    expect(loadSidebarPrefs()).toEqual({ pinned: false, openOnHover: true, widgets: DEFAULT_WIDGETS, period: "week" });
   });
 
-  it("round-trips pinned, Open on hover and the widgets", () => {
+  it("round-trips pinned, Open on hover, the widgets and the period", () => {
     stubStorage();
     saveSidebarPinned(true);
     saveSidebarOpenOnHover(false);
     saveSidebarWidgets({ shelf: true, tracks: true, albums: false, artists: false });
+    saveSidebarPeriod("today");
     expect(loadSidebarPrefs()).toEqual({
       pinned: true,
       openOnHover: false,
       widgets: { shelf: true, tracks: true, albums: false, artists: false },
+      period: "today",
     });
   });
 
@@ -100,9 +117,10 @@ describe("sidebar storage", () => {
       },
     };
     vi.stubGlobal("window", { localStorage: blocked });
-    expect(loadSidebarPrefs()).toEqual({ pinned: false, openOnHover: true, widgets: DEFAULT_WIDGETS });
+    expect(loadSidebarPrefs()).toEqual({ pinned: false, openOnHover: true, widgets: DEFAULT_WIDGETS, period: "week" });
     expect(() => saveSidebarPinned(true)).not.toThrow();
     expect(() => saveSidebarOpenOnHover(false)).not.toThrow();
     expect(() => saveSidebarWidgets(DEFAULT_WIDGETS)).not.toThrow();
+    expect(() => saveSidebarPeriod("month")).not.toThrow();
   });
 });

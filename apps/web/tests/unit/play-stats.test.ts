@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { aggregatePlays, medalFor, periodHeading, releaseCountLabel } from "../../src/lib/play-stats";
-import type { PlayTotal, Release, Track } from "../../src/shared/types";
+import {
+  aggregatePlays,
+  medalFor,
+  periodEmptyLine,
+  periodHeading,
+  releaseCountLabel,
+  type TrackPlayCount,
+} from "../../src/lib/play-stats";
+import type { Release, Track } from "../../src/shared/types";
 
 function track(id: string, title: string, trackNumber = 1): Track {
   return { id, title, trackNumber, filePath: `/lib/${id}.mp3`, originalName: `${id}.mp3`, durationSec: 180 };
@@ -23,9 +30,9 @@ function release(id: string, artist: string, title: string, tracks: Track[], ext
   };
 }
 
-/** This Mac's counts for some of a release's tracks, as GET /api/plays/totals lists them. */
-function plays(releaseId: string, counts: Record<string, number>): PlayTotal[] {
-  return Object.entries(counts).map(([trackId, total]) => ({ releaseId, trackId, total }));
+/** This Mac's plays for some of a release's tracks, as GET /api/plays/summary lists them. */
+function plays(releaseId: string, counts: Record<string, number>): TrackPlayCount[] {
+  return Object.entries(counts).map(([trackId, count]) => ({ releaseId, trackId, plays: count }));
 }
 
 describe("aggregatePlays", () => {
@@ -33,7 +40,7 @@ describe("aggregatePlays", () => {
   const lantern = release("r-lan", "Quiet Orchard", "Paper Lanterns", [track("t3", "Lanterns")]);
   const bus = release("r-bus", "Okoro", "Night Bus", [track("t4", "Night Bus")], { coverPath: null });
 
-  const counts: PlayTotal[] = [
+  const counts: TrackPlayCount[] = [
     ...plays("r-sea", { t1: 5, t2: 2 }),
     ...plays("r-lan", { t3: 6 }),
     ...plays("r-bus", { t4: 4 }),
@@ -100,12 +107,30 @@ describe("aggregatePlays", () => {
   });
 
   it("is empty with no plays at all", () => {
-    const noPlays: PlayTotal[][] = [[], plays("r-sea", { t1: 0, t2: 0 })];
+    const noPlays: TrackPlayCount[][] = [[], plays("r-sea", { t1: 0, t2: 0 })];
     for (const byRelease of noPlays) {
       const stats = aggregatePlays([sea, lantern, bus], byRelease);
       expect(stats).toEqual({ total: 0, tracks: [], albums: [], artists: [] });
     }
     expect(aggregatePlays([], counts).total).toBe(0);
+  });
+
+  it("ranks a summary's period rows and its allTime rows from the same helper", () => {
+    // GET /api/plays/summary rows carry more than the plays (lastPlayedDay); only plays count here.
+    const thisWeek = [
+      { releaseId: "r-sea", trackId: "t2", plays: 3, lastPlayedDay: "2026-10-14" },
+      { releaseId: "r-bus", trackId: "t4", plays: 1, lastPlayedDay: "2026-10-15" },
+    ];
+    const week = aggregatePlays([sea, lantern, bus], thisWeek);
+    expect(week.total).toBe(4);
+    expect(week.tracks.map((i) => [i.title, i.plays])).toEqual([
+      ["Hymn", 3],
+      ["Night Bus", 1],
+    ]);
+    // The same library over all time ranks differently.
+    expect(aggregatePlays([sea, lantern, bus], counts).tracks[0].title).toBe("Lanterns");
+    // limit 0 only totals (how the sidebar tells a quiet period from no plays at all).
+    expect(aggregatePlays([sea, lantern, bus], counts, 0)).toMatchObject({ total: 17, tracks: [], albums: [], artists: [] });
   });
 
   it("leaves out releases and tracks with no plays", () => {
@@ -181,11 +206,16 @@ describe("small labels", () => {
     expect(releaseCountLabel(6)).toBe("6 releases");
   });
 
-  it("headings: Your plays while it is all time", () => {
-    expect(periodHeading("all")).toBe("Your plays");
-    expect(periodHeading("today")).toBe("Your day");
+  it("headings follow the period", () => {
+    expect(periodHeading("today")).toBe("Today");
     expect(periodHeading("week")).toBe("Your week");
     expect(periodHeading("month")).toBe("Your month");
+  });
+
+  it("says a quiet period has no plays, and why", () => {
+    expect(periodEmptyLine("today")).toBe("No plays yet today. Counting by day started with this update.");
+    expect(periodEmptyLine("week")).toBe("No plays yet this week. Counting by day started with this update.");
+    expect(periodEmptyLine("month")).toBe("No plays yet this month. Counting by day started with this update.");
   });
 
   it("gives the first three ranks a medal", () => {
