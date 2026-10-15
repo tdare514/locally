@@ -38,7 +38,14 @@ export const MAX_PULL_PAGES_PER_RECONCILE = 100;
 
 function pendingSummary(record: SyncRecord): PendingFromPhone {
   const meta = fromSyncRecord(record);
-  return { id: meta.id, title: meta.title, artist: meta.artist, kind: meta.kind, trackCount: meta.tracks.length };
+  return {
+    id: meta.id,
+    origin: record.origin,
+    title: meta.title,
+    artist: meta.artist,
+    kind: meta.kind,
+    trackCount: meta.tracks.length,
+  };
 }
 
 /**
@@ -306,6 +313,8 @@ export class SyncEngine implements ReleaseSyncHooks {
 
         const local = await this.releases.get(record.id);
         if (!local) {
+          // Any origin but "mac" is another device ("ios", "web", or one this build has never
+          // heard of): offered in the tray, never mistaken for this Mac's own.
           if (record.origin !== "mac") {
             state.pendingFromPhone[record.id] = record;
           }
@@ -498,7 +507,7 @@ export class SyncEngine implements ReleaseSyncHooks {
     if (!refused) this.loggedPlayRejection = false;
   }
 
-  // --- Inbox ("From your phone") ----------------------------------------
+  // --- Inbox ("From your devices") ----------------------------------------
 
   async acceptFromPhone(id: string): Promise<Release> {
     const settings = await this.settings.get();
