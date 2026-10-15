@@ -33,14 +33,16 @@ export interface Services {
   allowedOrigins: string[];
   /**
    * Rate limiters: the two unauthenticated auth routes, keyed separately by email and by IP, and the
-   * two missing-files routes, keyed by the authenticated user id.
+   * two missing-files routes, each keyed by the calling device id and capped again per user id.
    */
   rateLimiters: {
     codeByEmail: RateLimiter;
     codeByIp: RateLimiter;
     verifyByEmail: RateLimiter;
     verifyByIp: RateLimiter;
+    missingFilesByDevice: RateLimiter;
     missingFilesByUser: RateLimiter;
+    resyncRequestByDevice: RateLimiter;
     resyncRequestByUser: RateLimiter;
   };
 }
@@ -84,9 +86,12 @@ async function buildServices(): Promise<Services> {
       // 5-guesses-per-code limit already enforced inside AuthService.verify).
       verifyByEmail: new DbRateLimiter(db, 10, 15 * 60 * 1000, "verify:email"),
       verifyByIp: new DbRateLimiter(db, 30, 15 * 60 * 1000, "verify:ip"),
-      // 6 missing-files checks and 6 resync requests per user, per hour (#119).
-      missingFilesByUser: new DbRateLimiter(db, 6, 60 * 60 * 1000, "files-missing:user"),
-      resyncRequestByUser: new DbRateLimiter(db, 6, 60 * 60 * 1000, "resync-request:user"),
+      // Missing-files checks and resync requests (#119): 6 an hour per device, so a polling Mac cannot
+      // starve the phone, and 24 an hour per user across devices, so many devices cannot fan out.
+      missingFilesByDevice: new DbRateLimiter(db, 6, 60 * 60 * 1000, "files-missing:device"),
+      missingFilesByUser: new DbRateLimiter(db, 24, 60 * 60 * 1000, "files-missing:user"),
+      resyncRequestByDevice: new DbRateLimiter(db, 6, 60 * 60 * 1000, "resync-request:device"),
+      resyncRequestByUser: new DbRateLimiter(db, 24, 60 * 60 * 1000, "resync-request:user"),
     },
   };
 }

@@ -125,7 +125,7 @@ sync at runtime.
 Rules: every path is scoped to the token's user; a release id belongs to the user that first
 wrote it; tombstones keep their files for 30 days then a cron deletes the objects; codes and
 tokens are stored hashed; auth endpoints are rate-limited per email and per IP; the two missing-files routes are rate-limited
-per user (6 an hour each, 429 beyond); JSON request
+device (6 an hour each) and per user (24 an hour each), 429 beyond; JSON request
 bodies are capped at 1 MiB (400 when exceeded). The daily cron (`GET /v1/internal/cleanup`) also
 drains `pending_deletes` (blobs of deleted accounts), oldest first.
 
@@ -177,8 +177,10 @@ route. Plan: `docs/plans/119-missing-files.md`.
 - `POST /v1/files/resync-request` takes no body and sets `resyncRequestedAt` on the account to the
   server time. The server contacts no device: a device that sees `GET /v1/me` return a
   `resyncRequestedAt` newer than its last check runs that check now.
-- Both routes are limited to 6 calls an hour per user, each route counted on its own and shared by
-  all the account's devices. A storage listing is a priced call, and this is a repair path.
+- Each route is limited to 6 calls an hour per device, so one device that polls cannot use up the
+  others' allowance, and to 24 calls an hour per user across all its devices. A call a device is
+  refused for its own limit does not count against the user's 24. Each route is counted on its own.
+  A storage listing is a priced call, and this is a repair path.
 - Effect on clients: `apps/web` and `apps/ios` keep working unchanged. Neither calls the routes,
   and both ignore the new `/v1/me` field (iOS decodes `/v1/me` into a struct that names only
   `user.email`, `device`, and `quota`; web reads the JSON without a strict schema). The iPhone

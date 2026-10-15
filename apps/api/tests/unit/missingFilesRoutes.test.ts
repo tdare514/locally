@@ -29,7 +29,8 @@ function jsonRequest(url: string, method: string, body?: unknown, token?: string
   });
 }
 
-async function signIn(email: string): Promise<{ token: string; userId: string }> {
+/** Signing in again with the same email adds another device to the same account. */
+async function signIn(email: string): Promise<{ token: string; userId: string; deviceId: string }> {
   const codeRes = await authCodeRoute.POST(jsonRequest("http://localhost/v1/auth/code", "POST", { email }));
   expect(codeRes.status).toBe(200);
   await new Promise<void>((r) => queueMicrotask(() => r()));
@@ -39,8 +40,17 @@ async function signIn(email: string): Promise<{ token: string; userId: string }>
     jsonRequest("http://localhost/v1/auth/verify", "POST", { email, code, deviceName: "Device", platform: "mac" })
   );
   expect(verifyRes.status).toBe(200);
-  const body = (await verifyRes.json()) as { token: string; user: { id: string } };
-  return { token: body.token, userId: body.user.id };
+  const body = (await verifyRes.json()) as { token: string; user: { id: string }; device: { id: string } };
+  return { token: body.token, userId: body.user.id, deviceId: body.device.id };
+}
+
+/** `count` devices of one account, each with its own token. */
+async function signInDevices(email: string, count: number): Promise<string[]> {
+  const sessions = [];
+  for (let n = 0; n < count; n++) sessions.push(await signIn(email));
+  expect(new Set(sessions.map((s) => s.userId)).size).toBe(1);
+  expect(new Set(sessions.map((s) => s.deviceId)).size).toBe(count);
+  return sessions.map((s) => s.token);
 }
 
 beforeAll(async () => {
@@ -121,26 +131,51 @@ describe("GET /v1/files/missing", () => {
     body = await (await getMissing(token)).json();
     expect(body.releases).toEqual([]);
   });
+});
 
-  it("answers the 7th call within an hour with 429, and only for that account", async () => {
-    const { token } = await signIn("missing-limit@example.com");
-    for (let call = 1; call <= 6; call++) {
-      expect((await getMissing(token)).status, `call ${call}`).toBe(200);
-    }
-    const limited = await getMissing(token);
+const limitedRoutes = [
+  { name: "GET /v1/files/missing", slug: "limit-missing", call: getMissing, otherRoute: postResync },
+  { name: "POST /v1/files/resync-request", slug: "limit-resync", call: postResync, otherRoute: getMissing },
+] as const;
+
+describe.each(limitedRoutes)("rate limit on $name: 6 an hour per device, 24 per user", ({ slug, call, otherRoute }) => {
+  it("answers a device's 7th call within an hour with 429, while the account's other device still gets 200", async () => {
+    const [mac, phone] = await signInDevices(`${slug}-device@example.com`, 2);
+    for (let n = 1; n <= 6; n++) expect((await call(mac)).status, `mac call ${n}`).toBe(200);
+    const limited = await call(mac);
     expect(limited.status).toBe(429);
     expect(typeof (await limited.json()).error).toBe("string");
 
-    // Another account has its own allowance.
-    const other = await signIn("missing-limit-other@example.com");
-    expect((await getMissing(other.token)).status).toBe(200);
+    expect((await call(phone)).status).toBe(200);
   });
 
-  it("does not spend the resync-request allowance, or the other way round", async () => {
-    const { token } = await signIn("missing-limit-split@example.com");
-    for (let call = 1; call <= 6; call++) await getMissing(token);
-    expect((await getMissing(token)).status).toBe(429);
-    expect((await postResync(token)).status).toBe(200);
+  it("answers an account's 25th call across devices with 429, and another account is unaffected", async () => {
+    const tokens = await signInDevices(`${slug}-user@example.com`, 5);
+    for (const [d, token] of tokens.slice(0, 4).entries()) {
+      for (let n = 1; n <= 6; n++) expect((await call(token)).status, `device ${d + 1} call ${n}`).toBe(200);
+    }
+    // 24 calls made, none refused: a fifth device is under its own limit but over the account's ceiling.
+    expect((await call(tokens[4]!)).status).toBe(429);
+
+    const [stranger] = await signInDevices(`${slug}-stranger@example.com`, 1);
+    expect((await call(stranger!)).status).toBe(200);
+  });
+
+  it("does not charge the account's ceiling for calls a device is refused for its own limit", async () => {
+    const [noisy, b, c, d, e] = await signInDevices(`${slug}-noisy@example.com`, 5);
+    for (let n = 1; n <= 10; n++) await call(noisy!);
+    // The noisy device made 6 allowed calls; its 4 refused retries left 18 of the 24.
+    for (const token of [b!, c!, d!]) {
+      for (let n = 1; n <= 6; n++) expect((await call(token)).status).toBe(200);
+    }
+    expect((await call(e!)).status).toBe(429);
+  });
+
+  it("is counted apart from the account's other missing-files route", async () => {
+    const [token] = await signInDevices(`${slug}-split@example.com`, 1);
+    for (let n = 1; n <= 6; n++) await call(token!);
+    expect((await call(token!)).status).toBe(429);
+    expect((await otherRoute(token!)).status).toBe(200);
   });
 });
 
@@ -162,7 +197,7 @@ describe("POST /v1/files/resync-request", () => {
     expect((await (await getMe(token)).json()).resyncRequestedAt).toBe(resyncRequestedAt);
   });
 
-  it("answers the 7th call within an hour with 429, and leaves the stored time at the last allowed call", async () => {
+  it("leaves the stored time at the last allowed call once a device is limited", async () => {
     const { token } = await signIn("resync-limit@example.com");
     let last = "";
     for (let call = 1; call <= 6; call++) {
