@@ -57,7 +57,7 @@ interface LibraryViewProps {
 
 /**
  * Mac library home (issue #7): mirrors iOS LibraryView — onboarding empty
- * state when there are no releases; otherwise YOUR COLLECTION / All music
+ * state when there are no releases; otherwise Your collection / All music
  * with Singles then Albums sections and counts.
  */
 export default function LibraryView({
@@ -264,9 +264,9 @@ export default function LibraryView({
         width === "full" ? "max-w-[1240px]" : "max-w-[920px]"
       }`}
     >
-      <div className="flex items-baseline justify-between gap-4">
+      <div className="flex items-baseline justify-between gap-4 pr-[calc(var(--tray-size)+0.75rem)] lg:pr-0">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent">
+          <p className="text-sm font-semibold text-accent">
             Your collection
           </p>
           <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">
