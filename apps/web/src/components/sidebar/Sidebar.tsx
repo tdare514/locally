@@ -233,7 +233,9 @@ export default function Sidebar({
 
         <div className="sb-item mt-2 flex h-10 shrink-0 items-center justify-between pl-3" style={step(1)}>
           <h2 className="text-sm font-bold tracking-[-0.01em] text-text">{periodHeading(period)}</h2>
-          <EditWidgets enabled={widgets} onToggle={toggle} />
+          {/* Remounted when the panel hides, so an open popover never outlives the panel (it would
+              stay clickable, invisibly, over the library) and the panel never reopens with it open. */}
+          <EditWidgets key={state} enabled={widgets} onToggle={toggle} />
         </div>
         {/* Hidden until the Mac stores per-day counts (#193). */}
         {HAS_DAILY_COUNTS && (

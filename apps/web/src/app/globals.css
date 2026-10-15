@@ -1518,6 +1518,11 @@ body {
   transition-duration: 280ms, 280ms, 0s;
   transition-delay: 0s;
 }
+/* Belt and braces for the same case: inside a hidden panel the popover is never visible or hit-testable. */
+.sb-card[data-state="closed"]:not([data-pinned="true"]) .sb-pop {
+  visibility: hidden;
+  pointer-events: none;
+}
 
 /* The stats shelf: three sleeves overlap in a fan, number one in the middle. Per sleeve: --a tilts
    it, --k orders the fan-out from the middle. The active one lifts, straightens a little and shows
