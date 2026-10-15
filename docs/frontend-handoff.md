@@ -22,11 +22,8 @@ Written 15 Oct 2026 for bringing Codex into Locally for frontend design input an
 | Not ours | `/Users/tdare514/Documents/Coding Main/coding/locally` is another session's checkout. That session also owns PRs #191 and #195 → #196 → #197 |
 
 ## How to preview
-- **Stats prototype (sample data, dev only):**
-  - From this checkout: `cd apps/web && npm run dev -- -p 3192`.
-  - Then open http://127.0.0.1:3192/dev/stats (`/dev/streams` is the same page).
-  - It's usually already running on 3192.
-  - The route returns 404 in production builds and in the demo.
+- **Stats page:** reached from the sidebar's Stats icon in the app below. The sample-data prototype was deleted when the page was built.
+  - Removed: the Stats page is now real (see below). Use the real Mac app on a test library, next.
 - **The real Mac app on a test library** (never the owner's real one):
   - Run `LOCALLY_CONFIG_DIR=<a temp config dir> npx next dev -H 127.0.0.1 -p <port>` from `apps/web`.
   - A ready-made test config with drawn covers and per-day plays is at `/private/tmp/claude-501/-Users-tdare514-Documents-Coding-Main-coding/947a90c1-22c8-4c68-aaea-eed86bd8a662/scratchpad/203-build/config`. That's the session scratchpad, so it may not survive a reboot.
@@ -86,17 +83,13 @@ Written 15 Oct 2026 for bringing Codex into Locally for frontend design input an
 - **Data:** this Mac's plays from `GET /api/plays/summary?from&to` (range ≤ 400 days, `to` ≤ tomorrow, `from` ≥ today − 400), using the period maths in `apps/web/src/lib/play-periods.ts` from PR #208.
   - Other devices' plays arrive with #202.
   - The iPhone version is #204.
-- **Not built yet:** the real page. The prototype is sample data, under `apps/web/src/components/dev/streams/`.
+- **Built (15 Oct 2026):** the real page, under `apps/web/src/components/stats/`, on real data, with Codex's review folded in (reduced-motion order, real activation, responsive Grid, coverage line, sparse fans, light-cover contrast, 390 px). `docs/design.md` "Stats page (#145)" describes it as built; the prototype is deleted. Not built: other devices' plays (#202), the iPhone (#204).
 
 ## Relevant files
-- **The prototype:**
-  - `apps/web/src/components/dev/streams/StatsView.tsx` (page)
-  - `StatFan.tsx` (the five-sleeve fan, mirrors the sidebar's `StatShelf`)
-  - `parts.tsx` (list, grid, period controls)
-  - `sample-data.ts` (a seeded day-by-day history)
-  - `StreamsPrototype.tsx`
-  - The routes `apps/web/src/app/dev/{stats,streams}/page.tsx`
-- **Styles:** in `apps/web/src/app/globals.css`, the `.st-fan-*` rules, the `.seg-glass*` rules, the button set (`.btn-save`, `.btn-ink`, `.btn-seg`) and the sidebar (`.sb-*`).
+- **The page:**
+  - `apps/web/src/components/stats/StatsView.tsx` (page), `SleeveFan.tsx` (the fan, shared with the sidebar's shelf), `StatsRows.tsx` (list and grid), `controls.tsx`
+  - Pure helpers: `src/lib/fan-layout.ts`, `stats-copy.ts`, `stats-layout.ts`, and `play-periods.ts` (periods and steps)
+- **Styles:** in `apps/web/src/app/globals.css`, the `.fan*` and `.st-*` rules, the `.seg-glass*` rules, the button set (`.btn-save`, `.btn-ink`, `.btn-seg`) and the sidebar (`.sb-*`).
 - **The sidebar it pairs with:** `apps/web/src/components/sidebar/` (`StatShelf.tsx`, `StatList.tsx`, `use-stats.ts`), and `apps/web/src/lib/play-stats.ts` for ranking.
 - **Data:** `apps/web/src/app/api/plays/summary/route.ts`, `apps/web/src/server/plays/playsSummary.ts` and the plan [`docs/plans/193-plays-by-day.md`](plans/193-plays-by-day.md).
 - **Ambient:** `apps/web/src/components/AmbientBackdrop.tsx`, `AmbientSpace.tsx` and `apps/web/src/lib/artwork-palette.ts`.

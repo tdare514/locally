@@ -312,6 +312,51 @@ eyebrows still apply to those labels.
   left the sidebar and come back. Pin open docks the panel as a column, which a page choice
   leaves alone. The glass is faked (no blur), motion is transform and opacity only, and all of it
   stands still under reduced motion. The MagicPath sidebar is not used.
+- **Stats page (#145; `apps/web/src/components/stats/`, built 15 Oct 2026, the source of truth)**:
+  the "Stats" view in AppShell, reached from the sidebar's Stats rail icon, panel row or "See all
+  stats". Top to bottom: the heading and the period control (`.seg-glass`: Today, This week, This
+  month, This year, All time; scrolls sideways when the room is short); the digest sentence ("You
+  played your tracks 121 times this week, mostly Night Bus to Nowhere.") with a ‹ › stepper that
+  goes back (Yesterday, Last week, 2 weeks ago, Last month, ...) and wears the glass once stepped
+  back; a quiet line saying what is counted ("Counted on this Mac since 15 Oct.", or "Play counting
+  is off. Turn it on in Settings."; never claims other devices, #202); Tracks / Albums / Artists
+  (`.btn-seg`); the sleeve fan; then everyone ranked from #1 as a List (rank, cover, name, artist,
+  last played, play bar, total; Sort by Plays, Name or Recently played; ranks stay put) or a Grid
+  (the sorted sea). One play total, sentence case, tabular numbers. The cover of the current #1
+  washes the page (`AmbientBackdrop`, `--btn-tint` from its palette) under a darkening scrim.
+  - **Data**: one `GET /api/plays/summary` per (period, step), kept 60 s, read again at local
+    midnight and when the window regains focus (`usePlayStats`, shared with the sidebar). Stepping
+    back is offered only while the earlier period starts within the 400 days the Mac keeps; else
+    the ‹ is off with the tooltip "Kept for 400 days". The page never sends a range the server
+    refuses (a test runs every reachable period against the server's check). All time ranks the
+    summary's `allTime`; the response's `countingSince` (earliest day bucket) feeds the coverage
+    line. Albums are releases, artists are release artists. Nothing counted: the quiet empty line
+    (the demo's summary is empty), with the Settings link when counting is off.
+  - **Fan** (`SleeveFan`, shared with the sidebar's shelf: three sleeves there, five here, the look
+    of each size in `.fan[data-size]`): #1 in the middle in gold, silver and bronze either side,
+    #4 and #5 outside; with fewer than five the same rule runs and the set is centred, no empty
+    slots, the tilt per step widening as the fan thins (`lib/fan-layout.ts`); no items means the
+    period's empty line, no fan. Hover or focus lifts a sleeve and slides its record out, with name
+    and plays; artists are round discs.
+  - **Activation**: a sleeve, list row and grid tile is a button. Enter, Space or click opens a
+    track's or album's release; an artist opens the Library filtered to that artist (its search
+    query). A mouse only lifts on hover. On touch the first tap lifts and the second opens; a tap
+    elsewhere drops the lift. Visible focus rings (2px white; the shelf keeps its accent ring).
+  - **Grid sizing**: three grids in rank order (ranks 1 to 6, 7 to 14, the rest), columns counted
+    from the room by container queries with one gap, so a tile is never under 72px, nothing
+    overlaps from 360 to 1600px, and a better rank is never smaller. Name under every tile (artist
+    too on the biggest); rank and plays on the cover.
+  - **Narrow (390px)**: the period control scrolls, the fan scales with its room (68 to 210px
+    sleeves), the list drops last played below 480px of room and the bar below 760px.
+  - **Contrast**: the wash is capped for white text, but the greys need more over a pale cover, so
+    a scrim darkens the top of the page and the unchosen tab words are 70% rather than 50%.
+    Measured over a cream cover as #1: every text 5.36:1 or better, bars 5.8:1 against their track
+    (3:1 needed). Fan rank pills and tags are darker so the medal colours and white text hold on
+    pale covers.
+  - **Motion** (all in `globals.css`): one rise-in, the fan-out when the tab or period changes, the
+    sleeve lift, record slide and tag, the grid hover lift; nothing loops. Reduced motion drops
+    every animation and transition to nothing (its block is last in the file, after the rules it
+    overrides).
 - **Library list (desktop main)**: same sectioning as mobile — YOUR COLLECTION (replaced 13 Oct 2026: sentence case) / All music
   header with track-count meta, Singles then Albums in `card` containers (radius 12), "Add a
   song" primary below.
