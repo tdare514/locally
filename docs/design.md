@@ -353,6 +353,9 @@ eyebrows still apply to those labels.
     from the room by container queries with one gap, so a tile is never under 72px, nothing
     overlaps from 360 to 1600px, and a better rank is never smaller. Name under every tile (artist
     too on the biggest); rank and plays on the cover.
+  - **Long lists**: the List and the Grid show 100 at first, then an ink button "Show 100 more"
+    ("Show 37 more" near the end); when the last page opens, focus moves to its first row. Covers
+    load lazily, and the page keeps the reads of its last 8 periods.
   - **Narrow (390px)**: the period control scrolls, the fan scales with its room (68 to 210px
     sleeves), the list drops last played below 480px of room and the bar below 760px.
   - **Contrast**: the wash is capped for white text, but the greys need more over a pale cover, so

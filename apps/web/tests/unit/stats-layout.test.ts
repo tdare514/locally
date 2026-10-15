@@ -62,8 +62,8 @@ describe("paging", () => {
   it("labels the button", () => {
     expect(moreLabel(100, 1000)).toBe("Show 100 more");
     expect(moreLabel(100, 200)).toBe("Show 100 more");
-    expect(moreLabel(100, 137)).toBe("Show the last 37");
-    expect(moreLabel(100, 101)).toBe("Show the last 1");
+    expect(moreLabel(100, 137)).toBe("Show 37 more");
+    expect(moreLabel(100, 101)).toBe("Show 1 more");
   });
 });
 

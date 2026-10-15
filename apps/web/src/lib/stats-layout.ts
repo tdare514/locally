@@ -52,10 +52,9 @@ export function nextShown(shown: number, total: number): number {
   return Math.min(total, shown + STATS_PAGE_SIZE);
 }
 
-/** The "Show more" button's text: "Show 100 more", or "Show the last 37" when fewer remain. */
+/** The "Show more" button's text: "Show 100 more", or "Show 37 more" when fewer remain. */
 export function moreLabel(shown: number, total: number): string {
-  const left = Math.max(0, total - shown);
-  return left >= STATS_PAGE_SIZE ? `Show ${formatCount(STATS_PAGE_SIZE)} more` : `Show the last ${formatCount(left)}`;
+  return `Show ${formatCount(Math.min(STATS_PAGE_SIZE, Math.max(0, total - shown)))} more`;
 }
 
 /** At most `max` periods' reads are kept. Storing `key` keeps it plus the newest others, and says
