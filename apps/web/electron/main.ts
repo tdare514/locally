@@ -3,6 +3,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { shouldStartHidden, startServices } from "./lib/background";
 import { findFreePort } from "./lib/freePort";
 import { migrateLegacyConfig } from "./lib/migrateConfig";
 import { buildServerEnv } from "./lib/serverEnv";
@@ -11,6 +12,8 @@ import { waitForServer } from "./lib/waitForServer";
 
 // Single-window Mac shell around Next's standalone server. The server binds 127.0.0.1
 // only (ADR 0003); this file adds no place to write beyond the app's config dir.
+// Closing the window does not quit: the app keeps running so sync and play tracking continue
+// (#105). Dock click reopens the window; ⌘Q quits.
 
 const SMOKE = process.env.LOCALLY_DESKTOP_SMOKE === "1";
 const EXTERNAL_SCHEMES = new Set(["http:", "https:", "spotify:"]);
@@ -24,6 +27,8 @@ app.setPath("userData", userDataOverride || path.join(app.getPath("appData"), "L
 let child: ChildProcess | null = null;
 let killTimer: NodeJS.Timeout | null = null;
 let mainWindow: BrowserWindow | null = null;
+// Set once the server answers; `activate` ignores Dock clicks before that.
+let serverUrl: string | null = null;
 
 function openExternal(target: string): void {
   try {
@@ -159,7 +164,21 @@ function openWindow(url: string): BrowserWindow {
   return win;
 }
 
-app.on("window-all-closed", () => app.quit());
+function showWindow(url: string): void {
+  const win = openWindow(url);
+  mainWindow = win;
+  win.on("closed", () => {
+    if (mainWindow === win) mainWindow = null;
+  });
+}
+
+// A listener stops Electron's default quit. Smoke mode has no one to quit it, so it still does.
+app.on("window-all-closed", () => {
+  if (SMOKE) app.quit();
+});
+app.on("activate", () => {
+  if (serverUrl && BrowserWindow.getAllWindows().length === 0) showWindow(serverUrl);
+});
 app.on("before-quit", stopChild);
 app.on("will-quit", stopChild);
 for (const sig of ["SIGINT", "SIGTERM"] as const) {
@@ -185,10 +204,14 @@ app
       if (copied.length > 0) console.log(`[desktop] migrated config: ${copied.join(", ")}`);
     }
 
+    // Opened at login: no window until the user clicks the Dock icon. Smoke mode always opens one.
+    const startHidden = !SMOKE && shouldStartHidden(app.getLoginItemSettings());
     const url = await startServer();
-    mainWindow = openWindow(url);
-    mainWindow.on("closed", () => {
-      mainWindow = null;
+    serverUrl = url;
+    if (!startHidden) showWindow(url);
+    // Services are built on the first request; make it now so sync and play tracking run with no window.
+    void startServices(url, fetch, (m) => console.error(`[desktop] could not start services: ${m}`)).then((ok) => {
+      if (ok) console.log("[desktop] services started");
     });
 
     const updater = initUpdater({ app, dialog, shell, getWindow: () => mainWindow });
@@ -199,6 +222,14 @@ app
           submenu: [
             { role: "about" },
             { label: "Check for Updates…", click: () => void updater.checkNow(true) },
+            {
+              label: "Open at Login",
+              type: "checkbox",
+              // A bare `electron` dev run would register Electron.app itself as the login item.
+              enabled: app.isPackaged,
+              checked: app.getLoginItemSettings().openAtLogin,
+              click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked }),
+            },
             { type: "separator" },
             { role: "services" },
             { type: "separator" },
