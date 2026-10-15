@@ -3,6 +3,30 @@ import Testing
 import UIKit
 @testable import Locally
 
+/// A `CoverStore` that cancels a task the first time the loader asks it for a cover file,
+/// and counts how many it was asked for, so a test can see the loop stop early.
+private final class CancellingCoverStore: CoverStore {
+    private let base = FakeCoverStore()
+    private let lock = NSLock()
+    private var reads = 0
+    var onFirstRead: (() -> Void)?
+
+    var readCount: Int { lock.withLock { reads } }
+
+    func save(_ data: Data, for id: UUID) throws -> String { try base.save(data, for: id) }
+    func load(_ id: UUID) -> Data? { base.load(id) }
+    func delete(_ id: UUID) throws { try base.delete(id) }
+
+    func fileURL(_ id: UUID) -> URL? {
+        let isFirst = lock.withLock { () -> Bool in
+            reads += 1
+            return reads == 1
+        }
+        if isFirst { onFirstRead?() }
+        return base.fileURL(id)
+    }
+}
+
 @Suite @MainActor struct RecentCoversLoaderTests {
 
     private let base = Date(timeIntervalSince1970: 1_700_000_000)
@@ -32,6 +56,54 @@ import UIKit
         try library.upsert(release)
         if let cover { _ = try covers.save(cover, for: release.id) }
         return release
+    }
+
+    @Test func readsOnlyTheNewestTwelveReleasesNotTheWholeLibrary() async throws {
+        let library = InMemoryLibraryStore()
+        let covers = FakeCoverStore()
+        for minute in 0..<30 {
+            try add("R\(minute)", minutes: minute, cover: pngData(), to: library, covers: covers)
+        }
+
+        let recents = await RecentCoversLoader(library: library, coverStore: covers).load()
+        #expect(recents.count == 12)
+        #expect(library.recentLimits == [RecentCoversLoader.limit])
+        #expect(library.allCallCount == 0)
+    }
+
+    @Test func widensTheFetchOnlyWhenSkippedReleasesLeaveTheRowShort() async throws {
+        let library = InMemoryLibraryStore()
+        let covers = FakeCoverStore()
+        try add("No cover A", minutes: 100, to: library, covers: covers)
+        try add("No cover B", minutes: 99, to: library, covers: covers)
+        for minute in 0..<13 {
+            try add("C\(minute)", minutes: minute, cover: pngData(), to: library, covers: covers)
+        }
+
+        let recents = await RecentCoversLoader(library: library, coverStore: covers).load()
+        #expect(recents.count == 12)
+        #expect(library.recentLimits == [12, 24])
+        #expect(library.allCallCount == 0)
+    }
+
+    @Test func cancellingTheLoadStopsTheThumbnailLoopEarly() async throws {
+        let library = InMemoryLibraryStore()
+        let covers = CancellingCoverStore()
+        for minute in 0..<12 {
+            let release = try add("R\(minute)", minutes: minute, to: library, covers: FakeCoverStore())
+            _ = try covers.save(pngData(), for: release.id)
+        }
+
+        let task = Task { @MainActor in
+            await RecentCoversLoader(library: library, coverStore: covers).load()
+        }
+        // The task cannot start before this test suspends on `task.value`, so this is set in time.
+        covers.onFirstRead = { task.cancel() }
+        let recents = await task.value
+
+        #expect(covers.readCount == 1)
+        #expect(recents.count <= 1)
+        #expect(library.recentLimits == [12])
     }
 
     @Test func emptyLibraryReturnsNoCovers() async {

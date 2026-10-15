@@ -132,14 +132,14 @@ function BulkEditForm({
           type="button"
           onClick={onCancel}
           disabled={busy}
-          className="rounded-full px-4 py-2 text-sm text-text-muted transition-colors hover:text-text disabled:opacity-50"
+          className="btn-ink"
         >
-          Cancel
+          <span className="btn-ink-label">Cancel</span>
         </button>
         <button
           type="submit"
           disabled={busy}
-          className="rounded-full bg-accent px-6 py-2.5 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+          className="btn-save"
         >
           {busy ? "Applying…" : `Apply to ${count}`}
         </button>

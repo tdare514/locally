@@ -1,0 +1,34 @@
+{
+  "syncVersion": 2,
+  "id": "6c1f8e2a-9d34-4b57-a0e1-2f3c4d5e6a7b",
+  "kind": "album",
+  "title": "Tape Hiss",
+  "artist": "Slow Pulse",
+  "year": "2026",
+  "genre": "Ambient",
+  "cover": "cover.jpg",
+  "coverHash": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+  "tracks": [
+    {
+      "id": "b7a1c3d5-2e4f-4a60-9b81-c2d3e4f5a6b7",
+      "title": "Warm Up",
+      "trackNumber": 1,
+      "file": "01 - Warm Up.mp3",
+      "bytes": 4194304,
+      "durationSec": 143.5
+    },
+    {
+      "id": "c8b2d4e6-3f50-4b71-8c92-d3e4f5a6b7c8",
+      "title": "Tape Hiss",
+      "trackNumber": 2,
+      "file": "02 - Tape Hiss.mp3",
+      "bytes": 7340032,
+      "durationSec": 251.0
+    }
+  ],
+  "origin": "web",
+  "originDevice": "Browser",
+  "createdAt": "2026-10-20T09:00:00Z",
+  "updatedAt": "2026-10-20T09:00:00Z",
+  "deleted": false
+}

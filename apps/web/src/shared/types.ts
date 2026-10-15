@@ -85,9 +85,32 @@ export interface PlaysStatusResponse {
   status: PlaysStatus;
 }
 
-/** One release from the phone that hasn't been imported into the local library yet. */
+/** One device's count for a track in GET /api/plays. `current` marks this Mac. The release page
+ * shows only the track's `total`; the devices are kept for the merge (#107). */
+export interface TrackPlaysDevice {
+  name: string;
+  platform: string;
+  count: number;
+  current: boolean;
+}
+
+export interface TrackPlays {
+  trackId: string;
+  /** Sum over `devices`. Only tracks with at least one play are listed. */
+  total: number;
+  devices: TrackPlaysDevice[];
+}
+
+/** Response shape for GET /api/plays?releaseId=: the merged view of this Mac and the sync service. */
+export interface ReleasePlaysResponse {
+  tracks: TrackPlays[];
+}
+
+/** One release from another device (the phone, the web) that hasn't been imported into the local library yet. */
 export interface PendingFromPhone {
   id: string;
+  /** The record's `origin` token: "ios", "web" or any other a newer client writes (#185). */
+  origin: string;
   title: string;
   artist: string;
   kind: ReleaseKind;

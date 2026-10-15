@@ -1,0 +1,26 @@
+{
+  "syncVersion": 2,
+  "id": "9e0a1b2c-3d4e-4f5a-8b6c-7d8e9f0a1b2c",
+  "kind": "single",
+  "title": "Somewhere Else",
+  "artist": "Slow Pulse",
+  "year": null,
+  "genre": null,
+  "cover": null,
+  "coverHash": null,
+  "tracks": [
+    {
+      "id": "d9c3e5f7-4a61-4c82-9da3-e4f5a6b7c8d9",
+      "title": "Somewhere Else",
+      "trackNumber": 1,
+      "file": "Somewhere Else.mp3",
+      "bytes": 3145728,
+      "durationSec": 187.25
+    }
+  ],
+  "origin": "future-thing",
+  "originDevice": "Some new device",
+  "createdAt": "2026-10-21T18:30:00Z",
+  "updatedAt": "2026-10-21T18:30:00Z",
+  "deleted": false
+}
