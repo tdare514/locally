@@ -28,6 +28,7 @@ import {
   type CoverSize,
   type LibraryLayout,
   type LibraryWidth,
+  libraryWidthClass,
 } from "../lib/library-view-prefs";
 import BulkEditDialog from "./BulkEditDialog";
 import {
@@ -81,7 +82,7 @@ export default function LibraryView({
   const [busy, setBusy] = useState(false);
   const [layout, setLayout] = useState<LibraryLayout>("list");
   const [coverSize, setCoverSize] = useState<CoverSize>(1);
-  const [width, setWidth] = useState<LibraryWidth>("comfortable");
+  const [width, setWidth] = useState<LibraryWidth>("full");
   const [focusId, setFocusId] = useState<string | null>(null);
   const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
 
@@ -259,9 +260,7 @@ export default function LibraryView({
   return (
     <div
       ref={rootRef}
-      className={`mx-auto flex flex-col gap-8 pb-16 ${
-        width === "full" ? "max-w-[1240px]" : "max-w-[920px]"
-      }`}
+      className={`flex flex-col gap-8 px-8 pb-16 xl:px-12 ${libraryWidthClass(width)}`}
     >
       <div className="flex items-baseline justify-between gap-4 pr-[calc(var(--tray-size)+0.75rem)] lg:pr-0">
         <div>
@@ -528,7 +527,25 @@ interface SectionProps {
   onFocusRelease: (id: string) => void;
 }
 
-function LibrarySection({
+/** Shared grid for the list header and every row. Columns drop as the section narrows:
+ * Added under 820px, Genre under 680px, Year and Tracks under 520px. */
+const LIST_GRID =
+  "grid items-center gap-x-4 grid-cols-[minmax(0,1fr)_16px] " +
+  "@[520px]:grid-cols-[minmax(0,1fr)_56px_56px_16px] " +
+  "@[680px]:grid-cols-[minmax(0,1fr)_minmax(0,180px)_56px_56px_16px] " +
+  "@[820px]:grid-cols-[minmax(0,1fr)_minmax(0,180px)_56px_56px_120px_16px]";
+const COL_GENRE = "hidden @[680px]:block";
+const COL_NUMBER = "hidden @[520px]:block text-right tabular-nums";
+const COL_ADDED = "hidden @[820px]:block tabular-nums";
+
+/** "Feb 6, 2026" style date in the user's locale. */
+export function formatAddedDate(iso: string, locale?: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(d);
+}
+
+export function LibrarySection({
   label,
   count,
   releases,
@@ -540,12 +557,24 @@ function LibrarySection({
   onFocusRelease,
 }: SectionProps) {
   return (
-    <section className="flex flex-col gap-2">
+    <section className="@container flex flex-col gap-2">
       <div className="flex items-baseline gap-2 px-1">
         <h2 className="text-[22px] font-bold tracking-[-0.03em] text-text">
           {label}
         </h2>
         <span className="text-sm text-text-dim">{count}</span>
+      </div>
+      {/* Presentational: each row's button already carries the full accessible name. */}
+      <div
+        aria-hidden="true"
+        className={`${LIST_GRID} -mb-1 px-[13px] text-[12px] text-text-dim`}
+      >
+        <span>Title</span>
+        <span className={COL_GENRE}>Genre</span>
+        <span className={COL_NUMBER}>Year</span>
+        <span className={COL_NUMBER}>Tracks</span>
+        <span className={COL_ADDED}>Added</span>
+        <span />
       </div>
       <ul className="overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.04]">
         {releases.map((r, index) => {
@@ -565,33 +594,49 @@ function LibrarySection({
                 data-release-id={r.id}
                 disabled={selecting && disabled}
                 aria-pressed={selecting ? isSelected : undefined}
-                className={`list-row flex min-h-[78px] w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-white/[0.06] focus-visible:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60 ${
+                className={`list-row ${LIST_GRID} min-h-[78px] w-full px-3 py-3 text-left transition-colors hover:bg-white/[0.06] focus-visible:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60 ${
                   isSelected ? "bg-white/[0.06]" : ""
                 }`}
               >
-                {selecting && <SelectBox checked={isSelected} />}
-                {r.coverPath ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={coverUrl(r.id, r.updatedAt)}
-                    alt=""
-                    className="list-thumb h-14 w-14 shrink-0 rounded object-cover"
-                  />
-                ) : (
-                  <span className="list-thumb flex h-14 w-14 shrink-0 items-center justify-center rounded bg-elevated text-text-muted">
-                    <MusicNoteIcon className="h-5 w-5" />
-                  </span>
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-text">
-                    {r.title || r.artist}
-                  </span>
-                  <span className="block truncate text-xs text-text-muted">
-                    {libraryRowSubtitle(r)}
+                <span className="flex min-w-0 items-center gap-3">
+                  {selecting && <SelectBox checked={isSelected} />}
+                  {r.coverPath ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={coverUrl(r.id, r.updatedAt)}
+                      alt=""
+                      className="list-thumb h-14 w-14 shrink-0 rounded object-cover"
+                    />
+                  ) : (
+                    <span className="list-thumb flex h-14 w-14 shrink-0 items-center justify-center rounded bg-elevated text-text-muted">
+                      <MusicNoteIcon className="h-5 w-5" />
+                    </span>
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-text">
+                      {r.title || r.artist}
+                    </span>
+                    <span className="block truncate text-xs text-text-muted">
+                      {r.artist}
+                    </span>
                   </span>
                 </span>
-                {!selecting && (
+                <span className={`${COL_GENRE} truncate text-xs text-text-muted`}>
+                  {r.genre ?? ""}
+                </span>
+                <span className={`${COL_NUMBER} text-xs text-text-muted`}>
+                  {r.year ?? ""}
+                </span>
+                <span className={`${COL_NUMBER} text-xs text-text-muted`}>
+                  {r.tracks.length}
+                </span>
+                <span className={`${COL_ADDED} text-xs text-text-muted`}>
+                  {formatAddedDate(r.createdAt)}
+                </span>
+                {!selecting ? (
                   <ChevronRightIcon className="h-4 w-4 shrink-0 text-text-dim" />
+                ) : (
+                  <span />
                 )}
               </button>
             </li>

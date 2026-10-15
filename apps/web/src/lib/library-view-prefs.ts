@@ -4,7 +4,7 @@
 export type LibraryLayout = "list" | "covers";
 /** Cover tile size: 0 compact, 1 medium, 2 large. */
 export type CoverSize = 0 | 1 | 2;
-/** Library column width, shared by both layouts: 920px comfortable, 1240px full. */
+/** Library width, shared by both layouts: "full" fills the main pane (default), "comfortable" is a centred 920px column. */
 export type LibraryWidth = "comfortable" | "full";
 
 /** Grid minimum column width in px, per cover size. */
@@ -25,7 +25,12 @@ export function parseCoverSize(raw: string | null): CoverSize {
 }
 
 export function parseLibraryWidth(raw: string | null): LibraryWidth {
-  return raw === "full" ? "full" : "comfortable";
+  return raw === "comfortable" ? "comfortable" : "full";
+}
+
+/** Tailwind classes for the library container at each width. Full has no max width. */
+export function libraryWidthClass(width: LibraryWidth): string {
+  return width === "comfortable" ? "mx-auto max-w-[920px]" : "";
 }
 
 /** The saved layout and cover size, or the defaults (list, medium). */
@@ -61,12 +66,12 @@ export function saveCoverSize(size: CoverSize): void {
   }
 }
 
-/** The saved library width, or "comfortable". */
+/** The saved library width, or "full". */
 export function loadLibraryWidth(): LibraryWidth {
   try {
     return parseLibraryWidth(window.localStorage.getItem(WIDTH_KEY));
   } catch {
-    return "comfortable";
+    return "full";
   }
 }
 

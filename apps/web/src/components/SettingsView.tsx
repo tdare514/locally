@@ -56,7 +56,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
   const [libraryDir, setLibraryDir] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [libraryWidth, setLibraryWidth] = useState<LibraryWidth>("comfortable");
+  const [libraryWidth, setLibraryWidth] = useState<LibraryWidth>("full");
 
   // Saved width loads after mount so the server and first client render agree.
   useEffect(() => {
@@ -319,8 +319,8 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
             </span>
             {(
               [
-                { value: "comfortable", label: "Comfortable" },
                 { value: "full", label: "Full width" },
+                { value: "comfortable", label: "Comfortable" },
               ] as const
             ).map(({ value, label }) => (
               <button
