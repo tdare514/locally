@@ -8,19 +8,44 @@ import type { SettingsStore } from "../config/SettingsStore";
 import type { FileSystem } from "../fs/FileSystem";
 import type { ReleaseService } from "../releases/ReleaseService";
 import type { ReleaseSyncHooks } from "../releases/ReleaseSyncHooks";
+import type { PlayCountStore } from "../plays/PlayCountStore";
+import { batchPlayEntries, pendingPlayEntries } from "../plays/releasePlays";
 import { fromSyncRecord, toSyncRecord, type SyncRecord } from "./SyncRecord";
-import { RELEASE_PAGE_LIMIT, SyncConflictError, type SyncApi, type SyncFileToUpload } from "./SyncApi";
+import {
+  RELEASE_PAGE_LIMIT,
+  SyncConflictError,
+  SyncRequestError,
+  type SyncApi,
+  type SyncFileToUpload,
+} from "./SyncApi";
 import type { SyncStateStore } from "./SyncState";
 
 /** Builds a `SyncApi` for a given base URL/token; a factory (not a singleton) because both can change while the app runs. */
 export type SyncApiFactory = (baseUrl: string, token: string | null) => SyncApi;
+
+/** The HTTP status of a 4xx the service will keep giving for the same batch (not 401, which is a
+ * sign-in problem, or 429, which is "slow down"), or null for any other failure. */
+function permanentPlayRejection(err: unknown): number | null {
+  if (err instanceof SyncConflictError) return 409;
+  if (err instanceof SyncRequestError && err.status >= 400 && err.status < 500 && err.status !== 429) {
+    return err.status;
+  }
+  return null;
+}
 
 /** Guard against a misbehaving or hostile server: a `pullOnce` reconcile stops after this many pages. */
 export const MAX_PULL_PAGES_PER_RECONCILE = 100;
 
 function pendingSummary(record: SyncRecord): PendingFromPhone {
   const meta = fromSyncRecord(record);
-  return { id: meta.id, title: meta.title, artist: meta.artist, kind: meta.kind, trackCount: meta.tracks.length };
+  return {
+    id: meta.id,
+    origin: record.origin,
+    title: meta.title,
+    artist: meta.artist,
+    kind: meta.kind,
+    trackCount: meta.tracks.length,
+  };
 }
 
 /**
@@ -57,6 +82,8 @@ export class SyncEngine implements ReleaseSyncHooks {
   private lastError: string | null = null;
   private quota: SyncStatus["quota"] = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  /** So a batch the service keeps refusing logs once, not on every reconcile. */
+  private loggedPlayRejection = false;
 
   constructor(
     private readonly settings: SettingsStore,
@@ -64,7 +91,9 @@ export class SyncEngine implements ReleaseSyncHooks {
     private readonly releases: ReleaseService,
     private readonly fs: FileSystem,
     private readonly apiFactory: SyncApiFactory,
-    private readonly deviceName: () => string = () => os.hostname()
+    private readonly deviceName: () => string = () => os.hostname(),
+    /** This Mac's play counts (#107); null in tests that don't care, which skips the play push. */
+    private readonly playStore: PlayCountStore | null = null
   ) {}
 
   // --- ReleaseSyncHooks -----------------------------------------------------
@@ -284,6 +313,8 @@ export class SyncEngine implements ReleaseSyncHooks {
 
         const local = await this.releases.get(record.id);
         if (!local) {
+          // Any origin but "mac" is another device ("ios", "web", or one this build has never
+          // heard of): offered in the tray, never mistaken for this Mac's own.
           if (record.origin !== "mac") {
             state.pendingFromPhone[record.id] = record;
           }
@@ -422,6 +453,10 @@ export class SyncEngine implements ReleaseSyncHooks {
         // Quota is a nice-to-have on the status card; don't fail the whole run for it.
       }
 
+      // After the releases above, so the service already holds the release each count belongs to
+      // (it ignores counts for a release it doesn't have).
+      await this.pushPlays(api);
+
       this.lastError = null;
     } catch (err) {
       this.lastError = err instanceof Error ? err.message : String(err);
@@ -431,7 +466,48 @@ export class SyncEngine implements ReleaseSyncHooks {
     }
   }
 
-  // --- Inbox ("From your phone") ----------------------------------------
+  /**
+   * Sends every play count that is ahead of what was last pushed, at most 500 per request, and
+   * records each request as pushed once the service accepts it. A failure throws with the rest
+   * still pending, so the next reconcile (offline, 5xx) picks them up; a count that grew while a
+   * request was in flight stays pending too, because the marker is the value that was sent.
+   *
+   * A batch the service refuses for good (a 4xx other than 401 and 429) is skipped for this
+   * reconcile, left unmarked, and the later batches still go, so one bad batch can't hold the
+   * rest back forever. A sign-out while a request is in flight (the store's epoch moved) stops
+   * the push and marks nothing: those counts belong to the account that just went away.
+   */
+  private async pushPlays(api: SyncApi): Promise<void> {
+    const store = this.playStore;
+    if (!store) return;
+    const epoch = store.pushedEpoch();
+    const pending = pendingPlayEntries(await store.get());
+    let refused = false;
+    for (const batch of batchPlayEntries(pending)) {
+      if (store.pushedEpoch() !== epoch) return;
+      let result;
+      try {
+        result = await api.pushPlays(batch);
+      } catch (err) {
+        const status = permanentPlayRejection(err);
+        if (status === null) throw err;
+        refused = true;
+        if (!this.loggedPlayRejection) {
+          this.loggedPlayRejection = true;
+          console.warn(`SyncEngine: the sync service refused a batch of ${batch.length} play counts (HTTP ${status}); skipping it`);
+        }
+        continue;
+      }
+      if (result.ignored > 0) {
+        console.warn(`SyncEngine: the sync service ignored ${result.ignored} of ${batch.length} play counts`);
+      }
+      await store.markPushed(Object.fromEntries(batch.map((e) => [e.trackId, e.count])), epoch);
+    }
+    // A pass with nothing refused re-arms the log for the next time something is.
+    if (!refused) this.loggedPlayRejection = false;
+  }
+
+  // --- Inbox ("From your devices") ----------------------------------------
 
   async acceptFromPhone(id: string): Promise<Release> {
     const settings = await this.settings.get();

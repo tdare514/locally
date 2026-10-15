@@ -11,6 +11,9 @@ export interface InspectedFile {
   genre: string | null;
   durationSec: number | null;
   hasCover: boolean;
+  /** The file's own track and disc tags, so the import can order a multi-disc album. */
+  trackNumber?: number | null;
+  discNumber?: number | null;
 }
 
 /**

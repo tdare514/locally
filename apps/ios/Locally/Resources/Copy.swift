@@ -89,6 +89,8 @@ enum Copy {
         /// The section title over an album's track rows, and the release
         /// detail's Tracks section.
         static let tracks = "Tracks"
+        /// The quiet heading over a disc's tracks, shown only when a release has more than one disc.
+        static func disc(_ number: Int) -> String { "Disc \(number)" }
         /// A file row's caption under its title, per `docs/design.md`'s
         /// "Editor / release detail" component.
         static let audioFile = "Audio file"
@@ -305,8 +307,19 @@ enum Copy {
 
         static func quota(usedMB: Int, limitMB: Int) -> String { "\(usedMB) MB of \(limitMB) MB used" }
 
-        static func pendingFromMac(count: Int) -> String {
-            count == 1 ? "1 song from your Mac" : "\(count) songs from your Mac"
+        /// The toast's title: it lists releases from any of the owner's devices (#185).
+        static let fromYourDevices = "From your devices"
+        static func pendingFromDevices(count: Int) -> String {
+            count == 1 ? "1 song from your devices" : "\(count) songs from your devices"
+        }
+        /// The small label under a pending release: where it came from. Anything not
+        /// known by name, such as a client newer than this build, is "another device".
+        static func originLabel(_ origin: String) -> String {
+            switch origin {
+            case "mac": "from your Mac"
+            case "web": "from the web"
+            default: "from another device"
+            }
         }
         static let sendToSpotify = "Send to Spotify"
         static let sendAll = "Send all"

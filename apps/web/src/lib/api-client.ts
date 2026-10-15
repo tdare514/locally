@@ -12,6 +12,7 @@ import type {
   SyncStatus,
   SpotifySourceStatus,
   PlaysStatusResponse,
+  ReleasePlaysResponse,
 } from "../shared/types";
 
 /** Response shape for POST /api/inspect (per-file prefill data). Not a persisted entity, so it
@@ -25,6 +26,9 @@ export interface InspectedFile {
   genre: string | null;
   durationSec: number | null;
   hasCover: boolean;
+  /** The file's own track and disc tags, so the import can order a multi-disc album. */
+  trackNumber?: number | null;
+  discNumber?: number | null;
 }
 
 export interface InspectResponse {
@@ -84,6 +88,12 @@ export async function answerPlaysPrompt(turnOn: boolean): Promise<SettingsRespon
 export async function getPlaysStatus(): Promise<PlaysStatusResponse> {
   const res = await fetch("/api/plays/status");
   return handle<PlaysStatusResponse>(res);
+}
+
+/** Merged play counts for one release's tracks (#107). One request per release page open. */
+export async function getReleasePlays(releaseId: string): Promise<ReleasePlaysResponse> {
+  const res = await fetch(`/api/plays?releaseId=${encodeURIComponent(releaseId)}`);
+  return handle<ReleasePlaysResponse>(res);
 }
 
 export async function putSyncBaseUrl(baseUrl: string): Promise<SettingsResponse> {

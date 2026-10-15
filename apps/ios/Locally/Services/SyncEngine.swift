@@ -32,8 +32,8 @@ final class SyncStatus {
     var deviceName: String?
     var lastRunAt: Date?
     var lastError: String?
-    /// Records from the Mac not yet in this device's library, offered in
-    /// the Import tab's "N from your Mac" toast.
+    /// Records from another device (the Mac, the web, ...) not yet in this
+    /// device's library, offered in the Import tab's "From your devices" toast.
     var pendingFromMac: [SyncRecord] = []
     var quota: SyncQuota?
     /// Record ids currently being downloaded by `acceptFromMac`, so the UI
@@ -741,7 +741,10 @@ final class SyncEngine: ReleaseSyncHook {
             return
         }
 
-        guard record.origin == "mac" else { return }
+        // Offered in the tray: anything this phone didn't write itself, whether it is the Mac,
+        // the web, or an origin this build has never heard of (#185). Only "ios" is held back
+        // (this phone's echo, or another iPhone's), the mirror of the Mac holding back "mac".
+        guard record.origin != "ios" else { return }
         if let index = status.pendingFromMac.firstIndex(where: { $0.id == record.id }) {
             status.pendingFromMac[index] = record
         } else {

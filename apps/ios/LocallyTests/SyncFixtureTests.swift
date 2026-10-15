@@ -66,6 +66,16 @@ struct SyncFixtureTests {
         #expect(Self.clientAccepts(name), "expected \(name) to be accepted")
     }
 
+    /// #185: the two origin fixtures decode with their origin kept as given.
+    @Test func keepsTheOriginOfAReleaseFromTheWebOrFromAnUnknownClient() throws {
+        func origin(of name: String) throws -> String {
+            let data = try Data(contentsOf: Self.fixturesDir.appendingPathComponent(name))
+            return try JSONDecoder.syncApi.decode(SyncRecord.self, from: data).origin
+        }
+        #expect(try origin(of: "valid-album-origin-web.json") == "web")
+        #expect(try origin(of: "valid-single-origin-unknown.json") == "future-thing")
+    }
+
     @Test(arguments: SyncFixtureTests.invalidFixtureNames)
     func rejectsInvalidFixture(name: String) {
         #expect(!Self.clientAccepts(name), "expected \(name) to be rejected")

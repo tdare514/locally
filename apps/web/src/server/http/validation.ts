@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { ImportMeta, UpdateReleaseMeta } from "../../shared/types";
 import { SUPPORTED_AUDIO_EXT, SUPPORTED_IMAGE_EXT } from "../../shared/types";
 import { ValidationError } from "../../shared/errors";
+import { MAX_DISC_NUMBER } from "../../shared/discs";
 
 /** Input limits shared by the upload routes. */
 export const MAX_COVER_BYTES = 10 * 1024 * 1024;
@@ -72,6 +73,13 @@ const trackNumberSchema = z
   .min(1, TRACK_NUMBER_MSG)
   .max(999, TRACK_NUMBER_MSG);
 
+const DISC_NUMBER_MSG = `must be an integer between 1 and ${MAX_DISC_NUMBER}`;
+const discNumberSchema = z
+  .number({ error: DISC_NUMBER_MSG })
+  .int(DISC_NUMBER_MSG)
+  .min(1, DISC_NUMBER_MSG)
+  .max(MAX_DISC_NUMBER, DISC_NUMBER_MSG);
+
 /** Reject a track list where two entries share a `trackNumber` (entries without one, e.g. a
  * partial `update` patch that doesn't touch it, are ignored). Spotify's local-files matching and
  * `ReleaseLayout.trackFileName` both key off track number, so a collision would make two tracks
@@ -106,7 +114,10 @@ const importMetaSchema = z.object(
     year: yearSchema.optional(),
     genre: text().optional(),
     tracks: z
-      .array(z.object({ title: text(), trackNumber: trackNumberSchema }, { error: "must be an object" }), {
+      .array(z.object(
+        { title: text(), trackNumber: trackNumberSchema, discNumber: discNumberSchema.optional() },
+        { error: "must be an object" }
+      ), {
         error: "must be a non-empty array",
       })
       .min(1, "must be a non-empty array")
@@ -129,6 +140,7 @@ const updateMetaSchema = z.object(
             id: text().min(1, "is required"),
             title: text().optional(),
             trackNumber: trackNumberSchema.optional(),
+            discNumber: discNumberSchema.optional(),
           },
           { error: "must be an object" }
         ),

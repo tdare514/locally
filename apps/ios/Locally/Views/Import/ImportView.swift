@@ -143,7 +143,7 @@ struct ImportView: View {
                     Button {
                         showSyncToast(autoHide: false)
                     } label: {
-                        Text(Copy.Sync.pendingFromMac(count: syncStatus.pendingFromMac.count))
+                        Text(Copy.Sync.pendingFromDevices(count: syncStatus.pendingFromMac.count))
                             .font(Theme.Font.badge)
                             .foregroundStyle(.black)
                             .padding(.horizontal, 8)
@@ -237,13 +237,13 @@ struct ImportView: View {
         .padding(.top, 6)
     }
 
-    /// The Mac source's own toast, listing each pending release with its own
+    /// The "From your devices" toast, listing each pending release with its own
     /// "Send to Spotify" action (a spinner while `SyncStatus.acceptingIds`
     /// includes it) plus "Send all" when there's more than one.
     private var syncToast: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 12) {
-                Text(Copy.Sync.pendingFromMac(count: syncStatus.pendingFromMac.count))
+                Text(Copy.Sync.fromYourDevices)
                     .font(Theme.Font.body.weight(.semibold))
                     .foregroundStyle(Theme.primaryText)
                 Spacer(minLength: 0)
@@ -302,6 +302,10 @@ struct ImportView: View {
                 Text(record.artist)
                     .font(Theme.Font.rowSubtitle)
                     .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(1)
+                Text(Copy.Sync.originLabel(record.origin))
+                    .font(Theme.Font.dropZoneHint)
+                    .foregroundStyle(Theme.textDim)
                     .lineLimit(1)
             }
             Spacer(minLength: 8)

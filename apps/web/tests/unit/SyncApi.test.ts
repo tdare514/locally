@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { HttpSyncApi, SyncAuthError, SyncConflictError } from "../../src/server/sync/SyncApi";
+import { HttpSyncApi, SyncAuthError, SyncConflictError, SyncRequestError } from "../../src/server/sync/SyncApi";
 import { SyncRecordRejectedError } from "../../src/server/sync/SyncRecord";
 import { PublicError } from "../../src/shared/errors";
 
@@ -91,6 +91,26 @@ describe("HttpSyncApi request shape", () => {
     expect(calls[0].init?.body).toBeUndefined();
   });
 
+  it("me() parses a device list with a platform this build has never heard of (#185)", async () => {
+    mockNextResponse(
+      jsonResponse({
+        user: { id: "u1", email: "a@b.com" },
+        device: { id: "d1", name: "Mac" },
+        quota: { usedBytes: 0, limitBytes: 1 },
+        devices: [
+          { id: "d1", name: "Mac", platform: "mac" },
+          { id: "d2", name: "Browser", platform: "web" },
+          { id: "d3", name: "Gadget", platform: "future-thing" },
+        ],
+      })
+    );
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+
+    const me = await api.me();
+
+    expect(me.devices.map((d) => d.name)).toEqual(["Mac", "Browser", "Gadget"]);
+  });
+
   it("putRelease PUTs JSON to /v1/releases/:id with the record as the body", async () => {
     mockNextResponse(jsonResponse({ version: 5 }));
     const api = new HttpSyncApi("http://localhost:4000", "tok");
@@ -132,6 +152,22 @@ describe("HttpSyncApi request shape", () => {
     const result = await api.listReleases(7, 200);
 
     expect(result.hasMore).toBe(false);
+  });
+
+  it("listReleases keeps a record from the web or an unknown origin: the page does not fail (#185)", async () => {
+    const web = { ...validWireRecord, id: "from-web", origin: "web", version: 4 };
+    const future = { ...validWireRecord, id: "from-future", origin: "future-thing", version: 5 };
+    mockNextResponse(jsonResponse({ releases: [validWireRecord, web, future], nextVersion: 5, hasMore: false }));
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+
+    const result = await api.listReleases(0, 200);
+
+    expect(result.releases.map((r) => [r.id, r.origin])).toEqual([
+      ["good", "ios"],
+      ["from-web", "web"],
+      ["from-future", "future-thing"],
+    ]);
+    expect(result.nextVersion).toBe(5);
   });
 
   it("listReleases skips a record with a refused extension, keeps the others, and still returns nextVersion/hasMore", async () => {
@@ -286,5 +322,114 @@ describe("HttpSyncApi.uploadFile / downloadFile", () => {
     await expect(fsPromises.access(destPath)).rejects.toThrow();
 
     await fsPromises.rm(dir, { recursive: true, force: true });
+  });
+});
+
+describe("HttpSyncApi play counts", () => {
+  const entry = {
+    releaseId: "3f2a6c1e-8b7d-4e5a-9c1d-2a4b6c8d0e1f",
+    trackId: "a1b2c3d4-0001-4a5b-8c9d-0123456789ab",
+    count: 12,
+  };
+
+  it("pushPlays PUTs { counts } to /v1/plays with the device token and returns accepted/ignored", async () => {
+    mockNextResponse(jsonResponse({ accepted: 1, ignored: 0 }));
+    const api = new HttpSyncApi("http://localhost:4000", "tok-123");
+
+    await expect(api.pushPlays([entry])).resolves.toEqual({ accepted: 1, ignored: 0 });
+
+    expect(calls[0].url).toBe("http://localhost:4000/v1/plays");
+    expect(calls[0].init?.method).toBe("PUT");
+    const headers = calls[0].init?.headers as Record<string, string>;
+    expect(headers["Authorization"]).toBe("Bearer tok-123");
+    expect(headers["Content-Type"]).toBe("application/json");
+    expect(JSON.parse(calls[0].init?.body as string)).toEqual({ counts: [entry] });
+  });
+
+  it("pushPlays gives up after a timeout instead of waiting forever", async () => {
+    mockNextResponse(jsonResponse({ accepted: 1, ignored: 0 }));
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+
+    await api.pushPlays([entry]);
+
+    const signal = calls[0].init?.signal as AbortSignal;
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal.aborted).toBe(false);
+  });
+
+  it("pushPlays throws a SyncRequestError carrying the status on a failed response", async () => {
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+    for (const status of [400, 404, 422, 429, 500, 503]) {
+      mockNextResponse(jsonResponse({ error: "no" }, status));
+      const err = await api.pushPlays([entry]).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(SyncRequestError);
+      expect(err).toBeInstanceOf(PublicError);
+      expect((err as SyncRequestError).status).toBe(status);
+    }
+  });
+
+  it("pushPlays throws SyncAuthError on 401 and PublicError on 5xx or an odd reply", async () => {
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+    mockNextResponse(jsonResponse({ error: "no" }, 401));
+    await expect(api.pushPlays([entry])).rejects.toBeInstanceOf(SyncAuthError);
+    mockNextResponse(jsonResponse({ error: "boom" }, 503));
+    await expect(api.pushPlays([entry])).rejects.toBeInstanceOf(PublicError);
+    mockNextResponse(jsonResponse({ accepted: "many" }));
+    await expect(api.pushPlays([entry])).rejects.toBeInstanceOf(PublicError);
+  });
+
+  it("releasePlays GETs /v1/releases/:id/plays with the token and a timeout, and parses the reply", async () => {
+    const body = {
+      tracks: [
+        {
+          trackId: entry.trackId,
+          total: 19,
+          devices: [
+            { deviceId: "d1", name: "Mac", platform: "mac", count: 12, current: true },
+            { deviceId: "d2", name: "iPhone 14", platform: "ios", count: 7, current: false },
+          ],
+        },
+      ],
+    };
+    mockNextResponse(jsonResponse(body));
+    const api = new HttpSyncApi("http://localhost:4000", "tok-123");
+
+    await expect(api.releasePlays(entry.releaseId)).resolves.toEqual(body);
+
+    expect(calls[0].url).toBe(`http://localhost:4000/v1/releases/${entry.releaseId}/plays`);
+    expect(calls[0].init?.method).toBeUndefined();
+    expect((calls[0].init?.headers as Record<string, string>)["Authorization"]).toBe("Bearer tok-123");
+    expect(calls[0].init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("releasePlays parses a device with a platform this build has never heard of (#185)", async () => {
+    const body = {
+      tracks: [
+        {
+          trackId: entry.trackId,
+          total: 5,
+          devices: [
+            { deviceId: "d2", name: "Browser", platform: "web", count: 3, current: false },
+            { deviceId: "d3", name: "Gadget", platform: "future-thing", count: 2, current: false },
+          ],
+        },
+      ],
+    };
+    mockNextResponse(jsonResponse(body));
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+
+    await expect(api.releasePlays(entry.releaseId)).resolves.toEqual(body);
+  });
+
+  it("releasePlays encodes the id and rejects a 404 and a reply of the wrong shape", async () => {
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+    mockNextResponse(jsonResponse({ tracks: [] }));
+    await api.releasePlays("a/b");
+    expect(calls[0].url).toBe("http://localhost:4000/v1/releases/a%2Fb/plays");
+
+    mockNextResponse(jsonResponse({ error: "Not found" }, 404));
+    await expect(api.releasePlays("x")).rejects.toBeInstanceOf(PublicError);
+    mockNextResponse(jsonResponse({ tracks: [{ trackId: "t" }] }));
+    await expect(api.releasePlays("x")).rejects.toBeInstanceOf(PublicError);
   });
 });

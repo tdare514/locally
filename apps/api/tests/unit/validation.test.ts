@@ -83,6 +83,27 @@ describe("releaseRecordSchema", () => {
     expect(releaseRecordSchema.safeParse(makeReleaseRecord({ syncVersion: 3 as never })).success).toBe(false);
   });
 
+  it("accepts a track with no discNumber or one from 1 to 99, and rejects 0, 100 and 1.5", () => {
+    const withDisc = (discNumber?: number) => {
+      const record = makeReleaseRecord();
+      if (discNumber !== undefined) record.tracks[0]!.discNumber = discNumber;
+      return releaseRecordSchema.safeParse(record);
+    };
+    expect(withDisc().success).toBe(true);
+    expect(withDisc(1).success).toBe(true);
+    expect(withDisc(99).success).toBe(true);
+    expect(withDisc(0).success).toBe(false);
+    expect(withDisc(100).success).toBe(false);
+    expect(withDisc(1.5).success).toBe(false);
+  });
+
+  it("keeps discNumber when present and leaves the key out when absent", () => {
+    const record = makeReleaseRecord();
+    expect("discNumber" in releaseRecordSchema.parse(record).tracks[0]!).toBe(false);
+    record.tracks[0]!.discNumber = 2;
+    expect(releaseRecordSchema.parse(record).tracks[0]!.discNumber).toBe(2);
+  });
+
   it("accepts exactly 500 tracks and rejects 501", () => {
     const at500 = makeReleaseRecord({ tracks: makeTracks(500) });
     expect(releaseRecordSchema.safeParse(at500).success).toBe(true);

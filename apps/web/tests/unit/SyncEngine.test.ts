@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ReleaseService } from "../../src/server/releases/ReleaseService";
 import { ReleaseLayout } from "../../src/server/releases/ReleaseLayout";
@@ -15,7 +15,9 @@ import type { Release, Settings } from "../../src/shared/types";
 import { SyncEngine } from "../../src/server/sync/SyncEngine";
 import { emptySyncState, type SyncState, type SyncStateStore } from "../../src/server/sync/SyncState";
 import {
+  SyncAuthError,
   SyncConflictError,
+  SyncRequestError,
   type MeResult,
   type SyncApi,
   type SyncFileToUpload,
@@ -23,6 +25,8 @@ import {
   type VerifyCodeResult,
 } from "../../src/server/sync/SyncApi";
 import { toSyncRecord, type SyncRecord } from "../../src/server/sync/SyncRecord";
+import type { PlayEntry } from "../../src/server/plays/playsWire";
+import { FakePlayCountStore } from "./FakePlayCountStore";
 
 /** In-memory `SettingsStore` fake, mutable so tests can flip sign-in state. */
 class FakeSettingsStore implements SettingsStore {
@@ -112,6 +116,16 @@ class FakeSyncApi implements SyncApi {
   listReleasesCallCount = 0;
   meCallCount = 0;
   downloadUrlCalls: { id: string; name: string }[] = [];
+  /** Every accepted `pushPlays` request, in order. */
+  playPushes: PlayEntry[][] = [];
+  /** "put" / "plays" in the order the calls were accepted, to check plays go after their release. */
+  order: string[] = [];
+  private failPlayPushCalls = new Map<number, Error>();
+  private playPushAttempts = 0;
+  /** What the fake reports as `ignored` for every accepted push. */
+  ignoredPerPush = 0;
+  /** Runs once a push has been accepted and before the reply returns: a sign-out mid-request. */
+  afterPlayPush: (() => Promise<void>) | null = null;
 
   private conflictOnce = new Set<string>();
   private serverRecords = new Map<string, SyncRecord & { version: number }>();
@@ -171,6 +185,7 @@ class FakeSyncApi implements SyncApi {
       throw new SyncConflictError("conflict");
     }
     this.putCalls.push(record);
+    this.order.push("put");
     this.version++;
     this.serverRecords.set(record.id, { ...record, version: this.version });
     return { version: this.version };
@@ -211,6 +226,20 @@ class FakeSyncApi implements SyncApi {
     return { url: `fake://${id}/${name}`, expiresAt: new Date(Date.now() + 60_000).toISOString() };
   }
 
+  async pushPlays(counts: PlayEntry[]) {
+    this.playPushAttempts++;
+    const injected = this.failPlayPushCalls.get(this.playPushAttempts);
+    if (injected) throw injected;
+    this.playPushes.push(counts);
+    this.order.push("plays");
+    await this.afterPlayPush?.();
+    return { accepted: counts.length - this.ignoredPerPush, ignored: this.ignoredPerPush };
+  }
+
+  async releasePlays() {
+    return { tracks: [] };
+  }
+
   async uploadFile(upload: SyncUploadTarget, filePath: string): Promise<void> {
     this.uploadCalls.push({ name: upload.name, filePath });
     const bytes = await fs.readFile(filePath);
@@ -241,6 +270,14 @@ class FakeSyncApi implements SyncApi {
 
   failNextPutWithConflict(id: string): void {
     this.conflictOnce.add(id);
+  }
+
+  /** Throws on the given 1-based `pushPlays` call number (counted across the fake's whole life). */
+  failPlayPushOnCall(
+    callNumber: number,
+    error: Error = new Error(`FakeSyncApi: injected failure on pushPlays call #${callNumber}`)
+  ): void {
+    this.failPlayPushCalls.set(callNumber, error);
   }
 
   /** Throws on the given 1-based `listReleases` call number (e.g. `2` fails the second page). */
@@ -431,7 +468,7 @@ describe("SyncEngine", () => {
 
     const statusAfterReconcile = await engine.status();
     expect(statusAfterReconcile.pendingFromPhone).toEqual([
-      { id: "ios-release-1", title: "Phone Song", artist: "Phone Artist", kind: "single", trackCount: 1 },
+      { id: "ios-release-1", origin: "ios", title: "Phone Song", artist: "Phone Artist", kind: "single", trackCount: 1 },
     ]);
 
     const imported = await engine.acceptFromPhone("ios-release-1");
@@ -446,6 +483,39 @@ describe("SyncEngine", () => {
 
     const statusAfterAccept = await engine.status();
     expect(statusAfterAccept.pendingFromPhone).toHaveLength(0);
+  });
+
+  it("offers a record from the web or from an origin it has never heard of as pending, labelled by its origin (#185)", async () => {
+    const fromOrigin = (id: string, origin: string, originDevice: string): SyncRecord => ({
+      syncVersion: 2,
+      id,
+      kind: "single",
+      title: `Song ${id}`,
+      artist: "Other Artist",
+      year: null,
+      genre: null,
+      cover: null,
+      coverHash: null,
+      tracks: [],
+      origin,
+      originDevice,
+      createdAt: "2026-10-01T10:00:00.000Z",
+      updatedAt: "2026-10-01T10:00:00.000Z",
+      deleted: false,
+    });
+    api.seedRemoteRecord(fromOrigin("from-web", "web", "Browser"));
+    api.seedRemoteRecord(fromOrigin("from-future", "future-thing", "Gadget"));
+    // A record from some other Mac is still not offered, and nothing here is mistaken for this Mac's own.
+    api.seedRemoteRecord(fromOrigin("from-other-mac", "mac", "Another Mac"));
+
+    await engine.reconcile();
+
+    const status = await engine.status();
+    expect(status.lastError).toBeNull();
+    expect(status.pendingFromPhone.map((p) => [p.id, p.origin]).sort()).toEqual([
+      ["from-future", "future-thing"],
+      ["from-web", "web"],
+    ]);
   });
 
   it("re-tags a local release in place when the remote copy is newer, without renaming", async () => {
@@ -843,6 +913,239 @@ describe("SyncEngine", () => {
 
       const status = await engine.status();
       expect(status.lastError).toMatch(/stalled|advanc/i);
+    });
+  });
+
+  describe("play counts (#107)", () => {
+    const RELEASE_ID = "3f2a6c1e-8b7d-4e5a-9c1d-2a4b6c8d0e1f";
+    const trackId = (n: number) => `a1b2c3d4-${String(n).padStart(4, "0")}-4a5b-8c9d-0123456789ab`;
+    let plays: FakePlayCountStore;
+    let playsEngine: SyncEngine;
+
+    beforeEach(() => {
+      plays = new FakePlayCountStore();
+      playsEngine = new SyncEngine(
+        settingsStore,
+        syncState,
+        releaseService,
+        fsSvc,
+        () => api,
+        () => "Toby's MacBook",
+        plays
+      );
+    });
+
+    it("pushes only entries whose count is above what was pushed, as absolute counts", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5, 0); // never pushed
+      plays.seed(trackId(2), RELEASE_ID, 7, 3); // grew since the last push
+      plays.seed(trackId(3), RELEASE_ID, 4, 4); // nothing new
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toEqual([
+        [
+          { releaseId: RELEASE_ID, trackId: trackId(1), count: 5 },
+          { releaseId: RELEASE_ID, trackId: trackId(2), count: 7 },
+        ],
+      ]);
+    });
+
+    it("records pushed on success, so the next reconcile sends nothing", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5);
+
+      await playsEngine.reconcile();
+      expect((await plays.get()).tracks[trackId(1)]).toEqual({ releaseId: RELEASE_ID, count: 5, pushed: 5 });
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toHaveLength(1);
+      expect((await playsEngine.status()).lastError).toBeNull();
+    });
+
+    it("sends a track again when its count grows after a push", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5);
+      await playsEngine.reconcile();
+      await plays.increment(trackId(1), RELEASE_ID);
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toHaveLength(2);
+      expect(api.playPushes[1]).toEqual([{ releaseId: RELEASE_ID, trackId: trackId(1), count: 6 }]);
+    });
+
+    it("sends at most 500 entries per request and marks each request once it is accepted", async () => {
+      for (let i = 1; i <= 1200; i++) plays.seed(trackId(i), RELEASE_ID, 1);
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes.map((batch) => batch.length)).toEqual([500, 500, 200]);
+      const left = Object.values((await plays.get()).tracks).filter((e) => e.count > e.pushed);
+      expect(left).toHaveLength(0);
+    });
+
+    it("leaves entries pending when a push fails, shows the error, and catches up on the next reconcile", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5);
+      api.failPlayPushOnCall(1);
+
+      await playsEngine.reconcile();
+
+      expect((await playsEngine.status()).lastError).toMatch(/injected failure/);
+      expect((await plays.get()).tracks[trackId(1)].pushed).toBe(0);
+      expect(api.playPushes).toEqual([]);
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toHaveLength(1);
+      expect((await plays.get()).tracks[trackId(1)].pushed).toBe(5);
+      expect((await playsEngine.status()).lastError).toBeNull();
+    });
+
+    it("keeps the batches that were accepted when a later batch fails", async () => {
+      for (let i = 1; i <= 600; i++) plays.seed(trackId(i), RELEASE_ID, 2);
+      api.failPlayPushOnCall(2);
+
+      await playsEngine.reconcile();
+
+      const entries = Object.values((await plays.get()).tracks);
+      expect(entries.filter((e) => e.pushed === 2)).toHaveLength(500);
+      expect(entries.filter((e) => e.pushed === 0)).toHaveLength(100);
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes.map((batch) => batch.length)).toEqual([500, 100]);
+      expect(Object.values((await plays.get()).tracks).every((e) => e.pushed === 2)).toBe(true);
+    });
+
+    it("leaves out an entry the service would refuse, without holding back the rest", async () => {
+      plays.seed("not-a-uuid", RELEASE_ID, 3);
+      plays.seed(trackId(1), RELEASE_ID, 2_000_000);
+      plays.seed(trackId(2), RELEASE_ID, 4);
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toEqual([[{ releaseId: RELEASE_ID, trackId: trackId(2), count: 4 }]]);
+      expect((await playsEngine.status()).lastError).toBeNull();
+    });
+
+    it("pushes nothing while signed out, and the counts stay pending", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5);
+      const settings = await settingsStore.get();
+      await settingsStore.set({ ...settings, sync: { ...settings.sync!, deviceToken: null, email: null } });
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toEqual([]);
+      expect((await plays.get()).tracks[trackId(1)]).toEqual({ releaseId: RELEASE_ID, count: 5, pushed: 0 });
+    });
+
+    it("pushes counts after the release records, so the service already holds the release", async () => {
+      const release = await importOne();
+      plays.seed(release.tracks[0].id, release.id, 1);
+
+      await playsEngine.reconcile();
+
+      expect(api.order).toEqual(["put", "plays"]);
+    });
+
+    it("sends everything again after the pushed markers are reset (sign-out, new account)", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5);
+      await playsEngine.reconcile();
+      await plays.resetPushed();
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toHaveLength(2);
+      expect(api.playPushes[1]).toEqual([{ releaseId: RELEASE_ID, trackId: trackId(1), count: 5 }]);
+    });
+
+    it("a sign-out while a push is in flight leaves nothing marked and sends no further batches", async () => {
+      for (let i = 1; i <= 600; i++) plays.seed(trackId(i), RELEASE_ID, 2);
+      api.afterPlayPush = () => plays.resetPushed(); // the user signs out as the first request lands
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes.map((batch) => batch.length)).toEqual([500]);
+      const entries = Object.values((await plays.get()).tracks);
+      expect(entries.every((e) => e.pushed === 0)).toBe(true);
+      expect(entries.every((e) => e.count === 2)).toBe(true);
+    });
+
+    it("skips a batch the service refuses with a 4xx, still sends the later ones, and leaves it pending", async () => {
+      for (let i = 1; i <= 600; i++) plays.seed(trackId(i), RELEASE_ID, 2);
+      api.failPlayPushOnCall(1, new SyncRequestError("Invalid body", 400));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes.map((batch) => batch.length)).toEqual([100]);
+      const entries = Object.values((await plays.get()).tracks);
+      expect(entries.filter((e) => e.pushed === 0)).toHaveLength(500);
+      expect(entries.filter((e) => e.pushed === 2)).toHaveLength(100);
+      expect((await playsEngine.status()).lastError).toBeNull();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0].join(" ")).toMatch(/refused a batch of 500 .*HTTP 400/);
+      warn.mockRestore();
+    });
+
+    it("logs a batch the service keeps refusing once, not on every reconcile, and retries it each time", async () => {
+      for (let i = 1; i <= 600; i++) plays.seed(trackId(i), RELEASE_ID, 2);
+      api.failPlayPushOnCall(1, new SyncRequestError("Invalid body", 422)); // reconcile 1, batch of 500
+      api.failPlayPushOnCall(3, new SyncRequestError("Invalid body", 422)); // reconcile 2, same batch again
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+      await playsEngine.reconcile();
+      await playsEngine.reconcile();
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(Object.values((await plays.get()).tracks).filter((e) => e.pushed === 0)).toHaveLength(500);
+      warn.mockRestore();
+    });
+
+    it.each([
+      ["a 429", new SyncRequestError("Slow down", 429)],
+      ["a 503", new SyncRequestError("Down", 503)],
+      ["a 401", new SyncAuthError("Sync sign-in has expired; please sign in again")],
+    ])("does not skip past %s: the push stops, shows the error, and everything stays pending", async (_n, error) => {
+      for (let i = 1; i <= 600; i++) plays.seed(trackId(i), RELEASE_ID, 2);
+      api.failPlayPushOnCall(1, error);
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toEqual([]);
+      expect((await playsEngine.status()).lastError).toBe(error.message);
+      expect(Object.values((await plays.get()).tracks).every((e) => e.pushed === 0)).toBe(true);
+    });
+
+    it("logs how many counts the service ignored, with no ids or token", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 2);
+      plays.seed(trackId(2), RELEASE_ID, 3);
+      plays.seed(trackId(3), RELEASE_ID, 4);
+      api.ignoredPerPush = 2;
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+      await playsEngine.reconcile();
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      const line = warn.mock.calls[0].join(" ");
+      expect(line).toContain("ignored 2 of 3 play counts");
+      expect(line).not.toContain(RELEASE_ID);
+      expect(line).not.toContain(trackId(1));
+      expect(line).not.toContain("tok");
+      warn.mockRestore();
+    });
+
+    it("says nothing when the service ignored none", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 2);
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+      await playsEngine.reconcile();
+
+      expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
+    it("does not touch plays when no store is wired", async () => {
+      await engine.reconcile();
+      expect(api.playPushes).toEqual([]);
     });
   });
 });

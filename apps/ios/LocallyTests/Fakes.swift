@@ -39,9 +39,21 @@ final class FakeTagWriter: TagWriter {
 /// In-memory `LibraryStore` fake — no SwiftData, just a dictionary.
 final class InMemoryLibraryStore: LibraryStore {
     private var storage: [UUID: Release] = [:]
+    /// How many times `all()` was called, and the `limit` of each `recent(limit:)` call.
+    private(set) var allCallCount = 0
+    private(set) var recentLimits: [Int] = []
 
     func all() throws -> [Release] {
-        Array(storage.values)
+        allCallCount += 1
+        return Array(storage.values)
+    }
+
+    func recent(limit: Int) throws -> [Release] {
+        recentLimits.append(limit)
+        let newestFirst = storage.values.sorted {
+            $0.updatedAt != $1.updatedAt ? $0.updatedAt > $1.updatedAt : $0.id.uuidString < $1.id.uuidString
+        }
+        return Array(newestFirst.prefix(limit))
     }
 
     func upsert(_ release: Release) throws {
@@ -173,6 +185,8 @@ final class FakeCoverStore: CoverStore {
 /// drives from `AVAsset` metadata.
 final class FakeFileImporter: FileImporter {
     var tagsByURL: [URL: TagSet] = [:]
+    /// The track number a URL's own track tag carries; a URL not listed has none.
+    var trackTagsByURL: [URL: Int] = [:]
 
     func stage(_ urls: [URL]) async throws -> [StagedFile] {
         try urls.map { url in
@@ -180,7 +194,7 @@ final class FakeFileImporter: FileImporter {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let dest = dir.appendingPathComponent(url.lastPathComponent)
             try FileManager.default.copyItem(at: url, to: dest)
-            return StagedFile(url: dest, originalName: url.lastPathComponent, existingTags: tagsByURL[url])
+            return StagedFile(url: dest, originalName: url.lastPathComponent, existingTags: tagsByURL[url], tagTrackNumber: trackTagsByURL[url])
         }
     }
 }

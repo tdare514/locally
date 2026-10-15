@@ -17,8 +17,8 @@ struct RecentCover: Identifiable {
 }
 
 /// Finds the covers already used in the library, newest release first, so the cover
-/// sheet can offer them again. Nothing new is stored: it reads `LibraryStore` and
-/// `CoverStore.load(_:)` and decodes small thumbnails off the main actor.
+/// sheet can offer them again. Nothing new is stored: it reads `LibraryStore.recent(limit:)`
+/// and the cover files themselves, and decodes small thumbnails off the main actor.
 struct RecentCoversLoader {
     /// How many covers the row offers at most.
     static let limit = 12
@@ -31,28 +31,52 @@ struct RecentCoversLoader {
     /// Up to `limit` covers, most recently updated release first. Releases with no
     /// stored cover (or one that will not decode) are skipped and do not count towards
     /// the limit. A library that cannot be read gives an empty row, not an error.
+    ///
+    /// Only the newest `limit` releases are fetched at first (decoding every release's
+    /// tracks on the main thread is what this avoids); the window doubles only when
+    /// skipped releases left the row short. Cancelling the calling task stops the
+    /// thumbnail loop early and returns what was found so far.
     @MainActor
     func load() async -> [RecentCover] {
-        // The library read stays on the main actor: the SwiftData store is main-thread bound.
-        guard let releases = try? library.all() else { return [] }
-        let newestFirst = releases.sorted {
-            $0.updatedAt != $1.updatedAt ? $0.updatedAt > $1.updatedAt : $0.id.uuidString < $1.id.uuidString
+        var covers: [RecentCover] = []
+        var window = Self.limit
+        var scanned = 0
+        while covers.count < Self.limit, !Task.isCancelled {
+            // The library read stays on the main actor: the SwiftData store is main-thread bound.
+            guard let releases = try? library.recent(limit: window) else { break }
+            let unscanned = Array(releases.dropFirst(scanned))
+            scanned = releases.count
+            covers += await Self.thumbnails(for: unscanned, room: Self.limit - covers.count, from: coverStore)
+            if releases.count < window { break }
+            window *= 2
         }
-        let store = coverStore
-        return await Task.detached(priority: .userInitiated) {
+        return covers
+    }
+
+    /// Reads and decodes covers off the main actor, stopping once `room` are found or the
+    /// calling task is cancelled. `Task.detached` does not inherit cancellation, so it is
+    /// passed on by hand.
+    private static func thumbnails(for releases: [Release], room: Int, from store: CoverStore) async -> [RecentCover] {
+        let task = Task.detached(priority: .userInitiated) {
             var covers: [RecentCover] = []
-            for release in newestFirst {
-                if covers.count == Self.limit { break }
-                guard let data = store.load(release.id), let thumbnail = Self.thumbnail(from: data) else { continue }
+            for release in releases {
+                if covers.count == room || Task.isCancelled { break }
+                guard let url = store.fileURL(release.id), let thumbnail = Self.thumbnail(at: url) else { continue }
                 covers.append(RecentCover(id: release.id, title: release.title, artist: release.artist, thumbnail: thumbnail))
             }
             return covers
-        }.value
+        }
+        return await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
     }
 
-    /// Decodes straight to a small image, never the full-size bitmap.
-    static func thumbnail(from data: Data) -> UIImage? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+    /// Decodes straight from the file to a small image, never the full-size bitmap and
+    /// never the whole file as `Data`.
+    static func thumbnail(at url: URL) -> UIImage? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,

@@ -2,7 +2,8 @@ import Foundation
 
 /// A minimal, pure-Swift ID3v2.4 writer for mp3 files: no third-party
 /// dependency, just enough of the spec to write the text frames Spotify's
-/// Local Files reads (TIT2/TPE1/TPE2/TALB/TRCK/TDRC/TCON) plus one APIC
+/// Local Files reads (TIT2/TPE1/TPE2/TALB/TRCK/TDRC/TCON, and TPOS on a
+/// multi-disc release) plus one APIC
 /// cover frame. Any existing ID3v2 header is stripped and replaced (never
 /// stacked) so re-tagging in place keeps the file's audio bytes untouched.
 /// Audio is streamed in fixed-size chunks; tag bodies are bounded by the
@@ -116,6 +117,9 @@ final class ID3TagWriter: TagWriter {
         frames.append(textFrame("TPE2", tags.albumArtist))
         frames.append(textFrame("TALB", tags.album))
         frames.append(textFrame("TRCK", "\(tags.trackNumber)/\(tags.totalTracks)"))
+        if let discNumber = tags.discNumber, let totalDiscs = tags.totalDiscs {
+            frames.append(textFrame("TPOS", "\(discNumber)/\(totalDiscs)"))
+        }
         if let year = tags.year, !year.isEmpty {
             frames.append(textFrame("TDRC", year))
         }

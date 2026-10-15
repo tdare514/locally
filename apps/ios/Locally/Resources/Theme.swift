@@ -197,8 +197,8 @@ enum Theme {
         static let sleeveShadowNearOpacity: Double = 0.45
         static let sleeveShadowNearRadius: CGFloat = 8
         static let sleeveShadowNearY: CGFloat = 6
-        /// `.record-sleeve::after`: a 1 px edge and a 135deg sheen fading out by 40%.
-        static let sleeveEdgeOpacity: Double = 0.1
+        /// `.record-sleeve::after`: a 135deg sheen fading out by 40%. The web's 1 px edge is
+        /// left out on purpose: a hairline round the cover shows as a line against the wash (#158).
         static let sleeveSheenOpacity: Double = 0.08
         static let sleeveSheenEnd: CGFloat = 0.4
 
