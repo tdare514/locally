@@ -25,6 +25,8 @@ interface SettingsViewProps {
   onToast: (kind: "success" | "error", text: string) => void;
   syncStatus: SyncStatus | null;
   onSyncStatusChange: () => void;
+  /** Scrolls this section into view once when the page opens (the sidebar profile asks for "account"). */
+  section?: "account";
 }
 
 const STEPS = [
@@ -52,17 +54,22 @@ function formatLastSync(iso: string | null): string {
   return new Date(iso).toLocaleString();
 }
 
-export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }: SettingsViewProps) {
+export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, section }: SettingsViewProps) {
   const [libraryDir, setLibraryDir] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [libraryWidth, setLibraryWidth] = useState<LibraryWidth>("comfortable");
+  const [libraryWidth, setLibraryWidth] = useState<LibraryWidth>("full");
 
   // Saved width loads after mount so the server and first client render agree.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLibraryWidth(loadLibraryWidth());
   }, []);
+
+  // Opened from the sidebar profile: bring the account and sync section to the top, once.
+  useEffect(() => {
+    if (section === "account") document.getElementById("account")?.scrollIntoView({ block: "start", behavior: "auto" });
+  }, [section]);
 
   function changeLibraryWidth(next: LibraryWidth) {
     setLibraryWidth(next);
@@ -291,14 +298,14 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
               type="button"
               onClick={handleSave}
               disabled={saving || loading}
-              className="rounded-full bg-accent px-6 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+              className="btn-save"
             >
               {saving ? "Saving…" : "Save"}
             </button>
             <button
               type="button"
               onClick={handleReveal}
-              className="rounded-full border border-text-dim px-6 py-3 text-sm font-medium text-text transition-colors hover:border-text"
+              className="btn-save"
             >
               Show in Finder
             </button>
@@ -313,15 +320,14 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
           <span id="library-width-label" className="text-sm text-text-muted">
             Library width
           </span>
-          <div
-            role="group"
-            aria-labelledby="library-width-label"
-            className="flex items-center gap-0.5 rounded-full bg-elevated/60 p-0.5"
-          >
+          <div role="group" aria-labelledby="library-width-label" className="btn-seg">
+            <span aria-hidden className="btn-seg-dot">
+              <span />
+            </span>
             {(
               [
-                { value: "comfortable", label: "Comfortable" },
                 { value: "full", label: "Full width" },
+                { value: "comfortable", label: "Comfortable" },
               ] as const
             ).map(({ value, label }) => (
               <button
@@ -329,11 +335,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
                 type="button"
                 onClick={() => changeLibraryWidth(value)}
                 aria-pressed={libraryWidth === value}
-                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                  libraryWidth === value
-                    ? "bg-elevated-hover text-text"
-                    : "text-text-dim hover:text-text-muted"
-                }`}
+                className="btn-seg-opt"
               >
                 {label}
               </button>
@@ -378,7 +380,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
         </fieldset>
       </section>
 
-      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-6">
+      <section id="account" className="flex flex-col gap-4 rounded-lg border border-border bg-card p-6">
         <div>
           <p className="text-sm font-bold text-text">Sync with your phone</p>
           <p className="mt-1 text-sm text-text-muted">
@@ -423,7 +425,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
                   type="button"
                   onClick={handleSendCode}
                   disabled={sendingCode || !email.trim()}
-                  className="w-fit rounded-full bg-accent px-6 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="btn-save w-fit"
                 >
                   {sendingCode ? "Sending…" : "Send code"}
                 </button>
@@ -443,7 +445,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
                     type="button"
                     onClick={handleVerify}
                     disabled={verifying || !code.trim()}
-                    className="w-fit rounded-full bg-accent px-6 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="btn-save w-fit"
                   >
                     {verifying ? "Signing in…" : "Sign in"}
                   </button>
@@ -453,9 +455,9 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
                       setCodeSent(false);
                       setCode("");
                     }}
-                    className="text-sm font-medium text-text-muted hover:text-text"
+                    className="btn-ink"
                   >
-                    Use a different email
+                    <span className="btn-ink-label">Use a different email</span>
                   </button>
                 </div>
               </div>
@@ -505,7 +507,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
                 type="button"
                 onClick={handleSyncNow}
                 disabled={syncing}
-                className="w-fit rounded-full bg-accent px-6 py-3 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-save w-fit"
               >
                 {syncing ? "Syncing…" : "Sync now"}
               </button>
@@ -513,9 +515,9 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
                 type="button"
                 onClick={handleSignOut}
                 disabled={signingOut}
-                className="w-fit rounded-full border border-text-dim px-6 py-3 text-sm font-medium text-text transition-colors hover:border-text disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-ink"
               >
-                {signingOut ? "Signing out…" : "Sign out"}
+                <span className="btn-ink-label">{signingOut ? "Signing out…" : "Sign out"}</span>
               </button>
             </div>
 
@@ -540,9 +542,9 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
                     type="button"
                     onClick={() => setConfirmingDeleteAccount(false)}
                     disabled={deletingAccount}
-                    className="rounded-full px-4 py-2 text-sm text-text-muted hover:text-text"
+                    className="btn-ink"
                   >
-                    Cancel
+                    <span className="btn-ink-label">Cancel</span>
                   </button>
                 </div>
               </div>
@@ -550,9 +552,9 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange }
               <button
                 type="button"
                 onClick={handleDeleteAccount}
-                className="w-fit px-2 py-1 text-sm font-semibold text-danger transition-colors hover:opacity-80"
+                className="btn-ink-danger w-fit"
               >
-                Delete sync account…
+                <span className="btn-ink-label">Delete sync account…</span>
               </button>
             )}
           </div>

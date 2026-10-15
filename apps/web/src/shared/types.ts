@@ -106,6 +106,31 @@ export interface ReleasePlaysResponse {
   tracks: TrackPlays[];
 }
 
+/** Where a pending release's files stand (#172). Absent means they are on the server: Send works.
+ * "arriving" is the quiet "still uploading"; "waiting" means a later check still finds them missing. */
+export type PendingFilesState = "arriving" | "waiting";
+
+/** One track's plays inside the requested range, in GET /api/plays/summary (#200). `lastPlayedDay` is the latest day in the range with a play, `YYYY-MM-DD` in the Mac's local zone. */
+export interface PlaysSummaryTrack {
+  trackId: string;
+  releaseId: string;
+  plays: number;
+  lastPlayedDay: string;
+}
+
+/** One track's all-time plays on this Mac, in GET /api/plays/summary (#200). */
+export interface PlaysSummaryAllTime {
+  trackId: string;
+  releaseId: string;
+  plays: number;
+}
+
+/** Response shape for GET /api/plays/summary?from=YYYY-MM-DD&to=YYYY-MM-DD: this Mac's plays, live releases only (#200). */
+export interface PlaysSummaryResponse {
+  tracks: PlaysSummaryTrack[];
+  allTime: PlaysSummaryAllTime[];
+}
+
 /** One release from another device (the phone, the web) that hasn't been imported into the local library yet. */
 export interface PendingFromPhone {
   id: string;
@@ -115,6 +140,8 @@ export interface PendingFromPhone {
   artist: string;
   kind: ReleaseKind;
   trackCount: number;
+  /** Set only while the files-missing check lists this release; an older service never sets it. */
+  filesState?: PendingFilesState;
 }
 
 export interface SyncQuota {

@@ -12,6 +12,7 @@ import { GET as getRelease, PATCH as patchRelease, DELETE as deleteRelease } fro
 import { GET as getCover, PUT as putCover } from "../../../src/app/api/releases/[id]/cover/route";
 import { GET as getSettings, PUT as putSettings } from "../../../src/app/api/settings/route";
 import { GET as getSyncStatus } from "../../../src/app/api/sync/status/route";
+import { GET as getPlaysSummary } from "../../../src/app/api/plays/summary/route";
 import { GET as getSpotifySource } from "../../../src/app/api/spotify/source/route";
 import { POST as postImport } from "../../../src/app/api/import/route";
 import { POST as postInspect } from "../../../src/app/api/inspect/route";
@@ -24,6 +25,7 @@ import { POST as postCode } from "../../../src/app/api/sync/code/route";
 import { POST as postSignout } from "../../../src/app/api/sync/signout/route";
 import { DELETE as deleteAccount } from "../../../src/app/api/sync/account/route";
 import { POST as postAccept } from "../../../src/app/api/sync/accept/[id]/route";
+import { POST as postResync } from "../../../src/app/api/sync/resync/route";
 import { DEMO_RELEASES } from "../../../src/server/demo/library";
 import { getDemoCover } from "../../../src/server/demo/covers";
 
@@ -68,6 +70,14 @@ describe("demo GET routes", () => {
     expect(source.watching).toBe(true);
   });
 
+  it("play summary is empty, without touching the services", async () => {
+    const res = await getPlaysSummary(
+      new NextRequest("http://localhost/api/plays/summary?from=2026-10-12&to=2026-10-15"),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ tracks: [], allTime: [] });
+  });
+
   it("cover is a locked-down SVG for a known id and 404 for an unknown one", async () => {
     const res = await getCover(req(), ctx(DEMO_RELEASES[0].id));
     expect(res.status).toBe(200);
@@ -110,6 +120,7 @@ describe("demo mutating routes", () => {
       ["sync signout", () => postSignout()],
       ["sync account", () => deleteAccount()],
       ["sync accept", () => postAccept(req("POST"), ctx("x"))],
+      ["sync resync", () => postResync()],
     ];
     for (const [name, call] of calls) {
       const res = await call();

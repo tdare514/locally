@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { z } from "zod";
 import { PublicError } from "../../shared/errors";
 import {
   PlayCountsResultSchema,
@@ -63,11 +64,33 @@ export interface ListReleasesResult {
   hasMore: boolean;
 }
 
+/** One release `GET /v1/files/missing` lists: its record names files that are not stored (#170). */
+export interface MissingRelease {
+  id: string;
+  /** The names the record references that have no stored file. Counted, never shown. */
+  missing: string[];
+  recordUpdatedAt: string;
+}
+
+export interface MissingFilesResult {
+  releases: MissingRelease[];
+  checkedAt: string;
+}
+
+const MissingFilesResultSchema = z.object({
+  releases: z.array(z.object({ id: z.string(), missing: z.array(z.string()), recordUpdatedAt: z.string() })),
+  checkedAt: z.string(),
+});
+
+const ResyncRequestResultSchema = z.object({ resyncRequestedAt: z.string() });
+
 /** Page size requested per `listReleases` call (server clamps to this max anyway). */
 export const RELEASE_PAGE_LIMIT = 200;
 
 /** How long `releasePlays` waits for the service before giving up. */
 const PLAYS_READ_TIMEOUT_MS = 5_000;
+/** How long the missing-files check and the resync request wait; both are optional extras. */
+const FILES_REPAIR_TIMEOUT_MS = 10_000;
 /** How long `pushPlays` waits; a batch of 500 entries is a small body, so this is generous. */
 const PLAYS_PUSH_TIMEOUT_MS = 15_000;
 
@@ -113,6 +136,12 @@ export interface SyncApi {
   pushPlays(counts: PlayEntry[]): Promise<PlayCountsResult>;
   /** `GET /v1/releases/:id/plays`: every device's count for the release's tracks. */
   releasePlays(releaseId: string): Promise<ServerReleasePlays>;
+  /** `GET /v1/files/missing`: the caller's releases whose files are not stored. Resolves null when
+   * the service answers 404, an API from before #170: callers carry on as they did without it. */
+  missingFiles(): Promise<MissingFilesResult | null>;
+  /** `POST /v1/files/resync-request`: asks the account's other devices to upload again. Resolves
+   * null on a 404 (an API from before #170). */
+  requestResync(): Promise<{ resyncRequestedAt: string } | null>;
   /** Streams `filePath` to the given upload target without buffering it in memory. */
   uploadFile(upload: SyncUploadTarget, filePath: string): Promise<void>;
   /** Streams the response body at `url` to `destPath` without buffering it in memory. */
@@ -286,6 +315,29 @@ export class HttpSyncApi implements SyncApi {
     });
     const parsed = ServerReleasePlaysSchema.safeParse(await this.handle<unknown>(res));
     if (!parsed.success) throw new PublicError("Sync service sent an unexpected reply for a release's play counts");
+    return parsed.data;
+  }
+
+  async missingFiles(): Promise<MissingFilesResult | null> {
+    const res = await fetch(this.url("/v1/files/missing"), {
+      headers: this.headers(false),
+      signal: AbortSignal.timeout(FILES_REPAIR_TIMEOUT_MS),
+    });
+    if (res.status === 404) return null;
+    const parsed = MissingFilesResultSchema.safeParse(await this.handle<unknown>(res));
+    if (!parsed.success) throw new PublicError("Sync service sent an unexpected reply to a missing files check");
+    return parsed.data;
+  }
+
+  async requestResync(): Promise<{ resyncRequestedAt: string } | null> {
+    const res = await fetch(this.url("/v1/files/resync-request"), {
+      method: "POST",
+      headers: this.headers(false),
+      signal: AbortSignal.timeout(FILES_REPAIR_TIMEOUT_MS),
+    });
+    if (res.status === 404) return null;
+    const parsed = ResyncRequestResultSchema.safeParse(await this.handle<unknown>(res));
+    if (!parsed.success) throw new PublicError("Sync service sent an unexpected reply to a resync request");
     return parsed.data;
   }
 

@@ -57,6 +57,8 @@ beforeEach(() => {
     store,
     () => clock,
     5000,
+    IDLE_POLL_INTERVAL_MS,
+    "UTC",
   );
 });
 
@@ -70,7 +72,50 @@ describe("PlayTracker", () => {
     tracker.setEnabled(true);
     await vi.waitFor(() => expect(np.calls).toBe(1)); // initial poll
     for (let pos = 0; pos <= 30; pos += 5) await tick(pos);
-    expect((await store.get()).tracks).toEqual({ t1: { releaseId: "r1", count: 1, pushed: 0 } });
+    expect((await store.get()).tracks).toEqual({
+      t1: { releaseId: "r1", count: 1, pushed: 0, days: { "1970-01-01": 1 } },
+    });
+  });
+
+  describe("plays by day (#200)", () => {
+    /** A tracker whose clock and zone are injected, run through one counted play. */
+    async function countOnePlayAt(startMs: number, timeZone: string): Promise<void> {
+      clock = startMs;
+      const t = new PlayTracker(
+        np,
+        { get: async () => ({ libraryDir: "/lib", sync: null }) as Settings },
+        { list: async () => releases },
+        store,
+        () => clock,
+        5000,
+        IDLE_POLL_INTERVAL_MS,
+        timeZone,
+      );
+      tracker.stop();
+      tracker = t;
+      t.setEnabled(true);
+      await vi.waitFor(() => expect(np.calls).toBe(1));
+      for (let pos = 0; pos <= 30; pos += 5) await tick(pos);
+    }
+
+    it("puts a play at 23:30 in New York on that local date, not UTC's", async () => {
+      // 2026-10-16 03:30 UTC is 2026-10-15 23:30 in New York (EDT, UTC-4); the play counts about 40 s later.
+      await countOnePlayAt(Date.UTC(2026, 9, 16, 3, 30), "America/New_York");
+      expect((await store.get()).tracks).toEqual({
+        t1: { releaseId: "r1", count: 1, pushed: 0, days: { "2026-10-15": 1 } },
+      });
+    });
+
+    it("puts the same instant on the next date in a zone that is already past midnight", async () => {
+      await countOnePlayAt(Date.UTC(2026, 9, 16, 3, 30), "Europe/London"); // BST, UTC+1: 04:30 on the 16th
+      expect((await store.get()).tracks.t1.days).toEqual({ "2026-10-16": 1 });
+    });
+
+    it("takes the day from the moment the play counted", async () => {
+      // 2026-10-15 23:59:40 in New York; the play counts about 40 s later, after midnight there.
+      await countOnePlayAt(Date.UTC(2026, 9, 16, 3, 59, 40), "America/New_York");
+      expect((await store.get()).tracks.t1.days).toEqual({ "2026-10-16": 1 });
+    });
   });
 
   it("ignores a play with no match and warns once about ambiguity", async () => {

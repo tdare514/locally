@@ -281,6 +281,7 @@ final class InMemorySyncAccountStore: SyncAccountStore {
     private(set) var deviceId: String?
     var lastVersion: Int = 0
     var deviceName: String?
+    var lastMissingFilesCheckAt: Date?
 
     func save(email: String, deviceToken: String, deviceId: String) {
         self.email = email
@@ -294,6 +295,7 @@ final class InMemorySyncAccountStore: SyncAccountStore {
         deviceId = nil
         lastVersion = 0
         deviceName = nil
+        lastMissingFilesCheckAt = nil
     }
 }
 
@@ -527,6 +529,19 @@ final class FakeSyncApi: SyncApi {
     /// Lets a test assert a cover download was (or wasn't) attempted, e.g.
     /// when the remote and local `coverHash` already match.
     private(set) var downloadFileCalls: [String] = []
+
+    /// Stubbed `missingFiles` outcome: a healthy account by default. Set `.failure(SyncApiError.notFound)`
+    /// for an API that predates `GET /v1/files/missing`, or `.rateLimited` for a 429.
+    var missingFilesResult: Result<SyncMissingFiles, Error> = .success(SyncMissingFiles(releases: []))
+    private(set) var missingFilesCallCount = 0
+    /// Runs inside `missingFiles()` before it returns, like `onMe`.
+    var onMissingFiles: (@MainActor () async -> Void)?
+
+    func missingFiles() async throws -> SyncMissingFiles {
+        missingFilesCallCount += 1
+        await onMissingFiles?()
+        return try missingFilesResult.get()
+    }
 
     /// Stubbed `releasePlays` outcome; set `.failure` to simulate offline or 404.
     var releasePlaysResult: Result<SyncReleasePlays, Error> = .success(SyncReleasePlays(tracks: []))

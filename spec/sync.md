@@ -108,7 +108,7 @@ sync at runtime.
 | Method and path | Body / query | Returns |
 | --- | --- | --- |
 | POST `/v1/auth/code` | `{ email }` | `{ ok: true }`; sends a six-digit code, valid 10 minutes, 5 tries |
-| POST `/v1/auth/verify` | `{ email, code, deviceName, platform: "mac" \| "ios" }` | `{ token, user: { id, email }, device: { id, name } }` |
+| POST `/v1/auth/verify` | `{ email, code, deviceName, platform: "mac" \| "ios" }` | `{ token, user: { id, email }, device: { id, name } }`; a new device, except that a Mac (`platform: "mac"`) whose account has a revoked (signed-out) Mac of the same `deviceName` gets that device's id back: the row is un-revoked and the new token replaces the old one, which stops working, so a Mac that signs out and back in keeps one device and its play counts are not summed twice (#175). With several such rows the most recently seen is taken; an active Mac of the same name and every iPhone are never reused, and another account's devices are never touched. A code works once, even for two simultaneous requests |
 | GET `/v1/me` | | `{ user, device, quota: { usedBytes, limitBytes }, devices: [...], devicesHasMore, resyncRequestedAt }`; `devices` holds at most the 50 most recently created devices (newest first); `devicesHasMore` is true when older ones were left out; `resyncRequestedAt` is the ISO time of the account's last `POST /v1/files/resync-request`, or `null` if it never made one |
 | DELETE `/v1/devices/:id` | | revokes that device's token |
 | DELETE `/v1/me` | `{ email }` (must match the account) | `{ ok: true }`; deletes the account, its devices, releases and files; blobs are removed by the cleanup cron within a day; every device token becomes invalid |

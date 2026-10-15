@@ -433,3 +433,77 @@ describe("HttpSyncApi play counts", () => {
     await expect(api.releasePlays("x")).rejects.toBeInstanceOf(PublicError);
   });
 });
+
+describe("HttpSyncApi missing files (#172)", () => {
+  const listed = {
+    releases: [{ id: "rel-1", missing: ["01 - Intro.mp3", "cover.jpg"], recordUpdatedAt: "2026-10-15T09:00:00.000Z" }],
+    checkedAt: "2026-10-15T10:00:00.000Z",
+  };
+
+  it("missingFiles GETs /v1/files/missing with the token and a timeout, and parses the list", async () => {
+    mockNextResponse(jsonResponse(listed));
+    const api = new HttpSyncApi("http://localhost:4000", "tok-123");
+
+    await expect(api.missingFiles()).resolves.toEqual(listed);
+
+    expect(calls[0].url).toBe("http://localhost:4000/v1/files/missing");
+    expect(calls[0].init?.method).toBeUndefined();
+    expect((calls[0].init?.headers as Record<string, string>)["Authorization"]).toBe("Bearer tok-123");
+    expect(calls[0].init?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("missingFiles ignores a truncated flag on the reply", async () => {
+    mockNextResponse(jsonResponse({ ...listed, truncated: true }));
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+
+    await expect(api.missingFiles()).resolves.toEqual(listed);
+  });
+
+  it("missingFiles reads a healthy account's empty list", async () => {
+    mockNextResponse(jsonResponse({ releases: [], checkedAt: "2026-10-15T10:00:00.000Z" }));
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+
+    await expect(api.missingFiles()).resolves.toEqual({ releases: [], checkedAt: "2026-10-15T10:00:00.000Z" });
+  });
+
+  it("a 404 from either route means an API from before #170: null, not an error", async () => {
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+    mockNextResponse(new Response("<html>Not found</html>", { status: 404 }));
+    await expect(api.missingFiles()).resolves.toBeNull();
+    mockNextResponse(jsonResponse({ error: "Not found" }, 404));
+    await expect(api.requestResync()).resolves.toBeNull();
+  });
+
+  it("a 429 on either route is a SyncRequestError carrying the status, so callers can wait", async () => {
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+    mockNextResponse(jsonResponse({ error: "Too many requests" }, 429));
+    const missingErr = await api.missingFiles().catch((e: unknown) => e);
+    expect(missingErr).toBeInstanceOf(SyncRequestError);
+    expect((missingErr as SyncRequestError).status).toBe(429);
+
+    mockNextResponse(jsonResponse({ error: "Too many requests" }, 429));
+    const resyncErr = await api.requestResync().catch((e: unknown) => e);
+    expect(resyncErr).toBeInstanceOf(SyncRequestError);
+    expect((resyncErr as SyncRequestError).status).toBe(429);
+  });
+
+  it("missingFiles throws SyncAuthError on 401 and PublicError on an odd reply", async () => {
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+    mockNextResponse(jsonResponse({ error: "no" }, 401));
+    await expect(api.missingFiles()).rejects.toBeInstanceOf(SyncAuthError);
+    mockNextResponse(jsonResponse({ releases: "none" }));
+    await expect(api.missingFiles()).rejects.toBeInstanceOf(PublicError);
+  });
+
+  it("requestResync POSTs /v1/files/resync-request with the token and no body", async () => {
+    mockNextResponse(jsonResponse({ resyncRequestedAt: "2026-10-15T10:01:00.000Z" }));
+    const api = new HttpSyncApi("http://localhost:4000", "tok-123");
+
+    await expect(api.requestResync()).resolves.toEqual({ resyncRequestedAt: "2026-10-15T10:01:00.000Z" });
+
+    expect(calls[0].url).toBe("http://localhost:4000/v1/files/resync-request");
+    expect(calls[0].init?.method).toBe("POST");
+    expect(calls[0].init?.body).toBeUndefined();
+    expect((calls[0].init?.headers as Record<string, string>)["Authorization"]).toBe("Bearer tok-123");
+  });
+});

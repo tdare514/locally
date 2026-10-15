@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Library, Release, ReleaseKind, SyncStatus } from "../shared/types";
-import { acceptFromPhone, getLibrary, getSyncStatus } from "../lib/api-client";
-import Sidebar from "./Sidebar";
+import { acceptFromPhone, getLibrary, getSyncStatus, resyncFromPhone } from "../lib/api-client";
+import Sidebar, { type SidebarPage } from "./sidebar/Sidebar";
 import LibraryView from "./LibraryView";
 import { IS_DEMO } from "../lib/demo";
 import ImportView from "./ImportView";
@@ -12,14 +12,14 @@ import SettingsView from "./SettingsView";
 import type { LibrarySort } from "../lib/library-sections";
 import AmbientSpace from "./AmbientSpace";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
-import PhoneInbox from "./PhoneInbox";
+import PhoneInbox, { type ResyncOutcome } from "./PhoneInbox";
 import Toast, { type ToastMessage } from "./Toast";
 
 export type View =
   | { type: "library" }
   | { type: "import"; kind?: ReleaseKind }
   | { type: "release"; id: string; justImported?: boolean }
-  | { type: "settings" };
+  | { type: "settings"; section?: "account" };
 
 export default function AppShell() {
   const [view, setView] = useState<View>({ type: "library" });
@@ -146,6 +146,9 @@ export default function AppShell() {
     setView({ type: "import", kind });
   }
 
+  // The sidebar highlights the page on screen; a release page is none of them.
+  const activePage: SidebarPage | null = view.type === "release" ? null : view.type;
+
   /** Resolves true once the release is imported, false (after a toast) when it failed. */
   async function handleAcceptFromPhone(id: string): Promise<boolean> {
     try {
@@ -159,10 +162,24 @@ export default function AppShell() {
     }
   }
 
+  /** "Resync Mac and phone": reconciles, asks the other devices to upload again, then reloads the tray. */
+  async function handleResync(): Promise<ResyncOutcome> {
+    try {
+      const { asked } = await resyncFromPhone();
+      await refreshSyncStatus();
+      return asked ? "asked" : "later";
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "Failed to ask your phone to resync");
+      return "failed";
+    }
+  }
+
   return (
     <div
       ref={shellRef}
-      className="relative isolate flex h-screen w-screen flex-col overflow-hidden md:flex-row"
+      // The Import page's sky portals in here (#159), so it sits under the sidebar like the library's.
+      data-app-shell=""
+      className="relative isolate flex h-screen w-screen overflow-hidden"
     >
       {/* The library sky fills the whole window, outside the scroller so it never scrolls away,
           and paints under both the sidebar and the pane. */}
@@ -172,20 +189,20 @@ export default function AppShell() {
       <Sidebar
         releases={library?.releases ?? []}
         loading={loadingLibrary}
-        view={view}
-        query={libraryQuery}
-        sort={librarySort}
-        onClearQuery={() => setLibraryQuery("")}
-        onSelectRelease={(id) => setView({ type: "release", id })}
+        activePage={activePage}
         onLibraryClick={() => setView({ type: "library" })}
         onImportClick={() => openImport()}
         onSettingsClick={() => setView({ type: "settings" })}
+        onProfileClick={() => setView({ type: "settings", section: "account" })}
         signedIn={syncStatus?.signedIn ?? false}
         email={syncStatus?.email ?? null}
+        palette={view.type === "library" ? libraryPalette : null}
       />
-      {/* main stays relative + isolate: the release page's AmbientBackdrop paints behind its
-          content but inside this pane, so it never covers the sidebar. */}
-      <div className="relative isolate min-h-0 min-w-0 flex-1">
+      {/* The pane is the sidebar's next sibling: `.sb-stage` pads it for the rail (and the pinned
+          panel) and slides it when the panel docks. main stays relative + isolate: the release
+          page's AmbientBackdrop paints behind its content but inside this pane, so it never
+          covers the sidebar. */}
+      <div className="sb-stage relative isolate min-h-0 min-w-0 flex-1">
         <main
           ref={mainRef}
           className="relative isolate h-full overflow-y-auto p-6 md:p-10 lg:p-16"
@@ -230,6 +247,7 @@ export default function AppShell() {
               onToast={showToast}
               syncStatus={syncStatus}
               onSyncStatusChange={refreshSyncStatus}
+              section={view.section}
             />
           )}
         </main>
@@ -238,6 +256,7 @@ export default function AppShell() {
             <PhoneInbox
               pending={syncStatus?.pendingFromPhone ?? []}
               onAccept={handleAcceptFromPhone}
+              onResync={handleResync}
             />
           </div>
         )}

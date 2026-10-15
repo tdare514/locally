@@ -23,12 +23,6 @@ interface CoverCropDialogProps {
 /** Side, in CSS pixels, of the longer edge of the crop viewport. */
 const VIEWPORT_MAX = 320;
 
-function segmentClass(active: boolean): string {
-  return `rounded-full px-5 py-1.5 text-sm font-medium transition-colors ${
-    active ? "bg-accent text-black shadow-sm" : "text-text-muted hover:text-text"
-  }`;
-}
-
 /** Modal cover-crop step: shows the chosen image behind a fixed square (or original-ratio) frame,
  * with drag-to-pan and wheel/pinch-to-zoom, mirroring the iOS app's `CoverCropView` /
  * `CropGeometry` so both apps frame a cover the same way. */
@@ -249,18 +243,23 @@ export default function CoverCropDialog({
         </div>
 
         <div className="flex flex-col items-center gap-1.5">
-          <div className="inline-flex rounded-full bg-elevated p-0.5">
+          <div role="group" aria-label="Crop shape" className="btn-seg">
+            <span aria-hidden className="btn-seg-dot">
+              <span />
+            </span>
             <button
               type="button"
               onClick={() => handleRatioChange("square")}
-              className={segmentClass(ratio === "square")}
+              aria-pressed={ratio === "square"}
+              className="btn-seg-opt"
             >
               Square
             </button>
             <button
               type="button"
               onClick={() => handleRatioChange("original")}
-              className={segmentClass(ratio === "original")}
+              aria-pressed={ratio === "original"}
+              className="btn-seg-opt"
             >
               Original
             </button>
@@ -274,15 +273,15 @@ export default function CoverCropDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-full px-4 py-2 text-sm font-medium text-text-muted transition-colors hover:text-text"
+            className="btn-ink"
           >
-            Cancel
+            <span className="btn-ink-label">Cancel</span>
           </button>
           <button
             type="button"
             onClick={handleDone}
             disabled={!rect || cropping}
-            className="rounded-full bg-accent px-6 py-2.5 text-sm font-bold text-black transition-colors hover:bg-accent-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+            className="btn-save"
           >
             {cropping ? "Cropping…" : "Done"}
           </button>

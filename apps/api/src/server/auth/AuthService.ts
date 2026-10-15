@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { authCodes, devices, users } from "../../db/schema";
 import { DEFAULT_STORAGE_LIMIT_BYTES } from "../../db/schema";
@@ -110,7 +110,11 @@ export class AuthService {
     await this.mailer.sendCode(email, code);
   }
 
-  /** Verify a code, then create a device and its long-lived bearer token. */
+  /**
+   * Verify a code, then give the caller a device and its long-lived bearer token. A Mac that
+   * signs back in after a sign-out gets its old device row back (see `reviveMac`); every other
+   * sign-in creates a new device.
+   */
   async verify(input: VerifyInput): Promise<VerifyResult> {
     const [row] = await this.db
       .select()
@@ -142,29 +146,90 @@ export class AuthService {
       throw new UnauthorizedError("Incorrect code");
     }
 
-    await this.db.update(authCodes).set({ consumedAt: this.now() }).where(eq(authCodes.id, row.id));
+    // Claim the code with a conditional update: of two verifies racing on the same code, exactly
+    // one changes a row; the other is refused as if the code were already used (#175).
+    const claimed = await this.db
+      .update(authCodes)
+      .set({ consumedAt: this.now() })
+      .where(and(eq(authCodes.id, row.id), isNull(authCodes.consumedAt)))
+      .returning({ id: authCodes.id });
+    if (claimed.length === 0) {
+      throw new UnauthorizedError("No active code for this email. Request a new one.");
+    }
 
     const user = await this.getOrCreateUser(input.email);
 
     const token = crypto.randomBytes(TOKEN_BYTES).toString("base64url");
-    const deviceId = crypto.randomUUID();
+    const tokenHash = this.hashToken(token);
     const now = this.now();
-    await this.db.insert(devices).values({
-      id: deviceId,
-      userId: user.id,
-      name: input.deviceName,
-      platform: input.platform,
-      tokenHash: this.hashToken(token),
-      createdAt: now,
-      lastSeenAt: now,
-      revokedAt: null,
-    });
+
+    const revivedId =
+      input.platform === "mac" ? await this.reviveMac(user.id, input.deviceName, tokenHash, now) : null;
+    const deviceId = revivedId ?? crypto.randomUUID();
+    if (revivedId === null) {
+      await this.db.insert(devices).values({
+        id: deviceId,
+        userId: user.id,
+        name: input.deviceName,
+        platform: input.platform,
+        tokenHash,
+        createdAt: now,
+        lastSeenAt: now,
+        revokedAt: null,
+      });
+    }
 
     return {
       token,
       user,
       device: { id: deviceId, name: input.deviceName, platform: input.platform },
     };
+  }
+
+  /**
+   * Take back this user's most recently seen revoked Mac with the same name, if there is one,
+   * and return its id; otherwise null (the caller inserts a new device).
+   *
+   * Play counts are stored per device and summed over every device, revoked ones included
+   * (#104), so a Mac that signs out and back in would otherwise push its counts again under a
+   * new id and the total would double (#175). Macs only: two phones of one model share a name,
+   * and phones don't count plays. An active Mac of the same name is never touched (two Macs can
+   * share a hostname).
+   *
+   * One UPDATE ... RETURNING is the whole step, so it is atomic: the row is picked and changed
+   * in a single statement whose WHERE repeats the preconditions (this user, a Mac, still
+   * revoked). Two verifies racing for the same row cannot both revive it, since the loser no
+   * longer matches `revoked_at IS NOT NULL`. The new token hash replaces the old one, so the old
+   * token stops working at once.
+   */
+  private async reviveMac(userId: string, name: string, tokenHash: string, now: number): Promise<string | null> {
+    const candidate = this.db
+      .select({ id: devices.id })
+      .from(devices)
+      .where(
+        and(
+          eq(devices.userId, userId),
+          eq(devices.platform, "mac"),
+          eq(devices.name, name),
+          isNotNull(devices.revokedAt)
+        )
+      )
+      .orderBy(desc(devices.lastSeenAt), desc(devices.createdAt), asc(devices.id))
+      .limit(1);
+
+    const [revived] = await this.db
+      .update(devices)
+      .set({ revokedAt: null, tokenHash, lastSeenAt: now })
+      .where(
+        and(
+          eq(devices.id, candidate),
+          eq(devices.userId, userId),
+          eq(devices.platform, "mac"),
+          isNotNull(devices.revokedAt)
+        )
+      )
+      .returning({ id: devices.id });
+    return revived?.id ?? null;
   }
 
   /**

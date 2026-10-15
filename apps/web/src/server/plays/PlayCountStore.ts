@@ -4,6 +4,12 @@ export interface PlayCountEntry {
   count: number;
   /** How many of `count` the sync service has been sent and accepted (#107). */
   pushed: number;
+  /**
+   * Plays per local calendar day, `YYYY-MM-DD` in this Mac's time zone at play time, kept for 400
+   * days (#200). Absent in files written before it and for plays counted before it, so the sum can
+   * be below `count`. Local only: it is never pushed to the sync service (#202).
+   */
+  days?: Record<string, number>;
 }
 
 export interface PlayCounts {
@@ -14,8 +20,8 @@ export interface PlayCounts {
 /** Persists per-track play counts counted on this Mac. */
 export interface PlayCountStore {
   get(): Promise<PlayCounts>;
-  /** Add one play for a track. */
-  increment(trackId: string, releaseId: string): Promise<void>;
+  /** Add one play for a track: to its all-time count and to the bucket for `day` (`YYYY-MM-DD`, local to the Mac). */
+  increment(trackId: string, releaseId: string, day: string): Promise<void>;
   /** Drop every entry belonging to a release (it was deleted locally). */
   removeRelease(releaseId: string): Promise<void>;
   /** Changes every time `resetPushed` runs. A push reads it before it sends and hands it back to

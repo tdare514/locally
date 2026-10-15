@@ -12,7 +12,7 @@ import type { LibraryRepository } from "../../src/server/storage/LibraryReposito
 import type { AudioConverter } from "../../src/server/audio/AudioConverter";
 import type { ReadTagsResult, TagService, WriteTagsInput } from "../../src/server/audio/TagService";
 import type { Release, Settings } from "../../src/shared/types";
-import { SyncEngine } from "../../src/server/sync/SyncEngine";
+import { RESENT_RECHECK_MS, SyncEngine } from "../../src/server/sync/SyncEngine";
 import { emptySyncState, type SyncState, type SyncStateStore } from "../../src/server/sync/SyncState";
 import {
   SyncAuthError,
@@ -94,6 +94,7 @@ class FakeSyncStateStore implements SyncStateStore {
       uploadedFiles: Object.fromEntries(Object.entries(this.state.uploadedFiles).map(([k, v]) => [k, [...v]])),
       coverHash: { ...this.state.coverHash },
       pendingFromPhone: { ...this.state.pendingFromPhone },
+      missingFiles: { ...this.state.missingFiles },
     };
   }
   async set(state: SyncState): Promise<SyncState> {
@@ -238,6 +239,36 @@ class FakeSyncApi implements SyncApi {
 
   async releasePlays() {
     return { tracks: [] };
+  }
+
+  /** Release ids `GET /v1/files/missing` lists (#172); the fake reports each record's own `updatedAt`. */
+  missingIds = new Set<string>();
+  /** How the files routes answer: normally, with a 404 (an API from before #170), a 429 or a 500. */
+  filesRoutes: "ok" | "old" | "rateLimited" | "down" = "ok";
+  missingCalls = 0;
+  resyncCalls = 0;
+
+  private filesRouteOutcome(): "ok" | "old" {
+    if (this.filesRoutes === "rateLimited") throw new SyncRequestError("Too many requests", 429);
+    if (this.filesRoutes === "down") throw new SyncRequestError("Sync request failed (500)", 500);
+    return this.filesRoutes;
+  }
+
+  async missingFiles() {
+    this.missingCalls++;
+    if (this.filesRouteOutcome() === "old") return null;
+    const releases = [...this.missingIds].map((id) => ({
+      id,
+      missing: ["01 - Intro.mp3"],
+      recordUpdatedAt: this.serverRecords.get(id)?.updatedAt ?? "",
+    }));
+    return { releases, checkedAt: new Date().toISOString() };
+  }
+
+  async requestResync() {
+    this.resyncCalls++;
+    if (this.filesRouteOutcome() === "old") return null;
+    return { resyncRequestedAt: new Date().toISOString() };
   }
 
   async uploadFile(upload: SyncUploadTarget, filePath: string): Promise<void> {
@@ -833,6 +864,479 @@ describe("SyncEngine", () => {
     expect(status.lastError).toBeNull();
   });
 
+  describe("files missing from a phone release (#172)", () => {
+    const MIN = 60_000;
+    const NOW = Date.parse("2026-10-15T12:00:00.000Z");
+    let nowMs: number;
+    let clocked: SyncEngine;
+
+    beforeEach(() => {
+      nowMs = NOW;
+      clocked = new SyncEngine(settingsStore, syncState, releaseService, fsSvc, () => api, () => "Toby's MacBook", null, () => new Date(nowMs));
+    });
+
+    function phoneRecord(id: string, updatedAt: string, origin = "ios"): SyncRecord {
+      return {
+        syncVersion: 2,
+        id,
+        kind: "single",
+        title: `Song ${id}`,
+        artist: "Phone Artist",
+        year: null,
+        genre: null,
+        cover: null,
+        coverHash: null,
+        tracks: [{ id: `${id}-t1`, title: `Song ${id}`, trackNumber: 1, file: `${id}.mp3`, bytes: 9, durationSec: 10 }],
+        origin,
+        originDevice: "Toby's iPhone",
+        createdAt: updatedAt,
+        updatedAt,
+        deleted: false,
+      };
+    }
+
+    /** A record the phone wrote `agoMs` before the fake clock's now. */
+    function seedPhone(id: string, agoMs: number, origin = "ios"): void {
+      api.seedRemoteRecord(phoneRecord(id, new Date(NOW - agoMs).toISOString(), origin));
+      api.seedBlob(id, `${id}.mp3`, Buffer.from("mp3 bytes"));
+    }
+
+    async function stateOf(id: string) {
+      const status = await clocked.status();
+      expect(status.lastError).toBeNull();
+      return status.pendingFromPhone.find((p) => p.id === id)?.filesState;
+    }
+
+    it("is normal when the release is not in the missing list, and Send to Spotify works", async () => {
+      seedPhone("a", 5 * MIN);
+
+      await clocked.reconcile();
+
+      expect(api.missingCalls).toBe(1);
+      expect(await stateOf("a")).toBeUndefined();
+      const release = await clocked.acceptFromPhone("a");
+      expect(release.id).toBe("a");
+    });
+
+    it("is 'arriving' the first time a young record is missing, and quiet about it", async () => {
+      seedPhone("a", 5 * MIN);
+      api.missingIds.add("a");
+
+      await clocked.reconcile();
+
+      expect(await stateOf("a")).toBe("arriving");
+      expect((await syncState.get()).missingFiles.a).toEqual({
+        firstSeenMissingAt: new Date(NOW).toISOString(),
+        stillMissing: false,
+      });
+    });
+
+    it("is 'waiting' once a later reconcile still finds the files missing", async () => {
+      seedPhone("a", 5 * MIN);
+      api.missingIds.add("a");
+      await clocked.reconcile();
+      expect(await stateOf("a")).toBe("arriving");
+
+      nowMs += 10 * MIN;
+      await clocked.reconcile();
+
+      expect(api.missingCalls).toBe(2);
+      expect(await stateOf("a")).toBe("waiting");
+      // The first sighting is kept, not restarted.
+      expect((await syncState.get()).missingFiles.a).toEqual({
+        firstSeenMissingAt: new Date(NOW).toISOString(),
+        stillMissing: true,
+      });
+    });
+
+    it("is 'waiting' straight away when the record is already an hour old on first sight", async () => {
+      seedPhone("old", 61 * MIN);
+      seedPhone("young", 59 * MIN);
+      api.missingIds.add("old").add("young");
+
+      await clocked.reconcile();
+
+      expect(await stateOf("old")).toBe("waiting");
+      expect(await stateOf("young")).toBe("arriving");
+    });
+
+    it("turns 'arriving' into 'waiting' when the record reaches an hour, with no new check", async () => {
+      seedPhone("a", 30 * MIN);
+      api.missingIds.add("a");
+      await clocked.reconcile();
+      expect(await stateOf("a")).toBe("arriving");
+
+      nowMs += 29 * MIN; // 59 minutes old
+      expect(await stateOf("a")).toBe("arriving");
+      nowMs += 1 * MIN; // an hour old
+      expect(await stateOf("a")).toBe("waiting");
+      expect(api.missingCalls).toBe(1);
+    });
+
+    it("returns to normal when the files land: the next check no longer lists the release", async () => {
+      seedPhone("a", 90 * MIN);
+      api.missingIds.add("a");
+      await clocked.reconcile();
+      expect(await stateOf("a")).toBe("waiting");
+
+      api.missingIds.delete("a");
+      nowMs += 10 * MIN;
+      await clocked.reconcile();
+
+      expect(await stateOf("a")).toBeUndefined();
+      expect((await syncState.get()).missingFiles).toEqual({});
+      const release = await clocked.acceptFromPhone("a");
+      expect(release.id).toBe("a");
+    });
+
+    it("judges each release on its own", async () => {
+      seedPhone("fine", 5 * MIN);
+      seedPhone("late", 5 * MIN);
+      api.missingIds.add("late");
+      await clocked.reconcile();
+      nowMs += 10 * MIN;
+      seedPhone("new", 2 * MIN);
+      api.missingIds.add("new");
+      await clocked.reconcile();
+
+      expect(await stateOf("fine")).toBeUndefined();
+      expect(await stateOf("late")).toBe("waiting");
+      expect(await stateOf("new")).toBe("arriving");
+    });
+
+    it("checks at most every 10 minutes", async () => {
+      seedPhone("a", 5 * MIN);
+      api.missingIds.add("a");
+
+      await clocked.reconcile();
+      nowMs += 4 * MIN;
+      await clocked.reconcile();
+      nowMs += 5 * MIN + 59_000; // 9 min 59 s since the check
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(1);
+      expect(await stateOf("a")).toBe("arriving"); // reconciles in between are not "later" checks
+
+      nowMs += 1_000; // 10 minutes
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(2);
+      expect(await stateOf("a")).toBe("waiting");
+    });
+
+    it("checks again straight away if the clock moves back", async () => {
+      seedPhone("a", 5 * MIN);
+      await clocked.reconcile();
+      nowMs -= 3 * 60 * MIN;
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(2);
+    });
+
+    it("makes no check at all while nothing is pending, even across many reconciles", async () => {
+      await importOne();
+      await clocked.reconcile();
+      nowMs += 30 * MIN;
+      await clocked.reconcile();
+      nowMs += 30 * MIN;
+      await clocked.reconcile();
+
+      expect(api.missingCalls).toBe(0);
+      expect((await clocked.status()).lastError).toBeNull();
+    });
+
+    it("does not check a pending release the user has since sent", async () => {
+      seedPhone("a", 5 * MIN);
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(1);
+      await clocked.acceptFromPhone("a");
+
+      nowMs += 20 * MIN;
+      await clocked.reconcile();
+
+      expect(api.missingCalls).toBe(1);
+    });
+
+    it("an API from before #170 (404) changes nothing: no state, no error line, today's tray", async () => {
+      seedPhone("a", 5 * MIN);
+      seedPhone("b", 3 * 60 * MIN);
+      api.filesRoutes = "old";
+
+      await clocked.reconcile();
+
+      const status = await clocked.status();
+      expect(status.lastError).toBeNull();
+      expect(status.pendingFromPhone.map((p) => [p.id, "filesState" in p])).toEqual([
+        ["a", false],
+        ["b", false],
+      ]);
+      expect((await syncState.get()).missingFiles).toEqual({});
+      // Send still goes down the old path, whose own 404 mapping stays the fallback.
+      await expect(clocked.acceptFromPhone("a")).resolves.toMatchObject({ id: "a" });
+    });
+
+    it("drops marks when the service stops answering the check (rolled back to an old API)", async () => {
+      seedPhone("a", 90 * MIN);
+      api.missingIds.add("a");
+      await clocked.reconcile();
+      expect(await stateOf("a")).toBe("waiting");
+
+      api.filesRoutes = "old";
+      nowMs += 10 * MIN;
+      await clocked.reconcile();
+
+      expect(await stateOf("a")).toBeUndefined();
+    });
+
+    it("a 429 on the check is a quiet skip: states kept, no error, retried at the next eligible check", async () => {
+      seedPhone("a", 5 * MIN);
+      api.missingIds.add("a");
+      await clocked.reconcile();
+      expect(await stateOf("a")).toBe("arriving");
+
+      api.filesRoutes = "rateLimited";
+      nowMs += 10 * MIN;
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(2);
+      expect(await stateOf("a")).toBe("arriving"); // not pushed to waiting by a check that never answered
+
+      nowMs += 5 * MIN; // not eligible yet: no hammering a rate-limited route
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(2);
+
+      api.filesRoutes = "ok";
+      nowMs += 5 * MIN; // eligible again
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(3);
+      expect(await stateOf("a")).toBe("waiting");
+    });
+
+    it("a failing check never fails the reconcile", async () => {
+      seedPhone("a", 5 * MIN);
+      api.filesRoutes = "down";
+
+      await clocked.reconcile();
+
+      expect((await clocked.status()).lastError).toBeNull();
+      expect(api.missingCalls).toBe(1);
+      expect(await stateOf("a")).toBeUndefined();
+    });
+
+    it("never sends a waiting release: no downloads, a friendly message, still in the tray", async () => {
+      seedPhone("a", 90 * MIN);
+      api.missingIds.add("a");
+      await clocked.reconcile();
+      expect(await stateOf("a")).toBe("waiting");
+
+      await expect(clocked.acceptFromPhone("a")).rejects.toThrow(/audio hasn't arrived yet/i);
+
+      expect(api.downloadUrlCalls).toEqual([]);
+      expect((await clocked.status()).pendingFromPhone.map((p) => p.id)).toEqual(["a"]);
+    });
+
+    it("refuses an 'arriving' release with the phone message, or a generic one for another origin", async () => {
+      seedPhone("a", 5 * MIN);
+      seedPhone("w", 5 * MIN, "web");
+      api.missingIds.add("a").add("w");
+      await clocked.reconcile();
+      expect(await stateOf("a")).toBe("arriving");
+
+      await expect(clocked.acceptFromPhone("a")).rejects.toThrow("Your phone is still sending this one.");
+      await expect(clocked.acceptFromPhone("w")).rejects.toThrow("That device is still sending this one.");
+      expect(api.downloadUrlCalls).toEqual([]);
+      expect((await clocked.status()).pendingFromPhone.map((p) => p.id)).toEqual(["a", "w"]);
+    });
+
+    it("keeps the old 404 message as the fallback for a release not marked missing", async () => {
+      seedPhone("b", 5 * MIN);
+      await clocked.reconcile();
+      api.downloadFile = async () => {
+        throw new Error("Download failed (404) for b.mp3");
+      };
+      await expect(clocked.acceptFromPhone("b")).rejects.toThrow(/hasn't finished uploading this song yet/);
+    });
+
+    it("keeps the first-seen marks through the state store, so a restart does not forget them", async () => {
+      seedPhone("a", 5 * MIN);
+      api.missingIds.add("a");
+      await clocked.reconcile();
+
+      const afterRestart = new SyncEngine(settingsStore, syncState, releaseService, fsSvc, () => api, () => "Toby's MacBook", null, () => new Date(nowMs + 10 * MIN));
+      await afterRestart.reconcile();
+
+      const status = await afterRestart.status();
+      expect(status.pendingFromPhone.find((p) => p.id === "a")?.filesState).toBe("waiting");
+    });
+
+    describe("Resync Mac and phone", () => {
+      it("reconciles now, then asks the other devices", async () => {
+        seedPhone("a", 90 * MIN);
+        api.missingIds.add("a");
+        const listsBefore = api.listReleasesCallCount;
+
+        const result = await clocked.resync();
+
+        expect(result).toEqual({ asked: true });
+        expect(api.listReleasesCallCount).toBeGreaterThan(listsBefore);
+        expect(api.resyncCalls).toBe(1);
+        expect((await clocked.status()).lastError).toBeNull();
+      });
+
+      it("reconciles before it asks", async () => {
+        const order: string[] = [];
+        const list = api.listReleases.bind(api);
+        api.listReleases = async (...args) => {
+          order.push("reconcile");
+          return list(...args);
+        };
+        const ask = api.requestResync.bind(api);
+        api.requestResync = async () => {
+          order.push("ask");
+          return ask();
+        };
+
+        await clocked.resync();
+
+        expect(order).toEqual(["reconcile", "ask"]);
+      });
+
+      it("on a 429 still reconciles, and says it did not ask, with no error", async () => {
+        api.filesRoutes = "rateLimited";
+        const listsBefore = api.listReleasesCallCount;
+
+        const result = await clocked.resync();
+
+        expect(result).toEqual({ asked: false });
+        expect(api.listReleasesCallCount).toBeGreaterThan(listsBefore);
+        expect(api.resyncCalls).toBe(1);
+        expect((await clocked.status()).lastError).toBeNull();
+      });
+
+      it("on a 404 (an API from before #170) says it did not ask, with no error", async () => {
+        api.filesRoutes = "old";
+
+        await expect(clocked.resync()).resolves.toEqual({ asked: false });
+        expect((await clocked.status()).lastError).toBeNull();
+      });
+
+      it("fails with the service's message on any other error", async () => {
+        api.filesRoutes = "down";
+
+        await expect(clocked.resync()).rejects.toThrow(/500/);
+      });
+
+      it("needs a sign-in, and touches nothing without one", async () => {
+        await settingsStore.set({ libraryDir, sync: null });
+
+        await expect(clocked.resync()).rejects.toThrow(/sign in/i);
+        expect(api.resyncCalls).toBe(0);
+        expect(api.listReleasesCallCount).toBe(0);
+      });
+
+      it("checks the missing files right away, even within 10 minutes of the last check", async () => {
+        seedPhone("a", 90 * MIN);
+        api.missingIds.add("a");
+        await clocked.reconcile();
+        expect(await stateOf("a")).toBe("waiting");
+
+        api.missingIds.delete("a"); // the phone re-uploaded
+        nowMs += MIN;
+        await clocked.resync();
+        expect(api.missingCalls).toBe(2);
+        expect(await stateOf("a")).toBeUndefined();
+      });
+    });
+
+    describe("a release the phone sends again", () => {
+      /** A waiting release, then the phone re-pushes it (the server version bumps). */
+      async function resendWaiting(): Promise<void> {
+        seedPhone("a", 90 * MIN);
+        api.missingIds.add("a");
+        await clocked.reconcile();
+        expect(await stateOf("a")).toBe("waiting");
+        nowMs += MIN;
+        seedPhone("a", MIN); // same id, newer record
+      }
+
+      it("is not fooled by the same version pulled again: a waiting row stays waiting", async () => {
+        seedPhone("a", 90 * MIN);
+        api.missingIds.add("a");
+        await clocked.reconcile();
+        expect(await stateOf("a")).toBe("waiting");
+
+        // The same page comes down again, as if the cursor had not been saved.
+        const settings = await settingsStore.get();
+        await settingsStore.set({ ...settings, sync: { ...settings.sync!, lastVersion: 0 } });
+        nowMs += MIN;
+        await clocked.reconcile();
+
+        expect(await stateOf("a")).toBe("waiting");
+        expect((await syncState.get()).missingFiles.a?.resentAt).toBeUndefined();
+      });
+
+      it("shows as arriving with a resentAt mark, and the next check is due 2 minutes later, not before", async () => {
+        await resendWaiting();
+        await clocked.reconcile();
+
+        expect(await stateOf("a")).toBe("arriving");
+        expect((await syncState.get()).missingFiles.a).toEqual({
+          firstSeenMissingAt: new Date(nowMs).toISOString(),
+          stillMissing: false,
+          resentAt: new Date(nowMs).toISOString(),
+        });
+        expect(api.missingCalls).toBe(1);
+
+        nowMs += RESENT_RECHECK_MS - 1_000;
+        await clocked.reconcile();
+        expect(api.missingCalls).toBe(1);
+
+        nowMs += 1_000;
+        await clocked.reconcile();
+        expect(api.missingCalls).toBe(2);
+      });
+
+      it("stays arriving when the early check still lists it, and waits only after the usual gap", async () => {
+        await resendWaiting();
+        await clocked.reconcile();
+        nowMs += RESENT_RECHECK_MS;
+        await clocked.reconcile();
+        expect(api.missingCalls).toBe(2);
+        expect(await stateOf("a")).toBe("arriving");
+
+        nowMs += 10 * MIN;
+        await clocked.reconcile();
+        expect(api.missingCalls).toBe(3);
+        expect(await stateOf("a")).toBe("waiting");
+      });
+
+      it("returns to normal and can be sent once the files land", async () => {
+        await resendWaiting();
+        await clocked.reconcile();
+        api.missingIds.delete("a");
+        nowMs += RESENT_RECHECK_MS;
+        await clocked.reconcile();
+
+        expect(await stateOf("a")).toBeUndefined();
+        await expect(clocked.acceptFromPhone("a")).resolves.toMatchObject({ id: "a" });
+      });
+
+      it("counts the one-hour rule from the re-send, not from the record's age", async () => {
+        await resendWaiting();
+        await clocked.reconcile();
+        nowMs += 59 * MIN;
+        expect(await stateOf("a")).toBe("arriving");
+        nowMs += MIN;
+        expect(await stateOf("a")).toBe("waiting");
+      });
+
+      it("does not touch a release that had no missing mark", async () => {
+        seedPhone("a", 5 * MIN);
+        await clocked.reconcile();
+        seedPhone("a", MIN);
+        await clocked.reconcile();
+        expect(await stateOf("a")).toBeUndefined();
+        expect((await syncState.get()).missingFiles).toEqual({});
+      });
+    });
+  });
+
   describe("paginated pull (#30)", () => {
     function phoneRecord(id: string): SyncRecord {
       return {
@@ -950,6 +1454,22 @@ describe("SyncEngine", () => {
       ]);
     });
 
+    it("pushes no days: a track with day buckets goes out as the same three fields as before (#200)", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5, 0, { "2026-10-14": 2, "2026-10-15": 3 });
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toEqual([[{ releaseId: RELEASE_ID, trackId: trackId(1), count: 5 }]]);
+      expect(JSON.stringify(api.playPushes)).not.toMatch(/days|2026-10/);
+      // The days stay on this Mac.
+      expect((await plays.get()).tracks[trackId(1)]).toEqual({
+        releaseId: RELEASE_ID,
+        count: 5,
+        pushed: 5,
+        days: { "2026-10-14": 2, "2026-10-15": 3 },
+      });
+    });
+
     it("records pushed on success, so the next reconcile sends nothing", async () => {
       plays.seed(trackId(1), RELEASE_ID, 5);
 
@@ -964,7 +1484,7 @@ describe("SyncEngine", () => {
     it("sends a track again when its count grows after a push", async () => {
       plays.seed(trackId(1), RELEASE_ID, 5);
       await playsEngine.reconcile();
-      await plays.increment(trackId(1), RELEASE_ID);
+      await plays.increment(trackId(1), RELEASE_ID, "2026-10-15");
 
       await playsEngine.reconcile();
 

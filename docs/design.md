@@ -12,7 +12,7 @@ and both apps follow.
 | Token | Value | Use |
 | --- | --- | --- |
 | bg | #000000 | page background |
-| card | #121212 | cards, list containers, drop zones, dialogs, cover placeholder, web sidebar |
+| card | #121212 | cards, list containers, drop zones, dialogs, cover placeholder |
 | elevated | #282828 | inputs, segmented control track, secondary buttons, badges, icon tiles |
 | elevated-hover | #3A3A3A | hover on elevated surfaces (web) |
 | row-hover | #1C1C1C | pressed/hovered list rows |
@@ -89,7 +89,9 @@ eyebrows still apply to those labels.
 - Radius: inputs and thumbnails 6; drop zones, cards and file rows 8; list containers 12; the
   editor's big cover 10; dialogs 9; buttons, pills and badges fully rounded.
 - Page padding: mobile 16 (list) to 20 (forms); desktop 40 to 64, content max width 896 (desktop
-  form) or 920 (desktop release page).
+  form) or 920 (desktop release page). The desktop library has no max width by default: it fills
+  the pane with about 24 px each side at `md` and 32 px from `lg` (Full width, #207); the
+  Comfortable setting keeps a centred 920 column.
 - Section gap 32 (mobile editor sections 28). Label to input 8. Between fields 16. List rows
   have no gap; a 1 px `border` separates them inside the container.
 - Inputs: padding 16 horizontal, 12 vertical; mobile min height 48. Focus shows a 2 px `accent`
@@ -120,9 +122,8 @@ eyebrows still apply to those labels.
 - **Library toolbar (desktop)**: under the "All music" header, a search field (magnifier at the
   left, placeholder "Search titles, artists, genres…", ⌘F focuses it, Escape clears it) beside a
   sort menu (Recently updated, Title A–Z, Artist A–Z, Year, newest first). Both use the text-field
-  style. The sidebar list follows the same query and sort and shows "Showing matches for …" with a
-  Clear link while a query is active. No matches shows "No matches for …" with a Clear search
-  pill; an empty library keeps the onboarding state.
+  style. No matches shows "No matches for …" with a Clear search pill; an empty library keeps the
+  onboarding state.
 - **Library selection (desktop)**: a "Select" pill on the toolbar swaps it for a selection bar
   ("{n} selected", Select all / Deselect all, "Edit details…", "Delete…" in `danger`, Done;
   Escape also leaves). Rows show a 20 checkbox (`accent` when ticked) in place of the chevron and
@@ -130,7 +131,8 @@ eyebrows still apply to those labels.
   details opens a `card` dialog with Artist, Year and Genre; blank fields stay unchanged and
   tracks are re-tagged in place. Both run per release through the existing endpoints and report
   "Deleted 2 of 3 releases; failed: …" in a toast.
-- **Cover drop zone** (import): the desktop import shows only the 120 compact square, a `card`
+- **Cover drop zone** (import; the Mac import now uses the record sleeve, see **Desktop import**
+  below, and keeps this square only as CoverPicker's `compact` presentation): a 120 compact square, a `card`
   block with a 1 px dashed `border-dashed` (accent on hover), an image-plus icon (24, `text-muted`,
   accent on hover) and "Click or drop an image" at 11 pt in `text-soft` (iOS: "Tap to choose a
   cover"); a 28 pencil badge appears once filled. The hint "Square artwork works best" is rendered
@@ -147,11 +149,30 @@ eyebrows still apply to those labels.
   `text-dim` 12 pt line under the Tracks header reads "Hold and drag a track to reorder." — the
   album builder's list supports long-press drag-to-reorder without an Edit mode on iOS 16+, so
   there is no toolbar Edit button any more (it only mismatched the Single/Album layouts).
-- **Desktop import layout**: cover first — a 120 compact square beside Title and Artist, so the
-  cover stays in view while those are typed — then the hint "Square artwork works best", then
-  Year and Genre in a two-column grid. The audio drop zone is full width and tracks follow. A
-  footer row with a 1 px `border` on top holds a `text-dim` note "Your files stay on this device."
-  on the left and the primary button on the right.
+- **Desktop import** (#159): importing is making a record. It is two screens on the library's drifting colour sky (`ImportSky`, the
+  library's `AmbientSpace` in calm blue tones, under the see-through sidebar too).
+  - *Invitation* (no tracks yet): the Import pill's accent sweeps left to right across the pane
+    once (700 ms), then a bare disc (176, accent house label), "Add a track" and "or drop audio
+    files here" fade in and rise 6 px. "Add a track" is `.btn-save btn-glow`: a clear glass pill
+    that fills with a cloud of fluorescent blue light on hover, press or keyboard focus, the
+    light drifting slowly while it is lit. Audio dropped anywhere on the pane is added.
+  - *The record* (once a track is added; it stays if every track is removed): the release page's
+    layout. The sleeve says "Add cover art" (click, or drop an image: the existing crop dialog),
+    the disc peeks out, a meta line holds the Single | Album toggle and the track count, then the
+    title (placeholder "Same as track title" for a single, "Album title"), artist, Year and Genre
+    as inline fields that show a faint underline while empty, then the tracks (rename, remove,
+    reorder as before; "Reading tags…" while the files are read). The dock is the release
+    page's: "Add to library" (`.btn-save`, disabled until a file and an artist are in, "Adding…"
+    while importing) and "Add a track" (`.btn-ink`).
+  - *The cover beat*, whenever a cover is set: the new cover slides in from the right (0 to 420
+    ms, 48 px and a fade); a warm-white flash swells over the sleeve to fully opaque (420 to
+    720), holds (720 to 820) and fades (820 to 1300) while the pane's colours turn to the cover's
+    (starting at 420, on the 900 ms backdrop fade); the disc then slides all the way into the
+    sleeve with a 240 degree turn (1340 to 2290, `cubic-bezier(0.33, 0, 0.15, 1)`). Hovering the
+    record brings the disc out again. Any click or key press mid-beat jumps to the end and still
+    does its job (a typed character is typed). A cover that replaces another plays the beat
+    again, the disc first easing out of the sleeve. Reduced motion: no flash, slide or turn, a
+    160 ms fade, the disc already in, colours at once.
 - **Library list (mobile)**: one `card` container, radius 12, 1 px `border`; rows 78 min height
   with 12 padding, 56 square art radius 6 (or an `elevated` tile with a muted note icon), title
   and subtitle (albums: "artist · N tracks"), a `text-dim` chevron at the right; rows separated by
@@ -159,7 +180,7 @@ eyebrows still apply to those labels.
   "All music", meta "N tracks". The list is split into two sections, **Singles** then
   **Albums**, each with an 18 bold label and its count in `text-dim`, separated by a 1 px
   `border-dashed` rule (dash 4/4). A section with nothing in it is not shown. Desktop mirrors the
-  same sectioning in the main Library view (and in the sidebar list).
+  same sectioning in the main Library view.
 - **Editor / release detail (mobile)**: *Replaced by the immersive release page (#126).*
   Former layout: a slim, sleek layout rather than a full-width hero. Top
   bar with back and the release title. Below it a header row: a 112 pt square cover, radius 10,
@@ -263,10 +284,64 @@ eyebrows still apply to those labels.
   "Locally"), three accent dots and a chevron, a note icon (captioned "Spotify"; never Spotify's
   logo). Below: eyebrow "YOUR LIBRARY" (replaced 13 Oct 2026: sentence case), title "Nothing here yet" (24 bold mobile / 36 desktop),
   one line of `text-muted` 14 body, then a primary "Add your first single" and a secondary "Make
-  an album" pinned low. The web sidebar empty line stays the short `text-muted` hint; the full
-  empty state lives in the main Library view.
-- **Web sidebar**: nav pills (Library, + Import, Settings), Singles then Albums section labels
-  with counts, rows, brand mark, on `card`. The MagicPath sidebar is not used.
+  an album" pinned low. The full empty state lives in the main Library view.
+- **Web sidebar (#154)**: a slim 64 px rail, always there and see-through over the page, holds the
+  menu button (three lines) at the very top, then Library and the accent Import circle in the
+  order the panel lists them; at its foot sit Settings and, at the very bottom, the profile: a
+  32 px circle with the first letter of the signed-in email (white on an `accent` tint), or a
+  person glyph when not signed in. *Since 15 Oct 2026 the profile replaces the quiet brand mark
+  that used to sit at the foot, and Settings moved down from under Import.* Hovering the rail
+  blooms a glass panel out of its right edge: the panel controls (**Pin down**, which shows
+  "Pinned" while docked, and the Open on hover switch) level with the menu button, rows for
+  Library and Import each level with its rail icon, then "Your plays" with Top tracks, Top
+  albums, Top artists and an optional record-sleeve shelf (the #1 row larger, with its cover),
+  and at the bottom a hairline, the Settings row and the profile row (the circle, then the
+  signed-in email, "Syncing with your phone", "On this Mac", or the Demo pill with "Read-only
+  sample"), each level with its rail icon. The profile, on the rail or in the panel, opens
+  Settings at its account and sync section. How the panel opened decides how it
+  closes: a hover-opened panel hides 300 ms after the pointer leaves; one opened with the menu
+  button stays when the pointer leaves, and closes only on a second click of the button, Escape
+  or choosing a page (never on a click outside); with Open on hover off the hover never opens it
+  and leaving never closes it. Choosing a page, on the rail or in the panel, closes an unpinned
+  panel at once so the new page is in view, and hovering does not reopen it until the pointer has
+  left the sidebar and come back. Pin down docks the panel as a column, which a page choice
+  leaves alone. The glass is faked (no blur), motion is transform and opacity only, and all of it
+  stands still under reduced motion. The MagicPath sidebar is not used.
 - **Library list (desktop main)**: same sectioning as mobile — YOUR COLLECTION (replaced 13 Oct 2026: sentence case) / All music
   header with track-count meta, Singles then Albums in `card` containers (radius 12), "Add a
-  song" primary below. Sidebar rows stay compact (40 art) for quick jump.
+  song" primary below. *Since 15 Oct 2026 (#207)* each section is a full-width table, like a
+  Spotify playlist: one quiet header row above the container (12, `text-dim`, sentence case:
+  Title, Genre, Year, Tracks, Added; no "#" column, since the library is not an ordered list),
+  then rows on one shared grid: the 56 thumbnail with title (semibold) and artist (`text-muted`)
+  under it, then genre, year, track count and the date the release was added ("Feb 6, 2026", the
+  user's locale), then the chevron. Numbers are tabular. An empty genre or year shows nothing.
+  Columns drop as the section narrows: Added under 820, Genre under 680, Year and Tracks under
+  520. One 1 px divider between rows, as before. The cover grid keeps its own layout.
+- **From your devices tray (desktop, #115, #185, #172)**: a clear faked-glass cloud button at the
+  top right with an `accent` count badge; open, it becomes a bare red X and the badge hides. The
+  frosted tray (about 272 wide, radius 22) drops out diagonally from that corner and closes only
+  from the button or Escape. It is the one surface with a real backdrop blur (28, only while open,
+  a solid fill under reduced transparency), an exception kept from #115 rather than a pattern for
+  new surfaces. It is at most the window height less 96 and scrolls inside itself when longer. Each pending release is a row: a small record sleeve (48 cover,
+  radius 10, the disc peeking out) that is itself the Send to Spotify button (hover: the cover
+  turns `accent` with a black plus and the disc rolls out), then title (15 semibold), artist and
+  track count (13 `text-muted`) and a quiet origin label (12 `text-dim`: "from your iPhone", "from
+  the web", "from another device"). A sent row collapses out. Rows whose files have not reached
+  the server have two states, from `GET /v1/files/missing`:
+  - *Still sending*: the row is greyed (the sleeve artwork alone at 50 % and greyscale; title
+    `text-muted` and artist `text-dim` stay readable, so the 50 % disabled rule does not apply to
+    the text) and is not a button. In place of the plus, three 4 px square
+    dots sit on the cover's lower third and type out like a terminal: ".", "..", "..." and again,
+    0.4 s a step with no easing between steps. These rows sort last, above one quiet footer line
+    (12 `text-muted`): "Still sending this one from your phone…" / "Still sending these from your
+    phone…" (another origin: "…from that device…" / "Still sending these…"). Reduced motion: the
+    three dots stand still (the steps are declared only when reduced motion is not requested).
+  - *Waiting on your phone*: once a later check still finds the files missing, or the record is
+    an hour old. The sleeve is a still picture at 60 %; under the origin label "Waiting on your
+    phone" (12 semibold, `text`), then one quiet line, "The audio hasn't arrived yet." (owner's
+    choice, 15 Oct 2026, from Codex's review: lighter than the earlier "This song's files never
+    reached the server.", and no stronger than a repeated check can prove), and a secondary pill, **Resync Mac and phone** (another origin: "Waiting on that device", **Resync**).
+    After a press: "Asked your phone to send it again. Open Locally on your iPhone to finish." If
+    the service asks to wait: "Try again in a few minutes." under the pill.
+  - A re-sent release (a newer server version of it) returns to *Still sending*, never straight
+    to *Waiting*; the same version pulled again changes nothing.

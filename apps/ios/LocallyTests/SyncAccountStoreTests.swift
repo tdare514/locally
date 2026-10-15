@@ -94,6 +94,22 @@ struct UserDefaultsSyncAccountStoreTests {
         #expect(second.deviceName == "iPhone 14")
     }
 
+    @Test func lastMissingFilesCheckAtPersistsAcrossStoreInstancesAndClearForgetsIt() throws {
+        let suiteName = "com.tdare.locally.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let tokenStore = InMemoryKeychainTokenStore()
+        let first = UserDefaultsSyncAccountStore(defaults: defaults, tokenStore: tokenStore)
+        #expect(first.lastMissingFilesCheckAt == nil)
+        let checked = Date(timeIntervalSince1970: 1_790_000_000)
+        first.lastMissingFilesCheckAt = checked
+
+        let second = UserDefaultsSyncAccountStore(defaults: defaults, tokenStore: tokenStore)
+        #expect(second.lastMissingFilesCheckAt == checked)
+
+        second.clear()
+        #expect(second.lastMissingFilesCheckAt == nil)
+    }
+
     @Test func lastVersionPersistsAcrossReads() {
         let (store, _) = makeStore()
         store.lastVersion = 12

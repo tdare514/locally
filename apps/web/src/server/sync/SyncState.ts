@@ -1,5 +1,15 @@
 import type { SyncRecord } from "./SyncRecord";
 
+/** What the files-missing check (#172) has seen of one "From your devices" release. */
+export interface MissingMark {
+  /** ISO time of the first check that listed this release's files as missing. */
+  firstSeenMissingAt: string;
+  /** True once a later check listed them as missing again, so they have not arrived: "Waiting". */
+  stillMissing: boolean;
+  /** ISO time a pull delivered a newer version of this release while it was missing: the phone re-sent it. */
+  resentAt?: string;
+}
+
 /**
  * Local sync bookkeeping, separate from `Settings` because none of it is a
  * secret and all of it is safe to rebuild from scratch (worst case: a few
@@ -17,6 +27,12 @@ export interface SyncState {
   coverHash: Record<string, string>;
   /** releaseId -> the full remote record, offered in the "From your devices" inbox until accepted. */
   pendingFromPhone: Record<string, SyncRecord>;
+  /**
+   * releaseId -> the files-missing check's verdict on a pending release (#172). Only releases the
+   * latest check listed are here, so a release whose files landed drops out. Empty on an API that
+   * has no such check.
+   */
+  missingFiles: Record<string, MissingMark>;
 }
 
 /** Persists {@link SyncState}. Behind an interface so tests use an in-memory fake. */
@@ -26,5 +42,5 @@ export interface SyncStateStore {
 }
 
 export function emptySyncState(): SyncState {
-  return { pushedUpdatedAt: {}, uploadedFiles: {}, coverHash: {}, pendingFromPhone: {} };
+  return { pushedUpdatedAt: {}, uploadedFiles: {}, coverHash: {}, pendingFromPhone: {}, missingFiles: {} };
 }

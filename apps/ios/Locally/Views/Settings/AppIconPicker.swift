@@ -14,41 +14,28 @@ struct AppIconPicker: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 16) {
             Text(Copy.Settings.appIconHint)
-                .font(Theme.Font.rowSubtitle)
+                .font(Theme.ScaledFont.caption)
                 .foregroundStyle(Theme.secondaryText)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
-                    ForEach(Self.icons, id: \.self) { name in
-                        Button {
-                            choose(name)
-                        } label: {
-                            VStack(spacing: 6) {
-                                Image("IconPreview-\(name)")
-                                    .resizable()
-                                    .frame(width: 60, height: 60)
-                                    .clipShape(RoundedRectangle(cornerRadius: 13.5, style: .continuous))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 13.5, style: .continuous)
-                                            .strokeBorder(selected == name ? Theme.accent : Color.clear, lineWidth: 2)
-                                    )
-                                Text(Copy.Settings.iconNames[name] ?? name)
-                                    .font(Theme.Font.rowSubtitle)
-                                    .foregroundStyle(selected == name ? Theme.primaryText : Theme.secondaryText)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(Copy.Settings.iconNames[name] ?? name)
-                        .accessibilityAddTraits(selected == name ? .isSelected : [])
-                    }
-                }
-                .padding(.vertical, 4)
+                .fixedSize(horizontal: false, vertical: true)
+            // Side by side, or stacked once large text makes them too wide for the card.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 22) { choices; Spacer(minLength: 0) }
+                VStack(alignment: .leading, spacing: 16) { choices }
             }
             if let errorMessage {
                 Text(errorMessage)
-                    .font(Theme.Font.rowSubtitle)
+                    .font(Theme.ScaledFont.caption)
                     .foregroundStyle(Theme.danger)
+            }
+        }
+    }
+
+    private var choices: some View {
+        ForEach(Self.icons, id: \.self) { name in
+            GlassIconChoice(name: name, isSelected: selected == name) {
+                choose(name)
             }
         }
     }
@@ -64,5 +51,44 @@ struct AppIconPicker: View {
                 selected = name
             }
         }
+    }
+}
+
+/// An app icon choice: the icon in a continuous rounded square, a soft accent halo and a small
+/// check when picked. No ring, so no line.
+private struct GlassIconChoice: View {
+    let name: String
+    let isSelected: Bool
+    let action: () -> Void
+    @ScaledMetric(relativeTo: .body) private var scaledSide: CGFloat = 64
+    /// Grows with text, but stops short of filling the card at the largest sizes.
+    private var side: CGFloat { min(scaledSide, 96) }
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image("IconPreview-\(name)")
+                    .resizable()
+                    .frame(width: side, height: side)
+                    .clipShape(RoundedRectangle(cornerRadius: side * 0.225, style: .continuous))
+                    .shadow(color: isSelected ? Theme.accent.opacity(0.55) : .black.opacity(0.35),
+                            radius: isSelected ? 12 : 6, y: isSelected ? 0 : 3)
+                    .overlay(alignment: .bottomTrailing) {
+                        if isSelected {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: side * 0.30))
+                                .foregroundStyle(.white, Theme.accent)
+                                .offset(x: 6, y: 6)
+                        }
+                    }
+                Text(Copy.Settings.iconNames[name] ?? name)
+                    .font(Theme.ScaledFont.caption)
+                    .foregroundStyle(isSelected ? Theme.primaryText : Theme.secondaryText)
+            }
+            .padding(.bottom, 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Copy.Settings.iconNames[name] ?? name)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

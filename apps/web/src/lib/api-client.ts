@@ -12,6 +12,7 @@ import type {
   SyncStatus,
   SpotifySourceStatus,
   PlaysStatusResponse,
+  PlaysSummaryResponse,
   ReleasePlaysResponse,
 } from "../shared/types";
 
@@ -96,6 +97,13 @@ export async function getReleasePlays(releaseId: string): Promise<ReleasePlaysRe
   return handle<ReleasePlaysResponse>(res);
 }
 
+/** This Mac's plays between two local dates (`YYYY-MM-DD`, inclusive) and all time, for the
+ * releases in the library, in one request (the sidebar widgets, #154, #203). */
+export async function getPlaysSummary(from: string, to: string): Promise<PlaysSummaryResponse> {
+  const res = await fetch(`/api/plays/summary?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+  return handle<PlaysSummaryResponse>(res);
+}
+
 export async function putSyncBaseUrl(baseUrl: string): Promise<SettingsResponse> {
   const res = await fetch("/api/settings", {
     method: "PUT",
@@ -141,6 +149,12 @@ export async function deleteSyncAccount(): Promise<SettingsResponse & { alreadyS
 export async function syncNow(): Promise<SyncStatus> {
   const res = await fetch("/api/sync/reconcile", { method: "POST" });
   return handle<SyncStatus>(res);
+}
+
+/** "Resync Mac and phone": `asked` is false when the request has to wait (rate limit) or the service lacks it. */
+export async function resyncFromPhone(): Promise<{ ok: true; asked: boolean }> {
+  const res = await fetch("/api/sync/resync", { method: "POST" });
+  return handle<{ ok: true; asked: boolean }>(res);
 }
 
 export async function acceptFromPhone(id: string): Promise<{ ok: true; release: Release }> {
