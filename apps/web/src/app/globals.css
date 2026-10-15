@@ -520,6 +520,65 @@ body {
   }
 }
 
+/* Track list (#118): rows sit on the page; the held row is the one place a tile appears. The
+   list drives these by data attributes and inline `translate` (no re-render per pointer move):
+   `data-sorting` on the list while a drag settles or runs, `data-lifted` on the held row,
+   `data-settling` on it while it eases into its slot after the drop. The held row follows the
+   pointer 1:1, so only its scale animates; the rows making room slide on `translate`. */
+.track-row {
+  position: relative;
+  isolation: isolate;
+}
+/* The hairline between rows (`divide-y` sets the width). Set here because the `*` border-color
+   rule above is unlayered and would beat a Tailwind colour utility. */
+.track-list > .track-row {
+  border-color: rgb(255 255 255 / 0.07);
+}
+.track-tile {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  isolation: isolate;
+  border-radius: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.track-row[data-lifted] .track-tile {
+  opacity: 1;
+}
+/* The frost's blur only runs while the tile is showing or fading out. */
+.track-row:not([data-lifted]):not([data-settling]) .track-tile {
+  backdrop-filter: none;
+}
+.track-list[data-sorting] .track-row {
+  transition: translate 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.track-list[data-sorting] .track-row[data-lifted] {
+  z-index: 2;
+  scale: 1.02;
+  cursor: grabbing;
+  user-select: none;
+  will-change: translate, scale;
+  transition: scale 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.track-list[data-sorting] .track-row[data-settling] {
+  z-index: 2;
+  transition:
+    translate 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    scale 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* Grip and remove button: quiet until the row is hovered or something in it has focus. */
+.track-affordance {
+  opacity: 0.35;
+  transition: opacity 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.track-row:hover .track-affordance,
+.track-row:focus-within .track-affordance,
+.track-affordance:focus-visible {
+  opacity: 1;
+}
+
 /* Phone inbox tray (#115): panel enter/exit (out of the button's bottom-left corner, on a diagonal), accepted-row collapse, trigger icon morph. */
 .phone-tray {
   transform-origin: top right;
@@ -599,5 +658,16 @@ body {
   .phone-tray-row,
   .phone-tray-glyph {
     transition: none;
+  }
+  /* Track reorder (#118): rows jump into place, the held row does not lift. */
+  .track-tile,
+  .track-affordance,
+  .track-list[data-sorting] .track-row,
+  .track-list[data-sorting] .track-row[data-lifted],
+  .track-list[data-sorting] .track-row[data-settling] {
+    transition: none;
+  }
+  .track-list[data-sorting] .track-row[data-lifted] {
+    scale: 1;
   }
 }
