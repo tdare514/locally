@@ -59,7 +59,7 @@ script changes.
 
 ## Type
 
-System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide on eyebrows.
+System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide on eyebrows *(eyebrow tracking replaced 13 Oct 2026, see the note below the table)*.
 
 | Role | Size | Weight | Colour | Tracking |
 | --- | --- | --- | --- | --- |
@@ -79,6 +79,11 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
 | Badge | 10 | semibold | text-muted | 0.1em, uppercase |
 | Primary button | 15 mobile, 14 desktop | bold | black on accent | |
 
+**Replaced 13 Oct 2026 (sentence case).** Small uppercase tracked labels are no longer used, so the
+eyebrow, breadcrumb eyebrow, field label and badge rows above are replaced. Labels are sentence
+case, e.g. `text-sm font-semibold text-accent` on web. The `text-dim` and `accent` roles that name
+eyebrows still apply to those labels.
+
 ## Shape and spacing
 
 - Radius: inputs and thumbnails 6; drop zones, cards and file rows 8; list containers 12; the
@@ -95,7 +100,7 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
 
 ## Components
 
-- **Page header**: eyebrow in `accent`, then the title; on desktop a `text-muted` subtitle under
+- **Page header**: eyebrow in `accent` (replaced 13 Oct 2026: sentence case), then the title; on desktop a `text-muted` subtitle under
   it ("Add a song or album to your Spotify library."). Section headers use the same eyebrow +
   title on the left with a `text-muted` meta on the right ("7 tracks", "Tap to edit", "1 file").
 - **Segmented pill** (Single | Album): `elevated` track with 4 padding, selected segment an
@@ -150,24 +155,25 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
 - **Library list (mobile)**: one `card` container, radius 12, 1 px `border`; rows 78 min height
   with 12 padding, 56 square art radius 6 (or an `elevated` tile with a muted note icon), title
   and subtitle (albums: "artist · N tracks"), a `text-dim` chevron at the right; rows separated by
-  1 px `border`; press background `row-hover`. Header above: eyebrow "YOUR COLLECTION", title
+  1 px `border`; press background `row-hover`. Header above: eyebrow "YOUR COLLECTION" (replaced 13 Oct 2026: sentence case), title
   "All music", meta "N tracks". The list is split into two sections, **Singles** then
   **Albums**, each with an 18 bold label and its count in `text-dim`, separated by a 1 px
   `border-dashed` rule (dash 4/4). A section with nothing in it is not shown. Desktop mirrors the
   same sectioning in the main Library view (and in the sidebar list).
-- **Editor / release detail (mobile)**: a slim, sleek layout rather than a full-width hero. Top
+- **Editor / release detail (mobile)**: *Replaced by the immersive release page (#126).*
+  Former layout: a slim, sleek layout rather than a full-width hero. Top
   bar with back and the release title. Below it a header row: a 112 pt square cover, radius 10,
   1 px `border`, with a 28 pt circular pencil badge bottom-right (`bg` at 80 % with blur, icon
   12 semibold) that opens the Photos/Files menu, beside a column holding the kind badge, the title in page-title style (2 lines max) and the
-  artist in row-subtitle muted text. Then the DETAILS eyebrow + "Tap to edit" (no "Metadata"
+  artist in row-subtitle muted text. Then the DETAILS eyebrow (replaced 13 Oct 2026: sentence case) + "Tap to edit" (no "Metadata"
   title); Title and Artist fields full width, Year and Genre side by side. Then "Tracks" (18
   bold) + "N files", a `text-dim` 12 pt hint "Hold and drag a track to reorder." when there are
   2+ tracks, and one compact file row per track: `card` with 1 px `border`, radius 8, min height
   52, a 30 pt `elevated` tile holding an accent file-music icon, filename 14 medium, "Audio file"
   12 muted, chevron. No Edit-mode toolbar button; reordering is a plain long-press drag. Sticky
   footer with the save action.
-- **Desktop release page** (#112, web first; the iOS editor still uses the compact header above
-  until it follows): editing should feel like putting a record together, not filling in a form.
+- **Desktop release page** (#112; the iOS side is in the entry below): editing should feel like
+  putting a record together, not filling in a form.
   - *Artwork backdrop*: three colours read from the cover (`src/lib/artwork-palette.ts`) wash
     the main pane: `primary` top left, `secondary` top right, `deep` fading to `bg`. Every
     colour is capped on relative luminance (0.12 / 0.08 / 0.035), so white text keeps at least
@@ -192,6 +198,50 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
     1.5 turns (1.3 s in all), whatever the request takes.
   - Reduced motion: no slide, spin, scale or colour fade; changes are instant.
   - Tracks and the playlist disclosure follow, unchanged.
+- **iOS immersive screens (#112; release page #126, import #127, library home #128)**: the look
+  above on iPhone, with values from `apps/ios/Locally/Resources/Theme.swift` (`Theme.Immersive`
+  and `Theme.Library`). The colours come from `ArtworkPalette` (#124), a port of the web's
+  extraction.
+  - *Artwork backdrop* (`ArtworkBackdrop`): three colours from the cover wash the screen. The
+    primary sits top left (`backdropPrimaryRadius` 1.10 x 0.80 of the screen, centre 0.08, 0), the
+    secondary top right (`backdropSecondaryRadius` 0.70 x 0.60, centre 0.96, 0.06), and the deep
+    colour runs down to black at 0.92 of the height (`backdropDeepEnd`). The gradients fade out at
+    0.72 and 0.70 of their radius. Luminance caps (`luminanceCapPrimary`, `luminanceCapSecondary`,
+    `luminanceCapDeep`) are 0.12, 0.08 and 0.035, as on the web. With no cover the wash is neutral
+    grey; Theme.swift gives no grey value, so none is written here. A new cover cross-fades the
+    wash over 900 ms (`backdropCrossFade` 0.9 s). The two glows also drift slowly: periods 40 s and
+    52 s (`driftPeriodPrimary`, `driftPeriodSecondary`), rotating -3 to 4 and 3 to -4 degrees, scaling
+    1 to 1.06 and 1.04 to 0.98.
+  - *Record sleeve* (`RecordSleeve`): the cover at 248 pt (`sleeveSizeRegular`) or 200 pt
+    (`sleeveSizeCompact`), radius 4, with a far and a near shadow, an edge at 10 % opacity and a
+    135 degree sheen at 8 % that fades out by 40 % (`sleeveEdgeOpacity`, `sleeveSheenOpacity`,
+    `sleeveSheenEnd`). The disc is 0.92 of the sleeve (228 / 184 pt,
+    `discToSleeveRatio`) and half of it shows past the sleeve (`discPeekRatio`). The label is 36 %
+    of the disc across, with a 3 pt ring at 50 % and a spindle at 8 % of the label.
+  - *Ceremony* (save): 1.3 s in all. The disc goes 0.42 of its width into the sleeve over the first
+    0.325 s (`ceremonyTuckFraction`, `ceremonyTuckDuration`), then eases back out. The spin starts
+    at 0.28 s and runs two full turns (720 degrees, `ceremonySpinDegrees`) to the end. The web
+    turns 1.5 times (540 degrees) and snaps back; iOS uses two turns so it ends on the same pose.
+  - *Cover change*: a new cover fades in from opacity 0 and scale 0.96 over 0.52 s
+    (`coverFadeDuration`, `coverFadeScale`), over the old one.
+  - *Inline fields* (`InlineField`): they read as text. A focused field shows a 1 device-pixel
+    underline at 60 % opacity, with a 4 pt gap (`inlineFieldUnderlineOpacity`,
+    `inlineFieldUnderlineGap`); the focus fade is 0.15 (`inlineFieldFocusFade`). Year and Genre sit
+    10 pt below the title and artist (`fieldsMetaGap`). Theme.swift has no hover fill, so the
+    web's 7 % and 10 % fills are not written here.
+  - *Library cover view*: a grid of covers kept in Singles and Albums, in three sizes with minimum
+    tile widths of 96, 150 and 300 pt and gaps of 12, 16 and 20 pt (`Theme.Library.tileMinWidth`,
+    `tileGap`); with the list page padding that gives 3, 2 and 1 columns on a 402 pt phone. Tiles
+    have radius 8. A pressed tile grows to 1.03 with a shadow (radius 10, 35 %, y 4) over 0.15 s.
+    List rows sit in a radius 16 panel, and the divider between Singles and Albums is white at 7 %.
+  - *Library sky*: an `ArtworkBackdrop` fixed behind the library, coloured by the cover last
+    pressed or else the first cover on screen. A pressed cover stops colouring it after 120 pt of
+    scroll (`pressedSkyReleaseDistance`). As the library scrolls, the two glows turn 28 and 22
+    degrees per screen scrolled (`scrollTurnPrimary`, `scrollTurnSecondary`), against each other.
+  - *Reduced motion*: the cover change becomes a plain opacity change over 0.2 s
+    (`reducedMotionFadeDuration`), with no scale. The library sky is held still (STATUS, #128).
+    Theme.swift has no reduced-motion values for the ceremony or the sleeve, so their behaviour
+    under Reduce Motion is not written here and not verified.
 - **Make it a playlist (album release pages, both apps)**: a disclosure between the Tracks
   section and the action row, `card` with 1 px `border`, radius 9, padding 20, title "Make it a
   playlist" with a chevron that rotates open. Body: the album title beside a small secondary /
@@ -211,12 +261,12 @@ System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide 
 - **Empty state (library home, both apps)**: doubles as onboarding. A diagram of two 68 pt
   `elevated` tiles, radius 16, 1 px `border`: the app icon / solid listener mark (captioned
   "Locally"), three accent dots and a chevron, a note icon (captioned "Spotify"; never Spotify's
-  logo). Below: eyebrow "YOUR LIBRARY", title "Nothing here yet" (24 bold mobile / 36 desktop),
+  logo). Below: eyebrow "YOUR LIBRARY" (replaced 13 Oct 2026: sentence case), title "Nothing here yet" (24 bold mobile / 36 desktop),
   one line of `text-muted` 14 body, then a primary "Add your first single" and a secondary "Make
   an album" pinned low. The web sidebar empty line stays the short `text-muted` hint; the full
   empty state lives in the main Library view.
 - **Web sidebar**: nav pills (Library, + Import, Settings), Singles then Albums section labels
   with counts, rows, brand mark, on `card`. The MagicPath sidebar is not used.
-- **Library list (desktop main)**: same sectioning as mobile — YOUR COLLECTION / All music
+- **Library list (desktop main)**: same sectioning as mobile — YOUR COLLECTION (replaced 13 Oct 2026: sentence case) / All music
   header with track-count meta, Singles then Albums in `card` containers (radius 12), "Add a
   song" primary below. Sidebar rows stay compact (40 art) for quick jump.
