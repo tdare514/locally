@@ -319,19 +319,27 @@ describe("what the page asks the server for", () => {
   it("is never refused: every reachable period, on a spread of days, passes the server's range check", () => {
     const kinds: PageKind[] = ["today", "week", "month", "year", "all"];
     const start = "2024-01-01";
+    // Tens of thousands of ranges: collect the refusals and assert once, since an expect per range
+    // is too slow for CI. Only weeks depend on the first day of the week.
+    const refused: string[] = [];
     for (let i = 0; i < 1100; i += 7) {
       const today = addDays(start, i);
-      for (const firstDay of [MON, SUN, SAT]) {
-        for (const kind of kinds) {
+      for (const kind of kinds) {
+        for (const firstDay of kind === "week" ? [MON, SUN, SAT] : [MON]) {
           let back = 0;
           for (;;) {
             const range = selectionRange({ kind, back }, today, firstDay);
-            expect(() => parseSummaryRange(range.from, range.to, today), `${kind} ${back} on ${today}`).not.toThrow();
+            try {
+              parseSummaryRange(range.from, range.to, today);
+            } catch {
+              refused.push(`${kind} ${back} on ${today}`);
+            }
             if (!canStepBack({ kind, back }, today, firstDay)) break;
             back += 1;
           }
         }
       }
     }
+    expect(refused).toEqual([]);
   });
 });
