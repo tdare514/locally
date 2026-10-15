@@ -17,7 +17,7 @@ The play-count system can't answer any of these today:
 
 There's no timestamp or history anywhere, only all-time totals.
 
-## Decisions this plan proposes (owner to approve)
+## Decisions (approved by the owner on 15 Oct 2026)
 
 1. **Granularity: per day.** "Today", week, month and "last played" (to the day) all fall out of day
    buckets. Per-play timestamps aren't needed and would be a more personal record.
@@ -40,6 +40,12 @@ There's no timestamp or history anywhere, only all-time totals.
    - Totals sum over devices, after the #175 same-Mac fix, so there's no double counting.
    - The client groups by album (release) and artist using its own library.
    - Ranges are capped at 400 days, and the response is paged if a library is huge.
+   - **The Mac reads its own day buckets locally first** (owner-approved change, 15 Oct): a local
+     `GET /api/plays/summary?from&to` in apps/web answers from `plays.json`, in the same shape, so
+     the Mac's sidebar and Stats page work as soon as the Mac records days, without waiting for the
+     server. When signed in, it merges in the server summary for other devices (a second Mac), the
+     same way `GET /api/plays` merges totals today. The server summary is what the iPhone and the
+     hosted web app read.
 5. **Back-fill:** existing all-time counts have no dates. They stay in `play_counts` and count toward
    **All time** only. "This week" starts empty on upgrade. The UI says so once ("Weekly stats start
    today").
@@ -85,12 +91,17 @@ There's no timestamp or history anywhere, only all-time totals.
 
 ## Rollout (each an issue with a session brief)
 
-1. **API:** `play_days` and its migration, the `days` merge on `PUT /v1/plays`, the summary endpoint,
+1. **Mac, local:** record day buckets in `plays.json`, the local summary endpoint, and the sidebar's
+   Today / This week / This month (#177's `HAS_DAILY_COUNTS`). No `days` pushed yet: today's
+   `PUT /v1/plays` validation may refuse an unknown field, so the Mac only sends `days` once step 2
+   is deployed.
+2. **API:** `play_days` and its migration, the `days` merge on `PUT /v1/plays`, the summary endpoint,
    cleanup, the cross-user tests. **Owner reviews before merge.**
-2. **Mac:** record day buckets, push them, and read the summary for the Streams page and the sidebar
-   widgets.
-3. **Streams page build:** the direction picked in #192, then the sidebar picked in #177.
-4. **iPhone Streams page:** the #160 language.
+3. **Mac, sync:** push changed days once the API is live, and merge the server summary for other
+   devices into the local one.
+4. **Stats page build:** the direction picked in #192 (B with the five-sleeve fan), on the local
+   summary.
+5. **iPhone Stats page:** the #160 language, on the server summary.
 
 ## Tests
 
