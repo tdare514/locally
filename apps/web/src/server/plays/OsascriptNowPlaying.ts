@@ -2,29 +2,40 @@ import { execFile } from "node:child_process";
 import type { NowPlayingResult, SpotifyPlayerState, SpotifyNowPlaying } from "./SpotifyNowPlaying";
 
 /**
- * Fixed JXA script: nothing from Spotify or the user is ever put into it. `running()` is
- * checked first and does not launch Spotify. Spotify's `duration` is in milliseconds.
+ * Fixed JXA script: nothing from Spotify or the user is ever put into it. It must never
+ * launch Spotify (#106, #148), so it targets the running process by pid, not the app by
+ * name: an event to a process that has gone fails instead of relaunching it. A quit
+ * mid-poll reads as not running; only -1743 (no Automation permission) is rethrown, so
+ * it still maps to permission-denied. Spotify's `duration` is in milliseconds.
  */
 export const NOW_PLAYING_SCRIPT = `
-const app = Application('Spotify');
-let out;
-if (!app.running()) {
-  out = { running: false };
-} else {
-  let state = 'stopped';
-  try { state = String(app.playerState()); } catch (e) {}
-  let id = null;
-  let durationMs = 0;
+ObjC.import('AppKit');
+function readSpotify() {
+  const apps = $.NSRunningApplication.runningApplicationsWithBundleIdentifier('com.spotify.client');
+  if (Number(apps.count) === 0) return { running: false };
+  const proc = apps.objectAtIndex(0);
+  if (proc.isTerminated) return { running: false };
   try {
-    const t = app.currentTrack;
-    id = String(t.id());
-    durationMs = Number(t.duration());
-  } catch (e) {}
-  let positionSec = 0;
-  try { positionSec = Number(app.playerPosition()); } catch (e) {}
-  out = { running: true, state: state, positionSec: positionSec, id: id, durationMs: durationMs };
+    const app = Application(proc.processIdentifier);
+    const state = String(app.playerState());
+    let id = null;
+    let durationMs = 0;
+    try {
+      const t = app.currentTrack;
+      id = String(t.id());
+      durationMs = Number(t.duration());
+    } catch (e) {
+      if (e.errorNumber === -1743) throw e;
+    }
+    const positionSec = Number(app.playerPosition());
+    if (proc.isTerminated) return { running: false };
+    return { running: true, state: state, positionSec: positionSec, id: id, durationMs: durationMs };
+  } catch (e) {
+    if (e.errorNumber === -1743) throw e;
+    return { running: false };
+  }
 }
-JSON.stringify(out);
+JSON.stringify(readSpotify());
 `;
 
 const OSASCRIPT = "/usr/bin/osascript";

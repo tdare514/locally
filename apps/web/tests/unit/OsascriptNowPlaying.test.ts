@@ -21,6 +21,18 @@ describe("OsascriptNowPlaying", () => {
     expect(await np.read()).toEqual({ running: false });
   });
 
+  it("targets the running Spotify process by pid, never the app by name (#148)", () => {
+    expect(NOW_PLAYING_SCRIPT).toContain("runningApplicationsWithBundleIdentifier('com.spotify.client')");
+    expect(NOW_PLAYING_SCRIPT).toContain("Application(proc.processIdentifier)");
+    expect(NOW_PLAYING_SCRIPT).not.toContain("Application('Spotify')");
+  });
+
+  it("reads Spotify quitting mid-poll as not running, not failed", async () => {
+    // The script returns running:false when the pid's events fail; osascript itself exits 0.
+    const { np } = fake(async () => ({ stdout: '{"running":false}', stderr: "" }));
+    expect(await np.read()).toEqual({ running: false });
+  });
+
   it("reads a playing sample", async () => {
     const out = JSON.stringify({
       running: true,
