@@ -10,8 +10,8 @@ import { statCoverUrl } from "../sidebar/StatCover";
 /**
  * The top ranks as overlapping record sleeves in a fan, number one in the middle with silver and
  * bronze either side (four and five on the outside), a gold, silver and bronze rim on the first
- * three, and the active sleeve (hovered, focused, else number one) lifting and sliding its record
- * out of the top to show its title and plays. Artists are round discs with no record. One component
+ * three, and the active sleeve (hovered, focused, else number one) lifting and its record peeking over
+ * the top while its title and plays show. Artists are round discs with no record. One component
  * for the sidebar's Stats shelf (`size="shelf"`, three sleeves) and the Stats page (`size="page"`,
  * five); the CSS is `.fan*` in globals.css and the look of each size is set there (#145).
  *
@@ -19,8 +19,11 @@ import { statCoverUrl } from "../sidebar/StatCover";
  *
  * A sleeve is a real control. With `onOpen`, a click, Enter or Space opens it. A mouse only lifts
  * on hover. On touch the first tap lifts a sleeve and the second opens it; a tap anywhere else puts
- * the lift back. Without `onOpen` (the sidebar) a sleeve only lifts.
+ * the lift back. A sleeve plays a short opening beat before it opens. Without `onOpen` (the sidebar) a sleeve only lifts.
  */
+/** The opening beat, matching `.fan-sleeve[data-opening]` in globals.css. */
+const OPENING_MS = 360;
+
 export default function SleeveFan({
   items,
   size,
@@ -40,7 +43,10 @@ export default function SleeveFan({
   const [active, setActive] = useState(0);
   /** The sleeve a touch tap has lifted and the next tap will open. */
   const [armed, setArmed] = useState<number | null>(null);
+  /** The sleeve playing its opening beat, before the release opens. */
+  const [opening, setOpening] = useState<number | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** How the latest press arrived: a touch tap and a mouse click are told apart by this. */
   const lastPointer = useRef("mouse");
   const shown = items.slice(0, FAN_MAX);
@@ -59,6 +65,13 @@ export default function SleeveFan({
     document.addEventListener("pointerdown", onDown);
     return () => document.removeEventListener("pointerdown", onDown);
   }, [armed]);
+
+  useEffect(
+    () => () => {
+      if (openTimer.current) clearTimeout(openTimer.current);
+    },
+    []
+  );
 
   const reset = () => {
     setActive(0);
@@ -104,6 +117,7 @@ export default function SleeveFan({
             slot={slots[i]}
             disc={disc}
             active={i === current}
+            opening={i === opening}
             onPointerDown={(type) => {
               lastPointer.current = type;
             }}
@@ -116,7 +130,18 @@ export default function SleeveFan({
                 return;
               }
               setArmed(null);
-              onOpen?.(item);
+              if (!onOpen || opening !== null) return;
+              if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+                onOpen(item);
+                return;
+              }
+              // One short beat (the record slides out, the sleeve lifts), then the release opens.
+              setOpening(i);
+              openTimer.current = setTimeout(() => {
+                openTimer.current = null;
+                setOpening(null);
+                onOpen(item);
+              }, OPENING_MS);
             }}
           />
         ))}
@@ -139,6 +164,7 @@ function Sleeve({
   slot,
   disc,
   active,
+  opening,
   onPointerDown,
   onHover,
   onActivate,
@@ -147,6 +173,7 @@ function Sleeve({
   slot: FanSlot;
   disc: boolean;
   active: boolean;
+  opening: boolean;
   onPointerDown: (pointerType: string) => void;
   onHover: () => void;
   /** `detail` is the click's: 0 for a key press, 1 or more for a pointer. */
@@ -158,7 +185,7 @@ function Sleeve({
     // --a tilts the sleeve, --k orders the fan-out from the middle outwards.
     "--a": `${slot.angle}deg`,
     "--k": Math.abs(slot.offset),
-    // --o is the signed step from the middle, for the page's sideways spacing.
+    // --o is the signed step from the middle; the sideways step multiplies it (0 on the page now).
     "--o": slot.offset,
     zIndex: active ? 100 : slot.layer,
   } as CSSProperties;
@@ -166,6 +193,7 @@ function Sleeve({
     <li
       className="fan-sleeve"
       data-active={active}
+      data-opening={opening}
       data-shape={disc ? "disc" : "sleeve"}
       data-side={slot.offset < 0 ? "left" : "right"}
       style={style}

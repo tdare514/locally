@@ -343,10 +343,13 @@ eyebrows still apply to those labels.
     of each size in `.fan[data-size]`): #1 in the middle in gold, silver and bronze either side,
     #4 and #5 outside; with fewer than five the same rule runs and the set is centred, no empty
     slots, the tilt per step widening as the fan thins (`lib/fan-layout.ts`); no items means the
-    period's empty line, no fan. Hover or focus lifts a sleeve and slides its record out, with name
-    and plays; artists are round discs. The page fan is a wheel: the sleeves tilt round one far pivot, so they sit on one shallow arc (not a half circle), and it is stacked with depth, each step out a little smaller and darker, like cards. The chosen one lifts, grows and loses its shade, and ← → wheel through them left to right; the lift stays on the keyboard-focused sleeve when the pointer leaves. The sidebar's shelf is the original tight stack of three, number one in front, with the same depth and shading. Under about 545px of room the chosen sleeve's name and plays sit in a caption under the fan instead of on the cover, and the narrow wheel lifts the chosen sleeve higher (0.6 of its width) so it clears its neighbours: at least 47px of each sleeve stays to tap in every selection state at 390px (about 41px at 360px and 36px at 320px).
-  - **Activation**: a sleeve, list row and grid tile is a button. Enter, Space or click opens a
-    track's or album's release; an artist opens the Library filtered to that artist (its search
+    period's empty line, no fan. Hover or focus lifts a sleeve with name and plays; its record only peeks (a crescent of the rim above the sleeve, about 18%, the label stays hidden); artists are round discs. The page fan is a wheel: the sleeves tilt round one far pivot, so they sit on one shallow arc (not a half circle), and it is stacked with depth, each step out a little smaller and darker, like cards. The chosen one lifts, grows and loses its shade, and ← → wheel through them left to right; the lift stays on the keyboard-focused sleeve when the pointer leaves. The sidebar's shelf is the original tight stack of three, number one in front, with the same depth and shading. Under about 545px of room the chosen sleeve's name and plays sit in a caption under the fan instead of on the cover, and the narrow wheel lifts the chosen sleeve higher (0.6 of its width) so it clears its neighbours: at least 47px of each sleeve stays to tap in every selection state at 390px (about 41px at 360px and 36px at 320px).
+  - **Activation**: a sleeve, list row and grid tile is a button. A sleeve first plays a short
+    opening beat (360ms: the record slides further out, the sleeve lifts and grows a little; none
+    under reduced motion, which opens at once), then the release opens. A track opens its release
+    scrolled to that track's row (centred) with a one-time soft tint on the row (about 1.6s; shown
+    still for 2s under reduced motion); list rows and tiles do the same without the beat. An album
+    opens its release with no highlight; an artist opens the Library filtered to that artist (its search
     query). A mouse only lifts on hover. On touch the first tap lifts and the second opens; a tap
     elsewhere drops the lift. Visible focus rings (2px white; the shelf keeps its accent ring).
   - **Grid sizing**: three grids in rank order (ranks 1 to 6, 7 to 14, the rest), columns counted

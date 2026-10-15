@@ -19,7 +19,7 @@ import Toast, { type ToastMessage } from "./Toast";
 export type View =
   | { type: "library" }
   | { type: "import"; kind?: ReleaseKind }
-  | { type: "release"; id: string; justImported?: boolean }
+  | { type: "release"; id: string; justImported?: boolean; trackId?: string }
   | { type: "settings"; section?: "account" }
   | { type: "stats" };
 
@@ -229,6 +229,7 @@ export default function AppShell() {
               releaseId={view.id}
               initialRelease={library?.releases.find((r) => r.id === view.id)}
               justImported={view.justImported ?? false}
+              highlightTrackId={view.trackId}
               onDeleted={handleDeleted}
               onUpdated={refreshLibrary}
               onToast={showToast}
@@ -241,7 +242,7 @@ export default function AppShell() {
               loadingLibrary={loadingLibrary}
               prefs={statsPrefs}
               onPrefsChange={(patch) => setStatsPrefs((prev) => ({ ...prev, ...patch }))}
-              onOpenRelease={(id) => setView({ type: "release", id })}
+              onOpenRelease={(id, trackId) => setView({ type: "release", id, trackId })}
               onOpenArtist={(name) => {
                 // The library's own search finds an artist by name.
                 setLibraryQuery(name);

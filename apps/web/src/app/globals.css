@@ -495,6 +495,23 @@ body {
 .track-list > .track-row {
   border-color: rgb(255 255 255 / 0.07);
 }
+/* The one-time tint behind a row the Stats page opened the release at (ReleaseView sets
+   data-highlight): fades in fast, out over about 1.6s. Opacity only. */
+.track-row[data-highlight]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 8px;
+  background: var(--btn-tint, var(--btn-tint-default));
+  animation: track-highlight 1600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes track-highlight {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  100% { opacity: 0; }
+}
 .track-tile {
   position: absolute;
   inset: 0;
@@ -2150,6 +2167,27 @@ body {
 .fan-sleeve[data-active="true"] .fan-hit {
   transform: scale(var(--fan-pop));
 }
+/* The active sleeve lifts away from a pointer resting near its bottom edge; this invisible strip
+   under it covers the distance it lifted, so that pointer stays on the button and the lift holds
+   (without it the lift dropped and lifted again, flickering). Not on the other sleeves. */
+.fan-sleeve[data-active="true"] .fan-hit::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: calc(var(--w) * var(--fan-lift) + 4px);
+}
+/* The opening beat, set by SleeveFan just before the release opens: the sleeve lifts a little
+   more and grows slightly, and the record slides further out. 360ms, matching OPENING_MS. */
+.fan-sleeve[data-opening="true"] {
+  transform: rotate(calc(var(--a) * var(--fan-tilt) * 0.8)) translate3d(0, calc(var(--w) * (var(--fan-lift) + 0.05) * -1), 0);
+  transition-duration: 360ms;
+}
+.fan-sleeve[data-opening="true"] .fan-hit {
+  transform: scale(calc(var(--fan-pop) * 1.04));
+  transition-duration: 360ms;
+}
 .fan-hit:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -2198,7 +2236,8 @@ body {
     0 0 calc(var(--w) * 0.16) calc(var(--w) * -0.035) rgb(201 138 78 / 0.4),
     0 calc(var(--w) * 0.12) calc(var(--w) * 0.22) calc(var(--w) * -0.1) rgb(0 0 0 / 0.8);
 }
-/* The record behind the sleeve; it slides out of the top on the active one. */
+/* The record behind the sleeve; on the active one a crescent of its rim peeks over the top (the
+   label stays hidden). */
 .fan-record {
   position: absolute;
   left: 6%;
@@ -2216,7 +2255,11 @@ body {
   transition: transform 340ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .fan-sleeve[data-active="true"] .fan-record {
-  transform: translate3d(0, -40%, 0);
+  transform: translate3d(0, -18%, 0);
+}
+.fan-sleeve[data-opening="true"] .fan-record {
+  transform: translate3d(0, -55%, 0);
+  transition-duration: 360ms;
 }
 .fan-record-label {
   position: absolute;
@@ -2388,5 +2431,15 @@ body {
   .fan-record,
   .fan-tag {
     transition: none;
+  }
+  /* SleeveFan opens at once under reduced motion, so the opening beat never shows; this keeps it off. */
+  .fan-sleeve[data-opening="true"],
+  .fan-sleeve[data-opening="true"] .fan-hit,
+  .fan-sleeve[data-opening="true"] .fan-record {
+    transition: none;
+  }
+  .track-row[data-highlight]::before {
+    animation: none;
+    opacity: 1;
   }
 }

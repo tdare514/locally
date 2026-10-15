@@ -69,7 +69,7 @@ export default function StatsView({
   loadingLibrary: boolean;
   prefs: StatsPrefs;
   onPrefsChange: (patch: Partial<StatsPrefs>) => void;
-  onOpenRelease: (id: string) => void;
+  onOpenRelease: (id: string, trackId?: string) => void;
   /** Shows the Library filtered to this artist. */
   onOpenArtist: (name: string) => void;
   onOpenSettings: () => void;
@@ -89,7 +89,8 @@ export default function StatsView({
   const listed = useMemo(() => sortItems(items, sort), [items, sort]);
 
   const open = (item: StatItem) => {
-    if (item.releaseId) onOpenRelease(item.releaseId);
+    // A track opens its release at that track; an album opens the release, no track.
+    if (item.releaseId) onOpenRelease(item.releaseId, tab === "tracks" ? item.id : undefined);
     else onOpenArtist(item.title);
   };
 
