@@ -14,3 +14,53 @@ export function originLabel(origin: string): string {
   if (origin === "web") return "from the web";
   return "from another device";
 }
+
+/** The iPhone is the one device that can answer a resync request today, so only it is named; any
+ * other origin gets the generic wording (#172). */
+function isPhone(origin: string): boolean {
+  return origin === "ios";
+}
+
+/** The one quiet line at the bottom of the tray while some releases are still being sent (not an
+ * error). The phone is named only when every arriving row came from it. */
+export function sendingFooter(origins: string[]): string {
+  const several = origins.length > 1;
+  if (!origins.every(isPhone)) return several ? "Still sending these…" : "Still sending this one from that device…";
+  return several ? "Still sending these from your phone…" : "Still sending this one from your phone…";
+}
+
+/** The words for a release whose files are still missing on a later check (#172). */
+export interface WaitingCopy {
+  /** The headline state, under the origin label. */
+  title: string;
+  body: string;
+  /** The button. */
+  action: string;
+  /** Shown in place of the button once the request went through. */
+  asked: string;
+  /** Shown when the request could not go through yet (the rate limit). */
+  later: string;
+}
+
+export function waitingCopy(origin: string): WaitingCopy {
+  // The owner's choice (15 Oct): one plain line that fits a single or an album and claims no more
+  // than a repeated check shows.
+  const body = "The audio hasn't arrived yet.";
+  const later = "Try again in a few minutes.";
+  if (isPhone(origin)) {
+    return {
+      title: "Waiting on your phone",
+      body,
+      action: "Resync Mac and phone",
+      asked: "Asked your phone to send it again. Open Locally on your iPhone to finish.",
+      later,
+    };
+  }
+  return {
+    title: "Waiting on that device",
+    body,
+    action: "Resync",
+    asked: "Asked that device to send it again. Open Locally there to finish.",
+    later,
+  };
+}

@@ -25,6 +25,7 @@ import { POST as postCode } from "../../../src/app/api/sync/code/route";
 import { POST as postSignout } from "../../../src/app/api/sync/signout/route";
 import { DELETE as deleteAccount } from "../../../src/app/api/sync/account/route";
 import { POST as postAccept } from "../../../src/app/api/sync/accept/[id]/route";
+import { POST as postResync } from "../../../src/app/api/sync/resync/route";
 import { DEMO_RELEASES } from "../../../src/server/demo/library";
 import { getDemoCover } from "../../../src/server/demo/covers";
 
@@ -119,6 +120,7 @@ describe("demo mutating routes", () => {
       ["sync signout", () => postSignout()],
       ["sync account", () => deleteAccount()],
       ["sync accept", () => postAccept(req("POST"), ctx("x"))],
+      ["sync resync", () => postResync()],
     ];
     for (const [name, call] of calls) {
       const res = await call();

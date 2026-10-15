@@ -72,7 +72,7 @@ On each reconcile that has "From your phone" releases pending, and at most every
 | --- | --- | --- |
 | Not in the missing list | normal | (Send to Spotify works) |
 | Missing, first seen on this reconcile, record younger than 1 h | **Uploading** | "Still arriving from your phone…" (quiet, no error) |
-| Missing on a later reconcile, **or** record older than 1 h | **Waiting on your phone** | "This song's files never reached the server." Button: **Resync Mac and phone** |
+| Missing on a later reconcile, **or** record older than 1 h | **Waiting on your phone** | ~~"This song's files never reached the server."~~ "The audio hasn't arrived yet." (owner, 15 Oct; see `docs/design.md`)" Button: **Resync Mac and phone** |
 
 - **Resync Mac and phone** runs the Mac's reconcile now, sends `POST /v1/files/resync-request`, and shows:
   "Asked your phone to send it again. Open Locally on your iPhone to finish." When the files land, the

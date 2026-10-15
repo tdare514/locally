@@ -151,6 +151,12 @@ export async function syncNow(): Promise<SyncStatus> {
   return handle<SyncStatus>(res);
 }
 
+/** "Resync Mac and phone": `asked` is false when the request has to wait (rate limit) or the service lacks it. */
+export async function resyncFromPhone(): Promise<{ ok: true; asked: boolean }> {
+  const res = await fetch("/api/sync/resync", { method: "POST" });
+  return handle<{ ok: true; asked: boolean }>(res);
+}
+
 export async function acceptFromPhone(id: string): Promise<{ ok: true; release: Release }> {
   const res = await fetch(`/api/sync/accept/${encodeURIComponent(id)}`, { method: "POST" });
   return handle<{ ok: true; release: Release }>(res);

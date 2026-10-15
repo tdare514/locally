@@ -35,6 +35,7 @@ class FakeSyncStateStore implements SyncStateStore {
       uploadedFiles: Object.fromEntries(Object.entries(this.state.uploadedFiles).map(([k, v]) => [k, [...v]])),
       coverHash: { ...this.state.coverHash },
       pendingFromPhone: { ...this.state.pendingFromPhone },
+      missingFiles: { ...this.state.missingFiles },
     };
   }
   async set(state: SyncState): Promise<SyncState> {
@@ -185,6 +186,7 @@ describe("PUT /api/settings", () => {
       uploadedFiles: {},
       coverHash: {},
       pendingFromPhone: { "rel-2": {} as SyncRecord },
+      missingFiles: {},
     });
 
     const res = await PUT(putRequest({ sync: { baseUrl: "https://sync.example.com" } }));
@@ -247,6 +249,7 @@ describe("PUT /api/settings", () => {
       uploadedFiles: {},
       coverHash: {},
       pendingFromPhone: { "rel-2": {} as SyncRecord },
+      missingFiles: {},
     });
 
     const res = await PUT(putRequest({ sync: { baseUrl: "http://localhost:4000" } }));

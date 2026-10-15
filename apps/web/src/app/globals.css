@@ -397,6 +397,27 @@ body {
   }
 }
 
+/* The three dots on a tray row whose files are still being sent, typed out like a terminal: ".",
+   "..", "..." and again, 0.4s a step, opacity only and no easing between steps. Declared only
+   when motion is allowed, so under reduced motion the three dots simply stand still (a reduce
+   override would lose to these more specific :nth-child rules). */
+@media (prefers-reduced-motion: no-preference) {
+  .sending-dots span:nth-child(2) {
+    animation: sending-dot-2 1.2s step-end infinite;
+  }
+  .sending-dots span:nth-child(3) {
+    animation: sending-dot-3 1.2s step-end infinite;
+  }
+}
+@keyframes sending-dot-2 {
+  0% { opacity: 0; }
+  33.333%, 100% { opacity: 1; }
+}
+@keyframes sending-dot-3 {
+  0% { opacity: 0; }
+  66.667%, 100% { opacity: 1; }
+}
+
 .cover-in {
   animation: cover-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
