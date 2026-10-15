@@ -117,6 +117,7 @@ final class SyncEngine: ReleaseSyncHook {
     private let deviceName: () -> String
     private let reconcileInterval: Duration
     private let reconcileSleep: @Sendable (Duration) async throws -> Void
+    private let now: () -> Date
 
     let status: SyncStatus
 
@@ -147,6 +148,7 @@ final class SyncEngine: ReleaseSyncHook {
         status: SyncStatus = SyncStatus(),
         reconcileInterval: Duration = .seconds(30),
         reconcileSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        now: @escaping () -> Date = { Date() },
         deviceName: @escaping () -> String
     ) {
         self.api = api
@@ -158,6 +160,7 @@ final class SyncEngine: ReleaseSyncHook {
         self.status = status
         self.reconcileInterval = reconcileInterval
         self.reconcileSleep = reconcileSleep
+        self.now = now
         self.deviceName = deviceName
         status.signedIn = account.deviceToken != nil
         status.email = account.email
@@ -604,13 +607,16 @@ final class SyncEngine: ReleaseSyncHook {
             // ran while `me()` was in flight has already cleared the
             // account, and nothing from this response may be written back.
             // Best-effort: quota display only.
-            if let me = try? await api.me(), isSignedIn {
+            let me = try? await api.me()
+            if let me, isSignedIn {
                 status.quota = me.quota
                 if account.deviceName == nil {
                     account.deviceName = me.deviceName
                     status.deviceName = me.deviceName
                 }
             }
+
+            await healMissingFiles(resyncRequestedAt: me?.resyncRequestedAt)
 
             status.lastRunAt = Date()
             // Don't stomp on an accept retry's own error message with `nil`
@@ -623,6 +629,91 @@ final class SyncEngine: ReleaseSyncHook {
         } catch {
             status.lastError = error.localizedDescription
         }
+    }
+
+    /// How long a successful `GET /v1/files/missing` check holds off the next
+    /// one (the endpoint is rate-limited and lists blob storage, which is a
+    /// priced call). A newer `resyncRequestedAt` from the Mac skips the wait.
+    private static let missingFilesCheckSpacing: TimeInterval = 6 * 60 * 60
+
+    /// Self-heal for releases whose record reached the server but whose files
+    /// did not (#171, `docs/plans/119-missing-files.md`). At most every 6 hours,
+    /// or at once when `/v1/me` reports a `resyncRequestedAt` newer than the
+    /// last check, asks the server which file names it never stored. For each
+    /// listed release this phone owns, drops exactly those names from
+    /// `uploadedFileNames` and queues one push; the partial-upload logic in
+    /// `uploadFiles` then sends only those files. Names the server holds are
+    /// never touched, so nothing it already has is uploaded again.
+    ///
+    /// Quiet by design: a 404 (an API that predates the route) is skipped and
+    /// not retried for 6 hours, and a 429 or any other failed check is skipped
+    /// and retried on the next reconcile without moving the timestamp. None of
+    /// those reach `status.lastError`. Only a failure to write the markers or
+    /// queue the push does, as for any other local sync write.
+    private func healMissingFiles(resyncRequestedAt: Date?) async {
+        guard isSignedIn else { return }
+        let checkedAt = now()
+        let last = account.lastMissingFilesCheckAt
+        let spacingElapsed = last.map { checkedAt.timeIntervalSince($0) >= Self.missingFilesCheckSpacing } ?? true
+        let nudged: Bool
+        if let last, let resyncRequestedAt { nudged = resyncRequestedAt > last } else { nudged = false }
+        guard spacingElapsed || nudged else { return }
+
+        let result: SyncMissingFiles
+        do {
+            result = try await api.missingFiles()
+        } catch SyncApiError.notFound {
+            Self.log.info("Missing-files check unavailable: the sync server doesn't have the route yet.")
+            // Not an error and not worth asking again every reconcile.
+            account.lastMissingFilesCheckAt = checkedAt
+            return
+        } catch SyncApiError.rateLimited {
+            Self.log.info("Missing-files check rate limited; trying again on the next reconcile.")
+            return
+        } catch {
+            Self.log.error("Missing-files check failed: \(String(describing: error), privacy: .public)")
+            return
+        }
+        // A sign-out that ran while the call was in flight has already cleared the account.
+        guard isSignedIn else { return }
+
+        var queued = 0
+        if !result.releases.isEmpty {
+            // Unreadable library: already surfaced; leave the timestamp so the next reconcile retries.
+            guard let localReleases = localReleases() else { return }
+            let localById = Dictionary(localReleases.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            for entry in result.releases {
+                guard let id = UUID(uuidString: entry.id), let local = localById[id] else {
+                    Self.log.info("Missing-files list names release \(entry.id, privacy: .public), which this phone doesn't have; leaving it.")
+                    continue
+                }
+                if requeueMissingFiles(of: local, names: Set(entry.missing)) { queued += 1 }
+            }
+        }
+        // `max` with the nudge: the Mac's clock and this phone's can differ, and
+        // a nudge that is still "newer" than the stored time would re-run this
+        // on every reconcile.
+        account.lastMissingFilesCheckAt = max(checkedAt, resyncRequestedAt ?? checkedAt)
+        if queued > 0 { await drainOutbox() }
+    }
+
+    /// Removes `names` (and only those) from `release`'s "server holds" markers
+    /// and queues one push. False when the release is gone from the index or
+    /// the marker write failed (nothing is queued then: with the markers
+    /// unchanged a push would upload nothing).
+    private func requeueMissingFiles(of release: Release, names: Set<String>) -> Bool {
+        var cleared = release
+        cleared.uploadedFileNames.removeAll { names.contains($0) }
+        if cleared.uploadedFileNames.count != release.uploadedFileNames.count {
+            do {
+                // Update-only, like `markPushed`: a release deleted meanwhile must not come back.
+                guard try library.updateIfPresent(cleared) else { return false }
+            } catch {
+                surface(Copy.Sync.queueFailed(error.localizedDescription), error: error)
+                return false
+            }
+        }
+        return enqueue(release.id, .push)
     }
 
     /// The most pages `fetchRemoteChanges` pulls in one `reconcile()`, as a

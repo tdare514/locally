@@ -24,6 +24,23 @@ struct SyncMeResult: Equatable {
     var deviceId: String
     var deviceName: String
     var quota: SyncQuota
+    /// When the Mac last asked the phone to send its files again (#171), or
+    /// `nil` if it never has, or the server is older than that field.
+    var resyncRequestedAt: Date? = nil
+}
+
+/// One release in `GET /v1/files/missing`: the file names its record
+/// references that the server has no stored copy of. Other keys the server
+/// sends (`recordUpdatedAt`) are ignored.
+struct SyncMissingRelease: Decodable, Equatable {
+    var id: String
+    var missing: [String]
+}
+
+/// `GET /v1/files/missing`'s response (#171): only the caller's live
+/// releases with something missing, so a healthy account gets `releases: []`.
+struct SyncMissingFiles: Decodable, Equatable {
+    var releases: [SyncMissingRelease]
 }
 
 /// `GET /v1/releases/:id/plays`: Spotify play counts per track, split by device.
@@ -89,6 +106,11 @@ enum SyncApiError: LocalizedError, Equatable {
     case unauthorized
     case conflict(serverUpdatedAt: Date?)
     case quotaExceeded
+    /// A 404 on a route an older API doesn't have yet (`/v1/files/*`, #171).
+    /// Only raised by calls that expect it; every other 404 stays `.network`.
+    case notFound
+    /// A 429 on a route that rate-limits (`/v1/files/*`, #171). Same scoping as `.notFound`.
+    case rateLimited
     case network(String)
 
     var errorDescription: String? {
@@ -99,6 +121,10 @@ enum SyncApiError: LocalizedError, Equatable {
             return "Someone else changed this release first."
         case .quotaExceeded:
             return "Your sync storage is full."
+        case .notFound:
+            return "The sync server doesn't have that yet."
+        case .rateLimited:
+            return "The sync server is busy. Try again soon."
         case .network(let message):
             return message
         }
@@ -134,6 +160,10 @@ protocol SyncApi {
     func uploadFile(_ fileURL: URL, to upload: SyncUpload) async throws
     /// `GET /v1/releases/:id/files/:name`: a short-lived download URL.
     func downloadURL(releaseId: String, fileName: String) async throws -> URL
+    /// `GET /v1/files/missing`: the caller's live releases with file names the
+    /// server has no stored copy of (#171). Throws `.notFound` on an API that
+    /// predates the route and `.rateLimited` on a 429.
+    func missingFiles() async throws -> SyncMissingFiles
     /// `GET /v1/releases/:id/plays`: per-device play counts for each track.
     /// Throws on a 404 when the release isn't the user's or is tombstoned.
     func releasePlays(releaseId: String) async throws -> SyncReleasePlays
@@ -194,13 +224,17 @@ final class HttpSyncApi: SyncApi {
             let user: User
             let device: Device
             let quota: Quota
+            /// Absent or null on an older API. Read as text and parsed below, so
+            /// a value this build can't parse costs the nudge, not the whole call.
+            let resyncRequestedAt: String?
         }
         let decoded = try decode(Response.self, from: data)
         return SyncMeResult(
             email: decoded.user.email,
             deviceId: decoded.device.id,
             deviceName: decoded.device.name,
-            quota: SyncQuota(usedBytes: decoded.quota.usedBytes, limitBytes: decoded.quota.limitBytes)
+            quota: SyncQuota(usedBytes: decoded.quota.usedBytes, limitBytes: decoded.quota.limitBytes),
+            resyncRequestedAt: decoded.resyncRequestedAt.flatMap(SyncDateFormat.decode)
         )
     }
 
@@ -297,6 +331,15 @@ final class HttpSyncApi: SyncApi {
         return url
     }
 
+    func missingFiles() async throws -> SyncMissingFiles {
+        let data = try await send(
+            path: "/v1/files/missing",
+            method: "GET",
+            statusErrors: [404: .notFound, 429: .rateLimited]
+        )
+        return try decode(SyncMissingFiles.self, from: data)
+    }
+
     func releasePlays(releaseId: String) async throws -> SyncReleasePlays {
         let data = try await send(path: "/v1/releases/\(releaseId)/plays", method: "GET")
         return try decode(SyncReleasePlays.self, from: data)
@@ -334,10 +377,11 @@ final class HttpSyncApi: SyncApi {
         path: String,
         method: String,
         body: [String: Any]? = nil,
-        authorized: Bool = true
+        authorized: Bool = true,
+        statusErrors: [Int: SyncApiError] = [:]
     ) async throws -> Data {
         let bodyData = try body.map { try JSONSerialization.data(withJSONObject: $0) }
-        return try await send(path: path, method: method, bodyData: bodyData, authorized: authorized)
+        return try await send(path: path, method: method, bodyData: bodyData, authorized: authorized, statusErrors: statusErrors)
     }
 
     @discardableResult
@@ -345,7 +389,8 @@ final class HttpSyncApi: SyncApi {
         path: String,
         method: String,
         bodyData: Data?,
-        authorized: Bool = true
+        authorized: Bool = true,
+        statusErrors: [Int: SyncApiError] = [:]
     ) async throws -> Data {
         // Built by string concatenation rather than `appendingPathComponent`,
         // which would percent-encode a `?sinceVersion=` query string.
@@ -380,6 +425,7 @@ final class HttpSyncApi: SyncApi {
         guard let http = response as? HTTPURLResponse else {
             throw SyncApiError.network("No response from the server.")
         }
+        if let typed = statusErrors[http.statusCode] { throw typed }
         try Self.checkStatus(http.statusCode, data: data)
         return data
     }
