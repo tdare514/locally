@@ -89,7 +89,9 @@ eyebrows still apply to those labels.
 - Radius: inputs and thumbnails 6; drop zones, cards and file rows 8; list containers 12; the
   editor's big cover 10; dialogs 9; buttons, pills and badges fully rounded.
 - Page padding: mobile 16 (list) to 20 (forms); desktop 40 to 64, content max width 896 (desktop
-  form) or 920 (desktop release page).
+  form) or 920 (desktop release page). The desktop library has no max width by default: it fills
+  the pane with about 24 px each side at `md` and 32 px from `lg` (Full width, #207); the
+  Comfortable setting keeps a centred 920 column.
 - Section gap 32 (mobile editor sections 28). Label to input 8. Between fields 16. List rows
   have no gap; a 1 px `border` separates them inside the container.
 - Inputs: padding 16 horizontal, 12 vertical; mobile min height 48. Focus shows a 2 px `accent`
@@ -300,4 +302,34 @@ eyebrows still apply to those labels.
   stands still under reduced motion. The MagicPath sidebar is not used.
 - **Library list (desktop main)**: same sectioning as mobile — YOUR COLLECTION (replaced 13 Oct 2026: sentence case) / All music
   header with track-count meta, Singles then Albums in `card` containers (radius 12), "Add a
-  song" primary below.
+  song" primary below. *Since 15 Oct 2026 (#207)* each section is a full-width table, like a
+  Spotify playlist: one quiet header row above the container (12, `text-dim`, sentence case:
+  Title, Genre, Year, Tracks, Added; no "#" column, since the library is not an ordered list),
+  then rows on one shared grid: the 56 thumbnail with title (semibold) and artist (`text-muted`)
+  under it, then genre, year, track count and the date the release was added ("Feb 6, 2026", the
+  user's locale), then the chevron. Numbers are tabular. An empty genre or year shows nothing.
+  Columns drop as the section narrows: Added under 820, Genre under 680, Year and Tracks under
+  520. One 1 px divider between rows, as before. The cover grid keeps its own layout.
+- **From your devices tray (desktop, #115, #185, #172)**: a clear faked-glass cloud button at the
+  top right with an `accent` count badge; open, it becomes a bare red X and the badge hides. The
+  frosted tray (about 272 wide, radius 22) drops out diagonally from that corner and closes only
+  from the button or Escape. Each pending release is a row: a small record sleeve (48 cover,
+  radius 10, the disc peeking out) that is itself the Send to Spotify button (hover: the cover
+  turns `accent` with a black plus and the disc rolls out), then title (15 semibold), artist and
+  track count (13 `text-muted`) and a quiet origin label (12 `text-dim`: "from your iPhone", "from
+  the web", "from another device"). A sent row collapses out. Rows whose files have not reached
+  the server have two states, from `GET /v1/files/missing`:
+  - *Still sending*: the row is greyed (sleeve at 50 % and greyscale, title `text-muted`, artist
+    `text-dim`, both still readable) and is not a button. In place of the plus, three 4 px square
+    dots sit on the cover's lower third and type out like a terminal: ".", "..", "..." and again,
+    0.4 s a step with no easing between steps. These rows sort last, above one quiet footer line
+    (12 `text-muted`): "Still sending this one from your phone…" / "Still sending these from your
+    phone…" (another origin: "…from that device…" / "Still sending these…"). Reduced motion: the
+    three dots stand still.
+  - *Waiting on your phone*: once a later check still finds the files missing, or the record is
+    an hour old. The sleeve is a still picture at 60 %; under the origin label "Waiting on your
+    phone" (12 semibold, `text`), then "This song's files never reached the server." and a
+    secondary pill, **Resync Mac and phone** (another origin: "Waiting on that device", **Resync**).
+    After a press: "Asked your phone to send it again. Open Locally on your iPhone to finish." If
+    the service asks to wait: "Try again in a few minutes." under the pill.
+  - A re-sent release returns to *Still sending*, never straight to *Waiting*.
