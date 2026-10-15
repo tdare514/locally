@@ -26,3 +26,5 @@ mac:
   identity: null
   hardenedRuntime: false
   icon: ../ios/Locally/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+  extendInfo:
+    NSAppleEventsUsageDescription: Locally reads what Spotify is playing to count plays of your tracks.

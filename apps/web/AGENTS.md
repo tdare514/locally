@@ -50,11 +50,12 @@ src/server/
 src/app/api/**/route.ts   # thin HTTP handlers: parse via http/validation, call a service, respond
 src/app/api/sync/**/route.ts  # sync: code/verify/status/signout, reconcile, accept/[id]
 electron/                 # Mac desktop shell (Electron); compiled by tsconfig.electron.json to electron/dist
-  main.ts                 # spawns the Next standalone server on a free 127.0.0.1 port, opens one window, locks navigation
+  main.ts                 # spawns the Next standalone server on a free 127.0.0.1 port, opens one window, locks navigation; keeps running after the window closes, "Open at Login" menu item (#105)
   lib/freePort.ts         # findFreePort() on 127.0.0.1
   lib/serverEnv.ts        # pure: env for the server child (HOSTNAME forced to 127.0.0.1, PORT, config dir, ffmpeg, PATH)
   lib/migrateConfig.ts    # pure: first-launch copy of ~/.spotify-local-import config into Application Support
   lib/waitForServer.ts    # polls the server URL until it answers or the child dies
+  lib/background.ts       # shouldStartHidden() for a login launch; startServices() makes the one GET /api/sync/status that starts sync and play tracking (#105)
   lib/update-manifest.ts  # pure: verifies the Ed25519-signed update envelope and validates the manifest (#71)
   lib/updater.ts          # update check, SHA-256-verified download, ditto unzip, bundle swap; app-menu "Check for Updates…"
   lib/updateConfig.ts     # pinned manifest URL, public key, bundle id (empty = updater disabled)
