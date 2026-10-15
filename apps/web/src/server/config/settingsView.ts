@@ -10,6 +10,7 @@ export function toSettingsResponse(settings: Settings): SettingsResponse {
   return {
     libraryDir: settings.libraryDir,
     trackPlays: settings.trackPlays === true,
+    playsPromptAnswered: settings.playsPromptAnswered === true,
     sync: {
       baseUrl: sync?.baseUrl ?? DEFAULT_SYNC_BASE_URL,
       email: sync?.email ?? null,

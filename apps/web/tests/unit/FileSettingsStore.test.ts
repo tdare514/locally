@@ -67,6 +67,24 @@ describe("FileSettingsStore", () => {
     expect(s.trackPlays).toBe(false);
   });
 
+  it("reads playsPromptAnswered as false on first run and from an old settings.json without the field", async () => {
+    expect((await new FileSettingsStore().get()).playsPromptAnswered).toBe(false);
+
+    const libraryDir = path.join(path.dirname(configDir), "lib");
+    await fs.writeFile(settingsFilePath(), JSON.stringify({ libraryDir, sync: null, trackPlays: true }));
+    expect((await new FileSettingsStore().get()).playsPromptAnswered).toBe(false);
+  });
+
+  it("persists playsPromptAnswered across a set()/get() and ignores a non-boolean value", async () => {
+    const store = new FileSettingsStore();
+    const libraryDir = path.join(configDir, "lib");
+    await store.set({ libraryDir, sync: null, playsPromptAnswered: true });
+    expect((await new FileSettingsStore().get()).playsPromptAnswered).toBe(true);
+
+    await fs.writeFile(settingsFilePath(), JSON.stringify({ libraryDir, sync: null, playsPromptAnswered: "yes" }));
+    expect((await new FileSettingsStore().get()).playsPromptAnswered).toBe(false);
+  });
+
   it("round-trips a set()/get() through the tmp-file-plus-rename write", async () => {
     const store = new FileSettingsStore();
     const libraryDir = path.join(configDir, "lib");

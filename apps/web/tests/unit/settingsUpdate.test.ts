@@ -107,9 +107,30 @@ describe("planSettingsUpdate trackPlays", () => {
   });
 });
 
+describe("planSettingsUpdate playsPromptAnswered", () => {
+  it("defaults to false and is settable on its own, leaving trackPlays alone", () => {
+    expect(ok(planSettingsUpdate(current(), { trackPlays: true }, home)).settings.playsPromptAnswered).toBe(false);
+    const r = ok(planSettingsUpdate(current(), { playsPromptAnswered: true }, home));
+    expect(r.settings.playsPromptAnswered).toBe(true);
+    expect(r.settings.trackPlays).toBe(false);
+    expect(r.resetSyncState).toBe(false);
+  });
+
+  it("Turn on sends both fields in one update", () => {
+    const r = ok(planSettingsUpdate(current(), { trackPlays: true, playsPromptAnswered: true }, home));
+    expect(r.settings).toMatchObject({ trackPlays: true, playsPromptAnswered: true });
+  });
+
+  it("keeps the answer when other settings change, including a new library folder", () => {
+    const c = current({ playsPromptAnswered: true });
+    expect(ok(planSettingsUpdate(c, { trackPlays: true }, home)).settings.playsPromptAnswered).toBe(true);
+    expect(ok(planSettingsUpdate(c, { libraryDir: path.join(home, "Z") }, home)).settings.playsPromptAnswered).toBe(true);
+  });
+});
+
 describe("planSettingsUpdate empty body", () => {
   it("refuses when neither field is given", () => {
     const r = planSettingsUpdate(current(), {}, home);
-    expect(r).toMatchObject({ ok: false, error: "Nothing to update: pass libraryDir, sync.baseUrl and/or trackPlays" });
+    expect(r).toMatchObject({ ok: false, error: "Nothing to update: pass libraryDir, sync.baseUrl, trackPlays and/or playsPromptAnswered" });
   });
 });

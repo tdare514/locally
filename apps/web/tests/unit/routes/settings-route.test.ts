@@ -108,6 +108,36 @@ describe("trackPlays setting", () => {
   });
 });
 
+describe("playsPromptAnswered setting", () => {
+  it("is exposed by GET, false by default", async () => {
+    const body = (await (await GET()).json()) as { playsPromptAnswered: boolean };
+    expect(body.playsPromptAnswered).toBe(false);
+  });
+
+  it("Not now: PUT saves it without turning counting on", async () => {
+    const res = await PUT(putRequest({ playsPromptAnswered: true }));
+    expect(res.status).toBe(200);
+    expect(settingsValue.playsPromptAnswered).toBe(true);
+    expect(settingsValue.trackPlays).toBe(false);
+    expect(await res.json()).toMatchObject({ playsPromptAnswered: true, trackPlays: false });
+    expect(playTracker.setEnabled).toHaveBeenCalledWith(false);
+    expect(((await (await GET()).json()) as { playsPromptAnswered: boolean }).playsPromptAnswered).toBe(true);
+  });
+
+  it("Turn on: PUT saves both and starts the tracker", async () => {
+    const res = await PUT(putRequest({ trackPlays: true, playsPromptAnswered: true }));
+    expect(res.status).toBe(200);
+    expect(settingsValue).toMatchObject({ trackPlays: true, playsPromptAnswered: true });
+    expect(playTracker.setEnabled).toHaveBeenCalledWith(true);
+  });
+
+  it("PUT rejects a non-boolean", async () => {
+    const res = await PUT(putRequest({ playsPromptAnswered: "yes" }));
+    expect(res.status).toBe(400);
+    expect(settingsValue.playsPromptAnswered).toBeUndefined();
+  });
+});
+
 describe("PUT /api/settings", () => {
   it("updates libraryDir", async () => {
     const res = await PUT(putRequest({ libraryDir: "/tmp/new-lib" }));
