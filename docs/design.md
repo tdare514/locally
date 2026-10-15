@@ -313,23 +313,28 @@ eyebrows still apply to those labels.
 - **From your devices tray (desktop, #115, #185, #172)**: a clear faked-glass cloud button at the
   top right with an `accent` count badge; open, it becomes a bare red X and the badge hides. The
   frosted tray (about 272 wide, radius 22) drops out diagonally from that corner and closes only
-  from the button or Escape. Each pending release is a row: a small record sleeve (48 cover,
+  from the button or Escape. It is the one surface with a real backdrop blur (28, only while open,
+  a solid fill under reduced transparency), an exception kept from #115 rather than a pattern for
+  new surfaces. It is at most the window height less 96 and scrolls inside itself when longer. Each pending release is a row: a small record sleeve (48 cover,
   radius 10, the disc peeking out) that is itself the Send to Spotify button (hover: the cover
   turns `accent` with a black plus and the disc rolls out), then title (15 semibold), artist and
   track count (13 `text-muted`) and a quiet origin label (12 `text-dim`: "from your iPhone", "from
   the web", "from another device"). A sent row collapses out. Rows whose files have not reached
   the server have two states, from `GET /v1/files/missing`:
-  - *Still sending*: the row is greyed (sleeve at 50 % and greyscale, title `text-muted`, artist
-    `text-dim`, both still readable) and is not a button. In place of the plus, three 4 px square
+  - *Still sending*: the row is greyed (the sleeve artwork alone at 50 % and greyscale; title
+    `text-muted` and artist `text-dim` stay readable, so the 50 % disabled rule does not apply to
+    the text) and is not a button. In place of the plus, three 4 px square
     dots sit on the cover's lower third and type out like a terminal: ".", "..", "..." and again,
     0.4 s a step with no easing between steps. These rows sort last, above one quiet footer line
     (12 `text-muted`): "Still sending this one from your phone…" / "Still sending these from your
     phone…" (another origin: "…from that device…" / "Still sending these…"). Reduced motion: the
-    three dots stand still.
+    three dots stand still (the steps are declared only when reduced motion is not requested).
   - *Waiting on your phone*: once a later check still finds the files missing, or the record is
     an hour old. The sleeve is a still picture at 60 %; under the origin label "Waiting on your
-    phone" (12 semibold, `text`), then "This song's files never reached the server." and a
+    phone" (12 semibold, `text`), then "This song's files never reached the server." ("This
+    album's files…" for an album) and a
     secondary pill, **Resync Mac and phone** (another origin: "Waiting on that device", **Resync**).
     After a press: "Asked your phone to send it again. Open Locally on your iPhone to finish." If
     the service asks to wait: "Try again in a few minutes." under the pill.
-  - A re-sent release returns to *Still sending*, never straight to *Waiting*.
+  - A re-sent release (a newer server version of it) returns to *Still sending*, never straight
+    to *Waiting*; the same version pulled again changes nothing.

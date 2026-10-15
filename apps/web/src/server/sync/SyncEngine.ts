@@ -347,9 +347,16 @@ export class SyncEngine implements ReleaseSyncHooks {
           // Any origin but "mac" is another device ("ios", "web", or one this build has never
           // heard of): offered in the tray, never mistaken for this Mac's own.
           if (record.origin !== "mac") {
-            const wasMissing = record.id in state.pendingFromPhone && record.id in state.missingFiles;
+            const prev = state.pendingFromPhone[record.id] as (SyncRecord & { version?: number }) | undefined;
+            // Only a newer server version means the phone sent it again; the same version pulled
+            // twice (a page fetched again) changes nothing. A pending record saved before versions
+            // were kept counts as re-sent.
+            const resent =
+              prev !== undefined &&
+              record.id in state.missingFiles &&
+              (prev.version === undefined || record.version > prev.version);
             state.pendingFromPhone[record.id] = record;
-            if (wasMissing) {
+            if (resent) {
               // The phone re-sent it: show "arriving" again and look again soon.
               const nowMs = this.now().getTime();
               state.missingFiles[record.id] = {
@@ -644,7 +651,7 @@ export class SyncEngine implements ReleaseSyncHooks {
     }
     if (filesState === "waiting") {
       throw new PublicError(
-        "This song's files never reached the server. Use Resync in the tray to ask for them again."
+        `${record.kind === "album" ? "This album's" : "This song's"} files never reached the server. Use Resync in the tray to ask for them again.`
       );
     }
 

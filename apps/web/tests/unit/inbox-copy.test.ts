@@ -49,6 +49,12 @@ describe("files missing copy (#172)", () => {
     });
   });
 
+  it("names an album's files for an album and a song's for a single", () => {
+    expect(waitingCopy("ios", "album").body).toBe("This album's files never reached the server.");
+    expect(waitingCopy("web", "album").body).toBe("This album's files never reached the server.");
+    expect(waitingCopy("ios", "single").body).toBe("This song's files never reached the server.");
+  });
+
   it("is generic for the web and any origin it has no name for", () => {
     for (const origin of ["web", "future-thing", ""]) {
       const copy = waitingCopy(origin);

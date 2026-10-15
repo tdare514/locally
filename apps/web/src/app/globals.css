@@ -395,19 +395,19 @@ body {
   .import-pill:focus-visible .import-plus {
     animation: none;
   }
-  .sending-dots span {
-    animation: none;
-    opacity: 1;
-  }
 }
 
 /* The three dots on a tray row whose files are still being sent, typed out like a terminal: ".",
-   "..", "..." and again, 0.4s a step, opacity only and no easing between steps. */
-.sending-dots span:nth-child(2) {
-  animation: sending-dot-2 1.2s step-end infinite;
-}
-.sending-dots span:nth-child(3) {
-  animation: sending-dot-3 1.2s step-end infinite;
+   "..", "..." and again, 0.4s a step, opacity only and no easing between steps. Declared only
+   when motion is allowed, so under reduced motion the three dots simply stand still (a reduce
+   override would lose to these more specific :nth-child rules). */
+@media (prefers-reduced-motion: no-preference) {
+  .sending-dots span:nth-child(2) {
+    animation: sending-dot-2 1.2s step-end infinite;
+  }
+  .sending-dots span:nth-child(3) {
+    animation: sending-dot-3 1.2s step-end infinite;
+  }
 }
 @keyframes sending-dot-2 {
   0% { opacity: 0; }

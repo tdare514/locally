@@ -1255,6 +1255,22 @@ describe("SyncEngine", () => {
         seedPhone("a", MIN); // same id, newer record
       }
 
+      it("is not fooled by the same version pulled again: a waiting row stays waiting", async () => {
+        seedPhone("a", 90 * MIN);
+        api.missingIds.add("a");
+        await clocked.reconcile();
+        expect(await stateOf("a")).toBe("waiting");
+
+        // The same page comes down again, as if the cursor had not been saved.
+        const settings = await settingsStore.get();
+        await settingsStore.set({ ...settings, sync: { ...settings.sync!, lastVersion: 0 } });
+        nowMs += MIN;
+        await clocked.reconcile();
+
+        expect(await stateOf("a")).toBe("waiting");
+        expect((await syncState.get()).missingFiles.a?.resentAt).toBeUndefined();
+      });
+
       it("shows as arriving with a resentAt mark, and the next check is due 2 minutes later, not before", async () => {
         await resendWaiting();
         await clocked.reconcile();

@@ -42,8 +42,9 @@ export interface WaitingCopy {
   later: string;
 }
 
-export function waitingCopy(origin: string): WaitingCopy {
-  const body = "This song's files never reached the server.";
+/** The body names what is missing: an album's files, or a single's (a song). */
+export function waitingCopy(origin: string, kind: "single" | "album" = "single"): WaitingCopy {
+  const body = kind === "album" ? "This album's files never reached the server." : "This song's files never reached the server.";
   const later = "Try again in a few minutes.";
   if (isPhone(origin)) {
     return {

@@ -253,4 +253,22 @@ describe("FileSyncStateStore", () => {
       resent: { firstSeenMissingAt: "2026-10-15T10:05:00.000Z", stillMissing: false, resentAt: "2026-10-15T10:05:00.000Z" },
     });
   });
+
+  it("keeps the server version of a pending record, so a page pulled twice is not a re-send (#172)", async () => {
+    await writeSyncStateFile({
+      pushedUpdatedAt: {},
+      uploadedFiles: {},
+      coverHash: {},
+      pendingFromPhone: {
+        withVersion: { ...samplePending(), version: 7 },
+        oldFile: samplePending(),
+        oddVersion: { ...samplePending(), version: "7" },
+      },
+    });
+
+    const state = await new FileSyncStateStore().get();
+    expect((state.pendingFromPhone.withVersion as SyncRecord & { version?: number }).version).toBe(7);
+    expect("version" in state.pendingFromPhone.oldFile).toBe(false);
+    expect("version" in state.pendingFromPhone.oddVersion).toBe(false);
+  });
 });

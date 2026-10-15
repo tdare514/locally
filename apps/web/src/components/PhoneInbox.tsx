@@ -139,7 +139,7 @@ export default function PhoneInbox({ pending, onAccept, onResync }: PhoneInboxPr
           aria-label={INBOX_TITLE}
           tabIndex={-1}
           data-state={open ? "open" : "closed"}
-          className="phone-tray glass-fake glass-frost absolute right-full top-full z-30 isolate w-[17rem] max-w-[calc(100vw-2rem)] rounded-[22px] p-2 outline-none"
+          className="phone-tray glass-fake glass-frost absolute right-full top-full z-30 isolate w-[17rem] max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain rounded-[22px] p-2 outline-none"
         >
           {pending.length === 0 && (
             <p className="px-3 py-3 text-sm text-text-muted">Nothing waiting from your devices.</p>
@@ -193,7 +193,7 @@ export function PendingRow({
   const title = item.title || item.artist;
   const waiting = item.filesState === "waiting";
   const arriving = item.filesState === "arriving";
-  const copy = waitingCopy(item.origin);
+  const copy = waitingCopy(item.origin, item.kind);
   // The group/send hover and focus effects only fire under the Send button, so the same sleeve
   // sits still when it is not one.
   const sleeve = (

@@ -17,7 +17,11 @@ const SyncStateFileSchema = z.object({
       Object.fromEntries(
         Object.entries(entries).flatMap(([id, raw]) => {
           const parsed = SyncRecordSchema.safeParse(raw);
-          return parsed.success ? [[id, parsed.data]] : [];
+          if (!parsed.success) return [];
+          // The server version the record was pulled at, kept so a page pulled twice is not taken
+          // for the phone sending it again (#172). Older files have none.
+          const version = (raw as { version?: unknown }).version;
+          return [[id, typeof version === "number" ? { ...parsed.data, version } : parsed.data]];
         }),
       ),
     ),

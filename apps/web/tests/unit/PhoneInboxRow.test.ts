@@ -107,6 +107,12 @@ describe("PendingRow files states (#172)", () => {
     expect(html.match(/<button/g)).toHaveLength(1);
   });
 
+  it("a waiting album row names the album, not a song", () => {
+    const { text } = render({ ...base, kind: "album", trackCount: 6, filesState: "waiting" });
+    expect(text).toContain("This album's files never reached the server.");
+    expect(text).not.toContain("This song's");
+  });
+
   it("after Resync it shows what happened in place of the button", () => {
     const { html, text } = render({ ...base, filesState: "waiting" }, { outcome: "asked" });
     expect(text).toContain("Asked your phone to send it again. Open Locally on your iPhone to finish.");
