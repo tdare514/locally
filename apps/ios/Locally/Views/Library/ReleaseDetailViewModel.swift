@@ -11,6 +11,9 @@ final class ReleaseDetailViewModel {
     struct TrackRow: Identifiable, Hashable {
         let id: UUID
         var title: String
+        /// Which disc the track is on, when the release has discs. Read only: it sets the
+        /// "Disc N" headings.
+        var discNumber: Int?
     }
 
     private let coordinator: ReleaseCoordinator
@@ -63,7 +66,7 @@ final class ReleaseDetailViewModel {
         let cover = release.coverPath != nil ? coverStore.load(release.id) : nil
         let rows = release.tracks
             .sorted { $0.trackNumber < $1.trackNumber }
-            .map { TrackRow(id: $0.id, title: $0.title) }
+            .map { TrackRow(id: $0.id, title: $0.title, discNumber: $0.discNumber) }
 
         self.releaseId = release.id
         self.kind = release.kind
@@ -122,6 +125,11 @@ final class ReleaseDetailViewModel {
     }
 
     var hasPlays: Bool { !playTotals.isEmpty }
+
+    /// The disc heading to show above each row, or nil for none (see `DiscNumbering.headings`).
+    var discHeadings: [Int?] {
+        DiscNumbering.headings(for: trackRows.map(\.discNumber))
+    }
 
     func moveTracks(from source: IndexSet, to destination: Int) {
         trackRows.move(fromOffsets: source, toOffset: destination)
@@ -188,7 +196,7 @@ final class ReleaseDetailViewModel {
         coverData = release.coverPath != nil ? coverStore.load(release.id) : coverData
         trackRows = release.tracks
             .sorted { $0.trackNumber < $1.trackNumber }
-            .map { TrackRow(id: $0.id, title: $0.title) }
+            .map { TrackRow(id: $0.id, title: $0.title, discNumber: $0.discNumber) }
 
         originalTitle = title
         originalArtist = artist

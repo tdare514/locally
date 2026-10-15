@@ -180,6 +180,20 @@ extension View {
 /// detail's Tracks section: a `card` with a 1 pt `border`, radius 8, min
 /// height 64, a 36 pt `elevated` tile holding an accent `music.note` icon,
 /// a title (editable or plain text) and the "Audio file" caption.
+/// A quiet "Disc N" heading above the first track row of a disc, shown only when a release has
+/// more than one disc. Sentence case and muted, to sit in the same blended panel as the rows.
+struct DiscHeading: View {
+    let number: Int
+
+    var body: some View {
+        Text(Copy.Import.disc(number))
+            .font(Theme.Font.meta)
+            .foregroundStyle(Theme.secondaryText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
 struct FileRow: View {
     let index: Int
     let title: String

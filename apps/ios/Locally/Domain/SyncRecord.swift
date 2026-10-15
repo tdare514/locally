@@ -91,21 +91,51 @@ struct SyncTrack: Codable, Hashable {
     var id: String
     var title: String
     var trackNumber: Int
+    /// 1...99 on a multi-disc release; nil (and the key omitted on the wire) otherwise.
+    var discNumber: Int?
     var file: String
     var bytes: Int
     var durationSec: Double?
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, trackNumber, file, bytes, durationSec
+        case id, title, trackNumber, discNumber, file, bytes, durationSec
     }
 
-    init(id: String, title: String, trackNumber: Int, file: String, bytes: Int, durationSec: Double? = nil) {
+    init(
+        id: String,
+        title: String,
+        trackNumber: Int,
+        discNumber: Int? = nil,
+        file: String,
+        bytes: Int,
+        durationSec: Double? = nil
+    ) {
         self.id = id
         self.title = title
         self.trackNumber = trackNumber
+        self.discNumber = discNumber
         self.file = file
         self.bytes = bytes
         self.durationSec = durationSec
+    }
+
+    /// Refuses a `discNumber` outside 1...99, as the API's `trackRecordSchema` does.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        trackNumber = try container.decode(Int.self, forKey: .trackNumber)
+        discNumber = try container.decodeIfPresent(Int.self, forKey: .discNumber)
+        file = try container.decode(String.self, forKey: .file)
+        bytes = try container.decode(Int.self, forKey: .bytes)
+        durationSec = try container.decodeIfPresent(Double.self, forKey: .durationSec)
+        if let discNumber, !DiscNumbering.isValidDisc(discNumber) {
+            throw DecodingError.dataCorruptedError(
+                forKey: .discNumber,
+                in: container,
+                debugDescription: "discNumber must be an integer from 1 to \(DiscNumbering.maxDisc)"
+            )
+        }
     }
 
     /// Swift's synthesized `Encodable` for an `Optional` property omits the
@@ -123,6 +153,8 @@ struct SyncTrack: Codable, Hashable {
         try container.encode(id, forKey: .id)
         try container.encode(title, forKey: .title)
         try container.encode(trackNumber, forKey: .trackNumber)
+        // Omitted, never null, when there is no disc (spec/sync.md).
+        try container.encodeIfPresent(discNumber, forKey: .discNumber)
         try container.encode(file, forKey: .file)
         try container.encode(bytes, forKey: .bytes)
         try container.encode(durationSec, forKey: .durationSec)
@@ -305,6 +337,7 @@ extension Release {
                     id: track.id.uuidString,
                     title: track.title,
                     trackNumber: track.trackNumber,
+                    discNumber: track.discNumber,
                     file: (track.filePath as NSString).lastPathComponent,
                     bytes: fileBytes[track.id] ?? 0,
                     durationSec: track.durationSec
@@ -341,6 +374,7 @@ extension SyncRecord {
                     id: UUID(uuidString: track.id) ?? UUID(),
                     title: track.title,
                     trackNumber: track.trackNumber,
+                    discNumber: track.discNumber,
                     filePath: fileURLs[track.file]?.path ?? track.file,
                     originalName: track.file,
                     durationSec: track.durationSec

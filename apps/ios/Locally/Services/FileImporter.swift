@@ -55,12 +55,18 @@ final class LocalFileImporter: FileImporter {
         var album = ""
         var genre: String?
         var year: String?
+        var trackTag: (number: Int, total: Int?)?
+        var discTag: (number: Int, total: Int?)?
 
         do {
             let formats = try await asset.load(.availableMetadataFormats)
             for format in formats {
                 let items = try await asset.loadMetadata(for: format)
                 for item in items {
+                    if let pair = await Self.numberPair(of: item) {
+                        if pair.isDisc { discTag = (pair.number, pair.total) } else { trackTag = (pair.number, pair.total) }
+                        continue
+                    }
                     guard let key = item.commonKey else { continue }
                     let value = try? await item.load(.stringValue)
                     switch key {
@@ -77,6 +83,34 @@ final class LocalFileImporter: FileImporter {
             // No embedded metadata (or unreadable) — fall back to filename-derived title.
         }
 
-        return TagSet(title: title, artist: artist, album: album.isEmpty ? title : album, year: year, genre: genre)
+        // The file's own track tag orders a multi-disc import; a disc outside 1...99 is ignored.
+        let disc = discTag.flatMap { DiscNumbering.isValidDisc($0.number) ? $0 : nil }
+        let track = trackTag.flatMap { $0.number >= 1 ? $0 : nil }
+        return TagSet(
+            title: title,
+            artist: artist,
+            album: album.isEmpty ? title : album,
+            trackNumber: track?.number ?? 1,
+            totalTracks: track?.total ?? 1,
+            year: year,
+            genre: genre,
+            discNumber: disc?.number,
+            totalDiscs: disc?.total
+        )
+    }
+
+    /// The track or disc number an item carries: TRCK/TPOS as text (`2/3`), trkn/disk as the
+    /// raw iTunes data. Nil for any other item, or one whose value doesn't parse.
+    private static func numberPair(of item: AVMetadataItem) async -> (isDisc: Bool, number: Int, total: Int?)? {
+        switch item.identifier {
+        case AVMetadataIdentifier.id3MetadataTrackNumber, AVMetadataIdentifier.id3MetadataPartOfASet:
+            guard let text = try? await item.load(.stringValue), let pair = DiscNumbering.parsePair(text) else { return nil }
+            return (item.identifier == .id3MetadataPartOfASet, pair.number, pair.total)
+        case AVMetadataIdentifier.iTunesMetadataTrackNumber, AVMetadataIdentifier.iTunesMetadataDiscNumber:
+            guard let data = try? await item.load(.dataValue), let pair = DiscNumbering.parseITunesPair(data) else { return nil }
+            return (item.identifier == .iTunesMetadataDiscNumber, pair.number, pair.total)
+        default:
+            return nil
+        }
     }
 }

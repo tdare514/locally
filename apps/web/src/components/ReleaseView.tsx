@@ -147,7 +147,7 @@ export default function ReleaseView({
   const [year, setYear] = useState(initialRelease?.year ?? "");
   const [genre, setGenre] = useState(initialRelease?.genre ?? "");
   const [tracks, setTracks] = useState<EditableTrack[]>(
-    () => initialRelease?.tracks.map((t) => ({ key: t.id, title: t.title })) ?? []
+    () => initialRelease?.tracks.map((t) => ({ key: t.id, title: t.title, discNumber: t.discNumber })) ?? []
   );
   // While a copy is on screen, a load refreshes it quietly instead of flashing "Loading…".
   const shown = useRef<Release | null>(initialRelease ?? null);
@@ -186,7 +186,7 @@ export default function ReleaseView({
     setArtist(r.artist);
     setYear(r.year ?? "");
     setGenre(r.genre ?? "");
-    setTracks(r.tracks.map((t) => ({ key: t.id, title: t.title })));
+    setTracks(r.tracks.map((t) => ({ key: t.id, title: t.title, discNumber: t.discNumber })));
   }, []);
 
   const load = useCallback(() => {

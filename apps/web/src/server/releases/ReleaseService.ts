@@ -10,6 +10,7 @@ import type { TagService } from "../audio/TagService";
 import type { FileSystem } from "../fs/FileSystem";
 import { ReleaseLayout } from "./ReleaseLayout";
 import { sniffImageMime } from "../http/validation";
+import { deriveTagNumbers } from "../../shared/discs";
 import { NoopReleaseSyncHooks, type ReleaseSyncHooks } from "./ReleaseSyncHooks";
 import type { SyncRecord } from "../sync/SyncRecord";
 
@@ -70,6 +71,8 @@ export class ReleaseService {
     const titles = meta.tracks.map((t, i) => t.title?.trim() || `Track ${trackNumbers[i]}`);
     const destFileNames = trackNumbers.map((n, i) => this.layout.trackFileName(n, titles[i]));
     this.assertNoDuplicateFileNames(destFileNames);
+    const discNumbers = meta.tracks.map((t) => t.discNumber);
+    const tagNumbers = deriveTagNumbers(trackNumbers.map((trackNumber, i) => ({ trackNumber, discNumber: discNumbers[i] })));
 
     await this.fs.mkdirp(folderPath);
 
@@ -86,7 +89,6 @@ export class ReleaseService {
         await this.fs.safeMove(tempCover, coverPath);
       }
 
-      const trackTotal = audioFiles.length;
       const tracks: Track[] = [];
 
       for (let i = 0; i < audioFiles.length; i++) {
@@ -113,8 +115,7 @@ export class ReleaseService {
           album: albumTitle,
           year: meta.year ?? null,
           genre: meta.genre ?? null,
-          trackNumber,
-          trackTotal,
+          ...tagNumbers[i],
           coverPath,
         });
 
@@ -130,6 +131,7 @@ export class ReleaseService {
           id: crypto.randomUUID(),
           title,
           trackNumber,
+          ...(discNumbers[i] !== undefined ? { discNumber: discNumbers[i] } : {}),
           filePath: destPath,
           originalName: file.name,
           durationSec,
@@ -200,6 +202,7 @@ export class ReleaseService {
         ...t,
         title: p.title !== undefined ? p.title : t.title,
         trackNumber: p.trackNumber !== undefined ? p.trackNumber : t.trackNumber,
+        ...(p.discNumber !== undefined ? { discNumber: p.discNumber } : {}),
       };
     });
     updatedTracks.sort((a, b) => a.trackNumber - b.trackNumber);
@@ -211,8 +214,8 @@ export class ReleaseService {
     if (coverPath) this.assertInsideLibrary(libraryDir, coverPath);
     for (const t of updatedTracks) this.assertInsideLibrary(libraryDir, t.filePath);
 
-    const trackTotal = updatedTracks.length;
-    for (const t of updatedTracks) {
+    const tagNumbers = deriveTagNumbers(updatedTracks);
+    for (const [i, t] of updatedTracks.entries()) {
       await this.tags.write(t.filePath, {
         title: t.title,
         artist: newArtist,
@@ -220,8 +223,7 @@ export class ReleaseService {
         album: newTitle,
         year: newYear ?? null,
         genre: newGenre ?? null,
-        trackNumber: t.trackNumber,
-        trackTotal,
+        ...tagNumbers[i],
         coverPath,
       });
     }
@@ -268,8 +270,8 @@ export class ReleaseService {
 
     await this.fs.saveWebFile(file, newCoverPath);
 
-    const trackTotal = existing.tracks.length;
-    for (const t of existing.tracks) {
+    const tagNumbers = deriveTagNumbers(existing.tracks);
+    for (const [i, t] of existing.tracks.entries()) {
       await this.tags.write(t.filePath, {
         title: t.title,
         artist: existing.artist,
@@ -277,8 +279,7 @@ export class ReleaseService {
         album: existing.title,
         year: existing.year,
         genre: existing.genre,
-        trackNumber: t.trackNumber,
-        trackTotal,
+        ...tagNumbers[i],
         coverPath: newCoverPath,
       });
     }
@@ -423,7 +424,7 @@ export class ReleaseService {
         await this.fs.safeMove(srcCover, coverPath);
       }
 
-      const trackTotal = sortedTracks.length;
+      const tagNumbers = deriveTagNumbers(sortedTracks);
       const tracks: Track[] = [];
 
       for (let i = 0; i < sortedTracks.length; i++) {
@@ -450,8 +451,7 @@ export class ReleaseService {
           album: record.title,
           year: record.year,
           genre: record.genre,
-          trackNumber: t.trackNumber,
-          trackTotal,
+          ...tagNumbers[i],
           coverPath,
         });
 
@@ -468,6 +468,7 @@ export class ReleaseService {
           id: t.id,
           title: t.title,
           trackNumber: t.trackNumber,
+          ...(t.discNumber !== undefined ? { discNumber: t.discNumber } : {}),
           filePath: destPath,
           originalName: t.file,
           durationSec,
@@ -553,17 +554,21 @@ export class ReleaseService {
     const updatedTracks: Track[] = existing.tracks.map((t) => {
       const p = patchById.get(t.id);
       if (!p) return { ...t };
-      return {
+      const next: Track = {
         ...t,
         title: p.title,
         trackNumber: p.trackNumber,
         durationSec: p.durationSec ?? t.durationSec,
       };
+      // The record is the source of truth for the disc: absent there means no disc.
+      if (p.discNumber !== undefined) next.discNumber = p.discNumber;
+      else delete next.discNumber;
+      return next;
     });
     updatedTracks.sort((a, b) => a.trackNumber - b.trackNumber);
 
-    const trackTotal = updatedTracks.length;
-    for (const t of updatedTracks) {
+    const tagNumbers = deriveTagNumbers(updatedTracks);
+    for (const [i, t] of updatedTracks.entries()) {
       await this.tags.write(t.filePath, {
         title: t.title,
         artist: record.artist,
@@ -571,8 +576,7 @@ export class ReleaseService {
         album: record.title,
         year: record.year,
         genre: record.genre,
-        trackNumber: t.trackNumber,
-        trackTotal,
+        ...tagNumbers[i],
         coverPath,
       });
     }

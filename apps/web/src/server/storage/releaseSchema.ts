@@ -12,6 +12,7 @@ export const TrackSchema = z.looseObject({
   id: z.string(),
   title: z.string(),
   trackNumber: z.number(),
+  discNumber: z.number().optional(),
   filePath: z.string(),
   originalName: z.string(),
   durationSec: z.number().nullable(),

@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import NodeID3 from "node-id3";
 import { parseFile } from "music-metadata";
+import { isDiscNumber } from "../../shared/discs";
 import type { ReadTagsResult, TagService, WriteTagsInput } from "./TagService";
 
 function mimeForCover(coverPath: string): string {
@@ -21,6 +22,9 @@ export class Id3TagService implements TagService {
       trackNumber: `${input.trackNumber}/${input.trackTotal}`,
     };
 
+    if (input.discNumber != null && input.discTotal != null) {
+      tags.partOfSet = `${input.discNumber}/${input.discTotal}`;
+    }
     if (input.year) tags.year = input.year;
     if (input.genre) tags.genre = input.genre;
 
@@ -43,6 +47,7 @@ export class Id3TagService implements TagService {
   async read(filePath: string): Promise<ReadTagsResult> {
     const meta = await parseFile(filePath);
     const common = meta.common;
+    const discNo = common.disk?.no;
     return {
       title: common.title ?? null,
       artist: common.artist ?? null,
@@ -51,6 +56,10 @@ export class Id3TagService implements TagService {
       genre: common.genre && common.genre.length > 0 ? common.genre[0] : null,
       durationSec: meta.format.duration ?? null,
       hasCover: Array.isArray(common.picture) && common.picture.length > 0,
+      trackNumber: common.track?.no ?? null,
+      trackTotal: common.track?.of ?? null,
+      discNumber: isDiscNumber(discNo) ? discNo : null,
+      discTotal: common.disk?.of ?? null,
     };
   }
 }

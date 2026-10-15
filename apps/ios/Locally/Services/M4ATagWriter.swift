@@ -2,9 +2,9 @@ import Foundation
 import AVFoundation
 import CoreMedia
 
-/// Writes iTunes-style metadata atoms (©nam, ©ART, aART, ©alb, trkn, ©day,
-/// ©gen, covr) into an m4a file by re-exporting it with
-/// `AVAssetExportPresetPassthrough` and a metadata item list — the audio
+/// Writes iTunes-style metadata atoms (©nam, ©ART, aART, ©alb, trkn, disk on
+/// a multi-disc release, ©day, ©gen, covr) into an m4a file by re-exporting it
+/// with `AVAssetExportPresetPassthrough` and a metadata item list — the audio
 /// itself is copied through untouched, only the metadata track changes.
 final class M4ATagWriter: TagWriter {
     /// Swaps `replacement` over `original` in place. Injected so tests can
@@ -97,7 +97,10 @@ final class M4ATagWriter: TagWriter {
         if let year = tags.year, !year.isEmpty {
             items.append(item(.iTunesMetadataReleaseDate, value: year))
         }
-        items.append(trackNumberItem(track: tags.trackNumber, total: tags.totalTracks))
+        items.append(numberPairItem(.iTunesMetadataTrackNumber, number: tags.trackNumber, total: tags.totalTracks))
+        if let discNumber = tags.discNumber, let totalDiscs = tags.totalDiscs {
+            items.append(numberPairItem(.iTunesMetadataDiscNumber, number: discNumber, total: totalDiscs))
+        }
         if let cover {
             items.append(coverItem(cover))
         }
@@ -113,18 +116,18 @@ final class M4ATagWriter: TagWriter {
         return metadataItem
     }
 
-    /// `trkn` needs the raw iTunes data form: 8 bytes, big-endian
-    /// `00 00 <track> <total> 00 00`.
-    private func trackNumberItem(track: Int, total: Int) -> AVMetadataItem {
+    /// `trkn` and `disk` need the raw iTunes data form: 8 bytes, big-endian
+    /// `00 00 <number> <total> 00 00`.
+    private func numberPairItem(_ identifier: AVMetadataIdentifier, number: Int, total: Int) -> AVMetadataItem {
         var bytes = [UInt8](repeating: 0, count: 8)
-        bytes[2] = UInt8((track >> 8) & 0xFF)
-        bytes[3] = UInt8(track & 0xFF)
+        bytes[2] = UInt8((number >> 8) & 0xFF)
+        bytes[3] = UInt8(number & 0xFF)
         bytes[4] = UInt8((total >> 8) & 0xFF)
         bytes[5] = UInt8(total & 0xFF)
         let data = Data(bytes)
 
         let metadataItem = AVMutableMetadataItem()
-        metadataItem.identifier = .iTunesMetadataTrackNumber
+        metadataItem.identifier = identifier
         metadataItem.value = data as NSData
         metadataItem.dataType = kCMMetadataBaseDataType_RawData as String
         return metadataItem

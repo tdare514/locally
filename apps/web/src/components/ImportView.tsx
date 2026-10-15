@@ -9,6 +9,7 @@ import CoverPicker from "./CoverPicker";
 import { UploadCloudIcon } from "./Icons";
 import { IS_DEMO } from "../lib/demo";
 import { applyTrackEdits } from "../lib/track-order";
+import { orderByDisc } from "../shared/discs";
 
 interface ImportViewProps {
   /** Prefill Single | Album when opened from the library empty-state CTAs. */
@@ -22,6 +23,10 @@ interface Entry {
   key: string;
   file: File;
   title: string;
+  /** From the file's disc tag, when it has one. */
+  discNumber?: number;
+  /** From the file's own track tag; only used to order a multi-disc import. */
+  tagTrackNumber?: number;
 }
 
 function stripExtension(name: string): string {
@@ -96,10 +101,19 @@ export default function ImportView({
               title:
                 (info.title && info.title.trim()) ||
                 stripExtension(next[idx].file.name),
+              discNumber: info.discNumber ?? undefined,
+              tagTrackNumber: info.trackNumber ?? undefined,
             };
           }
         });
-        return next;
+        // Files tagged with a disc go in (disc, track) order; untagged files keep the order they came in.
+        // Only this batch is reordered, so rows the user already arranged stay where they are.
+        const end = startIndex + res.files.length;
+        return [
+          ...next.slice(0, startIndex),
+          ...orderByDisc(next.slice(startIndex, end)),
+          ...next.slice(end),
+        ];
       });
 
       if (startIndex === 0) {
@@ -145,6 +159,7 @@ export default function ImportView({
         tracks: entries.map((e, i) => ({
           title: e.title.trim() || `Track ${i + 1}`,
           trackNumber: i + 1,
+          ...(e.discNumber !== undefined ? { discNumber: e.discNumber } : {}),
         })),
       };
       const release = await importRelease(
@@ -288,7 +303,7 @@ export default function ImportView({
             </p>
           </div>
           <TrackList
-            tracks={entries.map((e) => ({ key: e.key, title: e.title }))}
+            tracks={entries.map((e) => ({ key: e.key, title: e.title, discNumber: e.discNumber }))}
             onChange={handleTracksChange}
             onRemove={handleRemove}
           />

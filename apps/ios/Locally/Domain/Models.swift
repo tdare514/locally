@@ -6,7 +6,11 @@ import Foundation
 struct Track: Identifiable, Codable, Hashable {
     var id: UUID
     var title: String
+    /// 1-based position in the whole release. Never restarts per disc: it names the file and keys
+    /// the sync record.
     var trackNumber: Int
+    /// Which disc of a multi-disc release (1...99); nil on a single-disc release.
+    var discNumber: Int?
     /// Current file location. iOS keeps this name fixed once imported.
     var filePath: String
     /// The name the user originally imported (before renaming/layout).
@@ -17,6 +21,7 @@ struct Track: Identifiable, Codable, Hashable {
         id: UUID = UUID(),
         title: String,
         trackNumber: Int,
+        discNumber: Int? = nil,
         filePath: String,
         originalName: String,
         durationSec: Double? = nil
@@ -24,6 +29,7 @@ struct Track: Identifiable, Codable, Hashable {
         self.id = id
         self.title = title
         self.trackNumber = trackNumber
+        self.discNumber = discNumber
         self.filePath = filePath
         self.originalName = originalName
         self.durationSec = durationSec
@@ -110,10 +116,13 @@ struct Release: Identifiable, Codable, Hashable {
 struct TrackDraft: Identifiable, Hashable {
     var id: UUID = UUID()
     var title: String
+    /// From the file's disc tag, when it has one.
+    var discNumber: Int?
 
-    init(id: UUID = UUID(), title: String) {
+    init(id: UUID = UUID(), title: String, discNumber: Int? = nil) {
         self.id = id
         self.title = title
+        self.discNumber = discNumber
     }
 }
 
@@ -181,10 +190,15 @@ struct TagSet: Codable, Hashable {
     var artist: String
     var albumArtist: String
     var album: String
+    /// The number for the file's track tag (TRCK/trkn): the position within its disc when discs
+    /// are set, else the release-wide `trackNumber`. Derive it with `DiscNumbering.tagNumbers`.
     var trackNumber: Int
     var totalTracks: Int
     var year: String?
     var genre: String?
+    /// TPOS/disk `discNumber/totalDiscs`. Written only when `discNumber` is set.
+    var discNumber: Int?
+    var totalDiscs: Int?
 
     init(
         title: String,
@@ -194,7 +208,9 @@ struct TagSet: Codable, Hashable {
         trackNumber: Int = 1,
         totalTracks: Int = 1,
         year: String? = nil,
-        genre: String? = nil
+        genre: String? = nil,
+        discNumber: Int? = nil,
+        totalDiscs: Int? = nil
     ) {
         self.title = title
         self.artist = artist
@@ -204,5 +220,7 @@ struct TagSet: Codable, Hashable {
         self.totalTracks = totalTracks
         self.year = year
         self.genre = genre
+        self.discNumber = discNumber
+        self.totalDiscs = totalDiscs
     }
 }

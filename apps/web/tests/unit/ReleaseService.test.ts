@@ -201,6 +201,94 @@ describe("ReleaseService", () => {
     }
   });
 
+  it("imports a two-disc album: trackNumber and file names stay release-wide, tags go per disc", async () => {
+    const release = await service.import(
+      {
+        kind: "album",
+        artist: "Artist",
+        title: "Double",
+        tracks: [
+          { title: "A", trackNumber: 1, discNumber: 1 },
+          { title: "B", trackNumber: 2, discNumber: 1 },
+          { title: "C", trackNumber: 3, discNumber: 2 },
+        ],
+      } as never,
+      null,
+      [audioFile("a.mp3"), audioFile("b.mp3"), audioFile("c.mp3")]
+    );
+
+    expect(release.tracks.map((t) => [t.trackNumber, t.discNumber])).toEqual([
+      [1, 1],
+      [2, 1],
+      [3, 2],
+    ]);
+    expect(release.tracks.map((t) => path.basename(t.filePath))).toEqual(["01 - A.mp3", "02 - B.mp3", "03 - C.mp3"]);
+    expect(tags.writes.map((w) => [w.input.trackNumber, w.input.trackTotal, w.input.discNumber, w.input.discTotal])).toEqual([
+      [1, 2, 1, 2],
+      [2, 2, 1, 2],
+      [1, 1, 2, 2],
+    ]);
+
+    // A later tag rewrite (here a cover change) derives the same numbers from the stored tracks.
+    tags.writes = [];
+    await service.replaceCover(release.id, new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], "c.jpg", { type: "image/jpeg" }));
+    expect(tags.writes.map((w) => [w.input.trackNumber, w.input.discNumber])).toEqual([
+      [1, 1],
+      [2, 1],
+      [1, 2],
+    ]);
+  });
+
+  it("an import with no discs writes the release-wide number and no disc, and stores no discNumber key", async () => {
+    const release = await service.import(
+      {
+        kind: "album",
+        artist: "Artist",
+        title: "Plain",
+        tracks: [
+          { title: "A", trackNumber: 1 },
+          { title: "B", trackNumber: 2 },
+        ],
+      } as never,
+      null,
+      [audioFile("a.mp3"), audioFile("b.mp3")]
+    );
+
+    expect(tags.writes.map((w) => w.input)).toEqual([
+      expect.objectContaining({ trackNumber: 1, trackTotal: 2 }),
+      expect.objectContaining({ trackNumber: 2, trackTotal: 2 }),
+    ]);
+    for (const w of tags.writes) {
+      expect(w.input.discNumber).toBeUndefined();
+      expect(w.input.discTotal).toBeUndefined();
+    }
+    for (const t of release.tracks) expect(t).not.toHaveProperty("discNumber");
+  });
+
+  it("update sets a track's discNumber and keeps the others", async () => {
+    const release = await service.import(
+      {
+        kind: "album",
+        artist: "Artist",
+        title: "Album",
+        tracks: [
+          { title: "A", trackNumber: 1, discNumber: 1 },
+          { title: "B", trackNumber: 2, discNumber: 1 },
+        ],
+      } as never,
+      null,
+      [audioFile("a.mp3"), audioFile("b.mp3")]
+    );
+
+    const updated = await service.update(release.id, { tracks: [{ id: release.tracks[1].id, discNumber: 2 }] });
+
+    expect(updated.tracks.map((t) => t.discNumber)).toEqual([1, 2]);
+    expect(tags.writes.slice(-2).map((w) => [w.input.trackNumber, w.input.discNumber, w.input.discTotal])).toEqual([
+      [1, 1, 2],
+      [1, 2, 2],
+    ]);
+  });
+
   it("delete removes only that release's folder", async () => {
     const releaseA = await service.import(
       { kind: "single", artist: "A", title: "One", tracks: [{ title: "One", trackNumber: 1 }] } as never,
@@ -670,6 +758,42 @@ describe("ReleaseService.applyRemote", () => {
     } finally {
       await fs.rm(dl, { recursive: true, force: true });
     }
+  });
+
+  it("applies a record's disc numbers to the tracks and the tags, and clears them when the record has none", async () => {
+    const release = await service.import(
+      {
+        kind: "album",
+        artist: "A",
+        title: "T",
+        tracks: [
+          { title: "One", trackNumber: 1 },
+          { title: "Two", trackNumber: 2 },
+        ],
+      } as never,
+      null,
+      [audioFile("a.mp3"), audioFile("b.mp3")]
+    );
+
+    const base = recordFor(release);
+    const withDiscs = recordFor(release, {
+      tracks: base.tracks.map((t, i) => ({ ...t, discNumber: i + 1 })),
+    });
+    tags.writes = [];
+    const updated = await service.applyRemote(withDiscs);
+    expect(updated.tracks.map((t) => t.discNumber)).toEqual([1, 2]);
+    expect(tags.writes.map((w) => [w.input.trackNumber, w.input.trackTotal, w.input.discNumber, w.input.discTotal])).toEqual([
+      [1, 1, 1, 2],
+      [1, 1, 2, 2],
+    ]);
+
+    tags.writes = [];
+    const cleared = await service.applyRemote(recordFor(updated, { updatedAt: new Date(Date.now() + 120_000).toISOString() }));
+    for (const t of cleared.tracks) expect(t).not.toHaveProperty("discNumber");
+    expect(tags.writes.map((w) => [w.input.trackNumber, w.input.trackTotal, w.input.discNumber])).toEqual([
+      [1, 2, undefined],
+      [2, 2, undefined],
+    ]);
   });
 
   it("without newCoverPath, leaves the cover untouched", async () => {

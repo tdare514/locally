@@ -62,6 +62,12 @@ still fails the whole page.
 }
 ```
 
+A `tracks[]` entry may carry `discNumber` (integer 1 to 99) on a multi-disc release. The key is omitted
+when there is no disc, never written as null. `trackNumber` is still the release-wide position and the
+file key; `discNumber` only changes the tags a receiver writes (`spec/metadata.md`). Older clients ignore
+the key, and a client that does not know it strips it when it re-pushes a record; that is accepted because
+only the owner's own devices sync and they update together.
+
 `coverHash` is the lowercase hex sha256 of the cover's bytes, or `null` when the release has no
 cover. It is the only change signal for the cover, since `cover.<ext>` keeps its name when the
 image is replaced: a receiver downloads and re-embeds the cover only when the remote `coverHash`

@@ -3,13 +3,13 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type SVGProps } from "react";
 import { flushSync } from "react-dom";
 import {
-  makeRoom,
   moveAnnouncement,
   moveItem,
   nearestSlot,
   slotAfterMove,
   stepTarget,
 } from "../lib/track-order";
+import { discHeadings } from "../shared/discs";
 import { XIcon } from "./Icons";
 
 export interface EditableTrack {
@@ -17,6 +17,9 @@ export interface EditableTrack {
    * for a not-yet-imported file. Travels with the row when the list is reordered. */
   key: string;
   title: string;
+  /** Which disc the track is on, when the release has discs. Read only: it sets the "Disc N"
+   * headings and travels with the row when the list is reordered. */
+  discNumber?: number;
 }
 
 interface TrackListProps {
@@ -57,6 +60,11 @@ function scrollParent(el: HTMLElement): HTMLElement {
   return (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
 }
 
+/** The track rows of the list, without the "Disc N" headings that sit between them. */
+function trackRows(list: HTMLElement): HTMLLIElement[] {
+  return Array.from(list.querySelectorAll<HTMLLIElement>(":scope > li[data-key]"));
+}
+
 function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
@@ -77,9 +85,9 @@ interface Drag {
   clientY: number;
   startScroll: number;
   scroller: HTMLElement;
-  /** Vertical centre of every slot, measured when the drag starts. */
+  /** Vertical centre of every slot, measured when the drag starts. A heading between two rows
+   * makes the gap there larger, so rows slide by the difference between centres. */
   centers: number[];
-  stride: number;
   started: boolean;
   raf: number;
 }
@@ -132,7 +140,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
     const list = listRef.current;
     if (!list) return;
     delete list.dataset.sorting;
-    (Array.from(list.children) as HTMLElement[]).forEach((li, i) => {
+    trackRows(list).forEach((li, i) => {
       li.style.translate = "";
       delete li.dataset.lifted;
       delete li.dataset.settling;
@@ -193,7 +201,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
     d.to = to;
     d.rows.forEach((li, i) => {
       if (i !== d.from) {
-        const shift = makeRoom(i, d.from, to, d.stride);
+        const shift = d.centers[slotAfterMove(i, d.from, to)] - d.centers[i];
         li.style.translate = shift === 0 ? "" : `0 ${shift}px`;
       }
       const number = d.numbers[i];
@@ -243,7 +251,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
     // behaviour.
     if (!target.closest("[data-handle]") && target.closest("input, button, a, textarea, select")) return;
 
-    const rows = Array.from(list.children) as HTMLLIElement[];
+    const rows = trackRows(list);
     const from = rows.indexOf(row);
     const centers = rows.map((li) => li.offsetTop + li.offsetHeight / 2);
     const scroller = scrollParent(list);
@@ -263,7 +271,6 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
       startScroll: scroller.scrollTop,
       scroller,
       centers,
-      stride: rows.length > 1 ? (centers[rows.length - 1] - centers[0]) / (rows.length - 1) : 0,
       started: false,
       raf: 0,
     };
@@ -356,6 +363,8 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
     return <p className="text-sm text-text-muted">No tracks yet.</p>;
   }
 
+  const headings = discHeadings(tracks.map((t) => t.discNumber));
+
   return (
     <>
       <ol
@@ -368,7 +377,8 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
       >
         {tracks.map((track, index) => {
           const grabbed = grabbedKey === track.key;
-          return (
+          const heading = headings[index];
+          const row = (
             <li
               key={track.key}
               data-key={track.key}
@@ -425,6 +435,19 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
               )}
             </li>
           );
+          if (heading === null) return row;
+          // A quiet heading above the first row of each disc; not a track, so the drag code skips it.
+          return [
+            <li
+              key={`disc-${index}`}
+              role="presentation"
+              data-disc-heading
+              className="border-0 pb-1 pt-5 text-sm font-medium text-text-muted first:pt-0"
+            >
+              Disc {heading}
+            </li>,
+            row,
+          ];
         })}
       </ol>
       {!readOnly && (
