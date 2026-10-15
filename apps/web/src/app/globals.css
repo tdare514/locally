@@ -715,7 +715,8 @@ body {
 
 /* The cover beat, in ms from the moment a cover is chosen, as a sequence with no overlap between
  * the slide and the develop (ImportPrototype.tsx holds the colour wash time that goes with it):
- *    0 for 420  the cover slides in from the right, sharp but undeveloped: a pale print (.imp-cover)
+ *    0 for 420  the cover slides in from the right (V1's original slide: 48px and a fade), sharp but
+ *               undeveloped: a pale print (.imp-cover)
  *  280 for 460  the disc settles with a turn, 240deg decelerating into place (.record-face); it
  *               starts in the slide's tail and has landed before the develop begins
  *  740 for 560  the cover develops: the real art fades in over the pale print (.imp-sharp) and
@@ -737,12 +738,12 @@ body {
   }
 }
 .imp-cover {
-  animation: imp-slide 420ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation: imp-slide 420ms cubic-bezier(0.3, 0.5, 0.3, 1) backwards;
   animation-delay: calc(0ms - var(--imp-t, 0ms));
   animation-play-state: var(--imp-run, running);
 }
 @keyframes imp-slide {
-  from { transform: translateX(100%); }
+  from { opacity: 0; transform: translateX(48px); }
 }
 .imp-sharp,
 .imp-beat .record-label::before {
