@@ -28,6 +28,9 @@ interface CoverPickerProps {
   beat?: "playing" | "settled";
 }
 
+/** How long a replaced cover's object URL stays valid: longer than the Import beat (2.3 s). */
+const REVOKE_DELAY_MS = 3000;
+
 /** Fixed side in px, or null when the size is responsive (set by `frameClass`). */
 function sideFor(presentation: CoverPresentation): number | null {
   if (presentation === "sleeve") return null;
@@ -93,7 +96,12 @@ export default function CoverPicker({
     }
     const url = URL.createObjectURL(file);
     setObjectUrl(url);
-    return () => URL.revokeObjectURL(url);
+    return () => {
+      // Revoked a little late, not at once: on a replacement the outgoing cover stays mounted
+      // under the new one while it lands (`layers.previous`), and a revoked blob URL there shows
+      // as a broken image.
+      window.setTimeout(() => URL.revokeObjectURL(url), REVOKE_DELAY_MS);
+    };
   }, [file]);
 
   const previewUrl = objectUrl ?? existingUrl ?? null;
@@ -160,7 +168,9 @@ export default function CoverPicker({
         {/* Object URLs / local API image routes aren't compatible with next/image's optimizer. */}
         {presentation === "sleeve" && previewUrl ? (
           <>
-            {layers.previous && (
+            {/* Not once the motion is skipped or over (coverMotion ""): a cancelled animation never
+                reaches onAnimationEnd, so the outgoing cover would stay mounted. */}
+            {layers.previous && coverMotion !== "" && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={layers.previous}

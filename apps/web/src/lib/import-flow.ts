@@ -144,3 +144,14 @@ const AUDIO_EXTENSION = /\.(mp3|wav|flac|m4a|aac|ogg|aiff|aif)$/i;
 export function isAudioFile(file: { name: string; type: string }): boolean {
   return file.type.startsWith("audio/") || AUDIO_EXTENSION.test(file.name);
 }
+
+/** Whether a drag in progress could be audio. While dragging, only each item's kind and type are
+ * readable (not its name), and a type is sometimes blank or generic, so those count as audio; an
+ * image or any other named type does not. Used to light the pane only for audio. */
+export function mayBeAudioDrag(items: { kind: string; type: string }[]): boolean {
+  return items.some(
+    (item) =>
+      item.kind === "file" &&
+      (item.type.startsWith("audio/") || item.type === "" || item.type === "application/octet-stream"),
+  );
+}

@@ -9,6 +9,7 @@ import {
   discKeyFor,
   isAudioFile,
   isPlaying,
+  mayBeAudioDrag,
   planAdd,
   trimForKind,
   type BeatEvent,
@@ -144,5 +145,21 @@ describe("isAudioFile", () => {
     expect(isAudioFile({ name: "cover.png", type: "image/png" })).toBe(false);
     expect(isAudioFile({ name: "cover.jpg", type: "" })).toBe(false);
     expect(isAudioFile({ name: "mp3", type: "" })).toBe(false);
+  });
+});
+
+describe("mayBeAudioDrag", () => {
+  it("lights up for audio, and for a file whose type is blank or generic", () => {
+    expect(mayBeAudioDrag([{ kind: "file", type: "audio/mpeg" }])).toBe(true);
+    expect(mayBeAudioDrag([{ kind: "file", type: "" }])).toBe(true);
+    expect(mayBeAudioDrag([{ kind: "file", type: "application/octet-stream" }])).toBe(true);
+    expect(mayBeAudioDrag([{ kind: "file", type: "image/png" }, { kind: "file", type: "audio/flac" }])).toBe(true);
+  });
+
+  it("stays dark for images, other files and text", () => {
+    expect(mayBeAudioDrag([{ kind: "file", type: "image/jpeg" }])).toBe(false);
+    expect(mayBeAudioDrag([{ kind: "file", type: "application/pdf" }])).toBe(false);
+    expect(mayBeAudioDrag([{ kind: "string", type: "audio/mpeg" }])).toBe(false);
+    expect(mayBeAudioDrag([])).toBe(false);
   });
 });

@@ -17,6 +17,7 @@ import {
   discKeyFor,
   isAudioFile,
   isPlaying,
+  mayBeAudioDrag,
   planAdd,
   trimForKind,
 } from "../lib/import-flow";
@@ -260,8 +261,9 @@ export default function ImportView({
   // whatever it landed on.
   function handleDragOver(e: DragEvent) {
     if (!e.dataTransfer.types.includes("Files")) return;
+    // Any file drag is claimed so a stray drop never navigates away; only audio lights the pane.
     e.preventDefault();
-    setDragOver(true);
+    if (mayBeAudioDrag(Array.from(e.dataTransfer.items))) setDragOver(true);
   }
 
   function handleDrop(e: DragEvent) {
@@ -287,11 +289,13 @@ export default function ImportView({
       onDrop={handleDrop}
       className="flex min-h-full flex-col"
     >
-      <ImportSky state={beatStage === "none" ? "on" : playing ? "out" : "off"} />
+      {/* A replacement cover never brings the blue sky back or restarts the wash's fade-in: the old
+          colours cross-fade to the new ones in place. */}
+      <ImportSky state={beatStage === "none" ? "on" : playing && !beat.replay ? "out" : "off"} />
       {/* The cover's colours wash the pane. Not positioned itself, so this and the accent wash
           below fill <main>, as the release page's backdrop does. */}
       {beat.hasCover && (
-        <div aria-hidden className="imp-backdrop-in" data-beat={playing}>
+        <div aria-hidden className="imp-backdrop-in" data-beat={playing && !beat.replay}>
           <AmbientBackdrop key={beat.skipped ? "skipped" : undefined} palette={shown} />
         </div>
       )}
