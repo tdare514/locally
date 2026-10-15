@@ -116,7 +116,7 @@ struct ComponentGallery: View {
     }
 
     /// #205: the Make a record invitation and the cover beat, on the studio backdrop. The real record
-    /// on prefilled models is `import-record-single`, `-album`, `-album-empty` and `-live` (see
+    /// on prefilled models is `import-record-single`, `-album`, `-album-empty`, `-live` and `-album-live` (see
     /// `ImportRecordGallery`). Names:
     /// `import-invite`, `import-invite-lit`, `import-beat-<ms>`, `import-beat-replay-<ms>`,
     /// `import-beat-reduced-<ms>` (a fixed frame) and `import-beat-live` (plays in real time).
@@ -226,17 +226,21 @@ private struct ImportRecordGallery: View {
             kind = .album
             album.albumTitle = "Low Tide"
             album.artist = "The Salt Line"
-        case "import-record-album":
+        case "import-record-album", "import-record-album-live":
             kind = .album
-            album.albumTitle = "Midnight Drive"
-            album.artist = "Neon Harbor"
+            // Long values, so wrapping at large text sizes is visible.
+            album.albumTitle = "Midnight Drive Along The Neon Harbor Road"
+            album.artist = "Neon Harbor And The Salt Line Orchestra"
             album.year = "2026"
-            album.genre = "Synthwave"
+            album.genre = "Synthwave and late night highway pop"
             album.rows = ["Headlights", "Overpass", "Last Exit"].map {
                 AlbumBuilderViewModel.TrackRow(url: URL(fileURLWithPath: "/gallery/\($0).mp3"), title: $0)
             }
-            album.coverData = cover
-            if let cover { driver.showAtRest(cover: cover) }
+            // The live case sets its cover as the screen appears instead.
+            if name == "import-record-album", let cover {
+                album.coverData = cover
+                driver.showAtRest(cover: cover)
+            }
         case "import-record-live":
             Self.fill(single)
         default:
@@ -249,10 +253,11 @@ private struct ImportRecordGallery: View {
     private static func fill(_ single: ImportSingleViewModel) {
         single.pickedURL = URL(fileURLWithPath: "/gallery/Headlights.mp3")
         single.pickedName = "Headlights.mp3"
-        single.title = "Headlights"
-        single.artist = "Neon Harbor"
+        single.title = "Headlights On The Neon Harbor Overpass"
+        single.artist = "Neon Harbor And The Salt Line Orchestra"
+        single.album = "Midnight Drive Along The Neon Harbor Road"
         single.year = "2026"
-        single.genre = "Synthwave"
+        single.genre = "Synthwave and late night highway pop"
     }
 
     var body: some View {
@@ -264,9 +269,21 @@ private struct ImportRecordGallery: View {
         .environment(SyncStatus())
         .onAppear {
             // The live case sets its cover as the screen appears, so the beat plays in the record.
-            guard name == "import-record-live", let cover = SampleArtwork.sunset.pngData() else { return }
-            preset.single.coverData = cover
+            guard name == "import-record-live" || name == "import-record-album-live", let cover = SampleArtwork.sunset.pngData() else { return }
+            if name == "import-record-album-live" {
+                preset.album.coverData = cover
+            } else {
+                preset.single.coverData = cover
+            }
             preset.driver.coverChanged(cover, reduced: reduceMotion)
+        }
+        // The album's live case plays the beat again every 3 s, to try gestures during and after it.
+        .task {
+            guard name == "import-record-album-live", let cover = SampleArtwork.sunset.pngData() else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3))
+                preset.driver.coverChanged(cover, reduced: reduceMotion)
+            }
         }
     }
 }

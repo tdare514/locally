@@ -44,6 +44,8 @@ struct ImportRecordSleeve: View {
                 beat: driver.frame(at: timeline.date, reduced: reduceMotion)
             )
         }
+        // Identifiers are not spoken; they let a UI test tell when the beat is playing.
+        .accessibilityIdentifier(driver.isPlaying ? "sleeve-beat-playing" : "sleeve-beat-rest")
         // Room inside the row for the sleeve's shadow, which the row would otherwise clip.
         .padding(.top, Theme.Immersive.sleeveShadowRoomTop)
         .padding(.bottom, Theme.Immersive.sleeveShadowRoomBottom)

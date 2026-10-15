@@ -176,6 +176,15 @@ struct ImportView: View {
         }
     }
 
+    /// The kind switch is off while files load, during the send and through its ceremony.
+    private var isLocked: Bool {
+        ImportSendLock.isLocked(
+            isLoadingTags: (singleModel?.isLoadingTags ?? false) || (albumModel?.isLoadingTags ?? false),
+            isSending: (singleModel?.isSending ?? false) || (albumModel?.isSending ?? false),
+            holdingForCeremony: holdingForCeremony
+        )
+    }
+
     private var context: ImportRecordContext {
         ImportRecordContext(
             driver: driver,
@@ -183,8 +192,7 @@ struct ImportView: View {
             rawCoverPick: $rawCoverPick,
             ceremony: ceremony,
             isSendHeld: holdingForCeremony,
-            isBusy: (singleModel.map { $0.isLoadingTags || $0.isSending } ?? false)
-                || (albumModel.map { $0.isLoadingTags || $0.isSending } ?? false),
+            isBusy: isLocked,
             onAddTrack: { present(kind == .single ? .replace : .add) },
             onPickCoverFromFiles: { present(.cover) },
             onSend: send
@@ -230,7 +238,7 @@ struct ImportView: View {
 
     /// Switching kind keeps the draft once a record has started; before that it only picks the kind.
     private func switchKind(to newKind: ImportKind) {
-        guard newKind != kind else { return }
+        guard newKind != kind, !isLocked else { return }
         if recordStarted, let singleModel, let albumModel {
             switch newKind {
             case .album: ImportKindSwitch.singleToAlbum(singleModel, into: albumModel)
@@ -249,6 +257,7 @@ struct ImportView: View {
     /// The inbox toast's "add as singles" / "add as album": start the record and hand the files
     /// to the model directly.
     private func startFromInbox(as newKind: ImportKind) {
+        guard !isLocked else { return }
         let files = inboxFiles
         inboxFiles = []
         switchKind(to: newKind)
@@ -265,11 +274,13 @@ struct ImportView: View {
     /// ceremony plays, then `DoneView` shows.
     private func send() {
         guard !holdingForCeremony, let singleModel, let albumModel else { return }
+        // The kind is fixed here: the lock keeps the switch off, and the send uses only this.
+        let sendKind = kind
+        holdingForCeremony = true
         Task {
-            holdingForCeremony = true
             await driver.easeOutForSend(reduced: reduceMotion)
             let completed: Bool
-            switch kind {
+            switch sendKind {
             case .single:
                 await singleModel.send()
                 completed = singleModel.completedRelease != nil

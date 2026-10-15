@@ -16,8 +16,8 @@ struct AlbumBuilderView: View {
                 ImportMetaLine(kind: context.kind, trackCount: model.rows.count, isSwitchDisabled: context.isBusy)
                     .importClearRow(top: 0, bottom: Theme.Immersive.fieldsMetaGap)
                 VStack(alignment: .leading, spacing: Theme.Spacing.fieldGap) {
-                    InlineField(Copy.Import.fieldAlbumTitle, text: Binding(get: { model.albumTitle }, set: { model.albumTitle = $0 }), font: Theme.ScaledFont.pageTitle)
-                    InlineField(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }), font: Theme.ScaledFont.input)
+                    InlineField(Copy.Import.fieldAlbumTitle, text: Binding(get: { model.albumTitle }, set: { model.albumTitle = $0 }), font: Theme.ScaledFont.pageTitle, wraps: true)
+                    InlineField(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }), font: Theme.ScaledFont.input, wraps: true)
                 }
                 .importClearRow()
                 Text(Copy.Import.albumExplainer)
@@ -27,7 +27,7 @@ struct AlbumBuilderView: View {
                 VStack(alignment: .leading, spacing: Theme.Spacing.fieldGap) {
                     InlineField(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }), font: Theme.ScaledFont.input)
                         .keyboardType(.numberPad)
-                    InlineField(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }), font: Theme.ScaledFont.input)
+                    InlineField(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }), font: Theme.ScaledFont.input, wraps: true)
                 }
                 .importClearRow()
             }
