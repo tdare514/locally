@@ -129,7 +129,8 @@ eyebrows still apply to those labels.
   details opens a `card` dialog with Artist, Year and Genre; blank fields stay unchanged and
   tracks are re-tagged in place. Both run per release through the existing endpoints and report
   "Deleted 2 of 3 releases; failed: …" in a toast.
-- **Cover drop zone** (import): the desktop import shows only the 120 compact square, a `card`
+- **Cover drop zone** (import; the Mac import now uses the record sleeve, see **Desktop import**
+  below, and keeps this square only as CoverPicker's `compact` presentation): a 120 compact square, a `card`
   block with a 1 px dashed `border-dashed` (accent on hover), an image-plus icon (24, `text-muted`,
   accent on hover) and "Click or drop an image" at 11 pt in `text-soft` (iOS: "Tap to choose a
   cover"); a 28 pencil badge appears once filled. The hint "Square artwork works best" is rendered
@@ -146,11 +147,30 @@ eyebrows still apply to those labels.
   `text-dim` 12 pt line under the Tracks header reads "Hold and drag a track to reorder." — the
   album builder's list supports long-press drag-to-reorder without an Edit mode on iOS 16+, so
   there is no toolbar Edit button any more (it only mismatched the Single/Album layouts).
-- **Desktop import layout**: cover first — a 120 compact square beside Title and Artist, so the
-  cover stays in view while those are typed — then the hint "Square artwork works best", then
-  Year and Genre in a two-column grid. The audio drop zone is full width and tracks follow. A
-  footer row with a 1 px `border` on top holds a `text-dim` note "Your files stay on this device."
-  on the left and the primary button on the right.
+- **Desktop import** (#159): importing is making a record. It is two screens on the library's drifting colour sky (`ImportSky`, the
+  library's `AmbientSpace` in calm blue tones, under the see-through sidebar too).
+  - *Invitation* (no tracks yet): the Import pill's accent sweeps left to right across the pane
+    once (700 ms), then a bare disc (176, accent house label), "Add a track" and "or drop audio
+    files here" fade in and rise 6 px. "Add a track" is `.btn-save btn-glow`: a clear glass pill
+    that fills with a cloud of fluorescent blue light on hover, press or keyboard focus, the
+    light drifting slowly while it is lit. Audio dropped anywhere on the pane is added.
+  - *The record* (once a track is added; it stays if every track is removed): the release page's
+    layout. The sleeve says "Add cover art" (click, or drop an image: the existing crop dialog),
+    the disc peeks out, a meta line holds the Single | Album toggle and the track count, then the
+    title (placeholder "Same as track title" for a single, "Album title"), artist, Year and Genre
+    as inline fields that show a faint underline while empty, then the tracks (rename, remove,
+    reorder as before; "Reading tags…" while the files are read). The dock is the release
+    page's: "Add to library" (`.btn-save`, disabled until a file and an artist are in, "Adding…"
+    while importing) and "Add a track" (`.btn-ink`).
+  - *The cover beat*, whenever a cover is set: the new cover slides in from the right (0 to 420
+    ms, 48 px and a fade); a warm-white flash swells over the sleeve to fully opaque (420 to
+    720), holds (720 to 820) and fades (820 to 1300) while the pane's colours turn to the cover's
+    (starting at 420, on the 900 ms backdrop fade); the disc then slides all the way into the
+    sleeve with a 240 degree turn (1340 to 2290, `cubic-bezier(0.33, 0, 0.15, 1)`). Hovering the
+    record brings the disc out again. Any click or key press mid-beat jumps to the end and still
+    does its job (a typed character is typed). A cover that replaces another plays the beat
+    again, the disc first easing out of the sleeve. Reduced motion: no flash, slide or turn, a
+    160 ms fade, the disc already in, colours at once.
 - **Library list (mobile)**: one `card` container, radius 12, 1 px `border`; rows 78 min height
   with 12 padding, 56 square art radius 6 (or an `elevated` tile with a muted note icon), title
   and subtitle (albums: "artist · N tracks"), a `text-dim` chevron at the right; rows separated by

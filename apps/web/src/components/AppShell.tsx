@@ -163,7 +163,12 @@ export default function AppShell() {
   }
 
   return (
-    <div ref={shellRef} className="relative isolate flex h-screen w-screen overflow-hidden">
+    <div
+      ref={shellRef}
+      // The Import page's sky portals in here (#159), so it sits under the sidebar like the library's.
+      data-app-shell=""
+      className="relative isolate flex h-screen w-screen overflow-hidden"
+    >
       {/* The library sky fills the whole window, outside the scroller so it never scrolls away,
           and paints under both the sidebar and the pane. */}
       {view.type === "library" && (library?.releases.length ?? 0) > 0 && (
