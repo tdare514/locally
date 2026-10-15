@@ -53,6 +53,7 @@ struct GlowPillButtonStyle: ButtonStyle {
                 ZStack {
                     GlowGlass()
                     GlowClouds(lit: lit, drifts: !reduceMotion && !pinnedLit, pinned: pinnedLit || reduceMotion)
+                    GlowLabelPool(lit: lit)
                 }
                 .clipShape(Capsule())
             }
@@ -105,6 +106,36 @@ private struct GlowRim: View {
                 lineWidth: 1
             )
             .allowsHitTesting(false)
+    }
+}
+
+/// A soft dark pool between the light and the label, only while lit, so the white label keeps
+/// its contrast over the bright clouds wherever they drift. A feathered ellipse, no edge.
+private struct GlowLabelPool: View {
+    let lit: Bool
+
+    var body: some View {
+        GeometryReader { geo in
+            RadialGradient(
+                stops: [
+                    .init(color: .black.opacity(Theme.Import.glowPoolOpacity), location: 0),
+                    .init(color: .black.opacity(Theme.Import.glowPoolOpacity), location: Theme.Import.glowPoolCoreAt),
+                    .init(color: .black.opacity(Theme.Import.glowPoolOpacity * 0.45), location: Theme.Import.glowPoolMidAt),
+                    .init(color: .black.opacity(0), location: 1),
+                ],
+                center: .center,
+                startRadius: 0,
+                endRadius: geo.size.width * Theme.Import.glowPoolRadius
+            )
+            // Taller than the pill before the squash, so the gradient's rectangle never shows.
+            .frame(width: geo.size.width * 2, height: geo.size.height * 2 / Theme.Import.glowPoolSquash)
+            .scaleEffect(x: 1, y: Theme.Import.glowPoolSquash, anchor: .center)
+            .frame(width: geo.size.width, height: geo.size.height)
+        }
+        .opacity(lit ? 1 : 0)
+        .animation(.easeOut(duration: Theme.Import.glowFadeDuration), value: lit)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
@@ -362,6 +393,8 @@ struct FileRow: View {
     /// detail's compact Tracks section; the default 64 pt / 36 pt sizing is
     /// unchanged for the album builder.
     var isCompact: Bool = false
+    /// The compact row's trailing chevron; off where a tap does nothing (the import single).
+    var showsChevron: Bool = true
     var onTitleChange: (String) -> Void = { _ in }
 
     var body: some View {
@@ -402,7 +435,7 @@ struct FileRow: View {
 
             // Compact release-detail rows carry the trailing chevron from
             // `docs/design.md`'s Mobile Editor Tracks section.
-            if isCompact {
+            if isCompact && showsChevron {
                 Image(systemName: "chevron.right")
                     .font(Theme.Font.chevron)
                     .foregroundStyle(Theme.textDim)

@@ -29,7 +29,9 @@ struct ComponentGallery: View {
     }
 
     var body: some View {
-        if name.hasPrefix("import-") {
+        if name.hasPrefix("import-record-") {
+            ImportRecordGallery(name: name).preferredColorScheme(.dark)
+        } else if name.hasPrefix("import-") {
             ZStack {
                 StudioBackdrop()
                 importContent
@@ -113,7 +115,9 @@ struct ComponentGallery: View {
         }
     }
 
-    /// #205: the Make a record invitation and the cover beat, on the studio backdrop. Names:
+    /// #205: the Make a record invitation and the cover beat, on the studio backdrop. The real record
+    /// on prefilled models is `import-record-single`, `-album`, `-album-empty` and `-live` (see
+    /// `ImportRecordGallery`). Names:
     /// `import-invite`, `import-invite-lit`, `import-beat-<ms>`, `import-beat-replay-<ms>`,
     /// `import-beat-reduced-<ms>` (a fixed frame) and `import-beat-live` (plays in real time).
     @ViewBuilder
@@ -186,6 +190,83 @@ private struct ImportBeatLive: View {
                 beat: ImportBeat.frame(at: elapsed - cycle * 4000, replay: cycle > 0, reduced: reduceMotion),
                 onAddCover: {}
             )
+        }
+    }
+}
+
+/// #205: the real Import tab (`ImportView`) in a tab bar, on models prefilled in memory. The models
+/// use the production services over an in-memory library and a temp-folder cover store, and
+/// nothing here sends.
+private struct ImportRecordGallery: View {
+    let name: String
+
+    @State private var preset: ImportViewPreset
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(name: String) {
+        self.name = name
+        let container = try! ModelStore.open(at: nil)
+        let coordinator = ReleaseCoordinator(
+            importer: LocalFileImporter(),
+            transcoder: AVTranscoder(),
+            m4aTagWriter: M4ATagWriter(),
+            id3TagWriter: ID3TagWriter(),
+            folder: UserDefaultsSpotifyFolder(),
+            library: SwiftDataLibraryStore(context: container.mainContext),
+            coverStore: FileCoverStore(directory: FileManager.default.temporaryDirectory.appendingPathComponent("gallery-covers", isDirectory: true))
+        )
+        let single = ImportSingleViewModel(importer: LocalFileImporter(), coordinator: coordinator)
+        let album = AlbumBuilderViewModel(importer: LocalFileImporter(), coordinator: coordinator)
+        let driver = ImportBeatDriver()
+        let cover = SampleArtwork.sunset.pngData()
+        var kind = ImportKind.single
+
+        switch name {
+        case "import-record-album-empty":
+            kind = .album
+            album.albumTitle = "Low Tide"
+            album.artist = "The Salt Line"
+        case "import-record-album":
+            kind = .album
+            album.albumTitle = "Midnight Drive"
+            album.artist = "Neon Harbor"
+            album.year = "2026"
+            album.genre = "Synthwave"
+            album.rows = ["Headlights", "Overpass", "Last Exit"].map {
+                AlbumBuilderViewModel.TrackRow(url: URL(fileURLWithPath: "/gallery/\($0).mp3"), title: $0)
+            }
+            album.coverData = cover
+            if let cover { driver.showAtRest(cover: cover) }
+        case "import-record-live":
+            Self.fill(single)
+        default:
+            // import-record-single: a file, the fields, no cover.
+            Self.fill(single)
+        }
+        _preset = State(initialValue: ImportViewPreset(single: single, album: album, driver: driver, kind: kind))
+    }
+
+    private static func fill(_ single: ImportSingleViewModel) {
+        single.pickedURL = URL(fileURLWithPath: "/gallery/Headlights.mp3")
+        single.pickedName = "Headlights.mp3"
+        single.title = "Headlights"
+        single.artist = "Neon Harbor"
+        single.year = "2026"
+        single.genre = "Synthwave"
+    }
+
+    var body: some View {
+        TabView {
+            ImportView(preset: preset)
+                .tabItem { Label(Copy.Import.title, systemImage: "plus.circle") }
+        }
+        .tint(Theme.accent)
+        .environment(SyncStatus())
+        .onAppear {
+            // The live case sets its cover as the screen appears, so the beat plays in the record.
+            guard name == "import-record-live", let cover = SampleArtwork.sunset.pngData() else { return }
+            preset.single.coverData = cover
+            preset.driver.coverChanged(cover, reduced: reduceMotion)
         }
     }
 }

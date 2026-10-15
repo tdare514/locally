@@ -13,6 +13,9 @@ struct ImportInvitation: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shown = false
     @State private var sweepStart: Date?
+    /// The sweep and the fade are over: the band's clock is gone until the next appear.
+    @State private var settled = false
+    @State private var settleTask: Task<Void, Never>?
 
     var body: some View {
         GeometryReader { geo in
@@ -25,6 +28,7 @@ struct ImportInvitation: View {
             .overlay { band.ignoresSafeArea() }
         }
         .onAppear(perform: play)
+        .onDisappear { settleTask?.cancel() }
     }
 
     private var content: some View {
@@ -49,7 +53,7 @@ struct ImportInvitation: View {
 
     @ViewBuilder
     private var band: some View {
-        if !reduceMotion, let sweepStart {
+        if !reduceMotion, !settled, let sweepStart {
             TimelineView(.animation(minimumInterval: nil, paused: false)) { timeline in
                 let t = timeline.date.timeIntervalSince(sweepStart) / Theme.Import.washSweepDuration
                 if t < 1 {
@@ -66,11 +70,19 @@ struct ImportInvitation: View {
     private func play() {
         shown = false
         sweepStart = nil
+        settled = false
+        settleTask?.cancel()
         DispatchQueue.main.async {
             if reduceMotion {
                 withAnimation(.linear(duration: Theme.Import.reducedFadeDuration)) { shown = true }
             } else {
                 sweepStart = Date()
+                let done = max(Theme.Import.washSweepDuration, Theme.Import.inviteFadeDelay + Theme.Import.inviteFadeDuration)
+                    + Theme.Import.inviteSettleMargin
+                settleTask = Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(done))
+                    if !Task.isCancelled { settled = true }
+                }
                 withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: Theme.Import.inviteFadeDuration)
                     .delay(Theme.Import.inviteFadeDelay)) { shown = true }
             }

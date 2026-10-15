@@ -46,22 +46,14 @@ enum Copy {
 
     enum Import {
         static let title = "Import"
-        /// The page subtitle shown under the title, per `docs/design.md`'s
-        /// "Page header" component — matches the web app's Import view.
-        static let subtitle = "Add a song or album to your Spotify library."
-        /// The eyebrow shown above the title on the Import screen, per
-        /// `docs/design.md`'s "Page header" component.
-        static let eyebrow = "Local library"
         static let pickFile = "Choose a file"
         /// The invitation's button and hint (#205).
         static let addTrack = "Add a track"
         static let addTrackHint = "or add audio from Files"
-        static let chooseFiles = "Choose files"
         static let fieldTitle = "Title"
         static let fieldArtist = "Artist"
-        static let fieldAlbum = "Album"
         static let fieldAlbumTitle = "Album title"
-        static let albumPlaceholder = "Same as track title"
+        static let albumPlaceholder = "Album, same as track title"
         static let fieldYear = "Year"
         static let fieldGenre = "Genre"
         static let cover = "Cover"
@@ -83,12 +75,6 @@ enum Copy {
         }
         /// The hint read after the record sleeve's own label.
         static let sleeveHint = "Choose a cover from Photos or Files"
-        /// The file chooser panel's caption before a file is chosen. Matches
-        /// `docs/design.md`'s "Drop zone / file chooser" component, iOS wording.
-        static let fileCaption = "Tap to choose a file"
-        /// The muted hint under the single-track file chooser, verbatim from
-        /// `docs/design.md`'s "Drop zone / file chooser" component.
-        static let singleFileHint = "Singles are one file. Switch to Album for multiple."
         /// The section title over an album's track rows, and the release
         /// detail's Tracks section.
         static let tracks = "Tracks"
@@ -114,7 +100,7 @@ enum Copy {
         static let kindAlbum = "Album"
         static let noTracksYet = "No tracks yet"
         /// The line under `noTracksYet` in the empty-tracks silhouette.
-        static let noTracksHint = "Add audio files above and they'll appear here."
+        static let noTracksHint = "Add audio files and they'll appear here."
         /// Shown under the Tracks header once there are 2+ rows to reorder;
         /// `.onMove` supports long-press drag without an Edit mode on iOS 16+.
         static let reorderHint = "Hold and drag a track to reorder."

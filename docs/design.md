@@ -138,11 +138,13 @@ eyebrows still apply to those labels.
   cover"); a 28 pencil badge appears once filled. The hint "Square artwork works best" is rendered
   once by the import layout under that row (see the Desktop import layout bullet).
 - **Audio drop zone**: a `card` block, min height 128, dashed border as above, an upload-cloud
-  icon (26), "Drop audio files here, or click to choose" (iOS: "Tap to choose a file") and the
-  hint "Singles are one file. Switch to Album for multiple." Below it, before any track exists,
+  icon (26), "Drop audio files here, or click to choose" and the
+  hint "Singles are one file. Switch to Album for multiple." (The iPhone has no drop zone since
+  #205: the import invitation and the record's Add a track replace it.) Below it, before any track exists,
   a faint silhouette of empty `FileRow`-shaped blocks (`card` at 50% opacity, a `border` stroke,
   no text or icon) stands in for the Tracks list, with a centred `text-muted` blurb ("No tracks
-  yet" / "Add audio files above and they'll appear here."): three rows in the album builder, one
+  yet" / "Add audio files above and they'll appear here."; on iPhone "Add audio files and
+  they'll appear here."): three rows in the album builder, one
   row in the single-track flow while no file is chosen. Placeholder cards are spaced `2 ×` the
   usual row gap so the empty state matches the gap between live file rows in the plain list.
   Once there are 2 or more tracks, a
@@ -261,8 +263,9 @@ eyebrows still apply to those labels.
     degrees per screen scrolled (`scrollTurnPrimary`, `scrollTurnSecondary`), against each other.
   - *Reduced motion*: the cover change becomes a plain opacity change over 0.2 s
     (`reducedMotionFadeDuration`), with no scale. The library sky is held still (STATUS, #128).
-    Theme.swift has no reduced-motion values for the ceremony or the sleeve, so their behaviour
-    under Reduce Motion is not written here and not verified.
+    Theme.swift has no reduced-motion values for the save ceremony on the release page, so its
+    behaviour under Reduce Motion is not written here and not verified. The import's cover beat
+    has its own Reduce Motion rules, under *Make a record* below.
   - *Make a record* (import, #205): the Mac's Desktop import (#159) on iPhone, on the studio
     backdrop (`StudioBackdrop`) until a cover is set, with the tab bar on the backdrop as in
     Settings. Values in `Theme.Import`; the beat's clock and curves in
@@ -274,7 +277,9 @@ eyebrows still apply to those labels.
       track is a clear glass pill (a white 14 % to 4 % fill, a 12 % rim with a 32 % top edge)
       that fills with three soft clouds of fluorescent blue light (azure, ice and cobalt over a
       thin blue wash) while it is pressed: they fade in over 0.3 s and drift slowly back and forth
-      (4 s) while lit. It opens Files with several files allowed: one file starts a single, two
+      (4 s) while lit, with a soft dark pool under the label so the white text keeps at least
+      4.5:1 against the light at every point of the drift. The clock that runs the sweep stops
+      once it has played, so a waiting invitation draws nothing. It opens Files with several files allowed: one file starts a single, two
       or more an album (the iPhone has no drop and no switch before the record, so the count
       decides; the library's "Make an album" still starts an album). Files shared in from other
       apps go straight to the record. The page title is gone; the waiting chips and toasts stay
@@ -283,11 +288,13 @@ eyebrows still apply to those labels.
       until it is saved): the release page's layout. The sleeve says "Add cover art" (the cover
       sheet: recent covers, Photos, Files, then the crop) and the disc peeks out; a meta line
       holds the Single / Album switch and the track count; then the title, artist, album (a
-      single only, "Same as track title"), year and genre as inline fields; then the tracks in
+      single only, "Album, same as track title"), year and genre as inline fields; then the tracks in
       the faked-glass panel, ending in an **Add a track** text button (a single's replaces its
       track, an album's adds more). Switching kind keeps the fields and the cover, and a single
-      keeps only the first track. Saving is unchanged: the Send button, the ceremony and the done
-      screen.
+      keeps only the first track. Saving is unchanged (the Send button, the ceremony and the done
+      screen), except that when Send is tapped the disc first eases out of the sleeve to its
+      peeking pose (600 ms, curve 0.2, 0.8, 0.2, 1; at once with Reduce Motion), so the release
+      page's ceremony starts from its own pose.
     - *The beat*, whenever a cover is set (from Files, Photos or a recent cover): the cover
       slides in from 48 pt to the right with a fade (0 to 420 ms, curve 0.3, 0.5, 0.3, 1); a
       warm-white flash over the sleeve (255, 252, 246 at the centre to 255, 248, 238 at the

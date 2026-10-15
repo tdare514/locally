@@ -116,6 +116,12 @@ enum ImportBeat {
         return curve?.value(at: t) ?? t
     }
 
+    /// Send tapped with the disc resting in the sleeve: it eases out to its peeking pose over
+    /// `replayOutEnd` on the same curve a replacing cover uses, the cover and flash at rest.
+    static func easeOutFrame(at ms: Double) -> Frame {
+        Frame(coverOffsetX: 0, coverOpacity: 1, flashOpacity: 0, discIn: 1 - ramp(ms, 0, replayOutEnd, replayOutCurve), discTurnDegrees: 0)
+    }
+
     static func frame(at ms: Double, replay: Bool, reduced: Bool) -> Frame {
         guard ms < endAt(reduced: reduced) else { return .rest }
         if reduced {

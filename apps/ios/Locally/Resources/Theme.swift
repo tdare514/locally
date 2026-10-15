@@ -295,6 +295,8 @@ enum Theme {
         static let inviteFadeDuration: Double = 0.48
         static let inviteFadeDelay: Double = 0.28
         static let reducedFadeDuration: Double = 0.16
+        /// Extra time after the sweep and the fade before the band's clock is dropped.
+        static let inviteSettleMargin: Double = 0.25
         static let inviteGap: CGFloat = 20
         static let inviteButtonGap: CGFloat = 8
 
@@ -318,7 +320,18 @@ enum Theme {
         static let glowAzure = (r: 70.0, g: 160.0, b: 255.0)
         static let glowIce = (r: 120.0, g: 215.0, b: 255.0)
         static let glowCobalt = (r: 90.0, g: 120.0, b: 255.0)
+        /// The dark pool under the label while lit: black at this opacity, solid to the core stop,
+        /// feathered out to a radius of this share of the pill's width, squashed to an ellipse.
+        static let glowPoolOpacity: Double = 0.5
+        static let glowPoolCoreAt = 0.35
+        static let glowPoolMidAt = 0.7
+        static let glowPoolRadius: CGFloat = 0.5
+        static let glowPoolSquash: CGFloat = 0.6
         static let glowWash = Color(red: 60 / 255, green: 130 / 255, blue: 255 / 255).opacity(0.3)
+
+        /// The cover's backdrop over the studio one: in once the wash starts, out when the cover goes.
+        static let backdropFadeInDuration: Double = 0.5
+        static let backdropFadeOutDuration: Double = 0.4
     }
 
     /// The "studio" backdrop behind Settings (#160): the accent blue and a cool violet, with a deep
@@ -342,6 +355,8 @@ enum Theme {
     /// (Settings, #160). `Font` above is fixed points.
     enum ScaledFont {
         static let largeTitle = SwiftUI.Font.system(.largeTitle, weight: .bold)
+        /// The record's title field (#205): `Font.pageTitle` as a Dynamic Type style.
+        static let pageTitle = SwiftUI.Font.system(.title2, weight: .bold)
         static let sectionTitle = SwiftUI.Font.system(.subheadline, weight: .semibold)
         static let headline = SwiftUI.Font.system(.headline, weight: .semibold)
         static let subheadline = SwiftUI.Font.system(.subheadline)
