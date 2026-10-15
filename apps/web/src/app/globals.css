@@ -633,6 +633,181 @@ body {
   transform: rotate(0deg);
 }
 
+/* ---------------------------------------------------------------------------
+ * #159 PROTOTYPE (dev only, /dev/import): the immersive "make a record" Import, three cover beats.
+ * Shared: .imp-*. Variants: .imp1-* (slide in), .imp2-* (press), .imp3-* (develop). When the owner
+ * picks one, delete the other two and rename the winner. The descendant selectors reach the disc
+ * inside RecordSleeve from a wrapper class, so RecordSleeve itself is untouched.
+ *
+ * Transform and opacity only (the disc uses the individual `translate` / `rotate` properties, as
+ * the record animations above do). --imp-t and --imp-run freeze any of this at a given time for
+ * frame capture: every delay is "own delay minus --imp-t", and --imp-run is `paused`.
+ * ------------------------------------------------------------------------- */
+
+/* #122: the accent wash. A soft band in the Import pill's colours (accent, with the white glint
+ * the pill flashes on hover) sweeps left to right across the pane, then fades. The clip box is
+ * needed because the pane scrolls: an overflowing child would add a horizontal scrollbar. */
+.imp-wash {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.imp-wash-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 120%;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    color-mix(in srgb, var(--accent) 9%, transparent) 35%,
+    color-mix(in srgb, var(--accent) 38%, transparent) 78%,
+    color-mix(in srgb, color-mix(in srgb, white 35%, var(--accent)) 62%, transparent) 92%,
+    transparent 100%
+  );
+  will-change: transform, opacity;
+  animation:
+    imp-wash-sweep 700ms cubic-bezier(0.16, 1, 0.3, 1) both,
+    imp-wash-fade 700ms linear both;
+  animation-delay: calc(0ms - var(--imp-t, 0ms));
+  animation-play-state: var(--imp-run, running);
+}
+@keyframes imp-wash-sweep {
+  from { transform: translateX(-100%) skewX(-12deg); }
+  to { transform: translateX(-8%) skewX(-12deg); }
+}
+@keyframes imp-wash-fade {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  55% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+/* Then the invitation fades in and rises 6px. */
+.imp-invite {
+  animation: imp-invite-in 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(280ms - var(--imp-t, 0ms));
+  animation-play-state: var(--imp-run, running);
+}
+@keyframes imp-invite-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+/* The empty record appears. Fill is `backwards` so no opacity animation outlives it (it would
+ * make the dock's backdrop blur sample this element instead of the colour wash). */
+.imp-page-in {
+  animation: imp-fade 260ms ease-out backwards;
+  animation-delay: calc(0ms - var(--imp-t, 0ms));
+  animation-play-state: var(--imp-run, running);
+}
+@keyframes imp-fade {
+  from { opacity: 0; }
+}
+/* The sleeve's "Add cover art" gives way as a cover arrives. */
+.imp-empty-out {
+  animation: imp-empty-out 140ms ease-out both;
+  animation-delay: calc(0ms - var(--imp-t, 0ms));
+  animation-play-state: var(--imp-run, running);
+}
+@keyframes imp-empty-out {
+  to { opacity: 0; }
+}
+
+/* V1 "Slide in": the cover slides into the sleeve from the right while the disc takes a small
+ * settle spin as it lands. The wash then fades in on the existing 900ms backdrop transition. */
+.imp1-cover {
+  animation: imp1-slide 420ms cubic-bezier(0.3, 0.5, 0.3, 1) both;
+  animation-delay: calc(0ms - var(--imp-t, 0ms));
+  animation-play-state: var(--imp-run, running);
+}
+@keyframes imp1-slide {
+  from { opacity: 0; transform: translateX(48px); }
+}
+.imp1-beat .record-face {
+  animation: imp1-settle 480ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(120ms - var(--imp-t, 0ms));
+  animation-play-state: var(--imp-run, running);
+}
+@keyframes imp1-settle {
+  from { rotate: -30deg; }
+}
+
+/* V2 "Press": the cover drops in from above and lands with one soft shadow pulse under the
+ * sleeve; the disc is nudged 8px into the sleeve and comes back. */
+.imp2-cover {
+  animation: imp2-drop 380ms cubic-bezier(0.5, 0, 0.2, 1) both;
+  animation-delay: calc(0ms - var(--imp-t, 0ms));
+  animation-play-state: var(--imp-run, running);
+}
+@keyframes imp2-drop {
+  0% { opacity: 0; transform: translateY(-20px) scale(1.04); }
+  45% { opacity: 1; }
+  100% { opacity: 1; transform: none; }
+}
+.imp2-shadow {
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  bottom: -42px;
+  height: 84px;
+  border-radius: 9999px;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.9), transparent);
+  animation: imp2-thud 460ms ease-out both;
+  animation-delay: calc(240ms - var(--imp-t, 0ms));
+  animation-play-state: var(--imp-run, running);
+}
+@keyframes imp2-thud {
+  0% { opacity: 0; }
+  35% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.imp2-beat .record-disc {
+  animation: imp2-tuck 340ms cubic-bezier(0.3, 0.7, 0.2, 1) backwards;
+  animation-delay: calc(230ms - var(--imp-t, 0ms));
+  animation-play-state: var(--imp-run, running);
+}
+@keyframes imp2-tuck {
+  50% { translate: -8px -50%; }
+}
+
+/* V3 "Develop": a pre-blurred, drained copy appears first and the sharp image fades in over it
+ * across 600ms, like a print developing. Two stacked images, opacity only: the blur is baked
+ * into the first image, never animated. The disc slides all the way back into the sleeve and
+ * rests there; hovering the record brings it out again. */
+.imp3-beat,
+.imp3-rest {
+  --imp3-back: -100px;
+}
+@media (min-width: 40rem) {
+  .imp3-beat,
+  .imp3-rest {
+    --imp3-back: -126px;
+  }
+}
+.imp3-blur {
+  animation: imp-fade 120ms ease-out both;
+  animation-delay: calc(0ms - var(--imp-t, 0ms));
+  animation-play-state: var(--imp-run, running);
+}
+.imp3-sharp {
+  animation: imp-fade 600ms cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation-delay: calc(60ms - var(--imp-t, 0ms));
+  animation-play-state: var(--imp-run, running);
+}
+.imp3-beat .record-disc,
+.imp3-rest .record-disc {
+  translate: var(--imp3-back) -50%;
+}
+.imp3-beat .record-disc {
+  animation: imp3-away 520ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(140ms - var(--imp-t, 0ms));
+  animation-play-state: var(--imp-run, running);
+}
+@keyframes imp3-away {
+  from { translate: 0 -50%; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ambient-backdrop,
   .record-disc {
@@ -669,5 +844,29 @@ body {
   }
   .track-list[data-sorting] .track-row[data-lifted] {
     scale: 1;
+  }
+  /* #159 prototype: no sweep, no travel. The invitation and the cover just fade in (the cover
+     is a short opacity fade; V3 skips the blurred copy), the disc swaps position instantly. */
+  .imp-wash,
+  .imp3-blur,
+  .imp2-shadow {
+    display: none;
+  }
+  .imp-invite,
+  .imp-page-in,
+  .imp1-cover,
+  .imp2-cover,
+  .imp3-sharp {
+    animation: imp-fade 160ms linear backwards;
+    animation-delay: calc(0ms - var(--imp-t, 0ms));
+  }
+  .imp-empty-out {
+    animation: none;
+    opacity: 0;
+  }
+  .imp1-beat .record-face,
+  .imp2-beat .record-disc,
+  .imp3-beat .record-disc {
+    animation: none;
   }
 }
