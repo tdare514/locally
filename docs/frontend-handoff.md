@@ -16,9 +16,9 @@ Written 15 Oct 2026 for bringing Codex into Locally for frontend design input an
 | | |
 |---|---|
 | Checkout | `/Users/tdare514/Documents/Coding Main/coding/locally-145-streams` (a git worktree) |
-| Branch | `design/145-streams-page`, PR #192 (draft), issue #145 |
-| Current design task | The **Stats page** on the Mac, going from the approved prototype to the real page |
-| Also open | PR #208 (`feat/203-sidebar-periods`, worktree `locally-203-periods`): the sidebar's Today / This week / This month. Reviewed, waiting on the owner's merge |
+| Branch | `design/145-streams-page`, PR #192 (ready for review), issue #145 |
+| Current design task | The **Stats page** on the Mac is built on real data. Now: the sleeve fan's spacing (see "Review round 2" at the end) |
+| Merged since | PR #208 (the sidebar's Today / This week / This month) and #209 (Settings and profile at the foot of the rail), both merged into this branch |
 | Not ours | `/Users/tdare514/Documents/Coding Main/coding/locally` is another session's checkout. That session also owns PRs #191 and #195 → #196 → #197 |
 
 ## How to preview
@@ -27,7 +27,7 @@ Written 15 Oct 2026 for bringing Codex into Locally for frontend design input an
 - **The real Mac app on a test library** (never the owner's real one):
   - Run `LOCALLY_CONFIG_DIR=<a temp config dir> npx next dev -H 127.0.0.1 -p <port>` from `apps/web`.
   - A ready-made test config with drawn covers and per-day plays is at `/private/tmp/claude-501/-Users-tdare514-Documents-Coding-Main-coding/947a90c1-22c8-4c68-aaea-eed86bd8a662/scratchpad/203-build/config`. That's the session scratchpad, so it may not survive a reboot.
-  - Usually running at http://127.0.0.1:3177, from the `locally-203-periods` worktree.
+  - Usually running at http://127.0.0.1:3177, from this worktree, on the config `/private/tmp/claude-501/-Users-tdare514-Documents-Coding-Main-coding/947a90c1-22c8-4c68-aaea-eed86bd8a662/scratchpad/192-preview/config` (13 played tracks with drawn covers).
 - **The other previews in the app:**
   - `/dev/buttons`: the button set.
   - The Import page: Import in the sidebar.
@@ -110,3 +110,37 @@ Written 15 Oct 2026 for bringing Codex into Locally for frontend design input an
 - **To propose code,** use a `codex/<topic>` branch off `main` and point to it in a PR comment.
 - **Settled decisions** are listed above and are the owner's. Disagree in a comment, with a screenshot, and the owner decides.
 - **Never run the app against the owner's real library or config.** Use `LOCALLY_CONFIG_DIR` with a temp copy. Tests never touch real directories.
+
+## Review round 2: the sleeve fan's spacing (15 Oct 2026, evening)
+
+**The owner, on the fan at the top of the Stats page:** "There's issues with the placement. They shouldn't be this crowded. They should be sitting in such a way that you can easily wheel through them. Maybe the selected one pops out a bit more prominently than now. But I like this as a base: we should just perfect it, not make it way more different."
+
+**Before** (screenshots outside the repo, readable by path):
+- `/private/tmp/claude-501/-Users-tdare514-Documents-Coding-Main-coding/947a90c1-22c8-4c68-aaea-eed86bd8a662/scratchpad/review-pack/fan-before-owner.png`: the owner's screenshot at 1440px, on a test library where some covers are blank.
+- `/private/tmp/claude-501/-Users-tdare514-Documents-Coding-Main-coding/947a90c1-22c8-4c68-aaea-eed86bd8a662/scratchpad/review-pack/fan-before-week.jpg`: the default state.
+- `/private/tmp/claude-501/-Users-tdare514-Documents-Coding-Main-coding/947a90c1-22c8-4c68-aaea-eed86bd8a662/scratchpad/review-pack/fan-before-hover.jpg`: a side sleeve lifted.
+
+**Why it is crowded:**
+- Every `.fan-sleeve` sits at the same spot (`left: 50%`). The spread comes only from `rotate(var(--a))` around a far pivot (`transform-origin: 50% 330%`), at 11° per step for five (`lib/fan-layout.ts`). That moves each step only about half a sleeve sideways.
+- The active #1 is lifted 0.232 of a sleeve and scaled 1.07, so #2 and #3 show about a quarter, and #4 and #5 are slivers.
+- In an emulated touch test, taps on the visible part of #4 landed on #2: Chrome's touch targeting picked the neighbour.
+
+**The fix Claude is building now,** for the page fan only (the sidebar's three-sleeve shelf stays identical):
+1. **A sideways step per sleeve:** the CSS `translate` property, `--fan-step`, as well as the tilt. Less tilt on the page (`--fan-tilt` about 0.7). `--w` is retuned so the fan fits from 390 to 1440px.
+2. **Targets:**
+   - In the default state, every non-active sleeve has at least 55% of its button uncovered, and #2 and #3 at least 65%.
+   - A left-to-right sweep at mid-height lifts 4, 2, 1, 3, 5, each over a band at least 0.35 of a sleeve wide.
+3. **The chosen one pops more:** a lift of about 0.3 of a sleeve and a scale of about 1.12. The rest dim behind a dark overlay at about 0.2, faded by opacity.
+4. **← → wheel focus through the sleeves** in visual order.
+5. **The fan rule** in `docs/design.md` ("Stats page (#145)", **Fan**) is updated to match.
+
+**After:** when the commit lands on this branch, the screenshots are `docs/design-previews/145/stats-fan-1440.png` and `stats-fan-390.png`. Check `git log --oneline -3` for "space the sleeve fan out". The live page is at http://127.0.0.1:3177 (Stats in the left rail).
+
+**Questions for Codex:**
+1. **Spacing:** how much overlap keeps it one hand of cards around #1 while each sleeve is easy to land on and sweep through? Is 55 to 65% uncovered right?
+2. **Prominence:** is lift, scale and dimming the rest the right way to make the chosen one pop, within transform and opacity only? Or would straightening it fully, or a brighter rim, do more?
+3. **"Wheel through them":** beyond hover and ← →, should a horizontal trackpad swipe over the fan step the selection? Vertical scrolling must keep scrolling the page. Or is that over-building?
+4. **Hierarchy:** with a wider fan, does the page still read top-down: the digest sentence, the fan, then the list or grid?
+5. **Narrow and touch:** at 390px, and for the hosted web on touch, do the sleeves stay tappable?
+
+Reply as a comment on PR #192, as before. Claude implements; please don't push to this branch.

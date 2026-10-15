@@ -2273,12 +2273,20 @@ body {
   text-align: center;
   background: rgb(0 0 0 / 0.72);
 }
+/* Two lines at most, so a long name on a small sleeve ends in an ellipsis rather than off the edge. */
 .fan-tag-title {
-  display: block;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   color: #fff;
   font-size: var(--fan-title);
   font-weight: 600;
   line-height: 1.2;
+}
+/* The page's sleeves go down to 64px at a narrow width: less fade above the words there. */
+.fan[data-size="page"] .fan-sleeve:not([data-shape="disc"]) .fan-tag {
+  padding-top: clamp(14px, calc(var(--w) * 0.21), 44px);
 }
 .fan-tag-plays {
   display: block;
