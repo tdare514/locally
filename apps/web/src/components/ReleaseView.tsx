@@ -6,6 +6,7 @@ import {
   coverUrl,
   deleteRelease,
   getRelease,
+  getReleasePlays,
   replaceCover,
   reveal,
   updateRelease,
@@ -17,6 +18,7 @@ import AmbientBackdrop from "./AmbientBackdrop";
 import SpotifySourceBanner from "./SpotifySourceBanner";
 import { ChevronRightIcon, CopyIcon } from "./Icons";
 import { COPIED_LABEL, COPY_LABEL, PLAYLIST_FALLBACK, playlistSteps } from "../lib/playlist-copy";
+import { PLAYS_ACROSS_DEVICES } from "../lib/plays-copy";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
 import { IS_DEMO } from "../lib/demo";
 
@@ -68,7 +70,7 @@ interface Draft {
 
 /** The update to send for `draft`, or null when nothing differs from `release`. Track
  * numbers follow list order, so a reorder alone is a change. */
-function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | null {
+export function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | null {
   const patch: UpdateReleaseMeta = {};
   if (draft.title !== release.title) patch.title = draft.title;
   if (draft.artist !== release.artist) patch.artist = draft.artist;
@@ -83,7 +85,7 @@ function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | null {
   draft.tracks.forEach((t, i) => {
     const original = release.tracks.find((o) => o.id === t.key);
     const trackNumber = i + 1;
-    const change: { id: string; title?: string; trackNumber?: number } = {
+    const change: { id: string; title?: string; trackNumber?: number; discNumber?: number } = {
       id: t.key,
     };
     let changed = false;
@@ -93,6 +95,11 @@ function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | null {
     }
     if (!original || original.trackNumber !== trackNumber) {
       change.trackNumber = trackNumber;
+      changed = true;
+    }
+    // A track dropped in among another disc's tracks joins that disc.
+    if (t.discNumber !== undefined && (!original || original.discNumber !== t.discNumber)) {
+      change.discNumber = t.discNumber;
       changed = true;
     }
     if (changed) trackPatches.push(change);
@@ -147,7 +154,7 @@ export default function ReleaseView({
   const [year, setYear] = useState(initialRelease?.year ?? "");
   const [genre, setGenre] = useState(initialRelease?.genre ?? "");
   const [tracks, setTracks] = useState<EditableTrack[]>(
-    () => initialRelease?.tracks.map((t) => ({ key: t.id, title: t.title })) ?? []
+    () => initialRelease?.tracks.map((t) => ({ key: t.id, title: t.title, discNumber: t.discNumber })) ?? []
   );
   // While a copy is on screen, a load refreshes it quietly instead of flashing "Loading…".
   const shown = useRef<Release | null>(initialRelease ?? null);
@@ -157,6 +164,8 @@ export default function ReleaseView({
   const [deleting, setDeleting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [spin, setSpin] = useState(0);
+  // Each track's total plays across devices, by track id (#107). Empty until the one fetch lands.
+  const [plays, setPlays] = useState<Record<string, number>>({});
   const copiedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const artworkUrl = release?.coverPath ? coverUrl(release.id, release.updatedAt) : null;
@@ -186,7 +195,7 @@ export default function ReleaseView({
     setArtist(r.artist);
     setYear(r.year ?? "");
     setGenre(r.genre ?? "");
-    setTracks(r.tracks.map((t) => ({ key: t.id, title: t.title })));
+    setTracks(r.tracks.map((t) => ({ key: t.id, title: t.title, discNumber: t.discNumber })));
   }, []);
 
   const load = useCallback(() => {
@@ -206,6 +215,21 @@ export default function ReleaseView({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
+
+  useEffect(() => {
+    // One request per release page open (ReleaseView is remounted per release), never per row or
+    // render, and no polling. A failure just leaves the counts off the page.
+    if (IS_DEMO) return;
+    let cancelled = false;
+    getReleasePlays(releaseId)
+      .then(({ tracks: counted }) => {
+        if (!cancelled) setPlays(Object.fromEntries(counted.map((t) => [t.trackId, t.total])));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [releaseId]);
 
   function handleTracksChange(next: EditableTrack[]) {
     setTracks(next);
@@ -358,7 +382,7 @@ export default function ReleaseView({
             lg:p-16 plus top-4 leaves the dock 5rem below the pane's top: clear of the phone-tray
             button AppShell pins there (md:top-6 + --tray-size = 4rem, and a rem of air). Keep
             that sum if the pane's padding changes. */}
-        <div className="sticky top-4 z-10 -my-4 flex w-fit max-w-full flex-wrap items-center gap-2 self-start rounded-[26px] bg-black/70 p-1.5 pr-3 sm:rounded-full shadow-[0_16px_40px_-12px_rgb(0_0_0/0.8)] ring-1 ring-white/10 backdrop-blur-xl lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:my-0 lg:w-auto lg:flex-col lg:items-stretch lg:gap-1 lg:rounded-[26px] lg:p-2">
+        <div className="sticky top-4 z-10 -my-4 flex w-fit max-w-full flex-wrap items-center gap-2 self-start rounded-[26px] glass-fake glass-dock p-1.5 pr-3 sm:rounded-full lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:my-0 lg:w-auto lg:flex-col lg:items-stretch lg:gap-1 lg:rounded-[26px] lg:p-2">
           <button
             type="button"
             onClick={handleSave}
@@ -415,7 +439,10 @@ export default function ReleaseView({
         </div>
         <div className="flex flex-col gap-3 lg:col-start-1 lg:row-start-2">
           <h2 className="text-lg font-bold tracking-[-0.03em] text-text">Tracks</h2>
-          <TrackList tracks={tracks} onChange={handleTracksChange} readOnly={IS_DEMO} />
+          <TrackList tracks={tracks} onChange={handleTracksChange} readOnly={IS_DEMO} plays={plays} />
+          {tracks.some((t) => (plays[t.key] ?? 0) > 0) && (
+            <p className="text-xs text-text-muted">{PLAYS_ACROSS_DEVICES}</p>
+          )}
         </div>
       </div>
 

@@ -156,6 +156,29 @@ struct SyncReleasesPageDecodingTests {
         #expect(page.hasMore == false)
     }
 
+    /// #185: a record from the web or from a client this build has never
+    /// heard of decodes like any other; its origin is kept as given.
+    @Test func aRecordFromTheWebOrAnUnknownOriginDoesNotFailThePage() async throws {
+        let api = makeApi()
+        ReleasesPageStubURLProtocol.handler = { _ in
+            var web = Self.minimalReleaseJSON(id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", file: "one.mp3")
+            web["origin"] = "web"
+            var unknown = Self.minimalReleaseJSON(id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", file: "two.mp3")
+            unknown["origin"] = "future-thing"
+            let body = try! JSONSerialization.data(withJSONObject: [
+                "releases": [web, unknown, Self.minimalReleaseJSON(id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", file: "three.mp3")],
+                "nextVersion": 42,
+                "hasMore": false,
+            ])
+            return (200, body)
+        }
+
+        let page = try await api.releases(sinceVersion: 0, limit: 200)
+
+        #expect(page.releases.map(\.origin) == ["web", "future-thing", "mac"])
+        #expect(page.nextVersion == 42)
+    }
+
     @Test func aMalformedUpdatedAtStillFailsTheWholePage() async throws {
         let api = makeApi()
         ReleasesPageStubURLProtocol.handler = { _ in

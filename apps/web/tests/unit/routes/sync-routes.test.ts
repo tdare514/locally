@@ -6,6 +6,7 @@ import { SyncAuthError, type MeResult, type SyncApi, type VerifyCodeResult } fro
 import { NotFoundError } from "../../../src/shared/errors";
 import { emptySyncState, type SyncState, type SyncStateStore } from "../../../src/server/sync/SyncState";
 import type { SyncRecord } from "../../../src/server/sync/SyncRecord";
+import { FakePlayCountStore } from "../FakePlayCountStore";
 
 // `vi.mock` factories are hoisted above these imports by Vitest; `services`
 // below is read lazily (only when a route handler actually calls
@@ -107,6 +108,7 @@ const fixedStatus: SyncStatus = {
 
 let syncEngine: { status: ReturnType<typeof vi.fn>; reconcile: ReturnType<typeof vi.fn>; acceptFromPhone: ReturnType<typeof vi.fn> };
 let syncState: FakeSyncStateStore;
+let playStore: FakePlayCountStore;
 
 function jsonRequest(url: string, body: unknown): NextRequest {
   return new NextRequest(url, {
@@ -129,11 +131,13 @@ beforeEach(() => {
     acceptFromPhone: vi.fn(),
   };
   syncState = new FakeSyncStateStore();
+  playStore = new FakePlayCountStore();
   services = {
     settings: new FakeSettingsStore(),
     syncApiFactory: () => fakeSyncApi,
     syncEngine,
     syncState,
+    playStore,
   } as unknown as Services;
 });
 
@@ -216,6 +220,23 @@ describe("POST /api/sync/signout", () => {
     expect(state.pushedUpdatedAt).toEqual({});
     expect(state.pendingFromPhone).toEqual({});
   });
+
+  it("clears the pushed play markers and keeps the counts (#107)", async () => {
+    settingsValue = {
+      libraryDir: "/tmp/lib",
+      sync: { baseUrl: "http://localhost:4000", deviceToken: "tok-123", email: "a@b.com", lastVersion: 5 },
+    };
+    playStore.seed("t1", "r1", 5, 5);
+    playStore.seed("t2", "r1", 3, 1);
+
+    const res = await signoutPOST();
+    expect(res.status).toBe(200);
+
+    expect((await playStore.get()).tracks).toEqual({
+      t1: { releaseId: "r1", count: 5, pushed: 0 },
+      t2: { releaseId: "r1", count: 3, pushed: 0 },
+    });
+  });
 });
 
 describe("DELETE /api/sync/account", () => {
@@ -251,6 +272,24 @@ describe("DELETE /api/sync/account", () => {
     const state = await syncState.get();
     expect(state.pushedUpdatedAt).toEqual({});
     expect(state.pendingFromPhone).toEqual({});
+  });
+
+  it("clears the pushed play markers and keeps the counts (#107)", async () => {
+    playStore.seed("t1", "r1", 5, 5);
+
+    const res = await deleteAccountDELETE();
+    expect(res.status).toBe(200);
+
+    expect((await playStore.get()).tracks).toEqual({ t1: { releaseId: "r1", count: 5, pushed: 0 } });
+  });
+
+  it("keeps the pushed play markers when the delete fails on the network", async () => {
+    deleteAccountBehavior = "networkError";
+    playStore.seed("t1", "r1", 5, 5);
+
+    await deleteAccountDELETE();
+
+    expect((await playStore.get()).tracks.t1.pushed).toBe(5);
   });
 
   it("is 400 when not signed in", async () => {

@@ -377,6 +377,69 @@ struct SyncEngineTests {
         #expect(try h.library.all().isEmpty, "not accepted yet, so nothing local changed")
     }
 
+    /// #185: a release from the web, or from a client this build has never
+    /// heard of, is "another device": it is offered in the tray with its
+    /// origin kept, and never mistaken for this phone's own.
+    @Test func reconcileListsAWebOrUnknownOriginRecordNotLocalAsPending() async throws {
+        let h = makeHarness()
+        func record(origin: String, device: String) -> SyncRecord {
+            SyncRecord(
+                id: UUID().uuidString,
+                kind: "single",
+                title: "From \(origin)",
+                artist: "Someone",
+                tracks: [SyncTrack(id: UUID().uuidString, title: "From \(origin)", trackNumber: 1, file: "Someone - From \(origin) - 01.mp3", bytes: 1000, durationSec: nil)],
+                origin: origin,
+                originDevice: device,
+                createdAt: Date(),
+                updatedAt: Date()
+            )
+        }
+        let web = record(origin: "web", device: "Browser")
+        // Even with this phone's own device name, an origin other than "ios" is not an echo of this phone.
+        let future = record(origin: "future-thing", device: "Toby's iPhone")
+        let thisPhone = record(origin: "ios", device: "Toby's iPhone")
+        h.api.seed(web)
+        h.api.seed(future)
+        h.api.seed(thisPhone)
+
+        await h.engine.reconcile()
+
+        #expect(h.engine.status.lastError == nil)
+        #expect(Set(h.engine.status.pendingFromMac.map(\.id)) == [web.id, future.id])
+        #expect(Set(h.engine.status.pendingFromMac.map(\.origin)) == ["web", "future-thing"])
+        #expect(try h.library.all().isEmpty, "not accepted yet, so nothing local changed")
+    }
+
+    /// A newer record that names this phone's device but carries another
+    /// origin is a real remote update (re-tagged), not this phone's own echo.
+    @Test func aNewerRecordFromAnUnknownOriginIsAppliedNotTreatedAsAnOwnEcho() async throws {
+        let h = makeHarness()
+        let release = try await h.coordinator.importSingle(file: try makeSourceFile(), tags: TagSet(title: "Old Title", artist: "Old Artist", album: "Old Title"), cover: nil)
+        try markSynced(release, in: h.library)
+        let callsBefore = h.tagWriter.calls.count
+
+        h.api.seed(SyncRecord(
+            id: release.id.uuidString,
+            kind: "single",
+            title: "Web Title",
+            artist: "Old Artist",
+            tracks: [SyncTrack(id: release.tracks[0].id.uuidString, title: "Web Title", trackNumber: 1, file: "irrelevant.mp3", bytes: 0, durationSec: nil)],
+            origin: "web",
+            originDevice: "Toby's iPhone",
+            createdAt: release.createdAt,
+            updatedAt: release.updatedAt.addingTimeInterval(60)
+        ))
+
+        await h.engine.reconcile()
+
+        #expect(h.engine.status.lastError == nil)
+        #expect(h.tagWriter.calls.count == callsBefore + 1, "re-tagged, which an own echo never is")
+        let stored = try #require(h.library.all().first { $0.id == release.id })
+        #expect(stored.title == "Web Title")
+        #expect(h.engine.status.pendingFromMac.isEmpty)
+    }
+
     // MARK: - Reconcile: accept from the Mac
 
     @Test func acceptFromMacImportsIntoTheSpotifyFolderWithAUniqueNameAndTheSameId() async throws {

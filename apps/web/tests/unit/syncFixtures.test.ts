@@ -33,6 +33,13 @@ describe("sync fixtures", () => {
     },
   );
 
+  it("keeps the origin of a release from the web or from a client it has never heard of (#185)", () => {
+    const web = SyncRecordSchema.parse(loadFixture("valid-album-origin-web.json"));
+    const unknown = SyncRecordSchema.parse(loadFixture("valid-single-origin-unknown.json"));
+    expect(web.origin).toBe("web");
+    expect(unknown.origin).toBe("future-thing");
+  });
+
   it.each(fixtureFiles.filter((name) => name.startsWith("invalid-")))("rejects %s", (name) => {
     const result = SyncRecordSchema.safeParse(loadFixture(name));
     expect(result.success).toBe(false);

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Release, Settings } from "../../src/shared/types";
-import { PlayTracker } from "../../src/server/plays/PlayTracker";
+import { IDLE_POLL_INTERVAL_MS, PlayTracker } from "../../src/server/plays/PlayTracker";
 import type { NowPlayingResult, SpotifyNowPlaying } from "../../src/server/plays/SpotifyNowPlaying";
 import { FakePlayCountStore } from "./FakePlayCountStore";
 
@@ -108,6 +108,7 @@ describe("PlayTracker", () => {
 
   it("polls on the interval and setEnabled(false) stops polling", async () => {
     vi.useFakeTimers();
+    np.next = playing(0); // Spotify running, so the 5 s interval applies
     tracker.setEnabled(true);
     await vi.advanceTimersByTimeAsync(0);
     const afterStart = np.calls;
@@ -136,5 +137,94 @@ describe("PlayTracker", () => {
     expect(calls).toBe(1);
     release();
     t.stop();
+  });
+
+  describe("idle backoff (#162)", () => {
+    it("polls every 30 s, not 5 s, while Spotify is not running", async () => {
+      vi.useFakeTimers();
+      tracker.setEnabled(true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(np.calls).toBe(1);
+      expect(tracker.status()).toBe("spotify-not-running");
+      await vi.advanceTimersByTimeAsync(IDLE_POLL_INTERVAL_MS - 1);
+      expect(np.calls).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(np.calls).toBe(2);
+      await vi.advanceTimersByTimeAsync(IDLE_POLL_INTERVAL_MS);
+      expect(np.calls).toBe(3);
+    });
+
+    it("goes back to 5 s on the first poll that finds Spotify running", async () => {
+      vi.useFakeTimers();
+      tracker.setEnabled(true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(np.calls).toBe(1);
+      np.next = playing(0);
+      await vi.advanceTimersByTimeAsync(IDLE_POLL_INTERVAL_MS); // still on the 30 s cadence
+      expect(np.calls).toBe(2);
+      expect(tracker.status()).toBe("on");
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(np.calls).toBe(3);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(np.calls).toBe(4);
+    });
+
+    it("backs off again when Spotify closes", async () => {
+      vi.useFakeTimers();
+      np.next = playing(0);
+      tracker.setEnabled(true);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(np.calls).toBe(2);
+      np.next = { running: false };
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(np.calls).toBe(3);
+      expect(tracker.status()).toBe("spotify-not-running");
+      await vi.advanceTimersByTimeAsync(IDLE_POLL_INTERVAL_MS - 1);
+      expect(np.calls).toBe(3);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(np.calls).toBe(4);
+    });
+
+    it("stop() cancels a pending poll", async () => {
+      vi.useFakeTimers();
+      tracker.setEnabled(true);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(np.calls).toBe(1);
+      expect(vi.getTimerCount()).toBe(1);
+      tracker.stop();
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(IDLE_POLL_INTERVAL_MS * 2);
+      expect(np.calls).toBe(1);
+    });
+
+    it("does not stack polls when one takes longer than the interval", async () => {
+      vi.useFakeTimers();
+      let calls = 0;
+      let active = 0;
+      let maxActive = 0;
+      const slow: SpotifyNowPlaying = {
+        read: async () => {
+          calls++;
+          active++;
+          maxActive = Math.max(maxActive, active);
+          await new Promise((resolve) => setTimeout(resolve, 12_000));
+          active--;
+          return { running: true, state: "playing", id: ID, positionSec: 0, durationMs: 200_000 };
+        },
+      };
+      const t = new PlayTracker(slow, { get: async () => ({}) as Settings }, { list: async () => [] }, store, () => 0, 5000);
+      t.setEnabled(true);
+      await vi.advanceTimersByTimeAsync(11_999);
+      expect(calls).toBe(1);
+      await vi.advanceTimersByTimeAsync(1); // first poll finishes, next is scheduled 5 s later
+      expect(calls).toBe(1);
+      await vi.advanceTimersByTimeAsync(4999);
+      expect(calls).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(calls).toBe(2);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(maxActive).toBe(1);
+      t.stop();
+    });
   });
 });

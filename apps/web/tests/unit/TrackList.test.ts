@@ -57,6 +57,53 @@ describe("TrackList markup", () => {
     expect(html.match(/readOnly=""|readonly=""/g)).toHaveLength(3);
   });
 
+  it("groups rows under quiet sentence-case disc headings only when there is more than one disc", () => {
+    const discs = [1, 1, 2];
+    const html = render({ tracks: tracks.map((t, i) => ({ ...t, discNumber: discs[i] })) });
+    expect([...html.matchAll(/data-disc-heading[^>]*>Disc (\d+)</g)].map((m) => m[1])).toEqual(["1", "2"]);
+    // Headings sit between rows without changing them: same rows, same order, same numbers.
+    expect([...html.matchAll(/data-key="([^"]+)"/g)].map((m) => m[1])).toEqual(["t-c", "t-a", "t-b"]);
+    expect([...html.matchAll(/tabular-nums[^>]*>(\d+)</g)].map((m) => m[1])).toEqual(["1", "2", "3"]);
+    const headingTags = html.match(/<li[^>]*data-disc-heading[^>]*>/g) ?? [];
+    expect(headingTags).toHaveLength(2);
+    for (const tag of headingTags) expect(tag).not.toMatch(/uppercase|tracking-/);
+    expect(html.indexOf("Disc 1")).toBeLessThan(html.indexOf('data-key="t-c"'));
+    expect(html.indexOf("Disc 2")).toBeGreaterThan(html.indexOf('data-key="t-a"'));
+    expect(html.indexOf("Disc 2")).toBeLessThan(html.indexOf('data-key="t-b"'));
+  });
+
+  it("shows no disc headings for a single disc or no discs", () => {
+    expect(render()).not.toContain("data-disc-heading");
+    expect(render({ tracks: tracks.map((t) => ({ ...t, discNumber: 1 })) })).not.toContain("data-disc-heading");
+  });
+
+  it("shows each track's total plays at the right, quietly, before the grip (#107)", () => {
+    const html = render({ plays: { "t-c": 12, "t-a": 1 } });
+    expect([...html.matchAll(/data-plays[^>]*>([^<]*)</g)].map((m) => m[1])).toEqual(["12 plays", "1 play"]);
+    const tag = html.match(/<span[^>]*data-plays[^>]*>/)?.[0] ?? "";
+    expect(tag).toContain("tabular-nums");
+    expect(tag).toContain("text-text-muted");
+    expect(tag).not.toMatch(/uppercase|tracking-/);
+    // Within the first row: after the title field, before its grip.
+    const row = html.slice(html.indexOf('data-key="t-c"'), html.indexOf('data-key="t-a"'));
+    expect(row.indexOf("data-plays")).toBeGreaterThan(row.indexOf("<input"));
+    expect(row.indexOf("data-plays")).toBeLessThan(row.indexOf("data-handle"));
+    // The numbers still read 1, 2, 3 for the drag code to rewrite.
+    expect([...html.matchAll(/data-number[^>]*>(\d+)</g)].map((m) => m[1])).toEqual(["1", "2", "3"]);
+  });
+
+  it("shows nothing for a track with no plays, no entry, or no plays prop", () => {
+    expect(render({ plays: { "t-c": 0 } })).not.toContain("data-plays");
+    expect(render({ plays: { other: 5 } })).not.toContain("data-plays");
+    expect(render()).not.toContain("data-plays");
+  });
+
+  it("shows the plays in the demo's read-only list too, without a grip", () => {
+    const html = render({ readOnly: true, plays: { "t-b": 3 } });
+    expect(html).toContain("3 plays");
+    expect(html).not.toContain("data-handle");
+  });
+
   it("says so when there are no tracks", () => {
     expect(render({ tracks: [] })).toContain("No tracks yet.");
   });

@@ -62,6 +62,22 @@ still fails the whole page.
 }
 ```
 
+`origin` names the platform that wrote the record: `"mac"` or `"ios"` today. **Forward compatibility
+(#185):** a client MUST treat any `origin` it doesn't recognise, and any device `platform` it doesn't
+recognise (in `/v1/me`, the plays reply), as "another device". Such a record is offered in the inbox
+labelled "from another device" (a known one gets its own label: "from your iPhone", "from your Mac",
+"from the web"), a device shows as a generic "Device" with its name, and neither is ever a reason to
+fail a pull page. A record is a client's own only when `origin` is that client's platform and
+`originDevice` is that client's device name. On the wire `origin` is a short lowercase token
+(`^[a-z][a-z0-9-]{0,15}$`). The API accepts only `mac` and `ios` for `origin` and `platform` until #186
+adds `web`, so shipped clients are tolerant before any such record can exist.
+
+A `tracks[]` entry may carry `discNumber` (integer 1 to 99) on a multi-disc release. The key is omitted
+when there is no disc, never written as null. `trackNumber` is still the release-wide position and the
+file key; `discNumber` only changes the tags a receiver writes (`spec/metadata.md`). Older clients ignore
+the key, and a client that does not know it strips it when it re-pushes a record; that is accepted because
+only the owner's own devices sync and they update together.
+
 `coverHash` is the lowercase hex sha256 of the cover's bytes, or `null` when the release has no
 cover. It is the only change signal for the cover, since `cover.<ext>` keeps its name when the
 image is replaced: a receiver downloads and re-embeds the cover only when the remote `coverHash`
@@ -77,7 +93,9 @@ Server-side each record also carries `userId`, `version` (integer, bumped on eve
 `spec/fixtures/sync/*.json` are example records that the API, web and iOS tests all load. The
 file name prefix says what every reader must do with it:
 
-- `valid-*`: every app parses it.
+- `valid-*`: every app parses it. Two exceptions are client-only until #186: `valid-album-origin-web.json`
+  and `valid-single-origin-unknown.json` (origin `"web"` and `"future-thing"`), which the Mac and the
+  iPhone must accept and the API must still reject with a 400.
 - `invalid-*`: every app rejects it (the API with a 400; clients skip a record with a refused
   name and fail the page on a structurally broken one, without ever using a file name from it).
 
@@ -159,7 +177,7 @@ source of truth.
   pending and retries on the next reconcile. Failures never fail the user's action.
 - **Pull / reconcile** (on foreground, on a timer while the app is open, and on "Sync now"):
   `GET /releases?sinceVersion=<last seen>`. For each record: not in the local library and from
-  the other platform → offered in the inbox as "N from your Mac / phone" with one action, Send to
+  another device (any `origin` but this platform's own) → offered in the "From your devices" inbox with one action, Send to
   Spotify, which downloads the files into the local Spotify folder (unique names, no
   conversion or tagging; the Mac converts m4a from the phone to mp3 because Spotify desktop
   reads mp3), stores the cover and records the release with the same id. Newer `updatedAt` than

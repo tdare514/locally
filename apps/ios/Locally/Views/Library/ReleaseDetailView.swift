@@ -199,7 +199,11 @@ struct ReleaseDetailView: View {
     // Singles and one-track albums leave move disabled so the gesture doesn't
     // fight the title field.
     private func trackRows(_ model: ReleaseDetailViewModel) -> some View {
-        ForEach(Array(model.trackRows.enumerated()), id: \.element.id) { index, row in
+        let headings = model.discHeadings
+        return ForEach(Array(model.trackRows.enumerated()), id: \.element.id) { index, row in
+            if headings.indices.contains(index), let disc = headings[index] {
+                DiscHeading(number: disc).panelRow(.middle)
+            }
             // A single's only track takes its title from the Title field above,
             // so its row shows that live value rather than the (only saved-on-send)
             // track row title.

@@ -6,6 +6,9 @@ import SwiftData
 /// (`ReleaseRecord`) never leaks into domain logic or tests.
 protocol LibraryStore {
     func all() throws -> [Release]
+    /// The `limit` most recently updated releases, newest first. A bounded fetch: only
+    /// those rows are read and have their tracks decoded, unlike `all()`.
+    func recent(limit: Int) throws -> [Release]
     func upsert(_ release: Release) throws
     func delete(id: UUID) throws
     /// Writes `release` only if a row with its id is still in the index, and
@@ -93,6 +96,14 @@ final class SwiftDataLibraryStore: LibraryStore {
         try onMain {
             let records = try context.fetch(FetchDescriptor<ReleaseRecord>())
             return records.compactMap(Self.toRelease)
+        }
+    }
+
+    func recent(limit: Int) throws -> [Release] {
+        try onMain {
+            var descriptor = FetchDescriptor<ReleaseRecord>(sortBy: [SortDescriptor(\.updatedAt, order: .reverse)])
+            descriptor.fetchLimit = limit
+            return try context.fetch(descriptor).compactMap(Self.toRelease)
         }
     }
 

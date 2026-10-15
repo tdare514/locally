@@ -11,6 +11,9 @@ final class ReleaseDetailViewModel {
     struct TrackRow: Identifiable, Hashable {
         let id: UUID
         var title: String
+        /// Which disc the track is on, when the release has discs. Read only: it sets the
+        /// "Disc N" headings.
+        var discNumber: Int?
     }
 
     private let coordinator: ReleaseCoordinator
@@ -63,7 +66,7 @@ final class ReleaseDetailViewModel {
         let cover = release.coverPath != nil ? coverStore.load(release.id) : nil
         let rows = release.tracks
             .sorted { $0.trackNumber < $1.trackNumber }
-            .map { TrackRow(id: $0.id, title: $0.title) }
+            .map { TrackRow(id: $0.id, title: $0.title, discNumber: $0.discNumber) }
 
         self.releaseId = release.id
         self.kind = release.kind
@@ -123,8 +126,20 @@ final class ReleaseDetailViewModel {
 
     var hasPlays: Bool { !playTotals.isEmpty }
 
+    /// The disc heading to show above each row, or nil for none (see `DiscNumbering.headings`).
+    var discHeadings: [Int?] {
+        DiscNumbering.headings(for: trackRows.map(\.discNumber))
+    }
+
     func moveTracks(from source: IndexSet, to destination: Int) {
+        let order = trackRows.map(\.id)
+        let movedIds = source.map { trackRows[$0].id }
         trackRows.move(fromOffsets: source, toOffset: destination)
+        guard trackRows.map(\.id) != order else { return }
+        // A row dropped in among another disc's rows joins that disc, so a disc is never split.
+        for index in trackRows.indices where movedIds.contains(trackRows[index].id) {
+            trackRows[index].discNumber = DiscNumbering.adoptDiscAfterMove(trackRows.map(\.discNumber), movedIndex: index)[index]
+        }
     }
 
     func save() async {
@@ -151,7 +166,8 @@ final class ReleaseDetailViewModel {
             genre: genre,
             cover: coverData != originalCoverData ? coverData : nil,
             trackTitles: trackTitles,
-            trackOrder: trackRows.map { $0.id }
+            trackOrder: trackRows.map { $0.id },
+            trackDiscs: Dictionary(uniqueKeysWithValues: trackRows.compactMap { row in row.discNumber.map { (row.id, $0) } })
         )
 
         do {
@@ -188,7 +204,7 @@ final class ReleaseDetailViewModel {
         coverData = release.coverPath != nil ? coverStore.load(release.id) : coverData
         trackRows = release.tracks
             .sorted { $0.trackNumber < $1.trackNumber }
-            .map { TrackRow(id: $0.id, title: $0.title) }
+            .map { TrackRow(id: $0.id, title: $0.title, discNumber: $0.discNumber) }
 
         originalTitle = title
         originalArtist = artist
