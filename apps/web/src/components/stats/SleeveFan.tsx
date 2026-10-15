@@ -74,6 +74,17 @@ export default function SleeveFan({
         // A finger leaves the moment it lifts; that must not drop the lift a tap just made.
         if (e.pointerType !== "touch") reset();
       }}
+      onKeyDown={(e) => {
+        // ← → wheel through the sleeves in the order they sit, not by rank. No wrap-around.
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        const hits = [...(root.current?.querySelectorAll<HTMLElement>(".fan-hit") ?? [])];
+        const at = hits.findIndex((h) => h === document.activeElement);
+        if (at < 0) return;
+        const visual = hits.map((_, i) => i).sort((a, b) => slots[a].offset - slots[b].offset);
+        const next = visual[visual.indexOf(at) + (e.key === "ArrowRight" ? 1 : -1)];
+        e.preventDefault();
+        if (next !== undefined) hits[next].focus();
+      }}
       onBlur={(e) => {
         // Focus leaving the fan altogether puts the lift back on number one.
         if (!e.currentTarget.contains(e.relatedTarget)) reset();
@@ -134,6 +145,8 @@ function Sleeve({
     // --a tilts the sleeve, --k orders the fan-out from the middle outwards.
     "--a": `${slot.angle}deg`,
     "--k": Math.abs(slot.offset),
+    // --o is the signed step from the middle, for the page's sideways spacing.
+    "--o": slot.offset,
     zIndex: active ? 100 : slot.layer,
   } as CSSProperties;
   return (

@@ -344,7 +344,9 @@ eyebrows still apply to those labels.
     #4 and #5 outside; with fewer than five the same rule runs and the set is centred, no empty
     slots, the tilt per step widening as the fan thins (`lib/fan-layout.ts`); no items means the
     period's empty line, no fan. Hover or focus lifts a sleeve and slides its record out, with name
-    and plays; artists are round discs.
+    and plays; artists are round discs. The page fan steps its sleeves sideways as well as tilting
+    them, so each shows most of its cover; the chosen one lifts higher and the rest dim a little,
+    and ← → move focus through them left to right.
   - **Activation**: a sleeve, list row and grid tile is a button. Enter, Space or click opens a
     track's or album's release; an artist opens the Library filtered to that artist (its search
     query). A mouse only lifts on hover. On touch the first tap lifts and the second opens; a tap

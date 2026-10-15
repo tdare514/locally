@@ -2020,6 +2020,14 @@ body {
   --fan-badge-inset: clamp(6px, calc(var(--w) * 0.043), 9px);
   --fan-title: clamp(12px, calc(var(--w) * 0.07), 15px);
   --fan-plays: clamp(11px, calc(var(--w) * 0.062), 13px);
+  /* Page-only extras, off here so the shelf stays as it is: --fan-step moves each sleeve sideways
+     by that many sleeve widths per step from the middle, --fan-tilt scales the tilt, --fan-lift and
+     --fan-pop are how far and how big the active one goes, --fan-dim is the black laid over the rest. */
+  --fan-step: 0;
+  --fan-tilt: 1;
+  --fan-lift: 0.232;
+  --fan-pop: 1.07;
+  --fan-dim: 0;
   position: relative;
   height: calc(var(--w) * 2.107);
 }
@@ -2027,7 +2035,13 @@ body {
   margin-top: 2px;
 }
 .fan[data-size="page"] {
-  --w: clamp(68px, 24cqw, 210px);
+  --w: clamp(64px, 22cqw, 210px);
+  --fan-step: 0.34;
+  --fan-tilt: 0.7;
+  --fan-lift: 0.3;
+  --fan-pop: 1.12;
+  --fan-dim: 0.2;
+  height: calc(var(--w) * 2.25);
 }
 .fan-list {
   margin: 0;
@@ -2066,11 +2080,13 @@ body {
   list-style: none;
   /* A pivot well below the shelf, so the sleeves tilt around one point like a hand of cards. */
   transform-origin: 50% 330%;
-  transform: rotate(var(--a));
+  transform: rotate(calc(var(--a) * var(--fan-tilt)));
+  /* The sideways step, on its own property so it composes with the tilt, the lift and the fan-in. */
+  translate: calc(var(--o) * var(--fan-step) * var(--w)) 0;
   transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .fan-sleeve[data-active="true"] {
-  transform: rotate(calc(var(--a) * 0.8)) translate3d(0, calc(var(--w) * -0.232), 0);
+  transform: rotate(calc(var(--a) * var(--fan-tilt) * 0.8)) translate3d(0, calc(var(--w) * var(--fan-lift) * -1), 0);
 }
 /* The fan-out: on the page whenever the fan appears (it is keyed by tab and period); on the shelf
    each time the sidebar panel opens. */
@@ -2096,11 +2112,26 @@ body {
   transform-origin: 50% 100%;
   transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
 }
+/* A little black over the sleeves that are not chosen; it lets clicks through and takes the
+   sleeve's or disc's shape. */
+.fan-hit::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #000;
+  opacity: var(--fan-dim);
+  pointer-events: none;
+  transition: opacity 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.fan-sleeve[data-active="true"] .fan-hit::after {
+  opacity: 0;
+}
 .fan-sleeve[data-shape="disc"] .fan-hit {
   border-radius: 9999px;
 }
 .fan-sleeve[data-active="true"] .fan-hit {
-  transform: scale(1.07);
+  transform: scale(var(--fan-pop));
 }
 .fan-hit:focus-visible {
   outline: 2px solid var(--accent);
@@ -2278,6 +2309,7 @@ body {
   .st-row,
   .fan-sleeve,
   .fan-hit,
+  .fan-hit::after,
   .fan-record,
   .fan-tag {
     transition: none;
