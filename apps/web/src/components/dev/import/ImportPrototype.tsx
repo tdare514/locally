@@ -35,9 +35,9 @@ const INVITE_PALETTE: AmbientPalette = {
 };
 
 /* The beat's clock, in ms from the moment the cover is chosen. The keyframes in globals.css
- * (.imp-cover, .imp-sharp, .record-face, .record-disc under .imp-beat) hold the rest of it: slide
- * 0 for 420, disc turn 280 for 460, develop 740 for 560, disc tucks in 1360 for 500. */
-/** The colour wash starts with the develop and then uses the backdrop's own 900ms fade. */
+ * (.imp-cover, .record-face, .imp-flash, .record-disc under .imp-beat) hold the rest of it: slide
+ * 0 for 420, disc turn 280 for 460, flash 740 for 490, disc tucks in 1100 for 520. */
+/** The colour wash starts with the flash and then uses the backdrop's own 900ms fade. */
 const WASH_AT = 740;
 const WASH_MS = 900;
 
@@ -127,7 +127,7 @@ export default function ImportPrototype({ stage, t, coverIndex, bar }: ImportPro
     };
   }, [beat, frozen]);
 
-  // Colour wash: from the cover, starting as the develop does. It leaves the calm invite colours.
+  // Colour wash: from the cover, starting with the flash. It leaves the calm invite colours.
   const live = useArtworkPalette(sample?.src ?? null);
   const washOn = useAfter(WASH_AT, beat, t);
   let palette: AmbientPalette | null = null;
@@ -136,9 +136,7 @@ export default function ImportPrototype({ stage, t, coverIndex, bar }: ImportPro
     else if (frozen) palette = mixPalette(INVITE_PALETTE, live, smooth(Math.min(1, Math.max(0, (t - WASH_AT) / WASH_MS))));
     else if (washOn) palette = live;
   }
-  // The disc label carries the same pale print, sharp, and develops with the sleeve; see
-  // .record-label::before.
-  const labelUrl = !sample ? null : finished ? sample.src : sample.paleSrc;
+  const labelUrl = sample ? sample.src : null;
 
   function clearTimer() {
     if (timer.current !== null) window.clearTimeout(timer.current);

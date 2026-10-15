@@ -1,15 +1,11 @@
 /**
  * Sample covers for the #159 import prototype (dev only): square, no text, no scripts, no
- * external references, drawn here so the prototype needs no asset in `public/`. Each cover also
- * has a pale, washed-out copy (`paleSrc`) for the develop beat, which cross-fades
- * opacity between two stacked images instead of animating a filter on a large one.
+ * external references, drawn here so the prototype needs no asset in `public/`.
  */
 export interface SampleCover {
   id: string;
   /** The cover itself, as a data URI. */
   src: string;
-  /** The same artwork as an undeveloped print (pale, washed out, warm grey), also sharp. */
-  paleSrc: string;
 }
 
 interface Drawing {
@@ -49,11 +45,6 @@ const DRAWINGS: Drawing[] = [
 ];
 
 const OPEN = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600">`;
-// A print that has barely started to show: most of the colour drained, the blacks lifted, a little
-// bright, with a faint warm-grey cast (the lift is higher in red than in blue). Sharp, no blur: the
-// develop cross-fades from this to the real art, so no filter is ever animated.
-const PALE = `<filter id="pale" color-interpolation-filters="sRGB"><feColorMatrix type="saturate" values="0.2"/><feColorMatrix type="matrix" values="0.62 0 0 0 0.31  0 0.62 0 0 0.29  0 0 0.62 0 0.25  0 0 0 1 0"/></filter>`;
-
 function dataUri(svg: string): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
@@ -61,5 +52,4 @@ function dataUri(svg: string): string {
 export const SAMPLE_COVERS: SampleCover[] = DRAWINGS.map(({ id, defs, body }) => ({
   id,
   src: dataUri(`${OPEN}<defs>${defs}</defs>${body}</svg>`),
-  paleSrc: dataUri(`${OPEN}<defs>${defs}${PALE}</defs><g filter="url(#pale)">${body}</g></svg>`),
 }));

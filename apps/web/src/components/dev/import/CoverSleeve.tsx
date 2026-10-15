@@ -15,19 +15,6 @@ interface CoverSleeveProps {
 
 const LAYER = "absolute inset-0 size-full object-cover";
 
-/** The cover as it lands in the sleeve: a pale, undeveloped print slides in from the right, sharp,
- * and the real art fades in over it, like a Polaroid developing. The paleness is baked into the
- * first image and only the layers' opacity and position ever animate. */
-function CoverLayers({ cover, beat }: { cover: SampleCover; beat: boolean }) {
-  // Same tree at rest, so jumping to the end state keeps the sharp image on screen.
-  return (
-    <div className={`absolute inset-0 ${beat ? "imp-cover" : ""}`}>
-      {beat && <img src={cover.paleSrc} alt="" className={`imp-pale ${LAYER}`} />}
-      <img src={cover.src} alt="" className={`${beat ? "imp-sharp " : ""}${LAYER}`} />
-    </div>
-  );
-}
-
 /** The sleeve of the record being made: the release page's `sleeve` cover picker (same frame,
  * same empty state) without the file input or crop dialog, so a click or drop just chooses the
  * next sample cover. Rendered as the child of RecordSleeve. */
@@ -58,7 +45,9 @@ export default function CoverSleeve({ cover, beat, onPick }: CoverSleeveProps) {
           <p className="text-xs leading-snug text-text-muted">Drop an image or click to choose</p>
         </div>
       )}
-      {cover && <CoverLayers key={cover.id} cover={cover} beat={beat} />}
+      {cover && <img key={cover.id} src={cover.src} alt="" className={`${beat ? "imp-cover " : ""}${LAYER}`} />}
+      {/* The camera flash once the cover is in. Opacity only; reduced motion hides it. */}
+      {cover && beat && <div aria-hidden className="imp-flash" />}
     </div>
   );
 }
