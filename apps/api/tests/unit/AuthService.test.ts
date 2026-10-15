@@ -1,5 +1,7 @@
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createDb, migrateDb, type Db } from "../../src/db/client";
+import { devices } from "../../src/db/schema";
 import { AuthService, TOKEN_IDLE_TTL_MS, LAST_SEEN_REFRESH_MS } from "../../src/server/auth/AuthService";
 import { UnauthorizedError, NotFoundError } from "../../src/shared/errors";
 import { FakeMailer } from "../support/testServices";
@@ -185,6 +187,186 @@ describe("AuthService", () => {
         clock = Date.UTC(2026, 0, 1) + day * 24 * 60 * 60 * 1000;
         await expect(auth.authenticate(token)).resolves.toBeDefined();
       }
+    });
+  });
+
+  describe("signing back in (#175)", () => {
+    const EMAIL = "person@example.com";
+
+    async function signIn(email: string, deviceName: string, platform: "mac" | "ios") {
+      const code = await auth.issueCode(email);
+      return auth.verify({ email, code, deviceName, platform });
+    }
+
+    async function deviceRow(id: string) {
+      const [row] = await db.select().from(devices).where(eq(devices.id, id));
+      return row!;
+    }
+
+    it("gives a Mac that signed out and back in its old device id, kills the old token and keeps one row", async () => {
+      const first = await signIn(EMAIL, "Toby's MacBook", "mac");
+      const before = await deviceRow(first.device.id);
+      await auth.revokeDevice(first.user.id, first.device.id);
+      await expect(auth.authenticate(first.token)).rejects.toThrow(UnauthorizedError);
+
+      clock += 3 * 60 * 60 * 1000;
+      const second = await signIn(EMAIL, "Toby's MacBook", "mac");
+
+      expect(second.device.id).toBe(first.device.id);
+      expect(second.token).not.toBe(first.token);
+      // The old token's hash was replaced, so it is dead; the new one works.
+      await expect(auth.authenticate(first.token)).rejects.toThrow(UnauthorizedError);
+      await expect(auth.authenticate(second.token)).resolves.toMatchObject({
+        user: { id: first.user.id },
+        device: { id: first.device.id, name: "Toby's MacBook", platform: "mac" },
+      });
+
+      const after = await deviceRow(first.device.id);
+      expect(after.revokedAt).toBeNull();
+      expect(after.tokenHash).not.toBe(before.tokenHash);
+      expect(after.lastSeenAt).toBe(clock);
+      expect(after.createdAt).toBe(before.createdAt);
+      const listed = await auth.listDevices(first.user.id);
+      expect(listed.devices).toHaveLength(1);
+      expect(listed.devices[0]).toMatchObject({ id: first.device.id, revoked: false });
+    });
+
+    it("keeps every earlier token dead across repeated sign-outs and sign-ins", async () => {
+      const first = await signIn(EMAIL, "Mac", "mac");
+      await auth.revokeDevice(first.user.id, first.device.id);
+      const second = await signIn(EMAIL, "Mac", "mac");
+      await auth.revokeDevice(second.user.id, second.device.id);
+      const third = await signIn(EMAIL, "Mac", "mac");
+
+      expect(third.device.id).toBe(first.device.id);
+      await expect(auth.authenticate(first.token)).rejects.toThrow(UnauthorizedError);
+      await expect(auth.authenticate(second.token)).rejects.toThrow(UnauthorizedError);
+      await expect(auth.authenticate(third.token)).resolves.toBeDefined();
+    });
+
+    it("creates a new device for an iPhone that signs out and back in, as before", async () => {
+      const first = await signIn(EMAIL, "iPhone 14", "ios");
+      await auth.revokeDevice(first.user.id, first.device.id);
+
+      const second = await signIn(EMAIL, "iPhone 14", "ios");
+
+      expect(second.device.id).not.toBe(first.device.id);
+      await expect(auth.authenticate(first.token)).rejects.toThrow(UnauthorizedError);
+      await expect(auth.authenticate(second.token)).resolves.toBeDefined();
+      expect((await deviceRow(first.device.id)).revokedAt).not.toBeNull();
+      expect((await auth.listDevices(first.user.id)).devices).toHaveLength(2);
+    });
+
+    it("does not revive a revoked Mac for a differently named Mac, or a revoked iPhone for a Mac of the same name", async () => {
+      const oldMac = await signIn(EMAIL, "Old Mac", "mac");
+      await auth.revokeDevice(oldMac.user.id, oldMac.device.id);
+      const phone = await signIn(EMAIL, "Shared Name", "ios");
+      await auth.revokeDevice(phone.user.id, phone.device.id);
+
+      const newMac = await signIn(EMAIL, "New Mac", "mac");
+      const sameNameMac = await signIn(EMAIL, "Shared Name", "mac");
+
+      expect(newMac.device.id).not.toBe(oldMac.device.id);
+      expect(sameNameMac.device.id).not.toBe(phone.device.id);
+      expect((await deviceRow(oldMac.device.id)).revokedAt).not.toBeNull();
+      expect((await deviceRow(phone.device.id)).revokedAt).not.toBeNull();
+    });
+
+    it("lets two active Macs share a name with separate ids and never revives an active one", async () => {
+      const a = await signIn(EMAIL, "MacBook Pro", "mac");
+      const b = await signIn(EMAIL, "MacBook Pro", "mac");
+      const c = await signIn(EMAIL, "MacBook Pro", "mac");
+
+      expect(new Set([a.device.id, b.device.id, c.device.id]).size).toBe(3);
+      // Signing in again did not replace anyone's token.
+      for (const signedIn of [a, b, c]) {
+        await expect(auth.authenticate(signedIn.token)).resolves.toMatchObject({
+          device: { id: signedIn.device.id },
+        });
+      }
+      expect((await auth.listDevices(a.user.id)).devices).toHaveLength(3);
+    });
+
+    it("revives only one device per sign-in: a second sign-in while the revived Mac is active adds a new one", async () => {
+      const first = await signIn(EMAIL, "Mac", "mac");
+      await auth.revokeDevice(first.user.id, first.device.id);
+      const revived = await signIn(EMAIL, "Mac", "mac");
+      const another = await signIn(EMAIL, "Mac", "mac");
+
+      expect(revived.device.id).toBe(first.device.id);
+      expect(another.device.id).not.toBe(first.device.id);
+      await expect(auth.authenticate(revived.token)).resolves.toBeDefined();
+      await expect(auth.authenticate(another.token)).resolves.toBeDefined();
+    });
+
+    it("revives the most recently seen of several revoked same-name Macs", async () => {
+      const a = await signIn(EMAIL, "Mac", "mac");
+      clock += 1000;
+      const b = await signIn(EMAIL, "Mac", "mac");
+      clock += 1000;
+      const c = await signIn(EMAIL, "Mac", "mac");
+      // `a` is the oldest device but the last one used: it is the most recently seen.
+      clock += 2 * LAST_SEEN_REFRESH_MS;
+      await auth.authenticate(a.token);
+      for (const d of [a, b, c]) await auth.revokeDevice(d.user.id, d.device.id);
+
+      clock += 1000;
+      const back = await signIn(EMAIL, "Mac", "mac");
+
+      expect(back.device.id).toBe(a.device.id);
+      expect((await deviceRow(b.device.id)).revokedAt).not.toBeNull();
+      expect((await deviceRow(c.device.id)).revokedAt).not.toBeNull();
+    });
+
+    it("never revives another user's revoked Mac, even with the same device name", async () => {
+      const alice = await signIn("alice@example.com", "Mac", "mac");
+      await auth.revokeDevice(alice.user.id, alice.device.id);
+      const aliceBefore = await deviceRow(alice.device.id);
+
+      const bob = await signIn("bob@example.com", "Mac", "mac");
+
+      expect(bob.user.id).not.toBe(alice.user.id);
+      expect(bob.device.id).not.toBe(alice.device.id);
+      const aliceAfter = await deviceRow(alice.device.id);
+      expect(aliceAfter).toEqual(aliceBefore);
+      expect(aliceAfter.revokedAt).not.toBeNull();
+      await expect(auth.authenticate(alice.token)).rejects.toThrow(UnauthorizedError);
+      await expect(auth.authenticate(bob.token)).resolves.toMatchObject({ user: { id: bob.user.id } });
+    });
+
+    // Atomicity: the code is claimed with a conditional UPDATE (one changes the row, the other
+    // changes none), and the revive is a single UPDATE ... RETURNING whose WHERE repeats
+    // "revoked". So two verifies racing on one code leave exactly one live device, never two.
+    it("lets only one of two parallel verifies of the same code through, leaving one live device", async () => {
+      const first = await signIn(EMAIL, "Mac", "mac");
+      await auth.revokeDevice(first.user.id, first.device.id);
+
+      const code = await auth.issueCode(EMAIL);
+      const input = { email: EMAIL, code, deviceName: "Mac", platform: "mac" as const };
+      const results = await Promise.allSettled([auth.verify(input), auth.verify(input)]);
+
+      const ok = results.filter((r) => r.status === "fulfilled");
+      const failed = results.filter((r) => r.status === "rejected");
+      expect(ok).toHaveLength(1);
+      expect(failed).toHaveLength(1);
+      expect((failed[0] as PromiseRejectedResult).reason).toBeInstanceOf(UnauthorizedError);
+
+      const rows = await db.select().from(devices).where(eq(devices.userId, first.user.id));
+      expect(rows).toHaveLength(1);
+      expect(rows.filter((r) => r.revokedAt === null)).toHaveLength(1);
+      expect(rows[0]!.id).toBe(first.device.id);
+    });
+
+    it("also inserts exactly one device when two parallel verifies of the same code find nothing to revive", async () => {
+      // The account already exists, so the race is on the code and the device row alone.
+      const phone = await signIn(EMAIL, "iPhone", "ios");
+      const code = await auth.issueCode(EMAIL);
+      const input = { email: EMAIL, code, deviceName: "Mac", platform: "mac" as const };
+      const results = await Promise.allSettled([auth.verify(input), auth.verify(input)]);
+
+      expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      const rows = await db.select().from(devices).where(eq(devices.userId, phone.user.id));
+      expect(rows.map((r) => r.platform).sort()).toEqual(["ios", "mac"]);
     });
   });
 
