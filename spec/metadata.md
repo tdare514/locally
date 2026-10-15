@@ -25,7 +25,8 @@ identically in Spotify's Local Files.
 | --- | --- | --- |
 | id | UUID string | |
 | title | string | |
-| trackNumber | int, 1-based | |
+| trackNumber | int, 1-based | position in the whole release: unique and continuous, the file key (`ReleaseLayout.trackFileName`), unchanged by discs |
+| discNumber | int 1-99, optional | which disc of a multi-disc release; absent on a single-disc release. The key is omitted, never written as null |
 | filePath | path | the file as imported; never renamed on edit in either app, because Spotify playlists reference local tracks by path |
 | originalName | string | name the user imported |
 | durationSec | number or null | |
@@ -38,10 +39,22 @@ identically in Spotify's Local Files.
 | artist | TPE1 | ©ART |
 | album artist | TPE2 | aART |
 | album | TALB | ©alb |
-| track | TRCK `N/TOTAL` | trkn (N, TOTAL) |
+| track | TRCK `N/TOTAL` (per disc when discs are set) | trkn (N, TOTAL) per disc |
+| disc | TPOS `D/DISCS`, only when discs are set | disk (D, DISCS) |
 | year | TDRC (TYER on the Mac's node-id3) | ©day |
 | genre | TCON | ©gen |
 | cover | APIC type 3 front cover, jpeg or png | covr |
+
+Per-disc track numbers. `trackNumber` is the release-wide position and never restarts, so the number
+written into a file's track tag is derived: the track's 1-based position among the tracks with the same
+disc, ordered by `trackNumber`, and TOTAL is the count of tracks on that disc. Discs `[1,1,1,2,2]` give
+TRCK `1/3`, `2/3`, `3/3`, `1/2`, `2/2`. DISCS is the highest `discNumber` in the release. A track with no
+`discNumber` counts as disc 1 once any track in the release has one. When no track has a `discNumber`,
+the track tag is `trackNumber/total` exactly as before and no TPOS or `disk` is written.
+
+Import. When the imported files carry a disc tag, `discNumber` is prefilled from it and the files are
+ordered by (disc, the file's own track number); continuous `trackNumber` values are then assigned in that
+order. Files without disc tags import as before. Editing disc numbers in the UI is not built yet.
 
 ## File layout and naming
 

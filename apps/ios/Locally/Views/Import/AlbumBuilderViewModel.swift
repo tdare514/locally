@@ -12,6 +12,10 @@ final class AlbumBuilderViewModel {
         let id = UUID()
         var url: URL
         var title: String
+        /// From the file's disc tag, when it has one.
+        var discNumber: Int?
+        /// From the file's own track tag; only used to order a multi-disc import.
+        var tagTrackNumber: Int?
     }
 
     private let importer: FileImporter
@@ -50,11 +54,14 @@ final class AlbumBuilderViewModel {
         isLoadingTags = true
         defer { isLoadingTags = false }
 
+        var batch: [TrackRow] = []
         for (index, url) in urls.enumerated() {
             let inboxFile = index < inboxFiles.count ? inboxFiles[index] : nil
             let shownName = inboxFile?.originalName ?? url.lastPathComponent
             var title = (shownName as NSString).deletingPathExtension
             var rowURL = url
+            var discNumber: Int?
+            var tagTrackNumber: Int?
             if let staged = try? await importer.stage([url]), let file = staged.first {
                 // Rows keep the staged copy: an inbox original is deleted
                 // right after, and a picker URL's security scope may lapse.
@@ -62,12 +69,22 @@ final class AlbumBuilderViewModel {
                 if let tags = file.existingTags, !tags.title.isEmpty {
                     title = tags.title
                 }
+                discNumber = file.existingTags?.discNumber
+                tagTrackNumber = file.tagTrackNumber
             }
-            rows.append(TrackRow(url: rowURL, title: title))
+            batch.append(TrackRow(url: rowURL, title: title, discNumber: discNumber, tagTrackNumber: tagTrackNumber))
             if let inboxFile {
                 try? inbox?.remove(inboxFile)
             }
         }
+        // Files tagged with a disc go in (disc, track) order; untagged files keep the order they came
+        // in. Only this batch is reordered, so rows the user already arranged stay where they are.
+        rows.append(contentsOf: DiscNumbering.ordered(batch, disc: \.discNumber, trackTag: \.tagTrackNumber))
+    }
+
+    /// The disc heading to show above each row, or nil for none (see `DiscNumbering.headings`).
+    var discHeadings: [Int?] {
+        DiscNumbering.headings(for: rows.map(\.discNumber))
     }
 
     /// Convenience for `AlbumBuilderView`'s "Make an album" inbox action:
@@ -81,7 +98,14 @@ final class AlbumBuilderViewModel {
     }
 
     func moveRows(from source: IndexSet, to destination: Int) {
+        let order = rows.map(\.id)
+        let movedIds = source.map { rows[$0].id }
         rows.move(fromOffsets: source, toOffset: destination)
+        guard rows.map(\.id) != order else { return }
+        // A row dropped in among another disc's rows joins that disc, so a disc is never split.
+        for index in rows.indices where movedIds.contains(rows[index].id) {
+            rows[index].discNumber = DiscNumbering.adoptDiscAfterMove(rows.map(\.discNumber), movedIndex: index)[index]
+        }
     }
 
     var canSend: Bool {
@@ -99,7 +123,7 @@ final class AlbumBuilderViewModel {
         defer { isSending = false }
 
         let files = rows.map { $0.url }
-        let tracks = rows.map { TrackDraft(title: $0.title) }
+        let tracks = rows.map { TrackDraft(title: $0.title, discNumber: $0.discNumber) }
         let album = AlbumDraft(
             title: albumTitle,
             artist: artist,

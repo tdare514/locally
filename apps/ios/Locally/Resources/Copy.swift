@@ -89,6 +89,8 @@ enum Copy {
         /// The section title over an album's track rows, and the release
         /// detail's Tracks section.
         static let tracks = "Tracks"
+        /// The quiet heading over a disc's tracks, shown only when a release has more than one disc.
+        static func disc(_ number: Int) -> String { "Disc \(number)" }
         /// A file row's caption under its title, per `docs/design.md`'s
         /// "Editor / release detail" component.
         static let audioFile = "Audio file"

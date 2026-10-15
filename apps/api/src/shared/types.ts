@@ -38,6 +38,8 @@ export const trackRecordSchema = z.object({
   id: uuidSchema,
   title: z.string().min(1).max(500),
   trackNumber: z.number().int().positive(),
+  /** Which disc of a multi-disc release this track is on; absent on a single-disc release. */
+  discNumber: z.number().int().min(1).max(99).optional(),
   file: fileNameSchema,
   bytes: z.number().int().nonnegative(),
   durationSec: z.number().nonnegative().nullable(),

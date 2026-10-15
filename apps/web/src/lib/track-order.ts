@@ -41,13 +41,15 @@ export function slotAfterMove(index: number, from: number, to: number): number {
   return index;
 }
 
-/** How far row `index` slides, in px, while the row at `from` is held over slot `to`. Rows
- * between the two make room by one `stride` (a row's height plus its gap) in the direction the
- * held row came from; every other row stays put. The held row itself is positioned by the
- * pointer, so it is not handled here. */
-export function makeRoom(index: number, from: number, to: number, stride: number): number {
+/** How far row `index` slides, in px, while the row at `from` is held over slot `to`, given the
+ * vertical centre of every slot. Rows between the two make room by moving into the slot they will
+ * hold after the move, in the direction the held row came from; every other row stays put. With
+ * evenly spaced rows that is one stride (a row's height plus its gap) per place; a gap that is
+ * larger in one spot, like a "Disc 2" heading between two rows, is followed exactly. The held row
+ * itself is positioned by the pointer, so it is not handled here. */
+export function roomShift(centers: readonly number[], index: number, from: number, to: number): number {
   if (index === from) return 0;
-  return (slotAfterMove(index, from, to) - index) * stride;
+  return centers[slotAfterMove(index, from, to)] - centers[index];
 }
 
 /** Live-region text for a move, e.g. "Moved Intro to position 3 of 8". */
@@ -58,15 +60,21 @@ export function moveAnnouncement(title: string, position: number, count: number)
 /** The rows the editor shows, in the order `tracks` gives, each keeping its own file and the
  * title the editor holds. Rows the editor no longer lists are dropped. Import uses this so the
  * files go up in the dragged order and track numbers follow position. */
-export function applyTrackEdits<E extends { key: string; title: string }>(
+export function applyTrackEdits<E extends { key: string; title: string; discNumber?: number }>(
   entries: readonly E[],
-  tracks: readonly { key: string; title: string }[],
+  tracks: readonly { key: string; title: string; discNumber?: number }[],
 ): E[] {
   const byKey = new Map(entries.map((e) => [e.key, e]));
   const next: E[] = [];
   for (const t of tracks) {
     const original = byKey.get(t.key);
-    if (original) next.push({ ...original, title: t.title });
+    if (!original) continue;
+    // The editor is the source of truth for the disc: a row dropped in among another disc's rows
+    // has joined it, and one put back (Escape after a move) may have none again.
+    const edited: E & { discNumber?: number } = { ...original, title: t.title };
+    if (t.discNumber !== undefined) edited.discNumber = t.discNumber;
+    else delete edited.discNumber;
+    next.push(edited);
   }
   return next;
 }

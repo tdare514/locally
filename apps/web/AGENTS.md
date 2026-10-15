@@ -14,6 +14,7 @@ invariants. Paths below are relative to `apps/web`.
 src/shared/            # imported by both client and server; NO node imports
   types.ts             # API/DB shapes shared by client and server
   errors.ts            # ValidationError, NotFoundError, PublicError
+  discs.ts             # pure: per-disc tag numbers (deriveTagNumbers), "Disc N" headings, import ordering; trackNumber stays release-wide (#113)
 src/server/
   config/
     SettingsStore.ts        # interface: get()/set() app settings

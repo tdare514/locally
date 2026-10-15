@@ -68,7 +68,7 @@ interface Draft {
 
 /** The update to send for `draft`, or null when nothing differs from `release`. Track
  * numbers follow list order, so a reorder alone is a change. */
-function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | null {
+export function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | null {
   const patch: UpdateReleaseMeta = {};
   if (draft.title !== release.title) patch.title = draft.title;
   if (draft.artist !== release.artist) patch.artist = draft.artist;
@@ -83,7 +83,7 @@ function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | null {
   draft.tracks.forEach((t, i) => {
     const original = release.tracks.find((o) => o.id === t.key);
     const trackNumber = i + 1;
-    const change: { id: string; title?: string; trackNumber?: number } = {
+    const change: { id: string; title?: string; trackNumber?: number; discNumber?: number } = {
       id: t.key,
     };
     let changed = false;
@@ -93,6 +93,11 @@ function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | null {
     }
     if (!original || original.trackNumber !== trackNumber) {
       change.trackNumber = trackNumber;
+      changed = true;
+    }
+    // A track dropped in among another disc's tracks joins that disc.
+    if (t.discNumber !== undefined && (!original || original.discNumber !== t.discNumber)) {
+      change.discNumber = t.discNumber;
       changed = true;
     }
     if (changed) trackPatches.push(change);
@@ -147,7 +152,7 @@ export default function ReleaseView({
   const [year, setYear] = useState(initialRelease?.year ?? "");
   const [genre, setGenre] = useState(initialRelease?.genre ?? "");
   const [tracks, setTracks] = useState<EditableTrack[]>(
-    () => initialRelease?.tracks.map((t) => ({ key: t.id, title: t.title })) ?? []
+    () => initialRelease?.tracks.map((t) => ({ key: t.id, title: t.title, discNumber: t.discNumber })) ?? []
   );
   // While a copy is on screen, a load refreshes it quietly instead of flashing "Loading…".
   const shown = useRef<Release | null>(initialRelease ?? null);
@@ -186,7 +191,7 @@ export default function ReleaseView({
     setArtist(r.artist);
     setYear(r.year ?? "");
     setGenre(r.genre ?? "");
-    setTracks(r.tracks.map((t) => ({ key: t.id, title: t.title })));
+    setTracks(r.tracks.map((t) => ({ key: t.id, title: t.title, discNumber: t.discNumber })));
   }, []);
 
   const load = useCallback(() => {

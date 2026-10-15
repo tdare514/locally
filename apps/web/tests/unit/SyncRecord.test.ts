@@ -83,6 +83,20 @@ describe("SyncRecordSchema / parseSyncRecord", () => {
     expect(() => parseSyncRecord(bad)).toThrow();
   });
 
+  it("accepts a track with no discNumber or one from 1 to 99, and rejects 0, 100 and 1.5", () => {
+    const withDisc = (discNumber?: number) => {
+      const record = validRecord();
+      if (discNumber !== undefined) record.tracks[0].discNumber = discNumber;
+      return SyncRecordSchema.safeParse(record).success;
+    };
+    expect(withDisc()).toBe(true);
+    expect(withDisc(1)).toBe(true);
+    expect(withDisc(99)).toBe(true);
+    expect(withDisc(0)).toBe(false);
+    expect(withDisc(100)).toBe(false);
+    expect(withDisc(1.5)).toBe(false);
+  });
+
   it("rejects a track missing its file name", () => {
     const bad = validRecord();
     bad.tracks = [{ ...bad.tracks[0], file: "" }];
@@ -131,6 +145,16 @@ describe("toSyncRecord", () => {
     expect(record.tracks[0].bytes).toBe(0);
   });
 
+  it("carries discNumber and leaves the key out entirely when a track has none", () => {
+    const rel = release();
+    rel.tracks.push({ ...rel.tracks[0], id: "t2", trackNumber: 2, discNumber: 2, filePath: "/library/x/02 - B.mp3" });
+    const record = toSyncRecord(rel, "mac", "dev");
+    expect(record.tracks[0]).not.toHaveProperty("discNumber");
+    expect(record.tracks[1].discNumber).toBe(2);
+    expect(JSON.stringify(record.tracks[0])).not.toContain("discNumber");
+    expect(SyncRecordSchema.safeParse(record).success).toBe(true);
+  });
+
   it("uses supplied byte sizes keyed by track id", () => {
     const record = toSyncRecord(release(), "mac", "dev", { t1: 12345 });
     expect(record.tracks[0].bytes).toBe(12345);
@@ -177,6 +201,18 @@ describe("fromSyncRecord", () => {
     expect(meta.cover).toBe("cover.jpg");
     expect(meta.tracks).toHaveLength(1);
     expect(meta.tracks[0]).toMatchObject({ id: "t1", title: "Intro", trackNumber: 1, file: "01 - Intro.mp3" });
+  });
+
+  it("passes discNumber through, and omits the key for a track with none", () => {
+    const record = validRecord({
+      tracks: [
+        { id: "a", title: "A", trackNumber: 1, file: "a.mp3", bytes: 1, durationSec: null },
+        { id: "b", title: "B", trackNumber: 2, discNumber: 2, file: "b.mp3", bytes: 1, durationSec: null },
+      ],
+    });
+    const meta = fromSyncRecord(record);
+    expect(meta.tracks[0]).not.toHaveProperty("discNumber");
+    expect(meta.tracks[1].discNumber).toBe(2);
   });
 
   it("passes coverHash through, and normalises a missing key to null", () => {

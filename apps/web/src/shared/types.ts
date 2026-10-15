@@ -8,7 +8,8 @@ export type ReleaseKind = "single" | "album";
 export interface Track {
   id: string;            // uuid
   title: string;
-  trackNumber: number;   // 1-based
+  trackNumber: number;   // 1-based position in the whole release, never restarts per disc
+  discNumber?: number;   // 1-99; absent on a single-disc release
   filePath: string;      // absolute path of the tagged .mp3 inside the library folder
   originalName: string;  // filename the user uploaded
   durationSec: number | null;
@@ -118,7 +119,7 @@ export interface ImportMeta {
   year?: string;
   genre?: string;
   /** One entry per uploaded audio file, in the same order as the `audio` form files. */
-  tracks: { title: string; trackNumber: number }[];
+  tracks: { title: string; trackNumber: number; discNumber?: number }[];
 }
 
 /** Body of PATCH /api/releases/[id]. All fields optional; tracks are matched by id. */
@@ -127,7 +128,7 @@ export interface UpdateReleaseMeta {
   artist?: string;
   year?: string | null;
   genre?: string | null;
-  tracks?: { id: string; title?: string; trackNumber?: number }[];
+  tracks?: { id: string; title?: string; trackNumber?: number; discNumber?: number }[];
 }
 
 /** Response shape for GET /api/spotify/source and POST /api/spotify/source/dismiss. */

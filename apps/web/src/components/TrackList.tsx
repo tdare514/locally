@@ -3,13 +3,14 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type SVGProps } from "react";
 import { flushSync } from "react-dom";
 import {
-  makeRoom,
   moveAnnouncement,
   moveItem,
   nearestSlot,
+  roomShift,
   slotAfterMove,
   stepTarget,
 } from "../lib/track-order";
+import { adoptDiscAfterMove, discHeadings } from "../shared/discs";
 import { XIcon } from "./Icons";
 
 export interface EditableTrack {
@@ -17,6 +18,10 @@ export interface EditableTrack {
    * for a not-yet-imported file. Travels with the row when the list is reordered. */
   key: string;
   title: string;
+  /** Which disc the track is on, when the release has discs. It sets the "Disc N" headings and
+   * travels with the row when the list is reordered; a row moved in among another disc's rows
+   * joins that disc (`moveTrack`). */
+  discNumber?: number;
 }
 
 interface TrackListProps {
@@ -57,6 +62,18 @@ function scrollParent(el: HTMLElement): HTMLElement {
   return (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
 }
 
+/** `moveItem`, then the moved row joins the disc it now sits in (`adoptDiscAfterMove`), so a
+ * drop or a keyboard step never leaves a disc split in two. */
+function moveTrack(tracks: EditableTrack[], from: number, to: number): EditableTrack[] {
+  const moved = moveItem(tracks, from, to);
+  return moved === tracks ? tracks : adoptDiscAfterMove(moved, to);
+}
+
+/** The track rows of the list, without the "Disc N" headings that sit between them. */
+function trackRows(list: HTMLElement): HTMLLIElement[] {
+  return Array.from(list.querySelectorAll<HTMLLIElement>(":scope > li[data-key]"));
+}
+
 function prefersReducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
@@ -77,9 +94,9 @@ interface Drag {
   clientY: number;
   startScroll: number;
   scroller: HTMLElement;
-  /** Vertical centre of every slot, measured when the drag starts. */
+  /** Vertical centre of every slot, measured when the drag starts. A heading between two rows
+   * makes the gap there larger, so rows slide by the difference between centres (`roomShift`). */
   centers: number[];
-  stride: number;
   started: boolean;
   raf: number;
 }
@@ -104,7 +121,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
 
   const drag = useRef<Drag | null>(null);
   const settleTimer = useRef<number | null>(null);
-  const grabOrigin = useRef<{ key: string; index: number } | null>(null);
+  const grabOrigin = useRef<{ key: string; index: number; discNumber?: number } | null>(null);
   const focusKey = useRef<string | null>(null);
   /** The Escape-to-cancel listener of the drag in progress, kept so it can be removed. */
   const escapeListener = useRef<((e: KeyboardEvent) => void) | null>(null);
@@ -132,7 +149,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
     const list = listRef.current;
     if (!list) return;
     delete list.dataset.sorting;
-    (Array.from(list.children) as HTMLElement[]).forEach((li, i) => {
+    trackRows(list).forEach((li, i) => {
       li.style.translate = "";
       delete li.dataset.lifted;
       delete li.dataset.settling;
@@ -157,7 +174,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
       settleTimer.current = null;
       const current = tracksRef.current;
       const from = current.findIndex((t) => t.key === d.key);
-      const next = moveItem(current, from, commitTo);
+      const next = moveTrack(current, from, commitTo);
       flushSync(() => {
         if (next !== current) onChangeRef.current(next);
       });
@@ -193,7 +210,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
     d.to = to;
     d.rows.forEach((li, i) => {
       if (i !== d.from) {
-        const shift = makeRoom(i, d.from, to, d.stride);
+        const shift = roomShift(d.centers, i, d.from, to);
         li.style.translate = shift === 0 ? "" : `0 ${shift}px`;
       }
       const number = d.numbers[i];
@@ -243,7 +260,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
     // behaviour.
     if (!target.closest("[data-handle]") && target.closest("input, button, a, textarea, select")) return;
 
-    const rows = Array.from(list.children) as HTMLLIElement[];
+    const rows = trackRows(list);
     const from = rows.indexOf(row);
     const centers = rows.map((li) => li.offsetTop + li.offsetHeight / 2);
     const scroller = scrollParent(list);
@@ -263,7 +280,6 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
       startScroll: scroller.scrollTop,
       scroller,
       centers,
-      stride: rows.length > 1 ? (centers[rows.length - 1] - centers[0]) / (rows.length - 1) : 0,
       started: false,
       raf: 0,
     };
@@ -313,7 +329,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
       return;
     }
     focusKey.current = track.key;
-    onChange(moveItem(tracks, index, target));
+    onChange(moveTrack(tracks, index, target));
     setAnnouncement(moveAnnouncement(track.title, target + 1, tracks.length));
   }
 
@@ -332,7 +348,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
         setGrabbedKey(null);
         setAnnouncement(`Dropped ${name} at position ${index + 1} of ${tracks.length}`);
       } else {
-        grabOrigin.current = { key: track.key, index };
+        grabOrigin.current = { key: track.key, index, discNumber: track.discNumber };
         setGrabbedKey(track.key);
         setAnnouncement(
           `Picked up ${name}, position ${index + 1} of ${tracks.length}. Use the up and down arrow keys to move it, Space to drop it, Escape to cancel.`,
@@ -344,9 +360,16 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
       const origin = grabOrigin.current;
       grabOrigin.current = null;
       setGrabbedKey(null);
-      if (origin && origin.index !== index) {
+      if (origin && (origin.index !== index || origin.discNumber !== track.discNumber)) {
         focusKey.current = track.key;
-        onChange(moveItem(tracks, index, origin.index));
+        // Back to where it was picked up, and to the disc it was on: steps along the way may have
+        // moved it into another disc.
+        const back = moveItem(tracks, index, origin.index).slice();
+        const restored: EditableTrack = { ...back[origin.index] };
+        if (origin.discNumber === undefined) delete restored.discNumber;
+        else restored.discNumber = origin.discNumber;
+        back[origin.index] = restored;
+        onChange(back);
       }
       setAnnouncement(`Cancelled. ${name} is back at position ${(origin?.index ?? index) + 1} of ${tracks.length}`);
     }
@@ -355,6 +378,8 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
   if (tracks.length === 0) {
     return <p className="text-sm text-text-muted">No tracks yet.</p>;
   }
+
+  const headings = discHeadings(tracks.map((t) => t.discNumber));
 
   return (
     <>
@@ -368,7 +393,8 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
       >
         {tracks.map((track, index) => {
           const grabbed = grabbedKey === track.key;
-          return (
+          const heading = headings[index];
+          const row = (
             <li
               key={track.key}
               data-key={track.key}
@@ -425,6 +451,19 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
               )}
             </li>
           );
+          if (heading === null) return row;
+          // A quiet heading above the first row of each disc; not a track, so the drag code skips it.
+          return [
+            <li
+              key={`disc-${index}`}
+              role="presentation"
+              data-disc-heading
+              className="border-0 pb-1 pt-5 text-sm font-medium text-text-muted first:pt-0"
+            >
+              Disc {heading}
+            </li>,
+            row,
+          ];
         })}
       </ol>
       {!readOnly && (

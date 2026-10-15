@@ -202,6 +202,38 @@ describe("parseImportMeta duplicate track numbers", () => {
   });
 });
 
+describe("parseImportMeta and parseUpdateMeta discNumber", () => {
+  const base = { kind: "album", artist: "A", title: "Album" };
+
+  function formFor(discNumber: unknown): FormData {
+    const form = new FormData();
+    const track = discNumber === undefined ? { title: "T1", trackNumber: 1 } : { title: "T1", trackNumber: 1, discNumber };
+    form.set("meta", JSON.stringify({ ...base, tracks: [track] }));
+    form.append("audio", audioFile("t0.mp3"));
+    return form;
+  }
+
+  it("import accepts a missing discNumber and 1 to 99, and keeps the value", async () => {
+    expect((await parseImportMeta(formFor(undefined))).meta.tracks[0]).not.toHaveProperty("discNumber");
+    expect((await parseImportMeta(formFor(1))).meta.tracks[0].discNumber).toBe(1);
+    expect((await parseImportMeta(formFor(99))).meta.tracks[0].discNumber).toBe(99);
+  });
+
+  it.each([0, 100, 1.5, -1, "2", null])("import rejects discNumber %j", async (bad) => {
+    await expect(parseImportMeta(formFor(bad))).rejects.toThrow(/meta\.tracks\[0\]\.discNumber must be an integer between 1 and 99/);
+  });
+
+  it("update accepts a missing discNumber and 1 to 99", () => {
+    expect(parseUpdateMeta({ tracks: [{ id: "t1" }] }).tracks?.[0]).not.toHaveProperty("discNumber");
+    expect(parseUpdateMeta({ tracks: [{ id: "t1", discNumber: 2 }] }).tracks?.[0].discNumber).toBe(2);
+    expect(parseUpdateMeta({ tracks: [{ id: "t1", discNumber: 99 }] }).tracks?.[0].discNumber).toBe(99);
+  });
+
+  it.each([0, 100, 1.5])("update rejects discNumber %j", (bad) => {
+    expect(() => parseUpdateMeta({ tracks: [{ id: "t1", discNumber: bad }] })).toThrow(/tracks\[0\]\.discNumber must be an integer between 1 and 99/);
+  });
+});
+
 describe("parseUpdateMeta duplicate track numbers", () => {
   it("rejects two track patches sharing a trackNumber", () => {
     expect(() =>

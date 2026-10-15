@@ -143,7 +143,14 @@ struct AlbumBuilderView: View {
                     // Long-press drag via `.onMove` without Edit mode (iOS 16+);
                     // disabled until there are two rows so a lone track isn't
                     // lift-able. Swipe-to-delete stays available either way.
+                    let headings = model.discHeadings
                     ForEach(Array(model.rows.enumerated()), id: \.element.id) { index, row in
+                        if headings.indices.contains(index), let disc = headings[index] {
+                            DiscHeading(number: disc)
+                                .listRowBackground(glassRow)
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: Theme.Spacing.rowGap, leading: Theme.Spacing.pagePadding, bottom: 0, trailing: Theme.Spacing.pagePadding))
+                        }
                         FileRow(
                             index: index + 1,
                             title: row.title,
