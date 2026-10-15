@@ -346,7 +346,7 @@ eyebrows still apply to those labels.
     period's empty line, no fan. Hover or focus lifts a sleeve and slides its record out, with name
     and plays; artists are round discs. The page fan steps its sleeves sideways as well as tilting
     them, so each shows most of its cover; the chosen one lifts higher and the rest dim a little,
-    and ← → move focus through them left to right.
+    and ← → move focus through them left to right; the lift stays on the keyboard-focused sleeve when the pointer leaves. Under about 545px of room the chosen sleeve's name and plays sit in a caption under the fan instead of on the cover, and the narrow fan steps wider so at least 45px of each sleeve stays to tap in every selection state (measured at 390px).
   - **Activation**: a sleeve, list row and grid tile is a button. Enter, Space or click opens a
     track's or album's release; an artist opens the Library filtered to that artist (its search
     query). A mouse only lifts on hover. On touch the first tap lifts and the second opens; a tap

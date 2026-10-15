@@ -72,7 +72,12 @@ export default function SleeveFan({
       data-size={size}
       onPointerLeave={(e) => {
         // A finger leaves the moment it lifts; that must not drop the lift a tap just made.
-        if (e.pointerType !== "touch") reset();
+        if (e.pointerType === "touch") return;
+        // A sleeve with keyboard focus keeps the lift, so what is lifted is what Enter opens.
+        const hits = [...(root.current?.querySelectorAll<HTMLElement>(".fan-hit") ?? [])];
+        const focused = hits.findIndex((h) => h === document.activeElement);
+        if (focused >= 0) setActive(focused);
+        else reset();
       }}
       onKeyDown={(e) => {
         // ← → wheel through the sleeves in the order they sit, not by rank. No wrap-around.
@@ -117,6 +122,14 @@ export default function SleeveFan({
         ))}
       </ol>
       <div aria-hidden className="fan-plank" />
+      {size === "page" && shown[current] && (
+        // Where the sleeves are small the tag no longer fits on the cover; this says the same under the fan.
+        // Hidden from screen readers: each sleeve's own name already carries the title and plays.
+        <p aria-hidden className="fan-caption">
+          <span className="fan-caption-title">{shown[current].title}</span>
+          <span className="fan-caption-plays">{playsLabel(shown[current].plays)}</span>
+        </p>
+      )}
     </div>
   );
 }
