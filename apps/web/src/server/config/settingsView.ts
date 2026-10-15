@@ -9,6 +9,7 @@ export function toSettingsResponse(settings: Settings): SettingsResponse {
   const sync = settings.sync;
   return {
     libraryDir: settings.libraryDir,
+    trackPlays: settings.trackPlays === true,
     sync: {
       baseUrl: sync?.baseUrl ?? DEFAULT_SYNC_BASE_URL,
       email: sync?.email ?? null,

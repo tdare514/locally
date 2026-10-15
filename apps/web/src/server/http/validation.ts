@@ -295,11 +295,13 @@ const putSettingsBodySchema = z.object({
         .optional(),
     })
     .optional(),
+  trackPlays: z.boolean({ error: "trackPlays must be a boolean" }).optional(),
 });
 
 export interface ParsedSettingsPut {
   libraryDir?: string;
   sync?: { baseUrl?: string };
+  trackPlays?: boolean;
 }
 
 /** Validate the JSON body of `PUT /api/settings`. Presence/shape only; the route still does the

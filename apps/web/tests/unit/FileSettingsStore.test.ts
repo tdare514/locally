@@ -54,8 +54,17 @@ describe("FileSettingsStore", () => {
     const store = new FileSettingsStore();
     const settings = await store.get();
     expect(settings.sync).toBeNull();
+    expect(settings.trackPlays).toBe(false);
     expect(settings.libraryDir.startsWith(fakeHomeDir)).toBe(true);
     expect(await fs.readFile(settingsFilePath(), "utf-8")).toContain(settings.libraryDir);
+  });
+
+  it("reads trackPlays as false from an old settings.json without the field", async () => {
+    await fs.mkdir(configDir, { recursive: true });
+    const libraryDir = path.join(path.dirname(configDir), "lib");
+    await fs.writeFile(settingsFilePath(), JSON.stringify({ libraryDir, sync: null }));
+    const s = await new FileSettingsStore().get();
+    expect(s.trackPlays).toBe(false);
   });
 
   it("round-trips a set()/get() through the tmp-file-plus-rename write", async () => {

@@ -24,6 +24,7 @@ export function planSettingsUpdate(
 ): SettingsUpdateResult {
   let libraryDir = current.libraryDir;
   let spotifySourceDismissed = current.spotifySourceDismissed;
+  const trackPlays = body.trackPlays ?? current.trackPlays ?? false;
   if (body.libraryDir !== undefined) {
     let dir = body.libraryDir;
     if (dir === "~" || dir.startsWith("~/")) dir = path.join(homeDir, dir.slice(1));
@@ -61,9 +62,9 @@ export function planSettingsUpdate(
     resetSyncState = sync !== current.sync;
   }
 
-  if (body.libraryDir === undefined && body.sync?.baseUrl === undefined) {
-    return { ok: false, error: "Nothing to update: pass libraryDir and/or sync.baseUrl" };
+  if (body.libraryDir === undefined && body.sync?.baseUrl === undefined && body.trackPlays === undefined) {
+    return { ok: false, error: "Nothing to update: pass libraryDir, sync.baseUrl and/or trackPlays" };
   }
 
-  return { ok: true, settings: { ...current, libraryDir, sync, spotifySourceDismissed }, resetSyncState };
+  return { ok: true, settings: { ...current, libraryDir, sync, spotifySourceDismissed, trackPlays }, resetSyncState };
 }
