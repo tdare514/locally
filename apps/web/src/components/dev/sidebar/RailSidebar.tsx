@@ -158,9 +158,8 @@ export default function RailSidebar({
           data-pinned={panel.pinned}
           className="sb-card z-10 flex flex-col outline-none"
         >
+          {/* No logo here: the rail beside it already carries one. */}
           <div className="sb-item sb-brand flex h-7 items-center gap-2 text-xs text-text-muted" style={step(0)}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- static SVG, no optimisation needed */}
-            <img src="/brand/listener-line.svg" alt="" className="h-5 w-5" />
             On this Mac
           </div>
 
