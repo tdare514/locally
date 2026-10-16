@@ -6,7 +6,7 @@ import { sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/libsql/migrator";
 import { assertMigrated, createDb, migrateDb } from "../../src/db/client";
 
-const MIGRATION_TAG = "0004_watery_bloodstrike";
+const MIGRATION_TAG = "0005_powerful_captain_midlands";
 const drizzleDir = path.join(process.cwd(), "drizzle");
 
 interface Journal {

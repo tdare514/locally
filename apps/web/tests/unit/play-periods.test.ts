@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { RETENTION_DAYS as SERVER_RETENTION_DAYS } from "../../src/server/plays/playDays";
+import { parseSummaryRange } from "../../src/server/plays/playsSummary";
 import {
+  MAX_RANGE_DAYS,
+  RETENTION_DAYS,
+  addDays,
+  canStepBack,
+  selectionRange,
+  type PageKind,
   firstDayForLanguage,
   firstDayOf,
   localDayString,
@@ -228,5 +236,110 @@ describe("firstDayForLanguage", () => {
   it("answers 1 to 7 for a real tag, whatever this engine's week data says", () => {
     const day = firstDayForLanguage("en-US");
     expect(Number.isInteger(day) && day >= 1 && day <= 7).toBe(true);
+  });
+});
+
+describe("addDays", () => {
+  it("moves across month, year and leap-day edges", () => {
+    expect(addDays("2026-10-15", -15)).toBe("2026-09-30");
+    expect(addDays("2026-01-01", -1)).toBe("2025-12-31");
+    expect(addDays("2028-03-01", -1)).toBe("2028-02-29");
+    expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
+  });
+});
+
+describe("selectionRange", () => {
+  const today = "2026-10-15"; // a Thursday
+  it("ends the current period today", () => {
+    expect(selectionRange({ kind: "today", back: 0 }, today)).toEqual({ from: today, to: today });
+    expect(selectionRange({ kind: "week", back: 0 }, today, MON)).toEqual({ from: "2026-10-12", to: today });
+    expect(selectionRange({ kind: "month", back: 0 }, today)).toEqual({ from: "2026-10-01", to: today });
+    expect(selectionRange({ kind: "year", back: 0 }, today)).toEqual({ from: "2026-01-01", to: today });
+  });
+
+  it("matches the sidebar's ranges for today, week and month", () => {
+    for (const kind of ["today", "week", "month"] as const) {
+      expect(selectionRange({ kind, back: 0 }, today, SUN)).toEqual(periodRangeOfDay(kind, today, SUN));
+    }
+  });
+
+  it("steps back a whole day, week, month or year", () => {
+    expect(selectionRange({ kind: "today", back: 2 }, today)).toEqual({ from: "2026-10-13", to: "2026-10-13" });
+    expect(selectionRange({ kind: "week", back: 1 }, today, MON)).toEqual({ from: "2026-10-05", to: "2026-10-11" });
+    expect(selectionRange({ kind: "week", back: 2 }, today, SUN)).toEqual({ from: "2026-09-27", to: "2026-10-03" });
+    expect(selectionRange({ kind: "month", back: 1 }, today)).toEqual({ from: "2026-09-01", to: "2026-09-30" });
+    expect(selectionRange({ kind: "month", back: 10 }, today)).toEqual({ from: "2025-12-01", to: "2025-12-31" });
+    expect(selectionRange({ kind: "year", back: 1 }, today)).toEqual({ from: "2025-01-01", to: "2025-12-31" });
+  });
+
+  it("knows February in a leap year", () => {
+    expect(selectionRange({ kind: "month", back: 1 }, "2028-03-10")).toEqual({ from: "2028-02-01", to: "2028-02-29" });
+  });
+
+  it("asks all time for the longest range the server allows, ending today", () => {
+    const range = selectionRange({ kind: "all", back: 0 }, today);
+    expect(range.to).toBe(today);
+    expect(range.from).toBe(addDays(today, 1 - MAX_RANGE_DAYS));
+  });
+});
+
+describe("canStepBack", () => {
+  // 2026-10-15 minus 400 days is 2025-09-10.
+  const today = "2026-10-15";
+
+  it("allows weeks and months while their start is inside the 400 days kept", () => {
+    expect(canStepBack({ kind: "week", back: 0 }, today, MON)).toBe(true);
+    expect(canStepBack({ kind: "month", back: 0 }, today)).toBe(true);
+    // The week of Mon 15 Sep 2025 (back 56) starts inside; the week of 8 Sep (back 57) starts before.
+    expect(selectionRange({ kind: "week", back: 56 }, today, MON).from).toBe("2025-09-15");
+    expect(canStepBack({ kind: "week", back: 55 }, today, MON)).toBe(true);
+    expect(canStepBack({ kind: "week", back: 56 }, today, MON)).toBe(false);
+    // October 2025 starts inside, September 2025 starts before 10 Sep.
+    expect(canStepBack({ kind: "month", back: 11 }, today)).toBe(true);
+    expect(canStepBack({ kind: "month", back: 12 }, today)).toBe(false);
+  });
+
+  it("allows the previous year only when it began within the kept days", () => {
+    expect(canStepBack({ kind: "year", back: 0 }, today)).toBe(false);
+    expect(canStepBack({ kind: "year", back: 0 }, "2027-01-10")).toBe(true); // 2026-01-01 is 374 days back
+    expect(canStepBack({ kind: "year", back: 0 }, "2027-02-05")).toBe(true); // 2026-01-01 is exactly 400 days back
+    expect(canStepBack({ kind: "year", back: 0 }, "2027-02-06")).toBe(false); // one day too far
+  });
+
+  it("has nothing before all time", () => {
+    expect(canStepBack({ kind: "all", back: 0 }, today)).toBe(false);
+  });
+});
+
+describe("what the page asks the server for", () => {
+  it("keeps the retention numbers in step with the server", () => {
+    expect(RETENTION_DAYS).toBe(SERVER_RETENTION_DAYS);
+  });
+
+  it("is never refused: every reachable period, on a spread of days, passes the server's range check", () => {
+    const kinds: PageKind[] = ["today", "week", "month", "year", "all"];
+    const start = "2024-01-01";
+    // Tens of thousands of ranges: collect the refusals and assert once, since an expect per range
+    // is too slow for CI. Only weeks depend on the first day of the week.
+    const refused: string[] = [];
+    for (let i = 0; i < 1100; i += 7) {
+      const today = addDays(start, i);
+      for (const kind of kinds) {
+        for (const firstDay of kind === "week" ? [MON, SUN, SAT] : [MON]) {
+          let back = 0;
+          for (;;) {
+            const range = selectionRange({ kind, back }, today, firstDay);
+            try {
+              parseSummaryRange(range.from, range.to, today);
+            } catch {
+              refused.push(`${kind} ${back} on ${today}`);
+            }
+            if (!canStepBack({ kind, back }, today, firstDay)) break;
+            back += 1;
+          }
+        }
+      }
+    }
+    expect(refused).toEqual([]);
   });
 });

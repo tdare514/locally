@@ -78,6 +78,7 @@ export async function createTestServices(): Promise<TestServices> {
       missingFilesByUser: new InMemoryRateLimiter(24, 60 * 60 * 1000),
       resyncRequestByDevice: new InMemoryRateLimiter(6, 60 * 60 * 1000),
       resyncRequestByUser: new InMemoryRateLimiter(24, 60 * 60 * 1000),
+      playsSummary: new InMemoryRateLimiter(1000, 60 * 60 * 1000),
     },
   };
 }

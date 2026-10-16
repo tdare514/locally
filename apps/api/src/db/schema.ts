@@ -96,6 +96,25 @@ export const playCounts = sqliteTable("play_counts", {
   userReleaseIdx: index("play_counts_user_release_idx").on(table.userId, table.releaseId),
 }));
 
+/**
+ * A device's absolute play count for one track on one calendar day
+ * (`PlaysService`, `spec/sync.md` "Play counts"). `day` is the client's local
+ * date, `YYYY-MM-DD`, stored as sent. Rows older than 400 days are deleted by
+ * the daily cleanup. Columns mirror `play_counts`.
+ */
+export const playDays = sqliteTable("play_days", {
+  userId: text("user_id").notNull(),
+  deviceId: text("device_id").notNull(),
+  releaseId: text("release_id").notNull(),
+  trackId: text("track_id").notNull(),
+  day: text("day").notNull(),
+  count: integer("count").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.deviceId, table.trackId, table.day] }),
+  userDayIdx: index("play_days_user_day_idx").on(table.userId, table.day),
+}));
+
 /** Shared-store counters behind `DbRateLimiter` (see `src/server/ratelimit`). */
 export const rateLimits = sqliteTable("rate_limits", {
   key: text("key").primaryKey(),

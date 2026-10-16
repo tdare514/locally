@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 /** This Mac's plays in `from`..`to` (local dates) and all time, for the releases in the library, from `plays.json` alone (#200). */
 export async function GET(request: NextRequest) {
-  if (isDemo()) return NextResponse.json({ tracks: [], allTime: [] } satisfies PlaysSummaryResponse);
+  if (isDemo()) return NextResponse.json({ tracks: [], allTime: [], countingSince: null } satisfies PlaysSummaryResponse);
   try {
     const { searchParams } = request.nextUrl;
     const { settings, library, playStore } = getServices();

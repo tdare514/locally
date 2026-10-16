@@ -44,6 +44,8 @@ export interface Services {
     missingFilesByUser: RateLimiter;
     resyncRequestByDevice: RateLimiter;
     resyncRequestByUser: RateLimiter;
+    /** `GET /v1/plays/summary`, keyed by user id. */
+    playsSummary: RateLimiter;
   };
 }
 
@@ -92,6 +94,8 @@ async function buildServices(): Promise<Services> {
       missingFilesByUser: new DbRateLimiter(db, 24, 60 * 60 * 1000, "files-missing:user"),
       resyncRequestByDevice: new DbRateLimiter(db, 6, 60 * 60 * 1000, "resync-request:device"),
       resyncRequestByUser: new DbRateLimiter(db, 24, 60 * 60 * 1000, "resync-request:user"),
+      // 60 plays-summary reads per user, per hour.
+      playsSummary: new DbRateLimiter(db, 60, 60 * 60 * 1000, "plays-summary:user"),
     },
   };
 }

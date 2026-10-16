@@ -119,7 +119,7 @@ sync at runtime.
 | GET `/v1/releases/:id/files/:name` | | `{ url, expiresAt }` download URL |
 | GET `/v1/files/missing` | | `{ releases: [{ id, missing: [names], recordUpdatedAt }], checkedAt, truncated? }`; the caller's live releases with files that are not stored; `truncated` is `true` only when a cap cut the check short; see "Missing files" |
 | POST `/v1/files/resync-request` | none | `{ resyncRequestedAt }` (ISO); records that this account asked its devices to re-send files; see "Missing files" |
-| PUT `/v1/plays` | `{ counts: [{ releaseId, trackId, count }] }`, 1 to 500 entries | `{ accepted, ignored }`; see "Play counts" |
+| PUT `/v1/plays` | `{ counts: [{ releaseId, trackId, count, days?: [{ day, count }] }] }`, 1 to 500 entries | `{ accepted, ignored }`; see "Play counts" |
 | GET `/v1/releases/:id/plays` | | `{ tracks: [{ trackId, total, devices: [{ deviceId, name, platform, count, current }] }] }`; 404 for a release that isn't the user's or is tombstoned |
 
 Rules: every path is scoped to the token's user; a release id belongs to the user that first
@@ -151,9 +151,40 @@ the shipped web and iOS clients are unaffected. The Mac app pushing and displayi
   because their plays still count. `total` is the sum over all devices.
 - Play counts of a tombstoned release are never served and are deleted by the daily cleanup,
   on the same 30-day schedule as the release's files; deleting the account deletes them at once.
+- **Day buckets (#193, #201).** An entry may carry an optional `days: [{ day, count }]`: this
+  device's absolute count for that track on one calendar day. `day` is the client's local date as
+  a strict `YYYY-MM-DD` that is a real date (2026-02-30 is a 400); the server never converts it.
+  `count` is an integer from 0 to 1,000,000. The server stores `max(stored, sent)` per
+  (device, track, day), the same rule as `count`, so pushes stay absolute and idempotent. Limits:
+  at most 400 days per entry, no duplicate day within an entry, at most 2,000 day rows per
+  request (a client with more splits them across requests); any breach, a malformed day, or a day later than tomorrow (server UTC date + 1, for clock skew)
+  is a 400 and nothing is applied. A day more than 400 days before the server's UTC date is
+  silently dropped (not stored, not an error), so a client at the edge of its own window is never
+  refused. Days of an entry whose release isn't a live release of this user are ignored with the
+  entry. Entries without `days` behave exactly as before; old clients send none and are
+  unaffected, and their plays count toward all-time only.
+- **`GET /v1/plays/summary?from=YYYY-MM-DD&to=YYYY-MM-DD[&cursor=<trackId>]`.** Device-token auth,
+  scoped to the caller's user and their live (non-tombstoned) releases. Both dates are real
+  dates, `from <= to`, at most 400 days inclusive, and `to` is no later than tomorrow (UTC);
+  anything else is a 400. Rate limit 60 requests per hour per user (429). Response:
+  `{ tracks: [{ trackId, releaseId, plays, lastPlayedDay }], allTime: [{ trackId, releaseId, plays }], nextCursor }`.
+  `tracks` sums the day buckets in the range over all the user's devices (revoked ones too);
+  `lastPlayedDay` is the latest such day with a count above 0; tracks with no plays in the range
+  are left out. `allTime` sums `play_counts` over all devices. Paged by track id over tracks that
+  have a count row on a live release or a day in the range on a live release: 1,000 track ids per page, ordered by `trackId`, both lists covering the same
+  page; `nextCursor` is the last `trackId` of the page when more follow (pass it as `cursor`),
+  else null.
+- **Retention.** Day buckets are kept 400 days: the daily cleanup deletes `play_days` rows more
+  than 400 days before the UTC date, those of tombstoned releases on the 30-day schedule above,
+  and account deletion removes them at once (a database trigger on the user row does too, so a
+  rolled-back deploy can't leave them behind). All-time counts are kept.
+- **Clients.** Shipped clients need no change. The Mac starts pushing days and reading the
+  summary in #202; the iPhone reads the summary later for its Stats page.
 - Fixtures: `spec/fixtures/plays/valid-*.json` and `invalid-*.json` are example PUT bodies (a
   separate folder from `spec/fixtures/sync/`, whose readers parse every file as a release
-  record). The API and the web client test them.
+  record). The API and the web client test them. Bodies with `days` are in
+  `spec/fixtures/plays-days/`: the API tests them now, and the web client does once it sends `days`
+  (#202), so a shipped Mac's strict schema isn't asked to accept a field it doesn't know.
 
 ## Missing files
 

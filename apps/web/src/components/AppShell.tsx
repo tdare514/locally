@@ -9,6 +9,7 @@ import { IS_DEMO } from "../lib/demo";
 import ImportView from "./ImportView";
 import ReleaseView from "./ReleaseView";
 import SettingsView from "./SettingsView";
+import StatsView, { DEFAULT_STATS_PREFS, type StatsPrefs } from "./stats/StatsView";
 import type { LibrarySort } from "../lib/library-sections";
 import AmbientSpace from "./AmbientSpace";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
@@ -18,8 +19,9 @@ import Toast, { type ToastMessage } from "./Toast";
 export type View =
   | { type: "library" }
   | { type: "import"; kind?: ReleaseKind }
-  | { type: "release"; id: string; justImported?: boolean }
-  | { type: "settings"; section?: "account" };
+  | { type: "release"; id: string; justImported?: boolean; trackId?: string }
+  | { type: "settings"; section?: "account" }
+  | { type: "stats" };
 
 export default function AppShell() {
   const [view, setView] = useState<View>({ type: "library" });
@@ -29,6 +31,8 @@ export default function AppShell() {
   // Lives here (not in LibraryView) so the query survives opening a release and coming back.
   const [libraryQuery, setLibraryQuery] = useState("");
   const [librarySort, setLibrarySort] = useState<LibrarySort>("newest");
+  // Same for the Stats page's tab, period, layout and sort (#145).
+  const [statsPrefs, setStatsPrefs] = useState<StatsPrefs>(DEFAULT_STATS_PREFS);
   // The cover LibraryView wants the ambient space tinted by; the wash lives out here so it
   // sits outside the scrolling pane.
   const [ambientCoverUrl, setAmbientCoverUrl] = useState<string | null>(null);
@@ -194,6 +198,7 @@ export default function AppShell() {
         onImportClick={() => openImport()}
         onSettingsClick={() => setView({ type: "settings" })}
         onProfileClick={() => setView({ type: "settings", section: "account" })}
+        onStatsClick={() => setView({ type: "stats" })}
         signedIn={syncStatus?.signedIn ?? false}
         email={syncStatus?.email ?? null}
         palette={view.type === "library" ? libraryPalette : null}
@@ -236,9 +241,25 @@ export default function AppShell() {
               releaseId={view.id}
               initialRelease={library?.releases.find((r) => r.id === view.id)}
               justImported={view.justImported ?? false}
+              highlightTrackId={view.trackId}
               onDeleted={handleDeleted}
               onUpdated={refreshLibrary}
               onToast={showToast}
+              onOpenSettings={() => setView({ type: "settings" })}
+            />
+          )}
+          {view.type === "stats" && (
+            <StatsView
+              releases={library?.releases ?? []}
+              loadingLibrary={loadingLibrary}
+              prefs={statsPrefs}
+              onPrefsChange={(patch) => setStatsPrefs((prev) => ({ ...prev, ...patch }))}
+              onOpenRelease={(id, trackId) => setView({ type: "release", id, trackId })}
+              onOpenArtist={(name) => {
+                // The library's own search finds an artist by name.
+                setLibraryQuery(name);
+                setView({ type: "library" });
+              }}
               onOpenSettings={() => setView({ type: "settings" })}
             />
           )}

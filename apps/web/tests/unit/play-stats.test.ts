@@ -225,3 +225,39 @@ describe("small labels", () => {
     expect(medalFor(4)).toBeUndefined();
   });
 });
+
+describe("aggregatePlays: what the Stats page reads (#145)", () => {
+  const sea = release("r-sea", "Okoro", "Saltwater Hymns", [track("t1", "Tide", 1), track("t2", "Hymn", 2)]);
+  const bus = release("r-bus", "Okoro", "Night Bus", [track("t4", "Night Bus")]);
+  const counts: TrackPlayCount[] = [
+    { releaseId: "r-sea", trackId: "t1", plays: 5, lastPlayedDay: "2026-10-12" },
+    { releaseId: "r-sea", trackId: "t2", plays: 2, lastPlayedDay: "2026-10-14" },
+    { releaseId: "r-bus", trackId: "t4", plays: 4, lastPlayedDay: "2026-10-10" },
+  ];
+
+  it("ranks everyone when asked for no limit, with ranks from 1", () => {
+    const stats = aggregatePlays([sea, bus], counts, Infinity);
+    expect(stats.tracks.map((i) => [i.rank, i.title])).toEqual([[1, "Tide"], [2, "Night Bus"], [3, "Hymn"]]);
+  });
+
+  it("carries the release to open: a track's own release, an album itself, no release for an artist", () => {
+    const stats = aggregatePlays([sea, bus], counts, Infinity);
+    expect(stats.tracks.map((i) => i.releaseId)).toEqual(["r-sea", "r-bus", "r-sea"]);
+    expect(stats.albums.map((i) => i.releaseId)).toEqual(["r-sea", "r-bus"]);
+    expect(stats.artists.map((i) => i.releaseId)).toEqual([null]);
+  });
+
+  it("carries the last played day, latest among a release's tracks and an artist's releases", () => {
+    const stats = aggregatePlays([sea, bus], counts, Infinity);
+    expect(stats.tracks.map((i) => i.lastPlayedDay)).toEqual(["2026-10-12", "2026-10-10", "2026-10-14"]);
+    expect(stats.albums.map((i) => i.lastPlayedDay)).toEqual(["2026-10-14", "2026-10-10"]);
+    expect(stats.artists[0].lastPlayedDay).toBe("2026-10-14");
+  });
+
+  it("has no last played day for counts without days (all time)", () => {
+    const stats = aggregatePlays([sea], [{ releaseId: "r-sea", trackId: "t1", plays: 3 }], Infinity);
+    expect(stats.tracks[0].lastPlayedDay).toBeNull();
+    expect(stats.albums[0].lastPlayedDay).toBeNull();
+    expect(stats.artists[0].lastPlayedDay).toBeNull();
+  });
+});

@@ -195,6 +195,7 @@ describe("GET /api/plays/summary (#200)", () => {
         { trackId: TRACK, releaseId: REL, plays: 10 },
         { trackId: TRACK2, releaseId: REL2, plays: 4 },
       ],
+      countingSince: "2026-10-12",
     });
   });
 
@@ -214,6 +215,7 @@ describe("GET /api/plays/summary (#200)", () => {
     expect((await res.json()) as PlaysSummaryResponse).toEqual({
       tracks: [],
       allTime: [{ trackId: TRACK2, releaseId: REL2, plays: 4 }],
+      countingSince: null,
     });
   });
 
@@ -267,6 +269,6 @@ describe("GET /api/plays/summary (#200)", () => {
     const res = await summaryGET(summaryRequest("?from=2026-10-12&to=2026-10-15"));
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ tracks: [], allTime: [] });
+    expect(await res.json()).toEqual({ tracks: [], allTime: [], countingSince: null });
   });
 });
