@@ -75,7 +75,7 @@ describe("demo GET routes", () => {
       new NextRequest("http://localhost/api/plays/summary?from=2026-10-12&to=2026-10-15"),
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ tracks: [], allTime: [], countingSince: null });
+    expect(await res.json()).toEqual({ tracks: [], allTime: [], countingSince: null, includesOtherDevices: false });
   });
 
   it("cover is a locked-down SVG for a known id and 404 for an unknown one", async () => {

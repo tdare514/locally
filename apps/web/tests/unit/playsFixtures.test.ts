@@ -3,15 +3,24 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { PlayCountsRequestSchema } from "../../src/server/plays/playsWire";
 
-// A separate folder from spec/fixtures/sync/, whose readers parse every file as a release record.
-const fixturesDir = fileURLToPath(new URL("../../../../spec/fixtures/plays/", import.meta.url));
-const fixtureFiles = readdirSync(fixturesDir).filter((name) => name.endsWith(".json"));
+// Separate folders from spec/fixtures/sync/, whose readers parse every file as a release record.
+// plays-days/ holds the bodies with `days` (#201, #202).
+const folders = ["plays", "plays-days"].map((name) => ({
+  name,
+  dir: fileURLToPath(new URL(`../../../../spec/fixtures/${name}/`, import.meta.url)),
+}));
 
-function loadFixture(name: string): unknown {
-  return JSON.parse(readFileSync(`${fixturesDir}${name}`, "utf8"));
+function filesIn(dir: string): string[] {
+  return readdirSync(dir).filter((name) => name.endsWith(".json"));
 }
 
-describe("play count fixtures", () => {
+function loadFixture(dir: string, name: string): unknown {
+  return JSON.parse(readFileSync(`${dir}${name}`, "utf8"));
+}
+
+describe.each(folders)("play count fixtures in $name", ({ dir }) => {
+  const fixtureFiles = filesIn(dir);
+
   it("finds fixtures and every file matches a known prefix", () => {
     expect(fixtureFiles.filter((name) => name.startsWith("valid-")).length).toBeGreaterThan(0);
     expect(fixtureFiles.filter((name) => name.startsWith("invalid-")).length).toBeGreaterThan(0);
@@ -24,10 +33,10 @@ describe("play count fixtures", () => {
   });
 
   it.each(fixtureFiles.filter((name) => name.startsWith("valid-")))("accepts %s", (name) => {
-    expect(PlayCountsRequestSchema.safeParse(loadFixture(name)).success).toBe(true);
+    expect(PlayCountsRequestSchema.safeParse(loadFixture(dir, name)).success).toBe(true);
   });
 
   it.each(fixtureFiles.filter((name) => name.startsWith("invalid-")))("rejects %s", (name) => {
-    expect(PlayCountsRequestSchema.safeParse(loadFixture(name)).success).toBe(false);
+    expect(PlayCountsRequestSchema.safeParse(loadFixture(dir, name)).success).toBe(false);
   });
 });

@@ -139,6 +139,7 @@ describe("buildPlaysSummary", () => {
       tracks: [],
       allTime: [],
       countingSince: null,
+      includesOtherDevices: false,
     });
   });
 

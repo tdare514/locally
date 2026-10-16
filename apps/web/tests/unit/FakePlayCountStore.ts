@@ -29,21 +29,56 @@ export class FakePlayCountStore implements PlayCountStore {
     return this.epoch;
   }
 
-  async markPushed(sent: Record<string, number>, epoch: number): Promise<void> {
+  async markPushed(sent: Record<string, number>, epoch: number, sentDays?: Record<string, Record<string, number>>): Promise<void> {
     if (epoch !== this.epoch) return;
     for (const [trackId, count] of Object.entries(sent)) {
       const entry = this.counts.tracks[trackId];
       if (entry && count > entry.pushed) entry.pushed = count;
     }
+    for (const [trackId, days] of Object.entries(sentDays ?? {})) {
+      const entry = this.counts.tracks[trackId];
+      if (!entry) continue;
+      for (const [day, count] of Object.entries(days)) {
+        if (count > (entry.pushedDays?.[day] ?? 0)) entry.pushedDays = { ...entry.pushedDays, [day]: count };
+      }
+    }
+  }
+
+  async markDaysInSync(epoch: number): Promise<void> {
+    if (epoch !== this.epoch) return;
+    this.counts.daysInSync = true;
   }
 
   async resetPushed(): Promise<void> {
     this.epoch++;
-    for (const entry of Object.values(this.counts.tracks)) entry.pushed = 0;
+    for (const entry of Object.values(this.counts.tracks)) {
+      entry.pushed = 0;
+      delete entry.pushedDays;
+    }
+    delete this.counts.daysInSync;
   }
 
   /** Test helper: set an entry directly. */
-  seed(trackId: string, releaseId: string, count: number, pushed = 0, days?: Record<string, number>): void {
-    this.counts.tracks[trackId] = days ? { releaseId, count, pushed, days } : { releaseId, count, pushed };
+  seed(
+    trackId: string,
+    releaseId: string,
+    count: number,
+    pushed = 0,
+    days?: Record<string, number>,
+    pushedDays?: Record<string, number>,
+  ): void {
+    this.counts.tracks[trackId] = {
+      releaseId,
+      count,
+      pushed,
+      ...(days ? { days } : {}),
+      ...(pushedDays ? { pushedDays } : {}),
+    };
+  }
+
+  /** Test helper: set `daysInSync` directly. */
+  seedDaysInSync(value: boolean): void {
+    if (value) this.counts.daysInSync = true;
+    else delete this.counts.daysInSync;
   }
 }
