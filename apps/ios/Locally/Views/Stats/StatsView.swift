@@ -237,7 +237,7 @@ struct StatsView: View {
                     .foregroundStyle(Theme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 Button(Copy.Stats.signedOutAction) { selectedTab = .settings }
-                    .buttonStyle(PrimaryPillButtonStyle())
+                    .buttonStyle(CoverGlowButtonStyle(colors: [Theme.accent, Theme.Studio.violet]))
                     .padding(.top, 6)
             }
             .padding(16)
@@ -256,21 +256,19 @@ struct StatsView: View {
 
     // MARK: Controls
 
+    /// The #1 cover's colour, as the page wash; the accent when there is no cover (as Import does).
+    private var tint: Color {
+        palette.map { ArtworkBackdrop.color(hex: $0.primary) } ?? Theme.accent
+    }
+
     private var periodPicker: some View {
-        let pill = SegmentedPill(
-            options: Copy.Stats.periodOptions.map { (value: $0.kind, label: $0.label) },
+        GlowSwitch(
+            options: Copy.Stats.periodShortOptions.map { (value: $0.kind, icon: nil, label: $0.label) },
             selection: Binding(get: { model.period.kind }, set: { model.selectKind($0) }),
-            minSegmentHeight: Theme.Stats.minTarget, scalesText: true
+            tint: tint, compact: true, overflow: .scroll
         )
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Copy.Stats.timeFrameLabel)
-        // Wider than the screen at large text or on a small phone: it scrolls rather than truncates.
-        return ViewThatFits(in: .horizontal) {
-            pill
-            // The right edge fades, so a pill cut by the screen reads as "more this way".
-            ScrollView(.horizontal, showsIndicators: false) { pill }
-                .mask(LinearGradient(stops: [.init(color: .black, location: 0.88), .init(color: .clear, location: 1)], startPoint: .leading, endPoint: .trailing))
-        }
     }
 
     private var stepper: some View {
@@ -295,28 +293,24 @@ struct StatsView: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(enabled ? Theme.primaryText : Theme.textDim)
-                .frame(width: Theme.Stats.minTarget, height: Theme.Stats.minTarget)
-                .background(Circle().fill(Color.white.opacity(enabled ? 0.10 : 0.04)))
-                .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(GlowCircleButtonStyle())
         .disabled(!enabled)
         .accessibilityLabel(label)
     }
 
     private var tabPicker: some View {
-        let pill = SegmentedPill(
-            options: [(value: StatsKind.tracks, label: Copy.Stats.tracksTab), (.albums, Copy.Stats.albumsTab), (.artists, Copy.Stats.artistsTab)],
+        GlowSwitch(
+            options: [
+                (value: StatsKind.tracks, icon: "music.note", label: Copy.Stats.tracksTab),
+                (.albums, "rectangle.stack.fill", Copy.Stats.albumsTab),
+                (.artists, "person.fill", Copy.Stats.artistsTab),
+            ],
             selection: Binding(get: { model.tab }, set: { model.selectTab($0) }),
-            isCompact: true, minSegmentHeight: Theme.Stats.minTarget, scalesText: true
+            tint: tint, overflow: .scroll
         )
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Copy.Stats.showTopLabel)
-        return ViewThatFits(in: .horizontal) {
-            pill
-            ScrollView(.horizontal, showsIndicators: false) { pill }
-        }
     }
 
     // MARK: Ready
@@ -414,17 +408,18 @@ struct StatsView: View {
             .foregroundStyle(Theme.primaryText)
             .padding(.horizontal, 14)
             .frame(minHeight: Theme.Stats.minTarget)
-            .background(Capsule().fill(Theme.elevated))
+            .background { GlowGlass().clipShape(Capsule()) }
+            .overlay { GlowRim() }
             .contentShape(Capsule())
         }
         .accessibilityLabel("\(Copy.Stats.sortLabel), \(sortLabel)")
     }
 
     private var layoutPill: some View {
-        SegmentedPill(
-            options: [(value: StatsLayout.list, label: Copy.Stats.listLayout), (.grid, Copy.Stats.gridLayout)],
+        GlowSwitch(
+            options: [(value: StatsLayout.list, icon: "list.bullet", label: Copy.Stats.listLayout), (.grid, "square.grid.2x2", Copy.Stats.gridLayout)],
             selection: Binding(get: { model.layout }, set: { model.selectLayout($0) }),
-            isCompact: true, minSegmentHeight: Theme.Stats.minTarget, scalesText: true
+            tint: tint, compact: true, overflow: .stack
         )
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Copy.Stats.layoutLabel)

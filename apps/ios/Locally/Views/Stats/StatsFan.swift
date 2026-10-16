@@ -510,8 +510,10 @@ private struct StatsRecord: View {
     }
 }
 
-/// The light band: one soft diagonal sweep across the record every 8 s (1.7 s per sweep), eased,
-/// fading in and out as it goes. Plain alpha, no blend mode; offset and opacity only.
+/// The medals' shine, two soft feathered bands (the Mac's `fan-shine-sweep-a` and `-b`) on an 8 s
+/// cycle: band A glides left to right through the top half (1.7 s), then band B glides right to
+/// left through the body (1.8 s), starting at 45 % of the cycle. Each is eased, fades in and out as
+/// it goes, and is clipped to the record. Plain alpha, no blend mode; offset and opacity only.
 private struct RecordShine: View {
     let tint: Color
     let delay: Double
@@ -521,41 +523,77 @@ private struct RecordShine: View {
 
     private static let ease = UnitCurve.bezier(startControlPoint: UnitPoint(x: 0.37, y: 0), endControlPoint: UnitPoint(x: 0.63, y: 1))
 
+    /// One band's place in the cycle: when it starts, how long it takes, the rest of the Mac's keyframes.
+    private struct Sweep {
+        var start: Double
+        var length: Double
+        /// Share of the sweep spent fading in, and the share at which it starts fading out.
+        var fadeIn: Double
+        var fadeOutAt: Double
+        var leftToRight: Bool
+    }
+
+    private static let sweepA = Sweep(start: 0, length: Theme.Stats.shineSweep, fadeIn: 0.2, fadeOutAt: 0.85, leftToRight: true)
+    private static let sweepB = Sweep(start: 0.45 * Theme.Stats.shineCycle, length: 1.8, fadeIn: 4 / 22.5, fadeOutAt: 19 / 22.5, leftToRight: false)
+
     var body: some View {
         TimelineView(.animation(paused: !active)) { context in
             let t = context.date.timeIntervalSince(epoch) - delay
             let phase = t >= 0 ? t.truncatingRemainder(dividingBy: Theme.Stats.shineCycle) : -1
-            if active, phase >= 0, phase <= Theme.Stats.shineSweep {
-                let p = phase / Theme.Stats.shineSweep
-                let envelope = p < 0.2 ? p / 0.2 : (p < 0.85 ? 1 : (1 - p) / 0.15)
-                band
-                    .offset(x: CGFloat(-1 + 2 * Self.ease.value(at: p)) * size)
-                    .opacity(envelope)
-            } else {
-                Color.clear
+            ZStack {
+                if active, phase >= 0 {
+                    bandView(.sweepA, phase: phase)
+                    bandView(.sweepB, phase: phase)
+                }
             }
         }
         .frame(width: size, height: size)
         .allowsHitTesting(false)
     }
 
-    /// The Mac's 105deg band: clear to 28%, up to 85% light at the middle, clear again from 72%.
-    private var band: some View {
-        Rectangle()
+    private enum Which { case sweepA, sweepB }
+
+    @ViewBuilder
+    private func bandView(_ which: Which, phase: Double) -> some View {
+        let sweep = which == .sweepA ? Self.sweepA : Self.sweepB
+        let local = phase - sweep.start
+        if local >= 0, local <= sweep.length {
+            let p = local / sweep.length
+            let envelope = p < sweep.fadeIn ? p / sweep.fadeIn : (p < sweep.fadeOutAt ? 1 : (1 - p) / (1 - sweep.fadeOutAt))
+            let eased = CGFloat(Self.ease.value(at: p))
+            let x = sweep.leftToRight ? -1 + 2 * eased : 1 - 2 * eased
+            if which == .sweepA {
+                band(angleStart: UnitPoint(x: -0.092, y: 0.341), end: UnitPoint(x: 1.092, y: 0.659), peak: 0.85, height: size * 0.5)
+                    .offset(x: x * size, y: -size * 0.25)
+                    .opacity(envelope)
+            } else {
+                // 75deg, from 12 % to 88 % of the record's height.
+                band(angleStart: UnitPoint(x: -0.062, y: 0.698), end: UnitPoint(x: 1.062, y: 0.302), peak: 0.78, height: size * 0.76)
+                    .offset(x: x * size, y: size * 0.12 + size * 0.38 - size * 0.5)
+                    .opacity(envelope)
+            }
+        }
+    }
+
+    /// The Mac's band: clear to 28 %, up to `peak` light at the middle, clear again from 72 %.
+    private func band(angleStart: UnitPoint, end: UnitPoint, peak: Double, height: CGFloat) -> some View {
+        let shoulder = peak * 0.73
+        let foot = peak * 0.21
+        return Rectangle()
             .fill(LinearGradient(
                 stops: [
                     .init(color: tint.opacity(0), location: 0.28),
-                    .init(color: tint.opacity(0.18), location: 0.38),
-                    .init(color: tint.opacity(0.62), location: 0.47),
-                    .init(color: tint.opacity(0.85), location: 0.50),
-                    .init(color: tint.opacity(0.62), location: 0.53),
-                    .init(color: tint.opacity(0.18), location: 0.62),
+                    .init(color: tint.opacity(foot), location: 0.38),
+                    .init(color: tint.opacity(shoulder), location: 0.47),
+                    .init(color: tint.opacity(peak), location: 0.50),
+                    .init(color: tint.opacity(shoulder), location: 0.53),
+                    .init(color: tint.opacity(foot), location: 0.62),
                     .init(color: tint.opacity(0), location: 0.72),
                 ],
-                startPoint: UnitPoint(x: -0.092, y: 0.341),
-                endPoint: UnitPoint(x: 1.092, y: 0.659)
+                startPoint: angleStart,
+                endPoint: end
             ))
-            .frame(width: size, height: size)
+            .frame(width: size, height: height)
     }
 }
 

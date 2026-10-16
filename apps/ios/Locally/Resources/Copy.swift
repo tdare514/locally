@@ -388,6 +388,16 @@ enum Copy {
             (.all, "All time"),
         ]
 
+        /// The same options with the short labels the iPhone's narrow control fits; the stepper below
+        /// the control still says "This week".
+        static let periodShortOptions: [(kind: StatsPeriodKind, label: String)] = [
+            (.today, "Today"),
+            (.week, "Week"),
+            (.month, "Month"),
+            (.year, "Year"),
+            (.all, "All time"),
+        ]
+
         private static let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
         private static let monthsLong = [
             "January", "February", "March", "April", "May", "June",

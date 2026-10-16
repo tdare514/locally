@@ -13,17 +13,12 @@ struct SegmentedPill<Value: Hashable>: View {
     /// The crop sheet uses a smaller variant: 2 pt track padding, 14 pt
     /// text, tighter segment padding.
     var isCompact: Bool = false
-    /// A taller segment, for screens that need 44 pt touch targets (Stats). 0 keeps the text's own height.
-    var minSegmentHeight: CGFloat = 0
-    /// Lets the labels follow Dynamic Type (Stats). Off keeps the fixed 14 pt of the Import and crop screens.
-    var scalesText = false
-    @ScaledMetric(relativeTo: .footnote) private var scaledText: CGFloat = 14
     @Environment(\.isEnabled) private var isEnabled
 
     private var trackPadding: CGFloat { isCompact ? 2 : 4 }
     private var segmentPaddingH: CGFloat { isCompact ? 12 : 16 }
     private var segmentPaddingV: CGFloat { 6 }
-    private var textSize: CGFloat { scalesText ? scaledText : 14 }
+    private var textSize: CGFloat { 14 }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -36,7 +31,6 @@ struct SegmentedPill<Value: Hashable>: View {
                         .foregroundStyle(selection == option.value ? Color.black : Theme.secondaryText)
                         .padding(.horizontal, segmentPaddingH)
                         .padding(.vertical, segmentPaddingV)
-                        .frame(minHeight: minSegmentHeight)
                         .background {
                             if selection == option.value {
                                 Capsule()
@@ -46,7 +40,6 @@ struct SegmentedPill<Value: Hashable>: View {
                         }
                 }
                 .buttonStyle(.plain)
-                .accessibilityAddTraits(selection == option.value ? .isSelected : [])
             }
         }
         .padding(trackPadding)
