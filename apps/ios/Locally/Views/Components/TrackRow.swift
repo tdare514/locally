@@ -10,6 +10,9 @@ struct TrackRow: View {
     /// Set for an editable title (an album's); nil shows the title as plain text.
     var titleBinding: Binding<String>?
     var plays: String?
+    /// The track's length (`m:ss`) and the same in words for VoiceOver; left out when unknown.
+    var length: String?
+    var lengthSpoken: String?
     var onReplace: (() -> Void)?
     var showsGrip = false
 
@@ -40,6 +43,7 @@ struct TrackRow: View {
                     playsView
                 }
             }
+            lengthView
             if let onReplace {
                 Button(action: onReplace) {
                     Image(systemName: "arrow.triangle.2.circlepath")
@@ -61,6 +65,18 @@ struct TrackRow: View {
         .frame(minHeight: Theme.Track.minHeight)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(number.map { "track-row-\($0)" } ?? "track-row")
+    }
+
+    @ViewBuilder private var lengthView: some View {
+        if let length {
+            Text(length)
+                .font(Theme.ScaledFont.subheadline)
+                .monospacedDigit()
+                .foregroundStyle(.white.opacity(Theme.Track.lengthOpacity))
+                .lineLimit(1)
+                .fixedSize()
+                .accessibilityLabel(lengthSpoken ?? length)
+        }
     }
 
     @ViewBuilder private var playsView: some View {

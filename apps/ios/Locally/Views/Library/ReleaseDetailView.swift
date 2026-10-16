@@ -17,6 +17,10 @@ struct ReleaseDetailView: View {
     @State private var isPresentingFileImporter = false
     @State private var isPresentingCoverSource = false
     @State private var isPresentingPhotos = false
+    @State private var recentCovers: [RecentCover] = []
+    /// The choice made in the cover sheet, acted on once the sheet has closed (Photos and
+    /// Files cannot present while it is still on screen).
+    @State private var pendingCoverChoice: CoverChoiceSheet.Choice?
     @State private var isPresentingDeleteConfirm = false
     @State private var photosItem: PhotosPickerItem?
     /// Raw bytes from the Files or Photos cover pick, handed to `CoverPicker` to
@@ -44,6 +48,7 @@ struct ReleaseDetailView: View {
                 model = made
             }
             await model?.loadPlays()
+            await model?.loadMissingLengths()
         }
     }
 
@@ -147,20 +152,42 @@ struct ReleaseDetailView: View {
             RecordSleeve(cover: coverImage, ceremony: model.saveCount) {
                 isPresentingCoverSource = true
             }
-            .confirmationDialog(
-                coverImage == nil ? Copy.Immersive.addCoverArt : Copy.Immersive.changeCoverArt,
-                isPresented: $isPresentingCoverSource,
-                titleVisibility: .visible
-            ) {
-                Button(Copy.Immersive.coverFromPhotos) { isPresentingPhotos = true }
-                Button(Copy.Immersive.coverFromFiles) { isPresentingFileImporter = true }
+            .sheet(isPresented: $isPresentingCoverSource, onDismiss: { applyCoverChoice(model) }) {
+                // Remove is left out: saving a release with its cover removed is not supported
+                // (`ReleaseChanges.cover` nil means "unchanged"), so it would do nothing.
+                CoverChoiceSheet(recents: recentCovers, hasCover: false) { choice in
+                    pendingCoverChoice = choice
+                    isPresentingCoverSource = false
+                }
             }
             Spacer(minLength: 0)
+        }
+        // Load when the page appears, then each time the sheet opens, so a release saved or
+        // synced meanwhile shows; a cancelled load keeps the list already on screen.
+        .task(id: isPresentingCoverSource) {
+            guard let container, isPresentingCoverSource || recentCovers.isEmpty else { return }
+            let loaded = await RecentCoversLoader(library: container.library, coverStore: container.coverStore).load()
+            guard !Task.isCancelled else { return }
+            recentCovers = loaded
         }
         // Room inside the row for the sleeve's shadow, which the row would otherwise clip.
         .padding(.top, Theme.Immersive.sleeveShadowRoomTop)
         .padding(.bottom, Theme.Immersive.sleeveShadowRoomBottom)
         .clearRow(top: 0, bottom: 0)
+    }
+
+    private func applyCoverChoice(_ model: ReleaseDetailViewModel) {
+        guard let choice = pendingCoverChoice else { return }
+        pendingCoverChoice = nil
+        switch choice {
+        case .recent(let recent):
+            // A recent cover was cropped when first saved, so it skips the crop.
+            if let data = container?.coverStore.load(recent.id) { model.coverData = data }
+        case .remove:
+            model.coverData = nil
+        case .photos: isPresentingPhotos = true
+        case .files: isPresentingFileImporter = true
+        }
     }
 
     @ViewBuilder
@@ -210,6 +237,7 @@ struct ReleaseDetailView: View {
             // A single's only track takes its title from the Title field above,
             // so its row shows that live value rather than the (only saved-on-send)
             // track row title.
+            let seconds = row.durationSec ?? model.readLengths[row.id]
             TrackRow(
                 number: index + 1,
                 title: model.kind == .single ? model.title : row.title,
@@ -217,6 +245,8 @@ struct ReleaseDetailView: View {
                     ? Binding(get: { row.title }, set: { setTitle($0, for: row, in: model) })
                     : nil,
                 plays: model.playTotal(for: row).map(Copy.Detail.playCount),
+                length: TrackLength.format(seconds),
+                lengthSpoken: TrackLength.spoken(seconds),
                 showsGrip: model.trackRows.count >= 2
             )
             .importTrackRow(

@@ -37,4 +37,6 @@ enum CoverSize: Int, CaseIterable {
 enum LibraryViewPrefs {
     static let layoutKey = "locally.library.layout"
     static let coverSizeKey = "locally.library.coverSize"
+    static let singlesCollapsedKey = "library.singlesCollapsed"
+    static let albumsCollapsedKey = "library.albumsCollapsed"
 }

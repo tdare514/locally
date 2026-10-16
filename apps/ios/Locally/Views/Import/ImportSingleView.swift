@@ -32,9 +32,16 @@ struct ImportSingleView: View {
                 .recordListSection()
 
                 Section {
-                    if model.pickedURL != nil, let name = model.pickedName {
-                        TrackRow(title: name, onReplace: context.onAddTrack)
-                            .importTrackRow(isFirst: true, isLast: true)
+                    if let pickedURL = model.pickedURL, let name = model.pickedName {
+                        TrackLengthReader(stored: nil, url: pickedURL) { seconds in
+                            TrackRow(
+                                title: name,
+                                length: TrackLength.format(seconds),
+                                lengthSpoken: TrackLength.spoken(seconds),
+                                onReplace: context.onAddTrack
+                            )
+                        }
+                        .importTrackRow(isFirst: true, isLast: true)
                     } else {
                         TrackListSilhouette(rows: 1).importPanelRow(.middle)
                     }

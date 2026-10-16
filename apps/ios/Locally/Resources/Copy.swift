@@ -144,6 +144,10 @@ enum Copy {
         static let singlesSection = "Singles"
         static let albumsSection = "Albums"
         static func sectionCount(_ count: Int) -> String { "\(count)" }
+        /// The section headers' accessibility value and hint.
+        static let sectionExpanded = "Expanded"
+        static let sectionCollapsed = "Collapsed"
+        static let sectionHint = "Double tap to fold or open this section"
         /// Album row subtitle: "artist · 4 tracks".
         static func albumSubtitle(artist: String, tracks: Int) -> String {
             "\(artist) · \(trackCount(tracks))"
