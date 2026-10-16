@@ -205,8 +205,9 @@ eyebrows still apply to those labels.
       are Cancel and Save. Cancel with changes asks "Discard your changes?" (Discard, destructive;
       Keep editing); with none it just leaves edit mode. In view mode VoiceOver reads the sleeve
       as "Cover", an image.
-    - Switching modes cross-fades the underlines, grips and dock over 0.25 s on the signature
-      easing (opacity only; layout changes are not animated). Reduce Motion: no fade.
+    - Switching modes is instant except the dock, which fades in or out over 0.25 s on the
+      signature easing (opacity only, scoped to the dock; the list's layout is never animated).
+      Reduce Motion: no fade.
     - **Save changes** opens a review sheet, "Check your changes" (medium detent, the page's
       dark sheet): a row per change with the field's label, the old value in `text-dim` with a
       strikethrough above the new value in white ("Not set" for an empty side); a new cover shows
