@@ -84,6 +84,7 @@ export class FileSettingsStore implements SettingsStore {
           sync: null,
           trackPlays: false,
           playsPromptAnswered: false,
+          adoptRoots: [],
         };
         await this.writeSettings(defaults);
         return defaults;
@@ -106,6 +107,7 @@ export class FileSettingsStore implements SettingsStore {
         sync: null,
         trackPlays: false,
         playsPromptAnswered: false,
+        adoptRoots: [],
       };
       await this.writeSettings(defaults);
       return defaults;
@@ -121,12 +123,16 @@ export class FileSettingsStore implements SettingsStore {
     const playsPromptAnswered =
       typeof parsed.playsPromptAnswered === "boolean" ? parsed.playsPromptAnswered : false;
     const spotify = parseSpotifySettings(parsed.spotify);
+    const adoptRoots = Array.isArray(parsed.adoptRoots)
+      ? parsed.adoptRoots.filter((r): r is string => typeof r === "string" && r.trim().length > 0)
+      : [];
     return {
       libraryDir,
       sync: parseSyncSettings(parsed.sync),
       spotifySourceDismissed,
       trackPlays,
       playsPromptAnswered,
+      adoptRoots,
       ...(spotify ? { spotify } : {}),
     };
   }
