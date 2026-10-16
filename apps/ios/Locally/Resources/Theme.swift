@@ -38,6 +38,11 @@ enum Theme {
     static let accent = Color(red: 0x1E / 255, green: 0x7D / 255, blue: 0xF0 / 255)
 
     /// Type roles from `docs/design.md`'s "Type" table, iOS/mobile column.
+    enum Cover {
+        /// The crop sheet's title at the default text size; it scales with title3.
+        static let cropTitleSize: CGFloat = 19
+    }
+
     enum Font {
         static let pageTitle = SwiftUI.Font.system(size: 24, weight: .bold)
         /// "Metadata", "Tracks" section titles.

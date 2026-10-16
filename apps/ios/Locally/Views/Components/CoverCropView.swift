@@ -17,6 +17,8 @@ struct CoverCropView: View {
     let onCancel: () -> Void
 
     @State private var ratio: CoverRatio = .square
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .title3) private var titleSize = Theme.Cover.cropTitleSize
     @State private var uiImage: UIImage?
     @State private var imageSize: CGSize = .zero
     @State private var cropRect: CGRect = .zero
@@ -35,7 +37,9 @@ struct CoverCropView: View {
     private var dialog: some View {
         VStack(spacing: 16) {
             Text(Copy.Cover.cropTitle)
-                .font(.system(size: 19, weight: .bold))
+                .font(.system(size: titleSize, weight: .bold))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(Theme.primaryText)
 
             cropCanvas
@@ -53,15 +57,29 @@ struct CoverCropView: View {
                 .font(.footnote)
                 .foregroundStyle(Theme.secondaryText)
                 .multilineTextAlignment(.center)
+                // Takes the lines it needs; the canvas above gives up the room.
+                .fixedSize(horizontal: false, vertical: true)
                 .opacity(ratio == .square ? 1 : 0)
 
-            HStack(spacing: 20) {
-                Spacer()
-                Button(Copy.Cover.cancel, action: onCancel)
-                    .buttonStyle(TextButtonStyle())
-                Button(Copy.Cover.done, action: process)
-                    .buttonStyle(PrimaryPillButtonStyle(isFullWidth: false))
-                    .disabled(uiImage == nil)
+            // At the accessibility sizes Cancel and Done no longer fit side by side ("D…"), so Done
+            // spans the dialog with Cancel under it.
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 8) {
+                    Button(Copy.Cover.done, action: process)
+                        .buttonStyle(PrimaryPillButtonStyle())
+                        .disabled(uiImage == nil)
+                    Button(Copy.Cover.cancel, action: onCancel)
+                        .buttonStyle(TextButtonStyle())
+                }
+            } else {
+                HStack(spacing: 20) {
+                    Spacer()
+                    Button(Copy.Cover.cancel, action: onCancel)
+                        .buttonStyle(TextButtonStyle())
+                    Button(Copy.Cover.done, action: process)
+                        .buttonStyle(PrimaryPillButtonStyle(isFullWidth: false))
+                        .disabled(uiImage == nil)
+                }
             }
         }
         .padding(20)
