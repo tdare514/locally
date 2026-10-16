@@ -14,6 +14,7 @@ import { MemorySettings, SAMPLE_SPOTIFY } from "./spotifyFakes";
 
 const P1 = "1".repeat(22);
 const P2 = "2".repeat(22);
+const P3 = "3".repeat(22);
 
 function track(id: string, title: string, durationSec: number | null = 200): Track {
   return { id, title, trackNumber: 1, filePath: `/lib/${id}.mp3`, originalName: `${id}.mp3`, durationSec };
@@ -403,6 +404,7 @@ describe("FilePlaylistCacheStore", () => {
       playlists: {
         [P1]: { snapshotId: "s", name: "Good", localUris: [], complete: false, next: good },
         [P2]: { snapshotId: "s", name: "Evil", localUris: [], complete: false, next: "https://evil.example/playlists/x" },
+        [P3]: { snapshotId: "s", name: "Other's", localUris: [], complete: false, next: `https://api.spotify.com/v1/playlists/${P1}/items?offset=5000` },
       },
     });
     const read = await s.read();

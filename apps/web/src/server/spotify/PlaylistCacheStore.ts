@@ -57,11 +57,11 @@ export class FilePlaylistCacheStore implements PlaylistCacheStore {
     try {
       const parsed: unknown = JSON.parse(await fs.readFile(this.file(), "utf-8"));
       if (!isCache(parsed)) return null;
-      // A saved cursor is only trusted if it is a Spotify playlist URL on an incomplete entry;
+      // A saved cursor is only trusted if it is its own Spotify playlist URL on an incomplete entry;
       // otherwise that entry is dropped and read again from page one.
       for (const [id, e] of Object.entries(parsed.playlists)) {
         if (e.next === undefined) continue;
-        if (e.complete !== false || !e.next.startsWith(`${SPOTIFY_API_BASE}/playlists/`)) delete parsed.playlists[id];
+        if (e.complete !== false || !e.next.startsWith(`${SPOTIFY_API_BASE}/playlists/${id}/`)) delete parsed.playlists[id];
       }
       return parsed;
     } catch {
