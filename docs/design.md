@@ -107,6 +107,25 @@ eyebrows still apply to those labels.
   title on the left with a `text-muted` meta on the right ("7 tracks", "Tap to edit", "1 file").
 - **Segmented pill** (Single | Album): `elevated` track with 4 padding, selected segment an
   `accent` pill with black semibold text and a faint shadow, others `text-muted` (white on hover).
+  On iPhone the record's Single / Album switch is replaced (16 Oct 2026, owner: the switch and
+  the main buttons "look bland"; the library and crop sheet keep this pill). It is the **kind
+  switch**: a faked-glass capsule track (the Glow pill's glass and 1 pt rim), each option an icon
+  and a word (Single `music.note`, Album `rectangle.stack.fill`; subheadline semibold), the chosen
+  one white on a glass thumb tinted with the cover's colour (the palette's primary at 55 % over
+  the glass, a brighter rim, a soft glow of that colour under it), the other white at 55 %. The
+  thumb slides to the new option (spring, response 0.35, damping 0.85) with a selection haptic;
+  Reduce Motion moves it without sliding. No cover: the thumb is tinted `accent`. Locked: 50 %.
+- **Cover glow button** (iPhone, 16 Oct 2026, same owner request): **Send to Spotify** on the
+  record and **Save changes** in the release page's dock. A dark base (black at 88 %, so the list
+  scrolling under the footer never shows through), the Glow pill's faked glass and rim
+  with a white bold label and a leading icon (Send `paperplane.fill`, Save `checkmark`), lit at
+  rest by two soft clouds of the cover's colours (palette primary and secondary; `accent` and
+  violet with no cover) rising from the lower edge inside the capsule (62 % at rest, 95 % pressed), and a soft halo of the
+  primary colour under it, the Mac's main action in its lit state since a phone has no hover.
+  Pressed: the clouds brighten, one shimmer (a soft white diagonal band) sweeps across once
+  over 600 ms, scale 0.97, easing `cubic-bezier(0.16, 1, 0.3, 1)`. Reduce Motion: the brighten
+  only, no shimmer and no scale. Disabled: glass only, no clouds or halo, the label at 50 %.
+  While sending it keeps its progress line in white.
 - **Primary button**: `accent` pill, black bold text. **Secondary**: `elevated` pill, white text.
   **Outline**: transparent with a `text-dim` border, white text. **Text button** (Cancel):
   `text-muted`, white on hover, no background.

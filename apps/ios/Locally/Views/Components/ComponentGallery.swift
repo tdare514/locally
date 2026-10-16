@@ -8,7 +8,9 @@ struct ComponentGallery: View {
         // #160: the studio backdrop and the real Settings with sample sync state.
         "studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled",
         // #205: the release page's tracks panel (the shared `TrackRow`, preset rows).
-        "release-tracks"]
+        "release-tracks",
+        // Kind switch and cover glow buttons, on the studio backdrop.
+        "controls"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -27,7 +29,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks"].contains(name)
+        ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls"].contains(name)
     }
 
     var body: some View {
@@ -114,6 +116,8 @@ struct ComponentGallery: View {
             Self.settings(signedIn: true).defaultScrollAnchor(.bottom)
         case "release-tracks":
             Self.releaseTracks
+        case "controls":
+            ControlsGallery()
         default:
             EmptyView()
         }
@@ -337,6 +341,50 @@ private struct ImportRecordGallery: View {
                 try? await Task.sleep(for: .seconds(3))
                 preset.driver.coverChanged(cover, reduced: reduceMotion)
             }
+        }
+    }
+}
+
+/// `controls`: the kind switch and the cover glow buttons, enabled, disabled and pressed.
+private struct ControlsGallery: View {
+    @State private var single = ImportKind.single
+    @State private var album = ImportKind.album
+    private let warm = [ArtworkBackdrop.color(hex: "#E2552E"), ArtworkBackdrop.color(hex: "#F2B134")]
+
+    var body: some View {
+        ZStack {
+            StudioBackdrop()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    KindSwitch(kind: $single, tint: Theme.accent)
+                    KindSwitch(kind: $album, tint: ArtworkBackdrop.color(hex: "#E2552E"))
+                    send(Theme.coverGlowColors(nil))
+                    send(warm)
+                    send(warm).disabled(true)
+                    Button {} label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark").accessibilityHidden(true)
+                            Text(Copy.Detail.saveChanges)
+                        }
+                    }
+                    .buttonStyle(CoverGlowButtonStyle(colors: warm, isFullWidth: false))
+                    Button {} label: { sendLabel }
+                        .buttonStyle(CoverGlowButtonStyle(colors: warm, pinnedPressed: true))
+                }
+                .padding(Theme.Spacing.pagePadding)
+            }
+        }
+    }
+
+    private func send(_ colors: [Color]) -> some View {
+        Button {} label: { sendLabel }
+            .buttonStyle(CoverGlowButtonStyle(colors: colors))
+    }
+
+    private var sendLabel: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "paperplane.fill").accessibilityHidden(true)
+            Text(Copy.Import.send)
         }
     }
 }

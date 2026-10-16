@@ -17,7 +17,7 @@ struct AlbumBuilderView: View {
                     ImportRecordSleeve(coverData: Binding(get: { model.coverData }, set: { model.coverData = $0 }), context: context)
                         .id(ImportRecordSleeve.scrollID)
                         .importClearRow()
-                    ImportMetaLine(kind: context.kind, trackCount: model.rows.count, isSwitchDisabled: context.isBusy)
+                    ImportMetaLine(kind: context.kind, trackCount: model.rows.count, isSwitchDisabled: context.isBusy, tint: context.glowColors[0])
                         .importClearRow(top: 0, bottom: Theme.Immersive.fieldsMetaGap)
                     VStack(alignment: .leading, spacing: Theme.Spacing.fieldGap) {
                         InlineField(Copy.Import.fieldAlbumTitle, text: Binding(get: { model.albumTitle }, set: { model.albumTitle = $0 }), font: Theme.ScaledFont.pageTitle, wraps: true)
@@ -95,17 +95,20 @@ struct AlbumBuilderView: View {
                 Button(action: context.onSend) {
                     if model.isSending {
                         VStack(spacing: 4) {
-                            ProgressView().tint(.black)
+                            ProgressView().tint(.white)
                             Text(Copy.Import.taggingProgress(done: model.progressDone, total: model.progressTotal))
                                 .font(Theme.Font.rowSubtitle)
                         }
                         .frame(maxWidth: .infinity)
                     } else {
-                        Text(Copy.Import.send)
-                            .frame(maxWidth: .infinity)
+                        HStack(spacing: 8) {
+                            Image(systemName: "paperplane.fill").accessibilityHidden(true)
+                            Text(Copy.Import.send)
+                        }
+                        .frame(maxWidth: .infinity)
                     }
                 }
-                .buttonStyle(PrimaryPillButtonStyle())
+                .buttonStyle(CoverGlowButtonStyle(colors: context.glowColors))
                 .disabled(!model.canSend || context.isSendHeld)
             }
         }

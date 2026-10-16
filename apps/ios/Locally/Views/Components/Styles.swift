@@ -63,8 +63,134 @@ struct GlowPillButtonStyle: ButtonStyle {
     }
 }
 
+/// The cover glow button (docs/design.md "Cover glow button"): Send to Spotify and Save changes.
+/// The Glow pill's glass and rim with a white label, two soft clouds of the cover's colours
+/// rising from the lower edge and a halo of the first colour under it. Pressed: the clouds
+/// brighten, one shimmer sweeps across, scale 0.97. Reduce Motion: the brighten only. Disabled:
+/// glass and rim, a half-opacity label. `pinnedPressed` is for the component gallery.
+struct CoverGlowButtonStyle: ButtonStyle {
+    let colors: [Color]
+    var isFullWidth: Bool = true
+    var pinnedPressed: Bool = false
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .body) private var fullMinHeight: CGFloat = 52
+    @ScaledMetric(relativeTo: .body) private var compactMinHeight: CGFloat = 40
+    @ScaledMetric(relativeTo: .body) private var fontSize: CGFloat = 15
+
+    private var ease: Animation { .timingCurve(0.16, 1, 0.3, 1, duration: 0.45) }
+
+    func makeBody(configuration: Configuration) -> some View {
+        let pressed = pinnedPressed || configuration.isPressed
+        let first = colors.first ?? Theme.accent
+        let second = colors.count > 1 ? colors[1] : first
+        configuration.label
+            .font(.system(size: fontSize, weight: .bold))
+            .foregroundStyle(Color.white)
+            .multilineTextAlignment(.center)
+            .opacity(isEnabled ? 1 : 0.5)
+            .padding(.horizontal, Theme.Spacing.primaryButtonH)
+            .padding(.vertical, Theme.Spacing.primaryButtonV)
+            .frame(maxWidth: isFullWidth ? .infinity : nil, minHeight: isFullWidth ? fullMinHeight : compactMinHeight)
+            .background {
+                ZStack {
+                    if isEnabled {
+                        // The halo's shape: glass alone is too clear to cast a shadow.
+                        Capsule()
+                            .fill(first.opacity(0.2))
+                            .shadow(color: first.opacity(0.45), radius: 14, y: 4)
+                    }
+                    ZStack {
+                        // A dark base under the glass, so the list scrolling beneath the footer
+                        // never shows through the button.
+                        Theme.background.opacity(Theme.Import.coverGlowBaseOpacity)
+                        GlowGlass()
+                        if isEnabled {
+                            CoverGlowClouds(first: first, second: second, bright: pressed)
+                            CoverGlowShimmer(pressed: pressed, pinned: pinnedPressed, enabled: !reduceMotion)
+                            GlowLabelPool(lit: true)
+                        }
+                    }
+                    .clipShape(Capsule())
+                }
+                .animation(ease, value: pressed)
+            }
+            .overlay { GlowRim() }
+            .scaleEffect(pressed && !reduceMotion ? 0.97 : 1)
+            .animation(ease, value: pressed)
+    }
+}
+
+/// Two soft blurred ellipses rising from the capsule's lower edge, lit at rest and brighter pressed.
+private struct CoverGlowClouds: View {
+    let first: Color
+    let second: Color
+    let bright: Bool
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
+            ZStack {
+                Ellipse().fill(first)
+                    .frame(width: w * 0.62, height: h * 1.3)
+                    .position(x: w * 0.3, y: h * 1.0)
+                Ellipse().fill(second)
+                    .frame(width: w * 0.62, height: h * 1.3)
+                    .position(x: w * 0.7, y: h * 1.0)
+            }
+            .blur(radius: 16)
+            .opacity(bright ? Theme.Import.coverGlowPressed : Theme.Import.coverGlowRest)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// One soft white diagonal band that sweeps left to right over 0.6 s each time `pressed` turns
+/// on, and is off screen the rest of the time. Only its offset animates. Held at the middle
+/// when `pinned`.
+private struct CoverGlowShimmer: View {
+    let pressed: Bool
+    let pinned: Bool
+    let enabled: Bool
+    @State private var progress: CGFloat = 0
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
+            let band = w * 0.4
+            let p: CGFloat = pinned ? 0.5 : progress
+            LinearGradient(colors: [.clear, .white.opacity(0.35), .clear], startPoint: .leading, endPoint: .trailing)
+                .frame(width: band, height: h * 2.5)
+                .rotationEffect(.degrees(20))
+                .offset(x: -(band + h) + p * (w + band + 2 * h), y: -h * 0.75)
+        }
+        .opacity(enabled ? 1 : 0)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .onChange(of: pressed) { _, isPressed in
+            guard isPressed, enabled, !pinned else { return }
+            var reset = Transaction()
+            reset.disablesAnimations = true
+            withTransaction(reset) { progress = 0 }
+            withAnimation(.linear(duration: 0.6)) { progress = 1 }
+        }
+    }
+}
+
+extension Theme {
+    /// The cover glow button's two colours: the cover's palette, or accent and violet with no cover
+    /// (the same mapping as the Sent card's glow).
+    static func coverGlowColors(_ palette: AmbientPalette?) -> [Color] {
+        guard let p = palette else { return [Theme.accent, Theme.Studio.violet] }
+        return [ArtworkBackdrop.color(hex: p.primary), ArtworkBackdrop.color(hex: p.secondary)]
+    }
+}
+
 /// The pill at rest: the phone-tray glass's body, a top-to-bottom fill and a corner highlight.
-private struct GlowGlass: View {
+struct GlowGlass: View {
     var body: some View {
         ZStack {
             LinearGradient(
@@ -90,7 +216,7 @@ private struct GlowGlass: View {
 }
 
 /// A 1 pt rim at 12 % white, brighter (32 %) along the top edge.
-private struct GlowRim: View {
+struct GlowRim: View {
     var body: some View {
         Capsule()
             .strokeBorder(
@@ -111,7 +237,7 @@ private struct GlowRim: View {
 
 /// A soft dark pool between the light and the label, only while lit, so the white label keeps
 /// its contrast over the bright clouds wherever they drift. A feathered ellipse, no edge.
-private struct GlowLabelPool: View {
+struct GlowLabelPool: View {
     let lit: Bool
 
     var body: some View {

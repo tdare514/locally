@@ -205,7 +205,8 @@ struct ImportView: View {
             onAddTrack: { present(kind == .single ? .replace : .add) },
             onReplaceTrack: { present(.replaceRow($0)) },
             onPickCoverFromFiles: { present(.cover) },
-            onSend: send
+            onSend: send,
+            glowColors: Theme.coverGlowColors(driver.washedCover == nil ? nil : palette)
         )
     }
 

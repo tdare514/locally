@@ -18,6 +18,8 @@ struct ImportRecordContext {
     let onReplaceTrack: (UUID) -> Void
     let onPickCoverFromFiles: () -> Void
     let onSend: () -> Void
+    /// The cover's two glow colours (accent and violet with no cover): the kind switch's tint and Send.
+    let glowColors: [Color]
 }
 
 /// The sleeve at the top of the record. It draws the driver's frame through a `TimelineView`
@@ -62,13 +64,12 @@ struct ImportMetaLine: View {
     let trackCount: Int
     /// Dims and disables the switch (VoiceOver reads it as dimmed).
     var isSwitchDisabled: Bool = false
+    /// The switch's thumb colour.
+    let tint: Color
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.Immersive.dockGap) {
-            SegmentedPill(
-                options: [(ImportKind.single, Copy.Import.kindSingle), (ImportKind.album, Copy.Import.kindAlbum)],
-                selection: $kind
-            )
+            KindSwitch(kind: $kind, tint: tint)
             .disabled(isSwitchDisabled)
             Spacer(minLength: 0)
             Text(Copy.Library.trackCount(trackCount))

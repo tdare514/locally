@@ -280,6 +280,11 @@ enum Theme {
     /// `.imp-*` rules and `.btn-save.btn-glow` in `apps/web/src/app/globals.css`. The beat's clock
     /// is in `Views/Import/ImportBeat.swift`.
     enum Import {
+        /// The cover glow button (Send, Save): its clouds' opacity at rest and pressed, and the
+        /// dark base under its glass that keeps the list scrolling beneath from showing through.
+        static let coverGlowRest: Double = 0.62
+        static let coverGlowPressed: Double = 0.95
+        static let coverGlowBaseOpacity: Double = 0.88
         /// Send scrolls the record back to the sleeve over this long (docs/design.md "Make a record").
         static let sendScrollDuration: Double = 0.35
         /// Then waits this long for the scroll to settle; skipped with Reduce Motion.

@@ -26,6 +26,8 @@ struct PanelRowBackground: View {
 /// "Unsaved changes" / "Saved to your library" status and Save.
 struct ReleaseDock: View {
     let model: ReleaseDetailViewModel
+    /// The cover's glow colours for Save (`Theme.coverGlowColors`).
+    let glowColors: [Color]
 
     @State private var showSaved = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -73,11 +75,16 @@ struct ReleaseDock: View {
         Button {
             Task { await model.save() }
         } label: {
-            Text(model.isSaving ? Copy.Detail.saving : Copy.Detail.saveChanges)
-                .lineLimit(1)
-                .fixedSize()
+            HStack(spacing: 6) {
+                if !model.isSaving {
+                    Image(systemName: "checkmark").accessibilityHidden(true)
+                }
+                Text(model.isSaving ? Copy.Detail.saving : Copy.Detail.saveChanges)
+                    .lineLimit(1)
+            }
+            .fixedSize()
         }
-        .buttonStyle(PrimaryPillButtonStyle(isFullWidth: false))
+        .buttonStyle(CoverGlowButtonStyle(colors: glowColors, isFullWidth: false))
         .disabled(!model.canSave)
     }
 }

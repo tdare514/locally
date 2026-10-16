@@ -82,7 +82,7 @@ struct ReleaseDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            ReleaseDock(model: model)
+            ReleaseDock(model: model, glowColors: Theme.coverGlowColors(coverImage == nil ? nil : palette))
         }
         // Palette from the cover at 24x24, off the main thread; the previous palette
         // stays on screen until the new one is ready, and the backdrop cross-fades.
