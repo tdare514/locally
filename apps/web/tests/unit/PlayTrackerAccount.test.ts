@@ -258,6 +258,46 @@ describe("PlayTracker fallback samples (#228)", () => {
     expect((await store.get()).tracks.t2?.count).toBe(1);
   });
 
+  it("(c) a seek during a held fallback earns no credit: counts only after 30 s of real playback", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    let pos = 0;
+    for (; pos <= 10; pos += 5) {
+      web.answer = player(ID, pos);
+      await tick();
+    }
+    web.error = new SpotifyApiError("offline", "x");
+    for (let i = 0; i < 12; i++) await tick(); // a minute held; the user paused and seeked to 35
+    web.error = null;
+    const counts: number[] = [];
+    for (pos = 35; pos <= 55; pos += 5) {
+      web.answer = player(ID, pos);
+      await tick();
+      counts.push((await store.get()).tracks.t1?.count ?? 0);
+    }
+    // 10 s before the outage plus 20 s after: the first count is at 55, not at the 35 jump.
+    expect(counts).toEqual([0, 0, 0, 0, 1]);
+  });
+
+  it("(d) a genuine replay after a 20-minute held fallback counts", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    for (let pos = 0; pos <= 30; pos += 5) {
+      web.answer = player(ID, pos);
+      await tick();
+    }
+    expect((await store.get()).tracks.t1.count).toBe(1);
+    web.error = new SpotifyApiError("offline", "x");
+    await tick();
+    clock += 20 * 60 * 1000;
+    await tick();
+    web.error = null;
+    clock += 60_000; // past the hold-off
+    for (let pos = 35; pos <= 65; pos += 5) {
+      web.answer = player(ID, pos);
+      await tick();
+    }
+    expect((await store.get()).tracks.t1.count).toBe(2);
+  });
+
   it("a held fallback leaves the status on and the idle clock running", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     web.error = new SpotifyApiError("offline", "x");
