@@ -214,6 +214,62 @@ struct HttpSyncApiTests {
         }
     }
 
+    @Test func playsSummarySendsTheRangeWithoutACursorAndDecodesThePage() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { request in
+            #expect(request.httpMethod == "GET")
+            #expect(request.url?.absoluteString == "https://sync.example.test/v1/plays/summary?from=2026-10-12&to=2026-10-15")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer device-token")
+            return (200, [:], self.jsonData([
+                "tracks": [["trackId": "t-1", "releaseId": "r-1", "plays": 3, "lastPlayedDay": "2026-10-14"]],
+                "allTime": [["trackId": "t-1", "releaseId": "r-1", "plays": 30]],
+                "nextCursor": NSNull(),
+            ]))
+        }
+
+        let page = try await api.playsSummary(from: "2026-10-12", to: "2026-10-15", cursor: nil)
+        #expect(page == SyncPlaysSummaryPage(
+            tracks: [SyncPeriodPlays(trackId: "t-1", releaseId: "r-1", plays: 3, lastPlayedDay: "2026-10-14")],
+            allTime: [SyncAllTimePlays(trackId: "t-1", releaseId: "r-1", plays: 30)],
+            nextCursor: nil
+        ))
+    }
+
+    @Test func playsSummaryAppendsAnEncodedCursor() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { request in
+            #expect(request.url?.absoluteString == "https://sync.example.test/v1/plays/summary?from=2026-10-12&to=2026-10-15&cursor=ab%26c%3Dd%2Be%23f")
+            return (200, [:], self.jsonData(["tracks": [], "allTime": [], "nextCursor": "next-id"]))
+        }
+
+        let page = try await api.playsSummary(from: "2026-10-12", to: "2026-10-15", cursor: "ab&c=d+e#f")
+        #expect(page.nextCursor == "next-id")
+    }
+
+    @Test func playsSummary404ThrowsNotFound() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { _ in (404, [:], self.jsonData(["error": "not found"])) }
+
+        do {
+            _ = try await api.playsSummary(from: "2026-10-12", to: "2026-10-15", cursor: nil)
+            Issue.record("expected .notFound")
+        } catch let error as SyncApiError {
+            #expect(error == .notFound)
+        }
+    }
+
+    @Test func playsSummary429ThrowsRateLimited() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { _ in (429, [:], self.jsonData(["error": "slow down"])) }
+
+        do {
+            _ = try await api.playsSummary(from: "2026-10-12", to: "2026-10-15", cursor: nil)
+            Issue.record("expected .rateLimited")
+        } catch let error as SyncApiError {
+            #expect(error == .rateLimited)
+        }
+    }
+
     @Test func missingFiles401StillThrowsUnauthorized() async throws {
         let (api, _) = makeApi()
         StubURLProtocol.handler = { _ in (401, [:], self.jsonData(["error": "expired token"])) }

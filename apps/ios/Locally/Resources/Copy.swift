@@ -330,4 +330,171 @@ enum Copy {
         static func applyRemoteFailed(_ detail: String) -> String { "Couldn't apply a change from another device: \(detail)" }
         static func signOutCleanupFailed(_ detail: String) -> String { "Signed out, but couldn't clear queued sync changes: \(detail)" }
     }
+
+    /// The Stats tab (#204). The period, digest and date wording ports `apps/web/src/lib/stats-copy.ts`
+    /// string for string, so the phone and the Mac say the same thing.
+    enum Stats {
+        static let title = "Stats"
+        static let tabLabel = "Stats"
+        static let coverage = "Collected across all your devices."
+        static let signedOutTitle = "Your plays live on your Mac"
+        static let signedOutBody = "Locally counts the songs you play in Spotify on your Mac. Sign in on both to see them here."
+        static let signedOutAction = "Sign in"
+        static let noPlays = "Plays show up here once Locally on your Mac has counted some. Turn on play counting in its Settings."
+        static let failed = "Couldn't load your plays. Pull down to try again."
+        static let busy = "Couldn't load your plays just now. Try again in a few minutes."
+
+        static let tracksTab = "Tracks"
+        static let albumsTab = "Albums"
+        static let artistsTab = "Artists"
+        static let showTopLabel = "Show top"
+        static let timeFrameLabel = "Time frame"
+        static let layoutLabel = "Layout"
+        static let listLayout = "List"
+        static let gridLayout = "Grid"
+        static let sortLabel = "Sort by"
+        static let sortPlays = "Most played"
+        static let sortName = "Name"
+        static let sortRecent = "Recent"
+        static let gridHint = "Ranked by plays, left to right. Bigger covers have more plays."
+        static let loadingLabel = "Loading your plays"
+        static let lastPlayedHeading = "Last played"
+
+        /// "Your tracks", the heading over the list.
+        static func yourHeading(_ noun: String) -> String { "Your \(noun)" }
+        /// "Previous week": the stepper's buttons, named for the period they move by.
+        static func previousLabel(_ kind: StatsPeriodKind) -> String { "Previous \(stepNoun(kind))" }
+        static func nextLabel(_ kind: StatsPeriodKind) -> String { "Next \(stepNoun(kind))" }
+        private static func stepNoun(_ kind: StatsPeriodKind) -> String {
+            switch kind {
+            case .today: return "day"
+            case .week: return "week"
+            case .month: return "month"
+            case .year: return "year"
+            case .all: return "period"
+            }
+        }
+        /// "Your top 5 tracks, most played first": names the fan for screen readers.
+        static func fanLabel(count: Int, noun: String) -> String { "Your top \(count) \(noun), most played first" }
+        /// A sleeve's or row's spoken name: "1, Night Bus to Nowhere, 48 plays".
+        static func itemLabel(rank: Int, title: String, plays: Int) -> String { "\(rank), \(title), \(playsCount(plays))" }
+
+        /// The period control's options, shortest first.
+        static let periodOptions: [(kind: StatsPeriodKind, label: String)] = [
+            (.today, "Today"),
+            (.week, "This week"),
+            (.month, "This month"),
+            (.year, "This year"),
+            (.all, "All time"),
+        ]
+
+        /// The same options with the short labels the iPhone's narrow control fits; the stepper below
+        /// the control still says "This week".
+        static let periodShortOptions: [(kind: StatsPeriodKind, label: String)] = [
+            (.today, "Today"),
+            (.week, "Week"),
+            (.month, "Month"),
+            (.year, "Year"),
+            (.all, "All time"),
+        ]
+
+        private static let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        private static let monthsLong = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December",
+        ]
+        private static let weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+        private static func parts(_ day: String) -> (year: Int, month: Int, date: Int) {
+            let p = day.split(separator: "-").map { Int($0) ?? 0 }
+            guard p.count == 3 else { return (0, 0, 1) }
+            return (p[0], p[1] - 1, p[2])
+        }
+
+        /// "15 Oct", or "15 Oct 2025" when the year is not today's.
+        static func shortDay(_ day: String, today: String) -> String {
+            let d = parts(day)
+            let base = "\(d.date) \(months[min(max(d.month, 0), 11)])"
+            return d.year == parts(today).year ? base : "\(base) \(d.year)"
+        }
+
+        /// Plays with thousands separators. en-US on purpose, so the digits do not depend on the phone's region.
+        static func formatCount(_ n: Int) -> String {
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .decimal
+            formatter.locale = Locale(identifier: "en_US")
+            return formatter.string(from: NSNumber(value: n)) ?? String(n)
+        }
+
+        /// "1 play", "1,204 plays".
+        static func playsCount(_ n: Int) -> String {
+            n == 1 ? "1 play" : "\(formatCount(n)) plays"
+        }
+
+        /// "Today", "Last week", "3 months ago": the name of a period on the control.
+        static func periodLabel(_ selection: PeriodSelection) -> String {
+            let back = selection.back
+            switch selection.kind {
+            case .all: return "All time"
+            case .today: return back == 0 ? "Today" : back == 1 ? "Yesterday" : "\(back) days ago"
+            case .week: return back == 0 ? "This week" : back == 1 ? "Last week" : "\(back) weeks ago"
+            case .month: return back == 0 ? "This month" : back == 1 ? "Last month" : "\(back) months ago"
+            case .year: return back == 0 ? "This year" : back == 1 ? "Last year" : "\(back) years ago"
+            }
+        }
+
+        /// The same period inside a sentence: "this week", "last month".
+        static func periodWhen(_ selection: PeriodSelection) -> String {
+            if selection.kind == .all { return "so far" }
+            let label = periodLabel(selection)
+            return label.prefix(1).lowercased() + label.dropFirst()
+        }
+
+        /// The dates under the period's name: "12 to 18 Oct", "September 2026", "2026".
+        static func periodDetail(_ selection: PeriodSelection, range: DayRange, today: String) -> String {
+            let from = parts(range.from)
+            let to = parts(range.to)
+            switch selection.kind {
+            case .all:
+                return "Everything counted"
+            case .today:
+                return "\(weekdays[PlayPeriods.weekday(of: range.from)]) \(shortDay(range.from, today: today))"
+            case .week:
+                if range.from == range.to { return shortDay(range.from, today: today) }
+                return from.month == to.month && from.year == to.year
+                    ? "\(from.date) to \(shortDay(range.to, today: today))"
+                    : "\(shortDay(range.from, today: today)) to \(shortDay(range.to, today: today))"
+            case .month:
+                return "\(monthsLong[min(max(from.month, 0), 11)]) \(from.year)"
+            case .year:
+                return String(from.year)
+            }
+        }
+
+        /// "You played your tracks 121 times this week, mostly Night Bus to Nowhere."
+        static func digestSentence(_ selection: PeriodSelection, total: Int, topTrack: String?) -> String {
+            guard total > 0, let topTrack else {
+                return selection.kind == .all ? "No plays counted yet." : emptyPeriodLine(selection)
+            }
+            let times = total == 1 ? "time" : "times"
+            return selection.kind == .all
+                ? "You have played your tracks \(formatCount(total)) \(times) so far, mostly \(topTrack)."
+                : "You played your tracks \(formatCount(total)) \(times) \(periodWhen(selection)), mostly \(topTrack)."
+        }
+
+        /// The quiet line for a period with no plays (when plays exist from before it).
+        static func emptyPeriodLine(_ selection: PeriodSelection) -> String {
+            let when = periodWhen(selection)
+            return selection.back == 0 ? "No plays yet \(when)." : "No plays \(when)."
+        }
+
+        /// The "last played" column: "Today", "Yesterday", "3 days ago", then the date; a dash when no day is known.
+        static func lastPlayedLabel(_ day: String?, today: String) -> String {
+            guard let day, !day.isEmpty else { return "–" }
+            if day >= today { return "Today" }
+            if day == PlayPeriods.addDays(today, -1) { return "Yesterday" }
+            for n in 2...6 where day == PlayPeriods.addDays(today, -n) { return "\(n) days ago" }
+            return shortDay(day, today: today)
+        }
+    }
 }

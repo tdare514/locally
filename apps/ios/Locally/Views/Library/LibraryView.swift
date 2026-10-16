@@ -18,6 +18,8 @@ struct LibraryView: View {
     @Binding var selectedTab: RootView.Tab
     /// Tells the Import tab which flow to open (single or album).
     @Binding var requestedImportKind: ImportKind?
+    /// An artist name the Stats tab wants the library searched for; applied to the search box, then cleared.
+    @Binding var librarySearchRequest: String?
 
     @State private var releases: [Release] = []
     @State private var errorMessage: String?
@@ -146,6 +148,11 @@ struct LibraryView: View {
             // `.onAppear` (not `.task`) so returning from `ReleaseDetailView`
             // after a save/delete re-reads the store and reflects it here.
             .onAppear { load() }
+            .onChange(of: librarySearchRequest) { _, name in
+                guard let name else { return }
+                query = name
+                librarySearchRequest = nil
+            }
             .stickyFooter(isPresented: !releases.isEmpty) {
                 Button(Copy.Library.addASong) { startImport(nil) }
                     .buttonStyle(PrimaryPillButtonStyle())

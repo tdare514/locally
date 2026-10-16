@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Top-level switch: onboarding until Spotify's folder is connected, then
-/// the app's three tabs. Reads `FolderStatus` from the environment so it
+/// the app's four tabs. Reads `FolderStatus` from the environment so it
 /// updates the moment onboarding (or a reconnect in Settings) finishes.
 struct RootView: View {
     @Environment(\.appContainer) private var container
@@ -22,8 +22,12 @@ struct RootView: View {
     /// the user chose (single or album). `ImportView` clears it once applied.
     @State private var requestedImportKind: ImportKind?
 
+    /// Set by the Stats tab when an artist is opened, so the Library shows just their releases.
+    /// `LibraryView` puts it in its search box and clears it.
+    @State private var librarySearchRequest: String?
+
     enum Tab: Int {
-        case library = 0, importSong = 1, settings = 2
+        case library = 0, importSong = 1, settings = 2, stats = 3
     }
 
     var body: some View {
@@ -32,7 +36,7 @@ struct RootView: View {
                 OnboardingView { hasFinishedOnboarding = true }
             } else {
                 TabView(selection: $selectedTab) {
-                    LibraryView(selectedTab: $selectedTab, requestedImportKind: $requestedImportKind)
+                    LibraryView(selectedTab: $selectedTab, requestedImportKind: $requestedImportKind, librarySearchRequest: $librarySearchRequest)
                         .environment(\.isTabSelected, selectedTab == .library)
                         .tabItem { Label(Copy.Library.title, systemImage: "music.note.list") }
                         .tag(Tab.library)
@@ -41,6 +45,11 @@ struct RootView: View {
                         .environment(\.isTabSelected, selectedTab == .importSong)
                         .tabItem { Label(Copy.Import.title, systemImage: "plus.circle") }
                         .tag(Tab.importSong)
+
+                    StatsTab(selectedTab: $selectedTab, librarySearchRequest: $librarySearchRequest)
+                        .environment(\.isTabSelected, selectedTab == .stats)
+                        .tabItem { Label(Copy.Stats.tabLabel, systemImage: "chart.bar") }
+                        .tag(Tab.stats)
 
                     SettingsView()
                         .environment(\.isTabSelected, selectedTab == .settings)

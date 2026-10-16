@@ -10,7 +10,9 @@ struct ComponentGallery: View {
         // #205: the release page's tracks panel (the shared `TrackRow`, preset rows).
         "release-tracks",
         // Kind switch and cover glow buttons, on the studio backdrop.
-        "controls"]
+        "controls",
+        // #204: the real Stats page over sample plays.
+        "stats-week", "stats-albums-grid", "stats-artists", "stats-quiet", "stats-signed-out", "stats-large-text", "stats-week-scrolled", "stats-grid-scrolled"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -29,7 +31,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls"].contains(name)
+        name.hasPrefix("stats-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls"].contains(name)
     }
 
     var body: some View {
@@ -114,6 +116,22 @@ struct ComponentGallery: View {
         case "settings-scrolled":
             // Opens at the bottom of the page, to see the lower groups and the edge fade.
             Self.settings(signedIn: true).defaultScrollAnchor(.bottom)
+        case "stats-week":
+            StatsGallery.page(.week)
+        case "stats-week-scrolled":
+            StatsGallery.page(.week).defaultScrollAnchor(.bottom)
+        case "stats-albums-grid":
+            StatsGallery.page(.albumsGrid)
+        case "stats-grid-scrolled":
+            StatsGallery.page(.albumsGrid).defaultScrollAnchor(.bottom)
+        case "stats-artists":
+            StatsGallery.page(.artists)
+        case "stats-quiet":
+            StatsGallery.page(.quiet)
+        case "stats-signed-out":
+            StatsGallery.page(.signedOut)
+        case "stats-large-text":
+            StatsGallery.page(.week).dynamicTypeSize(.accessibility2)
         case "release-tracks":
             Self.releaseTracks
         case "controls":
@@ -213,6 +231,107 @@ struct ComponentGallery: View {
         )
         status.quota = SyncQuota(usedBytes: 42 * 1_048_576, limitBytes: 500 * 1_048_576)
         return status
+    }
+}
+
+// MARK: - Stats sample data (#204)
+
+/// A `PlayStatsReading` that answers with a fixed read, for the gallery.
+final class GalleryPlayStats: PlayStatsReading {
+    private let read: PlayStatsRead
+    init(_ read: PlayStatsRead) { self.read = read }
+    func summary(from: String, to: String, force: Bool) async -> PlayStatsRead { read }
+}
+
+/// The real `StatsView` over eight sample releases (fourteen tracks, three to forty-eight plays).
+enum StatsGallery {
+    enum Mode { case week, albumsGrid, artists, quiet, signedOut }
+
+    private static func id(_ n: Int) -> UUID { UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", n))! }
+
+    struct Seed {
+        var n: Int
+        var artist: String
+        var title: String
+        var genre: String
+        var colors: [UIColor]
+        var tracks: [(title: String, plays: Int, daysAgo: Int)]
+        var releaseID: UUID { UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", n))! }
+    }
+
+    private static let seeds: [Seed] = [
+        Seed(n: 1, artist: "Mira Valdane", title: "Night Bus to Nowhere", genre: "Indie pop", colors: [.systemIndigo, .systemPurple, .systemPink],
+             tracks: [("Night Bus to Nowhere", 48, 0), ("Orange Streetlight", 31, 1), ("Paper Moon", 12, 4)]),
+        Seed(n: 2, artist: "The Salt Line", title: "Low Tide", genre: "Folk", colors: [.systemTeal, .systemBlue, .systemIndigo],
+             tracks: [("Low Tide", 36, 0), ("Harbour Lights", 22, 2)]),
+        Seed(n: 3, artist: "Okoro", title: "Saltwater Hymns", genre: "Ambient", colors: [UIColor(red: 0.95, green: 0.75, blue: 0.30, alpha: 1), .systemOrange, .systemRed],
+             tracks: [("Tide", 27, 1), ("Hymn", 9, 5)]),
+        Seed(n: 4, artist: "Quiet Orchard", title: "Paper Lanterns", genre: "Dream pop", colors: [.systemGreen, .systemMint, .systemTeal],
+             tracks: [("Lanterns", 19, 3)]),
+        Seed(n: 5, artist: "Neon Harbor", title: "Midnight Drive", genre: "Synthwave", colors: [.systemPink, .systemPurple, .systemBlue],
+             tracks: [("Midnight Drive", 15, 2), ("Afterglow", 8, 6)]),
+        Seed(n: 6, artist: "Mira Valdane", title: "Kitchen Radio", genre: "Indie pop", colors: [.systemYellow, .systemOrange, .systemPink],
+             tracks: [("Kitchen Radio", 7, 6)]),
+        Seed(n: 7, artist: "Juniper Hale", title: "Slow Fires", genre: "Country", colors: [UIColor(red: 0.45, green: 0.20, blue: 0.10, alpha: 1), .systemOrange, .systemYellow],
+             tracks: [("Slow Fires", 5, 4), ("Cold Coffee", 3, 6)]),
+        Seed(n: 8, artist: "Okoro", title: "Night Bus", genre: "Ambient", colors: [UIColor(red: 0.05, green: 0.06, blue: 0.12, alpha: 1), UIColor(red: 0.09, green: 0.11, blue: 0.20, alpha: 1)],
+             tracks: [("Night Bus", 4, 5)]),
+    ]
+
+    private static func trackID(_ seed: Seed, _ index: Int) -> UUID { id(seed.n * 100 + index + 1) }
+
+    static let releases: [Release] = seeds.map { seed in
+        Release(
+            id: id(seed.n), kind: seed.tracks.count > 1 ? .album : .single, title: seed.title, artist: seed.artist,
+            genre: seed.genre, coverPath: "/cover/\(seed.n).png", folderPath: "/lib/\(seed.n)",
+            tracks: seed.tracks.enumerated().map { i, t in
+                Track(id: trackID(seed, i), title: t.title, trackNumber: i + 1, filePath: "t\(seed.n)-\(i).mp3", originalName: "t\(seed.n)-\(i).mp3", durationSec: 200)
+            }
+        )
+    }
+
+    private static let covers: [UUID: Data] = Dictionary(uniqueKeysWithValues: seeds.map { ($0.releaseID, SampleArtwork.cover($0.colors, size: 360).pngData() ?? Data()) })
+
+    private static func summary(empty: Bool) -> PlaysSummary {
+        var tracks: [PlayCount] = []
+        var allTime: [PlayCount] = []
+        for seed in seeds {
+            for (i, t) in seed.tracks.enumerated() {
+                let day = PlayPeriods.localDayString(Date().addingTimeInterval(-86_400 * Double(t.daysAgo)), calendar: .current)
+                let tid = trackID(seed, i).uuidString.lowercased()
+                let rid = id(seed.n).uuidString.lowercased()
+                if !empty { tracks.append(PlayCount(trackId: tid, releaseId: rid, plays: t.plays, lastPlayedDay: day)) }
+                allTime.append(PlayCount(trackId: tid, releaseId: rid, plays: t.plays * 4, lastPlayedDay: nil))
+            }
+        }
+        return PlaysSummary(tracks: tracks, allTime: allTime)
+    }
+
+    @MainActor
+    static func page(_ mode: Mode) -> some View {
+        let defaults = UserDefaults(suiteName: "gallery.stats")!
+        defaults.removePersistentDomain(forName: "gallery.stats")
+        defaults.set(StatsPeriodKind.week.rawValue, forKey: StatsViewModel.periodKey)
+        switch mode {
+        case .albumsGrid:
+            defaults.set(StatsKind.albums.rawValue, forKey: StatsViewModel.tabKey)
+            defaults.set(StatsLayout.grid.rawValue, forKey: StatsViewModel.layoutKey)
+        case .artists:
+            defaults.set(StatsKind.artists.rawValue, forKey: StatsViewModel.tabKey)
+        default:
+            break
+        }
+        let read: PlayStatsRead = mode == .signedOut ? .signedOut : .ok(summary(empty: mode == .quiet))
+        let model = StatsViewModel(stats: GalleryPlayStats(read), releases: { releases }, defaults: defaults)
+        let cache = StatsCoverCache(loader: { covers[$0] })
+        return TabView {
+            StatsView(model: model, cache: cache, selectedTab: .constant(.stats), librarySearchRequest: .constant(nil))
+                .tabItem { Label(Copy.Stats.tabLabel, systemImage: "chart.bar") }
+        }
+        .tint(Theme.accent)
+        .environment(FolderStatus(isConnected: true))
+        .environment(PurchaseStatus(isFullUnlocked: false))
+        .environment(SyncStatus())
     }
 }
 
