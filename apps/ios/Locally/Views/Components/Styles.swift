@@ -592,20 +592,30 @@ extension View {
     /// line 16 pt in from the screen edge; now the cut is at the edge itself. Its rows add
     /// `Theme.Immersive.recordRowSideInset`, so nothing moves.
     @ViewBuilder func recordListSection() -> some View {
+        // `listSectionMargins` is in the iOS 26 SDK only (Xcode 26, Swift 6.2); CI builds with Xcode 16.
+        #if compiler(>=6.2)
         if #available(iOS 26, *) {
             listSectionMargins(.horizontal, 0)
         } else {
             self
         }
+        #else
+        self
+        #endif
     }
 
     /// A panel section beside the record, at `Theme.Immersive.listSideMargin` on every width.
     @ViewBuilder func panelListSection() -> some View {
+        // `listSectionMargins` is in the iOS 26 SDK only (Xcode 26, Swift 6.2); CI builds with Xcode 16.
+        #if compiler(>=6.2)
         if #available(iOS 26, *) {
             listSectionMargins(.horizontal, Theme.Immersive.listSideMargin)
         } else {
             self
         }
+        #else
+        self
+        #endif
     }
 }
 

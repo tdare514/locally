@@ -264,8 +264,12 @@ enum Theme {
         static let listSideMargin: CGFloat = 16
         /// The record section's row side inset. On iOS 26 that section is full width (see
         /// `recordListSection()`) and its rows carry `listSideMargin`; earlier, the list's margin does.
+        /// Built with an SDK before iOS 26 (Xcode 16, CI) there is no section margin to clear, so 0.
         static var recordRowSideInset: CGFloat {
-            if #available(iOS 26, *) { listSideMargin } else { 0 }
+            #if compiler(>=6.2)
+            if #available(iOS 26, *) { return listSideMargin }
+            #endif
+            return 0
         }
         /// Empty-sleeve caption spacing.
         static let sleeveCaptionPadding: CGFloat = 16
