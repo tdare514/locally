@@ -1,6 +1,7 @@
 import { and, eq, inArray, lt, sql } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { authCodes, files, pendingDeletes, playCounts, rateLimits, releases } from "../../db/schema";
+import { authCodes, files, pendingDeletes, playCounts, playDays, rateLimits, releases } from "../../db/schema";
+import { PLAY_DAY_RETENTION_DAYS, utcDay } from "../../shared/days";
 import type { FileStore } from "../files/FileStore";
 
 const TOMBSTONE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -12,6 +13,10 @@ export interface CleanupResult {
   deletedFiles: number;
   /** `play_counts` rows of tombstoned releases past the same retention as their files. */
   deletedPlayCounts: number;
+  /** `play_days` rows of those tombstoned releases. */
+  deletedPlayDays: number;
+  /** `play_days` rows more than 400 days before today's UTC date (retention). */
+  expiredPlayDays: number;
   deletedAuthCodes: number;
   deletedRateLimits: number;
   /** Blobs of deleted accounts removed from `pending_deletes` this run (see `AccountService`). */
@@ -162,6 +167,25 @@ export class CleanupService {
       )
       .returning({ trackId: playCounts.trackId });
 
+    const staleTombstonePlayDays = await this.db
+      .delete(playDays)
+      .where(
+        inArray(
+          playDays.releaseId,
+          this.db
+            .select({ id: releases.id })
+            .from(releases)
+            .where(and(eq(releases.deleted, true), lt(releases.serverUpdatedAt, cutoff)))
+        )
+      )
+      .returning({ trackId: playDays.trackId });
+
+    // Retention: day buckets older than 400 days (UTC date), live or not.
+    const expiredPlayDays = await this.db
+      .delete(playDays)
+      .where(lt(playDays.day, utcDay(this.now(), -PLAY_DAY_RETENTION_DAYS)))
+      .returning({ trackId: playDays.trackId });
+
     let deletedAuthCodes = 0;
     for (;;) {
       const expiredCodes = await this.db
@@ -192,6 +216,8 @@ export class CleanupService {
     return {
       deletedFiles,
       deletedPlayCounts: stalePlayCounts.length,
+      deletedPlayDays: staleTombstonePlayDays.length,
+      expiredPlayDays: expiredPlayDays.length,
       deletedAuthCodes,
       deletedRateLimits: staleRateLimits.length,
       drainedPendingDeletes,

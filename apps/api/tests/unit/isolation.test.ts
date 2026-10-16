@@ -19,6 +19,7 @@ import * as devicesRoute from "../../src/app/v1/devices/[id]/route";
 import * as releasesListRoute from "../../src/app/v1/releases/route";
 import * as releaseRoute from "../../src/app/v1/releases/[id]/route";
 import * as playsRoute from "../../src/app/v1/plays/route";
+import * as playsSummaryRoute from "../../src/app/v1/plays/summary/route";
 import * as releasePlaysRoute from "../../src/app/v1/releases/[id]/plays/route";
 import * as filesRoute from "../../src/app/v1/releases/[id]/files/route";
 import * as fileDownloadRoute from "../../src/app/v1/releases/[id]/files/[name]/route";
@@ -143,6 +144,18 @@ describe("cross-user isolation", () => {
     expect(alicePlays.status).toBe(200);
     expect(await alicePlays.json()).toEqual({ accepted: 1, ignored: 0 });
 
+    // ...and a day bucket for today, so the summary has something of Alice's to leak.
+    const today = new Date().toISOString().slice(0, 10);
+    const aliceDays = await playsRoute.PUT(
+      jsonRequest("http://localhost/v1/plays", "PUT", {
+        counts: [{ releaseId: record.id, trackId: track.id, count: 5, days: [{ day: today, count: 2 }] }],
+      }, alice.token)
+    );
+    expect(aliceDays.status).toBe(200);
+    const summaryUrl = `http://localhost/v1/plays/summary?from=${today}&to=${today}`;
+    const summaryAs = (token: string) =>
+      playsSummaryRoute.GET(new Request(summaryUrl, { headers: { authorization: `Bearer ${token}` } }));
+
     cases.push({
       name: "GET release/:id/plays",
       run: () =>
@@ -171,6 +184,19 @@ describe("cross-user isolation", () => {
       const res = await run();
       expect(res.status, `${name} should 404, not leak existence via another status`).toBe(404);
     }
+
+    // GET /v1/plays/summary: Bob sees none of Alice's tracks, Alice sees hers; no token is refused.
+    const bobSummary = await summaryAs(bob.token);
+    expect(bobSummary.status).toBe(200);
+    expect(await bobSummary.json()).toEqual({ tracks: [], allTime: [], nextCursor: null });
+    const aliceSummary = await summaryAs(alice.token);
+    expect(aliceSummary.status).toBe(200);
+    expect(await aliceSummary.json()).toEqual({
+      tracks: [{ trackId: track.id, releaseId: record.id, plays: 2, lastPlayedDay: today }],
+      allTime: [{ trackId: track.id, releaseId: record.id, plays: 5 }],
+      nextCursor: null,
+    });
+    expect((await playsSummaryRoute.GET(new Request(summaryUrl))).status).toBe(401);
 
     // GET /v1/releases (list) never includes Alice's release for Bob.
     const bobList = await releasesListRoute.GET(
