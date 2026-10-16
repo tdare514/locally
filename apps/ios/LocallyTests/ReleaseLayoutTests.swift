@@ -62,6 +62,20 @@ struct ReleaseLayoutTests {
         #expect(!layout.isInside(folder: folder, path: "/tmp/SpotifyFolder"))
     }
 
+    /// #281: on a device the temp folder exists (Foundation drops `/private`
+    /// from it) but the file to download doesn't (it keeps `/private`).
+    @Test func aNotYetCreatedFileInsideAnExistingPrivateFolderIsInside() {
+        let privateTmp = URL(fileURLWithPath: "/private/tmp", isDirectory: true)
+        #expect(layout.isInside(folder: privateTmp, path: "/private/tmp/locally-isinside-\(UUID().uuidString)/cover.jpg"))
+    }
+
+    @Test func privateFolderStillRejectsSiblingsItselfAndEscapes() {
+        let privateTmp = URL(fileURLWithPath: "/private/tmp", isDirectory: true)
+        #expect(!layout.isInside(folder: privateTmp, path: "/private/tmpx/a"))
+        #expect(!layout.isInside(folder: privateTmp, path: "/private/tmp"))
+        #expect(!layout.isInside(folder: privateTmp, path: "/private/tmp/../etc/x"))
+    }
+
     // MARK: - isPlainFileName (sync record names)
 
     @Test func plainFileNamesFromBothPlatformsAreAccepted() {
