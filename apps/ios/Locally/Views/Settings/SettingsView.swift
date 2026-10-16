@@ -10,6 +10,9 @@ struct SettingsView: View {
     @Environment(FolderStatus.self) private var folderStatus
     @Environment(PurchaseStatus.self) private var purchaseStatus
 
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage(BackdropMotion.keepMovingKey) private var keepBackdropsMoving = false
+
     @State private var isPresentingFolderPicker = false
     @State private var isPresentingPaywall = false
     @State private var errorMessage: String?
@@ -43,8 +46,20 @@ struct SettingsView: View {
 
                         GlassSection(title: Copy.Settings.purchaseSection) { purchaseCard }
 
-                        GlassSection(title: Copy.Settings.appIcon) {
-                            GlassCard { AppIconPicker().padding(16) }
+                        GlassSection(
+                            title: Copy.Settings.appIcon,
+                            footnote: systemReduceMotion
+                                ? Copy.Settings.keepBackdropsMovingHintReduced
+                                : Copy.Settings.keepBackdropsMovingHint
+                        ) {
+                            GlassCard {
+                                AppIconPicker().padding(16)
+                                GlassDivider()
+                                GlassToggleRow(
+                                    symbol: "sparkles", tint: Theme.Tint.slate,
+                                    title: Copy.Settings.keepBackdropsMoving, isOn: $keepBackdropsMoving
+                                )
+                            }
                         }
 
                         GlassSection(title: Copy.Settings.about) { aboutCard }
