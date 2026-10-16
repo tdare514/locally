@@ -103,7 +103,7 @@ struct ID3KeepOtherFramesTests {
         #expect(outAudio == audio)
         for id in ["TIT2", "TPE1", "TALB", "TDRC", "TYER"] { #expect(frames.filter { $0.id == id }.count == 1, "\(id)") }
         #expect(payloads(frames, "TIT2") == [text("New Title")])
-        #expect(payloads(frames, "TYER") == [text("2026")])
+        #expect(payloads(frames, "TYER") == [[0x00] + Array("2026".utf8)]) // ISO-8859-1
         #expect(payloads(frames, "TCOM") == [text("The Composer")])
         #expect(payloads(frames, "TBPM") == [text("120")])
         #expect(payloads(frames, "USLT").count == 1)

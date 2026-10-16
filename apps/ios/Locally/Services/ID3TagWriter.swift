@@ -143,7 +143,7 @@ final class ID3TagWriter: TagWriter {
             frames.append(textFrame("TDRC", year))
             // Spotify reads an mp3's year only from TYER, so a plain 4-digit year goes there too.
             if Self.isFourDigitYear(year) {
-                frames.append(textFrame("TYER", year))
+                frames.append(latin1TextFrame("TYER", year))
             }
         }
         if let genre = tags.genre, !genre.isEmpty {
@@ -159,6 +159,14 @@ final class ID3TagWriter: TagWriter {
         var payload = Data()
         payload.append(textEncodingUTF8)
         payload.append(text.data(using: .utf8) ?? Data())
+        return frame(frameId, payload: payload)
+    }
+
+    /// A text frame in ISO-8859-1 (encoding byte 0x00), the one encoding every ID3 reader
+    /// supports. Used for TYER, whose 4 ASCII digits are the same bytes in either encoding.
+    private func latin1TextFrame(_ frameId: String, _ text: String) -> Data {
+        var payload = Data([0x00])
+        payload.append(text.data(using: .isoLatin1) ?? Data())
         return frame(frameId, payload: payload)
     }
 

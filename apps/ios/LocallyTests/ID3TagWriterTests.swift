@@ -102,6 +102,7 @@ struct ID3TagWriterTests {
         let (frames, _) = parse(try Data(contentsOf: url))
         #expect(textValue(frames["TDRC"]!) == "2026")
         #expect(textValue(frames["TYER"]!) == "2026")
+        #expect(frames["TYER"]!.first == 0x00, "TYER is ISO-8859-1, the encoding every reader supports")
     }
 
     @Test func aYearThatIsNotFourDigitsWritesNoTYER() async throws {
