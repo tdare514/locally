@@ -85,7 +85,7 @@ enum Copy {
         static let recentCovers = "Recent covers"
         /// VoiceOver label of one recent cover: the release it came from.
         static func recentCoverLabel(title: String, artist: String) -> String {
-            artist.isEmpty ? title : "\(title), \(artist)"
+            "Use the cover of \(title)"
         }
         /// The hint read after the record sleeve's own label.
         static let sleeveHint = "Choose a cover from Photos or Files"

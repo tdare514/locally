@@ -79,6 +79,7 @@ struct CoverGlowButtonStyle: ButtonStyle {
     var pinnedPressed: Bool = false
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var fullMinHeight: CGFloat = 52
     @ScaledMetric(relativeTo: .body) private var compactMinHeight: CGFloat = 40
 
@@ -110,7 +111,7 @@ struct CoverGlowButtonStyle: ButtonStyle {
                         Theme.background.opacity(Theme.Import.coverGlowBaseOpacity)
                         GlowGlass()
                         if isEnabled {
-                            CoverGlowClouds(first: first, second: second, bright: pressed)
+                            CoverGlowClouds(first: first, second: second, bright: pressed, restOpacity: dynamicTypeSize.isAccessibilitySize ? Theme.Import.coverGlowRestAccessibility : Theme.Import.coverGlowRest)
                             CoverGlowShimmer(pressed: pressed, pinned: pinnedPressed, enabled: !reduceMotion)
                             GlowLabelPool(lit: true)
                         }
@@ -130,6 +131,7 @@ private struct CoverGlowClouds: View {
     let first: Color
     let second: Color
     let bright: Bool
+    let restOpacity: Double
 
     var body: some View {
         GeometryReader { geo in
@@ -144,7 +146,7 @@ private struct CoverGlowClouds: View {
                     .position(x: w * 0.7, y: h * 1.0)
             }
             .blur(radius: 16)
-            .opacity(bright ? Theme.Import.coverGlowPressed : Theme.Import.coverGlowRest)
+            .opacity(bright ? Theme.Import.coverGlowPressed : restOpacity)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)

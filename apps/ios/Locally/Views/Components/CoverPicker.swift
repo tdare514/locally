@@ -15,7 +15,10 @@ import UniformTypeIdentifiers
 struct CoverPicker: View {
     /// Which of the two presentations to draw. See `docs/design.md`'s
     /// "Cover drop zone" and "Editor / release detail" components.
-    enum Style { case dropZone, hero, compact, thumb }
+    ///
+    /// `.cropHostOnly` draws nothing (so VoiceOver reaches no control) and only hosts the crop
+    /// sheet and the `rawPick` handling, for a screen that has its own cover controls.
+    enum Style { case dropZone, hero, compact, thumb, cropHostOnly }
 
     @Binding var imageData: Data?
     /// The parent owns the file importer: SwiftUI honours only one
@@ -41,6 +44,7 @@ struct CoverPicker: View {
             case .hero: heroBody
             case .compact: compactBody
             case .thumb: thumbBody
+            case .cropHostOnly: Color.clear
             }
         }
         // The Photos picker is attached here, to a view that stays in the

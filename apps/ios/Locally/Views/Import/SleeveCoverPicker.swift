@@ -65,7 +65,7 @@ struct SleeveCoverPicker: View {
         }
         // The crop sheet's host; invisible and inert.
         .background {
-            CoverPicker(imageData: $imageData, rawPick: $rawPick, style: .compact, onPickFromFiles: onPickFromFiles)
+            CoverPicker(imageData: $imageData, rawPick: $rawPick, style: .cropHostOnly, onPickFromFiles: onPickFromFiles)
                 .frame(width: 0, height: 0)
                 .opacity(0)
                 .allowsHitTesting(false)

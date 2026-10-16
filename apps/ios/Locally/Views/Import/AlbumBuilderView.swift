@@ -36,7 +36,7 @@ struct AlbumBuilderView: View {
                     if model.rows.count >= 2 {
                         Text(Copy.Import.reorderHint)
                             .font(Theme.ScaledFont.caption)
-                            .foregroundStyle(Theme.textDim)
+                            .foregroundStyle(Theme.secondaryText)
                             .importPanelRow(.middle)
                             .accessibilityIdentifier("reorder-hint")
                     }

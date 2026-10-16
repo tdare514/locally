@@ -161,7 +161,7 @@ struct ReleaseDetailView: View {
             CoverPicker(
                 imageData: Binding(get: { model.coverData }, set: { model.coverData = $0 }),
                 rawPick: $rawCoverPick,
-                style: .thumb
+                style: .cropHostOnly
             ) {}
             .frame(width: 0, height: 0)
             .opacity(0)
@@ -272,7 +272,7 @@ struct ReleaseDetailView: View {
     private var reorderHint: some View {
         Text(Copy.Detail.reorderHint)
             .themeFont(.dropZoneHint)
-            .foregroundStyle(Theme.textDim)
+            .foregroundStyle(Theme.secondaryText)
             .accessibilityIdentifier("reorder-hint")
     }
 
