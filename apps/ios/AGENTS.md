@@ -68,6 +68,8 @@ xcodebuild test -scheme Locally -destination 'platform=iOS Simulator,name=<devic
 
 The `.storekit` test configuration only attaches when the app is run from Xcode (Product ▸ Run).
 
+Device builds for the owner's phone use `-configuration Release`: a Debug build on the owner's daily phone breaks their sync (#267).
+
 ## Before pushing
 
 Build with `xcodebuild` (required by the root `CLAUDE.md`); if a simulator is available, also run

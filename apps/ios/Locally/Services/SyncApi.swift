@@ -138,6 +138,8 @@ enum SyncApiError: LocalizedError, Equatable {
     /// A 429 on a route that rate-limits (`/v1/files/*`, #171; `/v1/plays/summary`, #204). Same scoping as `.notFound`.
     case rateLimited
     case network(String)
+    /// The request got no HTTP response at all (offline, refused, timed out). Distinct from `.network`, which also covers an HTTP error status, so a caller can tell whether the service was reached.
+    case unreachable(String)
 
     var errorDescription: String? {
         switch self {
@@ -151,7 +153,7 @@ enum SyncApiError: LocalizedError, Equatable {
             return "The sync server doesn't have that yet."
         case .rateLimited:
             return "The sync server is busy. Try again soon."
-        case .network(let message):
+        case .network(let message), .unreachable(let message):
             return message
         }
     }
@@ -463,11 +465,11 @@ final class HttpSyncApi: SyncApi {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            throw SyncApiError.network(error.localizedDescription)
+            throw SyncApiError.unreachable(error.localizedDescription)
         }
 
         guard let http = response as? HTTPURLResponse else {
-            throw SyncApiError.network("No response from the server.")
+            throw SyncApiError.unreachable("No response from the server.")
         }
         if let typed = statusErrors[http.statusCode] { throw typed }
         try Self.checkStatus(http.statusCode, data: data)
