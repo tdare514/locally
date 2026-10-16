@@ -192,7 +192,8 @@ eyebrows still apply to those labels.
     changes" sheet for the review.
     - Opens in **view mode**: each field is its label and the value as plain text, with no
       underline or placeholder; an empty value reads "Not set" in `text-dim`. Track titles are
-      plain text, rows have no grip and don't drag, the sleeve isn't a button, Delete is hidden,
+      plain text, rows have no grip and don't drag, the sleeve isn't a button (an empty one shows
+      no "Add cover art"), Delete is hidden,
       and there is no dock. Plays, the reorder hint (hidden in view mode), the plays footnote and
       the "Make it a playlist" guide stay as they are.
     - **Edit** sits at the top right in the navigation bar (the system bar item, so on iOS 26 it

@@ -199,7 +199,7 @@ struct ReleaseDetailView: View {
     private func hero(_ model: ReleaseDetailViewModel) -> some View {
         HStack {
             Spacer(minLength: 0)
-            RecordSleeve(cover: coverImage, ceremony: model.saveCount) {
+            RecordSleeve(cover: coverImage, ceremony: model.saveCount, showsAddCaption: model.isEditing) {
                 isPresentingCoverSource = true
             }
             // View mode: the sleeve is only a picture, not a button.
