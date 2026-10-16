@@ -56,6 +56,64 @@ Import. When the imported files carry a disc tag, `discNumber` is prefilled from
 ordered by (disc, the file's own track number); continuous `trackNumber` values are then assigned in that
 order. Files without disc tags import as before. Editing disc numbers in the UI is not built yet.
 
+## Tag set: what Spotify and Apple Music read (#223, 16 Oct 2026)
+
+Method. Eleven probe files, every tag set to a marker that names it ("P3 Composer"), in mp3 ID3v2.3 and
+v2.4, m4a and flac, with covers of 300, 1400 and 3000 px, were dropped into a folder Spotify desktop
+watches. What Spotify parsed was read from its own local-files index (`local-files.bnk`: title, artist,
+album, album artist, length, track, disc, year, date added, path), and the covers from its Local Files
+list on screen. Spotify desktop 1.3.5.3058 on macOS. Apple Music's fields are its scripting dictionary's
+track properties (`sdef Music.app`). Spotify on iPhone: see "On the iPhone" below.
+
+| Field | mp3 frame | m4a atom | Spotify Mac reads | Spotify shows | Apple Music | Locally today | Decision |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| title | TIT2 | ©nam | all formats | list, now playing | yes | written | keep, show |
+| artist | TPE1 | ©ART | all formats | list (under the title) | yes | written | keep, show |
+| album | TALB | ©alb | all formats | list (Album column) | yes | written | keep, show |
+| album artist | TPE2 | aART | mp3 only (not m4a, not flac) | nowhere | yes | written, = artist | keep, hidden (an editable album artist waits for the artist list, #224) |
+| track number | TRCK | trkn | all formats | nowhere (list order is Spotify's own) | yes | written | keep, show (Locally's row numbers) |
+| disc number | TPOS | disk | mp3 only | nowhere | yes | written when set | keep, show (editing is #222) |
+| year | TYER (see below) | ©day | mp3 TYER only; m4a ©day; not flac | nowhere | year, release date | Mac TYER; iPhone mp3 TDRC only, so Spotify gets no year (m4a ©day is read) | keep, show; the iPhone also writes TYER (#234); full dates are #221 |
+| genre | TCON | ©gen | no | nowhere | yes | written | keep, show (Locally's library and search, Apple Music) |
+| cover | APIC type 3 | covr | all formats | list and now playing, 300 to 3000 px all shown | yes | written, 1500 px max | keep, show; 1500 px stays |
+| composer | TCOM | ©wrt | no | no | yes | Mac keeps it; iPhone strips it | keep hidden |
+| grouping | GRP1 | ©grp | no | no | yes | as composer | keep hidden |
+| work, movement | TIT1, MVNM, MVIN | ©wrk, ©mvn, ©mvi, ©mvc | no | no | yes | as composer | keep hidden |
+| BPM | TBPM | tmpo | no | no | yes | as composer | keep hidden |
+| comment | COMM | ©cmt | no | no | yes | as composer | keep hidden |
+| lyrics | USLT | ©lyr | no | no | yes | as composer | keep hidden (a later in-app player could show them) |
+| compilation | TCMP | cpil | no | no | yes | as composer | keep hidden |
+| sort title, artist, album, album artist | TSOT, TSOP, TSOA, TSO2 | sonm, soar, soal, soaa | no | no | yes | as composer | keep hidden |
+| label, copyright, ISRC | TPUB, TCOP, TSRC | LABEL, cprt, ISRC | no | no | no field (kept in the file) | as composer | keep hidden |
+
+"Keep hidden" means Locally never shows or edits the tag, and never removes it: a file keeps whatever
+the person's other tools put there. The Mac's writer already merges (`NodeID3.update`); the iPhone's two
+writers replace the whole tag, which drops these (#235). Nothing is dropped. Rating, play count,
+favourite, EQ, start and stop times are Apple Music library data, not tags, so they are out of scope;
+Locally counts plays itself.
+
+Year in mp3. Spotify reads the year only from a TYER frame, and reads it whatever the tag's version
+(TYER inside a v2.4 tag works) and whether or not a TDAT day-and-month frame sits beside it. It ignores
+TDRC, even a bare "2001". So an mp3 writer puts the year in TYER, and where it also wants a full date
+(#221) writes TDRC with the full date beside it (Apple Music and other players read TDRC).
+
+On the iPhone. The owner AirDropped the probes into On My iPhone › Spotify and played P1 (300 px cover)
+and P3 (3000 px cover) in Spotify on an iPhone 14 (iOS 26.6.1), playing on the phone itself. Both covers
+showed full size in now playing and on the lock screen, with the title and the artist (no album). Played
+from the phone as a remote for the Mac, the same covers showed. The iPhone's own reading of album artist,
+disc and year wasn't separately measured; it has no readable index.
+
+Edits. Changing a probe's title in place reached Spotify desktop's index in about 30 seconds, as a new
+entry for the same file (the old entry stays in the index). Whether the list shows the new title without
+removing and re-adding the file is not confirmed, so Locally's "keeps the old name until it rescans" line
+stays.
+
+Sign-off. Proposed by #223; the owner signs off on the pull request that adds this section.
+
+Formats. Spotify desktop also indexes flac: title, artist, album, track number and length, and shows its
+cover, but not its album artist, disc or year. That doesn't change Locally's outputs (mp3 on the Mac,
+mp3 or AAC m4a on the iPhone).
+
 ## File layout and naming
 
 - Mac library: `<libraryDir>/<Artist>/<Album>/<NN> - <Title>.mp3` plus `cover.*`. Duplicate
@@ -80,6 +138,6 @@ order. Files without disc tags import as before. Editing disc numbers in the UI 
 
 ## Formats
 
-- Mac: anything ffmpeg reads in; always writes mp3 320 kbps (Spotify desktop reads mp3/mp4 only).
+- Mac: anything ffmpeg reads in; always writes mp3 320 kbps (Spotify desktop plays mp3/mp4; it also indexes flac with fewer tags, see "Tag set").
 - iOS: mp3 and m4a pass through untouched; wav, flac, aiff are converted to AAC m4a 256 kbps
   (iOS has no mp3 encoder). Spotify iOS reads mp3 and m4a.
