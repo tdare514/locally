@@ -41,3 +41,8 @@ export function syncStateFilePath(): string {
 export function playsFilePath(): string {
   return path.join(settingsDir(), "plays.json");
 }
+
+/** Full path to the last adopt-scan proposal (#245), next to settings.json. */
+export function adoptProposalFilePath(): string {
+  return path.join(settingsDir(), "adopt-proposal.json");
+}
