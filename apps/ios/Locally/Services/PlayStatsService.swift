@@ -116,13 +116,19 @@ final class SyncPlayStatsService: PlayStatsReading {
         }
         if let running = inFlight[key] {
             sharedJoins += 1
-            return await running.value
+            return stillCurrent(await running.value, session)
         }
         let task = Task { await self.load(key) }
         inFlight[key] = task
         let result = await task.value
         inFlight[key] = nil
-        return result
+        return stillCurrent(result, session)
+    }
+
+    /// A load can finish for one account and the phone switch before the caller resumes: what comes
+    /// back must still be for whoever is signed in when it is returned.
+    private func stillCurrent(_ result: PlayStatsRead, _ session: Identity) -> PlayStatsRead {
+        session == identity ? result : identityChanged()
     }
 
     // MARK: - Loading

@@ -357,4 +357,57 @@ struct PlayStatsServiceTests {
         #expect(await done.summary(from: "2026-10-12", to: "2026-10-15", force: true) == .ok(summary(1)))
         #expect(doneApi.playsSummaryCalls.count == 1)
     }
+
+    // MARK: - The account changes after the load finished, before the caller resumes
+
+    /// A service whose clock runs `onFirstStore` once, from inside `store` (the last thing `load`
+    /// does after its final identity check), so the account changes after the load is complete and
+    /// before the awaiting caller resumes. No timing involved.
+    private final class Hook: @unchecked Sendable {
+        var armed = false
+        var action: () -> Void = {}
+    }
+
+    private func makeHooked(script: [Result<SyncPlaysSummaryPage, Error>]) -> (Setup, Hook) {
+        let api = FakeSyncApi()
+        api.playsSummaryScript = script
+        let account = InMemorySyncAccountStore()
+        account.save(email: "a@example.com", deviceToken: "token", deviceId: "device-1")
+        let clock = TestClock()
+        let hook = Hook()
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let service = SyncPlayStatsService(api: api, account: account, now: {
+            if hook.armed { hook.armed = false; hook.action() }
+            return clock.date
+        }, defaults: defaults)
+        return (Setup(service: service, api: api, account: account, clock: clock, defaults: defaults), hook)
+    }
+
+    @Test func signingOutAfterTheLoadFinishedStillReturnsSignedOutToTheOwner() async {
+        let (s, hook) = makeHooked(script: [page(1)])
+        s.api.playsSummaryGate = { hook.armed = true } // armed once the page is on its way back
+        hook.action = { s.account.clear() }
+        #expect(await read(s) == .signedOut)
+    }
+
+    @Test func switchingAccountsAfterTheLoadFinishedReturnsFailedToTheOwner() async {
+        let (s, hook) = makeHooked(script: [page(1)])
+        s.api.playsSummaryGate = { hook.armed = true }
+        hook.action = { s.account.save(email: "b@example.com", deviceToken: "token-b", deviceId: "device-2") }
+        #expect(await read(s) == .failed)
+    }
+
+    @Test func aJoinerAlsoGetsTheIdentityChangedResult() async {
+        let (s, hook) = makeHooked(script: [page(1)])
+        let latch = Latch()
+        s.api.playsSummaryGate = { await latch.wait(); hook.armed = true }
+        hook.action = { s.account.clear() }
+        let owner = Task { await self.read(s) }
+        let joiner = Task { await self.read(s, force: true) }
+        for _ in 0..<2000 where s.service.sharedJoins < 1 { try? await Task.sleep(nanoseconds: 2_000_000) }
+        #expect(s.service.sharedJoins == 1)
+        latch.release()
+        #expect(await owner.value == .signedOut)
+        #expect(await joiner.value == .signedOut)
+    }
 }

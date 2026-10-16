@@ -333,6 +333,7 @@ struct StatsView: View {
                 label: Copy.Stats.fanLabel(count: top.count, noun: noun), cache: cache,
                 ownerOf: { model.coverOwner(of: $0) }, isMotionActive: motionActive,
                 isScreenActive: scenePhase == .active && isTabSelected,
+                requestKey: "\(model.tab.rawValue)-\(model.period.kind.rawValue)-\(model.period.back)",
                 armed: $armed, onOpen: open
             )
             .id(fanKey)

@@ -122,6 +122,9 @@ struct StatsFan: View {
     let isMotionActive: Bool
     /// Whether the screen is in use (app in the foreground, this tab selected). Leaving it cancels an opening beat.
     let isScreenActive: Bool
+    /// The tab and period asked for, which change the moment they are chosen (the fan itself is
+    /// keyed by what was last shown, so it stays mounted while a slow read lands). A change cancels a beat.
+    let requestKey: String
     @Binding var armed: Int?
     let onOpen: (StatItem) -> Void
 
@@ -159,6 +162,7 @@ struct StatsFan: View {
         }
         .frame(width: width)
         .onDisappear(perform: cancelOpening)
+        .onChange(of: requestKey) { _, _ in cancelOpening() }
         .onChange(of: isScreenActive) { _, active in
             if !active { cancelOpening() }
         }
