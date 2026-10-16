@@ -113,6 +113,8 @@ enum DiscNumbering {
     static func startDisc(at index: Int, in discs: [Int?]) -> [Int?] {
         let starts = rangeStarts(discs)
         guard index > 0, index < discs.count, !starts.contains(index) else { return discs }
+        // The highest disc after the split must still be a valid one.
+        guard (discs.first.flatMap { $0 } ?? 1) + starts.count <= maxDisc else { return discs }
         return renumber(discs, starts: (starts + [index]).sorted())
     }
 
@@ -123,6 +125,12 @@ enum DiscNumbering {
         let starts = rangeStarts(discs)
         guard index > 0, starts.contains(index) else { return discs }
         return renumber(discs, starts: starts.filter { $0 != index })
+    }
+
+    /// Where each disc after the first begins: its disc number and the 1-based track it starts at. Empty
+    /// for a release with one disc or none. The review sheet words the layout from this (#222).
+    static func boundaries(for discs: [Int?]) -> [(disc: Int, track: Int)] {
+        rangeStarts(discs).dropFirst().map { (disc: discs[$0] ?? 1, track: $0 + 1) }
     }
 
     /// What the disc menu offers on a row, as the disc numbers its labels show.
@@ -142,6 +150,8 @@ enum DiscNumbering {
         let base = discs.first.flatMap { $0 } ?? 1
         if let position = starts.firstIndex(of: index) { return Actions(join: base + position - 1) }
         let range = starts.filter { $0 < index }.count - 1
+        // No Start when the highest disc after the split would pass `maxDisc`.
+        guard base + starts.count <= maxDisc else { return Actions() }
         return Actions(start: base + range + 1)
     }
 

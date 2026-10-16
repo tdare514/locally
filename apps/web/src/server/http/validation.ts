@@ -141,7 +141,7 @@ const updateMetaSchema = z.object(
             id: text().min(1, "is required"),
             title: text().optional(),
             trackNumber: trackNumberSchema.optional(),
-            discNumber: discNumberSchema.optional(),
+            discNumber: discNumberSchema.nullable().optional(),
           },
           { error: "must be an object" }
         ),

@@ -249,3 +249,21 @@ describe("start and join a disc (#222)", () => {
     expect(list).toEqual(copy);
   });
 });
+
+describe("discs stop at 99 (#222)", () => {
+  const rows = (discs: number[]) => discs.map((discNumber, i) => ({ key: `t${i}`, discNumber }));
+  const discsOf = (list: { discNumber?: number }[]) => list.map((r) => r.discNumber);
+
+  it("offers no Start on [99,99] and leaves the discs as they are", () => {
+    expect(discActionsFor([99, 99], 1)).toEqual({});
+    expect(discsOf(startDiscAt(rows([99, 99]), 1))).toEqual([99, 99]);
+  });
+
+  it("splits [98,98,98] at 1 to [98,99,99], then offers no further Start", () => {
+    const once = startDiscAt(rows([98, 98, 98]), 1);
+    expect(discsOf(once)).toEqual([98, 99, 99]);
+    expect(discActionsFor(discsOf(once), 2)).toEqual({});
+    expect(discsOf(startDiscAt(once, 2))).toEqual([98, 99, 99]);
+    expect(discActionsFor(discsOf(once), 1)).toEqual({ join: 98 });
+  });
+});

@@ -97,6 +97,13 @@ struct ReleaseReviewSheet: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(Copy.Import.tracks)
             .accessibilityValue(Copy.Release.changedFrom(display(old), to: display(new)))
+        case .discs(let old, let new):
+            labelled(Copy.Release.discs) {
+                oldNew(old: old, new: new)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Copy.Release.discs)
+            .accessibilityValue(Copy.Release.changedFrom(old, to: new))
         case .trackOrder:
             Text(Copy.Release.trackOrderChanged)
                 .font(Theme.ScaledFont.input)

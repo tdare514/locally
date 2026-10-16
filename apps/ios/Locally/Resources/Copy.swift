@@ -190,6 +190,15 @@ enum Copy {
         static let save = "Save"
         static let keepEditing = "Keep editing"
         static let trackOrderChanged = "Track order changed"
+        /// The review sheet's disc row (#222): the layout, not every track.
+        static let discs = "Discs"
+        static let noDiscs = "No discs"
+        /// "Disc 2 starts at track 4", "Disc 2 starts at track 4, disc 3 at track 9", or "No discs".
+        static func discLayout(_ boundaries: [(disc: Int, track: Int)]) -> String {
+            guard let first = boundaries.first else { return noDiscs }
+            let rest = boundaries.dropFirst().map { "disc \($0.disc) at track \($0.track)" }
+            return (["Disc \(first.disc) starts at track \(first.track)"] + rest).joined(separator: ", ")
+        }
         static let cover = "Cover"
         /// VoiceOver for the review sheet's cover row.
         static let coverChanged = "Cover changed"

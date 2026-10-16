@@ -124,6 +124,8 @@ function renumberRanges<T extends { discNumber?: number }>(tracks: readonly T[],
 export function startDiscAt<T extends { discNumber?: number }>(tracks: readonly T[], index: number): T[] {
   const starts = discStarts(tracks.map((t) => t.discNumber));
   if (index <= 0 || index >= tracks.length || starts.includes(index)) return tracks.slice();
+  // The highest disc after the split must still be a valid one.
+  if ((tracks[0].discNumber ?? 1) + starts.length > MAX_DISC_NUMBER) return tracks.slice();
   return renumberRanges(tracks, [...starts, index].sort((a, b) => a - b));
 }
 
@@ -152,6 +154,8 @@ export function discActionsFor(
   const base = discs[0] ?? 1;
   if (starts.includes(index)) return { join: base + starts.indexOf(index) - 1 };
   const range = starts.filter((s) => s < index).length - 1;
+  // No Start when the highest disc after the split would pass the largest valid disc.
+  if (base + starts.length > MAX_DISC_NUMBER) return {};
   return { start: base + range + 1 };
 }
 

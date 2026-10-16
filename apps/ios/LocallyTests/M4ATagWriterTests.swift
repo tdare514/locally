@@ -68,6 +68,31 @@ struct M4ATagWriterTests {
     /// The whole point of re-tagging in place: writing a second, different
     /// set of tags onto a file that already carries metadata must replace
     /// it, not error out or leave the first set behind.
+    @Test func rewritingWithNoDiscRemovesTheDiskAtomAWriteLeft() async throws {
+        let (dir, url) = try makeTinyM4A()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        func discItems() async throws -> Int {
+            let asset = AVAsset(url: url)
+            var count = 0
+            for format in try await asset.load(.availableMetadataFormats) {
+                for item in try await asset.loadMetadata(for: format) where item.identifier == .iTunesMetadataDiscNumber {
+                    count += 1
+                }
+            }
+            return count
+        }
+
+        var withDisc = TagSet(title: "T", artist: "A", album: "B", trackNumber: 1, totalTracks: 2)
+        withDisc.discNumber = 2
+        withDisc.totalDiscs = 2
+        try await writer.write(withDisc, cover: nil, to: url)
+        #expect(try await discItems() == 1)
+
+        try await writer.write(TagSet(title: "T", artist: "A", album: "B", trackNumber: 3, totalTracks: 4), cover: nil, to: url)
+        #expect(try await discItems() == 0)
+    }
+
     @Test func retagsAFileThatAlreadyHasMetadata() async throws {
         let (dir, url) = try makeTinyM4A()
         defer { try? FileManager.default.removeItem(at: dir) }

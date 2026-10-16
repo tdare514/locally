@@ -180,6 +180,8 @@ struct ReleaseChanges {
     var trackTitles: [UUID: String]
     var trackOrder: [UUID]?
     var trackDiscs: [UUID: Int]
+    /// Tracks whose disc is cleared (the discs were joined back into one), so the release has no discs.
+    var clearedDiscs: Set<UUID>
 
     init(
         title: String? = nil,
@@ -189,7 +191,8 @@ struct ReleaseChanges {
         cover: Data? = nil,
         trackTitles: [UUID: String] = [:],
         trackOrder: [UUID]? = nil,
-        trackDiscs: [UUID: Int] = [:]
+        trackDiscs: [UUID: Int] = [:],
+        clearedDiscs: Set<UUID> = []
     ) {
         self.title = title
         self.artist = artist
@@ -199,6 +202,7 @@ struct ReleaseChanges {
         self.trackTitles = trackTitles
         self.trackOrder = trackOrder
         self.trackDiscs = trackDiscs
+        self.clearedDiscs = clearedDiscs
     }
 }
 

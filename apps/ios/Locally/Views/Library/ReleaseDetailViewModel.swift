@@ -6,6 +6,8 @@ enum ReleaseChange: Equatable, Identifiable {
     case cover(old: Data?, new: Data?)
     case trackRenamed(id: UUID, old: String, new: String)
     case trackOrder
+    /// The disc layout, as `DiscNumbering.boundaries` words it (#222).
+    case discs(old: String, new: String)
 
     var id: String {
         switch self {
@@ -13,6 +15,7 @@ enum ReleaseChange: Equatable, Identifiable {
         case .cover: "cover"
         case .trackRenamed(let id, _, _): "track-\(id.uuidString)"
         case .trackOrder: "order"
+        case .discs: "discs"
         }
     }
 }
@@ -148,6 +151,11 @@ final class ReleaseDetailViewModel {
         if trackRows.map(\.id) != originalTrackRows.map(\.id) {
             result.append(.trackOrder)
         }
+        let oldDiscs = Copy.Release.discLayout(DiscNumbering.boundaries(for: originalTrackRows.map(\.discNumber)))
+        let newDiscs = Copy.Release.discLayout(DiscNumbering.boundaries(for: trackRows.map(\.discNumber)))
+        if oldDiscs != newDiscs {
+            result.append(.discs(old: oldDiscs, new: newDiscs))
+        }
         return result
     }
 
@@ -247,6 +255,7 @@ final class ReleaseDetailViewModel {
             trackTitles[only.id] = title
         }
 
+        let originalDiscs = Dictionary(originalTrackRows.compactMap { row in row.discNumber.map { (row.id, $0) } }, uniquingKeysWith: { first, _ in first })
         let changes = ReleaseChanges(
             title: title,
             artist: artist,
@@ -255,7 +264,8 @@ final class ReleaseDetailViewModel {
             cover: coverData != originalCoverData ? coverData : nil,
             trackTitles: trackTitles,
             trackOrder: trackRows.map { $0.id },
-            trackDiscs: Dictionary(uniqueKeysWithValues: trackRows.compactMap { row in row.discNumber.map { (row.id, $0) } })
+            trackDiscs: Dictionary(uniqueKeysWithValues: trackRows.compactMap { row in row.discNumber.map { (row.id, $0) } }),
+            clearedDiscs: Set(trackRows.filter { $0.discNumber == nil && originalDiscs[$0.id] != nil }.map(\.id))
         )
 
         do {
