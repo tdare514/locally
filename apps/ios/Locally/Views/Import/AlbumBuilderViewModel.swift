@@ -115,6 +115,21 @@ final class AlbumBuilderViewModel {
         DiscNumbering.headings(for: rows.map(\.discNumber))
     }
 
+    /// What the disc menu on row `index` offers (#222); none for a lone track.
+    func discActions(at index: Int) -> DiscNumbering.Actions {
+        rows.count >= 2 ? DiscNumbering.actions(for: rows.map(\.discNumber), at: index) : DiscNumbering.Actions()
+    }
+
+    func startDisc(at index: Int) {
+        let discs = DiscNumbering.startDisc(at: index, in: rows.map(\.discNumber))
+        for i in rows.indices { rows[i].discNumber = discs[i] }
+    }
+
+    func joinPreviousDisc(at index: Int) {
+        let discs = DiscNumbering.joinPreviousDisc(at: index, in: rows.map(\.discNumber))
+        for i in rows.indices { rows[i].discNumber = discs[i] }
+    }
+
     /// Convenience for `AlbumBuilderView`'s "Make an album" inbox action:
     /// adds every shared file as a row, in the order they were shared.
     func addFiles(fromInbox files: [InboxFile]) async {

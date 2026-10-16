@@ -599,7 +599,8 @@ body {
 }
 /* The playlists popover under a track (#212): opacity and scale only, 160ms, nothing under reduced
    motion. The open row rises above the rows after it so the list isn't painted over. */
-.track-row:has(.playlist-pop) {
+.track-row:has(.playlist-pop),
+.track-row:has(.disc-pop) {
   z-index: 20;
 }
 .playlist-pop {

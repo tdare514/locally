@@ -94,6 +94,10 @@ enum Copy {
         static let tracks = "Tracks"
         /// The quiet heading over a disc's tracks, shown only when a release has more than one disc.
         static func disc(_ number: Int) -> String { "Disc \(number)" }
+        /// The disc menu on a track's number (#222): the two actions, and the number button's VoiceOver label.
+        static func startDisc(_ number: Int) -> String { "Start disc \(number) here" }
+        static func joinDisc(_ number: Int) -> String { "Join disc \(number)" }
+        static func discOptions(track number: Int) -> String { "Track \(number), disc options" }
         /// A file row's caption under its title, per `docs/design.md`'s
         /// "Editor / release detail" component.
         static let audioFile = "Audio file"

@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { moveItem } from "../../src/lib/track-order";
-import { adoptDiscAfterMove, deriveTagNumbers, discHeadings, isDiscNumber, orderByDisc } from "../../src/shared/discs";
+import {
+  adoptDiscAfterMove,
+  deriveTagNumbers,
+  discActionsFor,
+  discHeadings,
+  isDiscNumber,
+  joinPreviousDisc,
+  orderByDisc,
+  startDiscAt,
+} from "../../src/shared/discs";
 
 describe("deriveTagNumbers", () => {
   it("numbers each track within its disc: discs [1,1,1,2,2] give 1/3 2/3 3/3 1/2 2/2", () => {
@@ -181,5 +190,62 @@ describe("adoptDiscAfterMove", () => {
   it("ignores an index outside the list", () => {
     expect(discsOf(adoptDiscAfterMove(rows([1, 2]), 5))).toEqual([1, 2]);
     expect(adoptDiscAfterMove(rows([1]), 0)).toHaveLength(1);
+  });
+});
+
+describe("start and join a disc (#222)", () => {
+  const rows = (discs: (number | undefined)[]) => discs.map((discNumber, i) => ({ key: `t${i + 1}`, discNumber }));
+  const discsOf = (list: { discNumber?: number }[]) => list.map((r) => r.discNumber);
+
+  it("splits a no-disc album at row 3", () => {
+    const after = startDiscAt(rows(Array(6).fill(undefined)), 3);
+    expect(discsOf(after)).toEqual([1, 1, 1, 2, 2, 2]);
+  });
+
+  it("splits again later", () => {
+    const once = startDiscAt(rows(Array(6).fill(undefined)), 2);
+    expect(discsOf(startDiscAt(once, 4))).toEqual([1, 1, 2, 2, 3, 3]);
+    // Splitting inside the first disc shifts the later discs up.
+    expect(discsOf(startDiscAt(rows([1, 1, 1, 1, 2, 2]), 2))).toEqual([1, 1, 2, 2, 3, 3]);
+  });
+
+  it("joining back to one disc clears every disc number", () => {
+    const split = startDiscAt(rows(Array(4).fill(undefined)), 2);
+    const joined = joinPreviousDisc(split, 2);
+    expect(discsOf(joined)).toEqual([undefined, undefined, undefined, undefined]);
+    for (const r of joined) expect(r).not.toHaveProperty("discNumber");
+  });
+
+  it("joins in the middle of three discs", () => {
+    expect(discsOf(joinPreviousDisc(rows([1, 1, 2, 2, 3, 3]), 2))).toEqual([1, 1, 1, 1, 2, 2]);
+    expect(discsOf(joinPreviousDisc(rows([1, 1, 2, 2, 3, 3]), 4))).toEqual([1, 1, 2, 2, 2, 2]);
+  });
+
+  it("numbers from the first row's disc, and keeps a single range that does not start at 1", () => {
+    expect(discsOf(joinPreviousDisc(rows([2, 2, 3, 3]), 2))).toEqual([2, 2, 2, 2]);
+  });
+
+  it("offers nothing on row 0", () => {
+    expect(discActionsFor([undefined, undefined, undefined], 0)).toEqual({});
+    expect(discActionsFor([1, 1, 2], 0)).toEqual({});
+  });
+
+  it("offers only Join on the first row of disc 2, and Start elsewhere", () => {
+    expect(discActionsFor([1, 1, 2, 2], 2)).toEqual({ join: 1 });
+    expect(discActionsFor([1, 1, 2, 2], 1)).toEqual({ start: 2 });
+    expect(discActionsFor([1, 1, 2, 2], 3)).toEqual({ start: 3 });
+    expect(discActionsFor([undefined, undefined, undefined], 2)).toEqual({ start: 2 });
+    expect(discActionsFor([1, 2, 3], 2)).toEqual({ join: 2 });
+  });
+
+  it("ignores a row that cannot take the action, and leaves its input alone", () => {
+    const list = rows([1, 1, 2, 2]);
+    const copy = structuredClone(list);
+    expect(discsOf(startDiscAt(list, 0))).toEqual([1, 1, 2, 2]);
+    expect(discsOf(startDiscAt(list, 2))).toEqual([1, 1, 2, 2]);
+    expect(discsOf(joinPreviousDisc(list, 1))).toEqual([1, 1, 2, 2]);
+    expect(discsOf(joinPreviousDisc(list, 0))).toEqual([1, 1, 2, 2]);
+    expect(discsOf(startDiscAt(list, 9))).toEqual([1, 1, 2, 2]);
+    expect(list).toEqual(copy);
   });
 });

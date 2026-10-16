@@ -202,6 +202,23 @@ final class ReleaseDetailViewModel {
         DiscNumbering.headings(for: trackRows.map(\.discNumber))
     }
 
+    /// What the disc menu on row `index` offers (#222). Only an album in edit mode with two or more
+    /// tracks has one; view mode and singles keep a plain number.
+    func discActions(at index: Int) -> DiscNumbering.Actions {
+        guard isEditing, kind == .album, !isAdopted, trackRows.count >= 2 else { return DiscNumbering.Actions() }
+        return DiscNumbering.actions(for: trackRows.map(\.discNumber), at: index)
+    }
+
+    func startDisc(at index: Int) {
+        let discs = DiscNumbering.startDisc(at: index, in: trackRows.map(\.discNumber))
+        for i in trackRows.indices { trackRows[i].discNumber = discs[i] }
+    }
+
+    func joinPreviousDisc(at index: Int) {
+        let discs = DiscNumbering.joinPreviousDisc(at: index, in: trackRows.map(\.discNumber))
+        for i in trackRows.indices { trackRows[i].discNumber = discs[i] }
+    }
+
     func moveTracks(from source: IndexSet, to destination: Int) {
         let order = trackRows.map(\.id)
         let movedIds = source.map { trackRows[$0].id }

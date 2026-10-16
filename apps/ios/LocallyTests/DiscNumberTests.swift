@@ -696,4 +696,60 @@ struct DiscAlbumBuilderTests {
         #expect(calls.map(\.tags.trackNumber) == [1, 2, 3])
         #expect(calls.map(\.tags.totalDiscs) == [1, 1, 1])
     }
+
+    // MARK: Start and join a disc (#222), the same cases as discs.test.ts
+
+    @Test func startingADiscSplitsANoDiscAlbumAtRow3() {
+        #expect(DiscNumbering.startDisc(at: 3, in: [Int?](repeating: nil, count: 6)) == [1, 1, 1, 2, 2, 2])
+    }
+
+    @Test func startingADiscAgainLaterAddsAThirdAndShiftsLaterDiscsUp() {
+        let once = DiscNumbering.startDisc(at: 2, in: [Int?](repeating: nil, count: 6))
+        #expect(DiscNumbering.startDisc(at: 4, in: once) == [1, 1, 2, 2, 3, 3])
+        #expect(DiscNumbering.startDisc(at: 2, in: [1, 1, 1, 1, 2, 2]) == [1, 1, 2, 2, 3, 3])
+    }
+
+    @Test func joiningBackToOneDiscClearsEveryDiscNumber() {
+        let split = DiscNumbering.startDisc(at: 2, in: [Int?](repeating: nil, count: 4))
+        #expect(DiscNumbering.joinPreviousDisc(at: 2, in: split) == [nil, nil, nil, nil])
+    }
+
+    @Test func joiningInTheMiddleOfThreeDiscsMergesIntoThePreviousOne() {
+        #expect(DiscNumbering.joinPreviousDisc(at: 2, in: [1, 1, 2, 2, 3, 3]) == [1, 1, 1, 1, 2, 2])
+        #expect(DiscNumbering.joinPreviousDisc(at: 4, in: [1, 1, 2, 2, 3, 3]) == [1, 1, 2, 2, 2, 2])
+        #expect(DiscNumbering.joinPreviousDisc(at: 2, in: [2, 2, 3, 3]) == [2, 2, 2, 2])
+    }
+
+    @Test func rowZeroHasNoDiscActions() {
+        #expect(DiscNumbering.actions(for: [nil, nil, nil], at: 0).isEmpty)
+        #expect(DiscNumbering.actions(for: [1, 1, 2], at: 0).isEmpty)
+    }
+
+    @Test func theFirstRowOfDiscTwoOffersOnlyJoinAndOtherRowsOfferStart() {
+        #expect(DiscNumbering.actions(for: [1, 1, 2, 2], at: 2) == DiscNumbering.Actions(start: nil, join: 1))
+        #expect(DiscNumbering.actions(for: [1, 1, 2, 2], at: 1) == DiscNumbering.Actions(start: 2, join: nil))
+        #expect(DiscNumbering.actions(for: [1, 1, 2, 2], at: 3) == DiscNumbering.Actions(start: 3, join: nil))
+        #expect(DiscNumbering.actions(for: [nil, nil, nil], at: 2) == DiscNumbering.Actions(start: 2, join: nil))
+        #expect(DiscNumbering.actions(for: [1, 2, 3], at: 2) == DiscNumbering.Actions(start: nil, join: 2))
+    }
+
+    @Test func anActionThatCannotApplyLeavesTheDiscsAlone() {
+        let discs: [Int?] = [1, 1, 2, 2]
+        #expect(DiscNumbering.startDisc(at: 0, in: discs) == discs)
+        #expect(DiscNumbering.startDisc(at: 2, in: discs) == discs)
+        #expect(DiscNumbering.startDisc(at: 9, in: discs) == discs)
+        #expect(DiscNumbering.joinPreviousDisc(at: 1, in: discs) == discs)
+        #expect(DiscNumbering.joinPreviousDisc(at: 0, in: discs) == discs)
+    }
+
+    @Test func theAlbumBuilderStartsAndJoinsDiscsAndTheHeadingsFollow() {
+        let model = makeModel(importer: FakeFileImporter())
+        model.rows = rows([nil, nil, nil, nil])
+        model.startDisc(at: 2)
+        #expect(model.rows.map(\.discNumber) == [1, 1, 2, 2])
+        #expect(model.discHeadings == [1, nil, 2, nil])
+        model.joinPreviousDisc(at: 2)
+        #expect(model.rows.map(\.discNumber) == [nil, nil, nil, nil])
+        #expect(model.discHeadings == [nil, nil, nil, nil])
+    }
 }
