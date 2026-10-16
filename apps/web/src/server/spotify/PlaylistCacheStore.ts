@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { spotifyPlaylistsFilePath } from "../config/paths";
+import { SPOTIFY_API_BASE } from "./SpotifyClient";
 
 const FILE_MODE = 0o600;
 
@@ -11,6 +12,8 @@ export interface CachedPlaylist {
   localUris: string[];
   /** False when reading stopped at the item cap: the next refresh reads it again. Absent means complete. */
   complete?: boolean;
+  /** With `complete: false`: the Spotify `next` URL where reading stopped; the next refresh resumes there. */
+  next?: string;
 }
 
 export interface PlaylistCache {
@@ -39,6 +42,7 @@ function isCache(v: unknown): v is PlaylistCache {
       typeof e.snapshotId === "string" &&
       typeof e.name === "string" &&
       (e.complete === undefined || typeof e.complete === "boolean") &&
+      (e.next === undefined || typeof e.next === "string") &&
       Array.isArray(e.localUris) &&
       e.localUris.every((u) => typeof u === "string")
     );
@@ -52,7 +56,14 @@ export class FilePlaylistCacheStore implements PlaylistCacheStore {
   async read(): Promise<PlaylistCache | null> {
     try {
       const parsed: unknown = JSON.parse(await fs.readFile(this.file(), "utf-8"));
-      return isCache(parsed) ? parsed : null;
+      if (!isCache(parsed)) return null;
+      // A saved cursor is only trusted if it is a Spotify playlist URL on an incomplete entry;
+      // otherwise that entry is dropped and read again from page one.
+      for (const [id, e] of Object.entries(parsed.playlists)) {
+        if (e.next === undefined) continue;
+        if (e.complete !== false || !e.next.startsWith(`${SPOTIFY_API_BASE}/playlists/`)) delete parsed.playlists[id];
+      }
+      return parsed;
     } catch {
       return null;
     }

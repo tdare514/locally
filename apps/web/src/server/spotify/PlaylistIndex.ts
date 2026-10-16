@@ -206,12 +206,16 @@ export class PlaylistIndex {
         continue;
       }
       try {
-        const read = await this.readItems(p.id);
+        // Unchanged but cut short last time: carry on from the saved cursor. Anything else
+        // (changed snapshot, no cursor) starts again from page one.
+        const resume = old && old.snapshotId === p.snapshotId && old.complete === false && old.next ? old : null;
+        const read = await this.readItems(p.id, resume?.next);
+        const uris = resume ? [...new Set([...resume.localUris, ...read.uris])] : read.uris;
         playlists[p.id] = {
           snapshotId: p.snapshotId,
           name: p.name,
-          localUris: read.uris,
-          ...(read.complete ? {} : { complete: false }),
+          localUris: uris,
+          ...(read.next ? { complete: false, next: read.next } : {}),
         };
       } catch (err) {
         // A playlist Spotify won't show items for (someone else's) is skipped, not fatal.
@@ -232,9 +236,9 @@ export class PlaylistIndex {
     });
   }
 
-  private async readItems(playlistId: string): Promise<{ uris: string[]; complete: boolean }> {
+  private async readItems(playlistId: string, from?: string): Promise<{ uris: string[]; next: string | null }> {
     const uris: string[] = [];
-    let next: string | null = `/playlists/${playlistId}/items?${ITEMS_QUERY}`;
+    let next: string | null = from ?? `/playlists/${playlistId}/items?${ITEMS_QUERY}`;
     for (let page = 0; next && page < MAX_ITEM_PAGES; page++) {
       const body: ItemsPage = await this.get<ItemsPage>(next);
       for (const entry of body.items ?? []) {
@@ -247,7 +251,7 @@ export class PlaylistIndex {
       next = typeof body.next === "string" ? body.next : null;
     }
     // Still a next page after the cap: the playlist was cut short.
-    return { uris, complete: next === null };
+    return { uris, next };
   }
 
   /** One GET; a 429 waits out Retry-After (up to a minute) and tries again. */

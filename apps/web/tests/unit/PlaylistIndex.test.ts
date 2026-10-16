@@ -309,21 +309,53 @@ describe("PlaylistIndex locking and caps", () => {
     expect(store.cache).toBeNull();
   });
 
-  it("re-reads a playlist cut at the item cap on the next refresh, keeping its partial matches meanwhile", async () => {
-    let reads = 0;
-    const api = fakeClient((p) => {
-      if (p.startsWith("/me/playlists")) return { items: [{ id: P1, name: "Big", snapshot_id: "same" }], next: null };
-      reads++;
-      return { items: [localItem(uri("Artist", "Album", "Song One", 200))], next: "https://api.spotify.com/v1/playlists/x/items?offset=5000" };
+  describe("a playlist longer than the item cap", () => {
+    const TOTAL_PAGES = MAX_ITEM_PAGES + 2;
+    const pageUrl = (n: number) => `https://api.spotify.com/v1/playlists/${P1}/items?offset=${n * 100}&limit=100`;
+    function bigApi(snapshot: () => string, hitPage: () => number) {
+      return fakeClient((p) => {
+        if (p.startsWith("/me/playlists")) return { items: [{ id: P1, name: "Big", snapshot_id: snapshot() }], next: null };
+        const n = p.startsWith("/playlists/") ? 0 : Number(/offset=(\d+)/.exec(p)![1]) / 100;
+        const items = n === hitPage() ? [localItem(uri("Artist", "Album", "Song One", 200))] : [localItem(uri("Nobody", "Nothing", `Filler ${n}`, 1))];
+        return { items, next: n + 1 < TOTAL_PAGES ? pageUrl(n + 1) : null };
+      });
+    }
+
+    it("a match beyond the item cap appears after a later refresh", async () => {
+      const api = bigApi(() => "same", () => TOTAL_PAGES - 1);
+      const ix = index(api);
+      const first = await settle(ix);
+      expect(first.tracks).toEqual({});
+      const e1 = store.cache!.playlists[P1];
+      expect(e1.complete).toBe(false);
+      expect(e1.next).toBe(pageUrl(MAX_ITEM_PAGES));
+      api.calls.length = 0;
+      nowMs += STALE_AFTER_MS + 1;
+      const second = await settle(ix);
+      const itemCalls = api.calls.filter((c) => c.includes("/items"));
+      expect(itemCalls).toEqual([pageUrl(MAX_ITEM_PAGES), pageUrl(MAX_ITEM_PAGES + 1)]);
+      expect(second.tracks.t1).toEqual([{ id: P1, name: "Big" }]);
+      const e2 = store.cache!.playlists[P1];
+      expect(e2.complete).toBeUndefined();
+      expect(e2.next).toBeUndefined();
     });
-    const ix = index(api);
-    const first = await settle(ix);
-    expect(first.tracks.t1).toEqual([{ id: P1, name: "Big" }]);
-    expect(store.cache?.playlists[P1].complete).toBe(false);
-    expect(reads).toBe(MAX_ITEM_PAGES);
-    nowMs += STALE_AFTER_MS + 1;
-    await settle(ix);
-    expect(reads).toBe(MAX_ITEM_PAGES * 2);
+
+    it("restarts from page one, without stale uris, when the snapshot changes", async () => {
+      let snap = "s1";
+      let hit = 0;
+      const api = bigApi(() => snap, () => hit);
+      const ix = index(api);
+      await settle(ix);
+      expect(store.cache!.playlists[P1].localUris).toContain(uri("Artist", "Album", "Song One", 200));
+      snap = "s2";
+      hit = TOTAL_PAGES - 1;
+      api.calls.length = 0;
+      nowMs += STALE_AFTER_MS + 1;
+      const out = await settle(ix);
+      expect(api.calls.filter((c) => c.includes("/items"))[0]).toContain(`/playlists/${P1}/items?`);
+      expect(out.tracks).toEqual({});
+      expect(store.cache!.playlists[P1].localUris).not.toContain(uri("Artist", "Album", "Song One", 200));
+    });
   });
 
   it("tells the client when a held-off refresh may run again", async () => {
@@ -359,6 +391,23 @@ describe("FilePlaylistCacheStore", () => {
     expect((await fs.stat(file)).mode & 0o777).toBe(0o600);
     expect((await fs.readdir(path.dirname(file))).filter((f) => f.includes(".tmp-"))).toEqual([]);
     expect(await s.read()).toEqual(sample);
+  });
+
+  it("drops an entry whose saved cursor points at another host, keeps a good one", async () => {
+    const file = path.join(dir, "spotify-playlists.json");
+    const s = new FilePlaylistCacheStore(() => file);
+    const good = `https://api.spotify.com/v1/playlists/${P1}/items?offset=5000`;
+    await s.write({
+      revision: "r",
+      fetchedAt: 5,
+      playlists: {
+        [P1]: { snapshotId: "s", name: "Good", localUris: [], complete: false, next: good },
+        [P2]: { snapshotId: "s", name: "Evil", localUris: [], complete: false, next: "https://evil.example/playlists/x" },
+      },
+    });
+    const read = await s.read();
+    expect(Object.keys(read!.playlists)).toEqual([P1]);
+    expect(read!.playlists[P1].next).toBe(good);
   });
 
   it("reads a corrupt file as no cache, and removes the file", async () => {
