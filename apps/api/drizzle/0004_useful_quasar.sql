@@ -9,4 +9,7 @@ CREATE TABLE `play_days` (
 	PRIMARY KEY(`device_id`, `track_id`, `day`)
 );
 --> statement-breakpoint
-CREATE INDEX `play_days_user_day_idx` ON `play_days` (`user_id`,`day`);
+CREATE INDEX `play_days_user_day_idx` ON `play_days` (`user_id`,`day`);--> statement-breakpoint
+-- Hand-added (#201): deleting a user removes their day buckets even under the previous deploy's
+-- code (a rollback), which doesn't know play_days. The current code deletes them first as well.
+CREATE TRIGGER `play_days_delete_with_user` AFTER DELETE ON `users` BEGIN DELETE FROM `play_days` WHERE `user_id` = old.`id`; END;

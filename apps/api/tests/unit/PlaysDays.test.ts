@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { playCounts, playDays, releases } from "../../src/db/schema";
 import { InMemoryRateLimiter } from "../../src/server/ratelimit/InMemoryRateLimiter";
 import { ValidationError } from "../../src/shared/errors";
@@ -238,6 +238,34 @@ describe("play days", () => {
       expect(second.allTime.map((r) => r.trackId)).toEqual([ids[1_000]]);
       expect(second.tracks.map((r) => r.trackId)).toEqual([ids[1_000]]);
       expect(second.nextCursor).toBeNull();
+    });
+
+    it("keeps a track's live days when its count row moved to a release that was then tombstoned", async () => {
+      // Codex #214: T pushed with days under release A, then without days under B (the count row
+      // follows to B), then B is tombstoned. A's day rows are still live and must still be served.
+      const recordB = makeReleaseRecord();
+      await testServices.releases.upsert(alice.userId, recordB.id, recordB);
+      await push(alice, [{ releaseId, trackId: trackA, count: 3, days: [{ day: "2026-10-14", count: 3 }] }]);
+      await push(alice, [{ releaseId: recordB.id, trackId: trackA, count: 4 }]);
+      await testServices.db.update(releases).set({ deleted: true }).where(eq(releases.id, recordB.id));
+
+      expect(await testServices.plays.summary(alice.userId, "2026-10-14", "2026-10-14")).toEqual({
+        tracks: [{ trackId: trackA, releaseId, plays: 3, lastPlayedDay: "2026-10-14" }],
+        allTime: [],
+        nextCursor: null,
+      });
+    });
+  });
+
+  describe("account deletion", () => {
+    it("removes play days when the user row is deleted by any code, not only AccountService", async () => {
+      // The migration's trigger: a rolled-back deploy deletes the user without knowing play_days.
+      await push(alice, [{ releaseId, trackId: trackA, count: 2, days: [{ day: "2026-10-14", count: 2 }] }]);
+      await push(bob, [{ releaseId, trackId: trackA, count: 1, days: [{ day: "2026-10-14", count: 1 }] }]);
+      const before = await testServices.db.select().from(playDays);
+      expect(before.map((r) => r.userId)).toEqual([alice.userId]); // bob's release isn't his: ignored
+      await testServices.db.run(sql`delete from users where id = ${alice.userId}`);
+      expect(await testServices.db.select().from(playDays)).toEqual([]);
     });
   });
 

@@ -168,12 +168,13 @@ the shipped web and iOS clients are unaffected. The Mac app pushing and displayi
   `tracks` sums the day buckets in the range over all the user's devices (revoked ones too);
   `lastPlayedDay` is the latest such day with a count above 0; tracks with no plays in the range
   are left out. `allTime` sums `play_counts` over all devices. Paged by track id over tracks that
-  have a count row: 1,000 track ids per page, ordered by `trackId`, both lists covering the same
+  have a count row on a live release or a day in the range on a live release: 1,000 track ids per page, ordered by `trackId`, both lists covering the same
   page; `nextCursor` is the last `trackId` of the page when more follow (pass it as `cursor`),
   else null.
 - **Retention.** Day buckets are kept 400 days: the daily cleanup deletes `play_days` rows more
   than 400 days before the UTC date, those of tombstoned releases on the 30-day schedule above,
-  and account deletion removes them at once. All-time counts are kept.
+  and account deletion removes them at once (a database trigger on the user row does too, so a
+  rolled-back deploy can't leave them behind). All-time counts are kept.
 - **Clients.** Shipped clients need no change. The Mac starts pushing days and reading the
   summary in #202; the iPhone reads the summary later for its Stats page.
 - Fixtures: `spec/fixtures/plays/valid-*.json` and `invalid-*.json` are example PUT bodies (a

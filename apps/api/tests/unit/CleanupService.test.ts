@@ -221,6 +221,27 @@ describe("CleanupService", () => {
     expect(remaining.map((r) => r.day).sort()).toEqual(["2024-12-27", "2026-01-30"]);
   });
 
+  it("deletes expired day buckets a page at a time and counts every page", async () => {
+    const liveReleaseId = await insertRelease(false, clock - 60 * DAY_MS);
+    const deviceId = crypto.randomUUID();
+    // 450 expired rows (more than two pages of 200) and one kept.
+    const rows = Array.from({ length: 451 }, (_, i) => ({
+      userId,
+      deviceId,
+      releaseId: liveReleaseId,
+      trackId: crypto.randomUUID(),
+      day: i === 450 ? "2026-01-30" : "2024-12-26",
+      count: 1,
+      updatedAt: clock,
+    }));
+    for (let i = 0; i < rows.length; i += 100) await db.insert(playDays).values(rows.slice(i, i + 100));
+
+    const result = await new CleanupService(db, fileStore, () => clock).run();
+
+    expect(result.expiredPlayDays).toBe(450);
+    expect((await db.select().from(playDays)).map((r) => r.day)).toEqual(["2026-01-30"]);
+  });
+
   it("returns 0 total stored bytes when the files table is empty", async () => {
     const cleanup = new CleanupService(db, fileStore, () => clock);
     const result = await cleanup.run();

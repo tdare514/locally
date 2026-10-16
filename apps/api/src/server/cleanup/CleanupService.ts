@@ -1,4 +1,4 @@
-import { and, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, lt, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { authCodes, files, pendingDeletes, playCounts, playDays, rateLimits, releases } from "../../db/schema";
 import { PLAY_DAY_RETENTION_DAYS, utcDay } from "../../shared/days";
@@ -125,6 +125,21 @@ export class CleanupService {
     }
   }
 
+  /**
+   * Delete the `play_days` rows matching `where`, a page (`CLEANUP_PAGE_SIZE`) at a time by rowid, so a
+   * large backlog is never read back or deleted in one statement. Returns how many rows went.
+   */
+  private async deletePlayDaysPaged(where: SQL | undefined): Promise<number> {
+    let deleted = 0;
+    for (;;) {
+      const result = await this.db.run(
+        sql`delete from play_days where rowid in (select rowid from play_days where ${where} limit ${CLEANUP_PAGE_SIZE})`
+      );
+      deleted += result.rowsAffected;
+      if (result.rowsAffected < CLEANUP_PAGE_SIZE) return deleted;
+    }
+  }
+
   async run(): Promise<CleanupResult> {
     const drainedPendingDeletes = await this.drainQueue();
 
@@ -167,24 +182,20 @@ export class CleanupService {
       )
       .returning({ trackId: playCounts.trackId });
 
-    const staleTombstonePlayDays = await this.db
-      .delete(playDays)
-      .where(
-        inArray(
-          playDays.releaseId,
-          this.db
-            .select({ id: releases.id })
-            .from(releases)
-            .where(and(eq(releases.deleted, true), lt(releases.serverUpdatedAt, cutoff)))
-        )
+    const staleTombstonePlayDays = await this.deletePlayDaysPaged(
+      inArray(
+        playDays.releaseId,
+        this.db
+          .select({ id: releases.id })
+          .from(releases)
+          .where(and(eq(releases.deleted, true), lt(releases.serverUpdatedAt, cutoff)))
       )
-      .returning({ trackId: playDays.trackId });
+    );
 
     // Retention: day buckets older than 400 days (UTC date), live or not.
-    const expiredPlayDays = await this.db
-      .delete(playDays)
-      .where(lt(playDays.day, utcDay(this.now(), -PLAY_DAY_RETENTION_DAYS)))
-      .returning({ trackId: playDays.trackId });
+    const expiredPlayDays = await this.deletePlayDaysPaged(
+      lt(playDays.day, utcDay(this.now(), -PLAY_DAY_RETENTION_DAYS))
+    );
 
     let deletedAuthCodes = 0;
     for (;;) {
@@ -216,8 +227,8 @@ export class CleanupService {
     return {
       deletedFiles,
       deletedPlayCounts: stalePlayCounts.length,
-      deletedPlayDays: staleTombstonePlayDays.length,
-      expiredPlayDays: expiredPlayDays.length,
+      deletedPlayDays: staleTombstonePlayDays,
+      expiredPlayDays,
       deletedAuthCodes,
       deletedRateLimits: staleRateLimits.length,
       drainedPendingDeletes,

@@ -156,7 +156,8 @@ export class PlaysService {
   /**
    * Library-wide plays for the live releases of `userId` (`GET /v1/plays/summary`). `tracks` sums
    * `play_days` over every device (revoked too) for days in [from, to]; `allTime` sums `play_counts`.
-   * Paged by track id over the tracks that have `play_counts` rows: both lists cover the same page.
+   * Paged by track id over the tracks with a live count row or a live day in the range: both lists
+   * cover the same page.
    * Throws `ValidationError` for a range that is reversed, over 400 days, or ends after tomorrow (UTC).
    */
   async summary(userId: string, from: string, to: string, cursor?: string): Promise<PlaysSummaryResponse> {
@@ -170,15 +171,23 @@ export class PlaysService {
     const afterCursor = cursor ? gt(playCounts.trackId, cursor) : undefined;
     const daysAfterCursor = cursor ? gt(playDays.trackId, cursor) : undefined;
 
-    const idRows = await this.db
-      .selectDistinct({ trackId: playCounts.trackId })
-      .from(playCounts)
-      .innerJoin(releases, eq(releases.id, playCounts.releaseId))
-      .where(and(eq(playCounts.userId, userId), live, afterCursor))
-      .orderBy(asc(playCounts.trackId))
-      .limit(PLAYS_SUMMARY_PAGE_SIZE + 1);
+    // The page's track ids: tracks with a count row on a live release, or a day in the range on a
+    // live release. Both, because a track's count row can sit under a different release from its
+    // day rows (the count row follows the latest push), and either release can be tombstoned.
+    const idRows = await this.db.all<{ track_id: string }>(sql`
+      select track_id from (
+        select pc.track_id from play_counts pc join releases r on r.id = pc.release_id
+          where pc.user_id = ${userId} and r.user_id = ${userId} and r.deleted = 0
+        union
+        select pd.track_id from play_days pd join releases r on r.id = pd.release_id
+          where pd.user_id = ${userId} and pd.day >= ${from} and pd.day <= ${to}
+            and r.user_id = ${userId} and r.deleted = 0
+      )
+      ${cursor ? sql`where track_id > ${cursor}` : sql``}
+      order by track_id
+      limit ${PLAYS_SUMMARY_PAGE_SIZE + 1}`);
     const hasMore = idRows.length > PLAYS_SUMMARY_PAGE_SIZE;
-    const page = idRows.slice(0, PLAYS_SUMMARY_PAGE_SIZE).map((r) => r.trackId);
+    const page = idRows.slice(0, PLAYS_SUMMARY_PAGE_SIZE).map((r) => r.track_id);
     if (page.length === 0) return { tracks: [], allTime: [], nextCursor: null };
     const lastId = page[page.length - 1]!;
     const pageIds = new Set(page);
