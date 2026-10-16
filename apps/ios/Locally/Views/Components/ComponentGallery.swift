@@ -116,6 +116,8 @@ struct ComponentGallery: View {
             Self.settings(signedIn: true).defaultScrollAnchor(.bottom)
         case "release-tracks":
             Self.releaseTracks
+        case "release-review-error":
+            ReleaseReviewErrorGallery()
         case "controls":
             ControlsGallery()
         default:
@@ -237,6 +239,43 @@ private struct ImportBeatLive: View {
 /// #205: the real Import tab (`ImportView`) in a tab bar, on models prefilled in memory. The models
 /// use the production services over an in-memory library and a temp-folder cover store, and
 /// nothing here sends.
+/// The release page's review sheet after a failed save, with a long error and several changes,
+/// drawn full screen so its layout can be checked at the accessibility sizes. Nothing saves.
+private struct ReleaseReviewErrorGallery: View {
+    @State private var model: ReleaseDetailViewModel
+
+    init() {
+        let container = try! ModelStore.open(at: nil)
+        let coverStore = FileCoverStore(directory: FileManager.default.temporaryDirectory.appendingPathComponent("gallery-covers", isDirectory: true))
+        let coordinator = ReleaseCoordinator(
+            importer: LocalFileImporter(),
+            transcoder: AVTranscoder(),
+            m4aTagWriter: M4ATagWriter(),
+            id3TagWriter: ID3TagWriter(),
+            folder: UserDefaultsSpotifyFolder(),
+            library: SwiftDataLibraryStore(context: container.mainContext),
+            coverStore: coverStore,
+            durationReader: AVTrackDurationReader()
+        )
+        let tracks = ["Headlights", "Overpass", "Last Exit"].enumerated().map { index, title in
+            Track(title: title, trackNumber: index + 1, filePath: "/gallery/\(title).mp3", originalName: "\(title).mp3")
+        }
+        let release = Release(kind: .album, title: "Midnight Drive", artist: "Neon Harbor", year: "2024", genre: "Synthwave", folderPath: "/gallery", tracks: tracks)
+        let model = ReleaseDetailViewModel(release: release, coordinator: coordinator, coverStore: coverStore, syncApi: nil, isSignedIn: { false })
+        model.beginEditing()
+        model.title = "Midnight Drive Along The Neon Harbor Road"
+        model.genre = "Late night synthwave and slow highway pop for the drive home"
+        model.year = "2026"
+        model.errorMessage = "Couldn't save \"Midnight Drive Along The Neon Harbor Road\": Locally doesn't have permission to write to the Spotify folder. Open Settings and choose the folder again."
+        _model = State(initialValue: model)
+    }
+
+    var body: some View {
+        ReleaseReviewSheet(model: model, glowColors: Theme.coverGlowColors(nil)) {}
+            .background(Theme.card)
+    }
+}
+
 private struct ImportRecordGallery: View {
     let name: String
 

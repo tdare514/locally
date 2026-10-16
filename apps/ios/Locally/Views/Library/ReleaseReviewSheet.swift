@@ -20,8 +20,16 @@ struct ReleaseReviewSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
 
+            // The error scrolls with the changes, first, so a long one at the accessibility sizes
+            // can never push Save and Keep editing off the sheet.
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Immersive.reviewRowSpacing) {
+                    if let error = model.errorMessage {
+                        Text(error)
+                            .font(Theme.ScaledFont.subheadline)
+                            .foregroundStyle(Theme.danger)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     ForEach(model.changes) { change in
                         row(change)
                     }
@@ -29,13 +37,6 @@ struct ReleaseReviewSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollBounceBehavior(.basedOnSize)
-
-            if let error = model.errorMessage {
-                Text(error)
-                    .font(Theme.ScaledFont.subheadline)
-                    .foregroundStyle(Theme.danger)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
 
             VStack(spacing: Theme.Immersive.reviewValueSpacing) {
                 Button {
