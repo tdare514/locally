@@ -2121,6 +2121,11 @@ body {
 .fan-sleeve[data-active="true"] {
   transform: rotate(calc(var(--a) * var(--fan-tilt) * 0.8)) translate3d(0, calc(var(--w) * var(--fan-lift) * -1), 0);
 }
+/* At rest, before anyone points at or tabs into the fan, number one sits half as high; a hover or
+   focus anywhere on the fan lifts the chosen sleeve fully. */
+.fan:not(:hover):not(:focus-within) .fan-sleeve[data-active="true"] {
+  transform: rotate(calc(var(--a) * var(--fan-tilt) * 0.8)) translate3d(0, calc(var(--w) * var(--fan-lift) * -0.5), 0);
+}
 /* The fan-out: on the page whenever the fan appears (it is keyed by tab and period); on the shelf
    each time the sidebar panel opens. */
 .fan[data-size="page"] .fan-sleeve,
