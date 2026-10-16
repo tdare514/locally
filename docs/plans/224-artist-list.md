@@ -100,6 +100,13 @@ A pure `artistKey(name)` decides "same artist", and a pure `looksLike(a, b)` dec
 
 **Display.** Wherever a track's artist line shows (track rows, Stats, the artist page), it reads "A, feat. B" with the feature dimmed, and the title shows without the "(feat. …)".
 
+**Every name is a link (owner, 16 Oct).** Each featured name is a link to that artist's page, exactly like the main artist's name.
+- **Where:** a release page's artist line and Featuring pills (in view mode), track rows, the Stats lists, and the artist page's "Appears on".
+- **Mac:** links underline on hover and focus.
+- **iPhone:** tapping the name opens the page.
+- **One name per link:** in "A, feat. B & C", A, B and C are three separate links.
+- **In edit mode** the pills edit and don't open pages, so a tap never loses unsaved changes.
+
 ### Library by artist
 
 - **iPhone:** gains the Mac's sort control: Recently updated, Title, Artist A–Z, Year. It's remembered, like list or grid.
@@ -113,7 +120,8 @@ A pure `artistKey(name)` decides "same artist", and a pure `looksLike(a, b)` dec
 ### Artist page
 
 - **Layout:** the decision 1 layout, in the #112 immersive look (the cover wash, glass, no caps labels).
-- **Back:** the back button (#258) and the iPhone's navigation return to where you came from.
+- **Back:** the back button (#258) and the iPhone's navigation return to where you came from. That includes going from one artist's page to a featured artist's page and back.
+- **Opens from:** any artist or featured-artist name (see "Every name is a link"), Stats, and the Artists view.
 - **Empty state:** an artist with one release still gets a page, with no empty sections shown.
 
 ## Contract and compatibility
@@ -181,5 +189,5 @@ Step 3 — Model: sonnet (UI from this plan), design judged by the session model
 Read only: this plan, the step 1 helpers, both apps' library views, release page headers, the Mac Stats artist click, AppShell back stack
 Do not touch: sync, tag writers, apps/api
 Verify: npm run check; xcodebuild test; screenshots of the Artists view and an artist page on both apps
-Done when: an artist page opens from the release page, Stats and the Artists view on both apps, and the iPhone library sorts
+Done when: an artist page opens from any artist or featured-artist name, Stats and the Artists view on both apps, and the iPhone library sorts
 ```
