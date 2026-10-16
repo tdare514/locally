@@ -19,7 +19,7 @@ struct ImportSingleView: View {
                     ImportMetaLine(kind: context.kind, trackCount: model.pickedURL == nil ? 0 : 1, isSwitchDisabled: context.isBusy, tint: context.glowColors[0])
                         .importClearRow(top: 0, bottom: Theme.Immersive.fieldsMetaGap)
                     VStack(alignment: .leading, spacing: Theme.Immersive.labeledFieldRowGap) {
-                        LabeledField(Copy.Import.fieldTitle, placeholder: Copy.Import.titlePlaceholder(for: .single), text: Binding(get: { model.title }, set: { model.title = $0 }), font: Theme.ScaledFont.fieldTitle, wraps: true)
+                        LabeledField(Copy.Import.fieldTitle, placeholder: Copy.Import.titlePlaceholder(for: .single), text: Binding(get: { model.title }, set: { model.title = $0 }), font: Theme.ScaledFont.fieldTitle, metricsStyle: .title3, wraps: true)
                         LabeledField(Copy.Import.fieldArtist, placeholder: Copy.Import.artistPlaceholder, text: Binding(get: { model.artist }, set: { model.artist = $0 }), font: Theme.ScaledFont.input, wraps: true)
                         LabeledField(Copy.Import.fieldAlbum, placeholder: Copy.Import.albumPlaceholder, text: Binding(get: { model.album }, set: { model.album = $0 }), font: Theme.ScaledFont.input, wraps: true)
                         LabeledField(Copy.Import.fieldYear, placeholder: Copy.Import.yearPlaceholder, text: Binding(get: { model.year }, set: { model.year = $0 }), font: Theme.ScaledFont.input)

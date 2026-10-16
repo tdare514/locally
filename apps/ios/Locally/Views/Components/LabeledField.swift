@@ -9,6 +9,8 @@ struct LabeledField: View {
     @Binding var text: String
     var font: Font = Theme.ScaledFont.input
     var wraps = false
+    /// The text style `font` is built on, for the first-baseline metric below.
+    var metricsStyle: UIFont.TextStyle = .body
 
     @FocusState private var focused: Bool
     @Environment(\.displayScale) private var displayScale
@@ -16,12 +18,21 @@ struct LabeledField: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .subheadline) private var labelWidth = Theme.Immersive.labeledFieldLabelWidth
 
-    init(_ label: String, placeholder: String, text: Binding<String>, font: Font = Theme.ScaledFont.input, wraps: Bool = false) {
+    init(_ label: String, placeholder: String, text: Binding<String>, font: Font = Theme.ScaledFont.input, metricsStyle: UIFont.TextStyle = .body, wraps: Bool = false) {
         self.label = label
         self.placeholder = placeholder
         self._text = text
         self.font = font
+        self.metricsStyle = metricsStyle
         self.wraps = wraps
+    }
+
+    /// Where the value's first line sits, from the font itself. An empty vertical TextField
+    /// reports its first baseline at the top, which lifted the label a line above "Enter genre";
+    /// this gives every field, empty or not, the same baseline for the label to align to.
+    private var firstBaseline: CGFloat {
+        let traits = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(dynamicTypeSize))
+        return UIFont.preferredFont(forTextStyle: metricsStyle, compatibleWith: traits).ascender
     }
 
     @ViewBuilder
@@ -46,6 +57,7 @@ struct LabeledField: View {
 
     private var value: some View {
         field
+            .alignmentGuide(.firstTextBaseline) { _ in firstBaseline }
             .font(font)
             .foregroundStyle(Theme.primaryText)
             .focused($focused)
@@ -99,7 +111,7 @@ private struct LabeledFieldPreview: View {
     @State private var filled = "Midnight Drive"
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Immersive.labeledFieldRowGap) {
-            LabeledField("Title", placeholder: "Enter single name", text: $filled, font: Theme.ScaledFont.fieldTitle)
+            LabeledField("Title", placeholder: "Enter single name", text: $filled, font: Theme.ScaledFont.fieldTitle, metricsStyle: .title3)
             LabeledField("Artist", placeholder: "Enter artist name", text: $empty)
         }
         .padding(Theme.Spacing.pagePadding)

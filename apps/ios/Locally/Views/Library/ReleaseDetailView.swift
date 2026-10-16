@@ -193,7 +193,7 @@ struct ReleaseDetailView: View {
     @ViewBuilder
     private func fields(_ model: ReleaseDetailViewModel) -> some View {
         let gap = Theme.Immersive.labeledFieldRowGap
-        LabeledField(Copy.Import.fieldTitle, placeholder: Copy.Import.titlePlaceholder(for: model.kind), text: Binding(get: { model.title }, set: { model.title = $0 }), font: Theme.ScaledFont.fieldTitle, wraps: true)
+        LabeledField(Copy.Import.fieldTitle, placeholder: Copy.Import.titlePlaceholder(for: model.kind), text: Binding(get: { model.title }, set: { model.title = $0 }), font: Theme.ScaledFont.fieldTitle, metricsStyle: .title3, wraps: true)
             .clearRow(top: 0, bottom: gap)
         LabeledField(Copy.Import.fieldArtist, placeholder: Copy.Import.artistPlaceholder, text: Binding(get: { model.artist }, set: { model.artist = $0 }), font: Theme.ScaledFont.input, wraps: true)
             .clearRow(top: 0, bottom: gap)
