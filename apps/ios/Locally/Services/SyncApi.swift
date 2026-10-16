@@ -359,8 +359,8 @@ final class HttpSyncApi: SyncApi {
         if let url = URL(string: string, encodingInvalidCharacters: false) {
             return url
         }
-        var allowed = CharacterSet.alphanumerics
-        allowed.insert(charactersIn: "-._~:/?#@!$&'()*+,;=%")
+        // ASCII only: `CharacterSet.alphanumerics` would let non-ASCII letters through unencoded.
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/?#@!$&'()*+,;=%")
         guard let encoded = string.addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
         return URL(string: encoded, encodingInvalidCharacters: false)
     }
