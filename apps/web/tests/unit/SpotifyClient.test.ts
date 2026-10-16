@@ -195,3 +195,27 @@ describe("request", () => {
     expect(err.message).not.toMatch(/AT-old|RT-old/);
   });
 });
+
+describe("requestOptional (#228)", () => {
+  it("returns null on a 204 and parses JSON otherwise", async () => {
+    const { client } = setup((c) => (c.url.endsWith("/none") ? new Response(null, { status: 204 }) : jsonResponse({ a: 1 })));
+    expect(await client.requestOptional("/none")).toBeNull();
+    expect(await client.requestOptional("/some")).toEqual({ a: 1 });
+  });
+
+  it("shares the URL guard and the 401 refresh with request", async () => {
+    let n = 0;
+    const { client, spotify } = setup((c) => {
+      if (c.url === TOKEN_URL) return refreshOk();
+      return n++ === 0 ? new Response("", { status: 401 }) : new Response(null, { status: 204 });
+    });
+    expect(await client.requestOptional("/me/player")).toBeNull();
+    expect(spotify.calls.map((c) => c.url)).toEqual([
+      "https://api.spotify.com/v1/me/player",
+      TOKEN_URL,
+      "https://api.spotify.com/v1/me/player",
+    ]);
+    const e = await fail(client.requestOptional("https://evil.example/x"));
+    expect(e.code).toBe("http");
+  });
+});

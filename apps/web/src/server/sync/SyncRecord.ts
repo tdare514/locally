@@ -18,6 +18,9 @@ const SYNC_ORIGIN_PATTERN = /^[a-z][a-z0-9-]{0,15}$/;
 /** Longest name accepted for a record's file names and ids: the filename limit on every common filesystem. */
 export const MAX_SYNC_NAME_LENGTH = 255;
 
+/** What an adopted release with no artist tag is sent as: the service refuses an empty `artist`. */
+export const UNKNOWN_ARTIST = "Unknown artist";
+
 /**
  * True only for a name that, joined to any directory, can point at nothing but
  * a direct child of it: no separators, not `.`/`..` or any other leading-dot
@@ -167,7 +170,7 @@ export function toSyncRecord(
     id: release.id,
     kind: release.kind,
     title: release.title,
-    artist: release.artist,
+    artist: release.adopted && release.artist.trim() === "" ? UNKNOWN_ARTIST : release.artist,
     year: release.year,
     genre: release.genre,
     cover: release.coverPath ? path.basename(release.coverPath) : null,

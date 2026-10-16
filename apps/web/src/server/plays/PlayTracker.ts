@@ -10,6 +10,8 @@ import type { SpotifyNowPlaying } from "./SpotifyNowPlaying";
 export const DEFAULT_POLL_INTERVAL_MS = 5000;
 /** Poll interval while the last poll found Spotify closed, so an idle app rarely spawns osascript (#162). */
 export const IDLE_POLL_INTERVAL_MS = 30_000;
+/** Once nothing has played this long, poll at the idle interval until something plays again (#228). */
+export const IDLE_AFTER_NOT_PLAYING_MS = 120_000;
 
 /**
  * Polls Spotify while the user has opted in, feeds samples to {@link PlayCounter} and
@@ -24,6 +26,8 @@ export class PlayTracker {
   private lastStatus: Exclude<PlaysStatus, "off"> = "on";
   private warnedAmbiguous = new Set<string>();
   private loggedFailure = false;
+  /** When the run of non-playing samples (paused, stopped, closed, failed) began; null while playing. */
+  private notPlayingSince: number | null = null;
 
   constructor(
     private readonly nowPlaying: SpotifyNowPlaying,
@@ -42,6 +46,7 @@ export class PlayTracker {
     this.enabled = enabled;
     if (enabled) {
       this.lastStatus = "on";
+      this.notPlayingSince = null;
       void this.run();
     } else {
       this.clearTimer();
@@ -62,7 +67,10 @@ export class PlayTracker {
     await this.poll();
     if (!this.enabled) return;
     this.clearTimer();
-    const delay = this.lastStatus === "spotify-not-running" ? this.idleIntervalMs : this.intervalMs;
+    const idle =
+      this.lastStatus === "spotify-not-running" ||
+      (this.notPlayingSince !== null && this.now() - this.notPlayingSince >= IDLE_AFTER_NOT_PLAYING_MS);
+    const delay = idle ? this.idleIntervalMs : this.intervalMs;
     this.timer = setTimeout(() => void this.run(), delay);
     this.timer.unref?.();
   }
@@ -75,6 +83,20 @@ export class PlayTracker {
       const result = await this.nowPlaying.read();
       if (!this.enabled) return;
       const at = this.now();
+      if ("hold" in result) {
+        // The account is down and this Mac isn't playing a local file. End the counter's session into
+        // its bounded continuation memory, so recovery re-anchors instead of crediting a jump or
+        // keeping a stale "counted". A long outage still drifts to the idle interval.
+        this.notPlayingSince ??= at;
+        this.lastStatus = "on";
+        this.counter.push({ at, running: false, state: "stopped", id: null, positionSec: 0, durationMs: 0 });
+        return;
+      }
+      if ("error" in result || !result.running || result.state !== "playing") {
+        this.notPlayingSince ??= at;
+      } else {
+        this.notPlayingSince = null;
+      }
       if ("error" in result) {
         this.counter.push({ at, running: false, state: "stopped", id: null, positionSec: 0, durationMs: 0 });
         if (result.error === "permission-denied") {

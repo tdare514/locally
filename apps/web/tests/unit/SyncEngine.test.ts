@@ -184,8 +184,13 @@ class FakeSyncApi implements SyncApi {
     return { releases: page, nextVersion, hasMore };
   }
 
+  /** Release ids whose PUT is answered with this error. */
+  failPutFor = new Map<string, Error>();
+
   async putRelease(record: SyncRecord): Promise<{ version: number }> {
     this.putAttempts++;
+    const putError = this.failPutFor.get(record.id);
+    if (putError) throw putError;
     if (this.conflictOnce.has(record.id)) {
       this.conflictOnce.delete(record.id);
       throw new SyncConflictError("conflict");
@@ -391,6 +396,35 @@ describe("SyncEngine", () => {
       [audioFile("in.mp3")]
     );
   }
+
+  describe("back-fill when the service refuses a record", () => {
+    async function threeReleases(): Promise<Release[]> {
+      return [await importOne("A", "One"), await importOne("B", "Two"), await importOne("C", "Three")];
+    }
+
+    it.each([400, 422])("skips a release refused with %i and still pushes the others", async (status) => {
+      const [a, b, c] = await threeReleases();
+      api.failPutFor.set(b.id, new SyncRequestError("refused", status));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      await engine.reconcile();
+      warn.mockRestore();
+
+      expect(api.putCalls.map((r) => r.id).sort()).toEqual([a.id, c.id].sort());
+      expect((await engine.status()).lastError).toBeNull();
+    });
+
+    it("still aborts the run on a 500", async () => {
+      const [a, b, c] = await threeReleases();
+      void a;
+      void c;
+      api.failPutFor.set(b.id, new SyncRequestError("Sync request failed (500)", 500));
+
+      await engine.reconcile();
+
+      expect((await engine.status()).lastError).toBe("Sync request failed (500)");
+    });
+  });
 
   it("push uploads missing files then puts the record", async () => {
     const release = await importOne();

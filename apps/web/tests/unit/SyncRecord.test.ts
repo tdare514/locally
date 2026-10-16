@@ -7,6 +7,7 @@ import {
   hasSyncFileExtension,
   isPlainSyncName,
   parseSyncRecord,
+  UNKNOWN_ARTIST,
   toSyncRecord,
   type SyncRecord,
 } from "../../src/server/sync/SyncRecord";
@@ -187,6 +188,19 @@ describe("toSyncRecord", () => {
 
   it("produces a record that validates against the schema", () => {
     expect(() => parseSyncRecord(toSyncRecord(release(), "mac", "dev"))).not.toThrow();
+  });
+
+  it("sends Unknown artist for an adopted release with an empty artist, leaving track ids alone", () => {
+    const record = toSyncRecord(release({ adopted: true, artist: "  " }), "mac", "dev");
+    expect(UNKNOWN_ARTIST).toBe("Unknown artist");
+    expect(record.artist).toBe("Unknown artist");
+    expect(record.tracks.map((t) => t.id)).toEqual(["t1"]);
+    expect(SyncRecordSchema.safeParse(record).success).toBe(true);
+  });
+
+  it("keeps the artist of a non-adopted release and of an adopted one that has a tag", () => {
+    expect(toSyncRecord(release(), "mac", "dev").artist).toBe("Chromatics");
+    expect(toSyncRecord(release({ adopted: true }), "mac", "dev").artist).toBe("Chromatics");
   });
 
   it("defaults coverHash to null, and includes the hash it is given", () => {

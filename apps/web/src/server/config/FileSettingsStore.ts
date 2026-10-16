@@ -120,6 +120,7 @@ export class FileSettingsStore implements SettingsStore {
     const spotifySourceDismissed =
       typeof parsed.spotifySourceDismissed === "boolean" ? parsed.spotifySourceDismissed : false;
     const trackPlays = typeof parsed.trackPlays === "boolean" ? parsed.trackPlays : false;
+    const countOtherDevices = typeof parsed.countOtherDevices === "boolean" ? parsed.countOtherDevices : false;
     const playsPromptAnswered =
       typeof parsed.playsPromptAnswered === "boolean" ? parsed.playsPromptAnswered : false;
     const spotify = parseSpotifySettings(parsed.spotify);
@@ -131,6 +132,7 @@ export class FileSettingsStore implements SettingsStore {
       sync: parseSyncSettings(parsed.sync),
       spotifySourceDismissed,
       trackPlays,
+      countOtherDevices,
       playsPromptAnswered,
       adoptRoots,
       ...(spotify ? { spotify } : {}),
