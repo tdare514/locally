@@ -63,7 +63,7 @@ struct DevicesTrayAnchorKey: PreferenceKey {
     }
 }
 
-/// The 44 pt faked-glass cloud with the count badge; open, a bare red X.
+/// The 40 pt faked-glass cloud (44 pt hit area) with the count badge; open, a bare red X.
 struct DevicesTrayButton: View {
     let count: Int
     let isOpen: Bool
@@ -73,7 +73,9 @@ struct DevicesTrayButton: View {
     /// Bumped when the count goes up, which brings in a fresh badge.
     @State private var badgeEpoch = 0
 
+    /// The hit area; the visible glass is `visibleSide`.
     static let side: CGFloat = 44
+    static let visibleSide: CGFloat = 40
 
     var body: some View {
         Button(action: action) {
@@ -85,6 +87,7 @@ struct DevicesTrayButton: View {
                 } else {
                     Circle().fill(Theme.Immersive.panelFill)
                         .overlay(Circle().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
+                        .frame(width: Self.visibleSide, height: Self.visibleSide)
                         .overlay(
                             // The Mac's outline cloud has no hand-drawn glyph here yet; SF `cloud` is the closest.
                             Image(systemName: "cloud")
@@ -121,7 +124,6 @@ struct DevicesTrayButton: View {
             .padding(.horizontal, 5)
             .frame(minWidth: 18, minHeight: 18)
             .background(Theme.accent, in: Capsule())
-            .offset(x: 4, y: -2)
             .accessibilityHidden(true)
     }
 }
@@ -208,6 +210,7 @@ struct DevicesTrayRowView: View {
     var cover: UIImage?
     let onSend: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .subheadline) private var titleSize: CGFloat = 15
     @ScaledMetric(relativeTo: .footnote) private var detailSize: CGFloat = 13
     @ScaledMetric(relativeTo: .caption) private var labelSize: CGFloat = 12
@@ -226,9 +229,13 @@ struct DevicesTrayRowView: View {
                     Text(row.title)
                         .font(.system(size: titleSize, weight: .semibold))
                         .foregroundStyle(Theme.primaryText)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                        .truncationMode(.tail)
                     Text("\(row.artist) · \(Copy.Sync.trackCount(row.trackCount))")
                         .font(.system(size: detailSize))
                         .foregroundStyle(Theme.secondaryText)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                        .truncationMode(.tail)
                     Text(Copy.Sync.originLabel(row.origin))
                         .font(.system(size: labelSize))
                         .foregroundStyle(Theme.textDim)

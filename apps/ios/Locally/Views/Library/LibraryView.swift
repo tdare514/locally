@@ -197,7 +197,9 @@ struct LibraryView: View {
     @ViewBuilder
     private var header: some View {
         HStack(alignment: .lastTextBaseline) {
-            VStack(alignment: .leading, spacing: 4) {
+            // With a cloud pending the row grows so the count (on the title's baseline) sits at
+            // least 10 pt below the 40 pt button; with none it is as before #269.
+            VStack(alignment: .leading, spacing: pendingCount > 0 ? 26 : 4) {
                 Text(Copy.Library.eyebrow).eyebrow()
                 Text(Copy.Library.allMusic)
                     .font(Theme.Font.pageTitle)
@@ -209,8 +211,9 @@ struct LibraryView: View {
                 .foregroundStyle(Theme.secondaryText)
         }
         .overlay(alignment: .topTrailing) {
-            // On the eyebrow's line, the 44 pt button centred on it so it hangs above and below.
-            devicesButton.offset(y: -15)
+            // Top of the visible 40 pt glass level with the eyebrow's top; the 44 pt hit area
+            // ends at the 16 pt gutter, so the badge inside it never crosses.
+            devicesButton.offset(y: -2)
         }
         searchField
         controls
@@ -251,6 +254,8 @@ struct LibraryView: View {
             GeometryReader { geo in
                 let frame = geo[anchor]
                 let screen = geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
+                let gutter: CGFloat = 16
+                let panelWidth = min(300, geo.size.width - gutter * 2)
                 ZStack(alignment: .topLeading) {
                     // A tap on the library behind closes it.
                     Color.clear.contentShape(Rectangle())
@@ -270,9 +275,11 @@ struct LibraryView: View {
                         }
                     )
                     .accessibilityAction(.escape) { setTray(open: false) }
-                    .padding(.horizontal, Theme.Spacing.listPagePadding)
+                    .frame(width: panelWidth)
+                    // Its top-right corner sits under the cloud button, kept inside the gutters.
+                    .padding(.leading, max(gutter, min(frame.maxX, geo.size.width - gutter) - panelWidth))
                     .padding(.top, frame.maxY + 8)
-                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96, anchor: .topTrailing)))
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.92, anchor: .topTrailing)))
                     DevicesTrayButton(count: pendingCount, isOpen: true) { setTray(open: false) }
                         .position(x: frame.midX, y: frame.midY)
                 }
