@@ -173,35 +173,78 @@ struct ID3KeepOtherFramesTests {
         #expect(payloads(frames, "TBPM") == [text("90")])
     }
 
-    @Test func dropsDiscardCompressedEncryptedAndGroupedFramesButKeepsTheRest() async throws {
+    @Test func dropsOnlyDiscardWhenTagAlteredFramesAndClearsOtherStatusFlags() async throws {
         let v24 = tag(major: 4, body: [
             v24Frame("TCOM", text("discard"), status: 0x40),
-            v24Frame("TBPM", text("compressed"), format: 0x08),
-            v24Frame("TKEY", text("encrypted"), format: 0x04),
-            v24Frame("TSRC", text("grouped"), format: 0x40),
             v24Frame("TPUB", text("kept"), status: 0x20) // read-only bit is cleared, frame kept
         ].reduce(Data(), +))
         let (frames24, _) = try await retag(v24)
         #expect(payloads(frames24, "TCOM").isEmpty)
-        #expect(payloads(frames24, "TBPM").isEmpty)
-        #expect(payloads(frames24, "TKEY").isEmpty)
-        #expect(payloads(frames24, "TSRC").isEmpty)
         #expect(payloads(frames24, "TPUB") == [text("kept")])
         #expect(frames24.allSatisfy { $0.flags == [0, 0] })
 
         let v23 = tag(major: 3, body: [
             v23Frame("TCOM", text("discard"), status: 0x80),
-            v23Frame("TBPM", text("compressed"), format: 0x80),
-            v23Frame("TKEY", text("encrypted"), format: 0x40),
-            v23Frame("TSRC", text("grouped"), format: 0x20),
             v23Frame("TPUB", text("kept"), status: 0x40) // file-alter bit is cleared, frame kept
         ].reduce(Data(), +))
         let (frames23, _) = try await retag(v23)
         #expect(payloads(frames23, "TCOM").isEmpty)
-        #expect(payloads(frames23, "TBPM").isEmpty)
-        #expect(payloads(frames23, "TKEY").isEmpty)
-        #expect(payloads(frames23, "TSRC").isEmpty)
         #expect(payloads(frames23, "TPUB") == [text("kept")])
+        #expect(frames23.allSatisfy { $0.flags == [0, 0] })
+    }
+
+    @Test func keepsAGroupedTCOMFromV23AndV24() async throws {
+        let (f23, _) = try await retag(tag(major: 3, body: v23Frame("TCOM", [0x07] + text("Composer"), format: 0x20)))
+        let out23 = try #require(f23.first { $0.id == "TCOM" })
+        #expect(out23.flags == [0, 0x40])
+        #expect(out23.payload == [0x07] + text("Composer"))
+
+        let (f24, _) = try await retag(tag(major: 4, body: v24Frame("TCOM", [0x07] + text("Composer"), format: 0x40)))
+        let out24 = try #require(f24.first { $0.id == "TCOM" })
+        #expect(out24.flags == [0, 0x40])
+        #expect(out24.payload == [0x07] + text("Composer"))
+    }
+
+    @Test func aCompressedV23FrameBecomesAV24FrameWithADataLengthIndicator() async throws {
+        let zlib: [UInt8] = [0x78, 0x9C, 0xAB, 0xCD, 0x03, 0x00, 0x01, 0x02] // opaque: never inflated
+        let decompressed = 300
+        let payload = plain(decompressed) + zlib
+        let (frames, _) = try await retag(tag(major: 3, body: v23Frame("TXXX", payload, format: 0x80)))
+        let out = try #require(frames.first { $0.id == "TXXX" })
+        #expect(out.flags == [0, 0x09])
+        #expect(Array(out.payload.prefix(4)) == Array(ID3TagWriter.synchsafe(decompressed)))
+        #expect(Array(out.payload.dropFirst(4)) == zlib)
+    }
+
+    @Test func aV23FrameThatIsEncryptedAndGroupedKeepsItsBytesInV24Order() async throws {
+        // v2.3 order: encryption method, then group id. v2.4 order: group id, then method.
+        let (frames, _) = try await retag(tag(major: 3, body: v23Frame("TCOM", [0x05, 0x09, 0xAA, 0xBB], format: 0x60)))
+        let out = try #require(frames.first { $0.id == "TCOM" })
+        #expect(out.flags == [0, 0x44])
+        #expect(out.payload == [0x09, 0x05, 0xAA, 0xBB])
+    }
+
+    @Test func keepsAnEncryptedV24FrameWithItsMethodByte() async throws {
+        let (frames, _) = try await retag(tag(major: 4, body: v24Frame("TCOM", [0x05, 0xAA, 0xFF, 0x00, 0xBB], format: 0x04)))
+        let out = try #require(frames.first { $0.id == "TCOM" })
+        #expect(out.flags == [0, 0x04])
+        #expect(out.payload == [0x05, 0xAA, 0xFF, 0x00, 0xBB])
+    }
+
+    @Test func keepsACompressedUnsynchronisedV24FrameUnchanged() async throws {
+        let dli = Array(ID3TagWriter.synchsafe(123))
+        let data: [UInt8] = [0x78, 0xFF, 0x00, 0xE0, 0x01]
+        let (frames, _) = try await retag(tag(major: 4, body: v24Frame("TXXX", dli + data, format: 0x0B)))
+        let out = try #require(frames.first { $0.id == "TXXX" })
+        #expect(out.flags == [0, 0x0B])
+        #expect(out.payload == dli + data)
+    }
+
+    @Test func dropsAFrameWhoseExtraBytesDoNotFit() async throws {
+        let body = v24Frame("TCOM", [], format: 0x40) + v24Frame("TBPM", text("90"))
+        let (frames, _) = try await retag(tag(major: 4, body: body))
+        #expect(payloads(frames, "TCOM").isEmpty)
+        #expect(payloads(frames, "TBPM") == [text("90")])
     }
 
     @Test func aMalformedTrailingFrameKeepsTheEarlierFramesAndTheWriteSucceeds() async throws {
@@ -235,16 +278,43 @@ struct ID3KeepOtherFramesTests {
         #expect(!frames.map(\.id).contains("TCM"))
     }
 
-    @Test func dropsKeptFramesWhenTheyWouldNotFitTheSizeLimit() async throws {
+    @Test func refusesWhenOwnAndKeptFramesWouldNotFitAndLeavesTheFileUntouched() async throws {
         let limited = ID3TagWriter(tagBodyLimit: 400)
         let big = [UInt8](repeating: 0x41, count: 600)
         let source = tag(major: 4, body: v24Frame("TCOM", [0x03] + big))
         let (dir, url) = try makeFile(tag: source)
         defer { try? FileManager.default.removeItem(at: dir) }
-        try await limited.write(tags(), cover: nil, to: url)
-        let (frames, outAudio) = parse(try Data(contentsOf: url))
-        #expect(outAudio == audio)
-        #expect(payloads(frames, "TCOM").isEmpty)
-        #expect(payloads(frames, "TIT2") == [text("New Title")])
+        let before = try Data(contentsOf: url)
+
+        await #expect(throws: LocallyError.self) { try await limited.write(tags(), cover: nil, to: url) }
+
+        #expect(try Data(contentsOf: url) == before)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path) == ["track.mp3"])
+    }
+
+    @Test func refusesATagOverTheMemoryCapBeforeReadingItAndLeavesTheFileUntouched() async throws {
+        // A sparse file whose header claims a 33 MiB tag, bounded by the file length.
+        let claimed = 33 * 1024 * 1024
+        let header = Data([0x49, 0x44, 0x33, 0x04, 0x00, 0x00]) + ID3TagWriter.synchsafe(claimed)
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("track.mp3")
+        try header.write(to: url)
+        let handle = try FileHandle(forWritingTo: url)
+        try handle.truncate(atOffset: UInt64(10 + claimed + 4))
+        try handle.close()
+        let before = try Data(contentsOf: url)
+
+        do {
+            try await writer.write(tags(), cover: nil, to: url)
+            Issue.record("write must throw")
+        } catch let error as LocallyError {
+            guard case .taggingFailed(let message) = error else { Issue.record("wrong error \(error)"); return }
+            #expect(message == Copy.FileErrors.existingTagTooLarge)
+        }
+
+        #expect(try Data(contentsOf: url) == before)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path) == ["track.mp3"])
     }
 }

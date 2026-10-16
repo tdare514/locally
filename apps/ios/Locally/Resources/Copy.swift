@@ -274,6 +274,7 @@ enum Copy {
     /// Messages carried by `LocallyError` from the tag writers and transcoder.
     enum FileErrors {
         static let coverTooLargeForMp3 = "That cover is too large to store in an mp3."
+        static let existingTagTooLarge = "This file's tags are too large to edit."
         static let cannotTagFile = "This device can't tag that file."
         static let cannotConvertFile = "This device can't convert that file."
         static let unexpectedExportState = "Unexpected export state."

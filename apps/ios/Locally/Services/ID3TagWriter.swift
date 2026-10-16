@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 /// A minimal, pure-Swift ID3v2.4 writer for mp3 files: no third-party
 /// dependency, just enough of the spec to write the text frames Spotify's
@@ -19,7 +18,9 @@ final class ID3TagWriter: TagWriter {
         value >= 0 && value < synchsafeLimit
     }
 
-    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Locally", category: "tags")
+    /// An existing tag larger than this is refused rather than read into memory; the file is
+    /// left untouched.
+    static let maxKeptTagBytes = 32 * 1024 * 1024
 
     /// Frames Locally writes itself; an existing copy is replaced, never carried over.
     private static let ownedFrameIds: Set<String> = [
@@ -58,14 +59,12 @@ final class ID3TagWriter: TagWriter {
 
     func write(_ tags: TagSet, cover: Data?, to url: URL) async throws {
         var frames = buildFrames(tags: tags, cover: cover)
-        let kept = Self.keptFrames(from: url)
+        let kept = try Self.keptFrames(from: url)
         if !kept.isEmpty {
-            let combined = frames + kept
-            if Self.canEncodeSynchsafe(combined.count), combined.count < tagBodyLimit {
-                frames = combined
-            } else {
-                // Too big to carry over: Locally's own frames only, and say so (a count, never content).
-                Self.log.info("Existing tag frames dropped: \(kept.count) bytes would not fit the ID3 size limit")
+            frames.append(kept)
+            // Never quietly drop the person's other tags: refuse, with the file untouched.
+            guard Self.canEncodeSynchsafe(frames.count), frames.count < tagBodyLimit else {
+                throw LocallyError.taggingFailed(Copy.FileErrors.existingTagTooLarge)
             }
         }
         guard Self.canEncodeSynchsafe(frames.count), frames.count < tagBodyLimit else {
@@ -241,87 +240,154 @@ final class ID3TagWriter: TagWriter {
     // MARK: - Carrying over frames Locally doesn't own
 
     /// The existing ID3v2 tag's frames that Locally doesn't own, re-encoded for the v2.4 tag
-    /// the writer produces (id, synchsafe size, cleared flags, payload). Reads only the tag's
-    /// own bytes from the front of the file. Never throws: an unreadable or odd tag yields
-    /// whatever frames were parsed before the problem, or none.
-    static func keptFrames(from url: URL) -> Data {
+    /// the writer produces (id, synchsafe size, flags, payload). Reads only the tag's own
+    /// bytes from the front of the file. Throws only when the tag is over `maxKeptTagBytes`
+    /// (before reading it); any other trouble yields the frames parsed so far, or none.
+    static func keptFrames(from url: URL) throws -> Data {
         guard let input = try? FileHandle(forReadingFrom: url) else { return Data() }
         defer { try? input.close() }
         guard let fileLength = try? input.seekToEnd(), (try? input.seek(toOffset: 0)) != nil,
               let prefix = try? input.read(upToCount: 10) else { return Data() }
         let total = existingID3HeaderLength(prefix: prefix, fileLength: Int(clamping: fileLength))
-        guard total > 10, (try? input.seek(toOffset: 0)) != nil,
+        guard total > 10 else { return Data() }
+        guard total - 10 <= maxKeptTagBytes else {
+            throw LocallyError.taggingFailed(Copy.FileErrors.existingTagTooLarge)
+        }
+        guard (try? input.seek(toOffset: 0)) != nil,
               let tag = try? input.read(upToCount: total), tag.count == total else { return Data() }
         return keptFrames(fromTag: tag)
     }
 
     /// `tag` is a whole ID3v2 tag: the 10-byte header plus its body.
     static func keptFrames(fromTag tag: Data) -> Data {
-        let bytes = [UInt8](tag)
-        guard bytes.count > 10 else { return Data() }
-        let major = bytes[3]
+        var buf = [UInt8](tag)
+        guard buf.count > 10 else { return Data() }
+        let major = buf[3]
         guard major == 3 || major == 4 else { return Data() } // v2.2 has 3-character ids: keep nothing
-        let tagFlags = bytes[5]
-        var body = Array(bytes[10...])
+        let tagFlags = buf[5]
+        var offset = 10
 
-        if major == 3, tagFlags & 0x80 != 0 { body = reverseUnsynchronisation(body) }
+        if major == 3, tagFlags & 0x80 != 0 { // tag-level unsynchronisation
+            buf = reverseUnsynchronisation(buf[10...])
+            offset = 0
+        }
 
-        var offset = 0
         if tagFlags & 0x40 != 0 { // extended header: skip it
-            guard body.count >= 4 else { return Data() }
-            let sizeBytes = Array(body[0..<4])
+            guard buf.count - offset >= 4 else { return Data() }
+            let sizeBytes = Array(buf[offset..<(offset + 4)])
             let skip = major == 3
                 ? 4 + plainInt(sizeBytes)        // v2.3: plain size, excludes itself
                 : desynchsafe(sizeBytes)         // v2.4: synchsafe, includes itself
-            guard skip >= 4, skip <= body.count else { return Data() }
-            offset = skip
+            guard skip >= 4, skip <= buf.count - offset else { return Data() }
+            offset += skip
         }
 
         var kept = Data()
-        while offset + 10 <= body.count {
-            if body[offset] == 0 { break } // padding
-            let idBytes = Array(body[offset..<(offset + 4)])
+        while offset + 10 <= buf.count {
+            if buf[offset] == 0 { break } // padding
+            let idBytes = buf[offset..<(offset + 4)]
             guard idBytes.allSatisfy({ ($0 >= 0x41 && $0 <= 0x5A) || ($0 >= 0x30 && $0 <= 0x39) }),
                   let id = String(bytes: idBytes, encoding: .ascii) else { break }
-            let sizeBytes = Array(body[(offset + 4)..<(offset + 8)])
+            let sizeBytes = Array(buf[(offset + 4)..<(offset + 8)])
             let size = major == 3 ? plainInt(sizeBytes) : desynchsafe(sizeBytes)
-            let statusFlags = body[offset + 8]
-            let formatFlags = body[offset + 9]
+            let status = buf[offset + 8]
+            let format = buf[offset + 9]
             let start = offset + 10
-            guard size >= 0, size <= body.count - start else { break }
-            offset = start + size
+            guard size >= 0, size <= buf.count - start else { break }
+            let end = start + size
+            offset = end
 
-            let discard: Bool
-            var payload = Array(body[start..<offset])
-            if major == 3 {
-                discard = statusFlags & 0x80 != 0 || formatFlags & 0xE0 != 0
-            } else {
-                discard = statusFlags & 0x40 != 0 || formatFlags & 0x4C != 0
-                    // 0x40 grouping, 0x08 compressed, 0x04 encrypted
-                if !discard {
-                    if formatFlags & 0x01 != 0 { // data length indicator: drop its 4-byte prefix
-                        guard payload.count >= 4 else { continue }
-                        payload.removeFirst(4)
-                    }
-                    if formatFlags & 0x02 != 0 { payload = reverseUnsynchronisation(payload) }
-                }
-            }
-            if discard || isOwned(id: id, payload: payload) { continue }
-
+            let frame = major == 3
+                ? convertV23Frame(id: id, status: status, format: format, in: buf, start: start, end: end)
+                : convertV24Frame(id: id, status: status, format: format, in: buf, start: start, end: end)
+            guard let frame else { continue }
             kept.append(contentsOf: idBytes)
-            kept.append(synchsafe(payload.count))
-            kept.append(contentsOf: [0x00, 0x00])
-            kept.append(contentsOf: payload)
+            kept.append(synchsafe(frame.prefix.count + frame.data.count))
+            kept.append(contentsOf: [0x00, frame.format])
+            kept.append(contentsOf: frame.prefix)
+            kept.append(contentsOf: frame.data)
         }
         return kept
     }
 
-    /// True for frames Locally replaces: its text frames and the front-cover APIC.
-    private static func isOwned(id: String, payload: [UInt8]) -> Bool {
-        if ownedFrameIds.contains(id) { return true }
-        guard id == "APIC", payload.count > 2,
-              let mimeEnd = payload[1...].firstIndex(of: 0), mimeEnd + 1 < payload.count else { return false }
-        return payload[mimeEnd + 1] == 0x03
+    /// A frame ready to write into the v2.4 tag: its format-flag byte, the extra bytes that
+    /// follow the header (group id, encryption method, data length indicator) and the data.
+    private struct OutFrame {
+        var format: UInt8
+        var prefix: [UInt8]
+        var data: ArraySlice<UInt8>
+    }
+
+    /// v2.3 frame to v2.4 layout. Nil drops the frame: discard-when-altered, owned, or extra
+    /// bytes that don't fit. Compressed and encrypted data is carried as it is.
+    private static func convertV23Frame(id: String, status: UInt8, format: UInt8, in buf: [UInt8], start: Int, end: Int) -> OutFrame? {
+        if status & 0x80 != 0 { return nil }
+        let compressed = format & 0x80 != 0, encrypted = format & 0x40 != 0, grouped = format & 0x20 != 0
+        var pos = start
+        var decompressedSize = 0
+        var method: UInt8 = 0, group: UInt8 = 0
+        if compressed {
+            guard end - pos >= 4 else { return nil }
+            decompressedSize = plainInt(Array(buf[pos..<(pos + 4)]))
+            pos += 4
+        }
+        if encrypted { guard pos < end else { return nil }; method = buf[pos]; pos += 1 }
+        if grouped { guard pos < end else { return nil }; group = buf[pos]; pos += 1 }
+        let data = buf[pos..<end]
+        if !compressed, !encrypted, isOwned(id: id, data: data) { return nil }
+        if ownedFrameIds.contains(id) { return nil }
+
+        var out = OutFrame(format: 0, prefix: [], data: data)
+        if grouped { out.format |= 0x40; out.prefix.append(group) }
+        if encrypted { out.format |= 0x04; out.prefix.append(method) }
+        if compressed {
+            guard canEncodeSynchsafe(decompressedSize) else { return nil }
+            out.format |= 0x09
+            out.prefix.append(contentsOf: synchsafe(decompressedSize))
+        }
+        return out
+    }
+
+    /// v2.4 frame, flags cleaned: unsynchronisation is undone only on frames that are neither
+    /// compressed nor encrypted; the data length indicator is kept only with compression.
+    private static func convertV24Frame(id: String, status: UInt8, format: UInt8, in buf: [UInt8], start: Int, end: Int) -> OutFrame? {
+        if status & 0x40 != 0 { return nil }
+        let grouped = format & 0x40 != 0, compressed = format & 0x08 != 0
+        let encrypted = format & 0x04 != 0, unsynced = format & 0x02 != 0, hasLength = format & 0x01 != 0
+        if compressed && !hasLength { return nil }
+        var pos = start
+        var out = OutFrame(format: 0, prefix: [], data: [])
+        if grouped { guard pos < end else { return nil }; out.format |= 0x40; out.prefix.append(buf[pos]); pos += 1 }
+        if encrypted { guard pos < end else { return nil }; out.format |= 0x04; out.prefix.append(buf[pos]); pos += 1 }
+        if hasLength {
+            guard end - pos >= 4 else { return nil }
+            if compressed {
+                out.format |= 0x09
+                out.prefix.append(contentsOf: buf[pos..<(pos + 4)])
+            }
+            pos += 4
+        }
+        if compressed { out.format |= 0x08 }
+        if unsynced {
+            if compressed || encrypted {
+                out.format |= 0x02
+                out.data = buf[pos..<end]
+            } else {
+                out.data = reverseUnsynchronisation(buf[pos..<end])[...]
+            }
+        } else {
+            out.data = buf[pos..<end]
+        }
+        if !compressed, !encrypted, isOwned(id: id, data: out.data) { return nil }
+        if ownedFrameIds.contains(id) { return nil }
+        return out
+    }
+
+    /// True for the front-cover APIC (the only owned frame that needs its data read).
+    private static func isOwned(id: String, data: ArraySlice<UInt8>) -> Bool {
+        guard id == "APIC", data.count > 2,
+              let mimeEnd = data[(data.startIndex + 1)...].firstIndex(of: 0), mimeEnd + 1 < data.endIndex else { return false }
+        return data[mimeEnd + 1] == 0x03
     }
 
     private static func plainInt(_ bytes: [UInt8]) -> Int {
@@ -329,13 +395,13 @@ final class ID3TagWriter: TagWriter {
     }
 
     /// Undoes unsynchronisation: every 0xFF 0x00 becomes 0xFF.
-    private static func reverseUnsynchronisation(_ bytes: [UInt8]) -> [UInt8] {
+    private static func reverseUnsynchronisation(_ bytes: ArraySlice<UInt8>) -> [UInt8] {
         var out: [UInt8] = []
         out.reserveCapacity(bytes.count)
-        var i = 0
-        while i < bytes.count {
+        var i = bytes.startIndex
+        while i < bytes.endIndex {
             out.append(bytes[i])
-            if bytes[i] == 0xFF, i + 1 < bytes.count, bytes[i + 1] == 0x00 { i += 1 }
+            if bytes[i] == 0xFF, i + 1 < bytes.endIndex, bytes[i + 1] == 0x00 { i += 1 }
             i += 1
         }
         return out
