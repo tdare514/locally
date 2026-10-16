@@ -46,15 +46,19 @@ struct SettingsView: View {
 
                         GlassSection(title: Copy.Settings.purchaseSection) { purchaseCard }
 
+                        GlassSection(title: Copy.Settings.appIcon) {
+                            GlassCard { AppIconPicker().padding(16) }
+                        }
+
                         GlassSection(
-                            title: Copy.Settings.appIcon,
-                            footnote: systemReduceMotion
-                                ? Copy.Settings.keepBackdropsMovingHintReduced
-                                : Copy.Settings.keepBackdropsMovingHint
+                            title: Copy.Settings.motionSection,
+                            footnote: !systemReduceMotion
+                                ? Copy.Settings.keepBackdropsMovingHint
+                                : keepBackdropsMoving
+                                    ? Copy.Settings.keepBackdropsMovingHintKept
+                                    : Copy.Settings.keepBackdropsMovingHintReduced
                         ) {
                             GlassCard {
-                                AppIconPicker().padding(16)
-                                GlassDivider()
                                 GlassToggleRow(
                                     symbol: "wind", tint: Theme.Tint.slate,
                                     title: Copy.Settings.keepBackdropsMoving, isOn: $keepBackdropsMoving

@@ -47,6 +47,7 @@ struct StatsView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.isTabSelected) private var isTabSelected
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(BackdropMotion.keepMovingKey) private var keepBackdropsMoving = false
 
     private static var edgeFade: CGFloat { 22 }
     private static var maxBottomFade: CGFloat { 90 }
@@ -134,7 +135,11 @@ struct StatsView: View {
                     .transition(.opacity)
             }
         }
-        .animation(reduceMotion ? nil : .easeInOut(duration: Theme.Immersive.backdropCrossFade), value: palette != nil)
+        .animation(
+            BackdropMotion.reducesMotion(systemReduceMotion: reduceMotion, keepMoving: keepBackdropsMoving)
+                ? nil : .easeInOut(duration: Theme.Immersive.backdropCrossFade),
+            value: palette != nil
+        )
     }
 
     /// Port of `.st-scrim`: a darkening over the cover-colour wash, strongest at the top where the
