@@ -68,6 +68,11 @@ export function ChevronRightIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** ChevronRightIcon mirrored, for the back button (#258). */
+export function ChevronLeftIcon(props: SVGProps<SVGSVGElement>) {
+  return <ChevronRightIcon {...props} style={{ transform: "scaleX(-1)", ...props.style }} />;
+}
+
 /** Library search field affordance. */
 export function SearchIcon(props: SVGProps<SVGSVGElement>) {
   return (

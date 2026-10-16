@@ -549,6 +549,13 @@ enum Theme {
         nav.shadowColor = .clear
         nav.titleTextAttributes = [.foregroundColor: UIColor.white]
         nav.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
+        // Locally's drawn chevron in place of the system one (#258), the Mac back button's glyph.
+        // Apple's button, the edge swipe and the edit-mode Cancel (#220) stay.
+        if let chevron = UIImage(named: "Icon/ChevronRight")?
+            .withRenderingMode(.alwaysTemplate)
+            .withHorizontallyFlippedOrientation() {
+            nav.setBackIndicatorImage(chevron, transitionMaskImage: chevron)
+        }
         UINavigationBar.appearance().standardAppearance = nav
         UINavigationBar.appearance().scrollEdgeAppearance = nav
         UINavigationBar.appearance().compactAppearance = nav
