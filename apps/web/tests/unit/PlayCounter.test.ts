@@ -97,7 +97,56 @@ describe("PlayCounter", () => {
     const c = new PlayCounter();
     run(c, [0, 5, 10, 15, 20, 25].map((t) => s(t, t)));
     expect(c.push({ at: 30_000, running: false, state: "stopped", id: null, positionSec: 0, durationMs: 0 })).toBeNull();
-    expect(c.push(s(35, 30))).toBeNull(); // new session, re-anchor only
-    expect(c.push(s(40, 35))).toBeNull();
+    expect(c.push(s(35, 30))).toBeNull(); // re-anchor only: the closed gap earns no credit
+    // The same track resuming where it left off continues the same play (#228): 25 s before + 5 s now.
+    expect(c.push(s(40, 35))).toBe(LOCAL);
+  });
+});
+
+describe("PlayCounter memory of the last session (#228)", () => {
+  const OTHER = "spotify:local:A:B:D:200";
+
+  it("a source switch that resumes the same track further on does not count it twice", () => {
+    const c = new PlayCounter();
+    const out = run(c, [0, 5, 10, 15, 20, 25, 30].map((t) => s(t, t)));
+    expect(out.filter(Boolean)).toHaveLength(1);
+    c.push(s(35, 0, { running: false, state: "stopped", id: null })); // fell back, Mac not playing
+    c.push(s(40, 0, { running: false, state: "stopped", id: null }));
+    expect(run(c, [45, 50, 55, 60].map((t) => s(t, t))).filter(Boolean)).toEqual([]); // same track, further along
+  });
+
+  it("restores listened time too, so an uncounted play finishes where it left off", () => {
+    const c = new PlayCounter();
+    run(c, [0, 5, 10, 15, 20].map((t) => s(t, t))); // 20 s
+    c.push(s(25, 0, { running: false, state: "stopped", id: null }));
+    expect(c.push(s(30, 25))).toBeNull(); // re-anchors, 20 s restored
+    expect(c.push(s(35, 30))).toBeNull(); // 25 s
+    expect(c.push(s(40, 35))).toBe(LOCAL); // 30 s
+  });
+
+  it("a replay from the start after the reset is a new play", () => {
+    const c = new PlayCounter();
+    run(c, [0, 5, 10, 15, 20, 25, 30].map((t) => s(t, t)));
+    c.push(s(35, 0, { running: false, state: "stopped", id: null }));
+    const out = run(c, [40, 45, 50, 55, 60, 65, 70].map((t, i) => s(t, i * 5)));
+    expect(out.filter(Boolean)).toHaveLength(1);
+  });
+
+  it("a position too far ahead for the time passed is a new play", () => {
+    const c = new PlayCounter();
+    run(c, [0, 5, 10, 15, 20, 25, 30].map((t) => s(t, t)));
+    c.push(s(35, 0, { running: false, state: "stopped", id: null }));
+    // 5 s later but 100 s further on: a seek, not a continuation.
+    const out = run(c, [40, 45, 50, 55, 60, 65, 70].map((t, i) => s(t, 130 + i * 5)));
+    expect(out.filter(Boolean)).toHaveLength(1);
+  });
+
+  it("a different track in between overwrites the memory", () => {
+    const c = new PlayCounter();
+    run(c, [0, 5, 10, 15, 20, 25, 30].map((t) => s(t, t)));
+    c.push(s(35, 0, { id: OTHER, positionSec: 0 }));
+    c.push(s(40, 5, { id: OTHER }));
+    const out = run(c, [45, 50, 55, 60, 65, 70, 75].map((t, i) => s(t, 40 + i * 5)));
+    expect(out.filter(Boolean)).toHaveLength(1);
   });
 });

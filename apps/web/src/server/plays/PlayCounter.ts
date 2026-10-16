@@ -22,6 +22,15 @@ interface Previous {
   playing: boolean;
 }
 
+/** The last session before a reset, so a continuation of the same play isn't counted again (#228). */
+interface LastSession {
+  id: string;
+  positionSec: number;
+  at: number;
+  listenedSec: number;
+  counted: boolean;
+}
+
 /**
  * Pure state machine that decides when a Spotify local-file play counts. No I/O, no timers:
  * the caller feeds it samples and gets back the id when a play counts (once per session).
@@ -31,6 +40,7 @@ export class PlayCounter {
   private listenedSec = 0;
   private counted = false;
   private prev: Previous | null = null;
+  private last: LastSession | null = null;
 
   /** Feed one sample. Returns the Spotify id when this sample makes a play count, else null. */
   push(sample: PlaySample): string | null {
@@ -42,10 +52,24 @@ export class PlayCounter {
 
     const wentBack = this.prev !== null && sample.positionSec < this.prev.positionSec - BACKWARD_SEEK_SEC;
     if (id !== this.sessionId || wentBack) {
+      this.remember();
       this.sessionId = id;
       this.listenedSec = 0;
       this.counted = false;
       this.prev = null;
+      // The same track resuming where the last session left off (the source switched, or Spotify
+      // quit and came back) is the same play, not a new one. A replay from the start is not.
+      const last = this.last;
+      if (
+        !wentBack &&
+        last &&
+        last.id === id &&
+        sample.positionSec >= last.positionSec - BACKWARD_SEEK_SEC &&
+        sample.positionSec <= last.positionSec + (sample.at - last.at) / 1000 + SEEK_SLACK_SEC
+      ) {
+        this.listenedSec = last.listenedSec;
+        this.counted = last.counted;
+      }
     }
 
     const playing = sample.state === "playing";
@@ -66,7 +90,21 @@ export class PlayCounter {
     return null;
   }
 
+  /** Keep the session that is ending, replacing any older memory. */
+  private remember(): void {
+    if (this.sessionId && this.prev) {
+      this.last = {
+        id: this.sessionId,
+        positionSec: this.prev.positionSec,
+        at: this.prev.at,
+        listenedSec: this.listenedSec,
+        counted: this.counted,
+      };
+    }
+  }
+
   private reset(): void {
+    this.remember();
     this.sessionId = null;
     this.listenedSec = 0;
     this.counted = false;

@@ -67,6 +67,18 @@ describe("FileSettingsStore", () => {
     expect(s.trackPlays).toBe(false);
   });
 
+  it("reads countOtherDevices as false from an old settings.json and round-trips true (#228)", async () => {
+    await fs.mkdir(configDir, { recursive: true });
+    const libraryDir = path.join(path.dirname(configDir), "lib");
+    await fs.writeFile(settingsFilePath(), JSON.stringify({ libraryDir, sync: null, trackPlays: true }));
+    const store = new FileSettingsStore();
+    expect((await store.get()).countOtherDevices).toBe(false);
+    await fs.writeFile(settingsFilePath(), JSON.stringify({ libraryDir, sync: null, countOtherDevices: true }));
+    expect((await new FileSettingsStore().get()).countOtherDevices).toBe(true);
+    await fs.writeFile(settingsFilePath(), JSON.stringify({ libraryDir, sync: null, countOtherDevices: "yes" }));
+    expect((await new FileSettingsStore().get()).countOtherDevices).toBe(false);
+  });
+
   it("reads playsPromptAnswered as false on first run and from an old settings.json without the field", async () => {
     expect((await new FileSettingsStore().get()).playsPromptAnswered).toBe(false);
 

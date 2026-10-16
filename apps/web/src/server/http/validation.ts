@@ -308,6 +308,7 @@ const putSettingsBodySchema = z.object({
     })
     .optional(),
   trackPlays: z.boolean({ error: "trackPlays must be a boolean" }).optional(),
+  countOtherDevices: z.boolean({ error: "countOtherDevices must be a boolean" }).optional(),
   playsPromptAnswered: z.boolean({ error: "playsPromptAnswered must be a boolean" }).optional(),
 });
 
@@ -315,6 +316,7 @@ export interface ParsedSettingsPut {
   libraryDir?: string;
   sync?: { baseUrl?: string };
   trackPlays?: boolean;
+  countOtherDevices?: boolean;
   playsPromptAnswered?: boolean;
 }
 

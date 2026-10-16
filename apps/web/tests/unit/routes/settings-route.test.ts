@@ -117,6 +117,26 @@ describe("trackPlays setting", () => {
   });
 });
 
+describe("countOtherDevices setting (#228)", () => {
+  it("is exposed by GET, false by default", async () => {
+    const body = (await (await GET()).json()) as { countOtherDevices: boolean };
+    expect(body.countOtherDevices).toBe(false);
+  });
+
+  it("PUT round-trips it", async () => {
+    const res = await PUT(putRequest({ countOtherDevices: true }));
+    expect(res.status).toBe(200);
+    expect(settingsValue.countOtherDevices).toBe(true);
+    expect(((await res.json()) as { countOtherDevices: boolean }).countOtherDevices).toBe(true);
+    expect(((await (await GET()).json()) as { countOtherDevices: boolean }).countOtherDevices).toBe(true);
+  });
+
+  it("PUT rejects a non-boolean", async () => {
+    const res = await PUT(putRequest({ countOtherDevices: "yes" }));
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("playsPromptAnswered setting", () => {
   it("is exposed by GET, false by default", async () => {
     const body = (await (await GET()).json()) as { playsPromptAnswered: boolean };
