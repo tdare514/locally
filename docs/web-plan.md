@@ -73,3 +73,10 @@ Spotify-like dark theme (#121212 bg, #1DB954 accent, Inter/system font). Layout:
 - `src/server/storage/` (the JSON `LibraryRepository` behind a repository interface) is the only module that knows the index format; swap for SQLite later behind the same functions.
 - Release/track ids are UUIDs so a future sync or multi-library feature has stable keys.
 - Conversion is one ffmpeg process per file, sequential; a job queue can slot in at `releases.ts` without API changes.
+
+### Later, not tracked as issues (from #7, closed 16 Oct)
+None of these is needed for the 1 Nov beta. Each gets an issue (and the SQLite one an ADR) when it is wanted.
+- **SQLite index.** `JsonLibraryRepository` reads and rewrites the whole `library.json` on every list and edit, which gets slow at around 5,000 releases. The move is a new ADR and a new `LibraryRepository` implementation behind the same interface.
+- **Conversion job queue.** Importing WAV, FLAC or M4A converts each file to MP3 one after another while the import waits. A queue would convert in the background (and could run a few at once), with progress on the page.
+- **Multi-library.** One library folder per Mac today. Several (another folder, an external drive) would use the release and track UUIDs above as stable keys.
+- **Playlist-aware grouping** in the library: needs Spotify playlists, so it follows the Spotify connection (`docs/plans/212-spotify-connection.md`).
