@@ -195,6 +195,31 @@ struct GlassRow: View {
     }
 }
 
+/// A glass-card row with a switch: an icon tile, a title and the system toggle. VoiceOver reads the
+/// title and the on/off state.
+struct GlassToggleRow: View {
+    let symbol: String
+    let tint: Color
+    let title: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            HStack(spacing: 14) {
+                IconTile(symbol: symbol, tint: tint)
+                Text(title)
+                    .font(Theme.ScaledFont.rowTitle)
+                    .foregroundStyle(Theme.primaryText)
+                    .multilineTextAlignment(.leading)
+            }
+        }
+        .tint(Theme.accent)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+        .frame(minHeight: 56)
+    }
+}
+
 /// A row that dims softly while pressed; no hard highlight rectangle.
 struct SoftPressStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

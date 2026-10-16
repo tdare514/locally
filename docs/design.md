@@ -376,7 +376,7 @@ eyebrows still apply to those labels.
     scroll (`pressedSkyReleaseDistance`). As the library scrolls, the two glows turn 28 and 22
     degrees per screen scrolled (`scrollTurnPrimary`, `scrollTurnSecondary`), against each other.
   - *Reduced motion*: the cover change becomes a plain opacity change over 0.2 s
-    (`reducedMotionFadeDuration`), with no scale. The library sky is held still (STATUS, #128).
+    (`reducedMotionFadeDuration`), with no scale. The library sky and the other backdrops are held still (STATUS, #128), unless the user turns on Settings › Motion › Keep backgrounds moving (#231), which lets the backdrops alone drift as with Reduce Motion off.
     Theme.swift has no reduced-motion values for the save ceremony on the release page, so its
     behaviour under Reduce Motion is not written here and not verified. The import's cover beat
     has its own Reduce Motion rules, under *Make a record* below.
