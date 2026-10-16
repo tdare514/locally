@@ -38,6 +38,11 @@ class FakeSettingsStore implements SettingsStore {
     this.settings = settings;
     return settings;
   }
+  async update(mutator: (current: Settings) => Settings | null): Promise<Settings> {
+    const next = mutator(this.settings);
+    if (next) this.settings = next;
+    return this.settings;
+  }
 }
 
 /** In-memory `LibraryRepository` fake, scoped by libraryDir like the real one. */

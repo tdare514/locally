@@ -44,6 +44,10 @@ src/server/
     SyncRecord.ts             # zod schema for the wire record, plain-name + extension guards, to/fromSyncRecord
     SyncState.ts              # SyncState + SyncStateStore interface: pushed/uploaded/pending bookkeeping, per-release firstSeenMissingAt marks (#172)
     FileSyncStateStore.ts     # JSON-file impl (sync-state.json next to settings.json), zod-validated
+  spotify/
+    config.ts                 # client id (bundled, LOCALLY_SPOTIFY_CLIENT_ID overrides), redirect 127.0.0.1:8888/callback, scopes (#239)
+    SpotifyAuth.ts            # PKCE sign-in: one-shot loopback listener, single-use state, code exchange, disconnect
+    SpotifyClient.ts          # token refresh bound to its connection revision, request + error mapping
   http/
     responses.ts              # errorResponse/badRequest
     validation.ts             # upload limits, mime sniffing, zod schemas: request → validated DTO parsers

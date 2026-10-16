@@ -28,15 +28,23 @@ export async function PUT(request: NextRequest) {
     const rawBody = await request.json();
     const body = parseSettingsPutBody(rawBody);
     const services = getServices();
-    const current = await services.settings.get();
-
-    const plan = planSettingsUpdate(current, body, homeDir());
-    if (!plan.ok) return badRequest(plan.error);
-    if (plan.resetSyncState) await services.syncState.set(emptySyncState());
-    const settings = await services.settings.set(plan.settings);
+    // Planned from the settings as they are at write time, so a concurrent change isn't overwritten.
+    let rejection = null as string | null;
+    let resetSyncState = false;
+    const settings = await services.settings.update((current) => {
+      const plan = planSettingsUpdate(current, body, homeDir());
+      if (!plan.ok) {
+        rejection = plan.error;
+        return null;
+      }
+      resetSyncState = plan.resetSyncState;
+      return plan.settings;
+    });
+    if (rejection !== null) return badRequest(rejection);
+    if (resetSyncState) await services.syncState.set(emptySyncState());
     // After the settings are saved, as sign-out does it: a new host is a new account, and its play
     // counts were never pushed there (#107).
-    if (plan.resetSyncState) await services.playStore.resetPushed();
+    if (resetSyncState) await services.playStore.resetPushed();
     services.playTracker.setEnabled(settings.trackPlays === true);
     return NextResponse.json(toSettingsResponse(settings));
   } catch (err) {
