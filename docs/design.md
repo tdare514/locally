@@ -301,7 +301,8 @@ eyebrows still apply to those labels.
       to the sleeve (350 ms, then a short settle; at once with Reduce Motion), so the ceremony is
       in view, and a failed send's message sits in the footer just above Send rather than at the
       end of the list, on a soft dark halo (`bg` at 90 %, blurred 8) so the list never shows
-      through it, at most 5 lines (3 at the accessibility text sizes; VoiceOver reads it all); then the disc eases out of the sleeve to its
+      through it, at most 5 lines (3 at the accessibility text sizes; VoiceOver reads it all), and when
+      that cuts it short a **Details** link under it opens the whole message in a sheet; then the disc eases out of the sleeve to its
       peeking pose (600 ms, curve 0.2, 0.8, 0.2, 1; at once with Reduce Motion), so the release
       page's ceremony starts from its own pose.
     - *The beat*, whenever a cover is set (from Files, Photos or a recent cover), starting once

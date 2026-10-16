@@ -53,6 +53,10 @@ enum Copy {
         static let fieldTitle = "Title"
         static let fieldArtist = "Artist"
         static let fieldAlbumTitle = "Album title"
+        /// A failed send's message cut short at large text sizes: the link under it, and the
+        /// sheet that shows the whole message.
+        static let sendErrorDetails = "Details"
+        static let sendErrorTitle = "Why it didn't send"
         static let albumPlaceholder = "Album, same as track title"
         static let fieldYear = "Year"
         static let fieldGenre = "Genre"

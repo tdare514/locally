@@ -146,22 +146,89 @@ struct ImportSendError: View {
     let message: String
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var cappedHeight: CGFloat = 0
+    @State private var fullHeight: CGFloat = 0
+    @State private var showsDetails = false
+
+    /// True when the line cap really cut the message short: the unconstrained text is taller.
+    private var isTruncated: Bool { fullHeight - cappedHeight > 1 }
+
+    private var messageText: Text {
+        Text(message)
+    }
 
     var body: some View {
-        Text(message)
-            .font(Theme.ScaledFont.caption)
-            .foregroundStyle(Theme.danger)
-            .multilineTextAlignment(.center)
-            .lineLimit(dynamicTypeSize.isAccessibilitySize ? Theme.Import.sendErrorLinesLarge : Theme.Import.sendErrorLines)
-            .accessibilityLabel(message)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, Theme.Import.sendErrorHaloInset)
-            .background {
-                RoundedRectangle(cornerRadius: Theme.Import.sendErrorHaloInset * 2)
-                    .fill(Theme.background.opacity(Theme.Import.sendErrorHaloOpacity))
-                    .blur(radius: Theme.Import.sendErrorHaloInset)
-                    .allowsHitTesting(false)
+        VStack(spacing: 0) {
+            messageText
+                .font(Theme.ScaledFont.caption)
+                .foregroundStyle(Theme.danger)
+                .multilineTextAlignment(.center)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? Theme.Import.sendErrorLinesLarge : Theme.Import.sendErrorLines)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cappedHeight = $0 }
+                .background {
+                    // A hidden copy with no line cap, to compare heights against.
+                    messageText
+                        .font(Theme.ScaledFont.caption)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .hidden()
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { fullHeight = $0 }
+                }
+                .accessibilityLabel(message)
+            if isTruncated {
+                // Scaled with the message (`TextButtonStyle` is a fixed size), underlined as the
+                // Mac's secondary actions are.
+                Button { showsDetails = true } label: {
+                    Text(Copy.Import.sendErrorDetails)
+                        .font(Theme.ScaledFont.caption.weight(.semibold))
+                        .underline()
+                        .foregroundStyle(Theme.primaryText)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
-            .padding(.bottom, Theme.Spacing.rowGap)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Theme.Import.sendErrorHaloInset)
+        .background {
+            RoundedRectangle(cornerRadius: Theme.Import.sendErrorHaloInset * 2)
+                .fill(Theme.background.opacity(Theme.Import.sendErrorHaloOpacity))
+                .blur(radius: Theme.Import.sendErrorHaloInset)
+                .allowsHitTesting(false)
+        }
+        .padding(.bottom, Theme.Spacing.rowGap)
+        .sheet(isPresented: $showsDetails) {
+            ImportSendErrorDetails(message: message)
+        }
+    }
+}
+
+/// The whole failed-send message, for when the footer's capped copy cuts it short.
+private struct ImportSendErrorDetails: View {
+    let message: String
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                Text(message)
+                    .font(Theme.ScaledFont.rowTitle)
+                    .foregroundStyle(Theme.primaryText)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(Theme.Spacing.pagePadding)
+            }
+            .navigationTitle(Copy.Import.sendErrorTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(Copy.Cover.done) { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationBackground(Theme.card)
     }
 }
