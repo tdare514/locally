@@ -110,6 +110,7 @@ final class AppContainer {
         let importer = LocalFileImporter()
         let transcoder = AVTranscoder()
         let coverStore = FileCoverStore()
+        let durationReader = TrackLengthLoader.shared
         let inbox = AppGroupInboxStore()
         let purchase = StoreKitPurchaseService()
         let coordinator = ReleaseCoordinator(
@@ -119,7 +120,8 @@ final class AppContainer {
             id3TagWriter: ID3TagWriter(),
             folder: folder,
             library: library,
-            coverStore: coverStore
+            coverStore: coverStore,
+            durationReader: durationReader
         )
         let syncAccount = UserDefaultsSyncAccountStore()
         let syncApi = HttpSyncApi(account: syncAccount)
@@ -161,6 +163,7 @@ final class AppContainer {
         m4aTagWriter: TagWriter,
         id3TagWriter: TagWriter,
         coverStore: CoverStore,
+        durationReader: TrackDurationReading,
         inbox: InboxStore,
         purchase: PurchaseService,
         syncAccount: SyncAccountStore,
@@ -177,7 +180,8 @@ final class AppContainer {
             id3TagWriter: id3TagWriter,
             folder: folder,
             library: library,
-            coverStore: coverStore
+            coverStore: coverStore,
+            durationReader: durationReader
         )
         // Callers that don't care about the outbox (most of the existing
         // `forTesting` call sites) get a real, in-memory-backed one, so

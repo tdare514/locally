@@ -29,7 +29,8 @@ struct ReleaseCoordinatorTests {
             id3TagWriter: tagWriter,
             folder: folder,
             library: library,
-            coverStore: FakeCoverStore()
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
         )
 
         let tags = TagSet(title: "My Title", artist: "My Artist", album: "My Album", trackNumber: 1, totalTracks: 1)
@@ -62,7 +63,8 @@ struct ReleaseCoordinatorTests {
             id3TagWriter: tagWriter,
             folder: folder,
             library: library,
-            coverStore: FakeCoverStore()
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
         )
 
         let tags = TagSet(title: "My Title", artist: "My Artist", album: "My Album")
@@ -90,7 +92,8 @@ struct ReleaseCoordinatorTests {
             id3TagWriter: id3Writer,
             folder: folder,
             library: library,
-            coverStore: FakeCoverStore()
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
         )
 
         let tags = TagSet(title: "T", artist: "A", album: "Al")
@@ -111,7 +114,8 @@ struct ReleaseCoordinatorTests {
             id3TagWriter: tagWriter,
             folder: folder,
             library: library,
-            coverStore: FakeCoverStore()
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
         )
         let tags = TagSet(title: "Same", artist: "Dup", album: "Same", trackNumber: 1, totalTracks: 1)
 

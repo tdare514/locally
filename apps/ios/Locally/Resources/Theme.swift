@@ -275,6 +275,8 @@ enum Theme {
         static let albumNoticeIconGap: CGFloat = 8
         static let albumNoticeRise: CGFloat = 6
         static let albumNoticeDuration: Double = 0.35
+        /// `primaryText` at this opacity keeps the notice readable over a bright cover wash.
+        static let albumNoticeTextOpacity: Double = 0.9
         /// A field row's leading inset, so a round first letter (G, S, C, O) that overshoots the
         /// text's left edge isn't clipped by the list cell. Kept to 1 pt so the text still lines up.
         static let inlineFieldOvershoot: CGFloat = 1

@@ -27,7 +27,8 @@ struct ReleaseDetailViewModelTests {
             id3TagWriter: tagWriter,
             folder: folder,
             library: library,
-            coverStore: coverStore
+            coverStore: coverStore,
+            durationReader: FakeDurationReader()
         )
         let tags = TagSet(title: "Old Name", artist: "Artist", album: "Old Name", trackNumber: 1, totalTracks: 1)
         let release = try await coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: nil)
@@ -53,7 +54,8 @@ struct ReleaseDetailViewModelTests {
             id3TagWriter: tagWriter,
             folder: FakeSpotifyFolder(directory: folderDir),
             library: InMemoryLibraryStore(),
-            coverStore: coverStore
+            coverStore: coverStore,
+            durationReader: FakeDurationReader()
         )
         let tags = TagSet(title: "Old Name", artist: "Artist", album: "Old Name", trackNumber: 1, totalTracks: 1)
         let release = try await coordinator.importSingle(file: try makeSourceFile(), tags: tags, cover: nil)

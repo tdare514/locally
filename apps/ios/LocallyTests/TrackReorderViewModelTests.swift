@@ -28,7 +28,8 @@ struct TrackReorderViewModelTests {
             id3TagWriter: tagWriter,
             folder: FakeSpotifyFolder(directory: folderDir),
             library: library,
-            coverStore: coverStore
+            coverStore: coverStore,
+            durationReader: FakeDurationReader()
         )
         return (coordinator, tagWriter, coverStore)
     }

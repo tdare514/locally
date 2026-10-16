@@ -253,7 +253,8 @@ private struct ImportRecordGallery: View {
             id3TagWriter: ID3TagWriter(),
             folder: UserDefaultsSpotifyFolder(),
             library: SwiftDataLibraryStore(context: container.mainContext),
-            coverStore: FileCoverStore(directory: FileManager.default.temporaryDirectory.appendingPathComponent("gallery-covers", isDirectory: true))
+            coverStore: FileCoverStore(directory: FileManager.default.temporaryDirectory.appendingPathComponent("gallery-covers", isDirectory: true)),
+            durationReader: AVTrackDurationReader()
         )
         let single = ImportSingleViewModel(importer: LocalFileImporter(), coordinator: coordinator)
         let album = AlbumBuilderViewModel(importer: LocalFileImporter(), coordinator: coordinator)

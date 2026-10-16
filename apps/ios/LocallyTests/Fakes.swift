@@ -11,6 +11,22 @@ final class FakeTranscoder: Transcoder {
     }
 }
 
+/// Answers every duration read with a preset value (or per-URL value) without touching the
+/// file, so tests exercise length wiring without AVFoundation.
+final class FakeDurationReader: TrackDurationReading {
+    var fixed: Double?
+    private(set) var readURLs: [URL] = []
+
+    init(fixed: Double? = nil) {
+        self.fixed = fixed
+    }
+
+    func duration(of url: URL) async -> Double? {
+        readURLs.append(url)
+        return fixed
+    }
+}
+
 /// Records every call it receives instead of touching the file, so tests
 /// can assert on what tags/cover were passed, and can simulate a failure.
 final class FakeTagWriter: TagWriter {

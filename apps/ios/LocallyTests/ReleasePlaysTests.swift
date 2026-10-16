@@ -26,7 +26,8 @@ struct ReleasePlaysTests {
             id3TagWriter: tagWriter,
             folder: FakeSpotifyFolder(directory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)),
             library: InMemoryLibraryStore(),
-            coverStore: coverStore
+            coverStore: coverStore,
+            durationReader: FakeDurationReader()
         )
         let tracks = trackIds.enumerated().map {
             Track(id: $0.element, title: "T\($0.offset + 1)", trackNumber: $0.offset + 1, filePath: "/x/\($0.offset).mp3", originalName: "\($0.offset).mp3")

@@ -310,7 +310,7 @@ struct AlbumNotice: View {
             Spacer(minLength: 0)
         }
         .font(Theme.ScaledFont.caption)
-        .foregroundStyle(Theme.secondaryText)
+        .foregroundStyle(Theme.primaryText.opacity(Theme.Immersive.albumNoticeTextOpacity))
         .padding(Theme.Immersive.albumNoticePadding)
         .background(Theme.Immersive.panelFill, in: RoundedRectangle(cornerRadius: Theme.Immersive.albumNoticeRadius, style: .continuous))
         .accessibilityElement(children: .ignore)
@@ -318,7 +318,8 @@ struct AlbumNotice: View {
         .opacity(shown ? 1 : 0)
         .offset(y: shown || reduceMotion ? 0 : Theme.Immersive.albumNoticeRise)
         .onAppear {
-            withAnimation(reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: Theme.Immersive.albumNoticeDuration)) {
+            // Reduce Motion keeps the fade and drops the rise (the offset above stays 0).
+            withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: Theme.Immersive.albumNoticeDuration)) {
                 shown = true
             }
         }

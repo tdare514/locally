@@ -25,7 +25,8 @@ struct ReleaseCoordinatorDeleteTests {
             id3TagWriter: tagWriter,
             folder: folder,
             library: library,
-            coverStore: FakeCoverStore()
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
         )
     }
 

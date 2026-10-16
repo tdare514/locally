@@ -37,7 +37,8 @@ struct ReleaseCoordinatorAlbumTests {
             id3TagWriter: tagWriter,
             folder: folder,
             library: library,
-            coverStore: FakeCoverStore()
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
         )
 
         let album = makeAlbum(titles: ["First", "Second", "Third"])
@@ -75,7 +76,8 @@ struct ReleaseCoordinatorAlbumTests {
             id3TagWriter: tagWriter,
             folder: folder,
             library: library,
-            coverStore: FakeCoverStore()
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
         )
 
         let album = makeAlbum(titles: ["Alpha", "Beta"], artist: "Artist", album: "Album")
@@ -111,7 +113,8 @@ struct ReleaseCoordinatorAlbumTests {
             id3TagWriter: tagWriter,
             folder: folder,
             library: library,
-            coverStore: FakeCoverStore()
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
         )
 
         let album = makeAlbum(titles: ["First", "Second", "Third"])
@@ -140,7 +143,8 @@ struct ReleaseCoordinatorAlbumTests {
             id3TagWriter: tagWriter,
             folder: folder,
             library: library,
-            coverStore: FakeCoverStore()
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
         )
 
         var updates: [(Int, Int)] = []

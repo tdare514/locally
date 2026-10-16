@@ -261,7 +261,7 @@ struct LibraryView: View {
         let fold: Animation? = reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: Theme.Library.sectionFoldDuration)
         return VStack(alignment: .leading, spacing: 8) {
             Button {
-                collapsed.wrappedValue.toggle()
+                withAnimation(fold) { collapsed.wrappedValue.toggle() }
             } label: {
                 HStack(alignment: .firstTextBaseline) {
                     Text(label)
@@ -274,6 +274,7 @@ struct LibraryView: View {
                         .font(.system(size: Theme.Library.sectionChevronSize, weight: .semibold))
                         .foregroundStyle(Theme.textDim)
                         .rotationEffect(.degrees(isOpen ? 0 : -90))
+                        .animation(fold, value: isOpen)
                         .accessibilityHidden(true)
                     Spacer()
                 }
@@ -295,7 +296,6 @@ struct LibraryView: View {
                 .transition(.opacity)
             }
         }
-        .animation(fold, value: isOpen)
     }
 
     /// Rows in a translucent panel over the sky, separated by a 1 pt `panelStroke`.

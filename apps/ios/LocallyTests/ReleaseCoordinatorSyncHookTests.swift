@@ -27,7 +27,8 @@ struct ReleaseCoordinatorSyncHookTests {
             id3TagWriter: FakeTagWriter(),
             folder: folder,
             library: library,
-            coverStore: FakeCoverStore()
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
         )
         let hook = FakeReleaseSyncHook()
         coordinator.syncHook = hook
