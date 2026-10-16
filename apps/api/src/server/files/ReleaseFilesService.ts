@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { files, users } from "../../db/schema";
+import { files, releases, users } from "../../db/schema";
 import { NotFoundError, ValidationError } from "../../shared/errors";
 import type { DownloadTicket, MissingFilesResponse, ReleaseRecord, UploadTicket } from "../../shared/types";
 import { expectedContentTypeFor } from "./contentTypes";
@@ -42,9 +42,14 @@ export function userStoragePrefix(userId: string): string {
  * The file names a live release's record points at: every track's `file`, plus
  * the cover's name when the record carries a `coverHash` (a `syncVersion` 1
  * record has none, so its cover is not checked; a v2 record with no cover has
- * `null`). Each name once, in record order.
+ * `null`). Each name once, in record order. An adopted record (`source`) lists
+ * only its cover, never its tracks.
  */
 function referencedNames(record: ReleaseRecord): string[] {
+  if (record.source === "adopted") {
+    // Details only (#246): the audio is never uploaded, so only the cover can be missing.
+    return record.coverHash && record.cover ? [record.cover] : [];
+  }
   const names = new Set(record.tracks.map((track) => track.file));
   if (record.coverHash && record.cover) names.add(record.cover);
   return [...names];
@@ -84,8 +89,23 @@ export class ReleaseFilesService {
     }
   }
 
+  /** An adopted release (#246) uploads only its cover; any other name is a 400. */
+  private async assertAdoptedUploads(userId: string, releaseId: string, inputs: RegisterFileInput[]): Promise<void> {
+    const [row] = await this.db
+      .select({ record: releases.record })
+      .from(releases)
+      .where(and(eq(releases.id, releaseId), eq(releases.userId, userId)));
+    if (row?.record.source !== "adopted") return;
+    for (const input of inputs) {
+      if (input.name !== row.record.cover) {
+        throw new ValidationError(`${input.name} cannot be uploaded: an adopted release syncs only its cover`);
+      }
+    }
+  }
+
   /** Issue upload URLs for one or more files, enforcing the per-file cap and the account quota. */
   async createUploads(userId: string, releaseId: string, inputs: RegisterFileInput[]): Promise<UploadTicket[]> {
+    await this.assertAdoptedUploads(userId, releaseId, inputs);
     this.assertContentTypes(inputs);
     this.quota.assertFileSizes(inputs.map((f) => f.bytes));
 

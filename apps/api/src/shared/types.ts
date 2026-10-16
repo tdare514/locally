@@ -67,6 +67,8 @@ export const releaseRecordSchema = z.object({
   /** Absent on `syncVersion` 1 records (no signal); `null` on a v2 record with no cover. */
   coverHash: coverHashSchema.nullable().optional(),
   tracks: z.array(trackRecordSchema).min(1).max(500),
+  /** `"adopted"`: details-only release adopted in place on the Mac (#246); absent otherwise. Any other value is a 400. */
+  source: z.literal("adopted").optional(),
   origin: platformSchema,
   originDevice: z.string().min(1).max(200),
   createdAt: isoDateSchema,
