@@ -16,7 +16,7 @@ and both apps follow.
 | elevated | #282828 | inputs, segmented control track, secondary buttons, badges, icon tiles |
 | elevated-hover | #3A3A3A | hover on elevated surfaces (web) |
 | row-hover | #1C1C1C | pressed/hovered list rows |
-| border | #282828 | 1 px borders on cards, rows, inputs (mobile), footers |
+| border | #282828 | 1 px borders on cards, rows, inputs (mobile) |
 | border-dashed | #3E3E3E | dashed borders on drop zones (accent on hover) |
 | dialog-border | #303030 | the crop dialog's border |
 | text | #FFFFFF | primary text |
@@ -110,10 +110,15 @@ eyebrows still apply to those labels.
 - **Primary button**: `accent` pill, black bold text. **Secondary**: `elevated` pill, white text.
   **Outline**: transparent with a `text-dim` border, white text. **Text button** (Cancel):
   `text-muted`, white on hover, no background.
-- **Sticky footer CTA (mobile)**: fixed to the bottom, `bg` at 95 % with blur, 1 px `border` on
-  top, padding 16 horizontal and 12 to 16 vertical plus the safe-area inset, containing one
-  full-width primary button. Library: "+ New Import" (Locally: "Add a song"). Editor: the send or
-  save action. Content scrolls under it with bottom padding so nothing hides behind it.
+- **Sticky footer CTA (mobile)**: fixed to the bottom, padding 16 horizontal and 12 to 16
+  vertical plus the safe-area inset, containing one full-width primary button. Library: "+ New
+  Import" (Locally: "Add a song"). Editor: the send or save action. Content scrolls under it with
+  bottom padding so nothing hides behind it. (Replaced 15 Oct 2026, from the #205 phone check: the
+  95 % `bg` slab and its 1 px top `border` cut the page off in a hard band.) No border and no
+  slab: the button floats over the page as in Oura or Insight Timer, on a faked-glass fade from
+  clear, 48 above the bar, to `bg` at 85 % by the bar's top (however tall the bar grows) and 94 % at the bottom edge (no
+  blur), so content scrolling under it fades out rather than being cut. With nothing to show (an empty library) there is no
+  footer at all.
 - **Mobile top bar**: 64 tall, `bg` at 90 % with blur, sticky; back chevron (28) at the left when
   there is a parent; title 18 bold; an optional trailing icon button (search, more). iOS keeps the
   system navigation bar and tab bar and styles them to match.
@@ -292,10 +297,15 @@ eyebrows still apply to those labels.
       the faked-glass panel, ending in an **Add a track** text button (a single's replaces its
       track, an album's adds more). Switching kind keeps the fields and the cover, and a single
       keeps only the first track. Saving is unchanged (the Send button, the ceremony and the done
-      screen), except that when Send is tapped the disc first eases out of the sleeve to its
+      screen), except that when Send is tapped the keyboard closes and the record scrolls back
+      to the sleeve (350 ms, then a short settle; at once with Reduce Motion), so the ceremony is
+      in view, and a failed send's message sits in the footer just above Send rather than at the
+      end of the list; then the disc eases out of the sleeve to its
       peeking pose (600 ms, curve 0.2, 0.8, 0.2, 1; at once with Reduce Motion), so the release
       page's ceremony starts from its own pose.
-    - *The beat*, whenever a cover is set (from Files, Photos or a recent cover): the cover
+    - *The beat*, whenever a cover is set (from Files, Photos or a recent cover), starting once
+      the sheet it came from (the crop, or the cover sheet for a recent cover) has closed, so
+      no sheet hides it: the cover
       slides in from 48 pt to the right with a fade (0 to 420 ms, curve 0.3, 0.5, 0.3, 1); a
       warm-white flash over the sleeve (255, 252, 246 at the centre to 255, 248, 238 at the
       edges, with a faint 16 pt spill at 40 %) swells to fully opaque (420 to 720, curve 0.45, 0,

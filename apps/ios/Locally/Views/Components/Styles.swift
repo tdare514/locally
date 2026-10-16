@@ -326,28 +326,43 @@ extension View {
 
 // MARK: - Sticky footer
 
-/// Pins a full-width primary action to the bottom of the screen with a 1 pt
-/// top `border` and 95% black material, via `.safeAreaInset` so the content
-/// behind it scrolls underneath rather than being covered. Used by the
-/// library ("Add a song"), the import screens ("Send to Spotify") and the
-/// release detail screen ("Save changes").
+/// Pins a full-width primary action to the bottom of the screen with no border and no blur: a
+/// `background` gradient (clear to 94 %) that starts `Theme.Footer.fadeRise` above the bar and runs
+/// down behind the home indicator, so the page fades out under the button. Uses `.safeAreaInset`
+/// so the content behind it scrolls underneath rather than being covered. Used by the library
+/// ("Add a song") and the import screens ("Send to Spotify"). With `isPresented` false nothing is
+/// drawn and the inset has no height.
 private struct StickyFooter<Footer: View>: ViewModifier {
+    let isPresented: Bool
     @ViewBuilder let footer: () -> Footer
 
     func body(content: Content) -> some View {
         content.safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 0) {
-                Rectangle()
-                    .fill(Theme.border)
-                    .frame(height: 1)
-                footer()
+            if isPresented {
+                VStack(spacing: 0) { footer() }
                     .padding(.horizontal, Theme.Spacing.pagePadding)
                     .padding(.top, 12)
                     .padding(.bottom, 16)
-            }
-            .background {
-                Color.black.opacity(0.95)
-                    .background(.ultraThinMaterial)
+                    .background(alignment: .top) {
+                        // In points, not fractions of the bar: clear to `fadeTopOpacity` over the
+                        // rise, then on to `fadeOpacity` behind the bar however tall it grows.
+                        VStack(spacing: 0) {
+                            LinearGradient(
+                                colors: [Theme.background.opacity(0), Theme.background.opacity(Theme.Footer.fadeTopOpacity)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            .frame(height: Theme.Footer.fadeRise)
+                            LinearGradient(
+                                colors: [Theme.background.opacity(Theme.Footer.fadeTopOpacity), Theme.background.opacity(Theme.Footer.fadeOpacity)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        }
+                        .padding(.top, -Theme.Footer.fadeRise)
+                        .ignoresSafeArea(.container, edges: .bottom)
+                        .allowsHitTesting(false)
+                    }
             }
         }
     }
@@ -356,8 +371,9 @@ private struct StickyFooter<Footer: View>: ViewModifier {
 extension View {
     /// Wraps this view (typically a `ScrollView` or `List`) with a sticky
     /// bottom bar holding `footer`'s content — see `StickyFooter`.
-    func stickyFooter<Footer: View>(@ViewBuilder footer: @escaping () -> Footer) -> some View {
-        modifier(StickyFooter(footer: footer))
+    /// `isPresented` false draws nothing and takes no height.
+    func stickyFooter<Footer: View>(isPresented: Bool = true, @ViewBuilder footer: @escaping () -> Footer) -> some View {
+        modifier(StickyFooter(isPresented: isPresented, footer: footer))
     }
 }
 

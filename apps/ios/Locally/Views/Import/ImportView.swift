@@ -29,6 +29,8 @@ struct ImportView: View {
     @State private var driver = ImportBeatDriver()
     /// Bumped on a successful send to play the sleeve ceremony.
     @State private var ceremony = 0
+    /// Bumped by Send to scroll the record back to the sleeve before the ceremony.
+    @State private var sleeveScrollRequest = 0
     /// True from the Send tap until the ceremony has played, so `DoneView` waits for it.
     @State private var holdingForCeremony = false
 
@@ -191,6 +193,7 @@ struct ImportView: View {
             kind: Binding(get: { kind }, set: { switchKind(to: $0) }),
             rawCoverPick: $rawCoverPick,
             ceremony: ceremony,
+            sleeveScrollRequest: sleeveScrollRequest,
             isSendHeld: holdingForCeremony,
             isBusy: isLocked,
             onAddTrack: { present(kind == .single ? .replace : .add) },
@@ -270,14 +273,18 @@ struct ImportView: View {
         }
     }
 
-    /// Send: the disc eases out of the sleeve if it rests there, then the model sends and the
-    /// ceremony plays, then `DoneView` shows.
+    /// Send: the keyboard closes and the record scrolls back to the sleeve (and settles), so the
+    /// ceremony is seen; the disc eases out of the sleeve if it rests there, then the model sends
+    /// and the ceremony plays, then `DoneView` shows.
     private func send() {
         guard !holdingForCeremony, let singleModel, let albumModel else { return }
         // The kind is fixed here: the lock keeps the switch off, and the send uses only this.
         let sendKind = kind
         holdingForCeremony = true
         Task {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            sleeveScrollRequest += 1
+            if !reduceMotion { try? await Task.sleep(for: .seconds(Theme.Import.sendScrollSettle)) }
             await driver.easeOutForSend(reduced: reduceMotion)
             let completed: Bool
             switch sendKind {

@@ -98,6 +98,17 @@ enum Theme {
         static let primaryButtonV: CGFloat = 12
     }
 
+    /// The sticky footer's fade (docs/design.md "Sticky footer CTA (mobile)").
+    enum Footer {
+        /// How far the fade starts above the bar's top edge (docs/design.md "Sticky footer CTA (mobile)").
+        static let fadeRise: CGFloat = 48
+        /// The fade's opacity at the bar's top edge, whatever the bar's height, so text in the bar
+        /// (a failed send's message) never sits over readable content (docs/design.md "Sticky footer CTA (mobile)").
+        static let fadeTopOpacity: Double = 0.85
+        /// The fade's opacity at the bottom edge (docs/design.md "Sticky footer CTA (mobile)").
+        static let fadeOpacity: Double = 0.94
+    }
+
     /// The library home's cover grid, press lift and "library sky".
     enum Library {
         /// Minimum tile width per `CoverSize` (compact, medium, large). With
@@ -258,6 +269,10 @@ enum Theme {
     /// `.imp-*` rules and `.btn-save.btn-glow` in `apps/web/src/app/globals.css`. The beat's clock
     /// is in `Views/Import/ImportBeat.swift`.
     enum Import {
+        /// Send scrolls the record back to the sleeve over this long (docs/design.md "Make a record").
+        static let sendScrollDuration: Double = 0.35
+        /// Then waits this long for the scroll to settle; skipped with Reduce Motion.
+        static let sendScrollSettle: Double = 0.45
         /// `.imp-flash`: the flash's centre and edge, and the faint spill past the sleeve
         /// (`box-shadow: 0 0 16px 2px rgb(255 248 238 / 0.4)`).
         static let flashCenter = Color(red: 255 / 255, green: 252 / 255, blue: 246 / 255)

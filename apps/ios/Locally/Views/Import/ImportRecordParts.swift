@@ -9,6 +9,8 @@ struct ImportRecordContext {
     let rawCoverPick: Binding<Data?>
     /// Bumped on a successful send to play the sleeve ceremony.
     let ceremony: Int
+    /// Bumped by Send to scroll the record back to the sleeve.
+    let sleeveScrollRequest: Int
     /// True from the Send tap until the ceremony has played.
     let isSendHeld: Bool
     /// True while either model is staging files, reading tags or sending: the kind switch is off.
@@ -24,6 +26,9 @@ struct ImportRecordContext {
 struct ImportRecordSleeve: View {
     @Binding var coverData: Data?
     let context: ImportRecordContext
+
+    /// The scroll anchor Send uses to bring the sleeve into view.
+    static let scrollID = "import-record-sleeve"
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
