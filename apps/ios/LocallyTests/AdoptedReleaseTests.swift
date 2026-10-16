@@ -187,7 +187,7 @@ struct AdoptedReleaseTests {
         h.api.fileContents["cover.jpg"] = coverBytes
 
         let before = h.api.downloadFileCalls.count
-        h.defaults.set(true, forKey: SyncEngine.adoptedCoverRefetchKey)
+        h.defaults.set(true, forKey: SyncEngine.fullRefetchKey)
         h.account.lastVersion = 0
         await h.engine.reconcile()
 
@@ -209,27 +209,24 @@ struct AdoptedReleaseTests {
         #expect(h.api.downloadFileCalls == ["cover.jpg"])
     }
 
-    @Test func theAdoptedCoverRefetchResetsLastVersionOnceAndOnlyWhenACoverIsMissing() async throws {
+    @Test func theFullRefetchRunsOnceWhateverTheCoversAndSetsBothFlags() async throws {
         let h = makeHarness()
         let record = adoptedRecord()
         h.api.fileContents["cover.jpg"] = coverBytes
         h.api.seed(record)
+        // Fresh defaults: the first reconcile is the one-off pull from 0, cover or no cover.
         await h.engine.reconcile()
-        // Cover present: no refetch, flag stays unset.
-        #expect(!h.defaults.bool(forKey: SyncEngine.adoptedCoverRefetchKey))
+        #expect(h.api.releasesSinceVersions == [0])
+        #expect(h.defaults.bool(forKey: SyncEngine.fullRefetchKey))
+        #expect(h.defaults.bool(forKey: SyncEngine.adoptedCoverRefetchKey))
 
         let id = try #require(UUID(uuidString: record.id))
         try h.coverStore.delete(id)
         let before = h.api.downloadFileCalls.count
         await h.engine.reconcile()
-        // The re-pull from 0 fetched the missing cover and set the flag.
-        #expect(h.defaults.bool(forKey: SyncEngine.adoptedCoverRefetchKey))
-        #expect(h.coverStore.load(id) == coverBytes)
-        #expect(h.api.downloadFileCalls.count == before + 1)
-
-        // Flag set: a missing cover no longer triggers a re-pull from 0.
-        try h.coverStore.delete(id)
-        await h.engine.reconcile()
+        // Flags set: pulls from lastVersion, and a missing cover no longer triggers a re-pull from 0.
+        #expect(h.api.releasesSinceVersions.last == h.account.lastVersion)
         #expect(h.coverStore.load(id) == nil)
+        #expect(h.api.downloadFileCalls.count == before)
     }
 }
