@@ -29,7 +29,7 @@ export function ImagePlusIcon(props: SVGProps<SVGSVGElement>) {
   const maskId = useId();
   return (
     <IconBase {...props}>
-      <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
+      <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24" stroke="none">
         <rect width="24" height="24" fill="white" />
         <circle cx="18" cy="18" r="5.5" fill="black" />
       </mask>
@@ -38,8 +38,12 @@ export function ImagePlusIcon(props: SVGProps<SVGSVGElement>) {
         <circle cx="7" cy="9" r="1.5" />
         <path d="m2 15.5 4.5-4.5a1.5 1.5 0 0 1 2 0L14 16.5" />
       </g>
-      <circle cx="18" cy="18" r="4" />
-      <path d="M18 16.2v3.6M16.2 18h3.6" />
+      {/* The badge is a solid disc with the plus cut out of it, so it stays one clear mark at 16 px. */}
+      <mask id={`${maskId}-badge`} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
+        <rect width="24" height="24" fill="white" stroke="none" />
+        <path d="M18 15.6v4.8M15.6 18h4.8" stroke="black" strokeWidth={1.75} />
+      </mask>
+      <circle cx="18" cy="18" r="4.75" fill="currentColor" stroke="none" mask={`url(#${maskId}-badge)`} />
     </IconBase>
   );
 }
