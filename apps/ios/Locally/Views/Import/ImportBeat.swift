@@ -7,6 +7,8 @@ import SwiftUI
 ///
 /// On iPhone the disc stays peeking out of the sleeve (`discIn` is 0 in every frame) and turns
 /// into place, unlike the Mac's seal, where it slides all the way in (docs/design.md, 15 Oct 2026).
+/// Send is the exception: the disc slides all the way in (`sendSealFrame`) and, if the send fails,
+/// eases back out (`sendUnsealFrame`).
 enum ImportBeat {
     // MARK: Clock (ms from the moment a cover is chosen)
 
@@ -22,6 +24,11 @@ enum ImportBeat {
     /// The disc turns into place while it peeks out of the sleeve: at rest (0 degrees) at `discEnd`.
     static let discAt = 1340.0
     static let discEnd = 2290.0
+
+    /// Send: the disc slides all the way into the sleeve, turning `Theme.Import.discTurnDegrees`; and,
+    /// after a failed send, eases back out to its peeking pose.
+    static let sendSealDuration = 950.0
+    static let sendUnsealDuration = 600.0
 
     /// With Reduce Motion the cover just fades in, the colours follow at once and the beat is
     /// over as soon as the fade is.
@@ -109,6 +116,8 @@ enum ImportBeat {
     private static let flashFadeCurve = UnitCurve.bezier(startControlPoint: UnitPoint(x: 0.5, y: 0), endControlPoint: UnitPoint(x: 0.7, y: 1))
     private static let discCurve = UnitCurve.bezier(startControlPoint: UnitPoint(x: 0.33, y: 0), endControlPoint: UnitPoint(x: 0.15, y: 1))
 
+    private static let unsealCurve = UnitCurve.bezier(startControlPoint: UnitPoint(x: 0.2, y: 0.8), endControlPoint: UnitPoint(x: 0.2, y: 1))
+
     /// 0 to 1 over `start...end` on `curve` (linear when nil), exact at both ends.
     private static func ramp(_ ms: Double, _ start: Double, _ end: Double, _ curve: UnitCurve?) -> Double {
         if ms <= start { return 0 }
@@ -141,5 +150,24 @@ enum ImportBeat {
             discIn: 0,
             discTurnDegrees: -Theme.Import.discTurnDegrees * (1 - turn)
         )
+    }
+
+    // MARK: Send
+
+    /// The disc `progress` of the way into the sleeve, the cover and flash at rest.
+    private static func sealed(progress: Double) -> Frame {
+        Frame(coverOffsetX: 0, coverOpacity: 1, flashOpacity: 0, discIn: progress, discTurnDegrees: Theme.Import.discTurnDegrees * progress)
+    }
+
+    /// Send tapped: the disc slides in over `sendSealDuration`. With Reduce Motion it is in at once.
+    static func sendSealFrame(at ms: Double, reduced: Bool) -> Frame {
+        if reduced { return Frame(coverOffsetX: 0, coverOpacity: 1, flashOpacity: 0, discIn: 1, discTurnDegrees: 0) }
+        return sealed(progress: ramp(ms, 0, sendSealDuration, discCurve))
+    }
+
+    /// The send failed: the disc eases back out over `sendUnsealDuration`. With Reduce Motion it is out at once.
+    static func sendUnsealFrame(at ms: Double, reduced: Bool) -> Frame {
+        if reduced { return .rest }
+        return sealed(progress: 1 - ramp(ms, 0, sendUnsealDuration, unsealCurve))
     }
 }

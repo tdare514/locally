@@ -89,14 +89,12 @@ enum Copy {
         static let audioFile = "Audio file"
         static let send = "Send to Spotify"
         static let sending = "Sending…"
-        static let doneSingle = "Sent. Open Spotify, then Your Library, then Local Files to play it."
-        static let openSpotify = "Open Spotify"
-
-        /// The done screen's heading after an album send; the playlist steps that
-        /// follow it come from `Copy.Detail` so the done screen and the release
-        /// page's "Make it a playlist" disclosure cannot drift (issue #21).
-        static let doneAlbum = "Sent. To hear it as an album, make it a playlist in Spotify."
-        static let addAnother = "Add another"
+        static let sentTitle = "Sent"
+        static let sentSingleBody = "Your track has been sent to Spotify."
+        static let sentAlbumBody = "Your album has been sent to Spotify."
+        static let sentSingleHint = "It's in Your Library, under Local Files."
+        static let sentAlbumHint = "To play it as an album, make it a playlist from its page in your library."
+        static let openInSpotify = "Open in Spotify"
         static let albumExplainer = "Spotify can't create albums from your own files, so we'll set these up to become a playlist. They'll share this cover, artist and album name."
         static let albumCoverPrompt = "Pick the cover that'll be applied to all of these tracks."
         static let afterEdit = "Updated. Spotify shows a new cover right away, but keeps the old name until it rescans. In Spotify, open Settings, then Local Files, switch it off and on again, and the new details appear."

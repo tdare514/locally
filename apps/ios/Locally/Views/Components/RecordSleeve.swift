@@ -28,15 +28,18 @@ struct RecordSleeve: View {
     /// offset and opacity with no transition of its own, the flash over the sleeve and the disc
     /// static at `discIn` (the iPhone beat keeps it at 0, peeking). The ceremony and the cover fade are off.
     var beat: ImportBeat.Frame?
+    /// When set, the sleeve's side in points, in place of the size class's (the Sent card's 96).
+    var size: CGFloat?
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(cover: UIImage?, ceremony: Int = 0, pose: CeremonyPose? = nil, beat: ImportBeat.Frame? = nil, onAddCover: @escaping () -> Void) {
+    init(cover: UIImage?, ceremony: Int = 0, pose: CeremonyPose? = nil, beat: ImportBeat.Frame? = nil, size: CGFloat? = nil, onAddCover: @escaping () -> Void) {
         self.cover = cover
         self.ceremony = ceremony
         self.pose = pose
         self.beat = beat
+        self.size = size
         self.onAddCover = onAddCover
     }
 
@@ -46,7 +49,8 @@ struct RecordSleeve: View {
     }
 
     private var sleeveSize: CGFloat {
-        horizontalSizeClass == .compact ? Theme.Immersive.sleeveSizeCompact : Theme.Immersive.sleeveSizeRegular
+        if let size { return size }
+        return horizontalSizeClass == .compact ? Theme.Immersive.sleeveSizeCompact : Theme.Immersive.sleeveSizeRegular
     }
 
     var body: some View {

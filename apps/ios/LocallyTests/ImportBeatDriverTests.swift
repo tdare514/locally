@@ -70,22 +70,74 @@ struct ImportBeatDriverTests {
         #expect(driver.isPlaying)
     }
 
-    @Test func sendLeavesBeatModeAtOnce() {
+    @Test func sealForSendSealsThenSettlesAsSealed() async throws {
         let driver = ImportBeatDriver()
         driver.coverChanged(cover, reduced: false)
-        driver.skip()
-        driver.leaveBeatForSend()
-        #expect(driver.sendPhase == .left)
-        #expect(driver.frame(at: Date(), reduced: false) == nil)
+        driver.sealForSend(reduced: false)
+        // A running beat jumps to its end first.
+        #expect(!driver.isPlaying)
+        #expect(driver.state.skipped)
+        guard case .sealing = driver.sendPhase else {
+            Issue.record("expected .sealing, got \(driver.sendPhase)")
+            return
+        }
+        #expect(driver.isAnimating)
+        #expect(driver.sealRemaining(reduced: false) > .zero)
+        #expect(driver.frame(at: Date(), reduced: false)?.discIn ?? 1 < 0.5)
 
-        driver.sendFailed()
+        try await Task.sleep(for: .milliseconds(1100))
+        #expect(driver.sendPhase == .sealed)
+        #expect(!driver.isAnimating)
+        #expect(driver.sealRemaining(reduced: false) == .zero)
+        #expect(driver.frame(at: Date(), reduced: false)?.discIn == 1)
+    }
+
+    @Test func sealForSendWithReduceMotionIsSealedAtOnce() {
+        let driver = ImportBeatDriver()
+        driver.coverChanged(cover, reduced: true)
+        driver.sealForSend(reduced: true)
+        #expect(driver.sendPhase == .sealed)
+        #expect(!driver.isAnimating)
+        #expect(driver.sealRemaining(reduced: true) == .zero)
+        #expect(driver.frame(at: Date(), reduced: true)?.discIn == 1)
+    }
+
+    @Test func sendFailedUnsealsThenGoesIdle() async throws {
+        let driver = ImportBeatDriver()
+        driver.coverChanged(cover, reduced: false)
+        driver.sealForSend(reduced: true)
+        driver.sendFailed(reduced: false)
+        guard case .unsealing = driver.sendPhase else {
+            Issue.record("expected .unsealing, got \(driver.sendPhase)")
+            return
+        }
+        #expect(driver.isAnimating)
+        #expect(driver.frame(at: Date(), reduced: false)?.discIn ?? 0 > 0.5)
+
+        try await Task.sleep(for: .milliseconds(750))
+        #expect(driver.sendPhase == .idle)
+        #expect(!driver.isAnimating)
         #expect(driver.frame(at: Date(), reduced: false) == .rest)
     }
 
-    @Test func sendWithReduceMotionLeavesBeatModeAtOnce() {
+    @Test func sendFailedWithReduceMotionIsIdleAtOnce() {
         let driver = ImportBeatDriver()
         driver.coverChanged(cover, reduced: true)
-        driver.leaveBeatForSend()
-        #expect(driver.sendPhase == .left)
+        driver.sealForSend(reduced: true)
+        driver.sendFailed(reduced: true)
+        #expect(driver.sendPhase == .idle)
+        #expect(driver.frame(at: Date(), reduced: true) == .rest)
+    }
+
+    @Test func resetAndANewCoverEndTheSend() {
+        let driver = ImportBeatDriver()
+        driver.coverChanged(cover, reduced: true)
+        driver.sealForSend(reduced: true)
+        driver.coverChanged(other, reduced: true)
+        #expect(driver.sendPhase == .idle)
+        driver.sealForSend(reduced: true)
+        driver.reset()
+        #expect(driver.sendPhase == .idle)
+        #expect(driver.frame(at: Date(), reduced: true) == nil)
     }
 }

@@ -10,7 +10,8 @@ enum ImportKind: Hashable {
 /// The Import tab's root, "Make a record" (#205). It owns the whole flow: both view models, the
 /// kind, whether a record has started, the one beat driver both kinds share, the pickers and the
 /// backdrop. Before a track is added it shows `ImportInvitation`; after, the record for the
-/// current kind (`ImportSingleView` or `AlbumBuilderView`), then `DoneView` once sent.
+/// current kind (`ImportSingleView` or `AlbumBuilderView`), then the Sent card (`ImportSentCard`) over
+/// everything once sent.
 struct ImportView: View {
     /// Set by the library's empty state ("Add your first single" / "Make an
     /// album"); applied and cleared when the tab appears.
@@ -27,12 +28,12 @@ struct ImportView: View {
     /// A track has been added: the record shows instead of the invitation.
     @State private var recordStarted = false
     @State private var driver = ImportBeatDriver()
-    /// Bumped on a successful send to play the sleeve ceremony.
-    @State private var ceremony = 0
-    /// Bumped by Send to scroll the record back to the sleeve before the ceremony.
+    /// Bumped by Send to scroll the record back to the sleeve before the disc slides in.
     @State private var sleeveScrollRequest = 0
-    /// True from the Send tap until the ceremony has played, so `DoneView` waits for it.
-    @State private var holdingForCeremony = false
+    /// True from the Send tap until the Sent card has closed or the send has failed.
+    @State private var holdingForSent = false
+    /// The Sent card, while it is up.
+    @State private var sentCard: ImportSentInfo?
 
     /// Which use the one `.fileImporter` is open for. The kind lives here rather than in
     /// `isPickerPresented`, since SwiftUI flips that Bool false before the completion handler runs.
@@ -129,6 +130,16 @@ struct ImportView: View {
                 guard !Task.isCancelled else { return }
                 backdropOn = true
             }
+            .fullScreenCover(item: $sentCard) { info in
+                ImportSentCard(
+                    kind: info.kind,
+                    cover: info.cover.flatMap { UIImage(data: $0) },
+                    palette: info.cover == nil ? nil : palette,
+                    spotifyInstalled: info.spotifyInstalled,
+                    onOpenSpotify: finishSent,
+                    onClose: finishSent
+                )
+            }
             .fileImporter(
                 isPresented: $isPickerPresented,
                 allowedContentTypes: activePicker == .cover ? [.image] : [.audio],
@@ -161,11 +172,7 @@ struct ImportView: View {
     @ViewBuilder
     private var flow: some View {
         if let singleModel, let albumModel {
-            if kind == .single, singleModel.completedRelease != nil, !holdingForCeremony {
-                DoneView(kind: .single, onAddAnother: addAnother)
-            } else if kind == .album, albumModel.completedRelease != nil, !holdingForCeremony {
-                DoneView(kind: .album, trackTitles: albumModel.orderedTrackTitles, albumTitle: albumModel.albumTitle, onAddAnother: addAnother)
-            } else if recordStarted {
+            if recordStarted {
                 switch kind {
                 case .single: ImportSingleView(model: singleModel, context: context)
                 case .album: AlbumBuilderView(model: albumModel, context: context)
@@ -178,12 +185,12 @@ struct ImportView: View {
         }
     }
 
-    /// The kind switch is off while files load, during the send and through its ceremony.
+    /// The kind switch is off while files load, during the send and while the Sent card is up.
     private var isLocked: Bool {
         ImportSendLock.isLocked(
             isLoadingTags: (singleModel?.isLoadingTags ?? false) || (albumModel?.isLoadingTags ?? false),
             isSending: (singleModel?.isSending ?? false) || (albumModel?.isSending ?? false),
-            holdingForCeremony: holdingForCeremony
+            holdingForSent: holdingForSent
         )
     }
 
@@ -192,9 +199,8 @@ struct ImportView: View {
             driver: driver,
             kind: Binding(get: { kind }, set: { switchKind(to: $0) }),
             rawCoverPick: $rawCoverPick,
-            ceremony: ceremony,
             sleeveScrollRequest: sleeveScrollRequest,
-            isSendHeld: holdingForCeremony,
+            isSendHeld: holdingForSent,
             isBusy: isLocked,
             onAddTrack: { present(kind == .single ? .replace : .add) },
             onPickCoverFromFiles: { present(.cover) },
@@ -274,39 +280,50 @@ struct ImportView: View {
     }
 
     /// Send: the keyboard closes and the record scrolls back to the sleeve (and settles), so the
-    /// ceremony is seen; the beat ends and the sleeve leaves beat mode, then the model sends
-    /// and the ceremony plays, then `DoneView` shows.
+    /// disc is seen; the disc slides into the sleeve while the model sends. On success the Sent
+    /// card pops up once the disc is in; on failure the disc eases back out and the footer shows
+    /// the message.
     private func send() {
-        guard !holdingForCeremony, let singleModel, let albumModel else { return }
+        guard !holdingForSent, let singleModel, let albumModel else { return }
         // The kind is fixed here: the lock keeps the switch off, and the send uses only this.
         let sendKind = kind
-        holdingForCeremony = true
+        holdingForSent = true
         Task {
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             sleeveScrollRequest += 1
             if !reduceMotion { try? await Task.sleep(for: .seconds(Theme.Import.sendScrollSettle)) }
-            driver.leaveBeatForSend()
+            driver.sealForSend(reduced: reduceMotion)
             let completed: Bool
+            let cover: Data?
             switch sendKind {
             case .single:
                 await singleModel.send()
                 completed = singleModel.completedRelease != nil
+                cover = singleModel.coverData
             case .album:
                 await albumModel.send()
                 completed = albumModel.completedRelease != nil
+                cover = albumModel.coverData
             }
-            if completed, !reduceMotion {
-                ceremony += 1
-                try? await Task.sleep(for: .seconds(Theme.Immersive.ceremonyDuration))
+            guard completed else {
+                holdingForSent = false
+                driver.sendFailed(reduced: reduceMotion)
+                return
             }
-            holdingForCeremony = false
-            if !completed { driver.sendFailed() }
+            try? await Task.sleep(for: driver.sealRemaining(reduced: reduceMotion))
+            withoutAnimation { sentCard = ImportSentInfo(kind: sendKind, cover: cover) }
         }
     }
 
-    /// `DoneView`'s action: back to the invitation with the beat reset, unless the single's share
-    /// queue loads a next file, which stays on the record.
-    private func addAnother() {
+    /// The Sent card's Open in Spotify and Close: the card goes at once (the card ran its own
+    /// drop-away) and the page goes back to the invitation with the beat reset, unless the single's
+    /// share queue loads a next file, which stays on the record.
+    private func finishSent() {
+        withoutAnimation { sentCard = nil }
+        startNext()
+    }
+
+    private func startNext() {
         driver.reset()
         switch kind {
         case .single:
@@ -317,6 +334,14 @@ struct ImportView: View {
             albumModel?.reset()
             recordStarted = false
         }
+        holdingForSent = false
+    }
+
+    /// Presents or dismisses with the system's slide switched off: the Sent card runs its own motion.
+    private func withoutAnimation(_ body: () -> Void) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction, body)
     }
 
     // MARK: Chips
@@ -546,6 +571,8 @@ struct ImportViewPreset {
     let album: AlbumBuilderViewModel
     let driver: ImportBeatDriver
     let kind: ImportKind
+    /// The Sent card to show over the record, with its cover (`import-sent-*`).
+    var sent: ImportSentInfo?
 }
 
 extension ImportView {
@@ -557,6 +584,7 @@ extension ImportView {
         _driver = State(initialValue: preset.driver)
         _kind = State(initialValue: preset.kind)
         _recordStarted = State(initialValue: true)
+        _sentCard = State(initialValue: preset.sent)
     }
 }
 #endif

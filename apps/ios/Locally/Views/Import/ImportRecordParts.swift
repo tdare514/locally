@@ -7,11 +7,9 @@ struct ImportRecordContext {
     let driver: ImportBeatDriver
     let kind: Binding<ImportKind>
     let rawCoverPick: Binding<Data?>
-    /// Bumped on a successful send to play the sleeve ceremony.
-    let ceremony: Int
     /// Bumped by Send to scroll the record back to the sleeve.
     let sleeveScrollRequest: Int
-    /// True from the Send tap until the ceremony has played.
+    /// True from the Send tap until the Sent card has closed or the send has failed.
     let isSendHeld: Bool
     /// True while either model is staging files, reading tags or sending: the kind switch is off.
     let isBusy: Bool
@@ -21,7 +19,7 @@ struct ImportRecordContext {
 }
 
 /// The sleeve at the top of the record. It draws the driver's frame through a `TimelineView`
-/// that is paused whenever nothing is moving, and wraps the cover binding so only a cover the
+/// that is paused whenever nothing is moving (no beat playing, no seal or unseal running), and wraps the cover binding so only a cover the
 /// user chooses (Files, Photos, a recent cover) or removes reaches the beat.
 struct ImportRecordSleeve: View {
     @Binding var coverData: Data?
@@ -34,7 +32,7 @@ struct ImportRecordSleeve: View {
 
     var body: some View {
         let driver = context.driver
-        TimelineView(.animation(minimumInterval: nil, paused: !driver.isPlaying)) { timeline in
+        TimelineView(.animation(minimumInterval: nil, paused: !driver.isAnimating)) { timeline in
             SleeveCoverPicker(
                 imageData: Binding(
                     get: { coverData },
@@ -44,7 +42,6 @@ struct ImportRecordSleeve: View {
                     }
                 ),
                 rawPick: context.rawCoverPick,
-                ceremony: context.ceremony,
                 onPickFromFiles: context.onPickCoverFromFiles,
                 beat: driver.frame(at: timeline.date, reduced: reduceMotion)
             )

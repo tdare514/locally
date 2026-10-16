@@ -41,6 +41,9 @@ targets:
         LSSupportsOpeningDocumentsInPlace: true
         UIFileSharingEnabled: true
         NSPhotoLibraryUsageDescription: "Pick a cover image for your songs."
+        # The Sent card asks whether Spotify is installed (canOpenURL) before offering Open in Spotify.
+        LSApplicationQueriesSchemes:
+          - spotify
         # NSLocalNetworkUsageDescription and NSAppTransportSecurity are added
         # for Debug only, by the postBuildScripts step below.
         UILaunchScreen: {}

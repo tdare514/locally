@@ -125,4 +125,48 @@ struct ImportBeatTests {
         #expect(s == ImportBeat.State(hasCover: false, run: 2, ended: false, skipped: false, replay: false))
         #expect(run([.cover], from: s).replay == false)
     }
+
+    // MARK: Send
+
+    @Test func sendDurations() {
+        #expect(ImportBeat.sendSealDuration == 950)
+        #expect(ImportBeat.sendUnsealDuration == 600)
+    }
+
+    @Test func sealStartsPeekingAndEndsFullyInTurnedIntoPlace() {
+        let start = ImportBeat.sendSealFrame(at: 0, reduced: false)
+        #expect(start == .rest)
+        let end = ImportBeat.sendSealFrame(at: 950, reduced: false)
+        #expect(end.discIn == 1)
+        #expect(end.discTurnDegrees == 240)
+        #expect(end.coverOffsetX == 0 && end.coverOpacity == 1 && end.flashOpacity == 0)
+        #expect(ImportBeat.sendSealFrame(at: 5000, reduced: false) == end)
+    }
+
+    @Test func sealMidwayIsBetweenAndTurnsWithTheDisc() {
+        let mid = ImportBeat.sendSealFrame(at: 475, reduced: false)
+        #expect(mid.discIn > 0 && mid.discIn < 1)
+        #expect(abs(mid.discTurnDegrees - 240 * mid.discIn) < 1e-9)
+        // The ease-out curve (0.33, 0, 0.15, 1) is past halfway at half the time.
+        #expect(mid.discIn > 0.5)
+        #expect(mid.coverOffsetX == 0 && mid.coverOpacity == 1 && mid.flashOpacity == 0)
+    }
+
+    @Test func unsealStartsFullyInAndEndsAtRest() {
+        let start = ImportBeat.sendUnsealFrame(at: 0, reduced: false)
+        #expect(start.discIn == 1)
+        #expect(start.discTurnDegrees == 240)
+        #expect(ImportBeat.sendUnsealFrame(at: 600, reduced: false) == .rest)
+        let mid = ImportBeat.sendUnsealFrame(at: 300, reduced: false)
+        #expect(mid.discIn > 0 && mid.discIn < 1)
+        #expect(mid.discIn < 0.5)
+    }
+
+    @Test func reduceMotionSealsAndUnsealsAtOnce() {
+        let sealed = ImportBeat.sendSealFrame(at: 0, reduced: true)
+        #expect(sealed.discIn == 1)
+        #expect(sealed.discTurnDegrees == 0)
+        #expect(ImportBeat.sendSealFrame(at: 950, reduced: true) == sealed)
+        #expect(ImportBeat.sendUnsealFrame(at: 0, reduced: true) == .rest)
+    }
 }

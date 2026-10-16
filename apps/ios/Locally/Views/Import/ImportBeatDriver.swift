@@ -8,10 +8,13 @@ import SwiftUI
 /// length and applies the cover's colours to the backdrop at `washAt`; a new cover cancels both.
 @Observable @MainActor
 final class ImportBeatDriver {
-    /// Whether the sleeve has left beat mode for Send, so the ceremony plays as on the release page.
+    /// Where Send has the disc: peeking (`idle`), sliding into the sleeve, in it, or easing back
+    /// out after a failed send. The sleeve stays in beat mode throughout.
     enum SendPhase: Equatable {
         case idle
-        case left
+        case sealing(since: Date)
+        case sealed
+        case unsealing(since: Date)
     }
 
     private(set) var state = ImportBeat.State.initial
@@ -24,10 +27,19 @@ final class ImportBeatDriver {
     @ObservationIgnored private var cover: Data?
     @ObservationIgnored private var endTask: Task<Void, Never>?
     @ObservationIgnored private var washTask: Task<Void, Never>?
+    @ObservationIgnored private var sendTask: Task<Void, Never>?
 
     init() {}
 
     var isPlaying: Bool { ImportBeat.isPlaying(state) }
+
+    /// The sleeve's frame is moving: the beat is playing, or the disc is sealing or unsealing.
+    var isAnimating: Bool {
+        switch sendPhase {
+        case .sealing, .unsealing: true
+        case .idle, .sealed: isPlaying
+        }
+    }
 
     // MARK: Events
 
@@ -41,7 +53,7 @@ final class ImportBeatDriver {
         }
         state = ImportBeat.reduce(state, .cover)
         startedAt = Date()
-        sendPhase = .idle
+        cancelSend()
         cover = data
         let wash = ImportBeat.washAt(reduced: reduced)
         if wash <= 0 {
@@ -74,33 +86,76 @@ final class ImportBeatDriver {
         cancelTasks()
         state = ImportBeat.reduce(state, .reset)
         startedAt = nil
-        sendPhase = .idle
+        cancelSend()
         cover = nil
         washedCover = nil
     }
 
     // MARK: Send
 
-    /// Send tapped: the disc already sits in the release page's pose, so a running beat jumps to
-    /// its end and the sleeve leaves beat mode at once.
-    func leaveBeatForSend() {
+    /// Send tapped: a running beat jumps to its end, then the disc slides all the way into the
+    /// sleeve (at once with Reduce Motion).
+    func sealForSend(reduced: Bool) {
         skip()
-        if state.hasCover { sendPhase = .left }
+        sendTask?.cancel()
+        guard !reduced else {
+            sendPhase = .sealed
+            return
+        }
+        sendPhase = .sealing(since: Date())
+        sendTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(ImportBeat.sendSealDuration))
+            guard !Task.isCancelled, let self else { return }
+            sendPhase = .sealed
+        }
     }
 
-    /// The send failed: the sleeve goes back to beat mode (the disc rests at 0 degrees).
-    func sendFailed() {
-        sendPhase = .idle
+    /// The time left until the seal ends (zero once sealed, and with Reduce Motion).
+    func sealRemaining(reduced: Bool) -> Duration {
+        guard !reduced, case .sealing(let since) = sendPhase else { return .zero }
+        let left = ImportBeat.sendSealDuration - Date().timeIntervalSince(since) * 1000
+        return .milliseconds(max(0, left))
+    }
+
+    /// The send failed: the disc eases back out, then the sleeve is back at rest (at once with Reduce Motion).
+    func sendFailed(reduced: Bool) {
+        sendTask?.cancel()
+        guard !reduced else {
+            sendPhase = .idle
+            return
+        }
+        sendPhase = .unsealing(since: Date())
+        sendTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(ImportBeat.sendUnsealDuration))
+            guard !Task.isCancelled, let self else { return }
+            sendPhase = .idle
+        }
     }
 
     // MARK: Frame
 
-    /// What the sleeve draws at `date`, or nil for the plain sleeve.
+    /// What the sleeve draws at `date`, or nil for the plain sleeve. Send's seal and unseal show
+    /// with or without a cover.
     func frame(at date: Date, reduced: Bool) -> ImportBeat.Frame? {
+        switch sendPhase {
+        case .sealing(let since):
+            return ImportBeat.sendSealFrame(at: date.timeIntervalSince(since) * 1000, reduced: reduced)
+        case .sealed:
+            return ImportBeat.sendSealFrame(at: ImportBeat.sendSealDuration, reduced: reduced)
+        case .unsealing(let since):
+            return ImportBeat.sendUnsealFrame(at: date.timeIntervalSince(since) * 1000, reduced: reduced)
+        case .idle:
+            break
+        }
         guard state.hasCover else { return nil }
-        if sendPhase == .left { return nil }
         guard isPlaying, let startedAt else { return .rest }
         return ImportBeat.frame(at: date.timeIntervalSince(startedAt) * 1000, reduced: reduced)
+    }
+
+    private func cancelSend() {
+        sendTask?.cancel()
+        sendTask = nil
+        sendPhase = .idle
     }
 
     private func cancelTasks() {

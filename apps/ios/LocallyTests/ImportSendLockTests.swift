@@ -4,7 +4,7 @@ import Testing
 /// `ImportSendLock` (#205): when the Single / Album switch is off.
 struct ImportSendLockTests {
     private func locked(loading: Bool = false, sending: Bool = false, holding: Bool = false) -> Bool {
-        ImportSendLock.isLocked(isLoadingTags: loading, isSending: sending, holdingForCeremony: holding)
+        ImportSendLock.isLocked(isLoadingTags: loading, isSending: sending, holdingForSent: holding)
     }
 
     @Test func openWhenNothingIsHappening() {
@@ -19,17 +19,17 @@ struct ImportSendLockTests {
         #expect(locked(sending: true, holding: true))
     }
 
-    @Test func lockedDuringTheEaseOutBeforeTheSendStarts() {
+    @Test func lockedFromTheTapBeforeTheSendStarts() {
         // Send tapped: held, but the model is not sending yet.
         #expect(locked(sending: false, holding: true))
     }
 
-    @Test func lockedDuringTheCeremonyAfterASuccessfulSend() {
-        // The model has finished sending; the hold stays until the ceremony has played.
+    @Test func lockedWhileTheSentCardIsUp() {
+        // The model has finished sending; the hold stays until the Sent card has closed.
         #expect(locked(loading: false, sending: false, holding: true))
     }
 
-    @Test func openAgainAfterDoneOrAddAnother() {
+    @Test func openAgainAfterTheCardClosesOrTheSendFails() {
         #expect(!locked(holding: false))
     }
 }

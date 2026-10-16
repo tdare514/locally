@@ -357,6 +357,39 @@ enum Theme {
         /// The cover's backdrop over the studio one: in once the wash starts, out when the cover goes.
         static let backdropFadeInDuration: Double = 0.5
         static let backdropFadeOutDuration: Double = 0.4
+
+        /// The Sent card (docs/design.md "Make a record", Send). The dimmed page: black at this
+        /// opacity, faded in over `sentDimDuration`.
+        static let sentDimOpacity: Double = 0.45
+        static let sentDimDuration: Double = 0.25
+        /// The card: radius, padding and the gap to the screen's edges. Its height is capped at
+        /// this share of the screen's so its content scrolls at large text.
+        static let sentCardRadius: CGFloat = 28
+        static let sentCardPadding: CGFloat = 24
+        static let sentCardEdgeInset: CGFloat = 16
+        static let sentCardMaxHeightRatio: CGFloat = 0.62
+        static let sentContentGap: CGFloat = 12
+        static let sentButtonGap: CGFloat = 8
+        /// The entrance: up from this far below at this scale, on a spring.
+        static let sentRise: CGFloat = 40
+        static let sentRiseScale: CGFloat = 0.94
+        static let sentSpringResponse: Double = 0.5
+        static let sentSpringDamping: Double = 0.72
+        /// The glow behind the card's top: blurred, from this scale, in over `sentGlowDuration`.
+        static let sentGlowBlur: CGFloat = 40
+        static let sentGlowStartScale: CGFloat = 0.6
+        static let sentGlowDuration: Double = 0.7
+        static let sentGlowWidthRatio: CGFloat = 0.8
+        static let sentGlowHeight: CGFloat = 160
+        /// The sealed record on the card's top edge: its sleeve, and the tilt it drops in at and settles to.
+        static let sentRecordSize: CGFloat = 96
+        static let sentRecordTiltStart: Double = -8
+        static let sentRecordTiltEnd: Double = -3
+        /// Close drops the card away over this long; with Reduce Motion the card (and glow) fade in and out over `sentReducedFadeDuration`.
+        static let sentCloseDuration: Double = 0.2
+        static let sentReducedFadeDuration: Double = 0.2
+        /// VoiceOver focus moves to "Sent" this long after the card appears.
+        static let sentFocusDelay: Double = 0.1
     }
 
     /// The "studio" backdrop behind Settings (#160): the accent blue and a cool violet, with a deep
@@ -382,6 +415,8 @@ enum Theme {
         static let largeTitle = SwiftUI.Font.system(.largeTitle, weight: .bold)
         /// The record's title field (#205): `Font.pageTitle` as a Dynamic Type style.
         static let pageTitle = SwiftUI.Font.system(.title2, weight: .bold)
+        /// The Sent card's title (28 pt bold at the default size).
+        static let sentTitle = SwiftUI.Font.system(.title, weight: .bold)
         static let sectionTitle = SwiftUI.Font.system(.subheadline, weight: .semibold)
         static let headline = SwiftUI.Font.system(.headline, weight: .semibold)
         static let subheadline = SwiftUI.Font.system(.subheadline)

@@ -9,7 +9,6 @@ import PhotosUI
 struct SleeveCoverPicker: View {
     @Binding var imageData: Data?
     @Binding var rawPick: Data?
-    let ceremony: Int
     let onPickFromFiles: () -> Void
     /// The cover beat's frame (#205); nil draws the sleeve as before.
     var beat: ImportBeat.Frame?
@@ -27,7 +26,7 @@ struct SleeveCoverPicker: View {
     @State private var photosItem: PhotosPickerItem?
 
     var body: some View {
-        RecordSleeve(cover: cover, ceremony: ceremony, beat: beat) {
+        RecordSleeve(cover: cover, beat: beat) {
             isSheetPresented = true
         }
         // Decoded once per new cover: `RecordSleeve` keys the cover on the image's

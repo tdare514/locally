@@ -34,9 +34,9 @@ enum ImportKindSwitch {
 }
 
 /// When the record is locked (#205): the Single / Album switch is off while files load or send,
-/// and through the send itself, from the Send tap (the disc easing out) to the end of the ceremony.
+/// and through the send itself, from the Send tap (the disc sliding in) until the Sent card has closed or the send has failed.
 enum ImportSendLock {
-    static func isLocked(isLoadingTags: Bool, isSending: Bool, holdingForCeremony: Bool) -> Bool {
-        isLoadingTags || isSending || holdingForCeremony
+    static func isLocked(isLoadingTags: Bool, isSending: Bool, holdingForSent: Bool) -> Bool {
+        isLoadingTags || isSending || holdingForSent
     }
 }

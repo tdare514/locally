@@ -29,7 +29,7 @@ struct ComponentGallery: View {
     }
 
     var body: some View {
-        if name.hasPrefix("import-record-") {
+        if name.hasPrefix("import-record-") || name.hasPrefix("import-sent-") {
             ImportRecordGallery(name: name).preferredColorScheme(.dark)
         } else if name.hasPrefix("import-") {
             ZStack {
@@ -119,7 +119,9 @@ struct ComponentGallery: View {
     /// on prefilled models is `import-record-single`, `-album`, `-album-empty`, `-live` and `-album-live` (see
     /// `ImportRecordGallery`). Names:
     /// `import-invite`, `import-invite-lit`, `import-beat-<ms>`,
-    /// `import-beat-reduced-<ms>` (a fixed frame) and `import-beat-live` (plays in real time).
+    /// `import-beat-reduced-<ms>` (a fixed frame), `import-beat-live` (plays in real time),
+    /// `import-send-seal-<ms>` (Send's disc sliding in, frozen at a time) and, over a record page,
+    /// `import-sent-single`, `import-sent-album` and `import-sent-nocover` (the Sent card).
     @ViewBuilder
     private var importContent: some View {
         switch name {
@@ -130,10 +132,18 @@ struct ComponentGallery: View {
         case "import-beat-live":
             ImportBeatLive()
         default:
-            if let beat = Self.beatFrame(name) {
+            if let ms = Self.sealMs(name) {
+                RecordSleeve(cover: SampleArtwork.sunset, beat: ImportBeat.sendSealFrame(at: ms, reduced: false), onAddCover: {})
+            } else if let beat = Self.beatFrame(name) {
                 RecordSleeve(cover: SampleArtwork.sunset, beat: beat, onAddCover: {})
             }
         }
+    }
+
+    /// The time an `import-send-seal-<ms>` name asks for.
+    static func sealMs(_ name: String) -> Double? {
+        let prefix = "import-send-seal-"
+        return name.hasPrefix(prefix) ? Double(name.dropFirst(prefix.count)) : nil
     }
 
     /// The frame a `import-beat-[reduced-]<ms>` name asks for.
@@ -220,8 +230,25 @@ private struct ImportRecordGallery: View {
         let driver = ImportBeatDriver()
         let cover = SampleArtwork.sunset.pngData()
         var kind = ImportKind.single
+        var sent: ImportSentInfo?
 
         switch name {
+        case "import-sent-single", "import-sent-nocover":
+            Self.fill(single)
+            if name == "import-sent-single", let cover {
+                single.coverData = cover
+                driver.showAtRest(cover: cover)
+            }
+            sent = ImportSentInfo(kind: .single, cover: name == "import-sent-single" ? cover : nil, spotifyInstalled: true)
+        case "import-sent-album":
+            kind = .album
+            album.albumTitle = "Low Tide"
+            album.artist = "The Salt Line"
+            if let cover {
+                album.coverData = cover
+                driver.showAtRest(cover: cover)
+            }
+            sent = ImportSentInfo(kind: .album, cover: cover, spotifyInstalled: true)
         case "import-record-album-empty":
             kind = .album
             album.albumTitle = "Low Tide"
@@ -247,7 +274,7 @@ private struct ImportRecordGallery: View {
             // import-record-single: a file, the fields, no cover.
             Self.fill(single)
         }
-        _preset = State(initialValue: ImportViewPreset(single: single, album: album, driver: driver, kind: kind))
+        _preset = State(initialValue: ImportViewPreset(single: single, album: album, driver: driver, kind: kind, sent: sent))
     }
 
     private static func fill(_ single: ImportSingleViewModel) {

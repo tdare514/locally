@@ -196,7 +196,8 @@ eyebrows still apply to those labels.
   artist in row-subtitle muted text. Then the DETAILS eyebrow (replaced 13 Oct 2026: sentence case) + "Tap to edit" (no "Metadata"
   title); Title and Artist fields full width, Year and Genre side by side. Then "Tracks" (18
   bold) + "N files", a `text-dim` 12 pt hint "Hold and drag a track to reorder." when there are
-  2+ tracks, and one compact file row per track: `card` with 1 px `border`, radius 8, min height
+  2+ tracks, and one compact file row per track (replaced on iPhone 15 Oct 2026 by the Mac-style
+  track row, see *Make a record* > *Tracks*): `card` with 1 px `border`, radius 8, min height
   52, a 30 pt `elevated` tile holding an accent file-music icon, filename 14 medium, "Audio file"
   12 muted, chevron. No Edit-mode toolbar button; reordering is a plain long-press drag. Sticky
   footer with the save action.
@@ -298,16 +299,54 @@ eyebrows still apply to those labels.
       phone: the 10 % hairline round the panel and the 1 px `border` box round each file row
       read as borders; on iPhone a file row inside a panel has no fill and no border, and the
       empty-state silhouette blocks lose their stroke too; the release page's tracks panel
-      is the same component), ending in an **Add a track** text button (a single's replaces its
-      track, an album's adds more). Switching kind keeps the fields and the cover, and a single
-      keeps only the first track. Saving is unchanged (the Send button, the ceremony and the done
-      screen), except that when Send is tapped the keyboard closes and the record scrolls back
-      to the sleeve (350 ms, then a short settle; at once with Reduce Motion), so the ceremony is
-      in view, and a failed send's message sits in the footer just above Send rather than at the
-      end of the list, on a soft dark halo (`bg` at 90 %, blurred 8) so the list never shows
-      through it, at most 5 lines (3 at the accessibility text sizes; VoiceOver reads it all), and when
-      that cuts it short a **Details** link under it opens the whole message in a sheet; the disc
-      already rests in the release page's peeking pose, so the ceremony starts from it.
+      is the same component). Switching kind keeps the fields and the cover, and a single
+      keeps only the first track.
+    - *Tracks* (replaced 15 Oct 2026, owner: the rows looked like the first iPhone version;
+      they now follow the Mac's track list, `TrackList`, and a track is replaced from its own
+      row). Each row is the Mac's: min height 48, the number (subheadline, tabular, white 60 %,
+      24 wide), the title as an inline field (body semibold; an album's is editable, a single's
+      is the file's), and at the trailing edge a **replace** button (circling arrows, white
+      60 %, 44 pt hit area, "Replace <title>" for VoiceOver) that opens Files for one audio file
+      and swaps it in at that position, the title taken from the new file's tags or name; then,
+      on an album, the Mac's grip (three lines, white 35 %) as the hint that rows drag. No music
+      tile, no "Audio file" caption, no chevron. Rows are divided by the Mac's hairline (white
+      7 %, from the number's leading edge, none above the first or below the last). A long
+      press lifts a row with the system's normal drag (owner: no glass tile, "just a normal
+      drag"). A **single** is just its one row in the panel:
+      no "Tracks" heading and no Add a track, since the row's replace button does that. An
+      **album** keeps the "Tracks" heading, the "Hold and drag a track to reorder." hint, swipe
+      to delete and **Add a track** at the end, and every row has replace. The release page's
+      tracks panel uses the same row, with its plays ("12 plays", muted, tabular) where the
+      Mac shows them and no replace button, since a saved release's files are not swapped.
+    - *Send* (replaced 15 Oct 2026, owner: the record goes into its cover, then a playful
+      "Sent" pop-up, in place of the release page's ceremony and the done screen). Tapping
+      Send closes the keyboard and scrolls the record back to the sleeve (350 ms, then a short
+      settle), then the disc slides all the way into the sleeve, turning 240 degrees (950 ms,
+      curve 0.33, 0, 0.15, 1), while the files are written. If the send fails, the disc eases
+      back out to its peeking pose (600 ms, curve 0.2, 0.8, 0.2, 1) and the message sits in the
+      footer just above Send, on a soft dark halo (`bg` at 90 %, blurred 8) so the list never
+      shows through it, at most 5 lines (3 at the accessibility text sizes; VoiceOver reads it
+      all), with a **Details** link opening the whole message in a sheet when that cuts it short.
+      Once the disc is in and the send has worked, the **Sent card** pops up over everything,
+      tab bar included, modelled on Google Health's "You're all set" card: the page dims (black
+      45 %, 250 ms); a compact card (`card`, radius 28, padding 24, 16 from the screen edges,
+      sitting in the lower half) springs up from 40 pt below at 94 % scale (spring response 0.5,
+      damping 0.72); behind its top edge a soft glow in the cover's colours blooms (the
+      backdrop palette's colours, blurred 40, from 60 % scale and clear to full over 700 ms;
+      accent and violet with no cover); the record, sealed, sits on the card's top edge
+      (sleeve 96 pt, overlapping the card by half), dropping in tilted −8 degrees and settling
+      to −3 with the same spring; a success haptic plays. The card says **Sent** (title, 28
+      bold), "Your track has been sent to Spotify." or "Your album has been sent to Spotify."
+      (body, muted), then one quiet line ("It's in Your Library, under Local Files." or "To
+      play it as an album, make it a playlist from its page in your library."), then a full
+      width **Open in Spotify** primary pill (opens the Spotify app; when Spotify isn't
+      installed the pill is **Close** instead) and a **Close** text button. Open in Spotify and
+      Close both take the page back to the invitation behind the card (a single whose share
+      queue has a next file stays on the record), and Close drops the card away (200 ms). The
+      card is modal for VoiceOver, which reads "Sent" first; at large text it scrolls inside
+      the card. With Reduce Motion the disc is in at once, the card and glow fade in over 200 ms
+      with no spring, tilt or bloom, and the haptic still plays. The release page keeps its
+      ceremony.
     - *The beat*, whenever a cover is set (from Files, Photos or a recent cover), starting once
       the sheet it came from (the crop, or the cover sheet for a recent cover) has closed, so
       no sheet hides it: the cover
