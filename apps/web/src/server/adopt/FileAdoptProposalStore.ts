@@ -38,7 +38,9 @@ export class FileAdoptProposalStore {
     }
     try {
       const parsed: unknown = JSON.parse(raw);
-      return isProposal(parsed) ? parsed : null;
+      if (!isProposal(parsed)) return null;
+      // A proposal stored before `unreadable` existed reads as none.
+      return { ...parsed, unreadable: Array.isArray(parsed.unreadable) ? parsed.unreadable : [] };
     } catch {
       return null;
     }

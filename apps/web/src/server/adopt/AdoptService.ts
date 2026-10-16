@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { parseFile } from "music-metadata";
-import { NotFoundError, ValidationError } from "../../shared/errors";
+import { NotFoundError, PublicError, ValidationError } from "../../shared/errors";
 import type { Release, Track } from "../../shared/types";
 import { adoptedCoversDir } from "../config/paths";
 import type { SettingsStore } from "../config/SettingsStore";
@@ -44,6 +44,8 @@ export interface AdoptResult {
   alreadyAdopted: string[];
   /** Keys that are not in the stored proposal. */
   unknown: string[];
+  /** Groups that could not be added; the rest of the call still went through. */
+  failed: { key: string; message: string }[];
 }
 
 /**
@@ -127,7 +129,7 @@ export class AdoptService {
       const adoptedKeys = new Set(existing.flatMap((r) => (r.adoptKey ? [r.adoptKey] : [])));
       const adoptedPaths = new Set(existing.filter((r) => r.adopted).flatMap((r) => r.tracks.map((t) => t.filePath)));
 
-      const result: AdoptResult = { releases: [], alreadyAdopted: [], unknown: [] };
+      const result: AdoptResult = { releases: [], alreadyAdopted: [], unknown: [], failed: [] };
       for (const key of new Set(keys)) {
         const group = byKey.get(key);
         if (!group) {
@@ -138,11 +140,18 @@ export class AdoptService {
           result.alreadyAdopted.push(key);
           continue;
         }
-        const release = await this.build(group, roots);
-        await this.opts.library.upsert(libraryDir, release);
-        adoptedKeys.add(key);
-        for (const t of release.tracks) adoptedPaths.add(t.filePath);
-        result.releases.push(release);
+        try {
+          const release = await this.build(group, roots);
+          await this.opts.library.upsert(libraryDir, release);
+          adoptedKeys.add(key);
+          for (const t of release.tracks) adoptedPaths.add(t.filePath);
+          result.releases.push(release);
+        } catch (err) {
+          result.failed.push({
+            key,
+            message: err instanceof PublicError || err instanceof ValidationError ? err.message : "Couldn't add this release",
+          });
+        }
       }
       return result;
     });

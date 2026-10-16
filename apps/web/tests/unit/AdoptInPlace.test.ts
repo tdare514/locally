@@ -481,3 +481,53 @@ describe("parseAdoptBody", () => {
     expect(() => parseAdoptBody(null)).toThrow(ValidationError);
   });
 });
+
+describe("unreadable folders", () => {
+  it.skipIf(process.getuid?.() === 0)("lists a locked subfolder and a missing root, and keeps the readable groups", async () => {
+    await writeAudio("A/one.mp3", { title: "One" });
+    const locked = path.join(root, "B");
+    await writeAudio("B/two.mp3", { title: "Two", album: "Other" });
+    const missing = path.join(base, "No Such Folder");
+    settings.settings = { ...settings.settings, adoptRoots: [root, missing] };
+    await fs.chmod(locked, 0o000);
+    try {
+      const proposal = await adoptService().scan();
+      expect(proposal.unreadable.sort()).toEqual([locked, missing].sort());
+      expect(proposal.groups.map((g) => g.title)).toEqual(["Album"]);
+    } finally {
+      await fs.chmod(locked, 0o755);
+    }
+  });
+
+  it("reads a stored proposal from before the field existed as none unreadable", async () => {
+    await fs.mkdir(configDir, { recursive: true });
+    await fs.writeFile(
+      path.join(configDir, "adopt-proposal.json"),
+      JSON.stringify({ scannedAt: "2026-10-16T00:00:00.000Z", roots: [], groups: [], skipped: {} })
+    );
+    expect((await new FileAdoptProposalStore().load())?.unreadable).toEqual([]);
+  });
+});
+
+describe("per-group failures", () => {
+  it("adds the other groups and reports the one that threw", async () => {
+    await writeAudio("A/one.mp3", { title: "One", album: "First" });
+    await writeAudio("A/two.mp3", { title: "Two", album: "Boom" });
+    await writeAudio("B/three.mp3", { title: "Three", album: "Third" });
+    const failing = Object.create(repo) as JsonLibraryRepository;
+    failing.upsert = async (dir, release) => {
+      if (release.title === "Boom") throw new Error("disk exploded at /secret/path");
+      return repo.upsert(dir, release);
+    };
+    const svc = adoptService({ library: failing });
+    const proposal = await svc.scan();
+    const keys = proposal.groups.map((g) => g.key);
+    expect(keys).toHaveLength(3);
+    const result = await svc.adopt(keys);
+    expect(result.releases.map((r) => r.title).sort()).toEqual(["First", "Third"]);
+    expect(result.failed).toEqual([
+      { key: proposal.groups.find((g) => g.title === "Boom")!.key, message: "Couldn't add this release" },
+    ]);
+    expect((await repo.list(libDir)).map((r) => r.title).sort()).toEqual(["First", "Third"]);
+  });
+});
