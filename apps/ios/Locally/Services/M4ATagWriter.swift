@@ -40,7 +40,8 @@ final class M4ATagWriter: TagWriter {
 
         exportSession.outputURL = tmpOutput
         exportSession.outputFileType = .m4a
-        exportSession.metadata = metadataItems(for: tags, cover: cover)
+        let keptItems = await Self.itemsLocallyDoesNotOwn(in: asset)
+        exportSession.metadata = keptItems + metadataItems(for: tags, cover: cover)
 
         do {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -82,6 +83,38 @@ final class M4ATagWriter: TagWriter {
     private func removeTempOutput(_ tmpOutput: URL) {
         guard FileManager.default.fileExists(atPath: tmpOutput.path) else { return }
         try? FileManager.default.removeItem(at: tmpOutput)
+    }
+
+    /// Atoms Locally writes itself. The export replaces these; everything else is carried over.
+    /// Identifiers read from a file spell the copyright sign as "%A9" ("itsk/%A9nam"), so the
+    /// keys here are written that way too. `gnre` is the numeric genre, which \u{A9}gen supersedes.
+    private static let ownedAtoms: Set<String> = [
+        "%A9nam", "%A9ART", "aART", "%A9alb", "trkn", "disk", "%A9day", "%A9gen", "gnre", "covr"
+    ]
+
+    static func isOwned(identifier: AVMetadataIdentifier?) -> Bool {
+        guard let raw = identifier?.rawValue, let slash = raw.firstIndex(of: "/") else { return false }
+        return ownedAtoms.contains(String(raw[raw.index(after: slash)...]))
+    }
+
+    /// The asset's existing metadata (every format it loads) minus Locally's own atoms, as
+    /// fresh items the export can write. An item whose value can't be read is skipped.
+    private static func itemsLocallyDoesNotOwn(in asset: AVAsset) async -> [AVMetadataItem] {
+        var kept: [AVMetadataItem] = []
+        let formats = (try? await asset.load(.availableMetadataFormats)) ?? []
+        for format in formats {
+            let items = (try? await asset.loadMetadata(for: format)) ?? []
+            for item in items where !isOwned(identifier: item.identifier) {
+                guard let identifier = item.identifier,
+                      let value = try? await item.load(.value),
+                      let copy = item.mutableCopy() as? AVMutableMetadataItem else { continue }
+                copy.identifier = identifier
+                copy.value = value
+                copy.dataType = item.dataType
+                kept.append(copy)
+            }
+        }
+        return kept
     }
 
     private func metadataItems(for tags: TagSet, cover: Data?) -> [AVMetadataItem] {

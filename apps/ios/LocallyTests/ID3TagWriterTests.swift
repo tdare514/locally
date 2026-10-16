@@ -93,6 +93,33 @@ struct ID3TagWriterTests {
         #expect(audio == Self.audioSuffix(of: original))
     }
 
+    @Test func writesTYERBesideTDRCWithTheSameYear() async throws {
+        let (dir, url) = try makeFile()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        try await writer.write(tags(), cover: nil, to: url)
+
+        let (frames, _) = parse(try Data(contentsOf: url))
+        #expect(textValue(frames["TDRC"]!) == "2026")
+        #expect(textValue(frames["TYER"]!) == "2026")
+        #expect(frames["TYER"]!.first == 0x00, "TYER is ISO-8859-1, the encoding every reader supports")
+    }
+
+    @Test func aYearThatIsNotFourDigitsWritesNoTYER() async throws {
+        for year in ["2026-05-01", "26", "20x6", "٢٠٢٦"] {
+            let (dir, url) = try makeFile()
+            defer { try? FileManager.default.removeItem(at: dir) }
+            var set = tags()
+            set.year = year
+
+            try await writer.write(set, cover: nil, to: url)
+
+            let (frames, _) = parse(try Data(contentsOf: url))
+            #expect(textValue(frames["TDRC"]!) == year)
+            #expect(frames["TYER"] == nil, "year \(year)")
+        }
+    }
+
     @Test func writesAPICWithMimeAndPictureBytes() async throws {
         let (dir, url) = try makeFile()
         defer { try? FileManager.default.removeItem(at: dir) }
