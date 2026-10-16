@@ -215,23 +215,48 @@ struct GlowGlass: View {
     }
 }
 
-/// A 1 pt rim at 12 % white, brighter (32 %) along the top edge.
+/// A 1 pt rim at 12 % white, brighter (32 %) along the top edge. `round` draws it on a circle.
 struct GlowRim: View {
+    var round = false
+
+    private var gradient: LinearGradient {
+        LinearGradient(
+            stops: [
+                .init(color: .white.opacity(Theme.Import.glowRimTop), location: 0),
+                .init(color: .white.opacity(Theme.Import.glowRim), location: 0.4),
+                .init(color: .white.opacity(Theme.Import.glowRim), location: 1),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
     var body: some View {
-        Capsule()
-            .strokeBorder(
-                LinearGradient(
-                    stops: [
-                        .init(color: .white.opacity(Theme.Import.glowRimTop), location: 0),
-                        .init(color: .white.opacity(Theme.Import.glowRim), location: 0.4),
-                        .init(color: .white.opacity(Theme.Import.glowRim), location: 1),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                ),
-                lineWidth: 1
-            )
-            .allowsHitTesting(false)
+        Group {
+            if round {
+                Circle().strokeBorder(gradient, lineWidth: 1)
+            } else {
+                Capsule().strokeBorder(gradient, lineWidth: 1)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// A round 44 pt button in the Glow pill's glass and rim (the Stats stepper's chevrons). Half opacity disabled.
+struct GlowCircleButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(Color.white)
+            .frame(width: Theme.Import.kindSwitchMinTarget, height: Theme.Import.kindSwitchMinTarget)
+            .background { GlowGlass().clipShape(Circle()) }
+            .overlay { GlowRim(round: true) }
+            .contentShape(Circle())
+            .opacity(isEnabled ? 1 : 0.5)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.95 : 1)
     }
 }
 

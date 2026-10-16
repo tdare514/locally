@@ -40,6 +40,8 @@ final class AppContainer {
     let syncAccount: SyncAccountStore
     let syncApi: SyncApi
     let syncEngine: SyncEngine
+    /// The Stats tab's source: the plays summary, cached and rate-budgeted (#204).
+    let playStats: PlayStatsReading
     let folderStatus: FolderStatus
     let purchaseStatus: PurchaseStatus
     let modelContainer: ModelContainer
@@ -60,6 +62,7 @@ final class AppContainer {
         syncAccount: SyncAccountStore,
         syncApi: SyncApi,
         syncEngine: SyncEngine,
+        playStats: PlayStatsReading,
         modelContainer: ModelContainer
     ) {
         self.folder = folder
@@ -72,6 +75,7 @@ final class AppContainer {
         self.syncAccount = syncAccount
         self.syncApi = syncApi
         self.syncEngine = syncEngine
+        self.playStats = playStats
         self.modelContainer = modelContainer
         self.folderStatus = FolderStatus(isConnected: folder.isConnected)
         self.purchaseStatus = PurchaseStatus(isFullUnlocked: purchase.isFullUnlocked)
@@ -146,6 +150,7 @@ final class AppContainer {
             syncAccount: syncAccount,
             syncApi: syncApi,
             syncEngine: syncEngine,
+            playStats: SyncPlayStatsService(api: syncApi, account: syncAccount),
             modelContainer: modelContainer
         )
         Task { await container.refreshPurchaseStatus() }
@@ -169,7 +174,8 @@ final class AppContainer {
         syncAccount: SyncAccountStore,
         syncApi: SyncApi,
         outbox: SyncOutbox? = nil,
-        deviceName: @escaping () -> String = { "Test Device" }
+        deviceName: @escaping () -> String = { "Test Device" },
+        playStats: PlayStatsReading? = nil
     ) -> AppContainer {
         // swiftlint:disable:next force_try
         let modelContainer = try! ModelStore.open(at: nil)
@@ -208,6 +214,7 @@ final class AppContainer {
             syncAccount: syncAccount,
             syncApi: syncApi,
             syncEngine: syncEngine,
+            playStats: playStats ?? SyncPlayStatsService(api: syncApi, account: syncAccount),
             modelContainer: modelContainer
         )
     }
