@@ -30,7 +30,7 @@ Two things go wrong:
   - Since #85, both apps' filename sanitising caps a segment at 239 UTF-8 bytes, so neither app makes such names any more.
   - The only risk is a release named on the Mac **before #85** with a long multibyte title. Its next push would get a 400.
   - **Build note:** the production count was not run (no production access in the build); the compatibility branch below is built in regardless.
-  - Before tightening, the build step runs one read-only production query for live releases with a file name over 255 bytes, and reports the count to the owner. If it's not zero, the API keeps accepting an over-long name that is **already stored** on that release (a re-push of the same name), and refuses only new ones.
+  - Before tightening, the build step runs one read-only production query for live releases with a file name over 255 bytes, and reports the count to the owner. If it's not zero, the API keeps accepting an over-long name that is **already stored** on that release (a re-push of the same name), and refuses only new ones. The allowance covers all three routes (PUT, file upload, file download) through one helper, `storedLongNames`, and applies to the length only.
 
 ## Fixtures (`spec/fixtures/sync/`)
 

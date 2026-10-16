@@ -11,6 +11,8 @@ vi.mock("../../src/server/container", () => ({
 import * as authCodeRoute from "../../src/app/v1/auth/code/route";
 import * as authVerifyRoute from "../../src/app/v1/auth/verify/route";
 import * as releaseRoute from "../../src/app/v1/releases/[id]/route";
+import * as filesRoute from "../../src/app/v1/releases/[id]/files/route";
+import * as fileDownloadRoute from "../../src/app/v1/releases/[id]/files/[name]/route";
 
 function jsonRequest(url: string, method: string, body: unknown, token?: string): Request {
   const headers: Record<string, string> = { "content-type": "application/json" };
@@ -72,5 +74,57 @@ describe("PUT /v1/releases/:id file-name byte limit (#87)", () => {
 
     const other = { ...repush, tracks: [{ ...repush.tracks[0]!, file: nameOfBytes(256, "-new") }] };
     expect((await put(token, other)).status).toBe(400);
+  });
+
+  /** A release saved under the old rule: a 256-byte name and a 256-byte name with a path separator. */
+  async function seedStored(email: string) {
+    const { token, userId } = await signIn(email);
+    const longName = nameOfBytes(256, "-old");
+    const slashName = "/" + nameOfBytes(255, "-slash");
+    const base = makeReleaseRecord();
+    const record = {
+      ...base,
+      tracks: [
+        { ...base.tracks[0]!, file: longName },
+        { ...base.tracks[0]!, id: crypto.randomUUID(), trackNumber: 2, file: slashName },
+      ],
+    };
+    await testServices.releases.upsert(userId, record.id, record);
+    return { token, record, longName, slashName };
+  }
+
+  function upload(token: string, id: string, name: string): Promise<Response> {
+    return filesRoute.POST(
+      jsonRequest(`http://localhost/v1/releases/${id}/files`, "POST", { files: [{ name, bytes: 10, contentType: "audio/mpeg" }] }, token),
+      { params: Promise.resolve({ id }) }
+    );
+  }
+
+  function download(token: string, id: string, name: string): Promise<Response> {
+    return fileDownloadRoute.GET(
+      new Request(`http://localhost/v1/releases/${id}/files/x`, { headers: { authorization: `Bearer ${token}` } }),
+      { params: Promise.resolve({ id, name }) }
+    );
+  }
+
+  it("upload: a stored 256-byte name is accepted, an unstored one is a 400, a stored name with a separator is still a 400", async () => {
+    const { token, record, longName, slashName } = await seedStored("bytes-upload@example.com");
+    expect((await upload(token, record.id, longName)).status).toBe(200);
+    expect((await upload(token, record.id, nameOfBytes(256, "-new"))).status).toBe(400);
+    expect((await upload(token, record.id, slashName)).status).toBe(400);
+  });
+
+  it("download: a stored 256-byte name is accepted, an unstored one is a 400, a stored name with a separator is still a 400", async () => {
+    const { token, record, longName, slashName } = await seedStored("bytes-download@example.com");
+    expect((await upload(token, record.id, longName)).status).toBe(200); // registers the file row
+    expect((await download(token, record.id, longName)).status).toBe(200);
+    expect((await download(token, record.id, nameOfBytes(256, "-new"))).status).toBe(400);
+    expect((await download(token, record.id, slashName)).status).toBe(400);
+  });
+
+  it("PUT: a stored name with a separator is still a 400 on re-push", async () => {
+    const { token, record } = await seedStored("bytes-put-slash@example.com");
+    const repush = { ...record, updatedAt: new Date(Date.now() + 1000).toISOString() };
+    expect((await put(token, repush)).status).toBe(400);
   });
 });

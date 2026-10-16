@@ -115,11 +115,11 @@ export const verifyRequestSchema = z.object({
 });
 export type VerifyRequest = z.infer<typeof verifyRequestSchema>;
 
-export const filesUploadRequestSchema = z.object({
+const makeFilesUploadRequestSchema = (fileName: z.ZodType<string>) => z.object({
   files: z
     .array(
       z.object({
-        name: fileNameSchema,
+        name: fileName,
         bytes: z.number().int().positive(),
         contentType: z.string().min(1).max(200),
       })
@@ -127,6 +127,11 @@ export const filesUploadRequestSchema = z.object({
     .min(1)
     .max(50),
 });
+
+export const filesUploadRequestSchema = makeFilesUploadRequestSchema(fileNameSchema);
+/** The upload body schema for a release that already stores `storedLongNames` (see `makeFileNameSchema`). */
+export const filesUploadRequestSchemaKeeping = (storedLongNames: ReadonlySet<string>) =>
+  makeFilesUploadRequestSchema(makeFileNameSchema(storedLongNames));
 export type FilesUploadRequest = z.infer<typeof filesUploadRequestSchema>;
 
 export interface UserSummary {
