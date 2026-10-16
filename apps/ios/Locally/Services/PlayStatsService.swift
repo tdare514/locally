@@ -38,6 +38,7 @@ final class SyncPlayStatsService: PlayStatsReading {
     static let backOffSeconds: TimeInterval = 10 * 60
 
     private struct Key: Hashable {
+        var deviceId: String?
         var from: String
         var to: String
     }
@@ -57,6 +58,8 @@ final class SyncPlayStatsService: PlayStatsReading {
     private var inFlight: [Key: Task<PlayStatsRead, Never>] = [:]
     private var requestTimes: [Date] = []
     private var backOffUntil: Date?
+    /// How many callers joined a request already in flight (tests wait on this).
+    private(set) var sharedJoins = 0
 
     init(api: SyncApi, account: SyncAccountStore, now: @escaping () -> Date = Date.init) {
         self.api = api
@@ -75,11 +78,12 @@ final class SyncPlayStatsService: PlayStatsReading {
             cache.removeAll()
             cachedDeviceId = deviceId
         }
-        let key = Key(from: from, to: to)
+        let key = Key(deviceId: deviceId, from: from, to: to)
         if !force, let entry = cached(key), now().timeIntervalSince(entry.fetchedAt) < Self.freshSeconds {
             return .ok(entry.summary)
         }
         if let running = inFlight[key] {
+            sharedJoins += 1
             return await running.value
         }
         let task = Task { await self.load(key, deviceId: deviceId) }

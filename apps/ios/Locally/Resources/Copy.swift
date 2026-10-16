@@ -348,6 +348,41 @@ enum Copy {
         static let failed = "Couldn't load your plays. Pull down to try again."
         static let busy = "Couldn't load your plays just now. Try again in a few minutes."
 
+        static let tracksTab = "Tracks"
+        static let albumsTab = "Albums"
+        static let artistsTab = "Artists"
+        static let showTopLabel = "Show top"
+        static let timeFrameLabel = "Time frame"
+        static let layoutLabel = "Layout"
+        static let listLayout = "List"
+        static let gridLayout = "Grid"
+        static let sortLabel = "Sort by"
+        static let sortPlays = "Most played"
+        static let sortName = "Name"
+        static let sortRecent = "Recent"
+        static let gridHint = "Ranked by plays, left to right. Bigger covers have more plays."
+        static let loadingLabel = "Loading your plays"
+        static let lastPlayedHeading = "Last played"
+
+        /// "Your tracks", the heading over the list.
+        static func yourHeading(_ noun: String) -> String { "Your \(noun)" }
+        /// "Previous week": the stepper's buttons, named for the period they move by.
+        static func previousLabel(_ kind: StatsPeriodKind) -> String { "Previous \(stepNoun(kind))" }
+        static func nextLabel(_ kind: StatsPeriodKind) -> String { "Next \(stepNoun(kind))" }
+        private static func stepNoun(_ kind: StatsPeriodKind) -> String {
+            switch kind {
+            case .today: return "day"
+            case .week: return "week"
+            case .month: return "month"
+            case .year: return "year"
+            case .all: return "period"
+            }
+        }
+        /// "Your top 5 tracks, most played first": names the fan for screen readers.
+        static func fanLabel(count: Int, noun: String) -> String { "Your top \(count) \(noun), most played first" }
+        /// A sleeve's or row's spoken name: "1, Night Bus to Nowhere, 48 plays".
+        static func itemLabel(rank: Int, title: String, plays: Int) -> String { "\(rank), \(title), \(playsCount(plays))" }
+
         /// The period control's options, shortest first.
         static let periodOptions: [(kind: StatsPeriodKind, label: String)] = [
             (.today, "Today"),

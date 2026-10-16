@@ -126,8 +126,8 @@ struct PlayStatsServiceTests {
         s.api.playsSummaryGate = { await latch.wait() }
         let first = Task { await self.read(s) }
         let second = Task { await self.read(s, force: true) }
-        for _ in 0..<200 where s.api.playsSummaryCalls.isEmpty { try? await Task.sleep(nanoseconds: 5_000_000) }
-        try? await Task.sleep(nanoseconds: 30_000_000)
+        for _ in 0..<2000 where s.service.sharedJoins < 1 { try? await Task.sleep(nanoseconds: 2_000_000) }
+        #expect(s.service.sharedJoins == 1)
         latch.release()
         let results = [await first.value, await second.value]
         #expect(results == [.ok(summary(1)), .ok(summary(1))])

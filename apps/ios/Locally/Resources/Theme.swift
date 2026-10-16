@@ -262,6 +262,37 @@ enum Theme {
         static let deep = Color(red: 0.02, green: 0.04, blue: 0.11)
     }
 
+    /// The Stats page (#204): the medal colours of ranks 1 to 3 (ported from the Mac's `.st-rank`,
+    /// `.medal-name` and the fan's rims) and the sizes of its fan, rows and grid.
+    enum Stats {
+        static let gold = Color(red: 0xEC / 255, green: 0xCE / 255, blue: 0x78 / 255)
+        static let silver = Color(red: 0xB9 / 255, green: 0xC3 / 255, blue: 0xD2 / 255)
+        static let bronze = Color(red: 0xDC / 255, green: 0x9A / 255, blue: 0x5E / 255)
+        /// Names in the list, grid and under the fan: a shade lighter than the bronze rank so they hold 4.5:1.
+        static let bronzeName = Color(red: 0xE8 / 255, green: 0xA9 / 255, blue: 0x70 / 255)
+        static let goldRim = Color(red: 0xDC / 255, green: 0xB8 / 255, blue: 0x60 / 255)
+        static let silverRim = Color(red: 0xC5 / 255, green: 0xCA / 255, blue: 0xD3 / 255)
+        static let bronzeRim = Color(red: 0xC9 / 255, green: 0x8A / 255, blue: 0x4E / 255)
+
+        static let gutter: CGFloat = 16
+        static let rowCover: CGFloat = 44
+        static let minTarget: CGFloat = 44
+        static let tileMin: CGFloat = 72
+        static let tileGap: CGFloat = 12
+        static let tileRowGap: CGFloat = 18
+        static let maxSleeve: CGFloat = 130
+        static let sleeveWidthFraction: CGFloat = 0.34
+        /// The shine's cycle, one sweep and the delay of gold, silver and bronze (the Mac's `fan-shine-sweep`).
+        static let shineCycle: Double = 8
+        static let shineSweep: Double = 1.7
+        static let shineDelays: [Double] = [1.5, 1.8, 2.1]
+        static let openingBeat: Double = 0.36
+        static let liftDuration: Double = 0.35
+        static let fanInDuration: Double = 0.4
+        static let fanInStagger: Double = 0.052
+        static let fanInBase: Double = 0.06
+    }
+
     /// Cool tints for Settings' icon tiles and highlights, kept beside the accent blue.
     enum Tint {
         static let violet = Color(red: 0.62, green: 0.50, blue: 1.0)
