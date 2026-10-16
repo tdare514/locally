@@ -2609,3 +2609,15 @@ body {
     opacity: 0;
   }
 }
+
+/* Rows or covers of a library section fading in when it unfolds (#260). Opacity only; the layout
+   jumps. Declared only when motion is allowed, so reduced motion shows them at once. */
+@media (prefers-reduced-motion: no-preference) {
+  .section-fade {
+    animation: section-fade-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+@keyframes section-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
