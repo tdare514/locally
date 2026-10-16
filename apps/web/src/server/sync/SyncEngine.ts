@@ -519,6 +519,11 @@ export class SyncEngine implements ReleaseSyncHooks {
               console.warn(`SyncEngine: skipping push of release ${release.id}: ${err.message}`);
               continue;
             }
+            // Likewise a record the service refuses for good (400/422) must not hold the rest back.
+            if (err instanceof SyncRequestError && (err.status === 400 || err.status === 422)) {
+              console.warn(`SyncEngine: skipping push of release ${release.id}: ${err.message}`);
+              continue;
+            }
             throw err;
           }
         }
