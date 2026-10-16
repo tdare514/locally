@@ -169,7 +169,8 @@ eyebrows still apply to those labels.
     `cubic-bezier(0.16, 1, 0.3, 1)`; Reduce Motion: the fade only.
   - *Cover sheet on the release page*: tapping the sleeve opens the import's cover sheet (recent
     covers, Photos, Files, then Remove cover when there is one), replacing the "Change cover art"
-    dialog. Recent covers shows each picture once: covers with the same bytes appear once, as the
+    dialog; Remove cover is left out there until saving a release can clear its cover (today a
+    release keeps its cover once it has one). Recent covers shows each picture once: covers with the same bytes appear once, as the
     newest release's.
   - *Track length*: track rows show the length at the trailing edge, before the replace button,
     as `m:ss` (`h:mm:ss` past an hour), subheadline tabular, white 60 %. It is read from the file
