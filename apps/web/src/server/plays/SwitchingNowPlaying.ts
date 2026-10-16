@@ -58,7 +58,9 @@ export class SwitchingNowPlaying implements SpotifyNowPlaying {
       return result;
     } catch (err) {
       const retryAfter = err instanceof SpotifyApiError && err.code === "rateLimited" ? (err.retryAfterSec ?? 0) : 0;
-      this.holdOffUntil = now + Math.max(WEB_API_HOLD_OFF_SEC, retryAfter) * 1000;
+      // From when the failure arrived, not when the request began: a slow failure mustn't shorten it.
+      const failedAt = (this.deps.now ?? Date.now)();
+      this.holdOffUntil = failedAt + Math.max(WEB_API_HOLD_OFF_SEC, retryAfter) * 1000;
       this.source = "this-mac";
       this.failing = true;
       if (!this.loggedStreak) {

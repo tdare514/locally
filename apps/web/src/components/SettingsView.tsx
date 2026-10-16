@@ -476,7 +476,9 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
           <p className="text-xs text-text-dim">
             {otherDevicesOn
               ? "Counts a Locally track once it has played 30 seconds in Spotify, on any of your devices."
-              : "Counts a Locally track once it has played 30 seconds in Spotify. Plays on your other devices count while Spotify is open on this Mac."}
+              : showOtherDevicesRow
+                ? "Counts a Locally track once it has played 30 seconds in Spotify on this Mac, or on another device while Spotify is open here."
+                : "Counts a Locally track once it has played 30 seconds in Spotify. Plays on your other devices count while Spotify is open on this Mac."}
           </p>
           {showOtherDevicesRow && (
             <>

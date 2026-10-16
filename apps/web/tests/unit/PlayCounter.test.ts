@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PlayCounter, type PlaySample } from "../../src/server/plays/PlayCounter";
+import { CONTINUATION_WINDOW_MS, PlayCounter, type PlaySample } from "../../src/server/plays/PlayCounter";
 
 const LOCAL = "spotify:local:A:B:C:200";
 
@@ -141,12 +141,38 @@ describe("PlayCounter memory of the last session (#228)", () => {
     expect(out.filter(Boolean)).toHaveLength(1);
   });
 
-  it("a different track in between overwrites the memory", () => {
+  it("A resumed further on after a different track B continues (no second count)", () => {
+    const c = new PlayCounter();
+    expect(run(c, [0, 5, 10, 15, 20, 25, 30].map((t) => s(t, t))).filter(Boolean)).toHaveLength(1);
+    c.push(s(35, 0, { id: OTHER, positionSec: 0, state: "paused" })); // fallback: the Mac's paused track B
+    c.push(s(40, 0, { id: OTHER, positionSec: 0, state: "paused" }));
+    const out = run(c, [45, 50, 55, 60, 65, 70, 75].map((t, i) => s(t, 40 + i * 5)));
+    expect(out.filter(Boolean)).toHaveLength(0);
+  });
+
+  it("A started from the beginning after a different track B is a new play", () => {
     const c = new PlayCounter();
     run(c, [0, 5, 10, 15, 20, 25, 30].map((t) => s(t, t)));
-    c.push(s(35, 0, { id: OTHER, positionSec: 0 }));
-    c.push(s(40, 5, { id: OTHER }));
-    const out = run(c, [45, 50, 55, 60, 65, 70, 75].map((t, i) => s(t, 40 + i * 5)));
+    c.push(s(35, 0, { id: OTHER, positionSec: 0, state: "paused" }));
+    const out = run(c, [40, 45, 50, 55, 60, 65, 70].map((t, i) => s(t, i * 5)));
     expect(out.filter(Boolean)).toHaveLength(1);
+  });
+
+  it("remembers at most 8 tracks, dropping the oldest", () => {
+    const c = new PlayCounter();
+    run(c, [0, 5, 10, 15, 20, 25, 30].map((t) => s(t, t))); // LOCAL counts
+    for (let i = 0; i < 8; i++) c.push(s(35 + i, 0, { id: `spotify:local:X:Y:T${i}:100`, state: "paused" }));
+    const out = run(c, [50, 55, 60, 65, 70, 75, 80].map((t, i) => s(t, 40 + i * 5)));
+    expect(out.filter(Boolean)).toHaveLength(1); // LOCAL was forgotten: counts again
+  });
+
+  it("a replay first seen 20 minutes later, beyond the remembered position, is a new play", () => {
+    const c = new PlayCounter();
+    run(c, [0, 5, 10, 15, 20, 25, 30].map((t) => s(t, t)));
+    c.push(s(35, 0, { running: false, state: "stopped", id: null }));
+    const later = 35 + 20 * 60;
+    const out = run(c, [0, 5, 10, 15, 20, 25, 30].map((d, i) => s(later + d, 35 + i * 5)));
+    expect(out.filter(Boolean)).toHaveLength(1);
+    expect(CONTINUATION_WINDOW_MS).toBe(600_000);
   });
 });

@@ -123,4 +123,21 @@ describe("SwitchingNowPlaying", () => {
     expect(await sw.read()).toBe(MAC);
     expect(sw.fallingBack()).toBe(true);
   });
+
+  it("takes the hold-off from when the failure arrived, not when the request began", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { sw, web, advance } = setup();
+    web.read = async () => {
+      web.calls++;
+      advance(20_000); // the request is slow
+      throw new SpotifyApiError("rateLimited", "x", { retryAfterSec: 60, status: 429 });
+    };
+    await sw.read();
+    advance(59_999);
+    await sw.read();
+    expect(web.calls).toBe(1); // 60 s after the failure arrived is not yet
+    web.read = async () => WEB;
+    advance(1);
+    expect(await sw.read()).toBe(WEB);
+  });
 });

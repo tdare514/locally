@@ -22,7 +22,11 @@ interface Previous {
   playing: boolean;
 }
 
-/** The last session before a reset, so a continuation of the same play isn't counted again (#228). */
+/** A remembered session only applies to a continuation seen within this long after it ended. */
+export const CONTINUATION_WINDOW_MS = 10 * 60 * 1000;
+const MAX_REMEMBERED = 8;
+
+/** A session that ended, so a continuation of the same play isn't counted again (#228). */
 interface LastSession {
   id: string;
   positionSec: number;
@@ -40,7 +44,8 @@ export class PlayCounter {
   private listenedSec = 0;
   private counted = false;
   private prev: Previous | null = null;
-  private last: LastSession | null = null;
+  /** Recent ended sessions by track id, oldest first (Map keeps insertion order). */
+  private readonly memory = new Map<string, LastSession>();
 
   /** Feed one sample. Returns the Spotify id when this sample makes a play count, else null. */
   push(sample: PlaySample): string | null {
@@ -59,11 +64,11 @@ export class PlayCounter {
       this.prev = null;
       // The same track resuming where the last session left off (the source switched, or Spotify
       // quit and came back) is the same play, not a new one. A replay from the start is not.
-      const last = this.last;
-      if (
+      const last = this.memory.get(id);
+      if (last && sample.at - last.at > CONTINUATION_WINDOW_MS) this.memory.delete(id);
+      else if (
         !wentBack &&
         last &&
-        last.id === id &&
         sample.positionSec >= last.positionSec - BACKWARD_SEEK_SEC &&
         sample.positionSec <= last.positionSec + (sample.at - last.at) / 1000 + SEEK_SLACK_SEC
       ) {
@@ -90,16 +95,20 @@ export class PlayCounter {
     return null;
   }
 
-  /** Keep the session that is ending, replacing any older memory. */
+  /** Keep the session that is ending under its id, dropping expired entries and the oldest beyond 8. */
   private remember(): void {
     if (this.sessionId && this.prev) {
-      this.last = {
+      const at = this.prev.at;
+      for (const [key, entry] of this.memory) if (at - entry.at > CONTINUATION_WINDOW_MS) this.memory.delete(key);
+      this.memory.delete(this.sessionId);
+      this.memory.set(this.sessionId, {
         id: this.sessionId,
         positionSec: this.prev.positionSec,
-        at: this.prev.at,
+        at,
         listenedSec: this.listenedSec,
         counted: this.counted,
-      };
+      });
+      while (this.memory.size > MAX_REMEMBERED) this.memory.delete(this.memory.keys().next().value as string);
     }
   }
 
