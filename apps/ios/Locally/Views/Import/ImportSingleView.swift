@@ -26,7 +26,7 @@ struct ImportSingleView: View {
                             .keyboardType(.numberPad)
                         InlineField(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }), font: Theme.ScaledFont.input, wraps: true)
                     }
-                    .importClearRow()
+                    .importFieldsRow()
                 }
 
                 Section {

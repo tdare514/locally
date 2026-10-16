@@ -34,7 +34,7 @@ struct ImportRecordSleeve: View {
 
     var body: some View {
         let driver = context.driver
-        TimelineView(.animation(minimumInterval: nil, paused: !driver.isAnimating)) { timeline in
+        TimelineView(.animation(minimumInterval: nil, paused: !driver.isPlaying)) { timeline in
             SleeveCoverPicker(
                 imageData: Binding(
                     get: { coverData },
@@ -86,6 +86,13 @@ extension View {
         listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             .listRowInsets(EdgeInsets(top: top, leading: 0, bottom: bottom, trailing: 0))
+    }
+
+    /// A row of inline fields. The list's cell clips at its edge and the round first letters of a
+    /// field (G, S, C, O) overshoot to the left of the text, so the row is inset by a little that
+    /// scales with Dynamic Type (the overshoot does).
+    func importFieldsRow() -> some View {
+        modifier(ImportFieldsRow())
     }
 
     /// A row of the tracks panel, in the release page's faked glass.
@@ -230,5 +237,17 @@ private struct ImportSendErrorDetails: View {
         }
         .presentationDetents([.medium, .large])
         .presentationBackground(Theme.card)
+    }
+}
+
+/// `importFieldsRow()`: clear, no separator, and a leading inset of `inlineFieldOvershoot` that grows with text size.
+private struct ImportFieldsRow: ViewModifier {
+    @ScaledMetric(relativeTo: .largeTitle) private var overshoot = Theme.Immersive.inlineFieldOvershoot
+
+    func body(content: Content) -> some View {
+        content
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 0, leading: overshoot, bottom: 0, trailing: 0))
     }
 }

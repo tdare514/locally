@@ -401,6 +401,8 @@ struct DiscHeading: View {
     }
 }
 
+/// A track row: index, tile, title, subtitle and (compact) chevron. It draws no background or
+/// outline of its own; it sits inside a panel that supplies the fill.
 struct FileRow: View {
     let index: Int
     let title: String
@@ -460,12 +462,6 @@ struct FileRow: View {
         }
         .padding(.horizontal, 12)
         .frame(minHeight: isCompact ? 52 : 64)
-        .background(Theme.card)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.fileRow))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.Radius.fileRow)
-                .stroke(Theme.border, lineWidth: 1)
-        )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("file-row-\(index)")
     }
@@ -475,7 +471,7 @@ struct FileRow: View {
 
 /// A faint placeholder shown before any tracks exist, so the Tracks section
 /// doesn't collapse to a single line of text: `rows` empty `FileRow`-shaped
-/// blocks (same size and radius, `card` at 50% opacity, a `border` stroke, no
+/// blocks (same size and radius, `card` at 50% opacity, no outline, no
 /// text or icon) with a centred blurb explaining what will appear there.
 /// Used by the album builder (3 rows) and, while no file is chosen, the
 /// single-track flow (1 row) — see `docs/design.md`'s Tracks section notes.
@@ -493,10 +489,6 @@ struct TrackListSilhouette: View {
                     RoundedRectangle(cornerRadius: Theme.Radius.fileRow)
                         .fill(Theme.card.opacity(0.5))
                         .frame(minHeight: 64)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: Theme.Radius.fileRow)
-                                .stroke(Theme.border, lineWidth: 1)
-                        )
                 }
             }
 

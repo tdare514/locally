@@ -256,6 +256,9 @@ enum Theme {
         static let inlineFieldUnderlineOpacity: Double = 0.6
         static let inlineFieldUnderlineGap: CGFloat = 4
         static let inlineFieldFocusFade: Double = 0.15
+        /// A field row's leading inset, so a round first letter (G, S, C, O) that overshoots the
+        /// text's left edge isn't clipped by the list cell. Kept to 1 pt so the text still lines up.
+        static let inlineFieldOvershoot: CGFloat = 1
         /// Empty-sleeve caption spacing.
         static let sleeveCaptionPadding: CGFloat = 16
         /// The cover sheet's recent covers: square thumbnails in a scrolling row.
@@ -288,7 +291,7 @@ enum Theme {
         static let spillOpacity: Double = 0.4
         /// `imp-slide`: the new cover starts this far to the right.
         static let slideDistance: Double = 48
-        /// `imp-turn`: the disc turns this far as it seals.
+        /// `imp-turn`: the disc turns this far into place.
         static let discTurnDegrees: Double = 240
 
         /// `.imp-wash-band`: accent at 9 % at 35 %, 38 % at 78 %, a 35 % white-tinted accent at

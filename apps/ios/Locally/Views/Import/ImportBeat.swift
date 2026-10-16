@@ -4,6 +4,9 @@ import SwiftUI
 /// same numbers as `apps/web/src/lib/import-flow.ts` (`BEAT`, `beatPhase`, `beatReducer`) and the
 /// `.imp-*` keyframes in `apps/web/src/app/globals.css`. Pure: no view state, so a frame at any
 /// millisecond can be drawn (and tested) on its own.
+///
+/// On iPhone the disc stays peeking out of the sleeve (`discIn` is 0 in every frame) and turns
+/// into place, unlike the Mac's seal, where it slides all the way in (docs/design.md, 15 Oct 2026).
 enum ImportBeat {
     // MARK: Clock (ms from the moment a cover is chosen)
 
@@ -16,11 +19,9 @@ enum ImportBeat {
     static let flashEnd = 1300.0
     /// The backdrop takes the cover's colours as the flash starts.
     static let washAt = 420.0
-    /// The disc slides all the way into the sleeve, turning as it goes: sealed at `discEnd`.
+    /// The disc turns into place while it peeks out of the sleeve: at rest (0 degrees) at `discEnd`.
     static let discAt = 1340.0
     static let discEnd = 2290.0
-    /// A replacing cover first eases the disc out of the sleeve over this long.
-    static let replayOutEnd = 600.0
 
     /// With Reduce Motion the cover just fades in, the colours follow at once and the beat is
     /// over as soon as the fade is.
@@ -33,7 +34,7 @@ enum ImportBeat {
     // MARK: Phase
 
     enum Phase: Equatable {
-        case slide, swell, white, fade, gap, seal, done
+        case slide, swell, white, fade, gap, turn, done
     }
 
     /// Which part of the beat `ms` after the cover was chosen falls in.
@@ -43,7 +44,7 @@ enum ImportBeat {
         if ms < fullWhiteEnd { return .white }
         if ms < flashEnd { return .fade }
         if ms < discAt { return .gap }
-        if ms < discEnd { return .seal }
+        if ms < discEnd { return .turn }
         return .done
     }
 
@@ -56,9 +57,9 @@ enum ImportBeat {
         var run = 0
         /// The beat is over: it ran out, or input jumped it to the end.
         var ended = false
-        /// Input jumped it to the end (the disc lands in the sleeve at once).
+        /// Input jumped it to the end (the disc lands at rest at once).
         var skipped = false
-        /// This cover replaced another, so the disc starts tucked in the sleeve.
+        /// This cover replaced another. (The frames are the same either way on iPhone.)
         var replay = false
 
         static let initial = State()
@@ -94,11 +95,12 @@ enum ImportBeat {
         var coverOffsetX: Double
         var coverOpacity: Double
         var flashOpacity: Double
-        /// 0 = peeking as on the release page, 1 = fully in the sleeve (right edges level).
+        /// 0 = peeking as on the release page, 1 = fully in the sleeve (right edges level). The
+        /// iPhone beat only ever draws 0.
         var discIn: Double
         var discTurnDegrees: Double
 
-        static let rest = Frame(coverOffsetX: 0, coverOpacity: 1, flashOpacity: 0, discIn: 1, discTurnDegrees: 0)
+        static let rest = Frame(coverOffsetX: 0, coverOpacity: 1, flashOpacity: 0, discIn: 0, discTurnDegrees: 0)
     }
 
     // The CSS cubic-bezier curves, as (x1, y1, x2, y2).
@@ -106,7 +108,6 @@ enum ImportBeat {
     private static let swellCurve = UnitCurve.bezier(startControlPoint: UnitPoint(x: 0.45, y: 0), endControlPoint: UnitPoint(x: 0.55, y: 1))
     private static let flashFadeCurve = UnitCurve.bezier(startControlPoint: UnitPoint(x: 0.5, y: 0), endControlPoint: UnitPoint(x: 0.7, y: 1))
     private static let discCurve = UnitCurve.bezier(startControlPoint: UnitPoint(x: 0.33, y: 0), endControlPoint: UnitPoint(x: 0.15, y: 1))
-    private static let replayOutCurve = UnitCurve.bezier(startControlPoint: UnitPoint(x: 0.2, y: 0.8), endControlPoint: UnitPoint(x: 0.2, y: 1))
 
     /// 0 to 1 over `start...end` on `curve` (linear when nil), exact at both ends.
     private static func ramp(_ ms: Double, _ start: Double, _ end: Double, _ curve: UnitCurve?) -> Double {
@@ -116,16 +117,10 @@ enum ImportBeat {
         return curve?.value(at: t) ?? t
     }
 
-    /// Send tapped with the disc resting in the sleeve: it eases out to its peeking pose over
-    /// `replayOutEnd` on the same curve a replacing cover uses, the cover and flash at rest.
-    static func easeOutFrame(at ms: Double) -> Frame {
-        Frame(coverOffsetX: 0, coverOpacity: 1, flashOpacity: 0, discIn: 1 - ramp(ms, 0, replayOutEnd, replayOutCurve), discTurnDegrees: 0)
-    }
-
-    static func frame(at ms: Double, replay: Bool, reduced: Bool) -> Frame {
+    static func frame(at ms: Double, reduced: Bool) -> Frame {
         guard ms < endAt(reduced: reduced) else { return .rest }
         if reduced {
-            return Frame(coverOffsetX: 0, coverOpacity: ramp(ms, 0, reducedEndAt, nil), flashOpacity: 0, discIn: 1, discTurnDegrees: 0)
+            return Frame(coverOffsetX: 0, coverOpacity: ramp(ms, 0, reducedEndAt, nil), flashOpacity: 0, discIn: 0, discTurnDegrees: 0)
         }
         let slide = ramp(ms, 0, slideEnd, slideCurve)
         let flash: Double
@@ -138,19 +133,13 @@ enum ImportBeat {
         } else {
             flash = 1 - ramp(ms, fullWhiteEnd, flashEnd, flashFadeCurve)
         }
-        let seal = ramp(ms, discAt, discEnd, discCurve)
-        let discIn: Double
-        if replay && ms < discAt {
-            discIn = 1 - ramp(ms, 0, replayOutEnd, replayOutCurve)
-        } else {
-            discIn = seal
-        }
+        let turn = ramp(ms, discAt, discEnd, discCurve)
         return Frame(
             coverOffsetX: Theme.Import.slideDistance * (1 - slide),
             coverOpacity: slide,
             flashOpacity: flash,
-            discIn: discIn,
-            discTurnDegrees: -Theme.Import.discTurnDegrees * (1 - seal)
+            discIn: 0,
+            discTurnDegrees: -Theme.Import.discTurnDegrees * (1 - turn)
         )
     }
 }

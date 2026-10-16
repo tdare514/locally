@@ -23,7 +23,7 @@ struct AlbumBuilderView: View {
                         InlineField(Copy.Import.fieldAlbumTitle, text: Binding(get: { model.albumTitle }, set: { model.albumTitle = $0 }), font: Theme.ScaledFont.pageTitle, wraps: true)
                         InlineField(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }), font: Theme.ScaledFont.input, wraps: true)
                     }
-                    .importClearRow()
+                    .importFieldsRow()
                     Text(Copy.Import.albumExplainer)
                         .font(Theme.ScaledFont.caption)
                         .foregroundStyle(Theme.secondaryText)
@@ -33,7 +33,7 @@ struct AlbumBuilderView: View {
                             .keyboardType(.numberPad)
                         InlineField(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }), font: Theme.ScaledFont.input, wraps: true)
                     }
-                    .importClearRow()
+                    .importFieldsRow()
                 }
 
                 Section {

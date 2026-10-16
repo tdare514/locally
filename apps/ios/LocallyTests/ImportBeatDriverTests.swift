@@ -70,11 +70,11 @@ struct ImportBeatDriverTests {
         #expect(driver.isPlaying)
     }
 
-    @Test func sendWithTheDiscAtRestEasesOutThenLeavesBeatMode() async {
+    @Test func sendLeavesBeatModeAtOnce() {
         let driver = ImportBeatDriver()
         driver.coverChanged(cover, reduced: false)
         driver.skip()
-        await driver.easeOutForSend(reduced: false)
+        driver.leaveBeatForSend()
         #expect(driver.sendPhase == .left)
         #expect(driver.frame(at: Date(), reduced: false) == nil)
 
@@ -82,10 +82,10 @@ struct ImportBeatDriverTests {
         #expect(driver.frame(at: Date(), reduced: false) == .rest)
     }
 
-    @Test func sendWithReduceMotionLeavesBeatModeAtOnce() async {
+    @Test func sendWithReduceMotionLeavesBeatModeAtOnce() {
         let driver = ImportBeatDriver()
         driver.coverChanged(cover, reduced: true)
-        await driver.easeOutForSend(reduced: true)
+        driver.leaveBeatForSend()
         #expect(driver.sendPhase == .left)
     }
 }

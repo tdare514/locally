@@ -8,8 +8,8 @@ struct ImportBeatTests {
 
     @Test(arguments: [
         (0.0, ImportBeat.Phase.slide), (419, .slide), (420, .swell), (719, .swell), (720, .white),
-        (819, .white), (820, .fade), (1299, .fade), (1300, .gap), (1339, .gap), (1340, .seal),
-        (2289, .seal), (2290, .done),
+        (819, .white), (820, .fade), (1299, .fade), (1300, .gap), (1339, .gap), (1340, .turn),
+        (2289, .turn), (2290, .done),
     ])
     func phaseBoundaries(ms: Double, phase: ImportBeat.Phase) {
         #expect(ImportBeat.phase(at: ms) == phase)
@@ -24,8 +24,8 @@ struct ImportBeatTests {
 
     // MARK: Frames
 
-    private func frame(_ ms: Double, replay: Bool = false, reduced: Bool = false) -> ImportBeat.Frame {
-        ImportBeat.frame(at: ms, replay: replay, reduced: reduced)
+    private func frame(_ ms: Double, reduced: Bool = false) -> ImportBeat.Frame {
+        ImportBeat.frame(at: ms, reduced: reduced)
     }
 
     @Test func coverSlidesIn() {
@@ -44,32 +44,32 @@ struct ImportBeatTests {
         #expect(frame(1100).flashOpacity > 0 && frame(1100).flashOpacity < 1)
     }
 
-    @Test func discSealsAndTurns() {
+    @Test func discPeeksAndTurnsIntoPlace() {
         #expect(frame(1339).discIn == 0)
         #expect(frame(1339).discTurnDegrees == -240)
-        #expect(frame(2290).discIn == 1)
+        #expect(frame(2290).discIn == 0)
         #expect(frame(2290).discTurnDegrees == 0)
-        #expect(frame(1800).discIn > 0 && frame(1800).discIn < 1)
+        #expect(frame(1800).discIn == 0)
         #expect(frame(1800).discTurnDegrees < 0 && frame(1800).discTurnDegrees > -240)
         #expect(frame(2290) == .rest)
         #expect(frame(5000) == .rest)
     }
 
-    @Test func replayEasesTheDiscOutFirst() {
-        #expect(frame(0, replay: true).discIn == 1)
-        #expect(frame(300, replay: true).discIn > 0 && frame(300, replay: true).discIn < 1)
-        for ms in stride(from: 600.0, through: 1339, by: 37) {
-            #expect(frame(ms, replay: true).discIn == 0)
-        }
-        #expect(frame(1340, replay: true).discIn == 0)
-        #expect(frame(2290, replay: true).discIn == 1)
+    @Test func restPeeksAtZeroDegrees() {
+        #expect(ImportBeat.Frame.rest.discIn == 0)
+        #expect(ImportBeat.Frame.rest.discTurnDegrees == 0)
+    }
+
+    @Test func aReplayKeepsTheDiscPeeking() {
+        #expect(run([.cover, .end, .cover]).replay)
+        #expect(frame(300).discIn == 0)
     }
 
     @Test func reducedMotionOnlyFadesTheCoverIn() {
         for ms in stride(from: 0.0, through: 3000, by: 10) {
             let f = frame(ms, reduced: true)
             #expect(f.flashOpacity == 0)
-            #expect(f.discIn == 1)
+            #expect(f.discIn == 0)
             #expect(f.coverOffsetX == 0)
             #expect(f.discTurnDegrees == 0)
         }
@@ -87,12 +87,8 @@ struct ImportBeatTests {
         #expect(zip(swell, swell.dropFirst()).allSatisfy { $0 <= $1 })
         let fade = steps.filter { $0 >= 820 && $0 <= 1300 }.map { frame($0).flashOpacity }
         #expect(zip(fade, fade.dropFirst()).allSatisfy { $0 >= $1 })
-        let seal = steps.filter { $0 >= 1340 }.map { frame($0).discIn }
-        #expect(zip(seal, seal.dropFirst()).allSatisfy { $0 <= $1 })
         let turn = steps.filter { $0 >= 1340 }.map { frame($0).discTurnDegrees }
         #expect(zip(turn, turn.dropFirst()).allSatisfy { $0 <= $1 })
-        let out = Array(stride(from: 0.0, through: 600, by: 5)).map { frame($0, replay: true).discIn }
-        #expect(zip(out, out.dropFirst()).allSatisfy { $0 >= $1 })
     }
 
     // MARK: Reducer

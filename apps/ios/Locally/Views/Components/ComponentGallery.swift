@@ -118,7 +118,7 @@ struct ComponentGallery: View {
     /// #205: the Make a record invitation and the cover beat, on the studio backdrop. The real record
     /// on prefilled models is `import-record-single`, `-album`, `-album-empty`, `-live` and `-album-live` (see
     /// `ImportRecordGallery`). Names:
-    /// `import-invite`, `import-invite-lit`, `import-beat-<ms>`, `import-beat-replay-<ms>`,
+    /// `import-invite`, `import-invite-lit`, `import-beat-<ms>`,
     /// `import-beat-reduced-<ms>` (a fixed frame) and `import-beat-live` (plays in real time).
     @ViewBuilder
     private var importContent: some View {
@@ -136,11 +136,11 @@ struct ComponentGallery: View {
         }
     }
 
-    /// The frame a `import-beat-[replay-|reduced-]<ms>` name asks for.
+    /// The frame a `import-beat-[reduced-]<ms>` name asks for.
     static func beatFrame(_ name: String) -> ImportBeat.Frame? {
-        for (prefix, replay, reduced) in [("import-beat-replay-", true, false), ("import-beat-reduced-", false, true), ("import-beat-", false, false)] {
+        for (prefix, reduced) in [("import-beat-reduced-", true), ("import-beat-", false)] {
             if name.hasPrefix(prefix), let ms = Double(name.dropFirst(prefix.count)) {
-                return ImportBeat.frame(at: ms, replay: replay, reduced: reduced)
+                return ImportBeat.frame(at: ms, reduced: reduced)
             }
         }
         return nil
@@ -187,7 +187,7 @@ private struct ImportBeatLive: View {
             let cycle = (elapsed / 4000).rounded(.down)
             RecordSleeve(
                 cover: SampleArtwork.sunset,
-                beat: ImportBeat.frame(at: elapsed - cycle * 4000, replay: cycle > 0, reduced: reduceMotion),
+                beat: ImportBeat.frame(at: elapsed - cycle * 4000, reduced: reduceMotion),
                 onAddCover: {}
             )
         }

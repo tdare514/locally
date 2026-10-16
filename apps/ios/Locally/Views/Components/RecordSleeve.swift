@@ -26,7 +26,7 @@ struct RecordSleeve: View {
     var pose: CeremonyPose?
     /// When set (Make a record, #205), the cover beat's frame is drawn as given: the cover at its
     /// offset and opacity with no transition of its own, the flash over the sleeve and the disc
-    /// static at `discIn`. The ceremony and the cover fade are off.
+    /// static at `discIn` (the iPhone beat keeps it at 0, peeking). The ceremony and the cover fade are off.
     var beat: ImportBeat.Frame?
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass

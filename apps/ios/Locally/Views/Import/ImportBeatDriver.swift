@@ -8,11 +8,9 @@ import SwiftUI
 /// length and applies the cover's colours to the backdrop at `washAt`; a new cover cancels both.
 @Observable @MainActor
 final class ImportBeatDriver {
-    /// Where the disc is relative to Send: it eases out of the sleeve, then the sleeve leaves beat
-    /// mode so the ceremony plays as on the release page.
+    /// Whether the sleeve has left beat mode for Send, so the ceremony plays as on the release page.
     enum SendPhase: Equatable {
         case idle
-        case easing(since: Date)
         case left
     }
 
@@ -30,12 +28,6 @@ final class ImportBeatDriver {
     init() {}
 
     var isPlaying: Bool { ImportBeat.isPlaying(state) }
-
-    /// Something is moving that needs a frame clock: the beat, or the disc easing out for Send.
-    var isAnimating: Bool {
-        if case .easing = sendPhase { return true }
-        return isPlaying
-    }
 
     // MARK: Events
 
@@ -89,21 +81,14 @@ final class ImportBeatDriver {
 
     // MARK: Send
 
-    /// Send tapped: if the disc rests in the sleeve it eases out to its peeking pose (600 ms, or
-    /// at once with Reduce Motion), then the sleeve leaves beat mode.
-    func easeOutForSend(reduced: Bool) async {
+    /// Send tapped: the disc already sits in the release page's pose, so a running beat jumps to
+    /// its end and the sleeve leaves beat mode at once.
+    func leaveBeatForSend() {
         skip()
-        guard state.hasCover else { return }
-        if reduced {
-            sendPhase = .left
-            return
-        }
-        sendPhase = .easing(since: Date())
-        try? await Task.sleep(for: .milliseconds(ImportBeat.replayOutEnd))
-        if case .easing = sendPhase { sendPhase = .left }
+        if state.hasCover { sendPhase = .left }
     }
 
-    /// The send failed: the sleeve goes back to beat mode (the disc rests in it).
+    /// The send failed: the sleeve goes back to beat mode (the disc rests at 0 degrees).
     func sendFailed() {
         sendPhase = .idle
     }
@@ -113,16 +98,9 @@ final class ImportBeatDriver {
     /// What the sleeve draws at `date`, or nil for the plain sleeve.
     func frame(at date: Date, reduced: Bool) -> ImportBeat.Frame? {
         guard state.hasCover else { return nil }
-        switch sendPhase {
-        case .left:
-            return nil
-        case .easing(let since):
-            return ImportBeat.easeOutFrame(at: date.timeIntervalSince(since) * 1000)
-        case .idle:
-            break
-        }
+        if sendPhase == .left { return nil }
         guard isPlaying, let startedAt else { return .rest }
-        return ImportBeat.frame(at: date.timeIntervalSince(startedAt) * 1000, replay: state.replay, reduced: reduced)
+        return ImportBeat.frame(at: date.timeIntervalSince(startedAt) * 1000, reduced: reduced)
     }
 
     private func cancelTasks() {

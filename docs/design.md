@@ -294,7 +294,11 @@ eyebrows still apply to those labels.
       sheet: recent covers, Photos, Files, then the crop) and the disc peeks out; a meta line
       holds the Single / Album switch and the track count; then the title, artist, album (a
       single only, "Album, same as track title"), year and genre as inline fields; then the tracks in
-      the faked-glass panel, ending in an **Add a track** text button (a single's replaces its
+      the faked-glass panel (white 6 % fill, no outline; replaced 15 Oct 2026, owner on the
+      phone: the 10 % hairline round the panel and the 1 px `border` box round each file row
+      read as borders; on iPhone a file row inside a panel has no fill and no border, and the
+      empty-state silhouette blocks lose their stroke too; the release page's tracks panel
+      is the same component), ending in an **Add a track** text button (a single's replaces its
       track, an album's adds more). Switching kind keeps the fields and the cover, and a single
       keeps only the first track. Saving is unchanged (the Send button, the ceremony and the done
       screen), except that when Send is tapped the keyboard closes and the record scrolls back
@@ -302,9 +306,8 @@ eyebrows still apply to those labels.
       in view, and a failed send's message sits in the footer just above Send rather than at the
       end of the list, on a soft dark halo (`bg` at 90 %, blurred 8) so the list never shows
       through it, at most 5 lines (3 at the accessibility text sizes; VoiceOver reads it all), and when
-      that cuts it short a **Details** link under it opens the whole message in a sheet; then the disc eases out of the sleeve to its
-      peeking pose (600 ms, curve 0.2, 0.8, 0.2, 1; at once with Reduce Motion), so the release
-      page's ceremony starts from its own pose.
+      that cuts it short a **Details** link under it opens the whole message in a sheet; the disc
+      already rests in the release page's peeking pose, so the ceremony starts from it.
     - *The beat*, whenever a cover is set (from Files, Photos or a recent cover), starting once
       the sheet it came from (the crop, or the cover sheet for a recent cover) has closed, so
       no sheet hides it: the cover
@@ -313,15 +316,17 @@ eyebrows still apply to those labels.
       edges, with a faint 16 pt spill at 40 %) swells to fully opaque (420 to 720, curve 0.45, 0,
       0.55, 1), holds (720 to 820) and fades (820 to 1300, curve 0.5, 0, 0.7, 1); the backdrop
       takes the cover's colours from 420 ms (its own 900 ms cross-fade, the studio backdrop
-      fading out over 500 ms); then the disc slides all the way into the sleeve, its right edge
-      level with the sleeve's, turning 240 degrees (1340 to 2290, curve 0.33, 0, 0.15, 1). After
-      the beat the disc rests in the sleeve. A tap anywhere, or typing in a field, mid-beat
+      fading out over 500 ms); then the disc, which stays peeking out of the sleeve as on the
+      release page, turns 240 degrees into place (1340 to 2290, curve 0.33, 0, 0.15, 1). After
+      the beat the record rests there, cover and peeking disc, so the page never shows a bare
+      sleeve. (Changed 15 Oct 2026, owner on the phone: on iPhone the disc no longer seals into
+      the sleeve as it does on the Mac, #159.) A tap anywhere, or typing in a field, mid-beat
       jumps to the end and still does its job. A cover that replaces another plays the beat
-      again, the disc first easing out of the sleeve (0 to 600, curve 0.2, 0.8, 0.2, 1).
+      again from the peeking disc.
       Removing the cover brings back "Add cover art", the peeking disc and the studio backdrop.
     - *Reduce Motion*: no sweep, slide, flash or turn. The invitation and a new cover fade in
-      over 160 ms, the colours change at once, the disc sits in the sleeve as soon as there is a
-      cover, and the glow's light shows on press without drifting.
+      over 160 ms, the colours change at once, the disc stays peeking out of the sleeve, still,
+      and the glow's light shows on press without drifting.
     - *Large text*: the fields, the buttons and the hint scale with Dynamic Type and wrap, and the
       invitation scrolls when it doesn't fit; the sleeve and the discs keep their size.
 - **Make it a playlist (album release pages, both apps)**: a disclosure between the Tracks

@@ -274,7 +274,7 @@ struct ImportView: View {
     }
 
     /// Send: the keyboard closes and the record scrolls back to the sleeve (and settles), so the
-    /// ceremony is seen; the disc eases out of the sleeve if it rests there, then the model sends
+    /// ceremony is seen; the beat ends and the sleeve leaves beat mode, then the model sends
     /// and the ceremony plays, then `DoneView` shows.
     private func send() {
         guard !holdingForCeremony, let singleModel, let albumModel else { return }
@@ -285,7 +285,7 @@ struct ImportView: View {
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             sleeveScrollRequest += 1
             if !reduceMotion { try? await Task.sleep(for: .seconds(Theme.Import.sendScrollSettle)) }
-            await driver.easeOutForSend(reduced: reduceMotion)
+            driver.leaveBeatForSend()
             let completed: Bool
             switch sendKind {
             case .single:
