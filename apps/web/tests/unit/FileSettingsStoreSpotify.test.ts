@@ -84,6 +84,10 @@ describe("settings.spotify", () => {
     });
     const first = store.get(); // its read of the missing file is held open
     const updated = new FileSettingsStore().update((c) => ({ ...c, trackPlays: true }));
+    // Let the read go only once the update has finished, or after 50 ms if the update is
+    // queued behind the read's lock (the fixed store). Unlocked, the late read would then
+    // write first-run defaults over the finished update.
+    await Promise.race([updated, new Promise((r) => setTimeout(r, 50))]);
     release();
     await Promise.all([first, updated]);
     readSpy.mockRestore();
