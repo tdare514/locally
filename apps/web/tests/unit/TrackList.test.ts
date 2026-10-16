@@ -127,9 +127,10 @@ describe("TrackList playlists line (#212)", () => {
     expect(render({ playlists: { "t-a": [ref("Gym")] } })).not.toContain("data-playlists-line");
   });
 
-  it("is a closed button with aria-haspopup and aria-expanded, and no popover until clicked", () => {
+  it("is a closed disclosure button (aria-expanded, no aria-haspopup), and no popover until clicked", () => {
     const html = withPlaylists(["Gym"]);
-    expect(html).toMatch(/<button[^>]*aria-haspopup="true"[^>]*aria-expanded="false"/);
+    expect(html).toMatch(/<button[^>]*data-playlists-line[^>]*aria-expanded="false"/);
+    expect(html).not.toContain("aria-haspopup");
     expect(html).not.toContain("playlist-pop");
   });
 });

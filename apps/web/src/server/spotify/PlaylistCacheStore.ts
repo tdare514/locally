@@ -9,6 +9,8 @@ export interface CachedPlaylist {
   name: string;
   /** `spotify:local:artist:album:title:seconds` ids of the playlist's local files. */
   localUris: string[];
+  /** False when reading stopped at the item cap: the next refresh reads it again. Absent means complete. */
+  complete?: boolean;
 }
 
 export interface PlaylistCache {
@@ -36,6 +38,7 @@ function isCache(v: unknown): v is PlaylistCache {
       !!e &&
       typeof e.snapshotId === "string" &&
       typeof e.name === "string" &&
+      (e.complete === undefined || typeof e.complete === "boolean") &&
       Array.isArray(e.localUris) &&
       e.localUris.every((u) => typeof u === "string")
     );

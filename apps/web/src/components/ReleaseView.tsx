@@ -22,6 +22,7 @@ import SpotifySourceBanner from "./SpotifySourceBanner";
 import { ChevronRightIcon, CopyIcon } from "./Icons";
 import { COPIED_LABEL, COPY_LABEL, PLAYLIST_FALLBACK, playlistSteps } from "../lib/playlist-copy";
 import { PLAYS_ACROSS_DEVICES } from "../lib/plays-copy";
+import { startPlaylistsPolling } from "../lib/playlists-poll";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
 import { IS_DEMO } from "../lib/demo";
 
@@ -240,24 +241,19 @@ export default function ReleaseView({
   }, [releaseId]);
 
   useEffect(() => {
-    // The first read can come back empty while the server fills its cache in the background
-    // (`refreshing`), so look again a few times, then stop. A failure leaves the lines off.
+    // The first read can come back empty while the server fills its cache in the background, and
+    // a refresh can be held up by a Retry-After, so keep looking until it is done (see
+    // playlists-poll.ts), and once more when the window regains focus. A failure leaves the lines off.
     if (IS_DEMO) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const look = (attempt: number) => {
-      getSpotifyPlaylists(releaseId)
-        .then((res) => {
-          if (cancelled || !res) return;
-          setPlaylists(res.connected ? res.tracks : {});
-          if (res.connected && res.refreshing && attempt < 12) timer = setTimeout(() => look(attempt + 1), 2500);
-        })
-        .catch(() => undefined);
-    };
-    look(0);
+    const polling = startPlaylistsPolling(
+      () => getSpotifyPlaylists(releaseId),
+      (res) => setPlaylists(res.connected ? res.tracks : {})
+    );
+    const onFocus = () => polling.poke();
+    window.addEventListener("focus", onFocus);
     return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
+      window.removeEventListener("focus", onFocus);
+      polling.stop();
     };
   }, [releaseId]);
 

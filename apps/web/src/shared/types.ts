@@ -75,6 +75,8 @@ export interface SpotifyPlaylistsResponse {
   tracks: Record<string, { id: string; name: string }[]>;
   /** A background refresh is running; the answer is from the cache. */
   refreshing?: boolean;
+  /** Set while a refresh is held off: seconds until it may start again. */
+  retryAfterSec?: number;
 }
 
 /** Response shape for GET/DELETE /api/spotify/connection: no tokens. */

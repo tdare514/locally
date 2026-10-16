@@ -278,6 +278,65 @@ describe("PlaylistIndex refreshing", () => {
   });
 });
 
+describe("PlaylistIndex locking and caps", () => {
+  it("a write pending across a disconnect does not bring the old cache back", async () => {
+    let releaseWrite!: () => void;
+    const gate = new Promise<void>((r) => (releaseWrite = r));
+    let writeStarted!: () => void;
+    const started = new Promise<void>((r) => (writeStarted = r));
+    const slow: PlaylistCacheStore = {
+      read: async () => store.read(),
+      write: async (c) => {
+        writeStarted();
+        await gate;
+        await store.write(c);
+      },
+      remove: () => store.remove(),
+    };
+    const api = simpleApi([{ id: P1, name: "A", snapshot_id: "s" }], { [P1]: [localItem(uri("Artist", "Album", "Song One", 200))] });
+    const ix = new PlaylistIndex({ client: api, store: slow, settings, library: { list: async () => RELEASES }, now: () => nowMs });
+    await ix.forRelease("r1");
+    await started;
+    const { spotify: _s, ...rest } = settings.value;
+    void _s;
+    settings.value = rest;
+    const cleared = ix.clear();
+    releaseWrite();
+    await cleared;
+    await ix.idle();
+    expect(store.cache).toBeNull();
+    expect(await ix.forRelease("r1")).toEqual({ connected: false, tracks: {}, refreshing: false });
+    expect(store.cache).toBeNull();
+  });
+
+  it("re-reads a playlist cut at the item cap on the next refresh, keeping its partial matches meanwhile", async () => {
+    let reads = 0;
+    const api = fakeClient((p) => {
+      if (p.startsWith("/me/playlists")) return { items: [{ id: P1, name: "Big", snapshot_id: "same" }], next: null };
+      reads++;
+      return { items: [localItem(uri("Artist", "Album", "Song One", 200))], next: "https://api.spotify.com/v1/playlists/x/items?offset=5000" };
+    });
+    const ix = index(api);
+    const first = await settle(ix);
+    expect(first.tracks.t1).toEqual([{ id: P1, name: "Big" }]);
+    expect(store.cache?.playlists[P1].complete).toBe(false);
+    expect(reads).toBe(MAX_ITEM_PAGES);
+    nowMs += STALE_AFTER_MS + 1;
+    await settle(ix);
+    expect(reads).toBe(MAX_ITEM_PAGES * 2);
+  });
+
+  it("tells the client when a held-off refresh may run again", async () => {
+    const api = fakeClient(() => new SpotifyApiError("offline", "down"));
+    const ix = index(api);
+    await ix.forRelease("r1");
+    await ix.idle();
+    const held = await ix.forRelease("r1");
+    expect(held.refreshing).toBe(false);
+    expect(held.retryAfterSec).toBe(60);
+  });
+});
+
 describe("FilePlaylistCacheStore", () => {
   let dir: string;
   beforeEach(async () => {

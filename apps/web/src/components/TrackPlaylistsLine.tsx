@@ -60,7 +60,6 @@ export default function TrackPlaylistsLine({ trackTitle, playlists, onOpen }: Pr
         ref={lineRef}
         type="button"
         data-playlists-line
-        aria-haspopup="true"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         onClick={() => setOpen((v) => !v)}

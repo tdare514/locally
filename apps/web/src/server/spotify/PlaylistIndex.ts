@@ -28,6 +28,8 @@ export interface PlaylistsForRelease {
   connected: boolean;
   tracks: Record<string, PlaylistRef[]>;
   refreshing: boolean;
+  /** Seconds until a refresh held off after a failure or a long Retry-After may start again. */
+  retryAfterSec?: number;
 }
 
 export interface PlaylistIndexOptions {
@@ -89,6 +91,8 @@ export class PlaylistIndex {
   private readonly sleep: (ms: number) => Promise<void>;
   private inflight: Promise<void> | null = null;
   private notBefore = 0;
+  /** Cache commits and clear() run one at a time, so a late write can't bring back a deleted cache. */
+  private lock: Promise<unknown> = Promise.resolve();
 
   constructor(opts: PlaylistIndexOptions) {
     this.client = opts.client;
@@ -101,7 +105,13 @@ export class PlaylistIndex {
 
   /** Delete the cached names (disconnect). */
   async clear(): Promise<void> {
-    await this.store.remove().catch(() => undefined);
+    await this.locked(() => this.store.remove().catch(() => undefined));
+  }
+
+  private locked<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.lock.then(fn, fn);
+    this.lock = run.catch(() => undefined);
+    return run;
   }
 
   /** The playlists each track of one release is in, from the cache; kicks a refresh when stale. */
@@ -136,7 +146,14 @@ export class PlaylistIndex {
       }
       for (const list of Object.values(tracks)) list.sort((a, b) => a.name.localeCompare(b.name));
     }
-    return { connected: true, tracks, refreshing: this.inflight !== null };
+    const refreshing = this.inflight !== null;
+    const held = this.notBefore - this.now();
+    return {
+      connected: true,
+      tracks,
+      refreshing,
+      ...(!refreshing && held > 0 ? { retryAfterSec: Math.ceil(held / 1000) } : {}),
+    };
   }
 
   /** Start a background refresh unless one is running or a recent failure asks us to wait. */
@@ -184,12 +201,18 @@ export class PlaylistIndex {
     for (const p of listed) {
       if (playlists[p.id]) continue;
       const old = previous?.playlists[p.id];
-      if (old && old.snapshotId === p.snapshotId) {
+      if (old && old.snapshotId === p.snapshotId && old.complete !== false) {
         playlists[p.id] = { ...old, name: p.name };
         continue;
       }
       try {
-        playlists[p.id] = { snapshotId: p.snapshotId, name: p.name, localUris: await this.readItems(p.id) };
+        const read = await this.readItems(p.id);
+        playlists[p.id] = {
+          snapshotId: p.snapshotId,
+          name: p.name,
+          localUris: read.uris,
+          ...(read.complete ? {} : { complete: false }),
+        };
       } catch (err) {
         // A playlist Spotify won't show items for (someone else's) is skipped, not fatal.
         if (err instanceof SpotifyApiError && err.code === "http" && (err.status === 403 || err.status === 404)) {
@@ -199,14 +222,17 @@ export class PlaylistIndex {
       }
     }
 
-    // Disconnected or signed in as someone else while we read: write nothing.
-    const still = (await this.settings.get()).spotify;
-    if (!still || still.revision !== revision) return;
-    const cache: PlaylistCache = { revision, fetchedAt: this.now(), playlists };
-    await this.store.write(cache);
+    // The revision is checked inside the lock, with the write: a disconnect that clears the cache
+    // meanwhile either runs first (nothing is written) or after (and deletes this write).
+    await this.locked(async () => {
+      const still = (await this.settings.get()).spotify;
+      if (!still || still.revision !== revision) return;
+      const cache: PlaylistCache = { revision, fetchedAt: this.now(), playlists };
+      await this.store.write(cache);
+    });
   }
 
-  private async readItems(playlistId: string): Promise<string[]> {
+  private async readItems(playlistId: string): Promise<{ uris: string[]; complete: boolean }> {
     const uris: string[] = [];
     let next: string | null = `/playlists/${playlistId}/items?${ITEMS_QUERY}`;
     for (let page = 0; next && page < MAX_ITEM_PAGES; page++) {
@@ -220,7 +246,8 @@ export class PlaylistIndex {
       }
       next = typeof body.next === "string" ? body.next : null;
     }
-    return uris;
+    // Still a next page after the cap: the playlist was cut short.
+    return { uris, complete: next === null };
   }
 
   /** One GET; a 429 waits out Retry-After (up to a minute) and tries again. */
