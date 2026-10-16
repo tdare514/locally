@@ -20,6 +20,8 @@ struct LibraryView: View {
     @Binding var requestedImportKind: ImportKind?
     /// An artist name the Stats tab wants the library searched for; applied to the search box, then cleared.
     @Binding var librarySearchRequest: String?
+    /// The component gallery opens the tray on appear; the app never sets it.
+    var openTrayOnAppear = false
 
     @State private var releases: [Release] = []
     @State private var errorMessage: String?
@@ -31,6 +33,11 @@ struct LibraryView: View {
     @AppStorage(LibraryViewPrefs.singlesCollapsedKey) private var singlesCollapsed = false
     @AppStorage(LibraryViewPrefs.albumsCollapsedKey) private var albumsCollapsed = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(SyncStatus.self) private var syncStatus
+    /// The "From your devices" tray (#269): open or closed.
+    @State private var tray = DevicesTrayModel()
+    @AccessibilityFocusState private var trayHeadingFocused: Bool
+    @AccessibilityFocusState private var cloudButtonFocused: Bool
 
     /// Scroll distance, read only by `LibrarySky` so scrolling doesn't re-run this body.
     @State private var motion = LibrarySkyMotion()
@@ -93,6 +100,13 @@ struct LibraryView: View {
                         onAddSingle: { startImport(.single) },
                         onMakeAlbum: { startImport(.album) }
                     )
+                    // Songs from another device can arrive before the first one is made here.
+                    VStack {
+                        HStack { Spacer(); devicesButton }
+                        Spacer()
+                    }
+                    .padding(.horizontal, Theme.Spacing.listPagePadding)
+                    .padding(.top, 8)
                 } else {
                     LibrarySky(palette: skyPalette, motion: motion)
 
@@ -140,6 +154,11 @@ struct LibraryView: View {
                     }
                 }
             }
+            .onChange(of: syncStatus.pendingFromMac.count) { _, count in
+                tray.pendingCountChanged(to: count)
+                // A send that finished (or a retry inside a reconcile) has added a release.
+                load()
+            }
             .task(id: skyKey) { await ensurePalette(for: skyKey) }
             // No bar on the home screen (the header carries the title); pushed
             // release pages set their own.
@@ -149,7 +168,10 @@ struct LibraryView: View {
             }
             // `.onAppear` (not `.task`) so returning from `ReleaseDetailView`
             // after a save/delete re-reads the store and reflects it here.
-            .onAppear { load() }
+            .onAppear {
+                load()
+                if openTrayOnAppear { tray.isOpen = true }
+            }
             .onChange(of: librarySearchRequest) { _, name in
                 guard let name else { return }
                 query = name
@@ -158,6 +180,11 @@ struct LibraryView: View {
             .stickyFooter(isPresented: !releases.isEmpty) {
                 Button(Copy.Library.addASong) { startImport(nil) }
                     .buttonStyle(PrimaryPillButtonStyle())
+            }
+            // While the tray is open the library behind it is out of VoiceOver's reach.
+            .accessibilityHidden(tray.isOpen)
+            .overlayPreferenceValue(DevicesTrayAnchorKey.self) { anchor in
+                devicesTrayLayer(anchor: anchor)
             }
         }
     }
@@ -169,7 +196,7 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .lastTextBaseline) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(Copy.Library.eyebrow).eyebrow()
                 Text(Copy.Library.allMusic)
@@ -181,8 +208,78 @@ struct LibraryView: View {
                 .font(Theme.Font.meta)
                 .foregroundStyle(Theme.secondaryText)
         }
+        .overlay(alignment: .topTrailing) {
+            // On the eyebrow's line, the 44 pt button centred on it so it hangs above and below.
+            devicesButton.offset(y: -15)
+        }
         searchField
         controls
+    }
+
+    // MARK: From your devices (#269)
+
+    private var pendingCount: Int { syncStatus.pendingFromMac.count }
+
+    /// The header's cloud; while the tray is open it is hidden (the layer draws the X) but still
+    /// anchors the tray. Nothing is drawn while nothing is pending.
+    @ViewBuilder
+    private var devicesButton: some View {
+        if pendingCount > 0 {
+            DevicesTrayButton(count: pendingCount, isOpen: false) { setTray(open: true) }
+                .opacity(tray.isOpen ? 0 : 1)
+                .accessibilityHidden(tray.isOpen)
+                .accessibilityFocused($cloudButtonFocused)
+                .anchorPreference(key: DevicesTrayAnchorKey.self, value: .bounds) { $0 }
+        }
+    }
+
+    private func setTray(open: Bool) {
+        withAnimation(reduceMotion ? DevicesTrayMotion.reducedFade : DevicesTrayMotion.open) {
+            if open != tray.isOpen { tray.toggle() }
+        }
+        // VoiceOver goes to the tray's heading on open and back to the cloud on dismissal.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            if open { trayHeadingFocused = true } else { cloudButtonFocused = true }
+        }
+    }
+
+    /// The scrim, the X and the panel, over the library while the tray is open.
+    @ViewBuilder
+    private func devicesTrayLayer(anchor: Anchor<CGRect>?) -> some View {
+        if tray.isOpen, let anchor {
+            GeometryReader { geo in
+                let frame = geo[anchor]
+                let screen = geo.size.height + geo.safeAreaInsets.top + geo.safeAreaInsets.bottom
+                ZStack(alignment: .topLeading) {
+                    // A tap on the library behind closes it.
+                    Color.clear.contentShape(Rectangle())
+                        .onTapGesture { setTray(open: false) }
+                        .accessibilityHidden(true)
+                    DevicesTrayPanel(
+                        rows: DevicesTrayModel.rows(
+                            pending: syncStatus.pendingFromMac, accepting: syncStatus.acceptingIds,
+                            failed: syncStatus.failedAcceptIds),
+                        maxHeight: screen * 0.6,
+                        headingFocus: $trayHeadingFocused,
+                        onSend: { id in
+                            Task {
+                                await container?.syncEngine.acceptFromMac(id)
+                                load()
+                            }
+                        }
+                    )
+                    .accessibilityAction(.escape) { setTray(open: false) }
+                    .padding(.horizontal, Theme.Spacing.listPagePadding)
+                    .padding(.top, frame.maxY + 8)
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96, anchor: .topTrailing)))
+                    DevicesTrayButton(count: pendingCount, isOpen: true) { setTray(open: false) }
+                        .position(x: frame.midX, y: frame.midY)
+                }
+            }
+            .transition(.opacity)
+            .accessibilityAction(.escape) { setTray(open: false) }
+        }
     }
 
     /// Fake-glass search box filtering the library by title, artist, genre, year and track titles.
