@@ -51,3 +51,8 @@ export function spotifyPlaylistsFilePath(): string {
 export function adoptProposalFilePath(): string {
   return path.join(settingsDir(), "adopt-proposal.json");
 }
+
+/** Where adopted releases' covers are copied to (#245): Locally's own data, never inside an adopt root. */
+export function adoptedCoversDir(): string {
+  return path.join(settingsDir(), "adopted-covers");
+}

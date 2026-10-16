@@ -13,6 +13,10 @@ export interface Track {
   filePath: string;      // absolute path of the tagged .mp3 inside the library folder
   originalName: string;  // filename the user uploaded
   durationSec: number | null;
+  /** Adopted tracks only (#245): the `spotify:local:` id Spotify builds from the file's tags. */
+  localId?: string;
+  /** Adopted tracks only: the file was gone at the last scan. Shown, never deleted. */
+  missing?: boolean;
 }
 
 export interface Release {
@@ -27,6 +31,10 @@ export interface Release {
   tracks: Track[];
   createdAt: string;     // ISO
   updatedAt: string;     // ISO
+  /** True for a release adopted in place (#245): its files stay where they are and are never written. */
+  adopted?: boolean;
+  /** Adopted releases only: the scanner's group key, so adopting the same group again adds nothing. */
+  adoptKey?: string;
 }
 
 export interface Library {

@@ -1,6 +1,6 @@
 import path from "node:path";
 import { z } from "zod";
-import type { Release, ReleaseKind } from "../../shared/types";
+import type { Release, ReleaseKind, Track } from "../../shared/types";
 import { MAX_DISC_NUMBER } from "../../shared/discs";
 
 /**
@@ -90,6 +90,8 @@ export const SyncRecordSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   deleted: z.boolean(),
+  /** `"adopted"`: details only, the audio stays on the Mac (#245). Omitted, never null, otherwise. */
+  source: z.literal("adopted").optional(),
 });
 
 export type SyncTrack = z.infer<typeof SyncTrackSchema>;
@@ -155,7 +157,7 @@ export function toSyncRecord(
       title: t.title,
       trackNumber: t.trackNumber,
       ...(t.discNumber !== undefined ? { discNumber: t.discNumber } : {}),
-      file: path.basename(t.filePath),
+      file: syncTrackFileName(release, t),
       bytes: trackBytesById[t.id] ?? 0,
       durationSec: t.durationSec,
     }));
@@ -176,7 +178,18 @@ export function toSyncRecord(
     createdAt: release.createdAt,
     updatedAt: release.updatedAt,
     deleted: false,
+    ...(release.adopted ? { source: "adopted" as const } : {}),
   };
+}
+
+/**
+ * The record's `tracks[].file`: the file's own name. An adopted file (#245) can be named something the
+ * record refuses (an .mp4, a control character); nothing is uploaded for it, so it gets a plain stand-in.
+ */
+function syncTrackFileName(release: Release, t: Track): string {
+  const name = path.basename(t.filePath);
+  if (!release.adopted || (isPlainSyncName(name) && hasSyncFileExtension(name))) return name;
+  return `${t.id}.${path.extname(name).toLowerCase() === ".mp3" ? "mp3" : "m4a"}`;
 }
 
 /**

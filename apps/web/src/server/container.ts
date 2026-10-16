@@ -27,6 +27,8 @@ import { SpotifyClient } from "./spotify/SpotifyClient";
 import { SPOTIFY_CLIENT_ID } from "./spotify/config";
 import { PlaylistIndex } from "./spotify/PlaylistIndex";
 import { FilePlaylistCacheStore } from "./spotify/PlaylistCacheStore";
+import { AdoptService } from "./adopt/AdoptService";
+import { FileAdoptProposalStore } from "./adopt/FileAdoptProposalStore";
 import { isDemo } from "./demo";
 
 export interface Services {
@@ -47,6 +49,7 @@ export interface Services {
   playlistIndex: PlaylistIndex;
   playStore: PlayCountStore;
   playTracker: PlayTracker;
+  adopt: AdoptService;
 }
 
 function buildServices(): Services {
@@ -112,6 +115,7 @@ function buildServices(): Services {
     playlistIndex: new PlaylistIndex({ client: spotifyClient, store: new FilePlaylistCacheStore(), settings, library }),
     playStore,
     playTracker,
+    adopt: new AdoptService({ settings, library, fs, proposals: new FileAdoptProposalStore() }),
   };
 }
 

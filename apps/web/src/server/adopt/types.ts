@@ -30,4 +30,6 @@ export interface AdoptProposal {
   groups: ProposedGroup[];
   /** Files not adopted, counted by lower-case extension (".flac"). */
   skipped: Record<string, number>;
+  /** Absolute paths of each root or subfolder the scanner could not read (missing, no permission, not a folder). */
+  unreadable: string[];
 }

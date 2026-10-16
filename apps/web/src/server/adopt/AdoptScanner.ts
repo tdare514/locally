@@ -119,6 +119,7 @@ export class AdoptScanner {
 
   async scan(roots: string[]): Promise<AdoptProposal> {
     const skipped: Record<string, number> = {};
+    const unreadable: string[] = [];
     const count = (ext: string) => {
       skipped[ext] = (skipped[ext] ?? 0) + 1;
     };
@@ -142,6 +143,7 @@ export class AdoptScanner {
       try {
         entries = await fs.readdir(dir, { withFileTypes: true });
       } catch {
+        unreadable.push(dir);
         return;
       }
       entries.sort((a, b) => collator.compare(a.name, b.name));
@@ -193,9 +195,16 @@ export class AdoptScanner {
 
     for (const root of roots) {
       const real = await realpathOrNull(root);
-      if (!real || realRoots.includes(real)) continue;
+      if (!real) {
+        unreadable.push(path.resolve(root));
+        continue;
+      }
+      if (realRoots.includes(real)) continue;
       const st = await fs.stat(real).catch(() => null);
-      if (!st?.isDirectory()) continue;
+      if (!st?.isDirectory()) {
+        unreadable.push(real);
+        continue;
+      }
       if (libraryReal && isInsideOrSame(libraryReal, real)) continue;
       realRoots.push(real);
       seenDirs.add(real);
@@ -207,6 +216,7 @@ export class AdoptScanner {
       roots: realRoots,
       groups: this.group(files),
       skipped,
+      unreadable,
     };
   }
 
