@@ -31,6 +31,8 @@ Locally has no Spotify sign-in today: the `/api/spotify/*` routes only check whe
 
 ## Decisions for the owner
 
+Approved by the owner on 16 Oct 2026 with the recommended answers below (1: a tester flag; 3A: the Mac app samples phone plays; 4: playlist names stay on the Mac). Decision 2, registering the Spotify app, is the owner's next step.
+
 1. **It's a tester feature.** It ships behind `HAS_SPOTIFY_CONNECTION`, off in builds for everyone else. Settings shows "Connect Spotify" only when it's on. (Recommended.)
 2. **The Spotify app.** The owner registers it in the Spotify developer dashboard (Premium) and adds up to four testers. They give the session the client id, which is public: PKCE has no secret.
 3. **Where phone plays are counted:**
