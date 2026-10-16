@@ -189,6 +189,8 @@ struct SyncRecord: Codable, Hashable {
     /// Present on records the server has returned (GET /v1/releases); `nil`
     /// on a record this device is about to `PUT` for the first time.
     var version: Int?
+    /// `.adopted` or absent. A value this build doesn't know decodes as `nil`.
+    var source: ReleaseSource?
 
     init(
         syncVersion: Int = 2,
@@ -206,7 +208,8 @@ struct SyncRecord: Codable, Hashable {
         createdAt: Date,
         updatedAt: Date,
         deleted: Bool = false,
-        version: Int? = nil
+        version: Int? = nil,
+        source: ReleaseSource? = nil
     ) {
         self.syncVersion = syncVersion
         self.id = id
@@ -224,11 +227,12 @@ struct SyncRecord: Codable, Hashable {
         self.updatedAt = updatedAt
         self.deleted = deleted
         self.version = version
+        self.source = source
     }
 
     private enum CodingKeys: String, CodingKey {
         case syncVersion, id, kind, title, artist, year, genre, cover, coverHash, tracks
-        case origin, originDevice, createdAt, updatedAt, deleted, version
+        case origin, originDevice, createdAt, updatedAt, deleted, version, source
     }
 
     init(from decoder: Decoder) throws {
@@ -249,6 +253,8 @@ struct SyncRecord: Codable, Hashable {
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         deleted = try container.decode(Bool.self, forKey: .deleted)
         version = try container.decodeIfPresent(Int.self, forKey: .version)
+        // Unknown values (or a non-string) read as absent, never a failure.
+        source = (try? container.decodeIfPresent(String.self, forKey: .source)).flatMap(ReleaseSource.init(rawValue:))
 
         for (index, track) in tracks.enumerated()
         where !SyncFileName.hasSupportedExtension(track.file) {
@@ -285,6 +291,7 @@ struct SyncRecord: Codable, Hashable {
         try container.encode(updatedAt, forKey: .updatedAt)
         try container.encode(deleted, forKey: .deleted)
         try container.encodeIfPresent(version, forKey: .version)
+        try container.encodeIfPresent(source?.rawValue, forKey: .source)
     }
 }
 

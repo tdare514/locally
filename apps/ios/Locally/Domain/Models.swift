@@ -77,6 +77,13 @@ struct Release: Identifiable, Codable, Hashable {
     /// replaced so the new bytes go up. Empty for releases stored before this
     /// field existed; `SyncEngine.needsPush` re-verifies those once.
     var uploadedFileNames: [String]
+    /// `.adopted` for a release pulled from the Mac's Spotify folder (details
+    /// only: no audio files here, never tagged, sent or pushed by this phone);
+    /// `nil` for Locally's own releases.
+    var source: ReleaseSource?
+
+    /// True for a details-only release this phone does not own.
+    var isAdopted: Bool { source == .adopted }
 
     init(
         id: UUID = UUID(),
@@ -91,7 +98,8 @@ struct Release: Identifiable, Codable, Hashable {
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         syncedUpdatedAt: Date? = nil,
-        uploadedFileNames: [String] = []
+        uploadedFileNames: [String] = [],
+        source: ReleaseSource? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -106,7 +114,14 @@ struct Release: Identifiable, Codable, Hashable {
         self.updatedAt = updatedAt
         self.syncedUpdatedAt = syncedUpdatedAt
         self.uploadedFileNames = uploadedFileNames
+        self.source = source
     }
+}
+
+/// Where a release came from, when not Locally itself (`spec/sync.md`'s
+/// optional `source`). Any value this build doesn't know reads as absent.
+enum ReleaseSource: String, Codable, Hashable {
+    case adopted
 }
 
 /// One track's user-entered title within an `AlbumDraft`, matched to its
