@@ -76,6 +76,11 @@ row title 15 → body, row subtitle 14 → subheadline, drop-zone line 14 → su
 hint 12 → footnote, badge 10 → caption2, primary button 15 → body, chevron 13 → footnote). So
 nothing changes at the default size. Screens built before this keep their layouts up to XX Large
 and stack or wrap at the accessibility sizes; nothing truncates mid-word.
+Controls grow from their content, not by scaling a fixed height: a pill button keeps its 48 pt
+(36 pt compact) minimum and its height comes from the scaled label plus 12 pt above and below; the
+library's search box keeps a 40 pt minimum and grows with its text; segmented pills (the library's
+cover size, the crop sheet's Square / Original) scale their labels, keep 44 pt targets, wrap onto
+two rows when the words don't fit, and mark the chosen option selected for VoiceOver.
 
 | Role | Size | Weight | Colour | Tracking |
 | --- | --- | --- | --- | --- |
