@@ -122,6 +122,31 @@ in the local settings file managed by `FileSettingsStore`
 `Authorization: Bearer` header. Requiring HTTPS for non-loopback base URLs and clearing the
 token when the base URL changes are tracked in #11.
 
+### Spotify connection
+
+The Mac app can connect to the user's Spotify account (#239, `apps/web/src/server/spotify/`).
+
+- **Sign-in:** OAuth authorization code with PKCE (S256). Each sign-in gets a random 64-character
+  verifier and a random 16-byte `state`, held in memory only, for one sign-in at a time. A callback
+  with a missing, unknown or already-used `state`, or with an `error`, stores nothing. The `state`
+  is consumed before the code is exchanged, so it works once. There is no client secret; the
+  client id is public.
+- **Redirect:** Spotify only accepts the registered `http://127.0.0.1:8888/callback`. Sign-in opens
+  a one-shot HTTP listener bound to `127.0.0.1:8888` only. It answers `GET /callback` (anything
+  else is a 404), and closes after the first callback with the right `state` or after 10 minutes.
+  If the port is busy, sign-in fails with a message instead of waiting.
+- **Scopes:** read-only: `playlist-read-private`, `playlist-read-collaborative`,
+  `user-read-playback-state`. No `playlist-modify`, no library or streaming scopes.
+- **Tokens:** the access and refresh tokens are in `settings.spotify`, in the same mode 0600 file as
+  the sync device token (`FileSettingsStore`). They are never logged, never put in an error or an
+  API response (`GET /api/spotify/connection` has the name and scopes only), and are sent only to
+  `accounts.spotify.com` and `api.spotify.com`, never to the sync API.
+- **Disconnect:** Settings deletes the `spotify` block and stops any pending sign-in. Spotify has no
+  revoke call for PKCE tokens, so Settings links to https://www.spotify.com/account/apps/ to
+  remove Locally's access completely.
+- **Off switch:** with no client id, `HAS_SPOTIFY_CONNECTION` off, or in the demo build, the
+  `/api/spotify/connection` and `/api/spotify/auth` routes answer 404.
+
 ## apps/api
 
 Unlike `apps/web`, this is a multi-tenant network service (the hosted sync backend

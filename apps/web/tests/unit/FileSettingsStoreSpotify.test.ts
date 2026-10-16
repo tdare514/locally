@@ -1,0 +1,65 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FileSettingsStore } from "../../src/server/config/FileSettingsStore";
+import { settingsFilePath } from "../../src/server/config/paths";
+import { SAMPLE_SPOTIFY } from "./spotifyFakes";
+
+let originalEnv: string | undefined;
+let homedirSpy: ReturnType<typeof vi.spyOn>;
+let root: string;
+
+beforeEach(async () => {
+  originalEnv = process.env.LOCALLY_CONFIG_DIR;
+  root = await fs.mkdtemp(path.join(os.tmpdir(), "sli-spotify-settings-"));
+  process.env.LOCALLY_CONFIG_DIR = path.join(root, "config");
+  await fs.mkdir(path.join(root, "home"), { recursive: true });
+  homedirSpy = vi.spyOn(os, "homedir").mockReturnValue(path.join(root, "home"));
+});
+
+afterEach(async () => {
+  homedirSpy.mockRestore();
+  if (originalEnv === undefined) delete process.env.LOCALLY_CONFIG_DIR;
+  else process.env.LOCALLY_CONFIG_DIR = originalEnv;
+  await fs.rm(root, { recursive: true, force: true });
+});
+
+describe("settings.spotify", () => {
+  it("round-trips and keeps the file mode 0600", async () => {
+    const store = new FileSettingsStore();
+    const base = await store.get();
+    await store.set({ ...base, spotify: SAMPLE_SPOTIFY });
+    expect((await store.get()).spotify).toEqual(SAMPLE_SPOTIFY);
+    const stat = await fs.stat(settingsFilePath());
+    expect(stat.mode & 0o777).toBe(0o600);
+  });
+
+  it("parses an older file without a spotify block", async () => {
+    const store = new FileSettingsStore();
+    const base = await store.get();
+    await fs.writeFile(settingsFilePath(), JSON.stringify({ libraryDir: base.libraryDir, sync: null, trackPlays: true }));
+    const got = await store.get();
+    expect(got.trackPlays).toBe(true);
+    expect("spotify" in got).toBe(false);
+  });
+
+  it("treats a malformed block as absent", async () => {
+    const store = new FileSettingsStore();
+    const base = await store.get();
+    for (const bad of [null, "x", {}, { ...SAMPLE_SPOTIFY, refreshToken: "" }, { ...SAMPLE_SPOTIFY, accessTokenExpiresAt: "soon" }, { ...SAMPLE_SPOTIFY, scopes: "a" }]) {
+      await fs.writeFile(settingsFilePath(), JSON.stringify({ libraryDir: base.libraryDir, sync: null, spotify: bad }));
+      expect((await store.get()).spotify).toBeUndefined();
+    }
+  });
+
+  it("a block removed before set() is gone from the file", async () => {
+    const store = new FileSettingsStore();
+    const base = await store.get();
+    await store.set({ ...base, spotify: SAMPLE_SPOTIFY });
+    const { spotify: _gone, ...rest } = await store.get();
+    void _gone;
+    await store.set(rest);
+    expect(await fs.readFile(settingsFilePath(), "utf-8")).not.toContain("refreshToken");
+  });
+});

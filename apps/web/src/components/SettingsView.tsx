@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { PlaysStatus, SyncStatus } from "../shared/types";
+import type { PlaysStatus, SpotifyConnectionStatus, SyncStatus } from "../shared/types";
 import { DEFAULT_SYNC_BASE_URL } from "../shared/types";
 import {
   deleteSyncAccount,
+  disconnectSpotify,
   getPlaysStatus,
   getSettings,
+  getSpotifyConnection,
   getSpotifySource,
   putSettings,
   putSyncBaseUrl,
@@ -14,12 +16,14 @@ import {
   requestSyncCode,
   reveal,
   signOutSync,
+  startSpotifyAuth,
   syncNow,
   verifySyncCode,
 } from "../lib/api-client";
 import { loadLibraryWidth, saveLibraryWidth, type LibraryWidth } from "../lib/library-view-prefs";
 import { IS_DEMO } from "../lib/demo";
 import Field from "./Field";
+import { HAS_SPOTIFY_CONNECTION } from "./sidebar/flags";
 
 interface SettingsViewProps {
   onToast: (kind: "success" | "error", text: string) => void;
@@ -28,6 +32,10 @@ interface SettingsViewProps {
   /** Scrolls this section into view once when the page opens (the sidebar profile asks for "account"). */
   section?: "account";
 }
+
+/** A sign-in the app is still waiting on is dropped after this long, as the server does. */
+const SPOTIFY_POLL_MS = 2_000;
+const SPOTIFY_GIVE_UP_MS = 10 * 60_000;
 
 const STEPS = [
   'Open Spotify and go to Settings.',
@@ -121,6 +129,82 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
       clearInterval(timer);
     };
   }, [trackPlays]);
+
+  // The Spotify connection (#239). null: not loaded yet, or this build doesn't offer it (row hidden).
+  const [spotify, setSpotify] = useState<SpotifyConnectionStatus | null>(null);
+  const [spotifyBusy, setSpotifyBusy] = useState(false);
+  const [spotifyAuthorizeUrl, setSpotifyAuthorizeUrl] = useState<string | null>(null);
+  const [spotifyStartError, setSpotifyStartError] = useState<string | null>(null);
+  const spotifyPending = spotify?.pending === true;
+
+  useEffect(() => {
+    if (IS_DEMO || !HAS_SPOTIFY_CONNECTION) return;
+    let cancelled = false;
+    getSpotifyConnection()
+      .then((status) => {
+        if (!cancelled) setSpotify(status);
+      })
+      .catch(() => {
+        // Optional row; stay hidden on error.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // While a sign-in is waiting: ask every 2 s, give up after 10 min, stop on unmount.
+  useEffect(() => {
+    if (!spotifyPending) return;
+    let cancelled = false;
+    const poll = () => {
+      getSpotifyConnection()
+        .then((status) => {
+          if (!cancelled && status) setSpotify(status);
+        })
+        .catch(() => {
+          // Keep waiting; the next tick tries again.
+        });
+    };
+    const timer = setInterval(poll, SPOTIFY_POLL_MS);
+    const giveUp = setTimeout(() => {
+      clearInterval(timer);
+      setSpotify((prev) => (prev ? { ...prev, pending: false } : prev));
+    }, SPOTIFY_GIVE_UP_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      clearTimeout(giveUp);
+    };
+  }, [spotifyPending]);
+
+  async function handleConnectSpotify() {
+    setSpotifyBusy(true);
+    setSpotifyStartError(null);
+    try {
+      const { authorizeUrl } = await startSpotifyAuth();
+      setSpotifyAuthorizeUrl(authorizeUrl);
+      // Electron hands this to the system browser (its window-open handler); a browser opens a tab.
+      window.open(authorizeUrl, "_blank", "noopener,noreferrer");
+      setSpotify((prev) => (prev ? { ...prev, pending: true, error: null } : prev));
+    } catch (e) {
+      setSpotifyStartError(e instanceof Error ? e.message : "Couldn't start Spotify sign-in.");
+    } finally {
+      setSpotifyBusy(false);
+    }
+  }
+
+  async function handleDisconnectSpotify() {
+    setSpotifyBusy(true);
+    setSpotifyStartError(null);
+    try {
+      setSpotify(await disconnectSpotify());
+      setSpotifyAuthorizeUrl(null);
+    } catch (e) {
+      onToast("error", e instanceof Error ? e.message : "Couldn't disconnect Spotify.");
+    } finally {
+      setSpotifyBusy(false);
+    }
+  }
 
   async function handleToggleTrackPlays() {
     const next = !trackPlays;
@@ -379,6 +463,82 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
           )}
         </fieldset>
       </section>
+
+      {spotify && (
+        <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
+          <p className="text-sm font-bold text-text">Spotify</p>
+          {spotify.connected ? (
+            <>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm text-text-muted">Connected as {spotify.displayName}</span>
+                <button
+                  type="button"
+                  onClick={handleDisconnectSpotify}
+                  disabled={spotifyBusy}
+                  className="btn-ink"
+                >
+                  <span className="btn-ink-label">Disconnect</span>
+                </button>
+              </div>
+              <p className="text-xs text-text-dim">
+                To remove Locally&apos;s access completely, remove it in your{" "}
+                <a
+                  href="https://www.spotify.com/account/apps/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  Spotify account
+                </a>
+                .
+              </p>
+            </>
+          ) : spotifyPending ? (
+            <>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm text-text-muted">Waiting for Spotify in your browser…</span>
+                <button
+                  type="button"
+                  onClick={handleDisconnectSpotify}
+                  disabled={spotifyBusy}
+                  className="btn-ink"
+                >
+                  <span className="btn-ink-label">Cancel</span>
+                </button>
+              </div>
+              {spotifyAuthorizeUrl && (
+                <p className="text-xs text-text-dim">
+                  Nothing opened?{" "}
+                  <a href={spotifyAuthorizeUrl} target="_blank" rel="noopener noreferrer" className="underline">
+                    Open the Spotify sign-in page
+                  </a>
+                  .
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm text-text-muted">Not connected</span>
+                <button
+                  type="button"
+                  onClick={handleConnectSpotify}
+                  disabled={spotifyBusy}
+                  className="btn-save"
+                >
+                  Connect Spotify
+                </button>
+              </div>
+              <p className="text-xs text-text-dim">
+                Read-only: Locally can see your playlists and what is playing. It can&apos;t change anything.
+              </p>
+            </>
+          )}
+          {(spotifyStartError || spotify.error) && (
+            <p className="text-sm text-danger">{spotifyStartError ?? spotify.error}</p>
+          )}
+        </section>
+      )}
 
       <section id="account" className="flex flex-col gap-4 rounded-lg border border-border bg-card p-6">
         <div>

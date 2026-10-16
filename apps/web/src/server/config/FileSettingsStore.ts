@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { Settings, SyncSettings } from "../../shared/types";
+import type { Settings, SpotifySettings, SyncSettings } from "../../shared/types";
 import { defaultLibraryDir, settingsDir, settingsFilePath } from "./paths";
 import type { SettingsStore } from "./SettingsStore";
 
@@ -8,7 +8,7 @@ async function ensureDirExists(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true });
 }
 
-/** Settings hold a sync device token, so its directory and file are locked to the owner. */
+/** Settings hold a sync device token and the Spotify tokens, so its directory and file are locked to the owner. */
 const CONFIG_DIR_MODE = 0o700;
 const CONFIG_FILE_MODE = 0o600;
 
@@ -22,6 +22,26 @@ function parseSyncSettings(raw: unknown): SyncSettings | null {
     deviceToken: typeof r.deviceToken === "string" ? r.deviceToken : null,
     email: typeof r.email === "string" ? r.email : null,
     lastVersion: typeof r.lastVersion === "number" && Number.isFinite(r.lastVersion) ? r.lastVersion : 0,
+  };
+}
+
+/** Narrow an arbitrary JSON value into `SpotifySettings`, or `null` if any required field is off. */
+function parseSpotifySettings(raw: unknown): SpotifySettings | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Partial<SpotifySettings>;
+  if (typeof r.refreshToken !== "string" || r.refreshToken.length === 0) return null;
+  if (typeof r.accessToken !== "string") return null;
+  if (typeof r.accessTokenExpiresAt !== "number" || !Number.isFinite(r.accessTokenExpiresAt)) return null;
+  if (typeof r.userId !== "string" || r.userId.length === 0) return null;
+  if (!Array.isArray(r.scopes)) return null;
+  return {
+    accessToken: r.accessToken,
+    accessTokenExpiresAt: r.accessTokenExpiresAt,
+    refreshToken: r.refreshToken,
+    scopes: r.scopes.filter((s): s is string => typeof s === "string"),
+    userId: r.userId,
+    displayName: typeof r.displayName === "string" && r.displayName ? r.displayName : r.userId,
+    connectedAt: typeof r.connectedAt === "string" ? r.connectedAt : "",
   };
 }
 
@@ -81,12 +101,14 @@ export class FileSettingsStore implements SettingsStore {
     const trackPlays = typeof parsed.trackPlays === "boolean" ? parsed.trackPlays : false;
     const playsPromptAnswered =
       typeof parsed.playsPromptAnswered === "boolean" ? parsed.playsPromptAnswered : false;
+    const spotify = parseSpotifySettings(parsed.spotify);
     return {
       libraryDir,
       sync: parseSyncSettings(parsed.sync),
       spotifySourceDismissed,
       trackPlays,
       playsPromptAnswered,
+      ...(spotify ? { spotify } : {}),
     };
   }
 
