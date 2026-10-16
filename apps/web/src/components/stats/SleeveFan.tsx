@@ -210,7 +210,7 @@ function Sleeve({
         className="fan-hit"
       >
         {!disc && (
-          <span aria-hidden className="fan-record">
+          <span aria-hidden data-medal={medal} className="fan-record">
             <span className="fan-record-label" style={cover ? { backgroundImage: `url("${cover}")` } : undefined} />
           </span>
         )}
@@ -220,14 +220,6 @@ function Sleeve({
         ) : (
           <span data-medal={medal} className="fan-art text-text-muted">
             <MusicNoteIcon className="h-6 w-6" />
-          </span>
-        )}
-        {item.rank <= 5 && !disc && (
-          <span aria-hidden className="fan-crown">
-            {/* eslint-disable-next-line @next/next/no-img-element -- two tiny local SVGs, swapped by CSS at 64px */}
-            <img src={`/crowns/crown-${item.rank}.svg`} alt="" draggable={false} decoding="async" className="fan-crown-full" />
-            {/* eslint-disable-next-line @next/next/no-img-element -- see above */}
-            <img src={`/crowns/crown-${item.rank}-small.svg`} alt="" draggable={false} decoding="async" className="fan-crown-small" />
           </span>
         )}
         <span aria-hidden className="fan-rank" data-medal={medal}>

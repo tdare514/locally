@@ -2236,8 +2236,10 @@ body {
     0 0 calc(var(--w) * 0.16) calc(var(--w) * -0.035) rgb(201 138 78 / 0.4),
     0 calc(var(--w) * 0.12) calc(var(--w) * 0.22) calc(var(--w) * -0.1) rgb(0 0 0 / 0.8);
 }
-/* The record behind the sleeve; on the active one a crescent of its rim peeks over the top (the
-   label stays hidden). */
+/* The record behind the sleeve, by rank: gold, silver and bronze are metallic vinyl (two light sweeps
+   across a conic sheen, under fine grooves), ranks four and five black. Every record peeks a little
+   over the sleeve's top at rest and the active one more, so the status reads at a glance; the label
+   stays hidden. */
 .fan-record {
   position: absolute;
   left: 6%;
@@ -2252,7 +2254,35 @@ body {
   box-shadow:
     inset 0 0 0 1px rgb(255 255 255 / 0.1),
     0 calc(var(--w) * 0.075) calc(var(--w) * 0.14) calc(var(--w) * -0.07) rgb(0 0 0 / 0.8);
+  transform: translate3d(0, -9%, 0);
   transition: transform 340ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.fan-record[data-medal="gold"] {
+  background:
+    radial-gradient(circle, transparent 0 63%, rgb(0 0 0 / 0.28) 63.5% 64.5%, transparent 65%),
+    repeating-radial-gradient(circle, rgb(0 0 0 / 0.1) 0 1px, transparent 1px 3px),
+    conic-gradient(from 20deg, #fff2bf, #c8921e 12%, #ffe089 25%, #7d5609 40%, #fff2bf 50%, #c8921e 62%, #ffe089 75%, #7d5609 90%, #fff2bf);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 240 190 / 0.5),
+    0 calc(var(--w) * 0.075) calc(var(--w) * 0.14) calc(var(--w) * -0.07) rgb(0 0 0 / 0.8);
+}
+.fan-record[data-medal="silver"] {
+  background:
+    radial-gradient(circle, transparent 0 63%, rgb(0 0 0 / 0.28) 63.5% 64.5%, transparent 65%),
+    repeating-radial-gradient(circle, rgb(0 0 0 / 0.1) 0 1px, transparent 1px 3px),
+    conic-gradient(from 20deg, #ffffff, #aeb6c2 12%, #eef2f7 25%, #5d6674 40%, #ffffff 50%, #aeb6c2 62%, #eef2f7 75%, #5d6674 90%, #ffffff);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.5),
+    0 calc(var(--w) * 0.075) calc(var(--w) * 0.14) calc(var(--w) * -0.07) rgb(0 0 0 / 0.8);
+}
+.fan-record[data-medal="bronze"] {
+  background:
+    radial-gradient(circle, transparent 0 63%, rgb(0 0 0 / 0.28) 63.5% 64.5%, transparent 65%),
+    repeating-radial-gradient(circle, rgb(0 0 0 / 0.1) 0 1px, transparent 1px 3px),
+    conic-gradient(from 20deg, #ffe3c8, #b56a2c 12%, #f2b67e 25%, #6a3412 40%, #ffe3c8 50%, #b56a2c 62%, #f2b67e 75%, #6a3412 90%, #ffe3c8);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 227 200 / 0.45),
+    0 calc(var(--w) * 0.075) calc(var(--w) * 0.14) calc(var(--w) * -0.07) rgb(0 0 0 / 0.8);
 }
 .fan-sleeve[data-active="true"] .fan-record {
   transform: translate3d(0, -18%, 0);
@@ -2301,30 +2331,6 @@ body {
 .fan-rank[data-medal="gold"] { color: #ecce78; }
 .fan-rank[data-medal="silver"] { color: #d3d8e0; }
 .fan-rank[data-medal="bronze"] { color: #dc9a5e; }
-/* The rank crown (top five, tracks and albums only): centred on the sleeve's top edge, its band just
-   over the edge. It lives inside the button so it tilts and lifts with the sleeve, lets every click
-   through (the hit area is the sleeve's) and has no motion of its own. The simpler drawing shows by
-   default; the full one only where the crown is 64px wide or more (see the container query after the
-   narrow block). 0.42 of the sleeve is the crown's width, 0.354 its height. */
-.fan-crown {
-  --fan-crown-w: calc(var(--w) * 0.42);
-  position: absolute;
-  z-index: 2;
-  top: calc(var(--fan-crown-w) * -0.777);
-  left: 50%;
-  width: var(--fan-crown-w);
-  pointer-events: none;
-  transform: translateX(-50%);
-}
-.fan-crown img {
-  display: block;
-  width: 100%;
-  height: auto;
-  pointer-events: none;
-}
-.fan-crown .fan-crown-full {
-  display: none;
-}
 .fan-tag {
   position: absolute;
   left: 0;
@@ -2424,22 +2430,8 @@ body {
   .fan[data-size="page"] .fan-tag {
     display: none;
   }
-  /* The sleeves are small here, so the crown is a little larger relative to them to stay readable. */
-  .fan[data-size="page"] .fan-crown {
-    --fan-crown-w: calc(var(--w) * 0.56);
-  }
   .fan-caption {
     display: block;
-  }
-}
-/* The full drawing only where every crown is 64px wide or more: the outermost sleeves are scaled to
-   0.88 for depth, so the page sleeve (22cqw) must be 173px or more, 0.42 x 173 x 0.88 = 64. */
-@container (min-width: 788px) {
-  .fan[data-size="page"] .fan-crown .fan-crown-full {
-    display: block;
-  }
-  .fan[data-size="page"] .fan-crown .fan-crown-small {
-    display: none;
   }
 }
 
