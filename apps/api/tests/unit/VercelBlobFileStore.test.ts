@@ -82,7 +82,7 @@ describe("VercelBlobFileStore", () => {
     expect(ticket).toEqual({
       url: "https://blob.example/presigned",
       method: "PUT",
-      headers: { "Content-Type": "audio/mpeg" },
+      headers: { "Content-Type": "audio/mpeg", "x-api-version": "12", "x-vercel-blob-access": "private" },
     });
     expect(issueSignedToken).toHaveBeenCalledWith(expect.objectContaining({ pathname: encoded, operations: ["put"] }));
     expect(presignUrl).toHaveBeenCalledWith(
