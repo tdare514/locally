@@ -339,15 +339,19 @@ final class ReleaseCoordinator {
             return
         }
 
-        try folder.withAccess { folderURL -> Void in
-            let urls = existing.tracks.map { Self.resolvedFileURL(for: $0, in: folderURL) }
-            for url in urls {
-                guard self.layout.isInside(folder: folderURL, path: url.path) else {
-                    throw LocallyError.pathOutsideFolder
+        // An adopted release has no files on this phone: nothing to delete, and
+        // the Spotify folder is never opened for it.
+        if !existing.isAdopted {
+            try folder.withAccess { folderURL -> Void in
+                let urls = existing.tracks.map { Self.resolvedFileURL(for: $0, in: folderURL) }
+                for url in urls {
+                    guard self.layout.isInside(folder: folderURL, path: url.path) else {
+                        throw LocallyError.pathOutsideFolder
+                    }
                 }
-            }
-            for url in urls where FileManager.default.fileExists(atPath: url.path) {
-                try FileManager.default.removeItem(at: url)
+                for url in urls where FileManager.default.fileExists(atPath: url.path) {
+                    try FileManager.default.removeItem(at: url)
+                }
             }
         }
 
@@ -573,6 +577,58 @@ final class ReleaseCoordinator {
             throw LocallyError.libraryFailed(error.localizedDescription)
         }
 
+        return release
+    }
+
+    /// Stores an adopted record (`source == .adopted`) as a details-only
+    /// release: no audio files, no Spotify folder access, no tagging. The
+    /// cover bytes (downloaded by `SyncEngine`) go to `CoverStore`. The
+    /// release is marked synced and holds no upload names, so it is never
+    /// pushed. A track's `filePath` is the record's bare file name, which is
+    /// only a label here: nothing reads or writes it.
+    func importAdopted(_ record: SyncRecord, coverData: Data?) throws -> Release {
+        guard let releaseId = UUID(uuidString: record.id) else {
+            throw LocallyError.libraryFailed("That release's id from sync wasn't valid.")
+        }
+        guard let kind = ReleaseKind(rawValue: record.kind) else {
+            throw LocallyError.libraryFailed("That release's kind from sync wasn't recognised.")
+        }
+        let existing = try library.all().first { $0.id == releaseId }
+        var coverPath = existing?.coverPath
+        if let coverData {
+            coverPath = try? coverStore.save(coverData, for: releaseId)
+        }
+        let release = Release(
+            id: releaseId,
+            kind: kind,
+            title: record.title,
+            artist: record.artist,
+            year: record.year,
+            genre: record.genre,
+            coverPath: coverPath,
+            folderPath: "",
+            tracks: record.tracks.map { syncTrack in
+                Track(
+                    id: UUID(uuidString: syncTrack.id) ?? UUID(),
+                    title: syncTrack.title,
+                    trackNumber: syncTrack.trackNumber,
+                    discNumber: syncTrack.discNumber,
+                    filePath: syncTrack.file,
+                    originalName: syncTrack.file,
+                    durationSec: syncTrack.durationSec
+                )
+            },
+            createdAt: existing?.createdAt ?? record.createdAt,
+            updatedAt: record.updatedAt,
+            syncedUpdatedAt: record.updatedAt,
+            uploadedFileNames: [],
+            source: .adopted
+        )
+        do {
+            try library.upsert(release)
+        } catch {
+            throw LocallyError.libraryFailed(error.localizedDescription)
+        }
         return release
     }
 

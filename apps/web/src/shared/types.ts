@@ -96,6 +96,7 @@ export interface Settings {
   trackPlays?: boolean;  // opt-in: count plays of Locally tracks in Spotify on this Mac (#106); default false
   spotify?: SpotifySettings;  // the Spotify connection (#239); absent when disconnected
   playsPromptAnswered?: boolean;  // user answered the one-time "Count your Spotify plays?" card, either button (#110)
+  adoptRoots?: string[];  // folders Spotify reads that Locally scans to adopt in place (#245); read as [] when absent
 }
 
 /** The `sync` field as returned to the browser by GET/PUT /api/settings: no token. */

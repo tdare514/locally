@@ -152,6 +152,7 @@ final class ReleaseDetailViewModel {
     }
 
     func beginEditing() {
+        guard !release.isAdopted else { return }
         isEditing = true
     }
 
@@ -193,6 +194,8 @@ final class ReleaseDetailViewModel {
     }
 
     var hasPlays: Bool { !playTotals.isEmpty }
+    /// An adopted release is details only: view mode, never edited here.
+    var isAdopted: Bool { release.isAdopted }
 
     /// The disc heading to show above each row, or nil for none (see `DiscNumbering.headings`).
     var discHeadings: [Int?] {
