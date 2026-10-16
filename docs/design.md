@@ -160,8 +160,8 @@ eyebrows still apply to those labels.
     than truncate. Placeholders say what to type, in `text-dim`: "Enter single name" or "Enter
     album name" by kind, "Enter artist name", "Same as the single name" (a single's album),
     "Enter year", "Enter genre"; a track row's title says "Enter track name". Rows are
-    12 pt apart. At the accessibility text sizes the label sits above its value and Year and
-    Genre take a row each.
+    12 pt apart. At the accessibility text sizes the label sits above its value; from XX Large
+    up Year and Genre take a row each (on one row Genre's value got too narrow and broke words).
   - *Album notice* (import record, album only): under the Single / Album line, a quiet faked-glass
     card (white 6 % fill, radius 12, 12 pt padding) with `info.circle` and caption text in
     `text-muted`: "Spotify doesn't group your own files into albums. After you send, we'll show

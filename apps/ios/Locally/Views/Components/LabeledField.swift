@@ -116,7 +116,8 @@ struct LabeledField: View {
 }
 
 /// Year and Genre share one row (owner, 16 Oct 2026): Year in the label column like the rows
-/// above it, Genre after it taking the rest. At the accessibility text sizes they are two rows.
+/// above it, Genre after it taking the rest. From XX Large text up they are two rows, since
+/// Genre's half of the row then got so narrow that words broke ("Synth-").
 struct YearGenreRow: View {
     @Binding var year: String
     @Binding var genre: String
@@ -124,9 +125,11 @@ struct YearGenreRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var yearValueWidth = Theme.Immersive.yearValueWidth
 
+    private var stacks: Bool { dynamicTypeSize >= .xxLarge }
+
     private var yearField: some View {
         LabeledField(Copy.Import.fieldYear, placeholder: Copy.Import.yearPlaceholder, text: $year, font: Theme.ScaledFont.input,
-                     valueWidth: dynamicTypeSize.isAccessibilitySize ? nil : yearValueWidth)
+                     valueWidth: stacks ? nil : yearValueWidth)
             .keyboardType(.numberPad)
     }
 
@@ -136,7 +139,7 @@ struct YearGenreRow: View {
     }
 
     var body: some View {
-        if dynamicTypeSize.isAccessibilitySize {
+        if stacks {
             VStack(alignment: .leading, spacing: Theme.Immersive.labeledFieldRowGap) {
                 yearField
                 genreField(labelFits: false)
