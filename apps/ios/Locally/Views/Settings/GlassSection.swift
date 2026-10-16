@@ -157,10 +157,8 @@ struct GlassRow: View {
                 }
             }
             if chevron {
-                Image(systemName: "chevron.right")
-                    .font(.system(.footnote, weight: .semibold))
+                LocallyIcon(.chevronRight, size: 20, relativeTo: .footnote)
                     .foregroundStyle(Theme.textDim)
-                    .accessibilityHidden(true)
             }
         }
         .padding(.horizontal, 16)
@@ -192,6 +190,31 @@ struct GlassRow: View {
                 .padding(.vertical, 6)
                 .background(Capsule().fill(Theme.accent.opacity(0.18)))
         }
+    }
+}
+
+/// A glass-card row with a switch: an icon tile, a title and the system toggle. VoiceOver reads the
+/// title and the on/off state.
+struct GlassToggleRow: View {
+    let symbol: String
+    let tint: Color
+    let title: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            HStack(spacing: 14) {
+                IconTile(symbol: symbol, tint: tint)
+                Text(title)
+                    .font(Theme.ScaledFont.rowTitle)
+                    .foregroundStyle(Theme.primaryText)
+                    .multilineTextAlignment(.leading)
+            }
+        }
+        .tint(Theme.accent)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 11)
+        .frame(minHeight: 56)
     }
 }
 

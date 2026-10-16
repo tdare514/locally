@@ -213,8 +213,7 @@ struct CoverPicker: View {
             Menu {
                 menuItems
             } label: {
-                Image(systemName: "pencil")
-                    .font(.system(size: 12, weight: .semibold))
+                LocallyIcon(.pencil, size: 16, scaled: false)
                     .foregroundStyle(Theme.primaryText)
                     .frame(width: 28, height: 28)
                     .background {
@@ -258,7 +257,7 @@ struct CoverPicker: View {
             Menu {
                 menuItems
             } label: {
-                Label(Copy.Detail.edit, systemImage: "pencil")
+                Label { Text(Copy.Detail.edit) } icon: { LocallyIcon(.pencil, size: 18, relativeTo: .body) }
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.primaryText)
                     .padding(.horizontal, 12)

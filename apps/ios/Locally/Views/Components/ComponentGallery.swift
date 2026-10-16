@@ -14,7 +14,9 @@ struct ComponentGallery: View {
         // #226: Dynamic Type checks of screens that need no sample data.
         "library-empty", "onboarding", "paywall",
         // #204: the real Stats page over sample plays.
-        "stats-week", "stats-albums-grid", "stats-artists", "stats-quiet", "stats-signed-out", "stats-large-text", "stats-week-scrolled", "stats-grid-scrolled"]
+        "stats-week", "stats-albums-grid", "stats-artists", "stats-quiet", "stats-signed-out", "stats-large-text", "stats-week-scrolled", "stats-grid-scrolled",
+        // #213: the Mac's glyphs on the real tab bar, library and release page, over seeded sample data.
+        "icons-tabs-library", "icons-tabs-stats", "icons-library-list", "icons-library-grid", "icons-release", "icons-release-bottom", "icons-cover-edit", "icons-playlist-guide"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -33,7 +35,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("stats-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "library-empty", "onboarding", "paywall"].contains(name)
+        name.hasPrefix("stats-") || name.hasPrefix("icons-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "paywall", "onboarding", "library-empty"].contains(name)
     }
 
     var body: some View {
@@ -149,6 +151,20 @@ struct ComponentGallery: View {
             OnboardingView(onFinished: {}).environment(FolderStatus(isConnected: false))
         case "paywall":
             PaywallView()
+        case "icons-tabs-library", "icons-library-list":
+            IconsGallery.tabs(selected: .library, layout: .list)
+        case "icons-library-grid":
+            IconsGallery.tabs(selected: .library, layout: .covers)
+        case "icons-tabs-stats":
+            IconsGallery.tabs(selected: .stats, layout: .list)
+        case "icons-release":
+            IconsGallery.release()
+        case "icons-cover-edit":
+            IconsGallery.coverEdit()
+        case "icons-playlist-guide":
+            ZStack { StudioBackdrop(); PlaylistGuide(albumTitle: "Night Bus to Nowhere").padding(24) }
+        case "icons-release-bottom":
+            IconsGallery.release().defaultScrollAnchor(.bottom)
         default:
             EmptyView()
         }
@@ -303,7 +319,7 @@ enum StatsGallery {
         )
     }
 
-    private static let covers: [UUID: Data] = Dictionary(uniqueKeysWithValues: seeds.map { ($0.releaseID, SampleArtwork.cover($0.colors, size: 360).pngData() ?? Data()) })
+    static let covers: [UUID: Data] = Dictionary(uniqueKeysWithValues: seeds.map { ($0.releaseID, SampleArtwork.cover($0.colors, size: 360).pngData() ?? Data()) })
 
     private static func summary(empty: Bool) -> PlaysSummary {
         var tracks: [PlayCount] = []
@@ -322,6 +338,19 @@ enum StatsGallery {
 
     @MainActor
     static func page(_ mode: Mode) -> some View {
+        TabView {
+            statsView(mode)
+                .tabItem { Label(Copy.Stats.tabLabel, image: "Icon/Stats") }
+        }
+        .tint(Theme.accent)
+        .environment(FolderStatus(isConnected: true))
+        .environment(PurchaseStatus(isFullUnlocked: false))
+        .environment(SyncStatus())
+    }
+
+    /// The Stats page alone, over sample plays (the tab bar is the caller's).
+    @MainActor
+    static func statsView(_ mode: Mode) -> some View {
         let defaults = UserDefaults(suiteName: "gallery.stats")!
         defaults.removePersistentDomain(forName: "gallery.stats")
         defaults.set(StatsPeriodKind.week.rawValue, forKey: StatsViewModel.periodKey)
@@ -337,14 +366,103 @@ enum StatsGallery {
         let read: PlayStatsRead = mode == .signedOut ? .signedOut : .ok(summary(empty: mode == .quiet))
         let model = StatsViewModel(stats: GalleryPlayStats(read), releases: { releases }, defaults: defaults)
         let cache = StatsCoverCache(loader: { covers[$0] })
-        return TabView {
-            StatsView(model: model, cache: cache, selectedTab: .constant(.stats), librarySearchRequest: .constant(nil))
-                .tabItem { Label(Copy.Stats.tabLabel, systemImage: "chart.bar") }
+        return StatsView(model: model, cache: cache, selectedTab: .constant(.stats), librarySearchRequest: .constant(nil))
+    }
+}
+
+/// #213: the real tab bar, library and release page over seeded sample data, for the icon screenshots.
+/// The services are the production ones over an in-memory index, and nothing here signs in or syncs.
+@MainActor
+enum IconsGallery {
+    private static func container() -> AppContainer {
+        // swiftlint:disable:next force_try
+        let modelContainer = try! ModelStore.open(at: nil)
+        let library = SwiftDataLibraryStore(context: modelContainer.mainContext)
+        let coverStore = FileCoverStore()
+        let folder = UserDefaultsSpotifyFolder()
+        let coordinator = ReleaseCoordinator(
+            importer: LocalFileImporter(), transcoder: AVTranscoder(), m4aTagWriter: M4ATagWriter(), id3TagWriter: ID3TagWriter(),
+            folder: folder, library: library, coverStore: coverStore, durationReader: TrackLengthLoader.shared
+        )
+        let account = UserDefaultsSyncAccountStore()
+        let api = HttpSyncApi(account: account)
+        let engine = SyncEngine(
+            api: api, account: account, library: library, coordinator: coordinator, coverStore: coverStore,
+            outbox: SwiftDataSyncOutbox(context: modelContainer.mainContext), deviceName: { "Gallery" }
+        )
+        let container = AppContainer(
+            folder: folder, library: library, importer: LocalFileImporter(), coordinator: coordinator, coverStore: coverStore,
+            inbox: AppGroupInboxStore(), purchase: StoreKitPurchaseService(), syncAccount: account, syncApi: api, syncEngine: engine,
+            playStats: SyncPlayStatsService(api: api, account: account), modelContainer: modelContainer
+        )
+        for release in StatsGallery.releases {
+            var release = release
+            if let data = StatsGallery.covers[release.id] { release.coverPath = (try? coverStore.save(data, for: release.id)) ?? release.coverPath }
+            try? library.upsert(release)
         }
-        .tint(Theme.accent)
-        .environment(FolderStatus(isConnected: true))
-        .environment(PurchaseStatus(isFullUnlocked: false))
-        .environment(SyncStatus())
+        return container
+    }
+
+    private static func environment<V: View>(_ view: V, _ container: AppContainer) -> some View {
+        view
+            .environment(\.appContainer, container)
+            .environment(FolderStatus(isConnected: true))
+            .environment(PurchaseStatus(isFullUnlocked: false))
+            .environment(container.syncStatus)
+            .tint(Theme.accent)
+            .preferredColorScheme(.dark)
+    }
+
+    /// The four tabs as `RootView` builds them, with one selected.
+    static func tabs(selected: RootView.Tab, layout: LibraryLayout) -> some View {
+        UserDefaults.standard.set(layout.rawValue, forKey: LibraryViewPrefs.layoutKey)
+        let container = container()
+        return environment(IconsTabs(selected: selected), container)
+    }
+
+    /// The cover picker's hero style: the cover with its Edit pill (the pencil).
+    static func coverEdit() -> some View {
+        ZStack {
+            StudioBackdrop()
+            CoverPicker(imageData: .constant(StatsGallery.covers[StatsGallery.releases[0].id]), rawPick: .constant(nil), style: .hero, onPickFromFiles: {})
+                .padding(48)
+        }
+    }
+
+    /// An album's release page, with its cover (Edit) and the playlist guide (Copy).
+    static func release() -> some View {
+        let container = container()
+        let release = StatsGallery.releases[0]
+        return environment(NavigationStack { ReleaseDetailView(release: release) }, container)
+    }
+}
+
+private struct IconsTabs: View {
+    @State var selected: RootView.Tab
+    @State private var importKind: ImportKind?
+    @State private var search: String?
+
+    init(selected: RootView.Tab) { _selected = State(initialValue: selected) }
+
+    var body: some View {
+        TabView(selection: $selected) {
+            LibraryView(selectedTab: $selected, requestedImportKind: $importKind, librarySearchRequest: $search)
+                .environment(\.isTabSelected, selected == .library)
+                .tabItem { Label(Copy.Library.title, image: "Icon/Library") }
+                .tag(RootView.Tab.library)
+            ImportView(requestedKind: $importKind)
+                .environment(\.isTabSelected, selected == .importSong)
+                .tabItem { Label(Copy.Import.title, image: "Icon/Plus") }
+                .tag(RootView.Tab.importSong)
+            StatsGallery.statsView(.week)
+                .environment(\.isTabSelected, selected == .stats)
+                .tabItem { Label(Copy.Stats.tabLabel, image: "Icon/Stats") }
+                .tag(RootView.Tab.stats)
+            SettingsView()
+                .environment(\.isTabSelected, selected == .settings)
+                .tabItem { Label(Copy.Settings.title, systemImage: "gearshape") }
+                .tag(RootView.Tab.settings)
+        }
     }
 }
 
@@ -490,7 +608,7 @@ private struct ImportRecordGallery: View {
     var body: some View {
         TabView {
             ImportView(preset: preset)
-                .tabItem { Label(Copy.Import.title, systemImage: "plus.circle") }
+                .tabItem { Label(Copy.Import.title, image: "Icon/Plus") }
         }
         .tint(Theme.accent)
         .environment(SyncStatus())

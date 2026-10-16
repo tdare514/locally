@@ -197,9 +197,8 @@ struct LibraryView: View {
     /// Fake-glass search box filtering the library by title, artist, genre, year and track titles.
     private var searchField: some View {
         HStack(spacing: Theme.Library.headerControlGap) {
-            Image(systemName: "magnifyingglass")
+            LocallyIcon(.search, size: 22, relativeTo: .body)
                 .foregroundStyle(Theme.secondaryText)
-                .accessibilityHidden(true)
             TextField(Copy.Library.searchPlaceholder, text: $query)
                 .themeFont(.body)
                 .foregroundStyle(Theme.primaryText)
@@ -410,8 +409,7 @@ struct LibraryView: View {
 
             Spacer()
 
-            Image(systemName: "chevron.right")
-                .themeFont(.chevron)
+            LocallyIcon(.chevronRight, size: 20, relativeTo: .footnote)
                 .foregroundStyle(Theme.textDim)
         }
         .padding(.horizontal, 12)

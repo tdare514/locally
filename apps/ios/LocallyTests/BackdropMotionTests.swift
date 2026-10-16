@@ -21,4 +21,11 @@ struct BackdropMotionTests {
     @Test func pausesInLowPowerMode() {
         #expect(!BackdropMotion.isActive(scenePhase: .active, isTabSelected: true, isLowPowerMode: true))
     }
+
+    @Test(arguments: [
+        (false, false, false), (false, true, false), (true, false, true), (true, true, false),
+    ])
+    func reducesMotionOnlyWhenTheSystemAsksAndTheSwitchIsOff(system: Bool, keepMoving: Bool, expected: Bool) {
+        #expect(BackdropMotion.reducesMotion(systemReduceMotion: system, keepMoving: keepMoving) == expected)
+    }
 }
