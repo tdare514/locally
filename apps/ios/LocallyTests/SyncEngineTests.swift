@@ -79,7 +79,7 @@ struct SyncEngineTests {
             resolvedAccount = InMemorySyncAccountStore()
             resolvedAccount.save(email: "toby@example.com", deviceToken: "test-token", deviceId: "device-1")
         }
-        let engine = SyncEngine(api: api, account: resolvedAccount, library: library, coordinator: coordinator, coverStore: coverStore, outbox: outbox, now: now, deviceName: { "Toby's iPhone" })
+        let engine = SyncEngine(api: api, account: resolvedAccount, library: library, coordinator: coordinator, coverStore: coverStore, outbox: outbox, now: now, deviceName: { "Toby's iPhone" }, defaults: UserDefaults(suiteName: UUID().uuidString)!)
         return Harness(coordinator: coordinator, folder: folder, library: library, tagWriter: tagWriter, coverStore: coverStore, api: api, account: resolvedAccount, outbox: outbox, engine: engine)
     }
 

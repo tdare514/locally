@@ -11,6 +11,8 @@ struct AdoptedReleaseTests {
         let api: FakeSyncApi
         let coordinator: ReleaseCoordinator
         let engine: SyncEngine
+        let account: InMemorySyncAccountStore
+        let defaults: UserDefaults
     }
 
     private func makeHarness() -> Harness {
@@ -30,9 +32,10 @@ struct AdoptedReleaseTests {
             durationReader: FakeDurationReader()
         )
         let account = InMemorySyncAccountStore()
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
         account.save(email: "toby@example.com", deviceToken: "test-token", deviceId: "device-1")
-        let engine = SyncEngine(api: api, account: account, library: library, coordinator: coordinator, coverStore: coverStore, outbox: InMemorySyncOutbox(), now: { Date() }, deviceName: { "Toby's iPhone" })
-        return Harness(library: library, tagWriter: tagWriter, coverStore: coverStore, api: api, coordinator: coordinator, engine: engine)
+        let engine = SyncEngine(api: api, account: account, library: library, coordinator: coordinator, coverStore: coverStore, outbox: InMemorySyncOutbox(), now: { Date() }, deviceName: { "Toby's iPhone" }, defaults: defaults)
+        return Harness(library: library, tagWriter: tagWriter, coverStore: coverStore, api: api, coordinator: coordinator, engine: engine, account: account, defaults: defaults)
     }
 
     private let coverBytes = Data([0xFF, 0xD8, 0xFF, 0xE0, 9, 9, 9])
@@ -162,5 +165,71 @@ struct AdoptedReleaseTests {
         await h.engine.reconcile()
         #expect(h.coverStore.load(id) == coverBytes)
         #expect(h.engine.status.failedCoverUpdates.isEmpty)
+    }
+
+    // MARK: - Missing covers (#266)
+
+    private func importWithoutCover(_ h: Harness, _ record: SyncRecord) async throws {
+        // Cover download fails the first time, as it did while server storage was broken.
+        await h.engine.reconcile()
+        let id = try #require(UUID(uuidString: record.id))
+        try h.coverStore.delete(id)
+        h.engine.status.failedCoverUpdates.removeAll()
+    }
+
+    @Test func aSameUpdatedAtAdoptedRecordWithAMissingCoverDownloadsAndStoresIt() async throws {
+        let h = makeHarness()
+        let record = adoptedRecord()
+        h.api.seed(record)
+        try await importWithoutCover(h, record)
+        let id = try #require(UUID(uuidString: record.id))
+        #expect(h.coverStore.load(id) == nil)
+        h.api.fileContents["cover.jpg"] = coverBytes
+
+        let before = h.api.downloadFileCalls.count
+        h.defaults.set(true, forKey: SyncEngine.adoptedCoverRefetchKey)
+        h.account.lastVersion = 0
+        await h.engine.reconcile()
+
+        #expect(h.coverStore.load(id) == coverBytes)
+        #expect(h.api.downloadFileCalls.count == before + 1)
+    }
+
+    @Test func anAdoptedReleaseWithItsCoverAlreadyStoredIsNotDownloadedAgain() async throws {
+        let h = makeHarness()
+        let record = adoptedRecord()
+        h.api.fileContents["cover.jpg"] = coverBytes
+        h.api.seed(record)
+        await h.engine.reconcile()
+        #expect(h.api.downloadFileCalls == ["cover.jpg"])
+
+        h.account.lastVersion = 0
+        await h.engine.reconcile()
+
+        #expect(h.api.downloadFileCalls == ["cover.jpg"])
+    }
+
+    @Test func theAdoptedCoverRefetchResetsLastVersionOnceAndOnlyWhenACoverIsMissing() async throws {
+        let h = makeHarness()
+        let record = adoptedRecord()
+        h.api.fileContents["cover.jpg"] = coverBytes
+        h.api.seed(record)
+        await h.engine.reconcile()
+        // Cover present: no refetch, flag stays unset.
+        #expect(!h.defaults.bool(forKey: SyncEngine.adoptedCoverRefetchKey))
+
+        let id = try #require(UUID(uuidString: record.id))
+        try h.coverStore.delete(id)
+        let before = h.api.downloadFileCalls.count
+        await h.engine.reconcile()
+        // The re-pull from 0 fetched the missing cover and set the flag.
+        #expect(h.defaults.bool(forKey: SyncEngine.adoptedCoverRefetchKey))
+        #expect(h.coverStore.load(id) == coverBytes)
+        #expect(h.api.downloadFileCalls.count == before + 1)
+
+        // Flag set: a missing cover no longer triggers a re-pull from 0.
+        try h.coverStore.delete(id)
+        await h.engine.reconcile()
+        #expect(h.coverStore.load(id) == nil)
     }
 }

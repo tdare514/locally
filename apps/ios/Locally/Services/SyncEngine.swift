@@ -118,6 +118,7 @@ final class SyncEngine: ReleaseSyncHook {
     private let reconcileInterval: Duration
     private let reconcileSleep: @Sendable (Duration) async throws -> Void
     private let now: () -> Date
+    private let defaults: UserDefaults
 
     let status: SyncStatus
 
@@ -149,8 +150,10 @@ final class SyncEngine: ReleaseSyncHook {
         reconcileInterval: Duration = .seconds(30),
         reconcileSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         now: @escaping () -> Date = { Date() },
-        deviceName: @escaping () -> String
+        deviceName: @escaping () -> String,
+        defaults: UserDefaults = .standard
     ) {
+        self.defaults = defaults
         self.api = api
         self.account = account
         self.library = library
@@ -604,7 +607,13 @@ final class SyncEngine: ReleaseSyncHook {
             // this same run.
             await retryFailedCoverUpdates()
 
-            try await fetchRemoteChanges()
+            // One-off (#266): adopted releases imported while cover storage was
+            // broken have no cover and their records are already behind
+            // `lastVersion`. Re-pull from 0 once; `process(_:)` re-applies only
+            // adopted records whose cover is missing, and skips the rest.
+            let refetchAdopted = needsAdoptedCoverRefetch()
+            try await fetchRemoteChanges(fromVersion: refetchAdopted ? 0 : nil)
+            if refetchAdopted { defaults.set(true, forKey: Self.adoptedCoverRefetchKey) }
 
             await retryFailedAccepts()
 
@@ -735,8 +744,8 @@ final class SyncEngine: ReleaseSyncHook {
     /// pull in the conflicting change without going through `reconcile()`
     /// itself — that would otherwise wait on the very drain that's calling
     /// it.
-    private func fetchRemoteChanges() async throws {
-        var cursor = account.lastVersion
+    private func fetchRemoteChanges(fromVersion: Int? = nil) async throws {
+        var cursor = fromVersion ?? account.lastVersion
         for _ in 0..<Self.maxReleasePagesPerReconcile {
             let page = try await api.releases(sinceVersion: cursor, limit: syncReleasesPageLimit)
             for record in page.releases {
@@ -755,6 +764,17 @@ final class SyncEngine: ReleaseSyncHook {
             cursor = page.nextVersion
         }
         throw SyncApiError.network("Sync pull did not finish after \(Self.maxReleasePagesPerReconcile) pages; stopping this reconcile.")
+    }
+
+    static let adoptedCoverRefetchKey = "com.tdare.locally.sync.adoptedCoverRefetch.v1"
+
+    /// `true` when the one-off refetch flag is unset and some adopted release
+    /// has no stored cover. The flag is set only after the re-pull succeeds,
+    /// so an interrupted pull tries again next reconcile.
+    private func needsAdoptedCoverRefetch() -> Bool {
+        guard !defaults.bool(forKey: Self.adoptedCoverRefetchKey),
+              let localReleases = localReleases() else { return false }
+        return localReleases.contains { $0.isAdopted && coverStore.load($0.id) == nil }
     }
 
     /// Retries `acceptFromMac` for every record a previous attempt couldn't
@@ -818,6 +838,15 @@ final class SyncEngine: ReleaseSyncHook {
         }
 
         if let existingLocal {
+            // An adopted release is re-applied when newer, or when its cover is
+            // still missing locally (#266): the same `updatedAt` must not strand it.
+            if existingLocal.isAdopted {
+                if record.updatedAt > existingLocal.updatedAt
+                    || adoptedCoverNeeded(record, existingLocal: existingLocal) {
+                    await applyAdopted(record, existingLocal: existingLocal)
+                }
+                return
+            }
             guard record.updatedAt > existingLocal.updatedAt else { return }
             if isOwnEcho(record) {
                 // This device's own record coming back newer than its local
