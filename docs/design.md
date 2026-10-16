@@ -61,6 +61,16 @@ script changes.
 
 System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide on eyebrows *(eyebrow tracking replaced 13 Oct 2026, see the note below the table)*.
 
+On iPhone every size below scales with Dynamic Type (16 Oct 2026, #226: an accessibility audit
+found the library, the cover sheet, the record's track count and the Sent card's Close fixed). A
+role keeps its point size at the default text size and grows with the text style named beside it:
+`themeFont(_:)` with `@ScaledMetric(relativeTo:)` (page title 24 → title2, section title 18 →
+title3, eyebrow and field label 11 → caption2, input 16 → body, body and meta 14 → subheadline,
+row title 15 → body, row subtitle 14 → subheadline, drop-zone line 14 → subheadline, drop-zone
+hint 12 → footnote, badge 10 → caption2, primary button 15 → body, chevron 13 → footnote). So
+nothing changes at the default size. Screens built before this keep their layouts up to XX Large
+and stack or wrap at the accessibility sizes; nothing truncates mid-word.
+
 | Role | Size | Weight | Colour | Tracking |
 | --- | --- | --- | --- | --- |
 | Page title, desktop | 36 | bold | text | -0.02em |
