@@ -62,6 +62,8 @@ export default function AppShell() {
   // the rail, sidebar panel or profile clears it.
   const [backStack, setBackStack] = useState<BackStack<View, BackState>>(clearStack);
   const pendingScroll = useRef<number | null>(null);
+  // Stats says when its ranking has loaded (or failed); every other page is ready at once.
+  const contentReady = useRef(true);
   const [statsShown, setStatsShown] = useState(STATS_PAGE_SIZE);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const nextToastId = useRef(0);
@@ -192,6 +194,7 @@ export default function AppShell() {
     setStatsPrefs(popped.entry.state.stats);
     setStatsShown(popped.entry.state.statsShown);
     pendingScroll.current = popped.entry.scrollTop;
+    contentReady.current = popped.entry.view.type !== "stats";
     setView(popped.entry.view);
   }
 
@@ -203,7 +206,7 @@ export default function AppShell() {
     pendingScroll.current = null;
     const main = mainRef.current;
     if (!main) return;
-    return runScrollRestore(main, top);
+    return runScrollRestore(main, top, () => contentReady.current);
   }, [view]);
 
   // Cmd+[ and the mouse's back button. Not while typing in a field.
@@ -365,6 +368,9 @@ export default function AppShell() {
               releases={library?.releases ?? []}
               loadingLibrary={loadingLibrary}
               prefs={statsPrefs}
+              onContentReady={() => {
+                contentReady.current = true;
+              }}
               shown={statsShown}
               onShownChange={setStatsShown}
               onPrefsChange={(patch) => {
