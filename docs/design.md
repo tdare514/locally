@@ -181,6 +181,9 @@ eyebrows still apply to those labels.
     0.3 s on the signature easing; Reduce Motion: no turn, rows appear and go at once.
   - *Eyebrows on iPhone* keep their capitals and wide tracking ("YOUR COLLECTION"): the owner
     likes them there (16 Oct 2026), an exception to the 13 Oct sentence-case rule.
+  - *Sent card*: Open in Spotify (with `arrow.up.right`) is a cover glow button in the record's
+    colours, matching Send to Spotify; without Spotify installed, Close takes that style. The text
+    Close under Open in Spotify stays as it is.
   - *Release dock*: its base is opaque black, so the panel behind it never shows through while
     the keyboard lifts it over the tracks.
 - **Sticky footer CTA (mobile)**: fixed to the bottom, padding 16 horizontal and 12 to 16

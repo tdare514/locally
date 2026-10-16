@@ -401,6 +401,8 @@ enum Theme {
         static let sentCardMaxHeightRatio: CGFloat = 0.62
         static let sentContentGap: CGFloat = 12
         static let sentButtonGap: CGFloat = 8
+        /// Icon to label gap in the Sent card's glow button, as in Send to Spotify.
+        static let sentButtonIconGap: CGFloat = 8
         /// The entrance: up from this far below at this scale, on a spring.
         static let sentRise: CGFloat = 40
         static let sentRiseScale: CGFloat = 0.94

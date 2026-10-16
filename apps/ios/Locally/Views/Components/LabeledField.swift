@@ -53,12 +53,17 @@ struct LabeledField: View {
             .accessibilityLabel(label)
             .accessibilityValue(text)
             .padding(.bottom, Theme.Immersive.inlineFieldUnderlineGap)
+            // Two stacked hairlines, the focused one faded in over the resting one, so only
+            // opacity animates.
             .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(focused
-                        ? Theme.secondaryText.opacity(Theme.Immersive.inlineFieldUnderlineOpacity)
-                        : Color.white.opacity(Theme.Immersive.labeledFieldUnderlineRestOpacity))
-                    .frame(height: 1 / displayScale)
+                ZStack {
+                    Rectangle()
+                        .fill(Color.white.opacity(Theme.Immersive.labeledFieldUnderlineRestOpacity))
+                    Rectangle()
+                        .fill(Theme.secondaryText.opacity(Theme.Immersive.inlineFieldUnderlineOpacity))
+                        .opacity(focused ? 1 : 0)
+                }
+                .frame(height: 1 / displayScale)
             }
             .animation(reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: Theme.Immersive.inlineFieldFocusFade), value: focused)
     }
@@ -67,6 +72,9 @@ struct LabeledField: View {
         Text(label)
             .font(Theme.ScaledFont.subheadline)
             .foregroundStyle(Theme.secondaryText)
+            .contentShape(Rectangle())
+            // Tapping the label edits its field, as tapping the value does.
+            .onTapGesture { focused = true }
             .accessibilityHidden(true)
     }
 
