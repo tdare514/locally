@@ -402,6 +402,13 @@ final class HttpSyncApi: SyncApi {
                     continuation.resume(throwing: SyncApiError.network("No file was downloaded."))
                     return
                 }
+                // An error page must never be saved as a cover or track file.
+                guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                    let status = (response as? HTTPURLResponse)?.statusCode
+                    let message = status.map { "The file could not be downloaded (\($0))." } ?? "The file could not be downloaded."
+                    continuation.resume(throwing: SyncApiError.network(message))
+                    return
+                }
                 do {
                     // The temp file is deleted as soon as this handler
                     // returns, so the move must happen synchronously here.
