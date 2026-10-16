@@ -85,7 +85,10 @@ describe("VercelBlobFileStore", () => {
       headers: { "Content-Type": "audio/mpeg" },
     });
     expect(issueSignedToken).toHaveBeenCalledWith(expect.objectContaining({ pathname: encoded, operations: ["put"] }));
-    expect(presignUrl).toHaveBeenCalledWith("signed-token", expect.objectContaining({ pathname: encoded, operation: "put" }));
+    expect(presignUrl).toHaveBeenCalledWith(
+      "signed-token",
+      expect.objectContaining({ pathname: encoded, operation: "put", addRandomSuffix: false, allowOverwrite: true })
+    );
   });
 
   it("signs and presigns downloads with the encoded pathname", async () => {
