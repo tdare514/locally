@@ -28,7 +28,7 @@ struct PlaylistGuide: View {
                         }
                     }
                 } label: {
-                    Label(copied ? Copy.Detail.copied : Copy.Detail.copyTitle, systemImage: "doc.on.doc")
+                    Label { Text(copied ? Copy.Detail.copied : Copy.Detail.copyTitle) } icon: { LocallyIcon(.copy, size: 17, scaled: false) }
                         .font(Theme.Font.rowSubtitle)
                 }
                 .buttonStyle(SecondaryPillButtonStyle())

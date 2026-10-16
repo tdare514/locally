@@ -432,8 +432,7 @@ struct ImportView: View {
                 dismissedCount = inboxFiles.count
                 toastVisible = false
             } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
+                LocallyIcon(.x, size: 20, scaled: false)
                     .foregroundStyle(Theme.secondaryText)
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
@@ -479,8 +478,7 @@ struct ImportView: View {
                     syncDismissedCount = syncStatus.pendingFromMac.count
                     syncToastVisible = false
                 } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .semibold))
+                    LocallyIcon(.x, size: 20, scaled: false)
                         .foregroundStyle(Theme.secondaryText)
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
