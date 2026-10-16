@@ -158,9 +158,12 @@ export class PlaysService {
    * `play_days` over every device (revoked too) for days in [from, to]; `allTime` sums `play_counts`.
    * Paged by track id over the tracks with a live count row or a live day in the range: both lists
    * cover the same page.
+   * Each entry also carries `devicePlays`: the share of `deviceId` (the caller) in the same sum, so
+   * a client can tell its own plays from the other devices' (#216). Other devices, revoked or not, count
+   * toward `plays` only.
    * Throws `ValidationError` for a range that is reversed, over 400 days, or ends after tomorrow (UTC).
    */
-  async summary(userId: string, from: string, to: string, cursor?: string): Promise<PlaysSummaryResponse> {
+  async summary(userId: string, deviceId: string, from: string, to: string, cursor?: string): Promise<PlaysSummaryResponse> {
     if (from > to) throw new ValidationError("from must not be after to");
     if (inclusiveDays(from, to) > PLAY_DAY_RETENTION_DAYS) {
       throw new ValidationError(`The range is at most ${PLAY_DAY_RETENTION_DAYS} days`);
@@ -198,6 +201,7 @@ export class PlaysService {
           trackId: playCounts.trackId,
           releaseId: playCounts.releaseId,
           plays: sql<number>`sum(${playCounts.count})`,
+          devicePlays: sql<number>`sum(case when ${playCounts.deviceId} = ${deviceId} then ${playCounts.count} else 0 end)`,
         })
         .from(playCounts)
         .innerJoin(releases, eq(releases.id, playCounts.releaseId))
@@ -209,6 +213,7 @@ export class PlaysService {
           trackId: playDays.trackId,
           releaseId: playDays.releaseId,
           plays: sql<number>`sum(${playDays.count})`,
+          devicePlays: sql<number>`sum(case when ${playDays.deviceId} = ${deviceId} then ${playDays.count} else 0 end)`,
           lastPlayedDay: sql<string>`max(case when ${playDays.count} > 0 then ${playDays.day} end)`,
         })
         .from(playDays)
@@ -231,8 +236,14 @@ export class PlaysService {
     return {
       tracks: dayRows
         .filter((r) => pageIds.has(r.trackId))
-        .map((r) => ({ trackId: r.trackId, releaseId: r.releaseId, plays: Number(r.plays), lastPlayedDay: r.lastPlayedDay })),
-      allTime: allTimeRows.map((r) => ({ trackId: r.trackId, releaseId: r.releaseId, plays: Number(r.plays) })),
+        .map((r) => ({
+          trackId: r.trackId,
+          releaseId: r.releaseId,
+          plays: Number(r.plays),
+          devicePlays: Number(r.devicePlays),
+          lastPlayedDay: r.lastPlayedDay,
+        })),
+      allTime: allTimeRows.map((r) => ({ trackId: r.trackId, releaseId: r.releaseId, plays: Number(r.plays), devicePlays: Number(r.devicePlays) })),
       nextCursor: hasMore ? lastId : null,
     };
   }

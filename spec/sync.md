@@ -167,13 +167,23 @@ the shipped web and iOS clients are unaffected. The Mac app pushing and displayi
   scoped to the caller's user and their live (non-tombstoned) releases. Both dates are real
   dates, `from <= to`, at most 400 days inclusive, and `to` is no later than tomorrow (UTC);
   anything else is a 400. Rate limit 60 requests per hour per user (429). Response:
-  `{ tracks: [{ trackId, releaseId, plays, lastPlayedDay }], allTime: [{ trackId, releaseId, plays }], nextCursor }`.
+  `{ tracks: [{ trackId, releaseId, plays, devicePlays, lastPlayedDay }], allTime: [{ trackId, releaseId, plays, devicePlays }], nextCursor }`.
   `tracks` sums the day buckets in the range over all the user's devices (revoked ones too);
   `lastPlayedDay` is the latest such day with a count above 0; tracks with no plays in the range
   are left out. `allTime` sums `play_counts` over all devices. Paged by track id over tracks that
   have a count row on a live release or a day in the range on a live release: 1,000 track ids per page, ordered by `trackId`, both lists covering the same
   page; `nextCursor` is the last `trackId` of the page when more follow (pass it as `cursor`),
   else null.
+- **`devicePlays` (#216).** Every entry of both lists carries `devicePlays`, an integer >= 0: the
+  caller's own share of `plays`, computed in the same query (the token's device's day buckets in
+  the range, and that device's `play_counts`). Other devices of the user, including the caller's
+  own revoked ones, count toward `plays` only. The field is additive. Effect per client:
+  - **Mac:** subtracts its own share exactly (`local + max(0, plays - devicePlays)`, for the range
+    and for all time) in place of its pushed-marker estimate. An entry without `devicePlays`
+    (an older service) keeps the marker rule.
+  - **iPhone:** pushes no plays, so its `devicePlays` is 0; it reads `plays` as before.
+  - **Shipped clients:** ignore it. The Mac's schema strips unknown keys and the iPhone's
+    Decodable ignores them.
 - **Retention.** Day buckets are kept 400 days: the daily cleanup deletes `play_days` rows more
   than 400 days before the UTC date, those of tombstoned releases on the 30-day schedule above,
   and account deletion removes them at once (a database trigger on the user row does too, so a

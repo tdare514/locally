@@ -81,10 +81,19 @@ export const ServerPlaysSummaryPageSchema = z.object({
       trackId: z.string(),
       releaseId: z.string(),
       plays: z.number().int().min(0),
+      /** The calling device's own share of `plays` (#216); absent from an older service. */
+      devicePlays: z.number().int().min(0).optional(),
       lastPlayedDay: z.string(),
     }),
   ),
-  allTime: z.array(z.object({ trackId: z.string(), releaseId: z.string(), plays: z.number().int().min(0) })),
+  allTime: z.array(
+    z.object({
+      trackId: z.string(),
+      releaseId: z.string(),
+      plays: z.number().int().min(0),
+      devicePlays: z.number().int().min(0).optional(),
+    }),
+  ),
   nextCursor: z.string().nullable(),
 });
 export type ServerPlaysSummaryPage = z.infer<typeof ServerPlaysSummaryPageSchema>;

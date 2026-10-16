@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ServerPlaysSummaryPageSchema } from "../../src/server/plays/playsWire";
 import type { Release } from "../../src/shared/types";
 import type { PlayCounts } from "../../src/server/plays/PlayCountStore";
 import { buildPlaysSummary, loadPlaysSummary, mergeServerSummary } from "../../src/server/plays/playsSummary";
@@ -24,7 +25,7 @@ function counts(tracks: PlayCounts["tracks"], daysInSync?: boolean): PlayCounts 
   return daysInSync ? { version: 1, tracks, daysInSync } : { version: 1, tracks };
 }
 
-function merge(c: PlayCounts, server: { tracks?: { trackId: string; releaseId: string; plays: number; lastPlayedDay: string }[]; allTime?: { trackId: string; releaseId: string; plays: number }[] }) {
+function merge(c: PlayCounts, server: { tracks?: { trackId: string; releaseId: string; plays: number; devicePlays?: number; lastPlayedDay: string }[]; allTime?: { trackId: string; releaseId: string; plays: number; devicePlays?: number }[] }) {
   return mergeServerSummary(buildPlaysSummary(c, live, RANGE), c, live, RANGE, {
     tracks: server.tracks ?? [],
     allTime: server.allTime ?? [],
@@ -106,6 +107,84 @@ describe("mergeServerSummary (#202)", () => {
   it("keeps countingSince as this Mac's", () => {
     const c = counts({ t1: { releaseId: R1, count: 1, pushed: 0, days: { "2026-10-01": 1 } } });
     expect(merge(c, {}).countingSince).toBe("2026-10-01");
+  });
+
+  describe("with devicePlays (#216)", () => {
+    // Local: 5 plays all time, 5 in range. Another device holds 4 of each: the service says 9, this Mac's share 5.
+    const server = {
+      tracks: [{ trackId: "t1", releaseId: R1, plays: 9, devicePlays: 5, lastPlayedDay: "2026-10-15" }],
+      allTime: [{ trackId: "t1", releaseId: R1, plays: 9, devicePlays: 5 }],
+    };
+    const days = { "2026-10-14": 2, "2026-10-15": 3 };
+
+    it.each([
+      ["markers too high", { pushed: 9, pushedDays: { "2026-10-14": 9, "2026-10-15": 9 } }],
+      ["markers too low", { pushed: 1, pushedDays: { "2026-10-14": 1 } }],
+      ["markers missing", { pushed: 0 }],
+    ])("is exact when %s", (_name, markers) => {
+      for (const inSync of [true, false]) {
+        const c = counts({ t1: { releaseId: R1, count: 5, days, ...markers } }, inSync);
+        const out = merge(c, server);
+        expect(out.tracks[0].plays).toBe(9);
+        expect(out.allTime[0].plays).toBe(9);
+      }
+    });
+
+    it("counts a share of 0 as exact (the service holds none of this Mac's plays)", () => {
+      const c = counts({ t1: { releaseId: R1, count: 5, days, pushed: 5, pushedDays: days } }, true);
+      const out = merge(c, {
+        tracks: [{ trackId: "t1", releaseId: R1, plays: 4, devicePlays: 0, lastPlayedDay: "2026-10-15" }],
+        allTime: [{ trackId: "t1", releaseId: R1, plays: 4, devicePlays: 0 }],
+      });
+      expect(out.tracks[0].plays).toBe(9);
+      expect(out.allTime[0].plays).toBe(9);
+    });
+
+    it("never goes below the local count", () => {
+      const c = counts({ t1: { releaseId: R1, count: 5, days, pushed: 0 } });
+      const out = merge(c, {
+        tracks: [{ trackId: "t1", releaseId: R1, plays: 2, devicePlays: 5, lastPlayedDay: "2026-10-15" }],
+        allTime: [{ trackId: "t1", releaseId: R1, plays: 2, devicePlays: 5 }],
+      });
+      expect(out.tracks[0].plays).toBe(5);
+      expect(out.allTime[0].plays).toBe(5);
+    });
+
+    it("handles a page mixing entries with and without devicePlays", () => {
+      const c = counts(
+        {
+          t1: { releaseId: R1, count: 5, days, pushed: 1, pushedDays: { "2026-10-14": 1 } },
+          t2: { releaseId: R1, count: 5, days, pushed: 5, pushedDays: days },
+        },
+        true,
+      );
+      const out = merge(c, {
+        tracks: [
+          { trackId: "t1", releaseId: R1, plays: 9, devicePlays: 5, lastPlayedDay: "2026-10-15" },
+          { trackId: "t2", releaseId: R1, plays: 9, lastPlayedDay: "2026-10-15" },
+        ],
+        allTime: [
+          { trackId: "t1", releaseId: R1, plays: 9, devicePlays: 5 },
+          { trackId: "t2", releaseId: R1, plays: 9 },
+        ],
+      });
+      // t1 exact (5 + 4); t2 by markers (5 + (9 - 5)).
+      expect(out.tracks.map((t) => [t.trackId, t.plays])).toEqual([["t1", 9], ["t2", 9]]);
+      expect(out.allTime.map((t) => [t.trackId, t.plays]).sort()).toEqual([["t1", 9], ["t2", 9]]);
+    });
+
+    it("the page schema keeps devicePlays and still accepts an older service without it", () => {
+      const entry = { trackId: "t1", releaseId: R1, plays: 1, lastPlayedDay: "2026-10-15" };
+      const page = (devicePlays?: unknown) => ({
+        tracks: [{ ...entry, devicePlays }],
+        allTime: [{ trackId: "t1", releaseId: R1, plays: 1, devicePlays }],
+        nextCursor: null,
+      });
+      expect(ServerPlaysSummaryPageSchema.parse(page(1)).tracks[0].devicePlays).toBe(1);
+      expect(ServerPlaysSummaryPageSchema.parse({ ...page(), tracks: [entry], allTime: [{ trackId: "t1", releaseId: R1, plays: 1 }] }).tracks[0].devicePlays).toBeUndefined();
+      expect(ServerPlaysSummaryPageSchema.safeParse(page(-1)).success).toBe(false);
+      expect(ServerPlaysSummaryPageSchema.safeParse(page(1.5)).success).toBe(false);
+    });
   });
 });
 

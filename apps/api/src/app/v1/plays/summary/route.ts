@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export const GET = withObservability("/v1/plays/summary", async (request, obs) => {
   const services = await getServices();
-  const { user } = await requireAuth(request, services.auth, obs);
+  const { user, device } = await requireAuth(request, services.auth, obs);
 
   const params = new URL(request.url).searchParams;
   const parsed = playsSummaryQuerySchema.safeParse({
@@ -27,5 +27,5 @@ export const GET = withObservability("/v1/plays/summary", async (request, obs) =
   }
 
   const { from, to, cursor } = parsed.data;
-  return NextResponse.json(await services.plays.summary(user.id, from, to, cursor));
+  return NextResponse.json(await services.plays.summary(user.id, device.id, from, to, cursor));
 });

@@ -261,8 +261,9 @@ export const playsSummaryQuerySchema = z.object({
 });
 export type PlaysSummaryQuery = z.infer<typeof playsSummaryQuerySchema>;
 
+/** `devicePlays` is the calling device's own share of `plays` (the rest comes from the user's other devices). */
 export interface PlaysSummaryResponse {
-  tracks: Array<{ trackId: string; releaseId: string; plays: number; lastPlayedDay: string }>;
-  allTime: Array<{ trackId: string; releaseId: string; plays: number }>;
+  tracks: Array<{ trackId: string; releaseId: string; plays: number; devicePlays: number; lastPlayedDay: string }>;
+  allTime: Array<{ trackId: string; releaseId: string; plays: number; devicePlays: number }>;
   nextCursor: string | null;
 }
