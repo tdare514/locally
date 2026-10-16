@@ -65,6 +65,31 @@ struct SyncDevicePlays: Decodable, Equatable {
     var current: Bool
 }
 
+/// One page of `GET /v1/plays/summary` (#204): the plays in the requested days
+/// per track (`tracks`) and over all time (`allTime`), over all the user's
+/// devices. Both lists cover the same page of track ids; `nextCursor` is the
+/// last track id when more follow, else `nil`.
+struct SyncPlaysSummaryPage: Decodable, Equatable {
+    var tracks: [SyncPeriodPlays]
+    var allTime: [SyncAllTimePlays]
+    var nextCursor: String?
+}
+
+/// One track's plays inside the requested days; `lastPlayedDay` is `YYYY-MM-DD`.
+struct SyncPeriodPlays: Decodable, Equatable {
+    var trackId: String
+    var releaseId: String
+    var plays: Int
+    var lastPlayedDay: String?
+}
+
+/// One track's plays over all time.
+struct SyncAllTimePlays: Decodable, Equatable {
+    var trackId: String
+    var releaseId: String
+    var plays: Int
+}
+
 /// One page of `GET /v1/releases?sinceVersion=N&limit=M`.
 ///
 /// `hasMore: true` means more releases exist above `nextVersion`; the caller
@@ -106,10 +131,11 @@ enum SyncApiError: LocalizedError, Equatable {
     case unauthorized
     case conflict(serverUpdatedAt: Date?)
     case quotaExceeded
-    /// A 404 on a route an older API doesn't have yet (`/v1/files/*`, #171).
+    /// A 404 on a route an older API doesn't have yet (`/v1/files/*`, #171;
+    /// `/v1/plays/summary`, #204).
     /// Only raised by calls that expect it; every other 404 stays `.network`.
     case notFound
-    /// A 429 on a route that rate-limits (`/v1/files/*`, #171). Same scoping as `.notFound`.
+    /// A 429 on a route that rate-limits (`/v1/files/*`, #171; `/v1/plays/summary`, #204). Same scoping as `.notFound`.
     case rateLimited
     case network(String)
 
@@ -167,6 +193,10 @@ protocol SyncApi {
     /// `GET /v1/releases/:id/plays`: per-device play counts for each track.
     /// Throws on a 404 when the release isn't the user's or is tombstoned.
     func releasePlays(releaseId: String) async throws -> SyncReleasePlays
+    /// `GET /v1/plays/summary?from&to[&cursor]` (#204): one page of per-track
+    /// plays in the days `from`...`to` (`YYYY-MM-DD`) plus all-time. Throws
+    /// `.notFound` on an API that predates the route and `.rateLimited` on a 429.
+    func playsSummary(from: String, to: String, cursor: String?) async throws -> SyncPlaysSummaryPage
     /// Downloads `url` to `destination` via `downloadTask(with:)`, so the
     /// file streams straight to disk rather than through memory.
     func downloadFile(from url: URL, to destination: URL) async throws
@@ -343,6 +373,20 @@ final class HttpSyncApi: SyncApi {
     func releasePlays(releaseId: String) async throws -> SyncReleasePlays {
         let data = try await send(path: "/v1/releases/\(releaseId)/plays", method: "GET")
         return try decode(SyncReleasePlays.self, from: data)
+    }
+
+    func playsSummary(from: String, to: String, cursor: String?) async throws -> SyncPlaysSummaryPage {
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&=+#")
+        func encode(_ value: String) -> String { value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value }
+        var query = "from=\(encode(from))&to=\(encode(to))"
+        if let cursor { query += "&cursor=\(encode(cursor))" }
+        let data = try await send(
+            path: "/v1/plays/summary?\(query)",
+            method: "GET",
+            statusErrors: [404: .notFound, 429: .rateLimited]
+        )
+        return try decode(SyncPlaysSummaryPage.self, from: data)
     }
 
     func downloadFile(from url: URL, to destination: URL) async throws {

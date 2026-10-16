@@ -552,6 +552,21 @@ final class FakeSyncApi: SyncApi {
         return try releasePlaysResult.get()
     }
 
+    /// Scripted `playsSummary` outcomes, consumed in order (the last one repeats once the script runs
+    /// out), so a test scripts pages and errors. Empty means one empty page.
+    var playsSummaryScript: [Result<SyncPlaysSummaryPage, Error>] = []
+    private(set) var playsSummaryCalls: [(from: String, to: String, cursor: String?)] = []
+    /// Awaited inside `playsSummary` after the call is recorded, to hold a request open.
+    var playsSummaryGate: (() async -> Void)?
+
+    func playsSummary(from: String, to: String, cursor: String?) async throws -> SyncPlaysSummaryPage {
+        let index = playsSummaryCalls.count
+        playsSummaryCalls.append((from, to, cursor))
+        await playsSummaryGate?()
+        guard !playsSummaryScript.isEmpty else { return SyncPlaysSummaryPage(tracks: [], allTime: [], nextCursor: nil) }
+        return try playsSummaryScript[min(index, playsSummaryScript.count - 1)].get()
+    }
+
     func downloadURL(releaseId: String, fileName: String) async throws -> URL {
         URL(string: "https://fake-storage.example.com/\(releaseId)/\(fileName)")!
     }
@@ -591,4 +606,20 @@ final class FailingSyncOutbox: SyncOutbox {
     func recordFailure(_ releaseId: UUID, error: String) throws {}
     func remove(_ releaseId: UUID, ifOperation operation: SyncOutboxEntry.Operation) throws {}
     func removeAll() throws {}
+}
+
+/// `PlayStatsReading` fake for the Stats UI: returns `result` and records each call.
+@MainActor
+final class FakePlayStats: PlayStatsReading {
+    var result: PlayStatsRead
+    private(set) var calls: [(from: String, to: String, force: Bool)] = []
+
+    init(result: PlayStatsRead = .ok(PlaysSummary(tracks: [], allTime: []))) {
+        self.result = result
+    }
+
+    func summary(from: String, to: String, force: Bool) async -> PlayStatsRead {
+        calls.append((from, to, force))
+        return result
+    }
 }
