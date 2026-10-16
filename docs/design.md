@@ -622,3 +622,124 @@ eyebrows still apply to those labels.
     the service asks to wait: "Try again in a few minutes." under the pill.
   - A re-sent release (a newer server version of it) returns to *Still sending*, never straight
     to *Waiting*; the same version pulled again changes nothing.
+- **Your Spotify folders (desktop, #245 step D, #249; designed 16 Oct 2026)**: Locally adds the
+  releases Spotify already plays from the owner's own folders, details only, and never touches the
+  files (plan `docs/plans/245-adopt-local-files.md`). The user-facing verb is **add**, never
+  "adopt": the folders card, the review page and the toast all say "add to your library". Three
+  surfaces, all in the existing look (cards and #155 buttons in Settings, the library colour space
+  behind the review page, the #112 release page). References: Cosmos's "We found 2 boards" and
+  Savee's import review (a found-count title, every item ticked, one button that names the count),
+  Sana's folder list (one row per folder, Remove at its end).
+  - *Settings › Your Spotify folders*: a `card` right after Library folder, titled "Your Spotify
+    folders" (14 bold, like its neighbours), then one 12 `text-dim` line: "Locally reads the music
+    Spotify plays from these folders. It never changes, moves or deletes a file there." Each folder
+    is a row: its name (14 semibold) over its full path (12 `text-dim`, cut in the middle when
+    long), and **Remove** (`.btn-ink`) at the end. Remove only stops Locally checking that folder;
+    releases already added from it stay, and the toast says so: "Stopped checking Masters.
+    Releases added from it stay in your library." With no folders the list is one 13
+    `text-muted` line: "Add the folder Spotify plays your local files from (Spotify › Settings ›
+    Your Library)." When `~/Documents/Spotify Music` exists and is not added,
+    a suggestion row sits first: the path in `text-muted` and **Add** (`.btn-save`). Under the
+    rows: **Add folder…** (`.btn-save`; the native folder picker in the desktop app, an inline
+    path field with Add and Cancel in the browser dev server) and **Check for new files**
+    (`.btn-save`, hidden with no folders), then a 12 `text-dim` line, "Last checked today at
+    14:02", once there has been a check. Check for new files opens the review page.
+  - *Review page* (a main-pane view like Stats, over the library colour space, column as wide as
+    the library's): the page header has the eyebrow "Your Spotify folders" (`accent`, sentence
+    case) and the title as the finding, "Found 214 releases" (one release: "Found 1 release"),
+    then a `text-muted` line, "1,567 tracks in 3 folders. Locally adds their details and leaves the
+    files where they are." and, when files were passed over, a quiet disclosure "3 files skipped"
+    that opens to one line per type ("2 .flac files", "1 .wav file") and "Locally can't add
+    these yet."
+    - Rows are grouped by the first folder under each Spotify folder (the owner's Masters,
+      Unmastered and OG Files stay apart), each group a section header like the library's
+      ("Masters", 14 bold, with "38 releases" in `text-muted` on the right) carrying a group
+      tick that ticks or unticks the whole group. Files straight in the Spotify folder group
+      under its own name.
+    - Each row is the library list row's grid without its columns: the 20 tick (`accent` with a
+      black check when ticked, a 1.5 px white 30 % ring when not, the library selection's
+      checkbox), the 48 cover (radius 4; no art: the house-label sleeve, a neutral square with
+      the `accent` disc label), title (15 semibold) over artist (13 `text-muted`), then "Album,
+      12 tracks" or "Single" and the year (13 `text-muted`, tabular), and the folder below the
+      group as a 12 `text-dim` path ("Summer EP"), cut at the start when long. Every row starts
+      ticked. The whole row toggles its tick (it is the checkbox: role checkbox, Space toggles,
+      the focus ring on the row); an unticked row's cover drops to 40 % and its title to
+      `text-muted`. Nothing on the row is editable: the details are the file's tags, shown as
+      Spotify reads them.
+    - A dock pinned to the bottom of the pane, the release dock's pill (black 70 %, white 10 %
+      ring): "212 of 214 selected" (13 `text-muted`, tabular), **Select all** or **Select none**
+      (`.btn-ink`, whichever changes something), **Cancel** (`.btn-ink`, back to Settings; the
+      findings are kept for next time) and the main action, **Add 212 to your library**
+      (`.btn-save`; one: "Add 1 to your library"; none ticked: disabled at 40 % with
+      `aria-disabled` and the dock's count saying why). Adding sends the ticked groups in batches
+      of 20 (`POST /api/adopt`), one batch after another, so the button reads "Adding 40 of
+      212…" as batches return; while it runs the button is disabled, the rows can't be toggled,
+      and Select all / none and Cancel hide. Leaving the page lets the batch in flight finish on
+      the server but sends no more, and a response that lands after the page has gone changes
+      nothing on screen (no navigation, no focus move). Retrying is safe: a group already in the
+      library comes back in `alreadyAdopted` and counts as added, so a batch whose request failed
+      (no answer, or a network error) is simply part of **Try again**. All added: the library
+      opens with the toast "Added 212 releases to your library". Some not added (the result's
+      `failed`, or a batch with no answer): the page stays, the added rows leave the list, each
+      failed row stays ticked with its message in 12 `danger` under its title ("Couldn't reach
+      Locally." for a batch with no answer), the header line reads "Added 210 of 212. 2 couldn't
+      be added.", and the button becomes **Try again** for what is still ticked.
+    - *Opening the page* always loads the stored findings fresh (`GET /api/adopt/proposal`) and
+      hides any group already in the library (a release whose `adoptKey` matches), so coming
+      back after leaving mid-add shows only what is left, and Add counts only that.
+    - *Reading*: from Check for new files until the findings arrive the title is "Reading your
+      Spotify folders", the line under it counts files when the route reports progress ("412 of
+      1,567 files") and otherwise says "This can take a minute.", a 2 px `accent` line grows
+      across the column under the header (transform only, no track behind it), and six skeleton
+      rows hold the list's shape (tick ring, cover square and two text bars at white 6 %, still).
+      Reduced motion: the line jumps to each new width.
+    - *Reading failed* (the scan request itself fails or times out): title "Couldn't check your
+      Spotify folders", the error's message (or "Locally didn't answer.") in 13 `text-muted`,
+      then **Try again** (`.btn-save`) and **Back to Settings** (`.btn-ink`). Earlier findings,
+      if any, are not shown as if this check had found them; the line under the buttons offers
+      "Review what Locally found on 16 Oct instead" (`.btn-ink`), which opens them with that
+      date in the header line.
+    - *Nothing new*: title "Nothing new in your Spotify folders", line "Everything Locally can
+      add from there is already in your library.", the skipped disclosure if any, and **Back to Settings**
+      (`.btn-ink`). No folders yet (a stale link): "Add a folder in Settings first." with the same
+      button.
+    - *A folder Locally can't read* (the proposal's `unreadable`): above the groups, one 13
+      `danger` line per folder, "Couldn't read ~/Music/Old. Check it's still there and that
+      Locally may open it.", and the rest of the findings still show. When nothing new was found
+      and a folder couldn't be read, the title is "Couldn't read all of your Spotify folders" and
+      the "Everything … is already in your library" line is not shown, since the check was
+      incomplete.
+    - *Accessibility*: each row is a `role="checkbox"` with `aria-checked`, `tabIndex` 0 and the
+      name "Title, Artist, Album, 12 tracks" (the folder as its description); arrow keys move
+      between rows, Space toggles. A group tick is a checkbox named "All of Masters" whose state is
+      `mixed` when some of its rows are ticked: pressing it from mixed or unticked ticks all,
+      from ticked unticks all, and its visual is the `accent` circle with a bar for mixed. One
+      polite live region announces "Reading your Spotify folders", then "Found 214 releases" (or
+      the nothing-new or couldn't-read title), "Adding 40 of 212", and the end result; the
+      skeleton rows are `aria-hidden`. On arrival focus goes to the page title; after adding with
+      failures, to the header line. The list keeps bottom padding equal to the dock's height
+      plus 24, and a focused row scrolls clear of the dock.
+  - *Added releases in the library*: they sit in Singles and Albums with the rest, sorted and
+    searched the same way. A 14 folder glyph (the hand-drawn set, `text-dim`) follows the title
+    in the list and in the grid's caption (never on the cover), labelled "In your Spotify
+    folder" for VoiceOver and as a tooltip: one quiet mark instead of the same line under most
+    of the library's rows (the owner's library will be mostly added releases; this replaces the
+    plan's per-row line, and the plan's UI section says so). In selection mode their tick is
+    hidden and the row can't be selected, since Edit details and Delete don't apply; the
+    selection bar adds one 12 `text-dim` line when the library has any, "Releases from your
+    Spotify folder can't be selected. Remove one from its own page.", and the row's tooltip says
+    the same.
+  - *Their release page* is the #112 page in a view mode: the sleeve without the pencil badge
+    (it doesn't open the cover picker), title, artist, Year and Genre as plain text (no hover
+    fill, no focus ring, "Not set" in `text-dim` when empty), and under the meta line a 13
+    `text-muted` line, "In your Spotify folder · Masters/Summer EP" (the folder after the
+    Spotify folder). Track rows show number, title, length and plays, with no grip or replace;
+    a track whose file has gone is `text-muted` with "File missing" (12 `text-dim`) where its
+    length was. The dock holds **Show in Finder** (`.btn-save`) and **Remove from Locally**
+    (`.btn-ink`), with no Save and no "Unsaved changes". Remove confirms inline in the dock, in
+    the release page's confirm style but without the red: "Remove from Locally? The files stay in
+    your Spotify folder, and Check for new files can add it back." with **Remove** (`.btn-save`)
+    and **Cancel**. The "Spotify can't see this yet" prompt never shows (Spotify already plays
+    these); "Make it a playlist" stays on albums.
+  - Motion: none of its own. A tick's check scales from 0.6 to 1 with opacity over 160 ms on the
+    house easing; Reduced motion makes it instant. The library and release page keep theirs.

@@ -90,7 +90,8 @@ its plays count (#106 on the Mac today; phone plays through the Spotify connecti
   - Settings › "Your Spotify folders": the folders, Add folder, Check for new files.
   - A review page: summary ("214 releases, 1,567 tracks; 3 files skipped"), then each proposed release
     (cover, title, artist, track count, folder) with a tick, all ticked; then Adopt.
-  - The library shows adopted releases like the rest, with a small "In your Spotify folder" line. Their
+  - The library shows adopted releases like the rest, marked with a small folder glyph labelled "In
+    your Spotify folder" (the line itself is on the release page; #249's design entry). Their
     release page is the view mode with no Edit, plus Remove from Locally.
 
 ## iPhone
