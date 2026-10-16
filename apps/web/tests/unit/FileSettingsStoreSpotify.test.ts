@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FileSettingsStore } from "../../src/server/config/FileSettingsStore";
+import type { Settings } from "../../src/shared/types";
 import { settingsFilePath } from "../../src/server/config/paths";
 import { SAMPLE_SPOTIFY } from "./spotifyFakes";
 
@@ -63,16 +64,50 @@ describe("settings.spotify", () => {
     expect(await fs.readFile(settingsFilePath(), "utf-8")).not.toContain("refreshToken");
   });
 
-  it("update() runs writers one at a time, so none is lost", async () => {
+  it("20 updates split across two store instances count exactly 20", async () => {
+    const a = new FileSettingsStore();
+    const b = new FileSettingsStore();
+    await a.get();
+    const bump = (c: Settings): Settings => ({ ...c, sync: { baseUrl: "http://localhost:4000", deviceToken: null, email: null, lastVersion: (c.sync?.lastVersion ?? 0) + 1 } });
+    await Promise.all(Array.from({ length: 20 }, (_, i) => (i % 2 ? a : b).update(bump)));
+    expect((await a.get()).sync?.lastVersion).toBe(20);
+    expect((await fs.stat(settingsFilePath())).mode & 0o777).toBe(0o600);
+  });
+
+  it("first run: a delayed get() and an update() race, and the update survives", async () => {
+    const store = new FileSettingsStore();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const readSpy = vi.spyOn(fs, "readFile").mockImplementationOnce(async () => {
+      await gate;
+      throw Object.assign(new Error("missing"), { code: "ENOENT" });
+    });
+    const first = store.get(); // its read of the missing file is held open
+    const updated = new FileSettingsStore().update((c) => ({ ...c, trackPlays: true }));
+    release();
+    await Promise.all([first, updated]);
+    readSpy.mockRestore();
+    expect((await store.get()).trackPlays).toBe(true);
+  });
+
+  it("corrupt file: a recovery racing an update neither renames the repaired file nor loses the update", async () => {
     const store = new FileSettingsStore();
     await store.get();
-    await Promise.all(
-      Array.from({ length: 20 }, (_, i) =>
-        store.update((c) => ({ ...c, sync: { baseUrl: "http://localhost:4000", deviceToken: null, email: null, lastVersion: Math.max(i, c.sync?.lastVersion ?? 0) } })),
-      ),
-    );
-    expect((await store.get()).sync?.lastVersion).toBe(19);
-    await store.update(() => null);
-    expect((await fs.stat(settingsFilePath())).mode & 0o777).toBe(0o600);
+    await fs.writeFile(settingsFilePath(), "{ not json");
+    const realRename = fs.rename.bind(fs);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const renameSpy = vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+      await gate;
+      return realRename(from, to);
+    });
+    const recovering = store.get(); // renames the bad file, held open
+    const updated = new FileSettingsStore().update((c) => ({ ...c, trackPlays: true }));
+    release();
+    await Promise.all([recovering, updated]);
+    renameSpy.mockRestore();
+    expect((await store.get()).trackPlays).toBe(true);
+    const names = await fs.readdir(path.dirname(settingsFilePath()));
+    expect(names.filter((n) => n.includes(".corrupt-"))).toHaveLength(1);
   });
 });

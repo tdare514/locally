@@ -65,7 +65,13 @@ function exclusive<T>(fn: () => Promise<T>): Promise<T> {
  * created) rather than being an error.
  */
 export class FileSettingsStore implements SettingsStore {
-  async get(): Promise<Settings> {
+  /** Under the same lock as every write: a first-run or recovery write can't land on top of an update. */
+  get(): Promise<Settings> {
+    return exclusive(() => this.readUnlocked());
+  }
+
+  /** Read, creating defaults or recovering a corrupt file. Only call it from inside `exclusive`. */
+  private async readUnlocked(): Promise<Settings> {
     const file = settingsFilePath();
     let raw: string;
     try {
@@ -131,7 +137,7 @@ export class FileSettingsStore implements SettingsStore {
 
   update(mutator: (current: Settings) => Settings | null): Promise<Settings> {
     return exclusive(async () => {
-      const current = await this.get();
+      const current = await this.readUnlocked();
       const next = mutator(current);
       return next ? this.writeSettings(next) : current;
     });
