@@ -4,6 +4,7 @@ import type { PlayCounts } from "../../src/server/plays/PlayCountStore";
 import { buildPlaysSummary, loadPlaysSummary, mergeServerSummary } from "../../src/server/plays/playsSummary";
 import {
   invalidateServerSummary,
+  MAX_SUMMARY_PAGES,
   readServerSummary,
   resetServerSummaryState,
   SUMMARY_BACKOFF_MS,
@@ -239,6 +240,16 @@ describe("readServerSummary state (#202)", () => {
   beforeEach(() => {
     resetServerSummaryState();
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  });
+
+  it("gives null (this Mac only) when pages are still pending after the page guard", async () => {
+    let n = 0;
+    const endless = vi.fn(async () => ({ ...pageOf(1), nextCursor: `c${++n}` }));
+    expect(await readServerSummary(apiOf(endless), "A", "2026-10-01", "2026-10-15", T0)).toBeNull();
+    expect(endless).toHaveBeenCalledTimes(MAX_SUMMARY_PAGES);
+    // Nothing partial was cached: the next read asks again.
+    await readServerSummary(apiOf(endless), "A", "2026-10-01", "2026-10-15", T0 + 1);
+    expect(endless).toHaveBeenCalledTimes(SUMMARY_PAGE_BUDGET); // the hourly page budget stops it
   });
 
   it("a read from a superseded identity neither fills the cache nor backs off the new identity", async () => {

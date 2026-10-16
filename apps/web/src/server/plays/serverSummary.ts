@@ -115,10 +115,13 @@ async function fetchPages(
       const result = await api.playsSummary(from, to, cursor);
       summary.tracks.push(...result.tracks);
       summary.allTime.push(...result.allTime);
-      if (!result.nextCursor) break;
+      if (!result.nextCursor) return summary;
       cursor = result.nextCursor;
     }
-    return summary;
+    // Pages still pending after the guard: a partial summary would silently drop other devices'
+    // plays for the tracks beyond it, so show this Mac only instead.
+    console.warn(`Play summary: more than ${MAX_SUMMARY_PAGES} pages; showing this Mac only`);
+    return null;
   } catch (err) {
     if (err instanceof SyncRequestError && (err.status === 429 || err.status === 404)) {
       state.backoffUntil = nowMs + SUMMARY_BACKOFF_MS;
