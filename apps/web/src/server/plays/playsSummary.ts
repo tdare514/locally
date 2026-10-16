@@ -85,6 +85,8 @@ export function buildPlaysSummary(
  * - `lastPlayedDay`: the later of the two (this Mac's days are a subset of the local ones);
  * - all time: `local + max(0, service - thisMacAllTime)`, `thisMacAllTime` being `pushed` once in sync
  *   and `max(pushed, count)` before.
+ * When the service's entry carries `devicePlays` (#216), that is this Mac's share, exact, in place of
+ * the marker rule above, for the range and for all time; no markers are read for it.
  * A track only the service reports comes in with the service's values. `countingSince` stays this Mac's.
  */
 export function mergeServerSummary(
@@ -104,7 +106,9 @@ export function mergeServerSummary(
     const theirs = serverTracks.get(trackId);
     const entry = counts.tracks[trackId];
     let thisMacInRange = 0;
-    if (entry && theirs) {
+    if (theirs?.devicePlays !== undefined) {
+      thisMacInRange = theirs.devicePlays;
+    } else if (entry && theirs) {
       for (const day in entry.days) {
         if (day < range.from || day > range.to) continue;
         thisMacInRange += entry.pushedDays?.[day] ?? (inSync ? 0 : entry.days[day]);
@@ -124,7 +128,14 @@ export function mergeServerSummary(
     const mine = localAll.get(trackId);
     const theirs = serverAll.get(trackId);
     const entry = counts.tracks[trackId];
-    const thisMacAllTime = entry ? (inSync ? entry.pushed : Math.max(entry.pushed, entry.count)) : 0;
+    const thisMacAllTime =
+      theirs?.devicePlays !== undefined
+        ? theirs.devicePlays
+        : entry
+          ? inSync
+            ? entry.pushed
+            : Math.max(entry.pushed, entry.count)
+          : 0;
     const plays = (mine?.plays ?? 0) + Math.max(0, (theirs?.plays ?? 0) - thisMacAllTime);
     if (plays > 0) allTime.push({ trackId, releaseId: (mine ?? theirs)!.releaseId, plays });
   }

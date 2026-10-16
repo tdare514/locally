@@ -172,27 +172,55 @@ describe("play days", () => {
 
     it("sums across devices for the range, with lastPlayedDay, leaving out days and tracks outside it", async () => {
       await seedTwoDevices();
-      const res = await testServices.plays.summary(alice.userId, "2026-10-05", "2026-10-15");
-      expect(res.tracks).toEqual([{ trackId: trackA, releaseId, plays: 10, lastPlayedDay: "2026-10-14" }]);
+      const res = await testServices.plays.summary(alice.userId, alice.deviceId, "2026-10-05", "2026-10-15");
+      expect(res.tracks).toEqual([{ trackId: trackA, releaseId, plays: 10, devicePlays: 5, lastPlayedDay: "2026-10-14" }]);
       expect(res.allTime).toEqual(
         [
-          { trackId: trackA, releaseId, plays: 15 },
-          { trackId: trackB, releaseId, plays: 4 },
+          { trackId: trackA, releaseId, plays: 15, devicePlays: 10 },
+          { trackId: trackB, releaseId, plays: 4, devicePlays: 4 },
         ].sort((x, y) => (x.trackId < y.trackId ? -1 : 1))
       );
       expect(res.nextCursor).toBeNull();
     });
 
+    it("reports the caller's own share as devicePlays, whichever device calls", async () => {
+      await seedTwoDevices();
+      const mac = await testServices.plays.summary(alice.userId, alice.deviceId, "2026-10-05", "2026-10-15");
+      expect(mac.tracks.map((r) => [r.plays, r.devicePlays])).toEqual([[10, 5]]);
+      expect(mac.allTime.map((r) => [r.trackId, r.plays, r.devicePlays]).sort()).toEqual(
+        [[trackA, 15, 10], [trackB, 4, 4]].sort()
+      );
+      const ios = await testServices.plays.summary(alice.userId, aliceIos.deviceId, "2026-10-05", "2026-10-15");
+      expect(ios.tracks.map((r) => [r.plays, r.devicePlays])).toEqual([[10, 5]]);
+      expect(ios.allTime.map((r) => [r.trackId, r.plays, r.devicePlays]).sort()).toEqual(
+        [[trackA, 15, 5], [trackB, 4, 0]].sort()
+      );
+    });
+
+    it("leaves a revoked device of the caller out of devicePlays but in plays", async () => {
+      await seedTwoDevices();
+      await testServices.auth.revokeDevice(alice.userId, aliceIos.deviceId);
+      const res = await testServices.plays.summary(alice.userId, alice.deviceId, "2026-10-05", "2026-10-15");
+      expect(res.tracks.map((r) => [r.plays, r.devicePlays])).toEqual([[10, 5]]);
+      expect(res.allTime.find((r) => r.trackId === trackA)).toMatchObject({ plays: 15, devicePlays: 10 });
+    });
+
+    it("shows another user's caller no devicePlays of this user's tracks", async () => {
+      await seedTwoDevices();
+      const res = await testServices.plays.summary(bob.userId, bob.deviceId, "2026-09-01", TODAY);
+      expect(res).toEqual({ tracks: [], allTime: [], nextCursor: null });
+    });
+
     it("ignores a zero-count day for lastPlayedDay", async () => {
       await seedTwoDevices();
-      const res = await testServices.plays.summary(alice.userId, "2026-10-13", "2026-10-13");
+      const res = await testServices.plays.summary(alice.userId, alice.deviceId, "2026-10-13", "2026-10-13");
       expect(res.tracks).toEqual([]);
     });
 
     it("excludes tombstoned releases from both lists", async () => {
       await seedTwoDevices();
       await testServices.db.update(releases).set({ deleted: true }).where(eq(releases.id, releaseId));
-      expect(await testServices.plays.summary(alice.userId, "2026-09-01", TODAY)).toEqual({
+      expect(await testServices.plays.summary(alice.userId, alice.deviceId, "2026-09-01", TODAY)).toEqual({
         tracks: [],
         allTime: [],
         nextCursor: null,
@@ -201,7 +229,7 @@ describe("play days", () => {
 
     it("gives another account nothing of this user's tracks", async () => {
       await seedTwoDevices();
-      expect(await testServices.plays.summary(bob.userId, "2026-09-01", TODAY)).toEqual({
+      expect(await testServices.plays.summary(bob.userId, bob.deviceId, "2026-09-01", TODAY)).toEqual({
         tracks: [],
         allTime: [],
         nextCursor: null,
@@ -209,17 +237,17 @@ describe("play days", () => {
     });
 
     it("refuses a reversed range", async () => {
-      await expect(testServices.plays.summary(alice.userId, "2026-10-15", "2026-10-14")).rejects.toThrow(ValidationError);
+      await expect(testServices.plays.summary(alice.userId, alice.deviceId, "2026-10-15", "2026-10-14")).rejects.toThrow(ValidationError);
     });
 
     it("allows exactly 400 days and refuses 401", async () => {
-      await expect(testServices.plays.summary(alice.userId, "2025-09-11", TODAY)).resolves.toBeDefined(); // 400 days
-      await expect(testServices.plays.summary(alice.userId, "2025-09-10", TODAY)).rejects.toThrow(ValidationError); // 401
+      await expect(testServices.plays.summary(alice.userId, alice.deviceId, "2025-09-11", TODAY)).resolves.toBeDefined(); // 400 days
+      await expect(testServices.plays.summary(alice.userId, alice.deviceId, "2025-09-10", TODAY)).rejects.toThrow(ValidationError); // 401
     });
 
     it("allows to = tomorrow and refuses the day after", async () => {
-      await expect(testServices.plays.summary(alice.userId, "2026-10-16", "2026-10-16")).resolves.toBeDefined();
-      await expect(testServices.plays.summary(alice.userId, "2026-10-17", "2026-10-17")).rejects.toThrow(ValidationError);
+      await expect(testServices.plays.summary(alice.userId, alice.deviceId, "2026-10-16", "2026-10-16")).resolves.toBeDefined();
+      await expect(testServices.plays.summary(alice.userId, alice.deviceId, "2026-10-17", "2026-10-17")).rejects.toThrow(ValidationError);
     });
 
     it("pages by track id: 1,000 per page, nextCursor continues, both lists cover the same page", async () => {
@@ -230,14 +258,21 @@ describe("play days", () => {
       await testServices.db.insert(playDays).values(
         ids.map((trackId) => ({ userId: alice.userId, deviceId: alice.deviceId, releaseId, trackId, day: "2026-10-14", count: 1, updatedAt: NOW }))
       );
-      const first = await testServices.plays.summary(alice.userId, "2026-10-14", "2026-10-14");
+      const first = await testServices.plays.summary(alice.userId, alice.deviceId, "2026-10-14", "2026-10-14");
       expect(first.allTime).toHaveLength(1_000);
       expect(first.tracks).toHaveLength(1_000);
       expect(first.nextCursor).toBe(ids[999]);
-      const second = await testServices.plays.summary(alice.userId, "2026-10-14", "2026-10-14", first.nextCursor!);
+      expect(first.tracks.every((r) => r.plays === 1 && r.devicePlays === 1)).toBe(true);
+      expect(first.allTime.every((r) => r.plays === 1 && r.devicePlays === 1)).toBe(true);
+      const second = await testServices.plays.summary(alice.userId, alice.deviceId, "2026-10-14", "2026-10-14", first.nextCursor!);
       expect(second.allTime.map((r) => r.trackId)).toEqual([ids[1_000]]);
       expect(second.tracks.map((r) => r.trackId)).toEqual([ids[1_000]]);
       expect(second.nextCursor).toBeNull();
+      expect(second.tracks[0]).toMatchObject({ plays: 1, devicePlays: 1 });
+      expect(second.allTime[0]).toMatchObject({ plays: 1, devicePlays: 1 });
+      // The other device of the user sees the same pages with no share of its own.
+      const other = await testServices.plays.summary(alice.userId, aliceIos.deviceId, "2026-10-14", "2026-10-14");
+      expect(other.tracks.every((r) => r.plays === 1 && r.devicePlays === 0)).toBe(true);
     });
 
     it("keeps a track's live days when its count row moved to a release that was then tombstoned", async () => {
@@ -249,8 +284,8 @@ describe("play days", () => {
       await push(alice, [{ releaseId: recordB.id, trackId: trackA, count: 4 }]);
       await testServices.db.update(releases).set({ deleted: true }).where(eq(releases.id, recordB.id));
 
-      expect(await testServices.plays.summary(alice.userId, "2026-10-14", "2026-10-14")).toEqual({
-        tracks: [{ trackId: trackA, releaseId, plays: 3, lastPlayedDay: "2026-10-14" }],
+      expect(await testServices.plays.summary(alice.userId, alice.deviceId, "2026-10-14", "2026-10-14")).toEqual({
+        tracks: [{ trackId: trackA, releaseId, plays: 3, devicePlays: 3, lastPlayedDay: "2026-10-14" }],
         allTime: [],
         nextCursor: null,
       });
@@ -278,8 +313,8 @@ describe("play days", () => {
       const res = await get("?from=2026-10-14&to=2026-10-14");
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({
-        tracks: [{ trackId: trackA, releaseId, plays: 2, lastPlayedDay: "2026-10-14" }],
-        allTime: [{ trackId: trackA, releaseId, plays: 2 }],
+        tracks: [{ trackId: trackA, releaseId, plays: 2, devicePlays: 2, lastPlayedDay: "2026-10-14" }],
+        allTime: [{ trackId: trackA, releaseId, plays: 2, devicePlays: 2 }],
         nextCursor: null,
       });
     });
