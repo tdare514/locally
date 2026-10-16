@@ -29,6 +29,7 @@ struct ImportSingleView: View {
                     .importFieldsRow()
                     ClearSectionEnd()
                 }
+                .recordListSection()
 
                 Section {
                     if model.pickedURL != nil, let name = model.pickedName {
@@ -38,6 +39,7 @@ struct ImportSingleView: View {
                         TrackListSilhouette(rows: 1).importPanelRow(.middle)
                     }
                 }
+                .panelListSection()
             }
             .importRecordList(driver: context.driver)
             // Typing mid-beat skips it too (a tag prefill from a picked file is not typing).

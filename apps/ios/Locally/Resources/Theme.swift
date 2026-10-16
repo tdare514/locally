@@ -259,6 +259,14 @@ enum Theme {
         /// A field row's leading inset, so a round first letter (G, S, C, O) that overshoots the
         /// text's left edge isn't clipped by the list cell. Kept to 1 pt so the text still lines up.
         static let inlineFieldOvershoot: CGFloat = 1
+        /// The side margin of every section on the record screens (import and release page), set
+        /// explicitly so the record's rows and the tracks panel line up at every screen width.
+        static let listSideMargin: CGFloat = 16
+        /// The record section's row side inset. On iOS 26 that section is full width (see
+        /// `recordListSection()`) and its rows carry `listSideMargin`; earlier, the list's margin does.
+        static var recordRowSideInset: CGFloat {
+            if #available(iOS 26, *) { listSideMargin } else { 0 }
+        }
         /// Empty-sleeve caption spacing.
         static let sleeveCaptionPadding: CGFloat = 16
         /// The cover sheet's recent covers: square thumbnails in a scrolling row.

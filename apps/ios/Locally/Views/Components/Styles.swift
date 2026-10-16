@@ -460,6 +460,29 @@ struct KindBadge: View {
     }
 }
 
+extension View {
+    /// The record's section (sleeve and fields), full width on iOS 26. A list cell clips what it
+    /// holds, so with the usual 16 pt margin the sleeve's shadow was cut off in a hard vertical
+    /// line 16 pt in from the screen edge; now the cut is at the edge itself. Its rows add
+    /// `Theme.Immersive.recordRowSideInset`, so nothing moves.
+    @ViewBuilder func recordListSection() -> some View {
+        if #available(iOS 26, *) {
+            listSectionMargins(.horizontal, 0)
+        } else {
+            self
+        }
+    }
+
+    /// A panel section beside the record, at `Theme.Immersive.listSideMargin` on every width.
+    @ViewBuilder func panelListSection() -> some View {
+        if #available(iOS 26, *) {
+            listSectionMargins(.horizontal, Theme.Immersive.listSideMargin)
+        } else {
+            self
+        }
+    }
+}
+
 /// An empty last row for a section of clear rows. An inset-grouped list rounds the corners of a
 /// section's last cell and clips what that cell holds, which cut the bottom-left off the first
 /// letter of the last field (the G of "Genre"). This zero-height row takes the rounding instead.

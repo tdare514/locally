@@ -60,6 +60,7 @@ struct ReleaseDetailView: View {
                     fields(model)
                     ClearSectionEnd()
                 }
+                .recordListSection()
 
                 Section {
                     tracksHeader(model.trackRows.count).panelRow(.top)
@@ -70,6 +71,7 @@ struct ReleaseDetailView: View {
                     messages(model)
                     deleteButton.panelRow(.bottom)
                 }
+                .panelListSection()
             }
             .listStyle(.insetGrouped)
             .listSectionSpacing(.custom(Theme.Spacing.editorSectionGap))
@@ -282,7 +284,12 @@ private extension View {
     func clearRow(top: CGFloat, bottom: CGFloat) -> some View {
         listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: top, leading: 0, bottom: bottom, trailing: 0))
+            .listRowInsets(EdgeInsets(
+                top: top,
+                leading: Theme.Immersive.recordRowSideInset,
+                bottom: bottom,
+                trailing: Theme.Immersive.recordRowSideInset
+            ))
     }
 
     /// A row of a panel card.

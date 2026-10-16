@@ -36,6 +36,7 @@ struct AlbumBuilderView: View {
                     .importFieldsRow()
                     ClearSectionEnd()
                 }
+                .recordListSection()
 
                 Section {
                     ImportTracksHeader().importPanelRow(.top)
@@ -73,6 +74,7 @@ struct AlbumBuilderView: View {
                     }
                     ImportAddTrackButton(action: context.onAddTrack).importPanelRow(.bottom)
                 }
+                .panelListSection()
             }
             .importRecordList(driver: context.driver)
             // Typing mid-beat skips it too (a tag prefill from a picked file is not typing).

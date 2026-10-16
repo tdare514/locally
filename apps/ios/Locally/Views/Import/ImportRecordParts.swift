@@ -84,7 +84,12 @@ extension View {
     func importClearRow(top: CGFloat = 0, bottom: CGFloat = 0) -> some View {
         listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: top, leading: 0, bottom: bottom, trailing: 0))
+            .listRowInsets(EdgeInsets(
+                top: top,
+                leading: Theme.Immersive.recordRowSideInset,
+                bottom: bottom,
+                trailing: Theme.Immersive.recordRowSideInset
+            ))
     }
 
     /// A row of inline fields. The list's cell clips at its edge and the round first letters of a
@@ -264,6 +269,11 @@ private struct ImportFieldsRow: ViewModifier {
         content
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 0, leading: overshoot, bottom: 0, trailing: 0))
+            .listRowInsets(EdgeInsets(
+                top: 0,
+                leading: Theme.Immersive.recordRowSideInset + overshoot,
+                bottom: 0,
+                trailing: Theme.Immersive.recordRowSideInset
+            ))
     }
 }
