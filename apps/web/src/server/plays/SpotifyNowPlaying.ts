@@ -15,7 +15,13 @@ export type NowPlayingSample =
 
 export type NowPlayingError = { error: "permission-denied" } | { error: "failed" };
 
-export type NowPlayingResult = NowPlayingSample | NowPlayingError;
+/**
+ * `{ hold: true }`: the account source is down and this Mac isn't actively playing a local file, so
+ * the sample says nothing about the account's session. The tracker feeds the counter nothing (#228).
+ */
+export type NowPlayingHold = { hold: true };
+
+export type NowPlayingResult = NowPlayingSample | NowPlayingError | NowPlayingHold;
 
 /**
  * Reads the Spotify desktop app's current track. Behind an interface so tests use a fake

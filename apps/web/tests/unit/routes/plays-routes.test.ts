@@ -9,6 +9,8 @@ import { FakePlayCountStore } from "../FakePlayCountStore";
 
 let services: Services;
 let status: PlaysStatus;
+let source: "account" | "this-mac";
+let fallingBack: boolean;
 let playStore: FakePlayCountStore;
 let settingsValue: Settings;
 let liveReleases: Release[];
@@ -28,6 +30,8 @@ const TRACK = "a1b2c3d4-0001-4a5b-8c9d-0123456789ab";
 
 beforeEach(() => {
   status = "off";
+  source = "this-mac";
+  fallingBack = false;
   playStore = new FakePlayCountStore();
   settingsValue = { libraryDir: "/tmp/lib", sync: null };
   liveReleases = [];
@@ -35,6 +39,7 @@ beforeEach(() => {
   syncApiFactory = vi.fn(() => ({ releasePlays }) as unknown as SyncApi);
   services = {
     playTracker: { status: () => status },
+    nowPlaying: { currentSource: () => source, fallingBack: () => fallingBack },
     playStore,
     library: { list: async () => liveReleases },
     settings: { get: async () => settingsValue, set: async (s: Settings) => s, update: async (m: (c: Settings) => Settings | null) => m(settingsValue) ?? settingsValue },
@@ -48,8 +53,17 @@ describe("GET /api/plays/status", () => {
       status = s;
       const res = await GET();
       expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ status: s });
+      expect(await res.json()).toEqual({ status: s, source: "this-mac", fallingBack: false });
     }
+  });
+
+  it("returns the source and whether it is falling back (#228)", async () => {
+    status = "on";
+    source = "account";
+    expect(await (await GET()).json()).toEqual({ status: "on", source: "account", fallingBack: false });
+    source = "this-mac";
+    fallingBack = true;
+    expect(await (await GET()).json()).toEqual({ status: "on", source: "this-mac", fallingBack: true });
   });
 });
 

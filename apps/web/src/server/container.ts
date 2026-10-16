@@ -23,6 +23,8 @@ import { OsascriptNowPlaying } from "./plays/OsascriptNowPlaying";
 import { PlayTracker } from "./plays/PlayTracker";
 import type { ReleaseSyncHooks } from "./releases/ReleaseSyncHooks";
 import { SpotifyAuth } from "./spotify/SpotifyAuth";
+import { SwitchingNowPlaying } from "./plays/SwitchingNowPlaying";
+import { WebApiNowPlaying } from "./plays/WebApiNowPlaying";
 import { SpotifyClient } from "./spotify/SpotifyClient";
 import { SPOTIFY_CLIENT_ID } from "./spotify/config";
 import { PlaylistIndex } from "./spotify/PlaylistIndex";
@@ -49,6 +51,7 @@ export interface Services {
   playlistIndex: PlaylistIndex;
   playStore: PlayCountStore;
   playTracker: PlayTracker;
+  nowPlaying: SwitchingNowPlaying;
   adopt: AdoptService;
 }
 
@@ -89,13 +92,18 @@ function buildServices(): Services {
   syncEngine.startPolling();
 
   // Opt-in Spotify play tracker (#106): only polls while Settings > trackPlays is on.
-  const playTracker = new PlayTracker(new OsascriptNowPlaying(), settings, library, playStore);
+  // With "Count plays on my other devices" on, the Spotify account is the one source (#228).
+  const spotifyClient = new SpotifyClient({ settings, clientId: SPOTIFY_CLIENT_ID });
+  const nowPlaying = new SwitchingNowPlaying({
+    web: new WebApiNowPlaying(spotifyClient),
+    appleScript: new OsascriptNowPlaying(),
+    settings,
+  });
+  const playTracker = new PlayTracker(nowPlaying, settings, library, playStore);
   settings
     .get()
     .then((s) => playTracker.setEnabled(s.trackPlays === true))
     .catch(() => undefined);
-
-  const spotifyClient = new SpotifyClient({ settings, clientId: SPOTIFY_CLIENT_ID });
 
   return {
     settings,
@@ -115,6 +123,7 @@ function buildServices(): Services {
     playlistIndex: new PlaylistIndex({ client: spotifyClient, store: new FilePlaylistCacheStore(), settings, library }),
     playStore,
     playTracker,
+    nowPlaying,
     adopt: new AdoptService({ settings, library, fs, proposals: new FileAdoptProposalStore() }),
   };
 }

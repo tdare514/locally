@@ -7,6 +7,7 @@ import {
   deleteSyncAccount,
   disconnectSpotify,
   getPlaysStatus,
+  putCountOtherDevices,
   getSettings,
   getSpotifyConnection,
   getSpotifySource,
@@ -108,6 +109,10 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
   const [trackPlays, setTrackPlays] = useState(false);
   const [savingTrackPlays, setSavingTrackPlays] = useState(false);
   const [playsStatus, setPlaysStatus] = useState<PlaysStatus>("off");
+  const [countOtherDevices, setCountOtherDevices] = useState(false);
+  const [savingOtherDevices, setSavingOtherDevices] = useState(false);
+  const [playsSource, setPlaysSource] = useState<"account" | "this-mac">("this-mac");
+  const [playsFallingBack, setPlaysFallingBack] = useState(false);
 
   // While counting is on: read the tracker status now, after toggling, and every 10 s.
   useEffect(() => {
@@ -116,7 +121,10 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
     const refresh = () => {
       getPlaysStatus()
         .then((r) => {
-          if (!cancelled) setPlaysStatus(r.status);
+          if (cancelled) return;
+          setPlaysStatus(r.status);
+          setPlaysSource(r.source);
+          setPlaysFallingBack(r.fallingBack);
         })
         .catch(() => {
           // Status line is a nice-to-have; keep the last known value.
@@ -128,7 +136,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
       cancelled = true;
       clearInterval(timer);
     };
-  }, [trackPlays]);
+  }, [trackPlays, countOtherDevices]);
 
   // The Spotify connection (#239). null: not loaded yet, or this build doesn't offer it (row hidden).
   const [spotify, setSpotify] = useState<SpotifyConnectionStatus | null>(null);
@@ -206,6 +214,9 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
     }
   }
 
+  const showOtherDevicesRow = HAS_SPOTIFY_CONNECTION && spotify?.connected === true && trackPlays;
+  const otherDevicesOn = showOtherDevicesRow && countOtherDevices;
+
   async function handleToggleTrackPlays() {
     const next = !trackPlays;
     setSavingTrackPlays(true);
@@ -220,11 +231,24 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
     }
   }
 
+  async function handleToggleCountOtherDevices() {
+    setSavingOtherDevices(true);
+    try {
+      const updated = await putCountOtherDevices(!countOtherDevices);
+      setCountOtherDevices(updated.countOtherDevices);
+    } catch (e) {
+      onToast("error", e instanceof Error ? e.message : "Failed to save setting");
+    } finally {
+      setSavingOtherDevices(false);
+    }
+  }
+
   useEffect(() => {
     getSettings()
       .then((s) => {
         setLibraryDir(s.libraryDir);
         setTrackPlays(s.trackPlays);
+        setCountOtherDevices(s.countOtherDevices);
       })
       .catch((e) =>
         onToast("error", e instanceof Error ? e.message : "Failed to load settings")
@@ -450,11 +474,45 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
             </button>
           </div>
           <p className="text-xs text-text-dim">
-            Counts a Locally track once it has played 30 seconds in Spotify. Plays on your other
-            devices count while Spotify is open on this Mac.
+            {otherDevicesOn
+              ? "Counts a Locally track once it has played 30 seconds in Spotify, on any of your devices."
+              : showOtherDevicesRow
+                ? "Counts a Locally track once it has played 30 seconds in Spotify on this Mac, or on another device while Spotify is open here."
+                : "Counts a Locally track once it has played 30 seconds in Spotify. Plays on your other devices count while Spotify is open on this Mac."}
           </p>
-          {trackPlays && playsStatus === "spotify-not-running" && (
+          {showOtherDevicesRow && (
+            <>
+              <div className="flex items-center justify-between gap-4">
+                <span id="count-other-devices-label" className="text-sm text-text-muted">
+                  Count plays on my other devices
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={countOtherDevices}
+                  aria-labelledby="count-other-devices-label"
+                  onClick={handleToggleCountOtherDevices}
+                  disabled={loading || savingOtherDevices}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40 ${
+                    countOtherDevices ? "bg-accent text-black" : "bg-elevated-hover text-text-dim hover:text-text-muted"
+                  }`}
+                >
+                  {countOtherDevices ? "On" : "Off"}
+                </button>
+              </div>
+              <p className="text-xs text-text-dim">
+                Counts what you play on your phone and other computers through your Spotify account, while
+                Locally is running on this Mac and the Mac is awake. Plays while the Mac sleeps aren&apos;t counted.
+              </p>
+            </>
+          )}
+          {trackPlays && playsStatus === "spotify-not-running" && playsSource === "this-mac" && (
             <p className="text-sm text-text-muted">Spotify isn&apos;t running.</p>
+          )}
+          {trackPlays && playsFallingBack && (
+            <p className="text-sm text-text-muted">
+              Can&apos;t reach your Spotify account right now, so only this Mac&apos;s plays count until it&apos;s back.
+            </p>
           )}
           {trackPlays && playsStatus === "permission-denied" && (
             <p className="text-sm text-danger">
