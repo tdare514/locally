@@ -34,9 +34,9 @@ describe("fileNameSchema", () => {
     expect(fileNameSchema.safeParse("script.exe").success).toBe(false);
   });
 
-  it("rejects a name longer than 200 characters", () => {
-    const long = `${"a".repeat(201)}.mp3`;
-    expect(fileNameSchema.safeParse(long).success).toBe(false);
+  it("accepts 255 bytes and rejects a name over 255 bytes (#87)", () => {
+    expect(fileNameSchema.safeParse(`${"a".repeat(251)}.mp3`).success).toBe(true);
+    expect(fileNameSchema.safeParse(`${"a".repeat(252)}.mp3`).success).toBe(false);
   });
 });
 

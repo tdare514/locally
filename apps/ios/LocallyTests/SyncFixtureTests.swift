@@ -80,4 +80,21 @@ struct SyncFixtureTests {
     func rejectsInvalidFixture(name: String) {
         #expect(!Self.clientAccepts(name), "expected \(name) to be rejected")
     }
+
+    /// #87: the extension list and byte limit are the ones in `spec/sync-file-names.json`.
+    @Test func fileNameRulesEqualTheSpecJSON() throws {
+        let url = Self.fixturesDir
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("sync-file-names.json")
+        let object = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        #expect(SyncFileName.supportedExtensions == object["extensions"] as? [String])
+        #expect(ReleaseLayout.maxPlainFileNameLength == object["maxNameBytes"] as? Int)
+    }
+
+    /// #87: the limit counts UTF-8 bytes, not characters.
+    @Test func nameLimitCountsUTF8Bytes() {
+        #expect(ReleaseLayout.isPlainFileName(String(repeating: "あ", count: 85)))
+        #expect(!ReleaseLayout.isPlainFileName(String(repeating: "あ", count: 86)))
+    }
 }

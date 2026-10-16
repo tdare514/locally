@@ -35,7 +35,12 @@ Identical to the shared metadata model plus sync fields. `tracks[].file` names t
 object; the name never changes after upload (Spotify playlists depend on file names on both
 devices, and both apps re-tag in place). `tracks[].file` and `cover` end in one of `mp3`,
 `m4a`, `jpg`, `jpeg`, `png` (case-insensitive: the name's last `.`-suffix, compared in lower
-case). The API refuses any other name with a 400. Both clients skip such a record when it arrives
+case). A file name (`tracks[].file`, `cover`) is a plain child name of at most 255 UTF-8 bytes (the
+filesystem limit, counted in bytes, not characters). The list and the limit are in
+`spec/sync-file-names.json`, and each app's tests assert its own constants equal it. The API
+refuses any other name with a 400, except that a name over 255 bytes already stored on that release
+is accepted again on a re-push of it (records saved before the byte limit, #87); a new over-long name
+is refused. Both clients skip such a record when it arrives
 in a `GET /v1/releases` page (the rest of the page is still applied and the cursor advances past
 it), and never use any file name in it; a structurally broken record, such as one missing a field,
 still fails the whole page.
