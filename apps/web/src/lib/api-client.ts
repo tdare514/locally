@@ -12,6 +12,7 @@ import type {
   SyncStatus,
   SpotifySourceStatus,
   PlaysStatusResponse,
+  SpotifyConnectionStatus,
   PlaysSummaryResponse,
   ReleasePlaysResponse,
 } from "../shared/types";
@@ -230,6 +231,24 @@ export async function deleteRelease(id: string): Promise<{ ok: true }> {
 export async function getSpotifySource(): Promise<SpotifySourceStatus> {
   const res = await fetch("/api/spotify/source");
   return handle<SpotifySourceStatus>(res);
+}
+
+/** The Spotify connection, or null when this build doesn't offer it (the route answers 404). */
+export async function getSpotifyConnection(): Promise<SpotifyConnectionStatus | null> {
+  const res = await fetch("/api/spotify/connection");
+  if (res.status === 404) return null;
+  return handle<SpotifyConnectionStatus>(res);
+}
+
+export async function startSpotifyAuth(): Promise<{ authorizeUrl: string }> {
+  const res = await fetch("/api/spotify/auth/start", { method: "POST" });
+  return handle<{ authorizeUrl: string }>(res);
+}
+
+/** Disconnect, or cancel a sign-in that is waiting. */
+export async function disconnectSpotify(): Promise<SpotifyConnectionStatus> {
+  const res = await fetch("/api/spotify/connection", { method: "DELETE" });
+  return handle<SpotifyConnectionStatus>(res);
 }
 
 export async function dismissSpotifySource(): Promise<SpotifySourceStatus> {

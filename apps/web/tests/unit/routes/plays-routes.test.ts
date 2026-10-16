@@ -37,7 +37,7 @@ beforeEach(() => {
     playTracker: { status: () => status },
     playStore,
     library: { list: async () => liveReleases },
-    settings: { get: async () => settingsValue, set: async (s: Settings) => s },
+    settings: { get: async () => settingsValue, set: async (s: Settings) => s, update: async (m: (c: Settings) => Settings | null) => m(settingsValue) ?? settingsValue },
     syncApiFactory,
   } as unknown as Services;
 });

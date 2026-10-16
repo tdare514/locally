@@ -24,6 +24,11 @@ class FakeSettingsStore implements SettingsStore {
     this.settings = settings;
     return settings;
   }
+  async update(mutator: (current: Settings) => Settings | null): Promise<Settings> {
+    const next = mutator(this.settings);
+    if (next) this.settings = next;
+    return this.settings;
+  }
 }
 
 /** In-memory `LibraryRepository` fake, scoped by libraryDir like the real one. */
@@ -368,7 +373,7 @@ describe2("ReleaseService import rollback", () => {
       remove: async (_d, id) => { const i = store.findIndex((r) => r.id === id); return i >= 0 ? store.splice(i, 1)[0] : null; },
     };
     const svc = new RS(
-      { get: async () => ({ libraryDir, sync: null }), set: async (s) => s },
+      { get: async () => ({ libraryDir, sync: null }), set: async (s) => s, update: async (m) => m({ libraryDir, sync: null }) ?? { libraryDir, sync: null } },
       repo,
       { toMp3: async () => { throw new Error("boom"); } },
       { write: async () => undefined, read: async () => ({ title: null, artist: null, album: null, year: null, genre: null, durationSec: null, hasCover: false }) },

@@ -22,10 +22,10 @@ export async function POST(request: NextRequest) {
     const api = services.syncApiFactory(baseUrl, null);
     const result = await api.verifyCode(body.email.trim(), body.code.trim(), os.hostname(), "mac");
 
-    const updated = await services.settings.set({
-      ...settings,
+    const updated = await services.settings.update((current) => ({
+      ...current,
       sync: { baseUrl, deviceToken: result.token, email: result.user.email, lastVersion: 0 },
-    });
+    }));
 
     // Kick off a reconcile right away so the UI doesn't wait for the next
     // 30s poll to see the first push/pull; errors land on the status object.

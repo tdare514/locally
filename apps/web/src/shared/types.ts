@@ -54,11 +54,37 @@ export interface SyncSettings {
   lastVersion: number;
 }
 
+/**
+ * The Spotify connection (#239). Secrets: like `SyncSettings.deviceToken`, this lives only in
+ * the server-side settings file and is never sent to the browser or the sync API.
+ */
+export interface SpotifySettings {
+  accessToken: string;
+  accessTokenExpiresAt: number;  // epoch ms
+  refreshToken: string;
+  revision: string;  // random id per connect; a refresh only writes to the connection it started from
+  scopes: string[];
+  userId: string;
+  displayName: string;
+  connectedAt: string;  // ISO timestamp
+}
+
+/** Response shape for GET/DELETE /api/spotify/connection: no tokens. */
+export interface SpotifyConnectionStatus {
+  available: boolean;
+  connected: boolean;
+  displayName: string | null;
+  scopes: string[];
+  pending: boolean;
+  error: string | null;
+}
+
 export interface Settings {
   libraryDir: string;    // where tagged files are written; Spotify should be pointed at this folder
   sync: SyncSettings | null;
   spotifySourceDismissed?: boolean;  // user clicked "Done, I added it" on the Spotify source prompt
   trackPlays?: boolean;  // opt-in: count plays of Locally tracks in Spotify on this Mac (#106); default false
+  spotify?: SpotifySettings;  // the Spotify connection (#239); absent when disconnected
   playsPromptAnswered?: boolean;  // user answered the one-time "Count your Spotify plays?" card, either button (#110)
 }
 

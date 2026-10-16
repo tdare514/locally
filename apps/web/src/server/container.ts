@@ -22,6 +22,9 @@ import type { PlayCountStore } from "./plays/PlayCountStore";
 import { OsascriptNowPlaying } from "./plays/OsascriptNowPlaying";
 import { PlayTracker } from "./plays/PlayTracker";
 import type { ReleaseSyncHooks } from "./releases/ReleaseSyncHooks";
+import { SpotifyAuth } from "./spotify/SpotifyAuth";
+import { SpotifyClient } from "./spotify/SpotifyClient";
+import { SPOTIFY_CLIENT_ID } from "./spotify/config";
 import { isDemo } from "./demo";
 
 export interface Services {
@@ -37,6 +40,8 @@ export interface Services {
   syncApiFactory: SyncApiFactory;
   syncEngine: SyncEngine;
   spotify: SpotifySourceDetector;
+  spotifyAuth: SpotifyAuth;
+  spotifyClient: SpotifyClient;
   playStore: PlayCountStore;
   playTracker: PlayTracker;
 }
@@ -97,6 +102,8 @@ function buildServices(): Services {
     syncApiFactory,
     syncEngine,
     spotify: new LocalFilesIndexDetector(),
+    spotifyAuth: new SpotifyAuth({ settings, clientId: SPOTIFY_CLIENT_ID }),
+    spotifyClient: new SpotifyClient({ settings, clientId: SPOTIFY_CLIENT_ID }),
     playStore,
     playTracker,
   };

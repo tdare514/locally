@@ -122,6 +122,38 @@ in the local settings file managed by `FileSettingsStore`
 `Authorization: Bearer` header. Requiring HTTPS for non-loopback base URLs and clearing the
 token when the base URL changes are tracked in #11.
 
+### Spotify connection
+
+The Mac app can connect to the user's Spotify account (#239, `apps/web/src/server/spotify/`).
+
+- **Sign-in:** OAuth authorization code with PKCE (S256). Each sign-in gets a random 64-character
+  verifier and a random 16-byte `state`, held in memory only, for one sign-in at a time. A callback
+  with a missing, unknown or already-used `state`, or with an `error`, stores nothing. The `state`
+  is consumed before the code is exchanged, so it works once. There is no client secret; the
+  client id is public.
+- **Redirect:** Spotify only accepts the registered `http://127.0.0.1:8888/callback`. Sign-in opens
+  a one-shot HTTP listener bound to `127.0.0.1:8888` only. It answers `GET /callback` (anything
+  else is a 404), and closes after the first callback with the right `state` or after 10 minutes.
+  If the port is busy, sign-in fails with a message instead of waiting.
+- **Scopes:** read-only: `playlist-read-private`, `playlist-read-collaborative`,
+  `user-read-playback-state`. No `playlist-modify`, no library or streaming scopes.
+- **Tokens:** the access and refresh tokens are in `settings.spotify`, in the same mode 0600 file as
+  the sync device token (`FileSettingsStore`). They are never logged, never put in an error or an
+  API response (`GET /api/spotify/connection` has the name and scopes only), and are sent only to
+  `accounts.spotify.com` and `api.spotify.com`, never to the sync API.
+- **Disconnect:** Settings deletes the `spotify` block and stops any pending sign-in. Spotify has no
+  revoke call for PKCE tokens, so Settings links to https://www.spotify.com/account/apps/ to
+  remove Locally's access completely.
+- **Off switch:** with no client id or `HAS_SPOTIFY_CONNECTION` off, the `/api/spotify/connection`
+  and `/api/spotify/auth` routes answer 404. In the demo build a GET answers 404 too, and a POST or
+  DELETE is refused with 403 by `proxy.ts` before the route runs.
+- **Host check:** the callback listener answers 400 to any request whose `Host` is not exactly
+  `127.0.0.1:8888`, so a rebinding page can't reach it, and the request doesn't touch the pending sign-in.
+- **Settings writes:** every settings writer goes through `SettingsStore.update`, one at a time per
+  process, so a disconnect can't lose to a late callback write and no save writes back an old token.
+  Each stored connection has a random `revision`; a token refresh only writes to (or deletes) the
+  connection it started from, so it can't overwrite a newer sign-in.
+
 ## apps/api
 
 Unlike `apps/web`, this is a multi-tenant network service (the hosted sync backend
