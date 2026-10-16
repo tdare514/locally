@@ -14,6 +14,7 @@ struct SyncEngineTests {
         let account: InMemorySyncAccountStore
         let outbox: any SyncOutbox
         let engine: SyncEngine
+        let defaults: UserDefaults
     }
 
     /// Marks `release` as already pushed, without an actual network round
@@ -56,12 +57,13 @@ struct SyncEngineTests {
         outbox: any SyncOutbox = InMemorySyncOutbox(),
         api: FakeSyncApi = FakeSyncApi(),
         account: InMemorySyncAccountStore? = nil,
+        defaults: UserDefaults = UserDefaults(suiteName: UUID().uuidString)!,
+        coverStore: FakeCoverStore = FakeCoverStore(),
         now: @escaping () -> Date = { Date() }
     ) -> Harness {
         let folderDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let folder = FakeSpotifyFolder(directory: folderDir)
         let tagWriter = FakeTagWriter()
-        let coverStore = FakeCoverStore()
         let coordinator = ReleaseCoordinator(
             importer: FakeFileImporter(),
             transcoder: FakeTranscoder(),
@@ -79,8 +81,8 @@ struct SyncEngineTests {
             resolvedAccount = InMemorySyncAccountStore()
             resolvedAccount.save(email: "toby@example.com", deviceToken: "test-token", deviceId: "device-1")
         }
-        let engine = SyncEngine(api: api, account: resolvedAccount, library: library, coordinator: coordinator, coverStore: coverStore, outbox: outbox, now: now, deviceName: { "Toby's iPhone" }, defaults: UserDefaults(suiteName: UUID().uuidString)!)
-        return Harness(coordinator: coordinator, folder: folder, library: library, tagWriter: tagWriter, coverStore: coverStore, api: api, account: resolvedAccount, outbox: outbox, engine: engine)
+        let engine = SyncEngine(api: api, account: resolvedAccount, library: library, coordinator: coordinator, coverStore: coverStore, outbox: outbox, now: now, deviceName: { "Toby's iPhone" }, defaults: defaults)
+        return Harness(coordinator: coordinator, folder: folder, library: library, tagWriter: tagWriter, coverStore: coverStore, api: api, account: resolvedAccount, outbox: outbox, engine: engine, defaults: defaults)
     }
 
     // MARK: - Outbox failures
@@ -1002,6 +1004,148 @@ struct SyncEngineTests {
         #expect(entries.count == 1)
         #expect(entries.first?.releaseId == id)
         #expect(entries.first?.operation == .delete)
+    }
+
+    // MARK: - Restart keeps the tray and failed covers (#276)
+
+    private func macRecord(id: UUID = UUID(), cover: String? = nil, source: ReleaseSource? = nil, origin: String = "mac") -> SyncRecord {
+        SyncRecord(
+            id: id.uuidString,
+            kind: "single",
+            title: "Mac Song",
+            artist: "Mac Artist",
+            cover: cover,
+            tracks: [SyncTrack(id: UUID().uuidString, title: "Mac Song", trackNumber: 1, file: "Mac Artist - Mac Song - 01.mp3", bytes: 6, durationSec: nil)],
+            origin: origin,
+            originDevice: "Toby's MacBook",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            source: source
+        )
+    }
+
+    /// A second engine over the same account, library, outbox, cover store,
+    /// defaults and api: what the app looks like after a restart.
+    private func restarted(_ h: Harness) -> Harness {
+        makeHarness(library: h.library, outbox: h.outbox, api: h.api, account: h.account, defaults: h.defaults, coverStore: h.coverStore)
+    }
+
+    @Test func aRestartKeepsTheDevicesTray() async throws {
+        let h = makeHarness()
+        let record = macRecord()
+        h.api.seed(record)
+        await h.engine.reconcile()
+        #expect(h.engine.status.pendingFromMac.map(\.id) == [record.id])
+
+        let after = restarted(h)
+        #expect(after.engine.status.pendingFromMac.map(\.id) == [record.id])
+        #expect(after.engine.status.pendingFromMac.first?.title == "Mac Song")
+    }
+
+    @Test func aRestartKeepsFailedAdoptedCoversAndRetriesThemOnTheFirstReconcile() async throws {
+        let h = makeHarness()
+        let record = macRecord(cover: "cover.jpg", source: .adopted)
+        let id = try #require(UUID(uuidString: record.id))
+        h.api.seed(record)
+        h.api.fileContents["cover.jpg"] = Data([0xFF, 0xD8, 0xFF, 0xE0])
+        h.api.downloadFailCountRemaining["cover.jpg"] = 1
+        await h.engine.reconcile()
+        #expect(h.engine.status.failedCoverUpdates.keys.contains(record.id))
+        #expect(h.coverStore.load(id) == nil)
+
+        let after = restarted(h)
+        #expect(after.engine.status.failedCoverUpdates.keys.contains(record.id))
+        await after.engine.reconcile()
+        #expect(after.coverStore.load(id) == Data([0xFF, 0xD8, 0xFF, 0xE0]))
+        #expect(after.engine.status.failedCoverUpdates.isEmpty)
+        #expect(after.defaults.data(forKey: SyncEngine.failedCoverUpdatesKey) == nil)
+    }
+
+    @Test func acceptingAPendingRecordRemovesItFromThePersistedList() async throws {
+        let h = makeHarness()
+        let record = macRecord()
+        h.api.seed(record)
+        await h.engine.reconcile()
+        #expect(h.defaults.data(forKey: SyncEngine.pendingFromMacKey) != nil)
+
+        await h.engine.acceptFromMac(record.id)
+        #expect(h.engine.status.pendingFromMac.isEmpty)
+
+        let after = restarted(h)
+        #expect(after.engine.status.pendingFromMac.isEmpty)
+        #expect(h.defaults.data(forKey: SyncEngine.pendingFromMacKey) == nil)
+    }
+
+    @Test func signOutClearsBothPersistedLists() async throws {
+        let h = makeHarness()
+        h.api.seed(macRecord())
+        h.api.seed(macRecord(cover: "cover.jpg", source: .adopted))
+        h.api.downloadFailCountRemaining["cover.jpg"] = 1
+        await h.engine.reconcile()
+        #expect(h.defaults.data(forKey: SyncEngine.pendingFromMacKey) != nil)
+        #expect(h.defaults.data(forKey: SyncEngine.failedCoverUpdatesKey) != nil)
+
+        await h.engine.signOut()
+
+        #expect(h.engine.status.pendingFromMac.isEmpty)
+        #expect(h.engine.status.failedCoverUpdates.isEmpty)
+        #expect(h.defaults.data(forKey: SyncEngine.pendingFromMacKey) == nil)
+        #expect(h.defaults.data(forKey: SyncEngine.failedCoverUpdatesKey) == nil)
+    }
+
+    @Test func aRestoredPendingEntryAlreadyInTheLibraryIsDroppedAndABadBlobIsRemoved() async throws {
+        let h = makeHarness()
+        let record = macRecord()
+        h.api.seed(record)
+        await h.engine.reconcile()
+        await h.engine.acceptFromMac(record.id)
+        // Put the accepted record back into the persisted list, as a crash between accept steps would.
+        h.defaults.set(try JSONEncoder.syncApi.encode([record]), forKey: SyncEngine.pendingFromMacKey)
+        h.defaults.set(Data("not json".utf8), forKey: SyncEngine.failedCoverUpdatesKey)
+
+        let after = restarted(h)
+
+        #expect(after.engine.status.pendingFromMac.isEmpty)
+        #expect(after.engine.status.failedCoverUpdates.isEmpty)
+        #expect(h.defaults.data(forKey: SyncEngine.failedCoverUpdatesKey) == nil)
+    }
+
+    @Test func theV2RefetchPullsFromZeroOnceThenFromLastVersion() async throws {
+        let h = makeHarness()
+        let tray = macRecord()
+        let adopted = macRecord(cover: "cover.jpg", source: .adopted)
+        let adoptedId = try #require(UUID(uuidString: adopted.id))
+        h.api.seed(tray)
+        h.api.seed(adopted)
+        h.api.fileContents["cover.jpg"] = Data([0xFF, 0xD8, 0xFF, 0xE0])
+        // A phone already past v1: flag set, cursor moved on, tray and cover lost.
+        h.defaults.set(true, forKey: SyncEngine.adoptedCoverRefetchKey)
+        h.account.lastVersion = 2
+
+        await h.engine.reconcile()
+
+        #expect(h.api.releasesSinceVersions.first == 0)
+        #expect(h.engine.status.pendingFromMac.map(\.id) == [tray.id])
+        #expect(h.coverStore.load(adoptedId) == Data([0xFF, 0xD8, 0xFF, 0xE0]))
+        #expect(h.defaults.bool(forKey: SyncEngine.fullRefetchKey))
+
+        await h.engine.reconcile()
+        #expect(h.api.releasesSinceVersions.last == h.account.lastVersion)
+        #expect(h.api.releasesSinceVersions.count == 2)
+    }
+
+    @Test func theV2FlagIsNotSetWhenThePullFails() async throws {
+        let h = makeHarness()
+        h.api.seed(macRecord())
+        h.api.releasesFailOnCall = (callNumber: 1, error: SyncApiError.network("down"))
+
+        await h.engine.reconcile()
+        #expect(!h.defaults.bool(forKey: SyncEngine.fullRefetchKey))
+
+        await h.engine.reconcile()
+        #expect(h.api.releasesSinceVersions == [0, 0])
+        #expect(h.defaults.bool(forKey: SyncEngine.fullRefetchKey))
+        #expect(h.defaults.bool(forKey: SyncEngine.adoptedCoverRefetchKey))
     }
 
     @Test func signOutEmptiesTheOutbox() async throws {

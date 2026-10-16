@@ -168,6 +168,52 @@ final class SyncEngine: ReleaseSyncHook {
         status.signedIn = account.deviceToken != nil
         status.email = account.email
         status.deviceName = account.deviceName
+        if account.deviceToken != nil { restoreSyncQueues() }
+    }
+
+    // MARK: - Persisted queues
+
+    static let pendingFromMacKey = "com.tdare.locally.sync.pendingFromMac.v1"
+    static let failedCoverUpdatesKey = "com.tdare.locally.sync.failedCoverUpdates.v1"
+
+    /// Brings back the tray and the failed covers after a restart. The pull
+    /// cursor has moved past these records, so nothing else would re-offer
+    /// them. A blob that does not decode is removed, never fatal. Pending
+    /// entries already in the library are dropped.
+    private func restoreSyncQueues() {
+        let decoder = JSONDecoder.syncApi
+        if let data = defaults.data(forKey: Self.pendingFromMacKey) {
+            if let records = try? decoder.decode([SyncRecord].self, from: data) {
+                let localIds = Set((try? library.all())?.map { $0.id.uuidString.lowercased() } ?? [])
+                status.pendingFromMac = records.filter { !localIds.contains($0.id.lowercased()) }
+            } else {
+                defaults.removeObject(forKey: Self.pendingFromMacKey)
+            }
+        }
+        if let data = defaults.data(forKey: Self.failedCoverUpdatesKey) {
+            if let records = try? decoder.decode([String: SyncRecord].self, from: data) {
+                status.failedCoverUpdates = records
+            } else {
+                defaults.removeObject(forKey: Self.failedCoverUpdatesKey)
+            }
+        }
+    }
+
+    /// Writes both lists to `defaults`; an empty list removes its key. Called
+    /// wherever the engine changes either list (not a `didSet`, so a bare
+    /// `SyncStatus` such as the component gallery's never persists).
+    private func persistSyncQueues() {
+        let encoder = JSONEncoder.syncApi
+        if status.pendingFromMac.isEmpty {
+            defaults.removeObject(forKey: Self.pendingFromMacKey)
+        } else if let data = try? encoder.encode(status.pendingFromMac) {
+            defaults.set(data, forKey: Self.pendingFromMacKey)
+        }
+        if status.failedCoverUpdates.isEmpty {
+            defaults.removeObject(forKey: Self.failedCoverUpdatesKey)
+        } else if let data = try? encoder.encode(status.failedCoverUpdates) {
+            defaults.set(data, forKey: Self.failedCoverUpdatesKey)
+        }
     }
 
     var isSignedIn: Bool { account.deviceToken != nil }
@@ -250,6 +296,9 @@ final class SyncEngine: ReleaseSyncHook {
         status.email = nil
         status.deviceName = nil
         status.pendingFromMac = []
+        status.failedCoverUpdates = [:]
+        defaults.removeObject(forKey: Self.pendingFromMacKey)
+        defaults.removeObject(forKey: Self.failedCoverUpdatesKey)
         status.failedAcceptIds = []
         status.quota = nil
         status.lastError = nil
@@ -607,13 +656,19 @@ final class SyncEngine: ReleaseSyncHook {
             // this same run.
             await retryFailedCoverUpdates()
 
-            // One-off (#266): adopted releases imported while cover storage was
-            // broken have no cover and their records are already behind
-            // `lastVersion`. Re-pull from 0 once; `process(_:)` re-applies only
-            // adopted records whose cover is missing, and skips the rest.
-            let refetchAdopted = needsAdoptedCoverRefetch()
-            try await fetchRemoteChanges(fromVersion: refetchAdopted ? 0 : nil)
-            if refetchAdopted { defaults.set(true, forKey: Self.adoptedCoverRefetchKey) }
+            // One-off (#276, folds in #266's v1): re-pull from 0 once on every
+            // phone, whatever its covers, so the tray and any missing adopted
+            // covers come back on phones whose cursor is already past them.
+            // `process(_:)` re-applies only adopted records that are newer or
+            // lack a cover, skips other records that are not newer, and offers
+            // non-ios records missing locally. The flags are set only after the
+            // pull succeeds, so an interrupted pull tries again next reconcile.
+            let fullRefetch = !defaults.bool(forKey: Self.fullRefetchKey)
+            try await fetchRemoteChanges(fromVersion: fullRefetch ? 0 : nil)
+            if fullRefetch {
+                defaults.set(true, forKey: Self.fullRefetchKey)
+                defaults.set(true, forKey: Self.adoptedCoverRefetchKey)
+            }
 
             await retryFailedAccepts()
 
@@ -766,16 +821,11 @@ final class SyncEngine: ReleaseSyncHook {
         throw SyncApiError.network("Sync pull did not finish after \(Self.maxReleasePagesPerReconcile) pages; stopping this reconcile.")
     }
 
+    /// The v1 flag (#266). No longer read; still set with v2 so it stays true.
     static let adoptedCoverRefetchKey = "com.tdare.locally.sync.adoptedCoverRefetch.v1"
 
-    /// `true` when the one-off refetch flag is unset and some adopted release
-    /// has no stored cover. The flag is set only after the re-pull succeeds,
-    /// so an interrupted pull tries again next reconcile.
-    private func needsAdoptedCoverRefetch() -> Bool {
-        guard !defaults.bool(forKey: Self.adoptedCoverRefetchKey),
-              let localReleases = localReleases() else { return false }
-        return localReleases.contains { $0.isAdopted && coverStore.load($0.id) == nil }
-    }
+    /// The v2 one-off full re-pull flag (#276). Set together with the v1 key.
+    static let fullRefetchKey = "com.tdare.locally.sync.fullRefetch.v2"
 
     /// Retries `acceptFromMac` for every record a previous attempt couldn't
     /// download, so the once-visible-before-its-files-land race in `push`'s
@@ -794,6 +844,7 @@ final class SyncEngine: ReleaseSyncHook {
     /// just wait for the next `GET /v1/releases` page.
     private func retryFailedCoverUpdates() async {
         guard !status.failedCoverUpdates.isEmpty else { return }
+        defer { persistSyncQueues() }
         let pending = status.failedCoverUpdates
         // Unreadable library: keep everything pending rather than dropping it as "gone".
         guard let localReleases = localReleases() else { return }
@@ -814,6 +865,7 @@ final class SyncEngine: ReleaseSyncHook {
     /// pulled again next reconcile instead of being misapplied.
     private func process(_ record: SyncRecord) async throws {
         guard let recordId = UUID(uuidString: record.id) else { return }
+        defer { persistSyncQueues() }
         let localReleases: [Release]
         do {
             localReleases = try library.all()
@@ -1051,7 +1103,10 @@ final class SyncEngine: ReleaseSyncHook {
     func acceptFromMac(_ recordId: String) async {
         guard let record = status.pendingFromMac.first(where: { $0.id == recordId }) else { return }
         status.acceptingIds.insert(recordId)
-        defer { status.acceptingIds.remove(recordId) }
+        defer {
+            status.acceptingIds.remove(recordId)
+            persistSyncQueues()
+        }
 
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("Locally-Sync-\(UUID().uuidString)", isDirectory: true)
