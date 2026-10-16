@@ -109,7 +109,9 @@ struct CoverCropView: View {
             .gesture(panGesture(containerSize: proxy.size))
             .simultaneousGesture(zoomGesture())
         }
-        .frame(height: 280)
+        // 280 pt when there's room; on a smaller phone at large text it gives way, down to a minimum,
+        // so the hint and the buttons below always fit in the dialog.
+        .frame(minHeight: Theme.Cover.cropCanvasMinHeight, maxHeight: Theme.Cover.cropCanvasHeight)
         .background(Color(red: 0x05 / 255, green: 0x05 / 255, blue: 0x05 / 255))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }

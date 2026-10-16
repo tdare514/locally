@@ -41,6 +41,9 @@ enum Theme {
     enum Cover {
         /// The crop sheet's title at the default text size; it scales with title3.
         static let cropTitleSize: CGFloat = 19
+        /// The crop canvas: its height when there's room, and the least it shrinks to.
+        static let cropCanvasHeight: CGFloat = 280
+        static let cropCanvasMinHeight: CGFloat = 160
     }
 
     enum Font {

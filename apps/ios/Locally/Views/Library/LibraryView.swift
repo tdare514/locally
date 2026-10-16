@@ -12,6 +12,8 @@ import SwiftUI
 /// Spotify and the two first-import actions.
 struct LibraryView: View {
     @Environment(\.appContainer) private var container
+    /// The search prompt's size: the body role, scaled like typed text.
+    @ScaledMetric(relativeTo: ThemeFontRole.body.style) private var searchTextSize = ThemeFontRole.body.size
 
     /// Shared with `RootView`'s `TabView` so the "Add a song" actions can
     /// switch to the Import tab.
@@ -199,8 +201,13 @@ struct LibraryView: View {
         HStack(spacing: Theme.Library.headerControlGap) {
             LocallyIcon(.search, size: 22, relativeTo: .body)
                 .foregroundStyle(Theme.secondaryText)
-            TextField(Copy.Library.searchPlaceholder, text: $query)
+            // The prompt gets the same scaled size as typed text: given as a plain string, the
+            // placeholder shrank to fit at the accessibility sizes. Shorter words there, so it fits.
+            TextField("", text: $query, prompt: Text(dynamicTypeSize.isAccessibilitySize ? Copy.Library.searchPlaceholderShort : Copy.Library.searchPlaceholder)
+                .font(.system(size: searchTextSize, weight: ThemeFontRole.body.weight))
+                .foregroundColor(Theme.textDim))
                 .themeFont(.body)
+                .lineLimit(1)
                 .foregroundStyle(Theme.primaryText)
                 .submitLabel(.search)
                 .autocorrectionDisabled()

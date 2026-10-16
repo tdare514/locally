@@ -154,6 +154,8 @@ enum Copy {
         }
         /// The list / cover toggle and cover size control in the header.
         static let searchPlaceholder = "Search title, artist, genre or track"
+        /// The search prompt at the accessibility text sizes, where the long one can't fit.
+        static let searchPlaceholderShort = "Search your music"
         static let clearSearch = "Clear search"
         static func noMatches(_ query: String) -> String { "No matches for \u{201C}\(query)\u{201D}" }
         static let layoutList = "List"
