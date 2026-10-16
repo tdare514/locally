@@ -123,6 +123,10 @@ export interface SettingsResponse {
   trackPlays: boolean;
   countOtherDevices: boolean;
   playsPromptAnswered: boolean;
+  /** The Spotify folders Locally reads to add releases in place (#249). */
+  adoptRoots: string[];
+  /** `~/Documents/Spotify Music` when it exists and is not already a Spotify folder, else null. */
+  suggestedAdoptRoot: string | null;
 }
 
 /** Response shape for GET /api/plays/status. */

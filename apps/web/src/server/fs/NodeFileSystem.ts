@@ -89,7 +89,7 @@ export class NodeFileSystem implements FileSystem {
    * `realpathSync` would throw; walking up to what does exist lets a symlinked
    * ancestor still be caught while a merely-not-yet-created path isn't rejected.
    */
-  private realAncestorPath(target: string): string {
+  realAncestorPath(target: string): string {
     let current = path.resolve(target);
     const tail: string[] = [];
     for (;;) {

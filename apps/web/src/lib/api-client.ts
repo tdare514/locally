@@ -17,6 +17,8 @@ import type {
   PlaysSummaryResponse,
   ReleasePlaysResponse,
 } from "../shared/types";
+import type { AdoptProposal } from "../server/adopt/types";
+import type { AdoptBatchResponse } from "./adopt-review";
 
 /** Response shape for POST /api/inspect (per-file prefill data). Not a persisted entity, so it
  * isn't declared in types.ts, but it mirrors the PLAN.md spec exactly. */
@@ -54,8 +56,8 @@ async function handle<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function getSettings(): Promise<SettingsResponse> {
-  const res = await fetch("/api/settings");
+export async function getSettings(signal?: AbortSignal): Promise<SettingsResponse> {
+  const res = await fetch("/api/settings", { signal });
   return handle<SettingsResponse>(res);
 }
 
@@ -66,6 +68,44 @@ export async function putSettings(libraryDir: string): Promise<SettingsResponse>
     body: JSON.stringify({ libraryDir }),
   });
   return handle<SettingsResponse>(res);
+}
+
+/** Replaces the list of Spotify folders Locally reads (#249). The server checks each one. */
+export async function putAdoptRoots(adoptRoots: string[]): Promise<SettingsResponse> {
+  const res = await fetch("/api/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ adoptRoots }),
+  });
+  return handle<SettingsResponse>(res);
+}
+
+/** The last check's findings, or null when there has not been one. */
+export async function getAdoptProposal(signal?: AbortSignal): Promise<AdoptProposal | null> {
+  const res = await fetch("/api/adopt/proposal", { signal });
+  return (await handle<{ proposal: AdoptProposal | null }>(res)).proposal;
+}
+
+/** Reads the Spotify folders again (read only) and returns the new findings. Can take a minute. */
+export async function scanAdopt(signal?: AbortSignal): Promise<AdoptProposal> {
+  const res = await fetch("/api/adopt/scan", { method: "POST", signal });
+  return handle<AdoptProposal>(res);
+}
+
+/** Adds the named groups of the stored findings to the library, in place. */
+export async function adoptGroups(keys: string[]): Promise<AdoptBatchResponse> {
+  const res = await fetch("/api/adopt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ keys }),
+  });
+  return handle<AdoptBatchResponse>(res);
+}
+
+/** Removes an added release from Locally; its files are never touched. */
+export async function forgetRelease(id: string): Promise<{ ok: true }> {
+  const res = await fetch(`/api/releases/${encodeURIComponent(id)}?forget=1`, { method: "DELETE" });
+  return handle<{ ok: true }>(res);
 }
 
 export async function putTrackPlays(trackPlays: boolean): Promise<SettingsResponse> {
@@ -173,8 +213,8 @@ export async function acceptFromPhone(id: string): Promise<{ ok: true; release: 
   return handle<{ ok: true; release: Release }>(res);
 }
 
-export async function getLibrary(): Promise<Library> {
-  const res = await fetch("/api/library");
+export async function getLibrary(signal?: AbortSignal): Promise<Library> {
+  const res = await fetch("/api/library", { signal });
   return handle<Library>(res);
 }
 

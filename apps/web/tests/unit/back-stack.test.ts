@@ -58,5 +58,6 @@ describe("backLabel", () => {
     expect(backLabel("library")).toBe("Back to Library");
     expect(backLabel("stats")).toBe("Back to Stats");
     expect(backLabel("import")).toBe("Back to Import");
+    expect(backLabel("adopt")).toBe("Back to your Spotify folders");
   });
 });

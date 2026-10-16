@@ -2,6 +2,7 @@ import path from "node:path";
 import type { Settings } from "../../shared/types";
 import type { ParsedSettingsPut } from "../http/validation";
 import { applySyncBaseUrlChange } from "../sync/settings";
+import { checkAdoptRoots, type RootProbe } from "./adoptRoots";
 
 export type SettingsUpdateResult =
   | {
@@ -20,7 +21,9 @@ export type SettingsUpdateResult =
 export function planSettingsUpdate(
   current: Settings,
   body: ParsedSettingsPut,
-  homeDir: string
+  homeDir: string,
+  /** Needed only when the body sets `adoptRoots`: a folder that is missing, or that overlaps the library, is refused. */
+  probe?: RootProbe
 ): SettingsUpdateResult {
   let libraryDir = current.libraryDir;
   let spotifySourceDismissed = current.spotifySourceDismissed;
@@ -49,6 +52,18 @@ export function planSettingsUpdate(
     libraryDir = dir;
   }
 
+  let adoptRoots = current.adoptRoots;
+  // Roots and library must stay apart whenever either one changes (a new library inside a Spotify folder
+  // would make that folder writable).
+  const rootsInPlay = body.adoptRoots !== undefined || (current.adoptRoots ?? []).length > 0;
+  if (rootsInPlay && (body.adoptRoots !== undefined || libraryDir !== current.libraryDir)) {
+    if (!probe) throw new Error("planSettingsUpdate needs a probe to check adoptRoots");
+    const saved = current.adoptRoots ?? [];
+    const check = checkAdoptRoots(body.adoptRoots ?? saved, saved, libraryDir, probe);
+    if (!check.ok) return { ok: false, error: check.error };
+    if (body.adoptRoots !== undefined) adoptRoots = check.roots;
+  }
+
   let sync = current.sync;
   let resetSyncState = false;
   if (body.sync?.baseUrl !== undefined) {
@@ -69,7 +84,8 @@ export function planSettingsUpdate(
     body.sync?.baseUrl === undefined &&
     body.trackPlays === undefined &&
     body.countOtherDevices === undefined &&
-    body.playsPromptAnswered === undefined
+    body.playsPromptAnswered === undefined &&
+    body.adoptRoots === undefined
   ) {
     return {
       ok: false,
@@ -79,7 +95,7 @@ export function planSettingsUpdate(
 
   return {
     ok: true,
-    settings: { ...current, libraryDir, sync, spotifySourceDismissed, trackPlays, countOtherDevices, playsPromptAnswered },
+    settings: { ...current, libraryDir, sync, spotifySourceDismissed, trackPlays, countOtherDevices, playsPromptAnswered, ...(adoptRoots !== undefined ? { adoptRoots } : {}) },
     resetSyncState,
   };
 }

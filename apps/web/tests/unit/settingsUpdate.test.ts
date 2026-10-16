@@ -144,3 +144,69 @@ describe("planSettingsUpdate empty body", () => {
     expect(r).toMatchObject({ ok: false, error: "Nothing to update: pass libraryDir, sync.baseUrl, trackPlays and/or playsPromptAnswered" });
   });
 });
+
+describe("planSettingsUpdate adoptRoots (#249)", () => {
+  // A fake disk: `dirs` exist; `links` maps an alias to its real path.
+  const probe = (dirs: string[], links: Record<string, string> = {}) => ({
+    isDirectory: (p: string) => dirs.includes(links[p] ?? p),
+    realpath: (p: string) => links[p] ?? p,
+  });
+  const spotify = path.join(home, "Documents", "Spotify Music");
+
+  it("saves existing folders and leaves them out of other updates", () => {
+    const r = ok(planSettingsUpdate(current(), { adoptRoots: [spotify] }, home, probe([spotify])));
+    expect(r.settings.adoptRoots).toEqual([spotify]);
+    const after = ok(planSettingsUpdate(r.settings, { trackPlays: true }, home));
+    expect(after.settings.adoptRoots).toEqual([spotify]);
+  });
+
+  it("saves an empty list (removing the last folder)", () => {
+    const r = ok(planSettingsUpdate(current({ adoptRoots: [spotify] }), { adoptRoots: [] }, home, probe([])));
+    expect(r.settings.adoptRoots).toEqual([]);
+  });
+
+  it("refuses a new folder that does not exist or is not a folder", () => {
+    const r = planSettingsUpdate(current(), { adoptRoots: [spotify] }, home, probe([]));
+    expect(r).toMatchObject({ ok: false });
+    expect((r as { error: string }).error).toContain("Couldn't find a folder");
+  });
+
+  it("refuses a folder inside the library folder, the library folder itself, and one that contains it", () => {
+    const lib = current().libraryDir;
+    for (const root of [path.join(lib, "sub"), lib, path.join(home, "Music")]) {
+      const r = planSettingsUpdate(current(), { adoptRoots: [root] }, home, probe([root]));
+      expect(r).toMatchObject({ ok: false });
+      expect((r as { error: string }).error).toContain("library folder");
+    }
+  });
+
+  it("checks against the library folder set in the same request", () => {
+    const r = planSettingsUpdate(current(), { libraryDir: path.join(spotify, "Lib"), adoptRoots: [spotify] }, home, probe([spotify]));
+    expect(r).toMatchObject({ ok: false });
+  });
+
+  it("refuses a new library folder inside an existing Spotify folder, with no adoptRoots in the request", () => {
+    const r = planSettingsUpdate(current({ adoptRoots: [spotify] }), { libraryDir: path.join(spotify, "Lib") }, home, probe([spotify]));
+    expect(r).toMatchObject({ ok: false });
+    expect((r as { error: string }).error).toContain("library folder");
+  });
+
+  it("refuses a symlink alias of the library, and saves a symlinked root as its real path", () => {
+    const lib = current().libraryDir;
+    const alias = path.join(home, "alias");
+    const links = { [alias]: lib };
+    expect(planSettingsUpdate(current(), { adoptRoots: [alias] }, home, probe([lib], links))).toMatchObject({ ok: false });
+    const link2 = path.join(home, "link");
+    const r = ok(planSettingsUpdate(current(), { adoptRoots: [link2] }, home, probe([spotify], { [link2]: spotify })));
+    expect(r.settings.adoptRoots).toEqual([spotify]);
+  });
+
+  it("lets a saved folder that has gone missing be removed, but not a new missing one be added", () => {
+    const a = path.join(home, "gone-a");
+    const b = path.join(home, "gone-b");
+    const saved = current({ adoptRoots: [a, b] });
+    const r = ok(planSettingsUpdate(saved, { adoptRoots: [b] }, home, probe([])));
+    expect(r.settings.adoptRoots).toEqual([b]);
+    expect(planSettingsUpdate(saved, { adoptRoots: [a, b, path.join(home, "new")] }, home, probe([]))).toMatchObject({ ok: false });
+  });
+});

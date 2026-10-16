@@ -4,6 +4,7 @@ import type { ImportMeta, UpdateReleaseMeta } from "../../shared/types";
 import { SUPPORTED_AUDIO_EXT, SUPPORTED_IMAGE_EXT } from "../../shared/types";
 import { ValidationError } from "../../shared/errors";
 import { MAX_DISC_NUMBER } from "../../shared/discs";
+import { MAX_ADOPT_ROOTS } from "../../shared/adopt";
 
 /** Input limits shared by the upload routes. */
 export const MAX_COVER_BYTES = 10 * 1024 * 1024;
@@ -310,9 +311,24 @@ const putSettingsBodySchema = z.object({
   trackPlays: z.boolean({ error: "trackPlays must be a boolean" }).optional(),
   countOtherDevices: z.boolean({ error: "countOtherDevices must be a boolean" }).optional(),
   playsPromptAnswered: z.boolean({ error: "playsPromptAnswered must be a boolean" }).optional(),
+  adoptRoots: z
+    .array(
+      z
+        .string({ error: "adoptRoots must be a list of folder paths" })
+        .trim()
+        .min(1, "adoptRoots must be a list of folder paths")
+        .refine((s) => !hasControlChar(s), "adoptRoots must not contain control characters")
+        .refine((s) => path.isAbsolute(s), "Each Spotify folder must be an absolute path"),
+      { error: "adoptRoots must be a list of folder paths" }
+    )
+    .max(MAX_ADOPT_ROOTS, `You can add at most ${MAX_ADOPT_ROOTS} Spotify folders`)
+    .transform((list) => [...new Set(list.map((p) => path.resolve(p)))])
+    .optional(),
 });
 
 export interface ParsedSettingsPut {
+  /** Absolute, normalised and de-duplicated. The route still checks they exist and sit clear of the library. */
+  adoptRoots?: string[];
   libraryDir?: string;
   sync?: { baseUrl?: string };
   trackPlays?: boolean;

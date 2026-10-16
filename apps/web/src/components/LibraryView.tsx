@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Release, ReleaseKind } from "../shared/types";
 import { coverUrl, deleteRelease, updateRelease } from "../lib/api-client";
 import { IS_DEMO } from "../lib/demo";
+import { UNKNOWN_ARTIST } from "../shared/adopt";
 import PlaysPromptCard from "./PlaysPromptCard";
 import {
   bulkDetailsPatch,
@@ -41,9 +42,28 @@ import {
   ChevronRightIcon,
   CoverLargeIcon,
   CoverSmallIcon,
+  FolderIcon,
   MusicNoteIcon,
   SearchIcon,
 } from "./Icons";
+import HouseSleeve from "./HouseSleeve";
+
+const ADOPTED_LABEL = "In your Spotify folder";
+const ADOPTED_NOT_SELECTABLE = "Releases from your Spotify folder can't be selected. Remove one from its own page.";
+
+/** The artist as shown: a release added from a Spotify folder with no artist tag reads "Unknown artist". Never stored. */
+function shownArtist(r: Release): string {
+  return r.adopted && r.artist.trim() === "" ? UNKNOWN_ARTIST : r.artist;
+}
+
+/** The quiet folder glyph after the title of a release added from a Spotify folder (#249). */
+function AdoptedMark() {
+  return (
+    <span role="img" aria-label={ADOPTED_LABEL} title={ADOPTED_LABEL} className="flex shrink-0 text-text-dim">
+      <FolderIcon className="size-3.5" />
+    </span>
+  );
+}
 
 interface LibraryViewProps {
   releases: Release[];
@@ -202,8 +222,11 @@ export default function LibraryView({
   const searching = query.trim() !== "";
   const selectedReleases = releases.filter((r) => selected.has(r.id));
   const selectedCount = selectedReleases.length;
+  // Releases from a Spotify folder can't be edited or deleted here, so they are never selectable.
+  const selectableVisible = visible.filter((r) => !r.adopted);
+  const hasAdopted = releases.some((r) => r.adopted);
   const allVisibleSelected =
-    visible.length > 0 && visible.every((r) => selected.has(r.id));
+    selectableVisible.length > 0 && selectableVisible.every((r) => selected.has(r.id));
 
   function exitSelecting() {
     setSelecting(false);
@@ -224,7 +247,7 @@ export default function LibraryView({
   function toggleAllVisible() {
     setSelected((prev) => {
       const next = new Set(prev);
-      for (const r of visible) {
+      for (const r of selectableVisible) {
         if (allVisibleSelected) next.delete(r.id);
         else next.add(r.id);
       }
@@ -347,7 +370,7 @@ export default function LibraryView({
             <button
               type="button"
               onClick={toggleAllVisible}
-              disabled={busy || visible.length === 0}
+              disabled={busy || selectableVisible.length === 0}
               className="text-sm text-text-muted transition-colors hover:text-text disabled:opacity-40"
             >
               {allVisibleSelected ? "Deselect all" : "Select all"}
@@ -405,6 +428,7 @@ export default function LibraryView({
               </button>
             </div>
           )}
+          {hasAdopted && <p className="basis-full text-xs text-text-dim">{ADOPTED_NOT_SELECTABLE}</p>}
         </div>
       ) : (
         <div className="flex items-center gap-3">
@@ -647,7 +671,9 @@ export function LibrarySection({
         </div>
         <ul className="overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.04]">
           {releases.map((r, index) => {
-            const isSelected = selecting && selected.has(r.id);
+            const locked = selecting && r.adopted === true;
+            const isSelected = selecting && !locked && selected.has(r.id);
+            const artistShown = shownArtist(r);
             return (
               <li key={r.id}>
                 {index > 0 && (
@@ -655,20 +681,25 @@ export function LibrarySection({
                 )}
                 <button
                   type="button"
-                  onClick={() =>
-                    selecting ? onToggle(r.id) : onSelectRelease(r.id)
-                  }
+                  onClick={() => {
+                    if (locked) return;
+                    if (selecting) onToggle(r.id);
+                    else onSelectRelease(r.id);
+                  }}
                   onMouseEnter={() => onFocusRelease(r.id)}
                   onFocus={() => onFocusRelease(r.id)}
                   data-release-id={r.id}
                   disabled={selecting && disabled}
-                  aria-pressed={selecting ? isSelected : undefined}
+                  aria-pressed={selecting && !locked ? isSelected : undefined}
+                  aria-disabled={locked || undefined}
+                  title={locked ? ADOPTED_NOT_SELECTABLE : undefined}
                   className={`list-row ${LIST_GRID} min-h-[78px] w-full px-3 py-3 text-left transition-colors hover:bg-white/[0.06] focus-visible:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60 ${
                     isSelected ? "bg-white/[0.06]" : ""
-                  }`}
+                  } ${locked ? "cursor-not-allowed opacity-60" : ""}`}
                 >
                   <span className="flex min-w-0 items-center gap-3">
-                    {selecting && <SelectBox checked={isSelected} />}
+                    {selecting && !locked && <SelectBox checked={isSelected} />}
+                    {locked && <span aria-hidden="true" className="size-5 shrink-0" />}
                     {r.coverPath ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -676,17 +707,22 @@ export function LibrarySection({
                         alt=""
                         className="list-thumb h-14 w-14 shrink-0 rounded object-cover"
                       />
+                    ) : r.adopted ? (
+                      <HouseSleeve className="list-thumb h-14 w-14 shrink-0 rounded" />
                     ) : (
                       <span className="list-thumb flex h-14 w-14 shrink-0 items-center justify-center rounded bg-elevated text-text-muted">
                         <MusicNoteIcon className="h-5 w-5" />
                       </span>
                     )}
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-text">
-                        {r.title || r.artist}
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-sm font-semibold text-text">
+                          {r.title || artistShown}
+                        </span>
+                        {r.adopted && <AdoptedMark />}
                       </span>
                       <span className="block truncate text-xs text-text-muted">
-                        {r.artist}
+                        {artistShown}
                       </span>
                     </span>
                   </span>
@@ -759,21 +795,29 @@ function CoverSection({
           }}
         >
           {releases.map((r) => {
-            const isSelected = selecting && selected.has(r.id);
+            const locked = selecting && r.adopted === true;
+            const isSelected = selecting && !locked && selected.has(r.id);
+            const artistShown = shownArtist(r);
             const url = r.coverPath ? coverUrl(r.id, r.updatedAt) : null;
             return (
               <button
                 key={r.id}
                 type="button"
-                onClick={() =>
-                  selecting ? onToggle(r.id) : onSelectRelease(r.id)
-                }
+                onClick={() => {
+                  if (locked) return;
+                  if (selecting) onToggle(r.id);
+                  else onSelectRelease(r.id);
+                }}
                 onMouseEnter={() => onFocusRelease(r.id)}
                 onFocus={() => onFocusRelease(r.id)}
                 data-release-id={r.id}
                 disabled={selecting && disabled}
-                aria-pressed={selecting ? isSelected : undefined}
-                className="shelf-tile min-w-0 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-60"
+                aria-pressed={selecting && !locked ? isSelected : undefined}
+                aria-disabled={locked || undefined}
+                title={locked ? ADOPTED_NOT_SELECTABLE : undefined}
+                className={`shelf-tile min-w-0 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-60 ${
+                  locked ? "cursor-not-allowed opacity-60" : ""
+                }`}
               >
                 <div className="relative aspect-square">
                   <div
@@ -790,27 +834,32 @@ function CoverSection({
                         alt=""
                         className="h-full w-full rounded-lg object-cover shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]"
                       />
+                    ) : r.adopted ? (
+                      <HouseSleeve className="h-full w-full rounded-lg shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]" />
                     ) : (
                       <span className="flex h-full w-full items-center justify-center rounded-lg bg-elevated text-text-muted shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]">
                         <MusicNoteIcon className="h-8 w-8" />
                       </span>
                     )}
-                    {selecting && (
+                    {selecting && !locked && (
                       <span className="absolute left-2 top-2 rounded-md bg-black/50 p-1">
                         <SelectBox checked={isSelected} />
                       </span>
                     )}
                   </div>
                 </div>
-                <span
-                  className={`mt-3 block truncate font-semibold text-text ${
-                    coverSize === 0 ? "text-xs" : "text-sm"
-                  }`}
-                >
-                  {r.title || r.artist}
+                <span className="mt-3 flex min-w-0 items-center gap-1.5">
+                  <span
+                    className={`truncate font-semibold text-text ${
+                      coverSize === 0 ? "text-xs" : "text-sm"
+                    }`}
+                  >
+                    {r.title || artistShown}
+                  </span>
+                  {r.adopted && <AdoptedMark />}
                 </span>
                 <span className="block truncate text-xs text-text-muted">
-                  {libraryRowSubtitle(r)}
+                  {libraryRowSubtitle({ ...r, artist: artistShown })}
                 </span>
               </button>
             );

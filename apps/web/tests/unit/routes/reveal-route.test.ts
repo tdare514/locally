@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Settings } from "../../../src/shared/types";
+import type { Release, Settings } from "../../../src/shared/types";
 import type { Services } from "../../../src/server/container";
 import { NodeFileSystem } from "../../../src/server/fs/NodeFileSystem";
 
@@ -135,5 +135,81 @@ describe("POST /api/reveal", () => {
     expect(res.status).toBe(500);
     const body = (await res.json()) as { error: string };
     expect(body.error).not.toContain("/Users/someone/secret");
+  });
+});
+
+describe("POST /api/reveal for releases added from a Spotify folder (#249)", () => {
+  let spotifyDir: string;
+  let elsewhere: string;
+  let releases: Release[];
+
+  function release(folderPath: string, adopted: boolean): Release {
+    return {
+      id: "r1", kind: "album", title: "T", artist: "A", year: null, genre: null, coverPath: null, folderPath, tracks: [],
+      createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z", ...(adopted ? { adopted: true } : {}),
+    };
+  }
+
+  beforeEach(async () => {
+    spotifyDir = await fs.mkdtemp(path.join(os.tmpdir(), "locally-reveal-spotify-"));
+    elsewhere = await fs.mkdtemp(path.join(os.tmpdir(), "locally-reveal-else-"));
+    await fs.mkdir(path.join(spotifyDir, "Masters", "Summer EP"), { recursive: true });
+    releases = [];
+    settingsValue = { libraryDir, sync: null, adoptRoots: [spotifyDir] };
+    services = {
+      settings: new FakeSettingsStore(),
+      fs: new NodeFileSystem(),
+      library: { list: async () => releases },
+    } as unknown as Services;
+  });
+
+  afterEach(async () => {
+    await fs.rm(spotifyDir, { recursive: true, force: true });
+    await fs.rm(elsewhere, { recursive: true, force: true });
+  });
+
+  it("reveals the folder of an added release inside a Spotify folder", async () => {
+    const folder = path.join(spotifyDir, "Masters", "Summer EP");
+    releases = [release(folder, true)];
+    const res = await POST(revealRequest({ path: folder }));
+    expect(res.status).toBe(200);
+    expect(execCalls).toEqual([{ cmd: "open", args: ["-R", folder] }]);
+  });
+
+  it("reveals the Spotify folder itself for a release stored straight in it", async () => {
+    releases = [release(spotifyDir, true)];
+    const res = await POST(revealRequest({ path: spotifyDir }));
+    expect(res.status).toBe(200);
+    expect(execCalls).toEqual([{ cmd: "open", args: ["-R", spotifyDir] }]);
+  });
+
+  it("still refuses a Spotify folder itself that no added release owns", async () => {
+    expect((await POST(revealRequest({ path: spotifyDir }))).status).toBe(400);
+  });
+
+  it("refuses a Spotify path that no added release owns", async () => {
+    const res = await POST(revealRequest({ path: path.join(spotifyDir, "Masters", "Summer EP") }));
+    expect(res.status).toBe(400);
+    expect(execCalls).toEqual([]);
+  });
+
+  it("refuses a release that is not added in place", async () => {
+    const folder = path.join(spotifyDir, "Masters", "Summer EP");
+    releases = [release(folder, false)];
+    expect((await POST(revealRequest({ path: folder }))).status).toBe(400);
+    expect(execCalls).toEqual([]);
+  });
+
+  it("refuses an added release whose folder is outside every Spotify folder", async () => {
+    releases = [release(elsewhere, true)];
+    expect((await POST(revealRequest({ path: elsewhere }))).status).toBe(400);
+    expect(execCalls).toEqual([]);
+  });
+
+  it("refuses an added release once its Spotify folder is no longer in the list", async () => {
+    const folder = path.join(spotifyDir, "Masters", "Summer EP");
+    releases = [release(folder, true)];
+    settingsValue = { libraryDir, sync: null, adoptRoots: [] };
+    expect((await POST(revealRequest({ path: folder }))).status).toBe(400);
   });
 });

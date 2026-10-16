@@ -24,6 +24,7 @@ import {
 import { loadLibraryWidth, saveLibraryWidth, type LibraryWidth } from "../lib/library-view-prefs";
 import { IS_DEMO } from "../lib/demo";
 import Field from "./Field";
+import SpotifyFoldersCard from "./SpotifyFoldersCard";
 import { HAS_SPOTIFY_CONNECTION } from "./sidebar/flags";
 
 interface SettingsViewProps {
@@ -32,6 +33,8 @@ interface SettingsViewProps {
   onSyncStatusChange: () => void;
   /** Scrolls this section into view once when the page opens (the sidebar profile asks for "account"). */
   section?: "account";
+  /** Opens the review page for the Spotify folders and starts the check (#249). */
+  onCheckSpotifyFolders: () => void;
 }
 
 /** A sign-in the app is still waiting on is dropped after this long, as the server does. */
@@ -63,7 +66,7 @@ function formatLastSync(iso: string | null): string {
   return new Date(iso).toLocaleString();
 }
 
-export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, section }: SettingsViewProps) {
+export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, section, onCheckSpotifyFolders }: SettingsViewProps) {
   const [libraryDir, setLibraryDir] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -421,6 +424,8 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
         </div>
         </fieldset>
       </section>
+
+      <SpotifyFoldersCard onToast={onToast} onCheck={onCheckSpotifyFolders} />
 
       <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
         <p className="text-sm font-bold text-text">Library</p>

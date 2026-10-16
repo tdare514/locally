@@ -2,6 +2,7 @@ import path from "node:path";
 import { z } from "zod";
 import type { Release, ReleaseKind, Track } from "../../shared/types";
 import { MAX_DISC_NUMBER } from "../../shared/discs";
+import { UNKNOWN_ARTIST } from "../../shared/adopt";
 
 /**
  * Which platform wrote a given version of a release record. "mac" and "ios" are the clients that
@@ -18,8 +19,8 @@ const SYNC_ORIGIN_PATTERN = /^[a-z][a-z0-9-]{0,15}$/;
 /** Longest name accepted for a record's file names and ids: the filename limit on every common filesystem. */
 export const MAX_SYNC_NAME_LENGTH = 255;
 
-/** What an adopted release with no artist tag is sent as: the service refuses an empty `artist`. */
-export const UNKNOWN_ARTIST = "Unknown artist";
+/** What an adopted release with no artist tag is sent as: the service refuses an empty `artist`. Lives in shared/ so the UI shows the same word. */
+export { UNKNOWN_ARTIST };
 
 /**
  * True only for a name that, joined to any directory, can point at nothing but

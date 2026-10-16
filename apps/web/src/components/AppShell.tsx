@@ -9,6 +9,7 @@ import { IS_DEMO } from "../lib/demo";
 import ImportView from "./ImportView";
 import ReleaseView from "./ReleaseView";
 import SettingsView from "./SettingsView";
+import AdoptReviewView from "./AdoptReviewView";
 import StatsView, { DEFAULT_STATS_PREFS, type StatsPrefs } from "./stats/StatsView";
 import { STATS_PAGE_SIZE } from "../lib/stats-layout";
 import type { LibrarySort } from "../lib/library-sections";
@@ -33,7 +34,9 @@ export type View =
   | { type: "import"; kind?: ReleaseKind }
   | { type: "release"; id: string; justImported?: boolean; trackId?: string }
   | { type: "settings"; section?: "account" }
-  | { type: "stats" };
+  | { type: "stats" }
+  /** The review page for the Spotify folders (#249). `scan`: read the folders first. */
+  | { type: "adopt"; scan: boolean };
 
 /** What a back entry restores besides the view: the state AppShell keeps for the pages. */
 interface BackState {
@@ -262,7 +265,9 @@ export default function AppShell() {
   }
 
   // The sidebar highlights the page on screen; a release page is none of them.
-  const activePage: SidebarPage | null = view.type === "release" ? null : view.type;
+  // The Spotify folders' review page belongs to Settings.
+  const activePage: SidebarPage | null =
+    view.type === "release" ? null : view.type === "adopt" ? "settings" : view.type;
 
   /** Resolves true once the release is imported, false (after a toast) when it failed. */
   async function handleAcceptFromPhone(id: string): Promise<boolean> {
@@ -298,8 +303,9 @@ export default function AppShell() {
     >
       {/* The library sky fills the whole window, outside the scroller so it never scrolls away,
           and paints under both the sidebar and the pane. */}
-      {view.type === "library" && (library?.releases.length ?? 0) > 0 && (
-        <AmbientSpace palette={libraryPalette} />
+      {((view.type === "library" && (library?.releases.length ?? 0) > 0) || view.type === "adopt") && (
+        // The Spotify folders' review page sits in the library's colour space, with the neutral wash.
+        <AmbientSpace palette={view.type === "library" ? libraryPalette : null} />
       )}
       <Sidebar
         releases={library?.releases ?? []}
@@ -393,6 +399,19 @@ export default function AppShell() {
               syncStatus={syncStatus}
               onSyncStatusChange={refreshSyncStatus}
               section={view.section}
+              onCheckSpotifyFolders={() => pushTo({ type: "adopt", scan: true })}
+            />
+          )}
+          {view.type === "adopt" && (
+            <AdoptReviewView
+              scan={view.scan}
+              onBack={() => (backStack.length > 0 ? goBack() : goTo({ type: "settings" }))}
+              onAllAdded={(text) => {
+                refreshLibrary();
+                goTo({ type: "library" });
+                showToast("success", text);
+              }}
+              onLibraryChanged={refreshLibrary}
             />
           )}
         </main>
