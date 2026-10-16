@@ -24,14 +24,22 @@ struct RecordSleeve: View {
     var ceremony: Int = 0
     /// When set, the disc is drawn static in this pose and the ceremony never runs.
     var pose: CeremonyPose?
+    /// When set (Make a record, #205), the cover beat's frame is drawn as given: the cover at its
+    /// offset and opacity with no transition of its own, the flash over the sleeve and the disc
+    /// static at `discIn` (the iPhone beat keeps it at 0, peeking). The ceremony and the cover fade are off.
+    var beat: ImportBeat.Frame?
+    /// When set, the sleeve's side in points, in place of the size class's (the Sent card's 96).
+    var size: CGFloat?
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(cover: UIImage?, ceremony: Int = 0, pose: CeremonyPose? = nil, onAddCover: @escaping () -> Void) {
+    init(cover: UIImage?, ceremony: Int = 0, pose: CeremonyPose? = nil, beat: ImportBeat.Frame? = nil, size: CGFloat? = nil, onAddCover: @escaping () -> Void) {
         self.cover = cover
         self.ceremony = ceremony
         self.pose = pose
+        self.beat = beat
+        self.size = size
         self.onAddCover = onAddCover
     }
 
@@ -41,7 +49,8 @@ struct RecordSleeve: View {
     }
 
     private var sleeveSize: CGFloat {
-        horizontalSizeClass == .compact ? Theme.Immersive.sleeveSizeCompact : Theme.Immersive.sleeveSizeRegular
+        if let size { return size }
+        return horizontalSizeClass == .compact ? Theme.Immersive.sleeveSizeCompact : Theme.Immersive.sleeveSizeRegular
     }
 
     var body: some View {
@@ -50,7 +59,7 @@ struct RecordSleeve: View {
         let peek = disc * Theme.Immersive.discPeekRatio
         ZStack(alignment: .leading) {
             animatedDisc(size: disc)
-                .offset(x: sleeve + peek - disc)
+                .offset(x: sleeve + peek - disc - CGFloat(beat?.discIn ?? 0) * peek)
                 .accessibilityHidden(true)
             sleeveButton(size: sleeve)
         }
@@ -61,14 +70,16 @@ struct RecordSleeve: View {
 
     @ViewBuilder
     private func animatedDisc(size: CGFloat) -> some View {
-        if let pose {
-            Disc(cover: cover, size: size, tuck: pose.tuck, rotationDegrees: pose.rotationDegrees)
+        if let beat {
+            RecordDisc(cover: cover, size: size, rotationDegrees: beat.discTurnDegrees)
+        } else if let pose {
+            RecordDisc(cover: cover, size: size, tuck: pose.tuck, rotationDegrees: pose.rotationDegrees)
         } else if reduceMotion {
-            Disc(cover: cover, size: size, tuck: 0, rotationDegrees: 0)
+            RecordDisc(cover: cover, size: size, tuck: 0, rotationDegrees: 0)
         } else {
-            Disc(cover: cover, size: size, tuck: 0, rotationDegrees: 0)
+            RecordDisc(cover: cover, size: size, tuck: 0, rotationDegrees: 0)
                 .keyframeAnimator(initialValue: CeremonyValues(), trigger: ceremony) { _, values in
-                    Disc(cover: cover, size: size, tuck: values.tuck, rotationDegrees: values.rotation)
+                    RecordDisc(cover: cover, size: size, tuck: values.tuck, rotationDegrees: values.rotation)
                 } keyframes: { _ in
                     let total = Theme.Immersive.ceremonyDuration
                     KeyframeTrack(\.tuck) {
@@ -101,6 +112,8 @@ struct RecordSleeve: View {
                         .scaledToFill()
                         .frame(width: size, height: size)
                         .clipped()
+                        .offset(x: CGFloat(beat?.coverOffsetX ?? 0))
+                        .opacity(beat?.coverOpacity ?? 1)
                         .id(ObjectIdentifier(cover))
                         .transition(coverTransition)
                 } else {
@@ -123,7 +136,7 @@ struct RecordSleeve: View {
             }
             .frame(width: size, height: size)
             .clipShape(shape)
-            .animation(coverAnimation, value: coverID)
+            .animation(beat == nil ? coverAnimation : nil, value: coverID)
         }
         .buttonStyle(.plain)
         .shadow(color: .black.opacity(Theme.Immersive.sleeveShadowFarOpacity),
@@ -131,10 +144,31 @@ struct RecordSleeve: View {
         .shadow(color: .black.opacity(Theme.Immersive.sleeveShadowNearOpacity),
                 radius: Theme.Immersive.sleeveShadowNearRadius, y: Theme.Immersive.sleeveShadowNearY)
         .accessibilityLabel(cover == nil ? Copy.Immersive.addCoverArt : Copy.Immersive.changeCoverArt)
+        .overlay { flash(shape: shape) }
+    }
+
+    /// The beat's warm-white flash: over the sleeve and clipped to its shape (the fill is the
+    /// shape), with the faint spill as a shadow past the edge. Opacity only.
+    @ViewBuilder
+    private func flash(shape: RoundedRectangle) -> some View {
+        if let beat, beat.flashOpacity > 0 {
+            shape
+                .fill(RadialGradient(
+                    colors: [Theme.Import.flashCenter, Theme.Import.flashEdge],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: sleeveSize * 0.7071
+                ))
+                .shadow(color: Theme.Import.flashEdge.opacity(Theme.Import.spillOpacity), radius: Theme.Import.spillRadius)
+                .opacity(beat.flashOpacity)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     private var coverTransition: AnyTransition {
-        reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: Theme.Immersive.coverFadeScale))
+        if beat != nil { return .identity }
+        return reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: Theme.Immersive.coverFadeScale))
     }
 
     private var coverAnimation: Animation {
@@ -147,11 +181,12 @@ struct RecordSleeve: View {
 // MARK: - Disc
 
 /// The vinyl: dark face with grooves, the cover on the centre label, and a fixed sheen.
-private struct Disc: View {
+/// With no cover the label is the accent house label. Also the invitation's bare disc.
+struct RecordDisc: View {
     let cover: UIImage?
     let size: CGFloat
-    let tuck: Double
-    let rotationDegrees: Double
+    var tuck: Double = 0
+    var rotationDegrees: Double = 0
 
     var body: some View {
         let label = size * Theme.Immersive.labelToDiscRatio

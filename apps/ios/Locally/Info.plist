@@ -24,6 +24,10 @@
 	<false/>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.music</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>spotify</string>
+	</array>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>

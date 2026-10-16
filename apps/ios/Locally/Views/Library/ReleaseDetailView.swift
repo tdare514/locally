@@ -58,7 +58,9 @@ struct ReleaseDetailView: View {
                 Section {
                     hero(model)
                     fields(model)
+                    ClearSectionEnd()
                 }
+                .recordListSection()
 
                 Section {
                     tracksHeader(model.trackRows.count).panelRow(.top)
@@ -69,6 +71,7 @@ struct ReleaseDetailView: View {
                     messages(model)
                     deleteButton.panelRow(.bottom)
                 }
+                .panelListSection()
             }
             .listStyle(.insetGrouped)
             .listSectionSpacing(.custom(Theme.Spacing.editorSectionGap))
@@ -79,7 +82,7 @@ struct ReleaseDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            ReleaseDock(model: model)
+            ReleaseDock(model: model, glowColors: Theme.coverGlowColors(coverImage == nil ? nil : palette))
         }
         // Palette from the cover at 24x24, off the main thread; the previous palette
         // stays on screen until the new one is ready, and the backdrop cross-fades.
@@ -207,21 +210,19 @@ struct ReleaseDetailView: View {
             // A single's only track takes its title from the Title field above,
             // so its row shows that live value rather than the (only saved-on-send)
             // track row title.
-            FileRow(
-                index: index + 1,
+            TrackRow(
+                number: index + 1,
                 title: model.kind == .single ? model.title : row.title,
-                isEditable: model.kind == .album,
-                isCompact: true,
-                onTitleChange: { newValue in setTitle(newValue, for: row, in: model) }
+                titleBinding: model.kind == .album
+                    ? Binding(get: { row.title }, set: { setTitle($0, for: row, in: model) })
+                    : nil,
+                plays: model.playTotal(for: row).map(Copy.Detail.playCount),
+                showsGrip: model.trackRows.count >= 2
             )
-            .panelRow(.middle)
-            if let total = model.playTotal(for: row) {
-                Text(Copy.Detail.playCount(total))
-                    .font(Theme.Font.meta)
-                    .foregroundStyle(Theme.secondaryText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .panelRow(.middle)
-            }
+            .importTrackRow(
+                isFirst: index == 0 || (headings.indices.contains(index) && headings[index] != nil),
+                isLast: index == model.trackRows.count - 1 || (headings.indices.contains(index + 1) && headings[index + 1] != nil)
+            )
         }
         .onMove(perform: model.trackRows.count >= 2 ? model.moveTracks : nil)
     }
@@ -283,7 +284,12 @@ private extension View {
     func clearRow(top: CGFloat, bottom: CGFloat) -> some View {
         listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: top, leading: 0, bottom: bottom, trailing: 0))
+            .listRowInsets(EdgeInsets(
+                top: top,
+                leading: Theme.Immersive.recordRowSideInset,
+                bottom: bottom,
+                trailing: Theme.Immersive.recordRowSideInset
+            ))
     }
 
     /// A row of a panel card.

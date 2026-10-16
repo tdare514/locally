@@ -82,6 +82,34 @@ final class AlbumBuilderViewModel {
         rows.append(contentsOf: DiscNumbering.ordered(batch, disc: \.discNumber, trackTag: \.tagTrackNumber))
     }
 
+    /// Swaps the file behind one row for `url`, from the row's own replace button. The row keeps
+    /// its place and disc; its title comes from the new file's tags, or its name, as when adding.
+    /// If staging fails or returns nothing, the row is left as it was and `errorMessage` says why.
+    func replaceRow(_ id: TrackRow.ID, with url: URL) async {
+        guard rows.contains(where: { $0.id == id }) else { return }
+        errorMessage = nil
+        isLoadingTags = true
+        defer { isLoadingTags = false }
+
+        var title = (url.lastPathComponent as NSString).deletingPathExtension
+        let file: StagedFile
+        do {
+            guard let staged = try await importer.stage([url]).first else { return }
+            file = staged
+        } catch {
+            errorMessage = error.localizedDescription
+            return
+        }
+        if let tags = file.existingTags, !tags.title.isEmpty {
+            title = tags.title
+        }
+        // The list can change while the file stages (a swipe delete, a drag).
+        guard let index = rows.firstIndex(where: { $0.id == id }) else { return }
+        rows[index].url = file.url
+        rows[index].title = title
+        rows[index].tagTrackNumber = file.tagTrackNumber
+    }
+
     /// The disc heading to show above each row, or nil for none (see `DiscNumbering.headings`).
     var discHeadings: [Int?] {
         DiscNumbering.headings(for: rows.map(\.discNumber))
@@ -109,7 +137,7 @@ final class AlbumBuilderViewModel {
     }
 
     var canSend: Bool {
-        !rows.isEmpty && !albumTitle.isEmpty && !artist.isEmpty && !isSending
+        !rows.isEmpty && !albumTitle.isEmpty && !artist.isEmpty && !isSending && !isLoadingTags
     }
 
     /// Sends every row as one album, in its current order, reporting

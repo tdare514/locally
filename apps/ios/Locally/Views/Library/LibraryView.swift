@@ -153,11 +153,9 @@ struct LibraryView: View {
                 query = name
                 librarySearchRequest = nil
             }
-            .stickyFooter {
-                if !releases.isEmpty {
-                    Button(Copy.Library.addASong) { startImport(nil) }
-                        .buttonStyle(PrimaryPillButtonStyle())
-                }
+            .stickyFooter(isPresented: !releases.isEmpty) {
+                Button(Copy.Library.addASong) { startImport(nil) }
+                    .buttonStyle(PrimaryPillButtonStyle())
             }
         }
     }

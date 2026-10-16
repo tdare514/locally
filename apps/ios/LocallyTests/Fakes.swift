@@ -187,9 +187,30 @@ final class FakeFileImporter: FileImporter {
     var tagsByURL: [URL: TagSet] = [:]
     /// The track number a URL's own track tag carries; a URL not listed has none.
     var trackTagsByURL: [URL: Int] = [:]
+    /// When set, `stage` throws it.
+    var stageError: Error?
+    /// When set, `stage` suspends until `releaseStage()` is called.
+    private var gate: AsyncStream<Void>?
+    private var gateContinuation: AsyncStream<Void>.Continuation?
+
+    /// Makes the next `stage` calls wait until `releaseStage()`.
+    func suspendStaging() {
+        let (stream, continuation) = AsyncStream<Void>.makeStream()
+        gate = stream
+        gateContinuation = continuation
+    }
+
+    func releaseStage() {
+        gateContinuation?.yield()
+        gateContinuation?.finish()
+    }
 
     func stage(_ urls: [URL]) async throws -> [StagedFile] {
-        try urls.map { url in
+        if let gate {
+            for await _ in gate { break }
+        }
+        if let stageError { throw stageError }
+        return try urls.map { url in
             let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let dest = dir.appendingPathComponent(url.lastPathComponent)

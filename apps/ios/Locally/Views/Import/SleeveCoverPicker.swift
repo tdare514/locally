@@ -9,22 +9,24 @@ import PhotosUI
 struct SleeveCoverPicker: View {
     @Binding var imageData: Data?
     @Binding var rawPick: Data?
-    let ceremony: Int
     let onPickFromFiles: () -> Void
+    /// The cover beat's frame (#205); nil draws the sleeve as before.
+    var beat: ImportBeat.Frame?
 
     @Environment(\.appContainer) private var container
 
     @State private var cover: UIImage?
     @State private var isSheetPresented = false
     @State private var recents: [RecentCover] = []
-    /// Photos or Files, chosen in the sheet and opened once it has finished closing: a
-    /// picker cannot present while the sheet is still on screen.
-    @State private var pendingPicker: CoverChoiceSheet.Choice?
+    /// The choice made in the sheet, applied once it has finished closing: Photos and Files cannot
+    /// present while the sheet is still on screen, and a recent or removed cover should start the
+    /// cover beat only after the sheet has gone, so the slide and flash are seen.
+    @State private var pendingChoice: CoverChoiceSheet.Choice?
     @State private var isPhotosPresented = false
     @State private var photosItem: PhotosPickerItem?
 
     var body: some View {
-        RecordSleeve(cover: cover, ceremony: ceremony) {
+        RecordSleeve(cover: cover, beat: beat) {
             isSheetPresented = true
         }
         // Decoded once per new cover: `RecordSleeve` keys the cover on the image's
@@ -72,24 +74,20 @@ struct SleeveCoverPicker: View {
     }
 
     private func choose(_ choice: CoverChoiceSheet.Choice) {
+        pendingChoice = choice
+        isSheetPresented = false
+    }
+
+    private func openPendingPicker() {
+        guard let choice = pendingChoice else { return }
+        pendingChoice = nil
         switch choice {
         case .recent(let recent):
             if let data = container?.coverStore.load(recent.id) { imageData = data }
         case .remove:
             imageData = nil
-        case .photos, .files:
-            pendingPicker = choice
-        }
-        isSheetPresented = false
-    }
-
-    private func openPendingPicker() {
-        guard let choice = pendingPicker else { return }
-        pendingPicker = nil
-        switch choice {
         case .photos: isPhotosPresented = true
         case .files: onPickFromFiles()
-        case .recent, .remove: break
         }
     }
 }

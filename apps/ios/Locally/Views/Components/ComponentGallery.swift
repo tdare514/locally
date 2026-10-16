@@ -7,6 +7,10 @@ struct ComponentGallery: View {
     static let names = ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "sleeve-bright", "sleeve-dark", "backdrop-a", "backdrop-b", "inline-field", "cover-sheet",
         // #160: the studio backdrop and the real Settings with sample sync state.
         "studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled",
+        // #205: the release page's tracks panel (the shared `TrackRow`, preset rows).
+        "release-tracks",
+        // Kind switch and cover glow buttons, on the studio backdrop.
+        "controls",
         // #204: the real Stats page over sample plays.
         "stats-week", "stats-albums-grid", "stats-artists", "stats-quiet", "stats-signed-out", "stats-large-text", "stats-week-scrolled", "stats-grid-scrolled"]
 
@@ -27,11 +31,19 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("stats-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled"].contains(name)
+        name.hasPrefix("stats-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls"].contains(name)
     }
 
     var body: some View {
-        if drawsOwnBackdrop {
+        if name.hasPrefix("import-record-") || name.hasPrefix("import-sent-") {
+            ImportRecordGallery(name: name).preferredColorScheme(.dark)
+        } else if name.hasPrefix("import-") {
+            ZStack {
+                StudioBackdrop()
+                importContent
+            }
+            .preferredColorScheme(.dark)
+        } else if drawsOwnBackdrop {
             content.preferredColorScheme(.dark)
         } else {
             sleeveGallery
@@ -120,9 +132,76 @@ struct ComponentGallery: View {
             StatsGallery.page(.signedOut)
         case "stats-large-text":
             StatsGallery.page(.week).dynamicTypeSize(.accessibility2)
+        case "release-tracks":
+            Self.releaseTracks
+        case "controls":
+            ControlsGallery()
         default:
             EmptyView()
         }
+    }
+
+    /// The release page's tracks panel: `TrackRow` with plays and the grip, no replace.
+    private static var releaseTracks: some View {
+        let rows = [("Headlights", "12 plays"), ("Overpass On The Neon Harbor Road, The Long Way Round", "1 play"), ("Last Exit", nil)]
+        return ZStack {
+            StudioBackdrop()
+            List {
+                Section {
+                    Text(Copy.Import.tracks)
+                        .font(Theme.ScaledFont.headline)
+                        .importPanelRow(.top)
+                    ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                        TrackRow(number: index + 1, title: row.0, titleBinding: .constant(row.0), plays: row.1, showsGrip: true)
+                            .importTrackRow(isFirst: index == 0, isLast: index == rows.count - 1)
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .environment(\.defaultMinListRowHeight, 0)
+            .scrollContentBackground(.hidden)
+        }
+    }
+
+    /// #205: the Make a record invitation and the cover beat, on the studio backdrop. The real record
+    /// on prefilled models is `import-record-single`, `-album`, `-album-empty`, `-live` and `-album-live` (see
+    /// `ImportRecordGallery`). Names:
+    /// `import-invite`, `import-invite-lit`, `import-beat-<ms>`,
+    /// `import-beat-reduced-<ms>` (a fixed frame), `import-beat-live` (plays in real time),
+    /// `import-send-seal-<ms>` (Send's disc sliding in, frozen at a time) and, over a record page,
+    /// `import-sent-single`, `import-sent-album` and `import-sent-nocover` (the Sent card).
+    @ViewBuilder
+    private var importContent: some View {
+        switch name {
+        case "import-invite":
+            ImportInvitation(onAddTrack: {})
+        case "import-invite-lit":
+            ImportInvitation(onAddTrack: {}, pinnedLit: true)
+        case "import-beat-live":
+            ImportBeatLive()
+        default:
+            if let ms = Self.sealMs(name) {
+                RecordSleeve(cover: SampleArtwork.sunset, beat: ImportBeat.sendSealFrame(at: ms, reduced: false), onAddCover: {})
+            } else if let beat = Self.beatFrame(name) {
+                RecordSleeve(cover: SampleArtwork.sunset, beat: beat, onAddCover: {})
+            }
+        }
+    }
+
+    /// The time an `import-send-seal-<ms>` name asks for.
+    static func sealMs(_ name: String) -> Double? {
+        let prefix = "import-send-seal-"
+        return name.hasPrefix(prefix) ? Double(name.dropFirst(prefix.count)) : nil
+    }
+
+    /// The frame a `import-beat-[reduced-]<ms>` name asks for.
+    static func beatFrame(_ name: String) -> ImportBeat.Frame? {
+        for (prefix, reduced) in [("import-beat-reduced-", true), ("import-beat-", false)] {
+            if name.hasPrefix(prefix), let ms = Double(name.dropFirst(prefix.count)) {
+                return ImportBeat.frame(at: ms, reduced: reduced)
+            }
+        }
+        return nil
     }
 
     /// The real Settings in a tab bar, with sample state: no container, so nothing reaches a
@@ -256,4 +335,176 @@ enum StatsGallery {
     }
 }
 
+/// Plays the beat in real time and starts it again every 4 s (a replacing cover after the first).
+private struct ImportBeatLive: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var start = Date()
+
+    var body: some View {
+        TimelineView(.animation) { timeline in
+            let elapsed = timeline.date.timeIntervalSince(start) * 1000
+            let cycle = (elapsed / 4000).rounded(.down)
+            RecordSleeve(
+                cover: SampleArtwork.sunset,
+                beat: ImportBeat.frame(at: elapsed - cycle * 4000, reduced: reduceMotion),
+                onAddCover: {}
+            )
+        }
+    }
+}
+
+/// #205: the real Import tab (`ImportView`) in a tab bar, on models prefilled in memory. The models
+/// use the production services over an in-memory library and a temp-folder cover store, and
+/// nothing here sends.
+private struct ImportRecordGallery: View {
+    let name: String
+
+    @State private var preset: ImportViewPreset
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(name: String) {
+        self.name = name
+        let container = try! ModelStore.open(at: nil)
+        let coordinator = ReleaseCoordinator(
+            importer: LocalFileImporter(),
+            transcoder: AVTranscoder(),
+            m4aTagWriter: M4ATagWriter(),
+            id3TagWriter: ID3TagWriter(),
+            folder: UserDefaultsSpotifyFolder(),
+            library: SwiftDataLibraryStore(context: container.mainContext),
+            coverStore: FileCoverStore(directory: FileManager.default.temporaryDirectory.appendingPathComponent("gallery-covers", isDirectory: true))
+        )
+        let single = ImportSingleViewModel(importer: LocalFileImporter(), coordinator: coordinator)
+        let album = AlbumBuilderViewModel(importer: LocalFileImporter(), coordinator: coordinator)
+        let driver = ImportBeatDriver()
+        let cover = SampleArtwork.sunset.pngData()
+        var kind = ImportKind.single
+        var sent: ImportSentInfo?
+
+        switch name {
+        case "import-sent-single", "import-sent-nocover":
+            Self.fill(single)
+            if name == "import-sent-single", let cover {
+                single.coverData = cover
+                driver.showAtRest(cover: cover)
+            }
+            sent = ImportSentInfo(kind: .single, cover: name == "import-sent-single" ? cover : nil, spotifyInstalled: true)
+        case "import-sent-album":
+            kind = .album
+            album.albumTitle = "Low Tide"
+            album.artist = "The Salt Line"
+            if let cover {
+                album.coverData = cover
+                driver.showAtRest(cover: cover)
+            }
+            sent = ImportSentInfo(kind: .album, cover: cover, spotifyInstalled: true)
+        case "import-record-album-empty":
+            kind = .album
+            album.albumTitle = "Low Tide"
+            album.artist = "The Salt Line"
+        case "import-record-album", "import-record-album-live":
+            kind = .album
+            // Long values, so wrapping at large text sizes is visible.
+            album.albumTitle = "Midnight Drive Along The Neon Harbor Road"
+            album.artist = "Neon Harbor And The Salt Line Orchestra"
+            album.year = "2026"
+            album.genre = "Synthwave and late night highway pop"
+            album.rows = ["Headlights", "Overpass", "Last Exit"].map {
+                AlbumBuilderViewModel.TrackRow(url: URL(fileURLWithPath: "/gallery/\($0).mp3"), title: $0)
+            }
+            // The live case sets its cover as the screen appears instead.
+            if name == "import-record-album", let cover {
+                album.coverData = cover
+                driver.showAtRest(cover: cover)
+            }
+        case "import-record-live":
+            Self.fill(single)
+        default:
+            // import-record-single: a file, the fields, no cover.
+            Self.fill(single)
+        }
+        _preset = State(initialValue: ImportViewPreset(single: single, album: album, driver: driver, kind: kind, sent: sent))
+    }
+
+    private static func fill(_ single: ImportSingleViewModel) {
+        single.pickedURL = URL(fileURLWithPath: "/gallery/Headlights.mp3")
+        single.pickedName = "Headlights.mp3"
+        single.title = "Headlights On The Neon Harbor Overpass"
+        single.artist = "Neon Harbor And The Salt Line Orchestra"
+        single.album = "Midnight Drive Along The Neon Harbor Road"
+        single.year = "2026"
+        single.genre = "Synthwave and late night highway pop"
+    }
+
+    var body: some View {
+        TabView {
+            ImportView(preset: preset)
+                .tabItem { Label(Copy.Import.title, systemImage: "plus.circle") }
+        }
+        .tint(Theme.accent)
+        .environment(SyncStatus())
+        .onAppear {
+            // The live case sets its cover as the screen appears, so the beat plays in the record.
+            guard name == "import-record-live" || name == "import-record-album-live", let cover = SampleArtwork.sunset.pngData() else { return }
+            if name == "import-record-album-live" {
+                preset.album.coverData = cover
+            } else {
+                preset.single.coverData = cover
+            }
+            preset.driver.coverChanged(cover, reduced: reduceMotion)
+        }
+        // The album's live case plays the beat again every 3 s, to try gestures during and after it.
+        .task {
+            guard name == "import-record-album-live", let cover = SampleArtwork.sunset.pngData() else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3))
+                preset.driver.coverChanged(cover, reduced: reduceMotion)
+            }
+        }
+    }
+}
+
+/// `controls`: the kind switch and the cover glow buttons, enabled, disabled and pressed.
+private struct ControlsGallery: View {
+    @State private var single = ImportKind.single
+    @State private var album = ImportKind.album
+    private let warm = [ArtworkBackdrop.color(hex: "#E2552E"), ArtworkBackdrop.color(hex: "#F2B134")]
+
+    var body: some View {
+        ZStack {
+            StudioBackdrop()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    KindSwitch(kind: $single, tint: Theme.accent)
+                    KindSwitch(kind: $album, tint: ArtworkBackdrop.color(hex: "#E2552E"))
+                    send(Theme.coverGlowColors(nil))
+                    send(warm)
+                    send(warm).disabled(true)
+                    Button {} label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark").accessibilityHidden(true)
+                            Text(Copy.Detail.saveChanges)
+                        }
+                    }
+                    .buttonStyle(CoverGlowButtonStyle(colors: warm, isFullWidth: false))
+                    Button {} label: { sendLabel }
+                        .buttonStyle(CoverGlowButtonStyle(colors: warm, pinnedPressed: true))
+                }
+                .padding(Theme.Spacing.pagePadding)
+            }
+        }
+    }
+
+    private func send(_ colors: [Color]) -> some View {
+        Button {} label: { sendLabel }
+            .buttonStyle(CoverGlowButtonStyle(colors: colors))
+    }
+
+    private var sendLabel: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "paperplane.fill").accessibilityHidden(true)
+            Text(Copy.Import.send)
+        }
+    }
+}
 #endif

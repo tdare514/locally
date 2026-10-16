@@ -31,6 +31,8 @@ struct CoverPicker: View {
     @State private var photosItem: PhotosPickerItem?
     @State private var isPhotosPresented = false
     @State private var pendingCrop: Data?
+    /// The crop sheet's result, applied to `imageData` when the sheet has finished closing.
+    @State private var croppedCover: Data?
 
     var body: some View {
         Group {
@@ -67,10 +69,14 @@ struct CoverPicker: View {
         .sheet(isPresented: Binding(
             get: { pendingCrop != nil },
             set: { isPresented in if !isPresented { pendingCrop = nil } }
-        )) {
+        ), onDismiss: {
+            // Applied once the sheet has closed, so a cover beat on the screen behind it is seen.
+            if let croppedCover { imageData = croppedCover }
+            croppedCover = nil
+        }) {
             if let pendingCrop {
                 CoverCropView(imageData: pendingCrop) { cropped in
-                    imageData = cropped
+                    croppedCover = cropped
                     self.pendingCrop = nil
                 } onCancel: {
                     self.pendingCrop = nil

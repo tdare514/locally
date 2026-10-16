@@ -18,6 +18,7 @@ struct SegmentedPill<Value: Hashable>: View {
     /// Lets the labels follow Dynamic Type (Stats). Off keeps the fixed 14 pt of the Import and crop screens.
     var scalesText = false
     @ScaledMetric(relativeTo: .footnote) private var scaledText: CGFloat = 14
+    @Environment(\.isEnabled) private var isEnabled
 
     private var trackPadding: CGFloat { isCompact ? 2 : 4 }
     private var segmentPaddingH: CGFloat { isCompact ? 12 : 16 }
@@ -49,6 +50,7 @@ struct SegmentedPill<Value: Hashable>: View {
             }
         }
         .padding(trackPadding)
+        .opacity(isEnabled ? 1 : 0.5)
         .background(Theme.elevated)
         .clipShape(Capsule())
     }
