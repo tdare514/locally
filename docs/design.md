@@ -149,17 +149,19 @@ eyebrows still apply to those labels.
 - **iPhone record fields, covers and library (16 Oct 2026, owner on the phone)**: the inline
   fields read as floating text, so nobody could tell what a value was or that it could still be
   edited, and the import and the release page laid the same fields out differently.
-  - *Labelled fields* (`LabeledField`, import record and release page): one field per row in
-    the same order on both screens: Title, Artist, Album (a single being imported only), Year,
-    Genre. Each row has its label at the leading edge in a fixed column (subheadline,
+  - *Labelled fields* (`LabeledField`, import record and release page): the same order on both
+    screens: Title, Artist, Album (a single being imported only), then Year and Genre sharing one
+    row (owner, 16 Oct: Year on the left in the label column, its value 92 pt scaled; Genre's label
+    right after it at its own width, 20 pt on, its value taking the rest; `YearGenreRow`). The
+    other fields have a row each. Each row has its label at the leading edge in a fixed column (subheadline,
     `text-muted`, sentence case, no colon, 60 pt scaled with the text), then the value. A 1
     device-pixel underline sits under the value at all times: white 12 % at rest, 60 % while
     focused (fade 0.15 s). Values: the title in title3 semibold, the rest body; they wrap rather
     than truncate. Placeholders say what to type, in `text-dim`: "Enter single name" or "Enter
     album name" by kind, "Enter artist name", "Same as the single name" (a single's album),
-    "Enter release year", "Enter genre"; a track row's title says "Enter track name". Rows are
-    12 pt apart. At the accessibility text sizes the label sits above its value. The release
-    page's Year and Genre no longer share a row.
+    "Enter year", "Enter genre"; a track row's title says "Enter track name". Rows are
+    12 pt apart. At the accessibility text sizes the label sits above its value and Year and
+    Genre take a row each.
   - *Album notice* (import record, album only): under the Single / Album line, a quiet faked-glass
     card (white 6 % fill, radius 12, 12 pt padding) with `info.circle` and caption text in
     `text-muted`: "Spotify doesn't group your own files into albums. After you send, we'll show

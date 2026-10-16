@@ -61,7 +61,7 @@ enum Copy {
         static let singlePlaceholder = "Enter single name"
         static let albumNamePlaceholder = "Enter album name"
         static let artistPlaceholder = "Enter artist name"
-        static let yearPlaceholder = "Enter release year"
+        static let yearPlaceholder = "Enter year"
         static let genrePlaceholder = "Enter genre"
         static let fieldAlbum = "Album"
         /// The title field's placeholder, by the kind of release.

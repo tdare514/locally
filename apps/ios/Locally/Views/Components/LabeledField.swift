@@ -9,6 +9,10 @@ struct LabeledField: View {
     @Binding var text: String
     var font: Font = Theme.ScaledFont.input
     var wraps = false
+    /// The label takes only its own width instead of the shared column (Genre beside Year).
+    var labelFits = false
+    /// A fixed width for the value (Year beside Genre); nil fills the row.
+    var valueWidth: CGFloat?
     /// The text style `font` is built on, for the first-baseline metric below.
     var metricsStyle: UIFont.TextStyle = .body
 
@@ -18,13 +22,15 @@ struct LabeledField: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .subheadline) private var labelWidth = Theme.Immersive.labeledFieldLabelWidth
 
-    init(_ label: String, placeholder: String, text: Binding<String>, font: Font = Theme.ScaledFont.input, metricsStyle: UIFont.TextStyle = .body, wraps: Bool = false) {
+    init(_ label: String, placeholder: String, text: Binding<String>, font: Font = Theme.ScaledFont.input, metricsStyle: UIFont.TextStyle = .body, wraps: Bool = false, labelFits: Bool = false, valueWidth: CGFloat? = nil) {
         self.label = label
         self.placeholder = placeholder
         self._text = text
         self.font = font
         self.metricsStyle = metricsStyle
         self.wraps = wraps
+        self.labelFits = labelFits
+        self.valueWidth = valueWidth
     }
 
     /// Where the value's first line sits, from the font itself. An empty vertical TextField
@@ -98,8 +104,47 @@ struct LabeledField: View {
             }
         } else {
             HStack(alignment: .firstTextBaseline, spacing: Theme.Immersive.labeledFieldLabelGap) {
-                labelText.frame(width: labelWidth, alignment: .leading)
-                value
+                if labelFits {
+                    labelText.fixedSize()
+                } else {
+                    labelText.frame(width: labelWidth, alignment: .leading)
+                }
+                value.frame(width: valueWidth, alignment: .leading)
+            }
+        }
+    }
+}
+
+/// Year and Genre share one row (owner, 16 Oct 2026): Year in the label column like the rows
+/// above it, Genre after it taking the rest. At the accessibility text sizes they are two rows.
+struct YearGenreRow: View {
+    @Binding var year: String
+    @Binding var genre: String
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var yearValueWidth = Theme.Immersive.yearValueWidth
+
+    private var yearField: some View {
+        LabeledField(Copy.Import.fieldYear, placeholder: Copy.Import.yearPlaceholder, text: $year, font: Theme.ScaledFont.input,
+                     valueWidth: dynamicTypeSize.isAccessibilitySize ? nil : yearValueWidth)
+            .keyboardType(.numberPad)
+    }
+
+    private func genreField(labelFits: Bool) -> some View {
+        LabeledField(Copy.Import.fieldGenre, placeholder: Copy.Import.genrePlaceholder, text: $genre, font: Theme.ScaledFont.input,
+                     wraps: true, labelFits: labelFits)
+    }
+
+    var body: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: Theme.Immersive.labeledFieldRowGap) {
+                yearField
+                genreField(labelFits: false)
+            }
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Immersive.yearGenreGap) {
+                yearField
+                genreField(labelFits: true)
             }
         }
     }
