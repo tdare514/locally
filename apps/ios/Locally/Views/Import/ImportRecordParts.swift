@@ -67,16 +67,32 @@ struct ImportMetaLine: View {
     /// The switch's thumb colour.
     let tint: Color
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Theme.Immersive.dockGap) {
-            KindSwitch(kind: $kind, tint: tint)
-            .disabled(isSwitchDisabled)
-            Spacer(minLength: 0)
-            Text(Copy.Library.trackCount(trackCount))
-                .font(Theme.ScaledFont.subheadline)
-                .foregroundStyle(Theme.secondaryText)
-                .multilineTextAlignment(.trailing)
+        // At the accessibility sizes the switch takes its own line, so its words never squeeze.
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: Theme.Immersive.dockGap) {
+                kindSwitch
+                count
+            }
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Immersive.dockGap) {
+                kindSwitch
+                Spacer(minLength: 0)
+                count.multilineTextAlignment(.trailing)
+            }
         }
+    }
+
+    private var kindSwitch: some View {
+        KindSwitch(kind: $kind, tint: tint).disabled(isSwitchDisabled)
+    }
+
+    private var count: some View {
+        Text(Copy.Library.trackCount(trackCount))
+            .font(Theme.ScaledFont.subheadline)
+            .foregroundStyle(Theme.secondaryText)
     }
 }
 

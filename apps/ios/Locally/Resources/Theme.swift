@@ -285,6 +285,9 @@ enum Theme {
         static let coverGlowRest: Double = 0.62
         static let coverGlowPressed: Double = 0.95
         static let coverGlowBaseOpacity: Double = 0.88
+        /// The kind switch: each option's minimum tap height, and the black under its thumb's tint.
+        static let kindSwitchMinTarget: CGFloat = 44
+        static let kindThumbBase: Double = 0.35
         /// Send scrolls the record back to the sleeve over this long (docs/design.md "Make a record").
         static let sendScrollDuration: Double = 0.35
         /// Then waits this long for the scroll to settle; skipped with Reduce Motion.

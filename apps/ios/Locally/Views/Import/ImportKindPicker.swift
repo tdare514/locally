@@ -10,6 +10,7 @@ struct KindSwitch: View {
     @Namespace private var thumbSpace
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private static let options: [(kind: ImportKind, icon: String, word: String)] = [
         (.single, "music.note", Copy.Import.kindSingle),
@@ -36,7 +37,10 @@ struct KindSwitch: View {
                 kind = option.kind
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: option.icon).accessibilityHidden(true)
+                    // The icons step aside at the accessibility sizes, so both words fit side by side.
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        Image(systemName: option.icon).accessibilityHidden(true)
+                    }
                     Text(option.word)
                 }
                 .font(Theme.ScaledFont.subheadline.weight(.semibold))
@@ -44,7 +48,8 @@ struct KindSwitch: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .frame(maxWidth: fill ? .infinity : nil)
+                // A 44 pt tap target at every text size.
+                .frame(maxWidth: fill ? .infinity : nil, minHeight: Theme.Import.kindSwitchMinTarget)
                 .contentShape(Capsule())
                 .background {
                     if chosen { thumb.matchedGeometryEffect(id: "thumb", in: thumbSpace) }
@@ -57,8 +62,9 @@ struct KindSwitch: View {
     }
 
     private var thumb: some View {
+        // A dark base under the tint keeps the white label at 4.5:1 or better on a bright colour.
         Capsule()
-            .fill(Color.white.opacity(0.12))
+            .fill(Color.black.opacity(Theme.Import.kindThumbBase))
             .overlay(Capsule().fill(tint.opacity(0.55)))
             .overlay(Capsule().strokeBorder(Color.white.opacity(0.35), lineWidth: 1))
             .shadow(color: tint.opacity(0.5), radius: 8)

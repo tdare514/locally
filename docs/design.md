@@ -109,12 +109,15 @@ eyebrows still apply to those labels.
   `accent` pill with black semibold text and a faint shadow, others `text-muted` (white on hover).
   On iPhone the record's Single / Album switch is replaced (16 Oct 2026, owner: the switch and
   the main buttons "look bland"; the library and crop sheet keep this pill). It is the **kind
-  switch**: a faked-glass capsule track (the Glow pill's glass and 1 pt rim), each option an icon
-  and a word (Single `music.note`, Album `rectangle.stack.fill`; subheadline semibold), the chosen
-  one white on a glass thumb tinted with the cover's colour (the palette's primary at 55 % over
-  the glass, a brighter rim, a soft glow of that colour under it), the other white at 55 %. The
+  switch**: a faked-glass capsule track (the Glow pill's glass and 1 pt rim), each option an
+  icon and a word (Single `music.note`, Album `rectangle.stack.fill`; subheadline semibold), the
+  chosen one white on a glass thumb tinted with the cover's colour (the palette's primary at 55 %
+  over black at 35 %, so the label keeps 4.5:1 on a bright colour; a brighter rim, a soft glow
+  of that colour under it), the other white at 55 %. Each option is at least 44 pt tall. The
   thumb slides to the new option (spring, response 0.35, damping 0.85) with a selection haptic;
   Reduce Motion moves it without sliding. No cover: the thumb is tinted `accent`. Locked: 50 %.
+  At the accessibility text sizes the switch takes its own line above the track count and drops
+  its icons, so both words fit side by side.
 - **Cover glow button** (iPhone, 16 Oct 2026, same owner request): **Send to Spotify** on the
   record and **Save changes** in the release page's dock. A dark base (black at 88 %, so the list
   scrolling under the footer never shows through), the Glow pill's faked glass and rim

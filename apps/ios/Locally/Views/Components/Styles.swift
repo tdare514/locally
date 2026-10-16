@@ -175,7 +175,7 @@ private struct CoverGlowShimmer: View {
             var reset = Transaction()
             reset.disablesAnimations = true
             withTransaction(reset) { progress = 0 }
-            withAnimation(.linear(duration: 0.6)) { progress = 1 }
+            withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.6)) { progress = 1 }
         }
     }
 }
