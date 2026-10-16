@@ -46,19 +46,18 @@ enum Copy {
 
     enum Import {
         static let title = "Import"
-        /// The page subtitle shown under the title, per `docs/design.md`'s
-        /// "Page header" component — matches the web app's Import view.
-        static let subtitle = "Add a song or album to your Spotify library."
-        /// The eyebrow shown above the title on the Import screen, per
-        /// `docs/design.md`'s "Page header" component.
-        static let eyebrow = "Local library"
         static let pickFile = "Choose a file"
-        static let chooseFiles = "Choose files"
+        /// The invitation's button and hint (#205).
+        static let addTrack = "Add a track"
+        static let addTrackHint = "or add audio from Files"
         static let fieldTitle = "Title"
         static let fieldArtist = "Artist"
-        static let fieldAlbum = "Album"
         static let fieldAlbumTitle = "Album title"
-        static let albumPlaceholder = "Same as track title"
+        /// A failed send's message cut short at large text sizes: the link under it, and the
+        /// sheet that shows the whole message.
+        static let sendErrorDetails = "Details"
+        static let sendErrorTitle = "Why it didn't send"
+        static let albumPlaceholder = "Album, same as track title"
         static let fieldYear = "Year"
         static let fieldGenre = "Genre"
         static let cover = "Cover"
@@ -80,12 +79,6 @@ enum Copy {
         }
         /// The hint read after the record sleeve's own label.
         static let sleeveHint = "Choose a cover from Photos or Files"
-        /// The file chooser panel's caption before a file is chosen. Matches
-        /// `docs/design.md`'s "Drop zone / file chooser" component, iOS wording.
-        static let fileCaption = "Tap to choose a file"
-        /// The muted hint under the single-track file chooser, verbatim from
-        /// `docs/design.md`'s "Drop zone / file chooser" component.
-        static let singleFileHint = "Singles are one file. Switch to Album for multiple."
         /// The section title over an album's track rows, and the release
         /// detail's Tracks section.
         static let tracks = "Tracks"
@@ -96,14 +89,12 @@ enum Copy {
         static let audioFile = "Audio file"
         static let send = "Send to Spotify"
         static let sending = "Sending…"
-        static let doneSingle = "Sent. Open Spotify, then Your Library, then Local Files to play it."
-        static let openSpotify = "Open Spotify"
-
-        /// The done screen's heading after an album send; the playlist steps that
-        /// follow it come from `Copy.Detail` so the done screen and the release
-        /// page's "Make it a playlist" disclosure cannot drift (issue #21).
-        static let doneAlbum = "Sent. To hear it as an album, make it a playlist in Spotify."
-        static let addAnother = "Add another"
+        static let sentTitle = "Sent"
+        static let sentSingleBody = "Your track has been sent to Spotify."
+        static let sentAlbumBody = "Your album has been sent to Spotify."
+        static let sentSingleHint = "It's in Your Library, under Local Files."
+        static let sentAlbumHint = "To play it as an album, make it a playlist from its page in your library."
+        static let openInSpotify = "Open in Spotify"
         static let albumExplainer = "Spotify can't create albums from your own files, so we'll set these up to become a playlist. They'll share this cover, artist and album name."
         static let albumCoverPrompt = "Pick the cover that'll be applied to all of these tracks."
         static let afterEdit = "Updated. Spotify shows a new cover right away, but keeps the old name until it rescans. In Spotify, open Settings, then Local Files, switch it off and on again, and the new details appear."
@@ -111,11 +102,16 @@ enum Copy {
         static let kindAlbum = "Album"
         static let noTracksYet = "No tracks yet"
         /// The line under `noTracksYet` in the empty-tracks silhouette.
-        static let noTracksHint = "Add audio files above and they'll appear here."
+        static let noTracksHint = "Add audio files and they'll appear here."
         /// Shown under the Tracks header once there are 2+ rows to reorder;
         /// `.onMove` supports long-press drag without an Edit mode on iOS 16+.
         static let reorderHint = "Hold and drag a track to reorder."
         static let track = "Track"
+        /// The VoiceOver label of a track row's replace button.
+        static func replaceTrack(_ title: String) -> String {
+            let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            return "Replace \(name.isEmpty ? track.lowercased() : name)"
+        }
 
         static func taggingProgress(done: Int, total: Int) -> String {
             "Tagging and moving \(done) of \(total)"

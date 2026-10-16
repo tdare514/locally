@@ -108,11 +108,9 @@ final class ImportSingleViewModel {
         }
     }
 
-    /// Resets all fields so the view can be reused for another import. If a
-    /// share queue is still waiting (`startInboxQueue`), loads the next
-    /// file instead of leaving the form blank, so "Add another" walks
-    /// through everything that was shared in, one at a time.
-    func reset() {
+    /// Empties the draft (file, fields, cover, messages) and leaves the share queue alone. Used by
+    /// `reset()` and when the record switches to an album.
+    func clearDraft() {
         pickedURL = nil
         pickedName = nil
         title = ""
@@ -123,6 +121,14 @@ final class ImportSingleViewModel {
         coverData = nil
         completedRelease = nil
         errorMessage = nil
+    }
+
+    /// Resets all fields so the view can be reused for another import. If a
+    /// share queue is still waiting (`startInboxQueue`), loads the next
+    /// file instead of leaving the form blank, so "Add another" walks
+    /// through everything that was shared in, one at a time.
+    func reset() {
+        clearDraft()
 
         guard !pendingInboxQueue.isEmpty else { return }
         let next = pendingInboxQueue.removeFirst()
@@ -130,6 +136,6 @@ final class ImportSingleViewModel {
     }
 
     var canSend: Bool {
-        pickedURL != nil && !title.isEmpty && !artist.isEmpty && !isSending
+        pickedURL != nil && !title.isEmpty && !artist.isEmpty && !isSending && !isLoadingTags
     }
 }

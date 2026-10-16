@@ -13,6 +13,7 @@ struct SegmentedPill<Value: Hashable>: View {
     /// The crop sheet uses a smaller variant: 2 pt track padding, 14 pt
     /// text, tighter segment padding.
     var isCompact: Bool = false
+    @Environment(\.isEnabled) private var isEnabled
 
     private var trackPadding: CGFloat { isCompact ? 2 : 4 }
     private var segmentPaddingH: CGFloat { isCompact ? 12 : 16 }
@@ -42,6 +43,7 @@ struct SegmentedPill<Value: Hashable>: View {
             }
         }
         .padding(trackPadding)
+        .opacity(isEnabled ? 1 : 0.5)
         .background(Theme.elevated)
         .clipShape(Capsule())
     }

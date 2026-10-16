@@ -16,7 +16,7 @@ and both apps follow.
 | elevated | #282828 | inputs, segmented control track, secondary buttons, badges, icon tiles |
 | elevated-hover | #3A3A3A | hover on elevated surfaces (web) |
 | row-hover | #1C1C1C | pressed/hovered list rows |
-| border | #282828 | 1 px borders on cards, rows, inputs (mobile), footers |
+| border | #282828 | 1 px borders on cards, rows, inputs (mobile) |
 | border-dashed | #3E3E3E | dashed borders on drop zones (accent on hover) |
 | dialog-border | #303030 | the crop dialog's border |
 | text | #FFFFFF | primary text |
@@ -124,10 +124,37 @@ eyebrows still apply to those labels.
   **Primary button**: `accent` pill, black bold text. **Secondary**: `elevated` pill, white text.
   **Outline**: transparent with a `text-dim` border, white text. **Text button** (Cancel):
   `text-muted`, white on hover, no background.
-- **Sticky footer CTA (mobile)**: fixed to the bottom, `bg` at 95 % with blur, 1 px `border` on
-  top, padding 16 horizontal and 12 to 16 vertical plus the safe-area inset, containing one
-  full-width primary button. Library: "+ New Import" (Locally: "Add a song"). Editor: the send or
-  save action. Content scrolls under it with bottom padding so nothing hides behind it.
+  On iPhone the record's Single / Album switch is replaced (16 Oct 2026, owner: the switch and
+  the main buttons "look bland"; the library and crop sheet keep this pill). It is the **kind
+  switch**: a faked-glass capsule track (the Glow pill's glass and 1 pt rim), each option an
+  icon and a word (Single `music.note`, Album `rectangle.stack.fill`; subheadline semibold), the
+  chosen one white on a glass thumb tinted with the cover's colour (the palette's primary at 55 %
+  over black at 35 %, so the label keeps 4.5:1 on a bright colour; a brighter rim, a soft glow
+  of that colour under it), the other white at 55 %. Each option is at least 44 pt tall. The
+  thumb slides to the new option (spring, response 0.35, damping 0.85) with a selection haptic;
+  Reduce Motion moves it without sliding. No cover: the thumb is tinted `accent`. Locked: 50 %.
+  At the accessibility text sizes the switch takes its own line above the track count and drops
+  its icons, so both words fit side by side.
+- **Cover glow button** (iPhone, 16 Oct 2026, same owner request): **Send to Spotify** on the
+  record and **Save changes** in the release page's dock. A dark base (black at 88 %, so the list
+  scrolling under the footer never shows through), the Glow pill's faked glass and rim
+  with a white bold label and a leading icon (Send `paperplane.fill`, Save `checkmark`), lit at
+  rest by two soft clouds of the cover's colours (palette primary and secondary; `accent` and
+  violet with no cover) rising from the lower edge inside the capsule (62 % at rest, 95 % pressed), and a soft halo of the
+  primary colour under it, the Mac's main action in its lit state since a phone has no hover.
+  Pressed: the clouds brighten, one shimmer (a soft white diagonal band) sweeps across once
+  over 600 ms, scale 0.97, easing `cubic-bezier(0.16, 1, 0.3, 1)`. Reduce Motion: the brighten
+  only, no shimmer and no scale. Disabled: glass only, no clouds or halo, the label at 50 %.
+  While sending it keeps its progress line in white.
+- **Sticky footer CTA (mobile)**: fixed to the bottom, padding 16 horizontal and 12 to 16
+  vertical plus the safe-area inset, containing one full-width primary button. Library: "+ New
+  Import" (Locally: "Add a song"). Editor: the send or save action. Content scrolls under it with
+  bottom padding so nothing hides behind it. (Replaced 15 Oct 2026, from the #205 phone check: the
+  95 % `bg` slab and its 1 px top `border` cut the page off in a hard band.) No border and no
+  slab: the button floats over the page as in Oura or Insight Timer, on a faked-glass fade from
+  clear, 48 above the bar, to `bg` at 85 % by the bar's top (however tall the bar grows) and 94 % at the bottom edge (no
+  blur), so content scrolling under it fades out rather than being cut. With nothing to show (an empty library) there is no
+  footer at all.
 - **Mobile top bar**: 64 tall, `bg` at 90 % with blur, sticky; back chevron (28) at the left when
   there is a parent; title 18 bold; an optional trailing icon button (search, more). iOS keeps the
   system navigation bar and tab bar and styles them to match.
@@ -152,11 +179,13 @@ eyebrows still apply to those labels.
   cover"); a 28 pencil badge appears once filled. The hint "Square artwork works best" is rendered
   once by the import layout under that row (see the Desktop import layout bullet).
 - **Audio drop zone**: a `card` block, min height 128, dashed border as above, an upload-cloud
-  icon (26), "Drop audio files here, or click to choose" (iOS: "Tap to choose a file") and the
-  hint "Singles are one file. Switch to Album for multiple." Below it, before any track exists,
+  icon (26), "Drop audio files here, or click to choose" and the
+  hint "Singles are one file. Switch to Album for multiple." (The iPhone has no drop zone since
+  #205: the import invitation and the record's Add a track replace it.) Below it, before any track exists,
   a faint silhouette of empty `FileRow`-shaped blocks (`card` at 50% opacity, a `border` stroke,
   no text or icon) stands in for the Tracks list, with a centred `text-muted` blurb ("No tracks
-  yet" / "Add audio files above and they'll appear here."): three rows in the album builder, one
+  yet" / "Add audio files above and they'll appear here."; on iPhone "Add audio files and
+  they'll appear here."): three rows in the album builder, one
   row in the single-track flow while no file is chosen. Placeholder cards are spaced `2 ×` the
   usual row gap so the empty state matches the gap between live file rows in the plain list.
   Once there are 2 or more tracks, a
@@ -203,7 +232,8 @@ eyebrows still apply to those labels.
   artist in row-subtitle muted text. Then the DETAILS eyebrow (replaced 13 Oct 2026: sentence case) + "Tap to edit" (no "Metadata"
   title); Title and Artist fields full width, Year and Genre side by side. Then "Tracks" (18
   bold) + "N files", a `text-dim` 12 pt hint "Hold and drag a track to reorder." when there are
-  2+ tracks, and one compact file row per track: `card` with 1 px `border`, radius 8, min height
+  2+ tracks, and one compact file row per track (replaced on iPhone 15 Oct 2026 by the Mac-style
+  track row, see *Make a record* > *Tracks*): `card` with 1 px `border`, radius 8, min height
   52, a 30 pt `elevated` tile holding an accent file-music icon, filename 14 medium, "Audio file"
   12 muted, chevron. No Edit-mode toolbar button; reordering is a plain long-press drag. Sticky
   footer with the save action.
@@ -275,8 +305,108 @@ eyebrows still apply to those labels.
     degrees per screen scrolled (`scrollTurnPrimary`, `scrollTurnSecondary`), against each other.
   - *Reduced motion*: the cover change becomes a plain opacity change over 0.2 s
     (`reducedMotionFadeDuration`), with no scale. The library sky is held still (STATUS, #128).
-    Theme.swift has no reduced-motion values for the ceremony or the sleeve, so their behaviour
-    under Reduce Motion is not written here and not verified.
+    Theme.swift has no reduced-motion values for the save ceremony on the release page, so its
+    behaviour under Reduce Motion is not written here and not verified. The import's cover beat
+    has its own Reduce Motion rules, under *Make a record* below.
+  - *Make a record* (import, #205): the Mac's Desktop import (#159) on iPhone, on the studio
+    backdrop (`StudioBackdrop`) until a cover is set, with the tab bar on the backdrop as in
+    Settings. Values in `Theme.Import`; the beat's clock and curves in
+    `Views/Import/ImportBeat.swift`, the same numbers as `apps/web/src/lib/import-flow.ts`.
+    - *Invitation* (no track yet): an accent band sweeps left to right across the screen once
+      (700 ms, skewed 12 degrees, fully showing by 12 % of the way and gone at the end), then a
+      bare disc (176 pt, accent house label), **Add a track** and "or add audio from Files" fade
+      in and rise 6 pt (480 ms, after 280 ms). It plays each time the invitation appears. Add a
+      track is a clear glass pill (a white 14 % to 4 % fill, a 12 % rim with a 32 % top edge)
+      that fills with three soft clouds of fluorescent blue light (azure, ice and cobalt over a
+      thin blue wash) while it is pressed: they fade in over 0.3 s and drift slowly back and forth
+      (4 s) while lit, with a soft dark pool under the label so the white text keeps at least
+      4.5:1 against the light at every point of the drift. The clock that runs the sweep stops
+      once it has played, so a waiting invitation draws nothing. It opens Files with several files allowed: one file starts a single, two
+      or more an album (the iPhone has no drop and no switch before the record, so the count
+      decides; the library's "Make an album" still starts an album). Files shared in from other
+      apps go straight to the record. The page title is gone; the waiting chips and toasts stay
+      at the top.
+    - *The record* (once a track is added; an album stays a record if every track is removed,
+      until it is saved): the release page's layout. The sleeve says "Add cover art" (the cover
+      sheet: recent covers, Photos, Files, then the crop) and the disc peeks out; a meta line
+      holds the Single / Album switch and the track count; then the title, artist, album (a
+      single only, "Album, same as track title"), year and genre as inline fields; then the tracks in
+      the faked-glass panel (white 6 % fill, no outline; replaced 15 Oct 2026, owner on the
+      phone: the 10 % hairline round the panel and the 1 px `border` box round each file row
+      read as borders; on iPhone a file row inside a panel has no fill and no border, and the
+      empty-state silhouette blocks lose their stroke too; the release page's tracks panel
+      is the same component). Switching kind keeps the fields and the cover, and a single
+      keeps only the first track.
+    - *Tracks* (replaced 15 Oct 2026, owner: the rows looked like the first iPhone version;
+      they now follow the Mac's track list, `TrackList`, and a track is replaced from its own
+      row). Each row is the Mac's: min height 48, the number (subheadline, tabular, white 60 %,
+      24 wide), the title as an inline field (body semibold; an album's is editable, a single's
+      is the file's), and at the trailing edge a **replace** button (circling arrows, white
+      60 %, 44 pt hit area, "Replace <title>" for VoiceOver) that opens Files for one audio file
+      and swaps it in at that position, the title taken from the new file's tags or name; then,
+      on an album of two or more, the Mac's grip (three lines, white 35 %) as the hint that rows
+      drag. At the accessibility text sizes the number takes only its own width, the title wraps
+      (up to four lines) and the plays sit under it. Replace and Add a track do nothing while
+      files load or the record sends. No music
+      tile, no "Audio file" caption, no chevron. Rows are divided by the Mac's hairline (white
+      7 %, from the number's leading edge, none above the first or below the last). A long
+      press lifts a row with the system's normal drag (owner: no glass tile, "just a normal
+      drag"). A **single** is just its one row in the panel:
+      no "Tracks" heading and no Add a track, since the row's replace button does that. An
+      **album** keeps the "Tracks" heading, the "Hold and drag a track to reorder." hint, swipe
+      to delete and **Add a track** at the end, and every row has replace. The release page's
+      tracks panel uses the same row, with its plays ("12 plays", muted, tabular) where the
+      Mac shows them and no replace button, since a saved release's files are not swapped.
+    - *Send* (replaced 15 Oct 2026, owner: the record goes into its cover, then a playful
+      "Sent" pop-up, in place of the release page's ceremony and the done screen). Tapping
+      Send closes the keyboard and scrolls the record back to the sleeve (350 ms, then a short
+      settle), then the disc slides all the way into the sleeve, turning 240 degrees (950 ms,
+      curve 0.33, 0, 0.15, 1), while the files are written. If the send fails, the disc eases
+      back out to its peeking pose (600 ms, curve 0.2, 0.8, 0.2, 1) and the message sits in the
+      footer just above Send, on a soft dark halo (`bg` at 90 %, blurred 8) so the list never
+      shows through it, at most 5 lines (3 at the accessibility text sizes; VoiceOver reads it
+      all), with a **Details** link opening the whole message in a sheet when that cuts it short.
+      Once the disc is in and the send has worked, the **Sent card** pops up over everything,
+      tab bar included, modelled on Google Health's "You're all set" card: the page dims (black
+      45 %, 250 ms); a compact card (`card`, radius 28, padding 24, 16 from the screen edges,
+      sitting in the lower half) springs up from 40 pt below at 94 % scale (spring response 0.5,
+      damping 0.72); behind its top edge a soft glow in the cover's colours blooms (the
+      backdrop palette's colours, blurred 40, from 60 % scale and clear to full over 700 ms;
+      accent and violet with no cover); the record, sealed, sits on the card's top edge
+      (sleeve 96 pt, overlapping the card by half), dropping in tilted −8 degrees and settling
+      to −3 with the same spring; a success haptic plays. The card says **Sent** (title, 28
+      bold), "Your track has been sent to Spotify." or "Your album has been sent to Spotify."
+      (body, muted), then one quiet line ("It's in Your Library, under Local Files." or "To
+      play it as an album, make it a playlist from its page in your library."), then a full
+      width **Open in Spotify** primary pill (opens the Spotify app; when Spotify isn't
+      installed the pill is **Close** instead) and a **Close** text button. Open in Spotify and
+      Close both take the page back to the invitation behind the card (a single whose share
+      queue has a next file stays on the record), and Close drops the card away (200 ms). The
+      card is modal for VoiceOver, which reads "Sent" first; at large text it scrolls inside
+      the card. With Reduce Motion the disc is in at once, the card and glow fade in over 200 ms
+      with no spring, tilt or bloom, and the haptic still plays. The release page keeps its
+      ceremony.
+    - *The beat*, whenever a cover is set (from Files, Photos or a recent cover), starting once
+      the sheet it came from (the crop, or the cover sheet for a recent cover) has closed, so
+      no sheet hides it: the cover
+      slides in from 48 pt to the right with a fade (0 to 420 ms, curve 0.3, 0.5, 0.3, 1); a
+      warm-white flash over the sleeve (255, 252, 246 at the centre to 255, 248, 238 at the
+      edges, with a faint 16 pt spill at 40 %) swells to fully opaque (420 to 720, curve 0.45, 0,
+      0.55, 1), holds (720 to 820) and fades (820 to 1300, curve 0.5, 0, 0.7, 1); the backdrop
+      takes the cover's colours from 420 ms (its own 900 ms cross-fade, the studio backdrop
+      fading out over 500 ms); then the disc, which stays peeking out of the sleeve as on the
+      release page, turns 240 degrees into place (1340 to 2290, curve 0.33, 0, 0.15, 1). After
+      the beat the record rests there, cover and peeking disc, so the page never shows a bare
+      sleeve. (Changed 15 Oct 2026, owner on the phone: on iPhone the disc no longer seals into
+      the sleeve as it does on the Mac, #159.) A tap anywhere, or typing in a field, mid-beat
+      jumps to the end and still does its job. A cover that replaces another plays the beat
+      again from the peeking disc.
+      Removing the cover brings back "Add cover art", the peeking disc and the studio backdrop.
+    - *Reduce Motion*: no sweep, slide, flash or turn. The invitation and a new cover fade in
+      over 160 ms, the colours change at once, the disc stays peeking out of the sleeve, still,
+      and the glow's light shows on press without drifting.
+    - *Large text*: the fields, the buttons and the hint scale with Dynamic Type and wrap, and the
+      invitation scrolls when it doesn't fit; the sleeve and the discs keep their size.
 - **Make it a playlist (album release pages, both apps)**: a disclosure between the Tracks
   section and the action row, `card` with 1 px `border`, radius 9, padding 20, title "Make it a
   playlist" with a chevron that rotates open. Body: the album title beside a small secondary /

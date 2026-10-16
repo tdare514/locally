@@ -1,0 +1,172 @@
+import Testing
+@testable import Locally
+
+/// The Make a record beat (#205): the same clock, frames and reducer as the Mac's
+/// `import-flow.ts` and the `.imp-*` keyframes.
+struct ImportBeatTests {
+    // MARK: Phase
+
+    @Test(arguments: [
+        (0.0, ImportBeat.Phase.slide), (419, .slide), (420, .swell), (719, .swell), (720, .white),
+        (819, .white), (820, .fade), (1299, .fade), (1300, .gap), (1339, .gap), (1340, .turn),
+        (2289, .turn), (2290, .done),
+    ])
+    func phaseBoundaries(ms: Double, phase: ImportBeat.Phase) {
+        #expect(ImportBeat.phase(at: ms) == phase)
+    }
+
+    @Test func reducedTimes() {
+        #expect(ImportBeat.washAt(reduced: true) == 0)
+        #expect(ImportBeat.endAt(reduced: true) == 160)
+        #expect(ImportBeat.washAt(reduced: false) == 420)
+        #expect(ImportBeat.endAt(reduced: false) == 2290)
+    }
+
+    // MARK: Frames
+
+    private func frame(_ ms: Double, reduced: Bool = false) -> ImportBeat.Frame {
+        ImportBeat.frame(at: ms, reduced: reduced)
+    }
+
+    @Test func coverSlidesIn() {
+        #expect(frame(0).coverOffsetX == 48)
+        #expect(frame(0).coverOpacity == 0)
+        #expect(frame(420).coverOffsetX == 0)
+        #expect(frame(420).coverOpacity == 1)
+        #expect(frame(200).coverOffsetX > 0 && frame(200).coverOffsetX < 48)
+    }
+
+    @Test func flashSwellsHoldsAndFades() {
+        #expect(frame(419).flashOpacity == 0)
+        #expect(frame(720).flashOpacity == 1)
+        #expect(frame(819).flashOpacity == 1)
+        #expect(frame(1300).flashOpacity == 0)
+        #expect(frame(1100).flashOpacity > 0 && frame(1100).flashOpacity < 1)
+    }
+
+    @Test func discPeeksAndTurnsIntoPlace() {
+        #expect(frame(1339).discIn == 0)
+        #expect(frame(1339).discTurnDegrees == -240)
+        #expect(frame(2290).discIn == 0)
+        #expect(frame(2290).discTurnDegrees == 0)
+        #expect(frame(1800).discIn == 0)
+        #expect(frame(1800).discTurnDegrees < 0 && frame(1800).discTurnDegrees > -240)
+        #expect(frame(2290) == .rest)
+        #expect(frame(5000) == .rest)
+    }
+
+    @Test func restPeeksAtZeroDegrees() {
+        #expect(ImportBeat.Frame.rest.discIn == 0)
+        #expect(ImportBeat.Frame.rest.discTurnDegrees == 0)
+    }
+
+    @Test func aReplayKeepsTheDiscPeeking() {
+        #expect(run([.cover, .end, .cover]).replay)
+        #expect(frame(300).discIn == 0)
+    }
+
+    @Test func reducedMotionOnlyFadesTheCoverIn() {
+        for ms in stride(from: 0.0, through: 3000, by: 10) {
+            let f = frame(ms, reduced: true)
+            #expect(f.flashOpacity == 0)
+            #expect(f.discIn == 0)
+            #expect(f.coverOffsetX == 0)
+            #expect(f.discTurnDegrees == 0)
+        }
+        #expect(frame(80, reduced: true).coverOpacity == 0.5)
+        #expect(frame(160, reduced: true) == .rest)
+    }
+
+    @Test func rampsAreMonotonic() {
+        let steps = Array(stride(from: 0.0, through: 2290, by: 5))
+        let cover = steps.map { frame($0).coverOpacity }
+        #expect(zip(cover, cover.dropFirst()).allSatisfy { $0 <= $1 })
+        let offset = steps.map { frame($0).coverOffsetX }
+        #expect(zip(offset, offset.dropFirst()).allSatisfy { $0 >= $1 })
+        let swell = steps.filter { $0 >= 420 && $0 <= 720 }.map { frame($0).flashOpacity }
+        #expect(zip(swell, swell.dropFirst()).allSatisfy { $0 <= $1 })
+        let fade = steps.filter { $0 >= 820 && $0 <= 1300 }.map { frame($0).flashOpacity }
+        #expect(zip(fade, fade.dropFirst()).allSatisfy { $0 >= $1 })
+        let turn = steps.filter { $0 >= 1340 }.map { frame($0).discTurnDegrees }
+        #expect(zip(turn, turn.dropFirst()).allSatisfy { $0 <= $1 })
+    }
+
+    // MARK: Reducer
+
+    private func run(_ events: [ImportBeat.Event], from state: ImportBeat.State = .initial) -> ImportBeat.State {
+        events.reduce(state) { ImportBeat.reduce($0, $1) }
+    }
+
+    @Test func firstCoverIsNotAReplay() {
+        let s = run([.cover])
+        #expect(s.hasCover && s.run == 1 && !s.ended && !s.skipped && !s.replay)
+        #expect(ImportBeat.isPlaying(s))
+    }
+
+    @Test func aReplacingCoverReplays() {
+        let s = run([.cover, .end, .cover])
+        #expect(s.replay && s.run == 2 && !s.ended)
+    }
+
+    @Test func skipAndEndOnlyWhilePlaying() {
+        #expect(run([.skip]) == .initial)
+        #expect(run([.end]) == .initial)
+        let skipped = run([.cover, .skip])
+        #expect(skipped.ended && skipped.skipped)
+        let ended = run([.cover, .end])
+        #expect(ended.ended && !ended.skipped)
+        #expect(run([.cover, .end, .skip]) == ended)
+        #expect(run([.cover, .skip, .end]) == skipped)
+        #expect(!ImportBeat.isPlaying(ended))
+    }
+
+    @Test func resetKeepsTheRunCount() {
+        let s = run([.cover, .cover, .reset])
+        #expect(s == ImportBeat.State(hasCover: false, run: 2, ended: false, skipped: false, replay: false))
+        #expect(run([.cover], from: s).replay == false)
+    }
+
+    // MARK: Send
+
+    @Test func sendDurations() {
+        #expect(ImportBeat.sendSealDuration == 950)
+        #expect(ImportBeat.sendUnsealDuration == 600)
+    }
+
+    @Test func sealStartsPeekingAndEndsFullyInTurnedIntoPlace() {
+        let start = ImportBeat.sendSealFrame(at: 0, reduced: false)
+        #expect(start == .rest)
+        let end = ImportBeat.sendSealFrame(at: 950, reduced: false)
+        #expect(end.discIn == 1)
+        #expect(end.discTurnDegrees == 240)
+        #expect(end.coverOffsetX == 0 && end.coverOpacity == 1 && end.flashOpacity == 0)
+        #expect(ImportBeat.sendSealFrame(at: 5000, reduced: false) == end)
+    }
+
+    @Test func sealMidwayIsBetweenAndTurnsWithTheDisc() {
+        let mid = ImportBeat.sendSealFrame(at: 475, reduced: false)
+        #expect(mid.discIn > 0 && mid.discIn < 1)
+        #expect(abs(mid.discTurnDegrees - 240 * mid.discIn) < 1e-9)
+        // The ease-out curve (0.33, 0, 0.15, 1) is past halfway at half the time.
+        #expect(mid.discIn > 0.5)
+        #expect(mid.coverOffsetX == 0 && mid.coverOpacity == 1 && mid.flashOpacity == 0)
+    }
+
+    @Test func unsealStartsFullyInAndEndsAtRest() {
+        let start = ImportBeat.sendUnsealFrame(at: 0, reduced: false)
+        #expect(start.discIn == 1)
+        #expect(start.discTurnDegrees == 240)
+        #expect(ImportBeat.sendUnsealFrame(at: 600, reduced: false) == .rest)
+        let mid = ImportBeat.sendUnsealFrame(at: 300, reduced: false)
+        #expect(mid.discIn > 0 && mid.discIn < 1)
+        #expect(mid.discIn < 0.5)
+    }
+
+    @Test func reduceMotionSealsAndUnsealsAtOnce() {
+        let sealed = ImportBeat.sendSealFrame(at: 0, reduced: true)
+        #expect(sealed.discIn == 1)
+        #expect(sealed.discTurnDegrees == 0)
+        #expect(ImportBeat.sendSealFrame(at: 950, reduced: true) == sealed)
+        #expect(ImportBeat.sendUnsealFrame(at: 0, reduced: true) == .rest)
+    }
+}

@@ -146,11 +146,9 @@ struct LibraryView: View {
             // `.onAppear` (not `.task`) so returning from `ReleaseDetailView`
             // after a save/delete re-reads the store and reflects it here.
             .onAppear { load() }
-            .stickyFooter {
-                if !releases.isEmpty {
-                    Button(Copy.Library.addASong) { startImport(nil) }
-                        .buttonStyle(PrimaryPillButtonStyle())
-                }
+            .stickyFooter(isPresented: !releases.isEmpty) {
+                Button(Copy.Library.addASong) { startImport(nil) }
+                    .buttonStyle(PrimaryPillButtonStyle())
             }
         }
     }

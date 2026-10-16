@@ -6,9 +6,9 @@ import Testing
 /// screen's heading no longer carries the inline step list, and the shared
 /// steps/fallback strings stay stable and free of leftover placeholders.
 struct CopyTests {
-    @Test func doneAlbumNoLongerInlinesThePlaylistSteps() {
-        #expect(!Copy.Import.doneAlbum.contains("select these tracks"))
-        #expect(!Copy.Import.doneAlbum.contains("Add to playlist"))
+    @Test func sentAlbumCopyDoesNotInlineThePlaylistSteps() {
+        #expect(!Copy.Import.sentAlbumBody.contains("select these tracks"))
+        #expect(!Copy.Import.sentAlbumHint.contains("Add to playlist"))
     }
 
     @Test func makeItAPlaylistStepsNamesTheAlbumAndHasNoPlaceholder() {
@@ -25,7 +25,8 @@ struct CopyTests {
 
     @Test func noPlaylistCopyUsesAnExclamationMark() {
         let strings = [
-            Copy.Import.doneAlbum,
+            Copy.Import.sentAlbumBody,
+            Copy.Import.sentAlbumHint,
             Copy.Detail.makeItAPlaylistSteps(albumTitle: "Rumours"),
             Copy.Detail.makeItAPlaylistFallback
         ]

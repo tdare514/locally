@@ -12,25 +12,13 @@ extension View {
 enum PanelEdge { case top, middle, bottom }
 
 /// A row background for the record's panels. A `List` section can only be styled row by
-/// row, so each row paints the fill plus the card's side lines (and top/bottom at the ends).
+/// row, so each row paints the fill, with no outline. `edge` is kept so callers still say where
+/// the row sits.
 struct PanelRowBackground: View {
     let edge: PanelEdge
 
     var body: some View {
-        let stroke = Theme.Immersive.panelStroke
-        ZStack {
-            Theme.Immersive.panelFill
-            VStack(spacing: 0) {
-                if edge == .top { stroke.frame(height: 1) }
-                Spacer(minLength: 0)
-                if edge == .bottom { stroke.frame(height: 1) }
-            }
-            HStack(spacing: 0) {
-                stroke.frame(width: 1)
-                Spacer(minLength: 0)
-                stroke.frame(width: 1)
-            }
-        }
+        Theme.Immersive.panelFill
     }
 }
 
@@ -38,6 +26,8 @@ struct PanelRowBackground: View {
 /// "Unsaved changes" / "Saved to your library" status and Save.
 struct ReleaseDock: View {
     let model: ReleaseDetailViewModel
+    /// The cover's glow colours for Save (`Theme.coverGlowColors`).
+    let glowColors: [Color]
 
     @State private var showSaved = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -85,11 +75,16 @@ struct ReleaseDock: View {
         Button {
             Task { await model.save() }
         } label: {
-            Text(model.isSaving ? Copy.Detail.saving : Copy.Detail.saveChanges)
-                .lineLimit(1)
-                .fixedSize()
+            HStack(spacing: 6) {
+                if !model.isSaving {
+                    Image(systemName: "checkmark").accessibilityHidden(true)
+                }
+                Text(model.isSaving ? Copy.Detail.saving : Copy.Detail.saveChanges)
+                    .lineLimit(1)
+            }
+            .fixedSize()
         }
-        .buttonStyle(PrimaryPillButtonStyle(isFullWidth: false))
+        .buttonStyle(CoverGlowButtonStyle(colors: glowColors, isFullWidth: false))
         .disabled(!model.canSave)
     }
 }

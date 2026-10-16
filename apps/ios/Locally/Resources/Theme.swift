@@ -98,6 +98,17 @@ enum Theme {
         static let primaryButtonV: CGFloat = 12
     }
 
+    /// The sticky footer's fade (docs/design.md "Sticky footer CTA (mobile)").
+    enum Footer {
+        /// How far the fade starts above the bar's top edge (docs/design.md "Sticky footer CTA (mobile)").
+        static let fadeRise: CGFloat = 48
+        /// The fade's opacity at the bar's top edge, whatever the bar's height, so text in the bar
+        /// (a failed send's message) never sits over readable content (docs/design.md "Sticky footer CTA (mobile)").
+        static let fadeTopOpacity: Double = 0.85
+        /// The fade's opacity at the bottom edge (docs/design.md "Sticky footer CTA (mobile)").
+        static let fadeOpacity: Double = 0.94
+    }
+
     /// The library home's cover grid, press lift and "library sky".
     enum Library {
         /// Minimum tile width per `CoverSize` (compact, medium, large). With
@@ -245,6 +256,21 @@ enum Theme {
         static let inlineFieldUnderlineOpacity: Double = 0.6
         static let inlineFieldUnderlineGap: CGFloat = 4
         static let inlineFieldFocusFade: Double = 0.15
+        /// A field row's leading inset, so a round first letter (G, S, C, O) that overshoots the
+        /// text's left edge isn't clipped by the list cell. Kept to 1 pt so the text still lines up.
+        static let inlineFieldOvershoot: CGFloat = 1
+        /// The side margin of every section on the record screens (import and release page), set
+        /// explicitly so the record's rows and the tracks panel line up at every screen width.
+        static let listSideMargin: CGFloat = 16
+        /// The record section's row side inset. On iOS 26 that section is full width (see
+        /// `recordListSection()`) and its rows carry `listSideMargin`; earlier, the list's margin does.
+        /// Built with an SDK before iOS 26 (Xcode 16, CI) there is no section margin to clear, so 0.
+        static var recordRowSideInset: CGFloat {
+            #if compiler(>=6.2)
+            if #available(iOS 26, *) { return listSideMargin }
+            #endif
+            return 0
+        }
         /// Empty-sleeve caption spacing.
         static let sleeveCaptionPadding: CGFloat = 16
         /// The cover sheet's recent covers: square thumbnails in a scrolling row.
@@ -252,6 +278,138 @@ enum Theme {
         static let recentCoverGap: CGFloat = 12
         /// Height the sheet's drag indicator takes above the content.
         static let coverSheetGrabberRoom: CGFloat = 24
+    }
+
+    /// "Make a record" (#205): the cover beat, the invitation and the glow pill, ported from the
+    /// `.imp-*` rules and `.btn-save.btn-glow` in `apps/web/src/app/globals.css`. The beat's clock
+    /// is in `Views/Import/ImportBeat.swift`.
+    enum Import {
+        /// The cover glow button (Send, Save): its clouds' opacity at rest and pressed, and the
+        /// dark base under its glass that keeps the list scrolling beneath from showing through.
+        static let coverGlowRest: Double = 0.62
+        static let coverGlowPressed: Double = 0.95
+        static let coverGlowBaseOpacity: Double = 0.88
+        /// The kind switch: each option's minimum tap height, and the black under its thumb's tint.
+        static let kindSwitchMinTarget: CGFloat = 44
+        static let kindThumbBase: Double = 0.35
+        /// Send scrolls the record back to the sleeve over this long (docs/design.md "Make a record").
+        static let sendScrollDuration: Double = 0.35
+        /// Then waits this long for the scroll to settle; skipped with Reduce Motion.
+        static let sendScrollSettle: Double = 0.45
+        /// A failed send's message: at most this many lines, or `sendErrorLinesLarge` at the
+        /// accessibility text sizes, so Send stays on screen (docs/design.md "Make a record").
+        static let sendErrorLines = 5
+        static let sendErrorLinesLarge = 3
+        /// The soft dark halo behind that message: its inset and blur radius, and its opacity.
+        static let sendErrorHaloInset: CGFloat = 8
+        static let sendErrorHaloOpacity: Double = 0.9
+        /// `.imp-flash`: the flash's centre and edge, and the faint spill past the sleeve
+        /// (`box-shadow: 0 0 16px 2px rgb(255 248 238 / 0.4)`).
+        static let flashCenter = Color(red: 255 / 255, green: 252 / 255, blue: 246 / 255)
+        static let flashEdge = Color(red: 255 / 255, green: 248 / 255, blue: 238 / 255)
+        static let spillRadius: CGFloat = 16
+        static let spillOpacity: Double = 0.4
+        /// `imp-slide`: the new cover starts this far to the right.
+        static let slideDistance: Double = 48
+        /// `imp-turn`: the disc turns this far into place.
+        static let discTurnDegrees: Double = 240
+
+        /// `.imp-wash-band`: accent at 9 % at 35 %, 38 % at 78 %, a 35 % white-tinted accent at
+        /// 62 % at 92 %, clear at both ends.
+        static let washEarly = Theme.accent.opacity(0.09)
+        static let washEarlyAt = 0.35
+        static let washMid = Theme.accent.opacity(0.38)
+        static let washMidAt = 0.78
+        /// `color-mix(in srgb, white 35%, accent)`.
+        static let washGlint = Color(red: 0.35 + 0.65 * (0x1E / 255.0), green: 0.35 + 0.65 * (0x7D / 255.0), blue: 0.35 + 0.65 * (0xF0 / 255.0)).opacity(0.62)
+        static let washGlintAt = 0.92
+        static let washSkewDegrees: Double = 12
+        /// The band is 120 % of the screen's width and sweeps from -100 % to -8 % of its own width.
+        static let washWidthRatio: Double = 1.2
+        static let washStartX: Double = -1
+        static let washEndX: Double = -0.08
+        static let washSweepDuration: Double = 0.7
+        /// `imp-wash-fade` (linear): opacity 1 at 12 %, 0.85 at 55 %, 0 at 100 %.
+        static let washPeakAt = 0.12
+        static let washHoldAt = 0.55
+        static let washHoldOpacity = 0.85
+
+        /// `.imp-invite`: the bare disc, button and hint fade in and rise after the band.
+        static let inviteDiscSize: CGFloat = 176
+        static let inviteRise: CGFloat = 6
+        static let inviteFadeDuration: Double = 0.48
+        static let inviteFadeDelay: Double = 0.28
+        static let reducedFadeDuration: Double = 0.16
+        /// Extra time after the sweep and the fade before the band's clock is dropped.
+        static let inviteSettleMargin: Double = 0.25
+        static let inviteGap: CGFloat = 20
+        static let inviteButtonGap: CGFloat = 8
+
+        /// `.btn-glow`: the clear glass pill, its rim and the corner highlight.
+        static let glowFillTop: Double = 0.14
+        static let glowFillBottom: Double = 0.04
+        static let glowFillBottomAt = 0.55
+        static let glowCornerHighlight: Double = 0.18
+        static let glowRim: Double = 0.12
+        static let glowRimTop: Double = 0.32
+        static let glowMinHeight: CGFloat = 48
+        /// The light layer is `inset: -60% -35%` of the pill.
+        static let glowInsetX: CGFloat = 0.35
+        static let glowInsetY: CGFloat = 0.60
+        static let glowFadeDuration: Double = 0.3
+        static let glowDriftDuration: Double = 4
+        static let glowDriftX: Double = 0.09
+        static let glowDriftY: Double = 0.05
+        static let glowDriftScale: Double = 0.2
+        /// The three clouds (azure, ice, cobalt) over a thin wash.
+        static let glowAzure = (r: 70.0, g: 160.0, b: 255.0)
+        static let glowIce = (r: 120.0, g: 215.0, b: 255.0)
+        static let glowCobalt = (r: 90.0, g: 120.0, b: 255.0)
+        /// The dark pool under the label while lit: black at this opacity, solid to the core stop,
+        /// feathered out to a radius of this share of the pill's width, squashed to an ellipse.
+        static let glowPoolOpacity: Double = 0.5
+        static let glowPoolCoreAt = 0.35
+        static let glowPoolMidAt = 0.7
+        static let glowPoolRadius: CGFloat = 0.5
+        static let glowPoolSquash: CGFloat = 0.6
+        static let glowWash = Color(red: 60 / 255, green: 130 / 255, blue: 255 / 255).opacity(0.3)
+
+        /// The cover's backdrop over the studio one: in once the wash starts, out when the cover goes.
+        static let backdropFadeInDuration: Double = 0.5
+        static let backdropFadeOutDuration: Double = 0.4
+
+        /// The Sent card (docs/design.md "Make a record", Send). The dimmed page: black at this
+        /// opacity, faded in over `sentDimDuration`.
+        static let sentDimOpacity: Double = 0.45
+        static let sentDimDuration: Double = 0.25
+        /// The card: radius, padding and the gap to the screen's edges. Its height is capped at
+        /// this share of the screen's so its content scrolls at large text.
+        static let sentCardRadius: CGFloat = 28
+        static let sentCardPadding: CGFloat = 24
+        static let sentCardEdgeInset: CGFloat = 16
+        static let sentCardMaxHeightRatio: CGFloat = 0.62
+        static let sentContentGap: CGFloat = 12
+        static let sentButtonGap: CGFloat = 8
+        /// The entrance: up from this far below at this scale, on a spring.
+        static let sentRise: CGFloat = 40
+        static let sentRiseScale: CGFloat = 0.94
+        static let sentSpringResponse: Double = 0.5
+        static let sentSpringDamping: Double = 0.72
+        /// The glow behind the card's top: blurred, from this scale, in over `sentGlowDuration`.
+        static let sentGlowBlur: CGFloat = 40
+        static let sentGlowStartScale: CGFloat = 0.6
+        static let sentGlowDuration: Double = 0.7
+        static let sentGlowWidthRatio: CGFloat = 0.8
+        static let sentGlowHeight: CGFloat = 160
+        /// The sealed record on the card's top edge: its sleeve, and the tilt it drops in at and settles to.
+        static let sentRecordSize: CGFloat = 96
+        static let sentRecordTiltStart: Double = -8
+        static let sentRecordTiltEnd: Double = -3
+        /// Close drops the card away over this long; with Reduce Motion the card (and glow) fade in and out over `sentReducedFadeDuration`.
+        static let sentCloseDuration: Double = 0.2
+        static let sentReducedFadeDuration: Double = 0.2
+        /// VoiceOver focus moves to "Sent" this long after the card appears.
+        static let sentFocusDelay: Double = 0.1
     }
 
     /// The "studio" backdrop behind Settings (#160): the accent blue and a cool violet, with a deep
@@ -275,6 +433,10 @@ enum Theme {
     /// (Settings, #160). `Font` above is fixed points.
     enum ScaledFont {
         static let largeTitle = SwiftUI.Font.system(.largeTitle, weight: .bold)
+        /// The record's title field (#205): `Font.pageTitle` as a Dynamic Type style.
+        static let pageTitle = SwiftUI.Font.system(.title2, weight: .bold)
+        /// The Sent card's title (28 pt bold at the default size).
+        static let sentTitle = SwiftUI.Font.system(.title, weight: .bold)
         static let sectionTitle = SwiftUI.Font.system(.subheadline, weight: .semibold)
         static let headline = SwiftUI.Font.system(.headline, weight: .semibold)
         static let subheadline = SwiftUI.Font.system(.subheadline)
@@ -284,6 +446,24 @@ enum Theme {
         static let input = SwiftUI.Font.system(.body, weight: .regular)
         static let caption = SwiftUI.Font.system(.footnote, weight: .regular)
         static let pill = SwiftUI.Font.system(.footnote, weight: .semibold)
+        /// A track row (`TrackList`): the number and plays are subheadline with tabular digits, the title body semibold.
+        static let trackNumber = SwiftUI.Font.system(.subheadline).monospacedDigit()
+        static let trackTitle = SwiftUI.Font.system(.body, weight: .semibold)
+    }
+
+    /// A track row, after the Mac's `TrackList` (`.track-row`, `.track-affordance`).
+    enum Track {
+        static let minHeight: CGFloat = 48
+        static let numberWidth: CGFloat = 24
+        static let spacing: CGFloat = 12
+        static let numberOpacity: Double = 0.6
+        /// The replace button's circling arrows, and its tap area.
+        static let replaceOpacity: Double = 0.6
+        static let replaceHitSize: CGFloat = 44
+        static let gripOpacity: Double = 0.35
+        /// The hairline between rows (`.track-list > .track-row` border).
+        static let separatorOpacity: Double = 0.07
+        static var separatorTint: Color { .white.opacity(separatorOpacity) }
     }
 
     /// Opaque black tab and navigation bars, so a bright cover scrolling
