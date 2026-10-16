@@ -42,8 +42,14 @@ from the same geometry as the brand marks:
 - **AppIcon-Line** (alternate, user-selectable): "Line art, profile". White line work, white
   headphones, white cup with an accent plus.
 
-The web app uses the main icon for `icon.png` and `apple-icon.png`. In the tab bar the mark is a
-plain plus in a circle, accent when selected. The metallic plus studies remain in
+The web app uses the main icon for `icon.png` and `apple-icon.png`. The tab bar, row chevrons, close buttons
+and a few more spots share the Mac's hand-drawn glyph set on both platforms (#213; iPhone template
+images `Icon/…`, `LocallyIcon`): Library, Import (a plain plus), Stats, Person, chevron, X, pencil,
+search and copy, accent when selected. The owner kept SF Symbols for Settings (`gearshape`), the
+note on file rows and the Tracks and Single options, the list and grid toggles (the Mac's two
+were redrawn to match), Add cover art (`photo.badge.plus`; the Mac's was redrawn to match), and
+trash, checkmarks, seals, folder, iphone, photo, `rectangle.stack.fill`, `paperplane.fill` and
+system menus. The metallic plus studies remain in
 `scripts/make-app-icons.py` for reference but are no longer in the asset catalog.
 
 ## Listener mark

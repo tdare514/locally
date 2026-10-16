@@ -157,10 +157,8 @@ struct GlassRow: View {
                 }
             }
             if chevron {
-                Image(systemName: "chevron.right")
-                    .font(.system(.footnote, weight: .semibold))
+                LocallyIcon(.chevronRight, size: 20, relativeTo: .footnote)
                     .foregroundStyle(Theme.textDim)
-                    .accessibilityHidden(true)
             }
         }
         .padding(.horizontal, 16)
