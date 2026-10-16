@@ -208,8 +208,8 @@ eyebrows still apply to those labels.
     - Switching modes is instant except the dock, which fades in or out over 0.25 s on the
       signature easing (opacity only, scoped to the dock; the list's layout is never animated).
       Reduce Motion: no fade.
-    - **Save changes** opens a review sheet, "Check your changes" (medium detent, the page's
-      dark sheet): a row per change with the field's label, the old value in `text-dim` with a
+    - **Save changes** opens a review sheet, "Check your changes" (medium detent, large at the
+      accessibility text sizes; the page's dark sheet): a row per change with the field's label, the old value in `text-dim` with a
       strikethrough above the new value in white ("Not set" for an empty side); a new cover shows
       the old and new thumbnails; each renamed track is its own row; a new order is one row,
       "Track order changed". Below: **Save** (cover glow button) and **Keep editing** (text).

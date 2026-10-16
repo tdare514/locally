@@ -10,6 +10,7 @@ struct ReleaseReviewSheet: View {
     let onClose: () -> Void
 
     @ScaledMetric(relativeTo: .body) private var thumbSize = Theme.Immersive.reviewThumbSize
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Immersive.reviewRowSpacing) {
@@ -59,7 +60,8 @@ struct ReleaseReviewSheet: View {
             }
         }
         .padding(Theme.Spacing.pagePadding)
-        .presentationDetents([.medium, .large])
+        // At the accessibility sizes a half-height sheet left one line for the changes.
+        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
         .presentationDragIndicator(.visible)
         .presentationBackground(Theme.card)
         .interactiveDismissDisabled(model.isSaving)
