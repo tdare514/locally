@@ -90,4 +90,73 @@ struct AlbumBuilderViewModelReplaceTests {
 
         #expect(model.rows == before)
     }
+
+    private struct StageFailure: Error, LocalizedError {
+        var errorDescription: String? { "staging failed" }
+    }
+
+    @Test func aFailedReplacementLeavesTheRowUntouched() async throws {
+        let importer = FakeFileImporter()
+        importer.stageError = StageFailure()
+        let model = makeModelWithThreeRows(importer: importer)
+        let before = model.rows[1]
+
+        await model.replaceRow(before.id, with: try makeAudioFile(named: "fresh.mp3"))
+
+        #expect(model.rows[1].url == before.url)
+        #expect(model.rows[1].title == before.title)
+        #expect(model.rows[1].discNumber == before.discNumber)
+        #expect(model.rows[1].tagTrackNumber == before.tagTrackNumber)
+        #expect(model.errorMessage == "staging failed")
+        #expect(model.isLoadingTags == false)
+    }
+
+    @Test func sendIsBlockedWhileAReplacementStages() async throws {
+        let importer = FakeFileImporter()
+        importer.suspendStaging()
+        let model = makeModelWithThreeRows(importer: importer)
+        model.albumTitle = "Album"
+        model.artist = "Artist"
+        #expect(model.canSend)
+        let id = model.rows[0].id
+        let newURL = try makeAudioFile(named: "fresh.mp3")
+
+        let task = Task { await model.replaceRow(id, with: newURL) }
+        while !model.isLoadingTags { await Task.yield() }
+        #expect(model.canSend == false)
+
+        importer.releaseStage()
+        await task.value
+
+        #expect(model.canSend)
+        #expect(model.rows[0].url.lastPathComponent == "fresh.mp3")
+    }
+
+    @Test func singleSendIsBlockedWhileAFileStages() async throws {
+        let importer = FakeFileImporter()
+        importer.suspendStaging()
+        let folderDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let coordinator = ReleaseCoordinator(
+            importer: importer,
+            transcoder: FakeTranscoder(),
+            m4aTagWriter: FakeTagWriter(),
+            id3TagWriter: FakeTagWriter(),
+            folder: FakeSpotifyFolder(directory: folderDir),
+            library: InMemoryLibraryStore(),
+            coverStore: FakeCoverStore()
+        )
+        let model = ImportSingleViewModel(importer: importer, coordinator: coordinator)
+        let url = try makeAudioFile(named: "song.mp3")
+        model.artist = "Artist"
+
+        let task = Task { await model.pick(url: url) }
+        while !model.isLoadingTags { await Task.yield() }
+        model.title = "Song"
+        #expect(model.canSend == false)
+
+        importer.releaseStage()
+        await task.value
+
+        #expect(model.canSend)
+    }
 }

@@ -289,7 +289,7 @@ struct ImportView: View {
     /// card pops up once the disc is in; on failure the disc eases back out and the footer shows
     /// the message.
     private func send() {
-        guard !holdingForSent, let singleModel, let albumModel else { return }
+        guard !holdingForSent, !isLocked, let singleModel, let albumModel else { return }
         // The kind is fixed here: the lock keeps the switch off, and the send uses only this.
         let sendKind = kind
         holdingForSent = true

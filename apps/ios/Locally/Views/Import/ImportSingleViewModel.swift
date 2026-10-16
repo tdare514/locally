@@ -136,6 +136,6 @@ final class ImportSingleViewModel {
     }
 
     var canSend: Bool {
-        pickedURL != nil && !title.isEmpty && !artist.isEmpty && !isSending
+        pickedURL != nil && !title.isEmpty && !artist.isEmpty && !isSending && !isLoadingTags
     }
 }
