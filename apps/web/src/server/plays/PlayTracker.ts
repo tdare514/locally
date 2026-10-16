@@ -83,6 +83,13 @@ export class PlayTracker {
       const result = await this.nowPlaying.read();
       if (!this.enabled) return;
       const at = this.now();
+      if ("hold" in result) {
+        // The account is down and this Mac isn't playing a local file: leave the counter's session
+        // and memory alone. A long outage still drifts to the idle interval.
+        this.notPlayingSince ??= at;
+        this.lastStatus = "on";
+        return;
+      }
       if ("error" in result || !result.running || result.state !== "playing") {
         this.notPlayingSince ??= at;
       } else {

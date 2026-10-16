@@ -192,6 +192,82 @@ describe("PlayTracker on the Spotify account (#228)", () => {
   });
 });
 
+describe("PlayTracker fallback samples (#228)", () => {
+  const B = "spotify:local:Artist:Album:Other:200";
+
+  /** The account plays A to 30 s (counts), then a 429; `during` is what the Mac reports on each fallback tick. */
+  async function outage(during: (phonePos: number) => NowPlayingResult): Promise<number> {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    let phonePos = 0;
+    for (; phonePos <= 30; phonePos += 5) {
+      web.answer = player(ID, phonePos);
+      await tick();
+    }
+    expect((await store.get()).tracks.t1.count).toBe(1);
+    web.error = new SpotifyApiError("rateLimited", "slow", { retryAfterSec: 60, status: 429 });
+    for (let i = 0; i < 12; i++) {
+      phonePos += 5;
+      apple.next = during(phonePos);
+      await tick();
+    }
+    web.error = null;
+    // The account is back with A well past where it was and plays on for 40 s.
+    for (let i = 0; i < 9; i++) {
+      web.answer = player(ID, phonePos);
+      await tick();
+      phonePos += 5;
+    }
+    expect(switcher.currentSource()).toBe("account");
+    return (await store.get()).tracks.t1.count;
+  }
+
+  const paused = (id: string, pos: number): NowPlayingResult => ({
+    running: true,
+    state: "paused",
+    id,
+    positionSec: pos,
+    durationMs: 200_000,
+  });
+
+  it("(a) a paused other track B at 120 during the fallback does not make A count again", async () => {
+    expect(await outage(() => paused(B, 120))).toBe(1);
+  });
+
+  it("(b) a stale paused A at 0 during the fallback does not make A count again", async () => {
+    expect(await outage(() => paused(ID, 0))).toBe(1);
+  });
+
+  it("the Mac playing A at a consistent position during the fallback does not count it again", async () => {
+    expect(
+      await outage((pos) => ({ running: true, state: "playing", id: ID, positionSec: pos, durationMs: 200_000 })),
+    ).toBe(1);
+  });
+
+  it("Spotify not running on the Mac during the fallback, then the account resumes A: once", async () => {
+    expect(await outage(() => ({ running: false }))).toBe(1);
+  });
+
+  it("a fresh local track C playing on the Mac during the fallback does count", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    web.error = new SpotifyApiError("offline", "x");
+    for (let pos = 0; pos <= 20; pos += 2) {
+      apple.next = { running: true, state: "playing", id: SHORT_ID, positionSec: pos, durationMs: 20_000 };
+      clock += 2000;
+      await tracker.poll();
+    }
+    expect((await store.get()).tracks.t2?.count).toBe(1);
+  });
+
+  it("a held fallback leaves the status on and the idle clock running", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    web.error = new SpotifyApiError("offline", "x");
+    apple.next = { running: false };
+    await tick();
+    expect(tracker.status()).toBe("on");
+    expect(switcher.fallingBack()).toBe(true);
+  });
+});
+
 describe("PlayTracker idle polling after 2 minutes not playing (#228)", () => {
   beforeEach(() => {
     vi.useFakeTimers();

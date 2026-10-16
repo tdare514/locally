@@ -176,4 +176,12 @@ describe("PlayCounter memory of the last session (#228)", () => {
     expect(out.filter(Boolean)).toHaveLength(1);
     expect(CONTINUATION_WINDOW_MS).toBe(600_000);
   });
+
+  it("a track change is never a backward seek: B at 120 then A at 95 within the window restores A's memory", () => {
+    const c = new PlayCounter();
+    expect(run(c, [0, 5, 10, 15, 20, 25, 30].map((t) => s(t, t))).filter(Boolean)).toHaveLength(1);
+    c.push(s(35, 120, { id: OTHER, state: "paused" }));
+    const out = run(c, [95, 100, 105, 110, 115, 120, 125].map((t) => s(t, t)));
+    expect(out.filter(Boolean)).toHaveLength(0);
+  });
 });

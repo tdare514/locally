@@ -55,7 +55,7 @@ export class PlayCounter {
       return null;
     }
 
-    const wentBack = this.prev !== null && sample.positionSec < this.prev.positionSec - BACKWARD_SEEK_SEC;
+    const wentBack = this.prev !== null && id === this.sessionId && sample.positionSec < this.prev.positionSec - BACKWARD_SEEK_SEC;
     if (id !== this.sessionId || wentBack) {
       this.remember();
       this.sessionId = id;

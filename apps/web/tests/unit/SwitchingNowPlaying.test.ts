@@ -5,7 +5,7 @@ import { SpotifyApiError } from "../../src/server/spotify/SpotifyClient";
 import { MemorySettings, SAMPLE_SPOTIFY } from "./spotifyFakes";
 
 const WEB: NowPlayingResult = { running: true, state: "playing", id: "web", positionSec: 1, durationMs: 0 };
-const MAC: NowPlayingResult = { running: true, state: "playing", id: "mac", positionSec: 1, durationMs: 0 };
+const MAC: NowPlayingResult = { running: true, state: "playing", id: "spotify:local:M:A:C:1", positionSec: 1, durationMs: 0 };
 
 class Fake implements SpotifyNowPlaying {
   calls = 0;
@@ -139,5 +139,35 @@ describe("SwitchingNowPlaying", () => {
     web.read = async () => WEB;
     advance(1);
     expect(await sw.read()).toBe(WEB);
+  });
+
+  it("during a fallback only this Mac's active local play passes; everything else holds", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { sw, web, advance } = setup();
+    const mac = (over: object): NowPlayingResult => ({ ...(MAC as object), ...over }) as NowPlayingResult;
+    const cases: [string, NowPlayingResult, boolean][] = [
+      ["playing local", MAC, true],
+      ["paused local", mac({ state: "paused" }), false],
+      ["stopped", mac({ state: "stopped" }), false],
+      ["not running", { running: false }, false],
+      ["non-local track", mac({ id: "spotify:track:abc" }), false],
+      ["no track", mac({ id: null }), false],
+      ["error", { error: "failed" }, false],
+      ["permission denied", { error: "permission-denied" }, false],
+    ];
+    web.fail = new SpotifyApiError("offline", "x");
+    for (const [name, result, passes] of cases) {
+      (sw as unknown as { deps: { appleScript: { read: () => Promise<NowPlayingResult> } } }).deps.appleScript.read = async () => result;
+      advance(1000); // inside the hold-off after the first failure
+      expect(await sw.read(), name).toEqual(passes ? result : { hold: true });
+    }
+  });
+
+  it("with the setting off every AppleScript result passes through", async () => {
+    const { sw, mac } = setup({ countOtherDevices: false });
+    mac.read = async () => ({ running: false });
+    expect(await sw.read()).toEqual({ running: false });
+    mac.read = async () => ({ error: "failed" });
+    expect(await sw.read()).toEqual({ error: "failed" });
   });
 });

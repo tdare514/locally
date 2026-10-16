@@ -1,4 +1,5 @@
 import type { SettingsStore } from "../config/SettingsStore";
+import { LOCAL_ID_PREFIX } from "./PlayCounter";
 import { SpotifyApiError } from "../spotify/SpotifyClient";
 import type { NowPlayingResult, SpotifyNowPlaying } from "./SpotifyNowPlaying";
 
@@ -48,7 +49,7 @@ export class SwitchingNowPlaying implements SpotifyNowPlaying {
     }
     if (now < this.holdOffUntil) {
       this.source = "this-mac";
-      return this.deps.appleScript.read();
+      return this.duringFallback();
     }
     try {
       const result = await this.deps.web.read();
@@ -69,7 +70,25 @@ export class SwitchingNowPlaying implements SpotifyNowPlaying {
         const kind = err instanceof SpotifyApiError ? err.code : "unknown";
         console.warn(`Play tracker could not read the Spotify account (${kind}); counting this Mac only for now.`);
       }
-      return this.deps.appleScript.read();
+      return this.duringFallback();
     }
+  }
+
+  /**
+   * While the account is down, this Mac only speaks for the account when it is actively playing a
+   * local file (the account plays one thing at a time). Anything else holds the account's session.
+   */
+  private async duringFallback(): Promise<NowPlayingResult> {
+    const result = await this.deps.appleScript.read();
+    if (
+      "running" in result &&
+      result.running &&
+      result.state === "playing" &&
+      result.id !== null &&
+      result.id.startsWith(LOCAL_ID_PREFIX)
+    ) {
+      return result;
+    }
+    return { hold: true };
   }
 }
