@@ -96,6 +96,11 @@ describe("counting and numbers", () => {
     expect(countingLine(false, null, TODAY)).toBe("Play counting is off.");
     expect(countingLine(true, null, TODAY)).toBe("Counting plays on this Mac.");
   });
+  it("says one total across devices once other devices' plays are in", () => {
+    expect(countingLine(true, "2026-10-15", TODAY, true)).toBe("Collected across all your devices.");
+    expect(countingLine(true, null, TODAY, true)).toBe("Collected across all your devices.");
+    expect(countingLine(false, null, TODAY, true)).toBe("Play counting is off on this Mac.");
+  });
   it("formats counts", () => {
     expect(formatCount(1204)).toBe("1,204");
     expect(playsCount(1)).toBe("1 play");

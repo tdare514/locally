@@ -86,6 +86,8 @@ export function useLocalDay(): { day: string; focuses: number } {
 export interface PlayStatsRead {
   state: StatsState;
   countingSince: string | null;
+  /** True when the plays include other devices' (signed in, the service's summary merged in). */
+  allDevices: boolean;
   /** The Mac's local date the read is for. */
   today: string;
   /** The week's first day (1 Monday to 7 Sunday) the dates were worked out with. */
@@ -191,13 +193,14 @@ export function usePlayStats(
   }, [releases, read, limit, isAll]);
 
   const countingSince = read?.status === "ok" ? (read.summary.countingSince ?? null) : null;
+  const allDevices = read?.status === "ok" && read.summary.includesOtherDevices === true;
   let current: StatsState;
   if (IS_DEMO || releases.length === 0) current = EMPTY;
   else if (!read) current = LOADING;
   else if (read.status === "error") current = FAILED;
   // Plays read for an earlier day wait for the new read.
   else current = read.dates === dates ? (state ?? LOADING) : LOADING;
-  return { state: current, countingSince, today: day, firstDay };
+  return { state: current, countingSince, allDevices, today: day, firstDay };
 }
 
 /** The play rankings for the sidebar widgets (#203): the top three for Today, This week or This month. */
