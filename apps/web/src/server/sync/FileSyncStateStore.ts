@@ -38,6 +38,8 @@ const SyncStateFileSchema = z.object({
         }),
       ),
     ),
+  // Written by builds from #218 on; a bad value is dropped, which just means the next reconcile checks.
+  lastMissingFilesCheckAt: z.string().optional().catch(undefined),
 });
 
 /** JSON-file backed {@link SyncStateStore}, next to `settings.json`. */

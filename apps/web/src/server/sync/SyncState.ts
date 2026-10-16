@@ -33,6 +33,11 @@ export interface SyncState {
    * has no such check.
    */
   missingFiles: Record<string, MissingMark>;
+  /**
+   * When the Mac last asked the service which of its own releases lack files (#218), ISO. Absent
+   * means never, so the next reconcile checks. Kept across restarts so the 6 h spacing holds.
+   */
+  lastMissingFilesCheckAt?: string;
 }
 
 /** Persists {@link SyncState}. Behind an interface so tests use an in-memory fake. */
