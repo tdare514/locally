@@ -186,37 +186,41 @@ export default function Sidebar({
       <nav
         aria-label="Main"
         className="sb-rail absolute inset-y-0 left-0 z-20 flex w-16 flex-col items-center py-5"
-        {...panel.zoneProps}
       >
-        <button
-          ref={triggerRef}
-          type="button"
-          {...panel.triggerProps}
-          className={`${railButton} hover:bg-white/[0.07] hover:text-text ${
-            panel.shown ? "text-text" : "text-text-muted"
-          }`}
-        >
-          <MenuIcon className="h-[18px] w-[18px]" />
-        </button>
-        <RailPageButton page="library" active={activePage === "library"} onSelect={toLibrary} className="mt-2" />
-        <button
-          type="button"
-          aria-label="Import"
-          data-page="import"
-          onClick={toImport}
-          disabled={IS_DEMO}
-          title={IS_DEMO ? "Not available in the demo" : undefined}
-          aria-current={activePage === "import" ? "page" : undefined}
-          className={`${IS_DEMO ? "" : "import-pill "}mt-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent hover:bg-accent-hover ${focusRing} ${
-            activePage === "import" ? "ring-2 ring-white/25" : ""
-          } disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-accent`}
-        >
-          <PlusIcon className="import-plus h-5 w-5" />
-        </button>
-        <div className="my-3 h-px w-6 bg-white/[0.14]" />
-        {goToStats && (
-          <RailPageButton page="stats" active={activePage === "stats"} onSelect={goToStats} />
-        )}
+        {/* The reveal zone: only this top group opens the panel on hover or focus, not Settings, the
+            profile or the empty rail between (#264). rootProps on the outer div still keep an open
+            panel while the pointer is anywhere in the sidebar. */}
+        <div className="flex w-full flex-col items-center" data-reveal-zone {...panel.zoneProps}>
+          <button
+            ref={triggerRef}
+            type="button"
+            {...panel.triggerProps}
+            className={`${railButton} hover:bg-white/[0.07] hover:text-text ${
+              panel.shown ? "text-text" : "text-text-muted"
+            }`}
+          >
+            <MenuIcon className="h-[18px] w-[18px]" />
+          </button>
+          <RailPageButton page="library" active={activePage === "library"} onSelect={toLibrary} className="mt-2" />
+          <button
+            type="button"
+            aria-label="Import"
+            data-page="import"
+            onClick={toImport}
+            disabled={IS_DEMO}
+            title={IS_DEMO ? "Not available in the demo" : undefined}
+            aria-current={activePage === "import" ? "page" : undefined}
+            className={`${IS_DEMO ? "" : "import-pill "}mt-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent hover:bg-accent-hover ${focusRing} ${
+              activePage === "import" ? "ring-2 ring-white/25" : ""
+            } disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-accent`}
+          >
+            <PlusIcon className="import-plus h-5 w-5" />
+          </button>
+          <div className="my-3 h-px w-6 bg-white/[0.14]" />
+          {goToStats && (
+            <RailPageButton page="stats" active={activePage === "stats"} onSelect={goToStats} />
+          )}
+        </div>
         {/* The foot: Settings, then the profile at the very bottom. Both rows are h-10 with a gap-2
             between them, the same as the panel's footer, so each sits level with its row. */}
         <div className="mt-auto flex flex-col items-center gap-2">
