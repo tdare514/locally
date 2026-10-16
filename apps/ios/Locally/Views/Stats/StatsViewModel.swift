@@ -144,9 +144,10 @@ final class StatsViewModel {
     var digest: String {
         switch phase {
         case .ready:
-            return Copy.Stats.digestSentence(period, total: result?.total ?? 0, topTrack: result?.tracks.first?.title)
+            // Describes the period the numbers are for, not one just chosen and still loading.
+            return Copy.Stats.digestSentence(displayed, total: result?.total ?? 0, topTrack: result?.tracks.first?.title)
         case .quiet:
-            return Copy.Stats.emptyPeriodLine(period)
+            return Copy.Stats.emptyPeriodLine(displayed)
         default:
             return ""
         }

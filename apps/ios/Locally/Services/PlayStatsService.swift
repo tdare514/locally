@@ -37,8 +37,14 @@ final class SyncPlayStatsService: PlayStatsReading {
     static let budgetWindowSeconds: TimeInterval = 60 * 60
     static let backOffSeconds: TimeInterval = 10 * 60
 
-    private struct Key: Hashable {
+    /// Who the phone is signed in as: a read belongs to one identity and never outlives it.
+    private struct Identity: Hashable {
         var deviceId: String?
+        var token: String?
+    }
+
+    private struct Key: Hashable {
+        var identity: Identity
         var from: String
         var to: String
     }
@@ -54,31 +60,57 @@ final class SyncPlayStatsService: PlayStatsReading {
 
     /// Oldest first, so the front is the one to drop.
     private var cache: [(key: Key, entry: Entry)] = []
-    private var cachedDeviceId: String?
+    private var cachedIdentity: Identity?
     private var inFlight: [Key: Task<PlayStatsRead, Never>] = [:]
-    private var requestTimes: [Date] = []
-    private var backOffUntil: Date?
+    private var requestTimes: [Date] = [] { didSet { saveBudget() } }
+    private var backOffUntil: Date? { didSet { saveBudget() } }
+    private let defaults: UserDefaults
+    static let requestTimesKey = "playstats.requestTimes"
+    static let backOffKey = "playstats.backOffUntil"
     /// How many callers joined a request already in flight (tests wait on this).
     private(set) var sharedJoins = 0
 
-    init(api: SyncApi, account: SyncAccountStore, now: @escaping () -> Date = Date.init) {
+    /// `defaults` keeps the request budget and back-off across launches, so relaunching does not
+    /// hand the phone a fresh hour.
+    init(api: SyncApi, account: SyncAccountStore, now: @escaping () -> Date = Date.init, defaults: UserDefaults = .standard) {
         self.api = api
         self.account = account
         self.now = now
+        self.defaults = defaults
+        let current = now()
+        let saved = (defaults.array(forKey: Self.requestTimesKey) as? [Double] ?? [])
+            .map { Date(timeIntervalSince1970: $0) }
+            .filter { current.timeIntervalSince($0) < Self.budgetWindowSeconds && $0 <= current }
+            .suffix(Self.budgetPerHour)
+        requestTimes = Array(saved)
+        if let until = defaults.object(forKey: Self.backOffKey) as? Double, Date(timeIntervalSince1970: until) > current {
+            backOffUntil = Date(timeIntervalSince1970: until)
+        }
     }
+
+    private func saveBudget() {
+        defaults.set(requestTimes.map(\.timeIntervalSince1970), forKey: Self.requestTimesKey)
+        if let backOffUntil {
+            defaults.set(backOffUntil.timeIntervalSince1970, forKey: Self.backOffKey)
+        } else {
+            defaults.removeObject(forKey: Self.backOffKey)
+        }
+    }
+
+    private var identity: Identity { Identity(deviceId: account.deviceId, token: account.deviceToken) }
 
     func summary(from: String, to: String, force: Bool) async -> PlayStatsRead {
         guard account.deviceToken != nil else {
             cache.removeAll()
-            cachedDeviceId = nil
+            cachedIdentity = nil
             return .signedOut
         }
-        let deviceId = account.deviceId
-        if deviceId != cachedDeviceId {
+        let session = identity
+        if session != cachedIdentity {
             cache.removeAll()
-            cachedDeviceId = deviceId
+            cachedIdentity = session
         }
-        let key = Key(deviceId: deviceId, from: from, to: to)
+        let key = Key(identity: session, from: from, to: to)
         if !force, let entry = cached(key), now().timeIntervalSince(entry.fetchedAt) < Self.freshSeconds {
             return .ok(entry.summary)
         }
@@ -86,7 +118,7 @@ final class SyncPlayStatsService: PlayStatsReading {
             sharedJoins += 1
             return await running.value
         }
-        let task = Task { await self.load(key, deviceId: deviceId) }
+        let task = Task { await self.load(key) }
         inFlight[key] = task
         let result = await task.value
         inFlight[key] = nil
@@ -105,10 +137,23 @@ final class SyncPlayStatsService: PlayStatsReading {
         while cache.count > Self.maxCacheEntries { cache.removeFirst() }
     }
 
-    /// What to answer when nothing could be fetched: the cached summary if there is one.
+    /// What to answer when nothing could be fetched: the cached summary if there is one, and only
+    /// one of the identity that is signed in now.
     private func fallback(_ key: Key, empty: PlayStatsRead) -> PlayStatsRead {
+        guard key.identity == identity else { return identityChanged() }
         if let entry = cached(key) { return .ok(entry.summary) }
         return empty
+    }
+
+    /// The account changed or signed out while a read was under way: nothing fetched is kept or returned.
+    private func identityChanged() -> PlayStatsRead {
+        cache.removeAll { $0.key.identity != identity }
+        if account.deviceToken == nil {
+            cache.removeAll()
+            cachedIdentity = nil
+            return .signedOut
+        }
+        return .failed
     }
 
     /// Whether one more page request is allowed right now (and, if so, counts it).
@@ -121,12 +166,13 @@ final class SyncPlayStatsService: PlayStatsReading {
         return true
     }
 
-    private func load(_ key: Key, deviceId: String?) async -> PlayStatsRead {
+    private func load(_ key: Key) async -> PlayStatsRead {
         var tracks: [PlayCount] = []
         var allTime: [PlayCount] = []
         var cursor: String?
         var pages = 0
         while true {
+            guard key.identity == identity else { return identityChanged() }
             if pages >= Self.maxPages { return fallback(key, empty: .failed) }
             guard takeRequest() else { return fallback(key, empty: .busy) }
             pages += 1
@@ -140,6 +186,9 @@ final class SyncPlayStatsService: PlayStatsReading {
                 // `.unauthorized` too: the sync engine owns sign-out.
                 return fallback(key, empty: .failed)
             }
+            // The request goes out with whatever token is current when it is sent, so a switch
+            // while it was in flight may have fetched another account's page: drop it all.
+            guard key.identity == identity else { return identityChanged() }
             tracks += page.tracks.map {
                 PlayCount(trackId: $0.trackId, releaseId: $0.releaseId, plays: $0.plays, lastPlayedDay: $0.lastPlayedDay)
             }
@@ -150,10 +199,7 @@ final class SyncPlayStatsService: PlayStatsReading {
             cursor = next
         }
         let summary = PlaysSummary(tracks: tracks, allTime: allTime)
-        // A sign-out or another account while the pages were in flight: don't cache for the wrong one.
-        if account.deviceToken != nil, account.deviceId == deviceId {
-            store(summary, for: key)
-        }
+        store(summary, for: key)
         return .ok(summary)
     }
 }

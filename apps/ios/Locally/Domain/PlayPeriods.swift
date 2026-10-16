@@ -95,9 +95,12 @@ enum PlayPeriods {
         return r < 0 ? r + 7 : r
     }
 
-    /// The date on the calendar's clock as `YYYY-MM-DD`, in the calendar's time zone.
+    /// The date on the calendar's clock as `YYYY-MM-DD`, in the calendar's time zone. The digits are
+    /// always Gregorian: a Buddhist or Japanese calendar would otherwise send year 2569 or 8.
     static func localDayString(_ date: Date, calendar: Calendar) -> String {
-        let c = calendar.dateComponents([.year, .month, .day], from: date)
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = calendar.timeZone
+        let c = gregorian.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", c.year ?? 1970, c.month ?? 1, c.day ?? 1)
     }
 

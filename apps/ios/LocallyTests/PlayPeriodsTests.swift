@@ -157,6 +157,23 @@ struct PlayPeriodsTests {
         #expect(PlayPeriods.localDayString(calendar("UTC").date(from: DateComponents(year: 2026, month: 3, day: 5))!, calendar: calendar("UTC")) == "2026-03-05")
     }
 
+    @Test func nonGregorianCalendarsStillSendGregorianDates() {
+        let utc = TimeZone(identifier: "UTC")!
+        let moment = calendar("UTC").date(from: DateComponents(year: 2026, month: 10, day: 15, hour: 12))!
+        for id in [Calendar.Identifier.buddhist, .japanese, .islamicUmmAlQura, .hebrew] {
+            var other = Calendar(identifier: id)
+            other.timeZone = utc
+            other.firstWeekday = 5 // Thursday: the user's own choice stays theirs
+            #expect(PlayPeriods.localDayString(moment, calendar: other) == "2026-10-15")
+            #expect(PlayPeriods.isoFirstDay(fromAppleFirstWeekday: other.firstWeekday) == 4)
+        }
+        // The time zone still decides which day it is.
+        var buddhist = Calendar(identifier: .buddhist)
+        buddhist.timeZone = TimeZone(identifier: "Pacific/Auckland")!
+        let lateUtc = calendar("UTC").date(from: DateComponents(year: 2026, month: 10, day: 14, hour: 20))!
+        #expect(PlayPeriods.localDayString(lateUtc, calendar: buddhist) == "2026-10-15")
+    }
+
     @Test func isoFirstDayMapsAppleWeekdaysToTheWebs() {
         #expect(PlayPeriods.isoFirstDay(fromAppleFirstWeekday: 1) == 7) // Sunday
         #expect(PlayPeriods.isoFirstDay(fromAppleFirstWeekday: 2) == 1) // Monday

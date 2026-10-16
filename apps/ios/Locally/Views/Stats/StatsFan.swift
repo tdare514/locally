@@ -120,11 +120,15 @@ struct StatsFan: View {
     let ownerOf: (StatItem) -> UUID?
     /// Whether the app may animate now (foreground, this tab, not Low Power).
     let isMotionActive: Bool
+    /// Whether the screen is in use (app in the foreground, this tab selected). Leaving it cancels an opening beat.
+    let isScreenActive: Bool
     @Binding var armed: Int?
     let onOpen: (StatItem) -> Void
 
     @State private var fanned = false
     @State private var opening: Int?
+    /// The opening beat's wait; cancelled whenever the fan goes away, so nothing opens after the reader left.
+    @State private var openTask: Task<Void, Never>?
     @State private var epoch = Date()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -154,6 +158,10 @@ struct StatsFan: View {
             }
         }
         .frame(width: width)
+        .onDisappear(perform: cancelOpening)
+        .onChange(of: isScreenActive) { _, active in
+            if !active { cancelOpening() }
+        }
         .task {
             if reduceMotion {
                 fanned = true
@@ -256,6 +264,14 @@ struct StatsFan: View {
         }
     }
 
+    /// Drops a beat that is waiting to open a release, and puts the lift back.
+    private func cancelOpening() {
+        openTask?.cancel()
+        openTask = nil
+        opening = nil
+        armed = nil
+    }
+
     /// Opening beat (the sleeve rises a little more and its record slides further out), then the release opens.
     private func open(_ i: Int) {
         guard opening == nil, items.indices.contains(i) else { return }
@@ -267,8 +283,10 @@ struct StatsFan: View {
         }
         armed = i
         opening = i
-        Task { @MainActor in
+        openTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: UInt64(Theme.Stats.openingBeat * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            openTask = nil
             opening = nil
             armed = nil
             onOpen(item)

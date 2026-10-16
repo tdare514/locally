@@ -194,4 +194,37 @@ struct StatsViewModelTests {
         #expect(opened?.id == u(2))
         #expect(m.model.coverOwner(of: artist) == u(1))
     }
+
+    @Test func aPendingPeriodChangeKeepsTheDigestOfTheNumbersOnScreen() async {
+        let m = make(summary(tracks: [count(1, 11, 5)], allTime: [count(1, 11, 9)]))
+        await m.model.read()
+        #expect(m.model.digest == "You played your tracks 5 times this week, mostly Night Bus.")
+
+        let latch = Latch()
+        m.stats.gate = { await latch.wait() }
+        m.stats.result = summary(tracks: [count(1, 11, 2)], allTime: [count(1, 11, 9)])
+        m.model.selectKind(.today)
+        for _ in 0..<2000 where m.stats.calls.count < 2 { try? await Task.sleep(nanoseconds: 2_000_000) }
+        // The choice shows at once, the numbers and their sentence stay the week's.
+        #expect(m.model.period.kind == .today)
+        #expect(m.model.displayed.kind == .week)
+        #expect(m.model.digest == "You played your tracks 5 times this week, mostly Night Bus.")
+        latch.release()
+        await m.model.waitUntilIdle()
+        #expect(m.model.digest == "You played your tracks 2 times today, mostly Night Bus.")
+    }
+
+    @Test func aPendingChangeKeepsTheQuietLineOfTheOldPeriod() async {
+        let m = make(summary(tracks: [], allTime: [count(1, 11, 9)]))
+        await m.model.read()
+        #expect(m.model.digest == "No plays yet this week.")
+        let latch = Latch()
+        m.stats.gate = { await latch.wait() }
+        m.model.selectKind(.month)
+        for _ in 0..<2000 where m.stats.calls.count < 2 { try? await Task.sleep(nanoseconds: 2_000_000) }
+        #expect(m.model.digest == "No plays yet this week.")
+        latch.release()
+        await m.model.waitUntilIdle()
+        #expect(m.model.digest == "No plays yet this month.")
+    }
 }

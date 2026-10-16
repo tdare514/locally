@@ -332,6 +332,7 @@ struct StatsView: View {
                 items: top, disc: model.tab == .artists, width: room,
                 label: Copy.Stats.fanLabel(count: top.count, noun: noun), cache: cache,
                 ownerOf: { model.coverOwner(of: $0) }, isMotionActive: motionActive,
+                isScreenActive: scenePhase == .active && isTabSelected,
                 armed: $armed, onOpen: open
             )
             .id(fanKey)

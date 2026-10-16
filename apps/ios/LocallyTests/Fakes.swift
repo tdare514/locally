@@ -634,6 +634,8 @@ final class FailingSyncOutbox: SyncOutbox {
 final class FakePlayStats: PlayStatsReading {
     var result: PlayStatsRead
     private(set) var calls: [(from: String, to: String, force: Bool)] = []
+    /// Holds a read open until the test lets it go.
+    var gate: (() async -> Void)?
 
     init(result: PlayStatsRead = .ok(PlaysSummary(tracks: [], allTime: []))) {
         self.result = result
@@ -641,6 +643,7 @@ final class FakePlayStats: PlayStatsReading {
 
     func summary(from: String, to: String, force: Bool) async -> PlayStatsRead {
         calls.append((from, to, force))
+        await gate?()
         return result
     }
 }

@@ -44,6 +44,7 @@ struct PlayStatsServiceTests {
         let api: FakeSyncApi
         let account: InMemorySyncAccountStore
         let clock: TestClock
+        let defaults: UserDefaults
     }
 
     private func make(signedIn: Bool = true, script: [Result<SyncPlaysSummaryPage, Error>] = []) -> Setup {
@@ -52,8 +53,9 @@ struct PlayStatsServiceTests {
         let account = InMemorySyncAccountStore()
         if signedIn { account.save(email: "a@example.com", deviceToken: "token", deviceId: "device-1") }
         let clock = TestClock()
-        let service = SyncPlayStatsService(api: api, account: account, now: { clock.date })
-        return Setup(service: service, api: api, account: account, clock: clock)
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let service = SyncPlayStatsService(api: api, account: account, now: { clock.date }, defaults: defaults)
+        return Setup(service: service, api: api, account: account, clock: clock, defaults: defaults)
     }
 
     private func page(_ plays: Int = 1, cursor: String? = nil, track: String = "t1") -> Result<SyncPlaysSummaryPage, Error> {
@@ -229,5 +231,130 @@ struct PlayStatsServiceTests {
         #expect(s.api.playsSummaryCalls.count == 13)
         _ = await read(s, "2026-01-01", "2026-01-01") // oldest: dropped, fetched again
         #expect(s.api.playsSummaryCalls.count == 14)
+    }
+
+    // MARK: - Account changes while a read is in flight (P1)
+
+    /// Holds the `which`th request open (1-based) until the latch is released.
+    private func hold(_ s: Setup, request which: Int, _ latch: Latch) {
+        s.api.playsSummaryGate = { [api = s.api] in
+            if api.playsSummaryCalls.count == which { await latch.wait() }
+        }
+    }
+
+    private func waitForCalls(_ s: Setup, _ count: Int) async {
+        for _ in 0..<2000 where s.api.playsSummaryCalls.count < count { try? await Task.sleep(nanoseconds: 2_000_000) }
+    }
+
+    @Test func signingOutDuringTheFirstPageReturnsSignedOutAndCachesNothing() async {
+        let s = make(script: [page(1)])
+        let latch = Latch()
+        hold(s, request: 1, latch)
+        let task = Task { await self.read(s) }
+        await waitForCalls(s, 1)
+        s.account.clear()
+        latch.release()
+        #expect(await task.value == .signedOut)
+        s.account.save(email: "a@example.com", deviceToken: "token", deviceId: "device-1")
+        #expect(await read(s) == .ok(summary(1)))
+        #expect(s.api.playsSummaryCalls.count == 2) // nothing was kept from the first
+    }
+
+    @Test func switchingAccountsDuringTheFirstPageReturnsFailedAndCachesNothing() async {
+        let s = make(script: [page(1), page(2)])
+        let latch = Latch()
+        hold(s, request: 1, latch)
+        let task = Task { await self.read(s) }
+        await waitForCalls(s, 1)
+        s.account.save(email: "b@example.com", deviceToken: "token-b", deviceId: "device-2")
+        latch.release()
+        #expect(await task.value == .failed)
+        #expect(await read(s) == .ok(summary(2))) // the new account fetches for itself
+        #expect(s.api.playsSummaryCalls.count == 2)
+    }
+
+    @Test func aTokenChangeOnTheSameDeviceCountsAsAnotherAccount() async {
+        let s = make(script: [page(1), page(2)])
+        let latch = Latch()
+        hold(s, request: 1, latch)
+        let task = Task { await self.read(s) }
+        await waitForCalls(s, 1)
+        s.account.save(email: "a@example.com", deviceToken: "token-2", deviceId: "device-1")
+        latch.release()
+        #expect(await task.value == .failed)
+    }
+
+    @Test func signingOutBetweenPagesDiscardsTheFirstPage() async {
+        let s = make(script: [page(1, cursor: "c", track: "t1"), page(2, track: "t2")])
+        let latch = Latch()
+        hold(s, request: 2, latch)
+        let task = Task { await self.read(s) }
+        await waitForCalls(s, 2)
+        s.account.clear()
+        latch.release()
+        #expect(await task.value == .signedOut)
+        s.account.save(email: "a@example.com", deviceToken: "token", deviceId: "device-1")
+        _ = await read(s)
+        #expect(s.api.playsSummaryCalls.count >= 3) // fetched again, not served from the half-read one
+    }
+
+    @Test func switchingAccountsBetweenPagesReturnsNoMixedData() async {
+        let s = make(script: [page(1, cursor: "c", track: "t1"), page(2, track: "t2")])
+        let latch = Latch()
+        hold(s, request: 2, latch)
+        let task = Task { await self.read(s) }
+        await waitForCalls(s, 2)
+        s.account.save(email: "b@example.com", deviceToken: "token-b", deviceId: "device-2")
+        latch.release()
+        #expect(await task.value == .failed)
+    }
+
+    @Test func anOldAccountsCacheIsNeverTheFallbackAfterASwitch() async {
+        let s = make(script: [page(1), .failure(SyncApiError.network("down"))])
+        _ = await read(s) // cached for device-1
+        let latch = Latch()
+        hold(s, request: 2, latch)
+        let task = Task { await self.read(s, force: true) }
+        await waitForCalls(s, 2)
+        s.account.save(email: "b@example.com", deviceToken: "token-b", deviceId: "device-2")
+        latch.release()
+        // The failing second request would fall back to device-1's entry; it must not.
+        #expect(await task.value == .failed)
+        #expect(await read(s) == .failed) // device-2 has no cache of its own
+    }
+
+    // MARK: - The budget survives a relaunch (P2)
+
+    private func relaunch(_ s: Setup, script: [Result<SyncPlaysSummaryPage, Error>] = []) -> (SyncPlayStatsService, FakeSyncApi) {
+        let api = FakeSyncApi()
+        api.playsSummaryScript = script
+        let clock = s.clock
+        return (SyncPlayStatsService(api: api, account: s.account, now: { clock.date }, defaults: s.defaults), api)
+    }
+
+    @Test func aSpentBudgetStaysSpentAfterARelaunch() async {
+        let s = make(script: [page(1)])
+        for _ in 0..<SyncPlayStatsService.budgetPerHour { _ = await read(s, force: true) }
+        #expect(s.api.playsSummaryCalls.count == 20)
+        let (again, api) = relaunch(s, script: [page(1)])
+        #expect(await again.summary(from: "2026-10-12", to: "2026-10-15", force: true) == .busy)
+        #expect(api.playsSummaryCalls.isEmpty)
+        s.clock.advance(61 * 60) // an hour on, the old requests no longer count
+        let (later, laterApi) = relaunch(s, script: [page(1)])
+        #expect(await later.summary(from: "2026-10-12", to: "2026-10-15", force: true) == .ok(summary(1)))
+        #expect(laterApi.playsSummaryCalls.count == 1)
+    }
+
+    @Test func aBackOffStaysAfterARelaunch() async {
+        let s = make(script: [.failure(SyncApiError.rateLimited)])
+        #expect(await read(s) == .busy)
+        s.clock.advance(5 * 60)
+        let (again, api) = relaunch(s, script: [page(1)])
+        #expect(await again.summary(from: "2026-10-12", to: "2026-10-15", force: true) == .busy)
+        #expect(api.playsSummaryCalls.isEmpty)
+        s.clock.advance(6 * 60)
+        let (done, doneApi) = relaunch(s, script: [page(1)])
+        #expect(await done.summary(from: "2026-10-12", to: "2026-10-15", force: true) == .ok(summary(1)))
+        #expect(doneApi.playsSummaryCalls.count == 1)
     }
 }
