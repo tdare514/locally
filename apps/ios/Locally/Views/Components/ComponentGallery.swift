@@ -16,7 +16,7 @@ struct ComponentGallery: View {
         // #213: the Mac's glyphs on the real tab bar, library and release page, over seeded sample data.
         "icons-tabs-library", "icons-tabs-stats", "icons-library-list", "icons-library-grid", "icons-release", "icons-release-bottom", "icons-cover-edit", "icons-playlist-guide",
         // #269: the Library's "From your devices" button and tray, over sample pending records.
-        "devices-header-0", "devices-header-1", "devices-header-3", "devices-tray-open", "devices-tray-large-text"]
+        "devices-header-0", "devices-header-1", "devices-header-3", "devices-tray-open", "devices-tray-large-text", "devices-tray-failed"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -162,6 +162,8 @@ struct ComponentGallery: View {
             IconsGallery.devices(pending: 3, open: false)
         case "devices-tray-open":
             IconsGallery.devices(pending: 3, open: true)
+        case "devices-tray-failed":
+            IconsGallery.devices(pending: 1, open: true, failedOnly: true)
         case "devices-tray-large-text":
             IconsGallery.devices(pending: 3, open: true).dynamicTypeSize(.accessibility3)
         case "icons-release-bottom":
@@ -421,25 +423,28 @@ enum IconsGallery {
         return environment(IconsTabs(selected: selected), container)
     }
 
-    /// The real Library over sample pending records (#269): the first is ready, the second still
-    /// sending (a failed download, fresh), the third waiting (failed, two hours old).
-    static func devices(pending: Int, open: Bool) -> some View {
+    /// The real Library over sample pending records (#269): the first is ready, the second's last
+    /// send failed, the third is sending now. `failedOnly` shows just the failed one.
+    static func devices(pending: Int, open: Bool, failedOnly: Bool = false) -> some View {
         UserDefaults.standard.set(LibraryLayout.list.rawValue, forKey: LibraryViewPrefs.layoutKey)
         let container = container()
         let now = Date()
-        let samples: [(String, String, String, String, Double, Int)] = [
-            ("Night Bus to Nowhere", "Neon Harbor", "mac", "ready", 600, 11),
-            ("Low Tide", "The Salt Line", "mac", "sending", 120, 1),
-            ("Paper Lanterns Over the Long Way Home", "Amelia Rowe", "web", "waiting", 7200, 9),
+        let samples: [(String, String, String, String, Int)] = [
+            ("Night Bus to Nowhere", "Neon Harbor", "mac", "ready", 11),
+            ("Low Tide", "The Salt Line", "mac", "failed", 1),
+            ("Paper Lanterns Over the Long Way Home", "Amelia Rowe", "web", "sending", 9),
         ]
+        let shown = failedOnly ? [samples[1]] : Array(samples.prefix(pending))
         let status = container.syncStatus
-        status.pendingFromMac = samples.prefix(pending).enumerated().map { index, sample in
+        status.pendingFromMac = shown.enumerated().map { index, sample in
             SyncRecord(
-                id: "gallery-\(index)", kind: sample.5 > 1 ? "album" : "single", title: sample.0, artist: sample.1,
-                tracks: (0..<sample.5).map { SyncTrack(id: "t\($0)", title: "Track \($0 + 1)", trackNumber: $0 + 1, file: "t\($0).m4a", bytes: 0, durationSec: nil) },
-                origin: sample.2, originDevice: "Gallery", createdAt: now.addingTimeInterval(-sample.4), updatedAt: now.addingTimeInterval(-sample.4))
+                id: "gallery-\(index)", kind: sample.4 > 1 ? "album" : "single", title: sample.0, artist: sample.1,
+                tracks: (0..<sample.4).map { SyncTrack(id: "t\($0)", title: "Track \($0 + 1)", trackNumber: $0 + 1, file: "t\($0).m4a", bytes: 0, durationSec: nil) },
+                origin: sample.2, originDevice: "Gallery", createdAt: now, updatedAt: now)
         }
-        status.failedAcceptIds = Set(samples.prefix(pending).enumerated().filter { $0.element.3 != "ready" }.map { "gallery-\($0.offset)" })
+        status.failedAcceptIds = Set(shown.enumerated().filter { $0.element.3 == "failed" }.map { "gallery-\($0.offset)" })
+        status.acceptingIds = Set(shown.enumerated().filter { $0.element.3 == "sending" }.map { "gallery-\($0.offset)" })
+        status.lastError = "The network connection was lost."
         return environment(IconsLibrary(openTray: open), container)
     }
 

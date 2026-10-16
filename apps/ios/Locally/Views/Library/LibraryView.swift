@@ -36,6 +36,8 @@ struct LibraryView: View {
     @Environment(SyncStatus.self) private var syncStatus
     /// The "From your devices" tray (#269): open or closed.
     @State private var tray = DevicesTrayModel()
+    @AccessibilityFocusState private var trayHeadingFocused: Bool
+    @AccessibilityFocusState private var cloudButtonFocused: Bool
 
     /// Scroll distance, read only by `LibrarySky` so scrolling doesn't re-run this body.
     @State private var motion = LibrarySkyMotion()
@@ -152,11 +154,10 @@ struct LibraryView: View {
                     }
                 }
             }
-            .overlayPreferenceValue(DevicesTrayAnchorKey.self) { anchor in
-                devicesTrayLayer(anchor: anchor)
-            }
             .onChange(of: syncStatus.pendingFromMac.count) { _, count in
                 tray.pendingCountChanged(to: count)
+                // A send that finished (or a retry inside a reconcile) has added a release.
+                load()
             }
             .task(id: skyKey) { await ensurePalette(for: skyKey) }
             // No bar on the home screen (the header carries the title); pushed
@@ -179,6 +180,11 @@ struct LibraryView: View {
             .stickyFooter(isPresented: !releases.isEmpty) {
                 Button(Copy.Library.addASong) { startImport(nil) }
                     .buttonStyle(PrimaryPillButtonStyle())
+            }
+            // While the tray is open the library behind it is out of VoiceOver's reach.
+            .accessibilityHidden(tray.isOpen)
+            .overlayPreferenceValue(DevicesTrayAnchorKey.self) { anchor in
+                devicesTrayLayer(anchor: anchor)
             }
         }
     }
@@ -222,6 +228,7 @@ struct LibraryView: View {
             DevicesTrayButton(count: pendingCount, isOpen: false) { setTray(open: true) }
                 .opacity(tray.isOpen ? 0 : 1)
                 .accessibilityHidden(tray.isOpen)
+                .accessibilityFocused($cloudButtonFocused)
                 .anchorPreference(key: DevicesTrayAnchorKey.self, value: .bounds) { $0 }
         }
     }
@@ -229,6 +236,11 @@ struct LibraryView: View {
     private func setTray(open: Bool) {
         withAnimation(reduceMotion ? DevicesTrayMotion.reducedFade : DevicesTrayMotion.open) {
             if open != tray.isOpen { tray.toggle() }
+        }
+        // VoiceOver goes to the tray's heading on open and back to the cloud on dismissal.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            if open { trayHeadingFocused = true } else { cloudButtonFocused = true }
         }
     }
 
@@ -247,10 +259,18 @@ struct LibraryView: View {
                     DevicesTrayPanel(
                         rows: DevicesTrayModel.rows(
                             pending: syncStatus.pendingFromMac, accepting: syncStatus.acceptingIds,
-                            failed: syncStatus.failedAcceptIds, now: Date()),
+                            failed: syncStatus.failedAcceptIds),
                         maxHeight: screen * 0.6,
-                        onSend: { id in Task { await container?.syncEngine.acceptFromMac(id) } }
+                        errorText: syncStatus.lastError,
+                        headingFocus: $trayHeadingFocused,
+                        onSend: { id in
+                            Task {
+                                await container?.syncEngine.acceptFromMac(id)
+                                load()
+                            }
+                        }
                     )
+                    .accessibilityAction(.escape) { setTray(open: false) }
                     .padding(.horizontal, Theme.Spacing.listPagePadding)
                     .padding(.top, frame.maxY + 8)
                     .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96, anchor: .topTrailing)))

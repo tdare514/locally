@@ -4,16 +4,16 @@ import SwiftUI
 // `DevicesTrayModel` holds the logic (which rows, in which state, open and close, the badge) so it
 // can be tested; the views below only draw it.
 
-/// What a row of the tray shows and does.
+/// What a row of the tray shows and does. The phone cannot tell whether a pending record's audio is
+/// missing from the service (the missing-files check is about this phone's own releases), so a failed
+/// accept is a generic failure, never "still sending" or "waiting" (those are the Mac's).
 enum DevicesTrayRowState: Equatable {
-    /// Ready: the sleeve is the Send button.
+    /// The sleeve is the Send button.
     case ready
-    /// The sleeve's download is running (`SyncStatus.acceptingIds`).
-    case downloading
-    /// The last download failed because the files have not landed yet; `reconcile()` retries it.
-    case stillSending
-    /// The same, and the record is an hour old or more.
-    case waiting
+    /// A send is running (`SyncStatus.acceptingIds`); it wins over an earlier failure.
+    case sending
+    /// The last send failed (`SyncStatus.failedAcceptIds`); the row offers Try again.
+    case failed
 }
 
 struct DevicesTrayRow: Identifiable, Equatable {
@@ -24,16 +24,12 @@ struct DevicesTrayRow: Identifiable, Equatable {
     let origin: String
     let state: DevicesTrayRowState
 
-    /// Only a ready row can be sent.
-    var canSend: Bool { state == .ready }
-    var isUnarrived: Bool { state == .stillSending || state == .waiting }
+    /// A row can be sent unless a send is already running.
+    var canSend: Bool { state != .sending }
 }
 
 struct DevicesTrayModel: Equatable {
     var isOpen = false
-
-    /// A record that still fails to download after this long is waiting, not still sending.
-    static let waitingAfter: TimeInterval = 60 * 60
 
     mutating func toggle() { isOpen.toggle() }
     mutating func close() { isOpen = false }
@@ -46,29 +42,14 @@ struct DevicesTrayModel: Equatable {
     /// The badge is shown only while something is pending, and not while the tray is open.
     static func showsBadge(count: Int, isOpen: Bool) -> Bool { count > 0 && !isOpen }
 
-    /// The Mac's rule: rows whose files have not arrived sort last, the rest keep their order.
-    static func rows(pending: [SyncRecord], accepting: Set<String>, failed: Set<String>, now: Date) -> [DevicesTrayRow] {
-        let rows = pending.map { record -> DevicesTrayRow in
-            let state: DevicesTrayRowState
-            if failed.contains(record.id) {
-                state = now.timeIntervalSince(record.createdAt) >= waitingAfter ? .waiting : .stillSending
-            } else if accepting.contains(record.id) {
-                state = .downloading
-            } else {
-                state = .ready
-            }
+    /// Rows keep the sync order. A running send beats an earlier failure.
+    static func rows(pending: [SyncRecord], accepting: Set<String>, failed: Set<String>) -> [DevicesTrayRow] {
+        pending.map { record in
+            let state: DevicesTrayRowState = accepting.contains(record.id) ? .sending
+                : failed.contains(record.id) ? .failed : .ready
             return DevicesTrayRow(id: record.id, title: record.title, artist: record.artist,
                                   trackCount: record.tracks.count, origin: record.origin, state: state)
         }
-        return rows.filter { !$0.isUnarrived } + rows.filter { $0.state == .stillSending } + rows.filter { $0.state == .waiting }
-    }
-
-    /// The one footer line under the rows, only while some row is still sending.
-    static func footer(for rows: [DevicesTrayRow]) -> String? {
-        let sending = rows.filter { $0.state == .stillSending }
-        guard let first = sending.first else { return nil }
-        let origin = sending.allSatisfy { $0.origin == first.origin } ? first.origin : "other"
-        return Copy.Sync.stillSendingFooter(count: sending.count, origin: origin)
     }
 }
 
@@ -152,8 +133,6 @@ enum DevicesTrayMotion {
     /// Reduce Motion: the tray just fades.
     static let reducedFade = Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.16)
     static let collapse = Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.3)
-    /// The dots type a step every 0.4 s.
-    static let dotStep: TimeInterval = 0.4
 }
 
 // MARK: - Panel
@@ -162,6 +141,9 @@ enum DevicesTrayMotion {
 struct DevicesTrayPanel: View {
     let rows: [DevicesTrayRow]
     let maxHeight: CGFloat
+    /// The sync error text, read out as the failed rows' accessibility hint.
+    var errorText: String?
+    var headingFocus: AccessibilityFocusState<Bool>.Binding?
     let onSend: (String) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -177,15 +159,10 @@ struct DevicesTrayPanel: View {
                     .font(.system(.subheadline, weight: .semibold))
                     .foregroundStyle(Theme.primaryText)
                     .accessibilityAddTraits(.isHeader)
+                    .modifier(HeadingFocus(binding: headingFocus))
                 ForEach(rows) { row in
-                    DevicesTrayRowView(row: row, onSend: { onSend(row.id) })
+                    DevicesTrayRowView(row: row, errorText: errorText, onSend: { onSend(row.id) })
                         .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.94, anchor: .top)))
-                }
-                if let footer = DevicesTrayModel.footer(for: rows) {
-                    Text(footer)
-                        .font(.system(.caption, weight: .regular))
-                        .foregroundStyle(Theme.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(16)
@@ -213,6 +190,14 @@ struct DevicesTrayPanel: View {
     }
 }
 
+/// Applies the focus binding when the caller supplies one (the gallery's panels do not).
+private struct HeadingFocus: ViewModifier {
+    let binding: AccessibilityFocusState<Bool>.Binding?
+    func body(content: Content) -> some View {
+        if let binding { content.accessibilityFocused(binding) } else { content }
+    }
+}
+
 private struct DevicesTrayHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
@@ -223,44 +208,56 @@ private struct DevicesTrayHeightKey: PreferenceKey {
 struct DevicesTrayRowView: View {
     let row: DevicesTrayRow
     var cover: UIImage?
+    var errorText: String?
     let onSend: () -> Void
 
     @ScaledMetric(relativeTo: .subheadline) private var titleSize: CGFloat = 15
     @ScaledMetric(relativeTo: .footnote) private var detailSize: CGFloat = 13
     @ScaledMetric(relativeTo: .caption) private var labelSize: CGFloat = 12
 
-    init(row: DevicesTrayRow, cover: UIImage? = nil, onSend: @escaping () -> Void) {
+    init(row: DevicesTrayRow, cover: UIImage? = nil, errorText: String? = nil, onSend: @escaping () -> Void) {
         self.row = row
         self.cover = cover
+        self.errorText = errorText
         self.onSend = onSend
     }
 
     var body: some View {
-        let unarrived = row.isUnarrived
         HStack(alignment: .top, spacing: 12) {
             DevicesSleeve(state: row.state, cover: cover, title: row.title, onSend: onSend)
             VStack(alignment: .leading, spacing: 2) {
-                Text(row.title)
-                    .font(.system(size: titleSize, weight: .semibold))
-                    .foregroundStyle(unarrived ? Theme.secondaryText : Theme.primaryText)
-                Text("\(row.artist) · \(Copy.Sync.trackCount(row.trackCount))")
-                    .font(.system(size: detailSize))
-                    .foregroundStyle(unarrived ? Theme.textDim : Theme.secondaryText)
-                Text(Copy.Sync.originLabel(row.origin))
-                    .font(.system(size: labelSize))
-                    .foregroundStyle(Theme.textDim)
-                if row.state == .waiting {
-                    Text(Copy.Sync.waitingOn(origin: row.origin))
-                        .font(.system(size: labelSize, weight: .semibold))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(row.title)
+                        .font(.system(size: titleSize, weight: .semibold))
                         .foregroundStyle(Theme.primaryText)
-                        .padding(.top, 2)
-                    Text(Copy.Sync.audioNotArrived)
+                    Text("\(row.artist) · \(Copy.Sync.trackCount(row.trackCount))")
                         .font(.system(size: detailSize))
                         .foregroundStyle(Theme.secondaryText)
+                    Text(Copy.Sync.originLabel(row.origin))
+                        .font(.system(size: labelSize))
+                        .foregroundStyle(Theme.textDim)
+                    if row.state == .failed {
+                        Text(Copy.Sync.couldntSend)
+                            .font(.system(size: labelSize))
+                            .foregroundStyle(Theme.danger)
+                            .padding(.top, 2)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityHint(row.state == .failed ? (errorText ?? "") : "")
+                if row.state == .failed {
+                    Button(Copy.Sync.tryAgain, action: onSend)
+                        .font(.system(size: labelSize, weight: .semibold))
+                        .foregroundStyle(Theme.primaryText)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Theme.Immersive.panelFill))
+                        .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
+                        .buttonStyle(.plain)
+                        .padding(.top, 6)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
         }
     }
 }
@@ -269,7 +266,8 @@ struct DevicesTrayRowView: View {
 
 /// The 48 pt cover (radius 10) with the disc peeking out. `RecordSleeve` is the Import tab's
 /// add-cover button (radius 4, its own accessibility), so the row shares its `RecordDisc` instead.
-/// Pressed, the cover turns `accent` with a black plus and the disc rolls out.
+/// Pressed, the cover turns `accent` with a black plus and the disc rolls out; while sending it is
+/// `accent` with a small spinner.
 struct DevicesSleeve: View {
     let state: DevicesTrayRowState
     let cover: UIImage?
@@ -284,25 +282,14 @@ struct DevicesSleeve: View {
     private var width: CGFloat { Self.size + Self.size * Theme.Immersive.discToSleeveRatio * Theme.Immersive.discPeekRatio }
 
     var body: some View {
-        Group {
-            if state == .ready || state == .downloading {
-                Button(action: onSend) { Color.clear }
-                    .buttonStyle(SleeveStyle(content: { pressed in
-                        art(pressed: pressed, plus: state == .ready, spinner: state == .downloading)
-                    }, reduceMotion: reduceMotion))
-                    .disabled(state == .downloading)
-                    .accessibilityLabel(Copy.Sync.sendTitleToSpotify(title))
-            } else {
-                art(pressed: false, plus: false, spinner: false)
-                    .overlay(alignment: .bottomLeading) { dots }
-                    .accessibilityHidden(true)
-            }
-        }
-        .frame(width: width, height: Self.size, alignment: .leading)
+        Button(action: onSend) { Color.clear }
+            .buttonStyle(SleeveStyle(content: { pressed in
+                art(pressed: pressed, plus: state != .sending, spinner: state == .sending)
+            }, reduceMotion: reduceMotion))
+            .disabled(state == .sending)
+            .accessibilityLabel(Copy.Sync.sendTitleToSpotify(title))
+            .frame(width: width, height: Self.size, alignment: .leading)
     }
-
-    private var greyed: Bool { state == .stillSending }
-    private var dimmed: Double { state == .stillSending ? 0.5 : (state == .waiting ? 0.6 : 1) }
 
     private func art(pressed: Bool, plus: Bool, spinner: Bool) -> some View {
         let disc = Self.size * Theme.Immersive.discToSleeveRatio
@@ -335,25 +322,7 @@ struct DevicesSleeve: View {
             .clipShape(shape)
             .overlay(shape.stroke(Theme.Immersive.panelStroke, lineWidth: 1))
         }
-        .saturation(greyed ? 0 : 1)
-        .opacity(dimmed)
         .frame(width: width, height: Self.size, alignment: .leading)
-    }
-
-    /// Three 4 pt square dots on the cover's lower third, typing ".", "..", "..." at 0.4 s a step with no
-    /// easing; still (all three) under Reduce Motion.
-    private var dots: some View {
-        TimelineView(.periodic(from: .now, by: DevicesTrayMotion.dotStep)) { timeline in
-            let step = Int((timeline.date.timeIntervalSinceReferenceDate / DevicesTrayMotion.dotStep).rounded(.down))
-            let shown = reduceMotion ? 3 : step % 3 + 1
-            HStack(spacing: 3) {
-                ForEach(0..<3, id: \.self) { index in
-                    Rectangle().fill(Theme.primaryText).frame(width: 4, height: 4).opacity(index < shown ? 1 : 0)
-                }
-            }
-            .padding(.leading, 6)
-            .padding(.bottom, Self.size / 6)
-        }
     }
 
     private struct SleeveStyle<Content: View>: ButtonStyle {

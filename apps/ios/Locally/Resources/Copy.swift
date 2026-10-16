@@ -370,13 +370,8 @@ enum Copy {
         static let trayClose = "Close"
         static func sendTitleToSpotify(_ title: String) -> String { "Send \(title) to Spotify" }
         static func trackCount(_ count: Int) -> String { count == 1 ? "1 track" : "\(count) tracks" }
-        /// The footer under rows whose files have not reached the server; `origin` is the first such row's.
-        static func stillSendingFooter(count: Int, origin: String) -> String {
-            if origin == "mac" { return count == 1 ? "Still sending this one from your Mac…" : "Still sending these from your Mac…" }
-            return count == 1 ? "Still sending this one from that device…" : "Still sending these…"
-        }
-        static func waitingOn(origin: String) -> String { origin == "mac" ? "Waiting on your Mac" : "Waiting on that device" }
-        static let audioNotArrived = "The audio hasn't arrived yet."
+        static let couldntSend = "Couldn't send this yet."
+        static let tryAgain = "Try again"
 
         static func queueFailed(_ detail: String) -> String { "Couldn't queue a change to sync: \(detail)" }
         static func libraryUnreadable(_ detail: String) -> String { "Couldn't read your library to sync: \(detail)" }
