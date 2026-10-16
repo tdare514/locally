@@ -138,6 +138,9 @@ export default function LibraryView({
 
   // Track which rows or tiles are on screen in the scrolling pane, so the colour follows scroll.
   const shownIds = [...singles, ...albums].map((r) => r.id).join(",");
+  // Folding unmounts a section's rows and unfolding mounts new ones, so observation is rebuilt on every fold change.
+  const singlesOpen = isSectionOpen(folds.singles, query);
+  const albumsOpen = isSectionOpen(folds.albums, query);
   useEffect(() => {
     const root = rootRef.current;
     if (!root || typeof IntersectionObserver === "undefined") return;
@@ -158,7 +161,7 @@ export default function LibraryView({
       .querySelectorAll("[data-release-id]")
       .forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [layout, shownIds, loading, coverSize]);
+  }, [layout, shownIds, loading, coverSize, singlesOpen, albumsOpen]);
 
   // Cmd+F / Ctrl+F focuses the library search instead of the browser's find bar.
   useEffect(() => {
@@ -470,7 +473,7 @@ export default function LibraryView({
         <SectionComponent
           label="Singles"
           bodyId="library-singles"
-          open={isSectionOpen(folds.singles, query)}
+          open={singlesOpen}
           onToggleOpen={() => toggleFold("singles")}
           count={singles.length}
           releases={singles}
@@ -495,7 +498,7 @@ export default function LibraryView({
         <SectionComponent
           label="Albums"
           bodyId="library-albums"
-          open={isSectionOpen(folds.albums, query)}
+          open={albumsOpen}
           onToggleOpen={() => toggleFold("albums")}
           count={albums.length}
           releases={albums}
@@ -623,8 +626,13 @@ export function LibrarySection({
         open={open}
         onToggleOpen={onToggleOpen}
       />
-      {open && (
-        <div id={bodyId} className="section-fade flex flex-col gap-2">
+      <div
+        id={bodyId}
+        hidden={!open}
+        className={open ? "section-fade flex flex-col gap-2" : undefined}
+      >
+        {open && (
+        <>
         {/* Presentational: each row's button already carries the full accessible name. */}
         <div
           aria-hidden="true"
@@ -704,8 +712,9 @@ export function LibrarySection({
             );
           })}
         </ul>
-        </div>
-      )}
+        </>
+        )}
+      </div>
     </section>
   );
 }
@@ -735,8 +744,13 @@ function CoverSection({
         open={open}
         onToggleOpen={onToggleOpen}
       />
-      {open && (
-        <div id={bodyId} className="section-fade">
+      <div
+        id={bodyId}
+        hidden={!open}
+        className={open ? "section-fade" : undefined}
+      >
+        {open && (
+        <>
         <div
           className="grid"
           style={{
@@ -801,9 +815,10 @@ function CoverSection({
               </button>
             );
           })}
-        </div>
-        </div>
-      )}
+          </div>
+        </>
+        )}
+      </div>
     </section>
   );
 }

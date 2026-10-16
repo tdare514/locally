@@ -89,11 +89,11 @@ describe("LibrarySection fold (#260)", () => {
     expect(html).toMatch(/<h2[^>]*><button[^>]*aria-expanded="true"[^>]*aria-controls="library-albums"/);
     expect(html).toContain('id="library-albums"');
   });
-  it("folded: aria-expanded false and the rows are not rendered", () => {
+  it("folded: aria-expanded false, the controlled body exists and is hidden, the rows are not rendered", () => {
     const html = render([one], false);
     expect(html).toContain('aria-expanded="false"');
     expect(html).not.toContain("Night Drive");
-    expect(html).not.toContain('id="library-albums"');
+    expect(html).toMatch(/<div id="library-albums" hidden=""/);
     expect(html).toContain("Albums");
   });
 });
