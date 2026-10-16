@@ -11,6 +11,8 @@ struct ComponentGallery: View {
         "release-tracks",
         // Kind switch and cover glow buttons, on the studio backdrop.
         "controls",
+        // #226: Dynamic Type checks of screens that need no sample data.
+        "library-empty", "onboarding", "paywall",
         // #204: the real Stats page over sample plays.
         "stats-week", "stats-albums-grid", "stats-artists", "stats-quiet", "stats-signed-out", "stats-large-text", "stats-week-scrolled", "stats-grid-scrolled"]
 
@@ -31,7 +33,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("stats-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls"].contains(name)
+        name.hasPrefix("stats-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "library-empty", "onboarding", "paywall"].contains(name)
     }
 
     var body: some View {
@@ -88,8 +90,8 @@ struct ComponentGallery: View {
             RecordSleeve(cover: SampleArtwork.sunset, pose: .halfTucked, onAddCover: {})
         case "inline-field":
             VStack(alignment: .leading, spacing: Theme.Spacing.sectionGap) {
-                InlineField("Title", text: $empty, font: Theme.Font.pageTitle)
-                InlineField("Title", text: $title, font: Theme.Font.pageTitle)
+                InlineField("Title", text: $empty, role: .pageTitle)
+                InlineField("Title", text: $title, role: .pageTitle)
             }
             .padding(Theme.Spacing.pagePadding)
         case "cover-sheet":
@@ -138,6 +140,15 @@ struct ComponentGallery: View {
             ReleaseReviewErrorGallery()
         case "controls":
             ControlsGallery()
+        case "library-empty":
+            ZStack {
+                Theme.background.ignoresSafeArea()
+                LibraryEmptyState(onAddSingle: {}, onMakeAlbum: {})
+            }
+        case "onboarding":
+            OnboardingView(onFinished: {}).environment(FolderStatus(isConnected: false))
+        case "paywall":
+            PaywallView()
         default:
             EmptyView()
         }

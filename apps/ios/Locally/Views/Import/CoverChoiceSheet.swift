@@ -16,6 +16,9 @@ struct CoverChoiceSheet: View {
     let hasCover: Bool
     let onChoose: (Choice) -> Void
 
+    /// The action rows' icon column, scaling with Dynamic Type so the glyph never touches its label.
+    @ScaledMetric(relativeTo: .body) private var actionIconWidth = Theme.Library.toggleIconSize + 6
+
     /// The content's own height, so the sheet is only as tall as it needs to be. The first
     /// value is a close guess for the frame before the content has been measured.
     @State private var contentHeight: CGFloat = 340
@@ -24,7 +27,7 @@ struct CoverChoiceSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: Theme.Spacing.fieldGap) {
                 Text(Copy.Import.coverDialogTitle)
-                    .font(Theme.Font.sectionTitle)
+                    .themeFont(.sectionTitle)
                     .foregroundStyle(Theme.primaryText)
                     .accessibilityAddTraits(.isHeader)
 
@@ -52,7 +55,7 @@ struct CoverChoiceSheet: View {
     private var recentRow: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.labelGap) {
             Text(Copy.Import.recentCovers)
-                .font(Theme.Font.rowSubtitle)
+                .themeFont(.rowSubtitle)
                 .foregroundStyle(Theme.secondaryText)
                 .accessibilityAddTraits(.isHeader)
             ScrollView(.horizontal, showsIndicators: false) {
@@ -106,12 +109,12 @@ struct CoverChoiceSheet: View {
         Button { onChoose(choice) } label: {
             HStack(spacing: Theme.Spacing.fieldGap) {
                 Image(systemName: systemImage)
-                    .frame(width: Theme.Library.toggleIconSize + 6)
+                    .frame(width: actionIconWidth)
                     .accessibilityHidden(true)
                 Text(title)
                 Spacer(minLength: 0)
             }
-            .font(Theme.Font.rowTitle)
+            .themeFont(.rowTitle)
             .foregroundStyle(color)
             .padding(.horizontal, Theme.Spacing.inputPaddingH)
             .padding(.vertical, Theme.Spacing.inputPaddingV)

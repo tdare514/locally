@@ -260,18 +260,18 @@ struct ReleaseDetailView: View {
     private func tracksHeader(_ count: Int) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(Copy.Import.tracks)
-                .font(Theme.Font.sectionTitle)
+                .themeFont(.sectionTitle)
                 .foregroundStyle(Theme.primaryText)
             Spacer()
             Text(Copy.Detail.fileCount(count))
-                .font(Theme.Font.meta)
+                .themeFont(.meta)
                 .foregroundStyle(Theme.secondaryText)
         }
     }
 
     private var reorderHint: some View {
         Text(Copy.Detail.reorderHint)
-            .font(Theme.Font.dropZoneHint)
+            .themeFont(.dropZoneHint)
             .foregroundStyle(Theme.textDim)
             .accessibilityIdentifier("reorder-hint")
     }
@@ -311,7 +311,7 @@ struct ReleaseDetailView: View {
     /// One line under the tracks saying where the play totals come from.
     private var playsFootnote: some View {
         Text(Copy.Detail.playsAcrossDevices)
-            .font(Theme.Font.dropZoneHint)
+            .themeFont(.dropZoneHint)
             .foregroundStyle(Theme.textDim)
     }
 
@@ -319,7 +319,7 @@ struct ReleaseDetailView: View {
         DisclosureGroup(Copy.Detail.makeItAPlaylist) {
             PlaylistGuide(albumTitle: model.title)
         }
-        .font(Theme.Font.body)
+        .themeFont(.body)
         .foregroundStyle(Theme.primaryText)
         .frame(minHeight: Theme.Immersive.panelActionMinHeight)
     }
@@ -329,13 +329,13 @@ struct ReleaseDetailView: View {
     private func messages(_ model: ReleaseDetailViewModel) -> some View {
         if let statusMessage = model.statusMessage {
             Text(statusMessage)
-                .font(Theme.Font.meta)
+                .themeFont(.meta)
                 .foregroundStyle(Theme.secondaryText)
                 .panelRow(.middle)
         }
         if let errorMessage = model.errorMessage {
             Text(errorMessage)
-                .font(Theme.Font.rowSubtitle)
+                .themeFont(.rowSubtitle)
                 .foregroundStyle(Theme.danger)
                 .panelRow(.middle)
         }

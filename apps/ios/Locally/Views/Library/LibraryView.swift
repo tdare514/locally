@@ -31,6 +31,11 @@ struct LibraryView: View {
     @AppStorage(LibraryViewPrefs.singlesCollapsedKey) private var singlesCollapsed = false
     @AppStorage(LibraryViewPrefs.albumsCollapsedKey) private var albumsCollapsed = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// Icon and button sizes, scaling with Dynamic Type (#226).
+    @ScaledMetric(relativeTo: .body) private var toggleIconSize = Theme.Library.toggleIconSize
+    @ScaledMetric(relativeTo: .body) private var toggleButtonSize = Theme.Library.toggleButtonSize
+    @ScaledMetric(relativeTo: .subheadline) private var sectionChevronSize = Theme.Library.sectionChevronSize
 
     /// Scroll distance, read only by `LibrarySky` so scrolling doesn't re-run this body.
     @State private var motion = LibrarySkyMotion()
@@ -101,7 +106,7 @@ struct LibraryView: View {
                             header
                             if matching.isEmpty {
                                 Text(Copy.Library.noMatches(query))
-                                    .font(Theme.Font.body)
+                                    .themeFont(.body)
                                     .foregroundStyle(Theme.secondaryText)
                                     .multilineTextAlignment(.center)
                                     .frame(maxWidth: .infinity)
@@ -169,16 +174,20 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
+        // At accessibility sizes the track count drops under the title instead of squeezing it.
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+        layout {
             VStack(alignment: .leading, spacing: 4) {
                 Text(Copy.Library.eyebrow).eyebrow()
                 Text(Copy.Library.allMusic)
-                    .font(Theme.Font.pageTitle)
+                    .themeFont(.pageTitle)
                     .foregroundStyle(Theme.primaryText)
             }
-            Spacer()
+            if !dynamicTypeSize.isAccessibilitySize { Spacer() }
             Text(Copy.Library.trackCount(totalTrackCount))
-                .font(Theme.Font.meta)
+                .themeFont(.meta)
                 .foregroundStyle(Theme.secondaryText)
         }
         searchField
@@ -192,7 +201,7 @@ struct LibraryView: View {
                 .foregroundStyle(Theme.secondaryText)
                 .accessibilityHidden(true)
             TextField(Copy.Library.searchPlaceholder, text: $query)
-                .font(Theme.Font.body)
+                .themeFont(.body)
                 .foregroundStyle(Theme.primaryText)
                 .submitLabel(.search)
                 .autocorrectionDisabled()
@@ -249,9 +258,9 @@ struct LibraryView: View {
             layout = value
         } label: {
             Image(systemName: systemImage)
-                .font(.system(size: Theme.Library.toggleIconSize, weight: .semibold))
+                .font(.system(size: toggleIconSize, weight: .semibold))
                 .foregroundStyle(selected ? Theme.onAccent : Theme.secondaryText)
-                .frame(width: Theme.Library.toggleButtonSize, height: Theme.Library.toggleButtonSize - 8)
+                .frame(width: toggleButtonSize, height: toggleButtonSize - 8)
                 .background { if selected { Capsule().fill(Theme.accent) } }
                 .contentShape(Capsule())
         }
@@ -272,13 +281,13 @@ struct LibraryView: View {
             } label: {
                 HStack(alignment: .firstTextBaseline) {
                     Text(label)
-                        .font(Theme.Font.sectionTitle)
+                        .themeFont(.sectionTitle)
                         .foregroundStyle(Theme.primaryText)
                     Text(Copy.Library.sectionCount(items.count))
-                        .font(Theme.Font.meta)
+                        .themeFont(.meta)
                         .foregroundStyle(Theme.textDim)
                     Image(systemName: "chevron.down")
-                        .font(.system(size: Theme.Library.sectionChevronSize, weight: .semibold))
+                        .font(.system(size: sectionChevronSize, weight: .semibold))
                         .foregroundStyle(Theme.textDim)
                         .rotationEffect(.degrees(isOpen ? 0 : -90))
                         .animation(fold, value: isOpen)
@@ -351,13 +360,13 @@ struct LibraryView: View {
                 .liftOnPress()
             VStack(alignment: .leading, spacing: 2) {
                 Text(release.title)
-                    .font(Theme.Font.rowTitle)
+                    .themeFont(.rowTitle)
                     .foregroundStyle(Theme.primaryText)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 Text(subtitle(for: release))
-                    .font(Theme.Font.rowSubtitle)
+                    .themeFont(.rowSubtitle)
                     .foregroundStyle(Theme.secondaryText)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             }
         }
         .contentShape(Rectangle())
@@ -390,22 +399,23 @@ struct LibraryView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(release.title)
-                    .font(Theme.Font.rowTitle)
+                    .themeFont(.rowTitle)
                     .foregroundStyle(Theme.primaryText)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 Text(subtitle(for: release))
-                    .font(Theme.Font.rowSubtitle)
+                    .themeFont(.rowSubtitle)
                     .foregroundStyle(Theme.secondaryText)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
             }
 
             Spacer()
 
             Image(systemName: "chevron.right")
-                .font(Theme.Font.chevron)
+                .themeFont(.chevron)
                 .foregroundStyle(Theme.textDim)
         }
         .padding(.horizontal, 12)
+        .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 8 : 0)
         .frame(minHeight: 78)
         .contentShape(Rectangle())
     }
@@ -543,7 +553,10 @@ private struct LibrarySky: View {
 /// connecting Spotify's folder: a small diagram (the app icon, an arrow,
 /// Spotify) over a title, one line of explanation, and the two ways to
 /// start. The icon tile shows whichever app icon the user picked.
-private struct LibraryEmptyState: View {
+/// Internal (not private) so the DEBUG component gallery can show it.
+struct LibraryEmptyState: View {
+    @ScaledMetric(relativeTo: .footnote) private var diagramChevronSize = Theme.Library.diagramChevronSize
+    @ScaledMetric(relativeTo: .title) private var diagramIconSize = Theme.Library.diagramIconSize
     let onAddSingle: () -> Void
     let onMakeAlbum: () -> Void
 
@@ -552,6 +565,11 @@ private struct LibraryEmptyState: View {
     }
 
     var body: some View {
+        // Scrolls when the larger text no longer fits; at the default size the spacers fill the screen as before.
+        stack.scrollsWhenCrowded()
+    }
+
+    private var stack: some View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
 
@@ -559,12 +577,13 @@ private struct LibraryEmptyState: View {
                 .padding(.bottom, 36)
 
             VStack(spacing: 8) {
-                Text(Copy.Library.emptyEyebrow).eyebrow()
+                Text(Copy.Library.emptyEyebrow).eyebrow().multilineTextAlignment(.center)
                 Text(Copy.Library.emptyTitle)
-                    .font(Theme.Font.pageTitle)
+                    .themeFont(.pageTitle)
                     .foregroundStyle(Theme.primaryText)
+                    .multilineTextAlignment(.center)
                 Text(Copy.Library.emptyBody)
-                    .font(Theme.Font.body)
+                    .themeFont(.body)
                     .foregroundStyle(Theme.secondaryText)
                     .multilineTextAlignment(.center)
                     .lineSpacing(3)
@@ -601,7 +620,7 @@ private struct LibraryEmptyState: View {
                     Circle().fill(Theme.accent).frame(width: 5, height: 5)
                 }
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: diagramChevronSize, weight: .bold))
                     .foregroundStyle(Theme.accent)
             }
             .frame(height: 68)
@@ -609,7 +628,7 @@ private struct LibraryEmptyState: View {
 
             tile(caption: Copy.Library.diagramSpotify) {
                 Image(systemName: "music.note")
-                    .font(.system(size: 26, weight: .semibold))
+                    .font(.system(size: diagramIconSize, weight: .semibold))
                     .foregroundStyle(Theme.primaryText)
             }
         }
@@ -627,7 +646,7 @@ private struct LibraryEmptyState: View {
                         .stroke(Theme.border, lineWidth: 1)
                 )
             Text(caption)
-                .font(Theme.Font.rowSubtitle)
+                .themeFont(.rowSubtitle)
                 .foregroundStyle(Theme.secondaryText)
         }
     }

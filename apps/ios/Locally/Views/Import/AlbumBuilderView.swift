@@ -94,7 +94,7 @@ struct AlbumBuilderView: View {
                         VStack(spacing: 4) {
                             ProgressView().tint(.white)
                             Text(Copy.Import.taggingProgress(done: model.progressDone, total: model.progressTotal))
-                                .font(Theme.Font.rowSubtitle)
+                                .themeFont(.rowSubtitle)
                         }
                         .frame(maxWidth: .infinity)
                     } else {

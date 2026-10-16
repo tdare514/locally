@@ -5,7 +5,9 @@ import SwiftUI
 struct InlineField: View {
     let placeholder: String
     @Binding var text: String
-    var font: Font = Theme.Font.input
+    var role: ThemeFontRole = .input
+    /// A Dynamic Type style passed by the caller; wins over `role`.
+    var font: Font?
     /// Wraps onto up to four lines instead of truncating (the import's fields at large text).
     /// Return still ends editing; no newline ever reaches `text`.
     var wraps = false
@@ -14,9 +16,10 @@ struct InlineField: View {
     @Environment(\.displayScale) private var displayScale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(_ placeholder: String, text: Binding<String>, font: Font = Theme.Font.input, wraps: Bool = false) {
+    init(_ placeholder: String, text: Binding<String>, role: ThemeFontRole = .input, font: Font? = nil, wraps: Bool = false) {
         self.placeholder = placeholder
         self._text = text
+        self.role = role
         self.font = font
         self.wraps = wraps
     }
@@ -43,7 +46,7 @@ struct InlineField: View {
 
     var body: some View {
         field
-            .font(font)
+            .modifier(InlineFieldFont(role: role, font: font))
             .foregroundStyle(Theme.primaryText)
             .focused($focused)
             .submitLabel(.done)
@@ -64,8 +67,8 @@ private struct InlineFieldPreview: View {
     @State private var filled = "Midnight Drive"
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.sectionGap) {
-            InlineField("Title", text: $empty, font: Theme.Font.pageTitle)
-            InlineField("Title", text: $filled, font: Theme.Font.pageTitle)
+            InlineField("Title", text: $empty, role: .pageTitle)
+            InlineField("Title", text: $filled, role: .pageTitle)
         }
         .padding(Theme.Spacing.pagePadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -77,3 +80,13 @@ private struct InlineFieldPreview: View {
     InlineFieldPreview()
 }
 #endif
+
+private struct InlineFieldFont: ViewModifier {
+    let role: ThemeFontRole
+    let font: Font?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let font { content.font(font) } else { content.themeFont(role) }
+    }
+}

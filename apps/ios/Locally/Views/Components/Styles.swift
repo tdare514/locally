@@ -13,14 +13,20 @@ import SwiftUI
 struct PrimaryPillButtonStyle: ButtonStyle {
     var isFullWidth: Bool = true
     @Environment(\.isEnabled) private var isEnabled
+    /// The pill's height at the default text size; it grows with Dynamic Type so the label wraps inside it.
+    @ScaledMetric(relativeTo: .body) private var fullMinHeight: CGFloat = 48
+    @ScaledMetric(relativeTo: .body) private var compactMinHeight: CGFloat = 36
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(Theme.Font.primaryButton)
+            .themeFont(.primaryButton)
             .foregroundStyle(Color.black)
+            .multilineTextAlignment(.center)
             .padding(.horizontal, isFullWidth ? 0 : Theme.Spacing.primaryButtonH)
+            .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? Theme.Spacing.primaryButtonV : 0)
             .frame(maxWidth: isFullWidth ? .infinity : nil)
-            .frame(height: isFullWidth ? 48 : 36)
+            .frame(minHeight: isFullWidth ? fullMinHeight : compactMinHeight)
             .background(Theme.accent)
             .clipShape(Capsule())
             .opacity(isEnabled ? 1 : 0.5)
@@ -37,13 +43,12 @@ struct GlowPillButtonStyle: ButtonStyle {
     var pinnedLit: Bool = false
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ScaledMetric(relativeTo: .body) private var fontSize: CGFloat = 15
     @ScaledMetric(relativeTo: .body) private var minHeight: CGFloat = Theme.Import.glowMinHeight
 
     func makeBody(configuration: Configuration) -> some View {
         let lit = pinnedLit || configuration.isPressed
         configuration.label
-            .font(.system(size: fontSize, weight: .bold))
+            .themeFont(.primaryButton)
             .foregroundStyle(Color.white)
             .multilineTextAlignment(.center)
             .padding(.horizontal, Theme.Spacing.primaryButtonH)
@@ -76,7 +81,6 @@ struct CoverGlowButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .body) private var fullMinHeight: CGFloat = 52
     @ScaledMetric(relativeTo: .body) private var compactMinHeight: CGFloat = 40
-    @ScaledMetric(relativeTo: .body) private var fontSize: CGFloat = 15
 
     private var ease: Animation { .timingCurve(0.16, 1, 0.3, 1, duration: 0.45) }
 
@@ -85,7 +89,7 @@ struct CoverGlowButtonStyle: ButtonStyle {
         let first = colors.first ?? Theme.accent
         let second = colors.count > 1 ? colors[1] : first
         configuration.label
-            .font(.system(size: fontSize, weight: .bold))
+            .themeFont(.primaryButton)
             .foregroundStyle(Color.white)
             .multilineTextAlignment(.center)
             .opacity(isEnabled ? 1 : 0.5)
@@ -374,7 +378,7 @@ struct SecondaryPillButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(Theme.Font.body.weight(.medium))
+            .themeFont(.body, weight: .medium)
             .foregroundStyle(isDestructive ? Theme.danger : Theme.primaryText)
             .padding(.horizontal, Theme.Spacing.primaryButtonH)
             .padding(.vertical, Theme.Spacing.primaryButtonV)
@@ -393,7 +397,7 @@ struct TextButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(Theme.Font.body.weight(.semibold))
+            .themeFont(.body, weight: .semibold)
             .foregroundStyle(configuration.isPressed ? Theme.primaryText : color)
             .opacity(isEnabled ? 1 : 0.5)
     }
@@ -410,7 +414,7 @@ private struct FieldStyleModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .focused($isFocused)
-            .font(Theme.Font.input)
+            .themeFont(.input)
             .foregroundStyle(Theme.primaryText)
             .padding(.horizontal, Theme.Spacing.inputPaddingH)
             .frame(minHeight: 48)
@@ -448,7 +452,7 @@ extension View {
     /// The section-eyebrow text style (e.g. "YOUR COLLECTION"): 11 pt bold
     /// uppercase, wide tracking, `accent` colour.
     func eyebrow() -> some View {
-        font(Theme.Font.eyebrow)
+        themeFont(.eyebrow)
             .tracking(11 * 0.18)
             .textCase(.uppercase)
             .foregroundStyle(Theme.accent)
@@ -457,7 +461,7 @@ extension View {
     /// The field-label text style (e.g. "TITLE"): 11 pt bold uppercase, wide
     /// tracking, muted colour.
     func fieldLabelStyle() -> some View {
-        font(Theme.Font.fieldLabel)
+        themeFont(.fieldLabel)
             .tracking(11 * 0.14)
             .textCase(.uppercase)
             .foregroundStyle(Theme.secondaryText)
@@ -541,7 +545,7 @@ struct DiscHeading: View {
 
     var body: some View {
         Text(Copy.Import.disc(number))
-            .font(Theme.Font.meta)
+            .themeFont(.meta)
             .foregroundStyle(Theme.secondaryText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityAddTraits(.isHeader)
@@ -581,7 +585,7 @@ struct TrackListSilhouette: View {
                 Text(Copy.Import.noTracksYet)
                 Text(Copy.Import.noTracksHint)
             }
-            .font(Theme.Font.body)
+            .themeFont(.body)
             .foregroundStyle(Theme.secondaryText)
             .multilineTextAlignment(.center)
             .padding(.horizontal, 24)
@@ -600,7 +604,7 @@ struct KindBadge: View {
 
     var body: some View {
         Text(text)
-            .font(Theme.Font.badge)
+            .themeFont(.badge)
             .tracking(1.0)
             .textCase(.uppercase)
             .foregroundStyle(Theme.secondaryText)

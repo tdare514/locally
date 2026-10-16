@@ -364,7 +364,7 @@ struct ImportView: View {
                     showToast(autoHide: false)
                 } label: {
                     Text(Copy.Inbox.waitingChip(count: inboxFiles.count))
-                        .font(Theme.Font.badge)
+                        .themeFont(.badge)
                         .foregroundStyle(.black)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -378,7 +378,7 @@ struct ImportView: View {
                     showSyncToast(autoHide: false)
                 } label: {
                     Text(Copy.Sync.pendingFromDevices(count: syncStatus.pendingFromMac.count))
-                        .font(Theme.Font.badge)
+                        .themeFont(.badge)
                         .foregroundStyle(.black)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -417,13 +417,13 @@ struct ImportView: View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(Copy.Inbox.waitingBanner(count: inboxFiles.count))
-                    .font(Theme.Font.body.weight(.semibold))
+                    .themeFont(.body, weight: .semibold)
                     .foregroundStyle(Theme.primaryText)
                 HStack(spacing: 14) {
                     Button(Copy.Inbox.addAsSingles) { startFromInbox(as: .single) }
                     Button(Copy.Inbox.makeAnAlbum) { startFromInbox(as: .album) }
                 }
-                .font(Theme.Font.rowSubtitle.weight(.medium))
+                .themeFont(.rowSubtitle, weight: .medium)
                 .foregroundStyle(Theme.accent)
                 .buttonStyle(.plain)
             }
@@ -464,14 +464,14 @@ struct ImportView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 12) {
                 Text(Copy.Sync.fromYourDevices)
-                    .font(Theme.Font.body.weight(.semibold))
+                    .themeFont(.body, weight: .semibold)
                     .foregroundStyle(Theme.primaryText)
                 Spacer(minLength: 0)
                 if syncStatus.pendingFromMac.count > 1 {
                     Button(Copy.Sync.sendAll) {
                         Task { await container?.syncEngine.acceptAllFromMac() }
                     }
-                    .font(Theme.Font.rowSubtitle.weight(.medium))
+                    .themeFont(.rowSubtitle, weight: .medium)
                     .foregroundStyle(Theme.accent)
                     .buttonStyle(.plain)
                 }
@@ -516,15 +516,15 @@ struct ImportView: View {
         return HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(record.title)
-                    .font(Theme.Font.rowSubtitle.weight(.medium))
+                    .themeFont(.rowSubtitle, weight: .medium)
                     .foregroundStyle(Theme.primaryText)
                     .lineLimit(1)
                 Text(record.artist)
-                    .font(Theme.Font.rowSubtitle)
+                    .themeFont(.rowSubtitle)
                     .foregroundStyle(Theme.secondaryText)
                     .lineLimit(1)
                 Text(Copy.Sync.originLabel(record.origin))
-                    .font(Theme.Font.dropZoneHint)
+                    .themeFont(.dropZoneHint)
                     .foregroundStyle(Theme.textDim)
                     .lineLimit(1)
             }
@@ -541,7 +541,7 @@ struct ImportView: View {
                     Text(Copy.Sync.sendToSpotify)
                 }
             }
-            .font(Theme.Font.rowSubtitle.weight(.medium))
+            .themeFont(.rowSubtitle, weight: .medium)
             .foregroundStyle(Theme.accent)
             .buttonStyle(.plain)
             .disabled(isAccepting)

@@ -14,7 +14,7 @@ struct PlaylistGuide: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.rowGap) {
             HStack {
                 Text(albumTitle)
-                    .font(Theme.Font.body.weight(.semibold))
+                    .themeFont(.body, weight: .semibold)
                     .foregroundStyle(Theme.primaryText)
 
                 Button {
@@ -29,18 +29,18 @@ struct PlaylistGuide: View {
                     }
                 } label: {
                     Label(copied ? Copy.Detail.copied : Copy.Detail.copyTitle, systemImage: "doc.on.doc")
-                        .font(Theme.Font.rowSubtitle)
+                        .themeFont(.rowSubtitle)
                 }
                 .buttonStyle(SecondaryPillButtonStyle())
             }
 
             Text(Copy.Detail.makeItAPlaylistSteps(albumTitle: albumTitle))
-                .font(Theme.Font.rowSubtitle)
+                .themeFont(.rowSubtitle)
                 .foregroundStyle(Theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(Copy.Detail.makeItAPlaylistFallback)
-                .font(Theme.Font.meta)
+                .themeFont(.meta)
                 .foregroundStyle(Theme.textDim)
         }
     }

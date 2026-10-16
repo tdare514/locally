@@ -124,7 +124,7 @@ struct CoverPicker: View {
                 .dropZone()
 
             Text(Copy.Import.coverHint)
-                .font(Theme.Font.dropZoneHint)
+                .themeFont(.dropZoneHint)
                 .foregroundStyle(Theme.textHint)
         }
     }
@@ -148,7 +148,7 @@ struct CoverPicker: View {
                             .font(.system(size: 24))
                             .foregroundStyle(Theme.secondaryText)
                         Text(Copy.Import.cover)
-                            .font(Theme.Font.rowSubtitle)
+                            .themeFont(.rowSubtitle)
                             .foregroundStyle(Theme.secondaryText)
                     }
                 }
@@ -176,7 +176,7 @@ struct CoverPicker: View {
                     .font(.system(size: 28))
                     .foregroundStyle(Theme.secondaryText)
                 Text(Copy.Import.coverCaption)
-                    .font(Theme.Font.dropZoneLine)
+                    .themeFont(.dropZoneLine)
                     .foregroundStyle(Theme.primaryText.opacity(0.85))
             }
         }

@@ -141,6 +141,9 @@ enum Theme {
         static let tileTextGap: CGFloat = 8
         static let toggleIconSize: CGFloat = 15
         static let toggleButtonSize: CGFloat = 36
+        /// The empty state's Locally-to-Spotify diagram: the chevron between the tiles, and the Spotify tile's note.
+        static let diagramChevronSize: CGFloat = 13
+        static let diagramIconSize: CGFloat = 26
     }
 
     /// The "immersive" release look (#112 on the web): the record sleeve, the
