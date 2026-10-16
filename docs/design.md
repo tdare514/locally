@@ -187,6 +187,29 @@ eyebrows still apply to those labels.
   - *Sent card*: Open in Spotify (with `arrow.up.right`) is a cover glow button in the record's
     colours, matching Send to Spotify; without Spotify installed, Close takes that style. The text
     Close under Open in Spotify stays as it is.
+  - *Release page: view, then edit* (owner, 16 Oct: "so that users don't accidentally just like
+    change information"; the import stays the edit page). Mobbin: Copilot's "Preview budget
+    changes" sheet for the review.
+    - Opens in **view mode**: each field is its label and the value as plain text, with no
+      underline or placeholder; an empty value reads "Not set" in `text-dim`. Track titles are
+      plain text, rows have no grip and don't drag, the sleeve isn't a button, Delete is hidden,
+      and there is no dock. Plays, the reorder hint (hidden in view mode), the plays footnote and
+      the "Make it a playlist" guide stay as they are.
+    - **Edit** sits at the top right in the navigation bar (the system bar item, so on iOS 26 it
+      is glass like the back button). It switches to **edit mode**, the import's look: labelled
+      fields with underlines and placeholders, editable album track titles, drag to reorder with
+      the grip and the hint, the cover sheet on the sleeve, Delete, and the dock (Unsaved changes,
+      Save changes). The bar item reads **Cancel**. Cancel or Back with changes asks "Discard your
+      changes?" (Discard, destructive; Keep editing); with none it just leaves edit mode.
+    - Switching modes cross-fades the underlines, grips and dock over 0.25 s on the signature
+      easing (opacity only; layout changes are not animated). Reduce Motion: no fade.
+    - **Save changes** opens a review sheet, "Check your changes" (medium detent, the page's
+      dark sheet): a row per change with the field's label, the old value in `text-dim` with a
+      strikethrough above the new value in white ("Not set" for an empty side); a new cover shows
+      the old and new thumbnails; each renamed track is its own row; a new order is one row,
+      "Track order changed". Below: **Save** (cover glow button) and **Keep editing** (text).
+      Save runs the save (with the sleeve's tuck and spin) and returns to view mode; Keep editing
+      closes the sheet and keeps the edits.
   - *Release dock*: its base is opaque black, so the panel behind it never shows through while
     the keyboard lifts it over the tracks.
 - **Sticky footer CTA (mobile)**: fixed to the bottom, padding 16 horizontal and 12 to 16
