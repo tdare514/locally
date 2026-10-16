@@ -12,6 +12,7 @@ import {
 } from "../lib/track-order";
 import { watchPaneEdges, type PaneEdgesWatch } from "../lib/pane-edges";
 import { playsLabel } from "../lib/plays-copy";
+import { formatLength } from "../lib/adopt-review";
 import { adoptDiscAfterMove, discHeadings } from "../shared/discs";
 import { XIcon } from "./Icons";
 import TrackPlaylistsLine, { type PlaylistRef } from "./TrackPlaylistsLine";
@@ -40,6 +41,9 @@ interface TrackListProps {
   playlists?: Record<string, PlaylistRef[]>;
   /** Open a playlist in Spotify; the playlists line needs it. */
   onOpenPlaylist?: (id: string) => void;
+  /** View mode (a release added from a Spotify folder, #249): titles are plain text, each row shows its
+   * length (by `key`) where an edit would not fit, and a track whose file is gone says "File missing". */
+  view?: Record<string, { durationSec: number | null; missing?: boolean }>;
 }
 
 /** Pixels the pointer must travel before a press turns into a drag. */
@@ -117,7 +121,7 @@ interface Drag {
  * fields. Reorder by dragging a row (or its grip) or from the keyboard: focus the grip, then
  * Alt+Up/Down, or Space to pick up, the arrows to move, Space or Enter to drop, Escape to
  * cancel. Track numbers are implicit: they always equal the row's position (1-based). */
-export default function TrackList({ tracks, onChange, onRemove, readOnly = false, plays, playlists, onOpenPlaylist }: TrackListProps) {
+export default function TrackList({ tracks, onChange, onRemove, readOnly = false, plays, playlists, onOpenPlaylist, view }: TrackListProps) {
   const listRef = useRef<HTMLOListElement>(null);
   const hintId = useId();
   const [announcement, setAnnouncement] = useState("");
@@ -412,6 +416,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
           const grabbed = grabbedKey === track.key;
           const heading = headings[index];
           const playTotal = plays?.[track.key] ?? 0;
+          const viewInfo = view?.[track.key];
           const row = (
             <li
               key={track.key}
@@ -419,7 +424,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
               data-grabbed={grabbed ? "" : undefined}
               className={`track-row -mx-2 flex h-12 items-center gap-3 px-2 hover:bg-white/[0.03] data-[grabbed]:bg-white/[0.07] ${
                 readOnly ? "" : "cursor-grab"
-              }`}
+              } ${viewInfo?.missing ? "text-text-muted" : ""}`}
             >
               {/* The glass tile: shown only while this row is held. */}
               <span aria-hidden className="track-tile glass-fake glass-frost" />
@@ -427,6 +432,15 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
                 {index + 1}
               </span>
               <div className="flex min-w-0 flex-col items-start">
+                {view ? (
+                  <span
+                    className={`py-0.5 text-[15px] font-semibold tracking-[-0.01em] ${
+                      viewInfo?.missing ? "text-text-muted" : "text-text"
+                    }`}
+                  >
+                    {track.title || "Untitled"}
+                  </span>
+                ) : (
                 <input
                   type="text"
                   aria-label={`Track ${index + 1} title`}
@@ -436,6 +450,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
                   placeholder="Track title"
                   className="field-sizing-content -mx-1.5 min-w-[8ch] cursor-text rounded-md bg-transparent px-1.5 py-0.5 text-[15px] font-semibold tracking-[-0.01em] text-text outline-none placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
                 />
+                )}
                 {onOpenPlaylist && (playlists?.[track.key]?.length ?? 0) > 0 && (
                   <TrackPlaylistsLine
                     trackTitle={track.title}
@@ -445,6 +460,11 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
                 )}
               </div>
               <span aria-hidden className="min-w-0 flex-1" />
+              {viewInfo?.missing ? (
+                <span className="shrink-0 text-xs text-text-dim">File missing</span>
+              ) : viewInfo && viewInfo.durationSec !== null ? (
+                <span className="shrink-0 text-sm tabular-nums text-text-muted">{formatLength(viewInfo.durationSec)}</span>
+              ) : null}
               {playTotal > 0 && (
                 <span data-plays className="shrink-0 text-sm tabular-nums text-text-muted">
                   {playsLabel(playTotal)}

@@ -202,3 +202,12 @@ export function SettingsIcon(props: SVGProps<SVGSVGElement>) {
     </IconBase>
   );
 }
+
+/** Folder glyph: a tabbed folder. Marks a release added from a Spotify folder (#249). */
+export function FolderIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5Z" />
+    </IconBase>
+  );
+}

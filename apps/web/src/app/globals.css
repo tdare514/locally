@@ -2621,3 +2621,28 @@ body {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* The review page for the Spotify folders (#249). A tick's check scales 0.6 to 1 while it fades in
+   (160 ms); the reading line grows across the column while the folders are read, and has no end of
+   its own, so it creeps toward 90 %. Transform and opacity only, on the house easing. Reduced
+   motion: the check is simply there, and the line rests at 40 %. */
+.adopt-reading-line {
+  transform-origin: left center;
+  transform: scaleX(0.4);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tick-mark {
+    animation: tick-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .adopt-reading-line {
+    animation: adopt-reading 40s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+}
+@keyframes tick-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes adopt-reading {
+  from { transform: scaleX(0.02); }
+  to { transform: scaleX(0.9); }
+}

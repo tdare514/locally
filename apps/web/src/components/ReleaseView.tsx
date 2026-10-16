@@ -6,7 +6,9 @@ import type { Release, UpdateReleaseMeta } from "../shared/types";
 import {
   coverUrl,
   deleteRelease,
+  forgetRelease,
   getRelease,
+  getSettings,
   getReleasePlays,
   getSpotifyPlaylists,
   openSpotifyPlaylist,
@@ -25,6 +27,9 @@ import { PLAYS_ACROSS_DEVICES } from "../lib/plays-copy";
 import { startPlaylistsPolling } from "../lib/playlists-poll";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
 import { IS_DEMO } from "../lib/demo";
+import { UNKNOWN_ARTIST } from "../shared/adopt";
+import { folderAfterRoot } from "../lib/adopt-review";
+import HouseSleeve from "./HouseSleeve";
 
 interface ReleaseViewProps {
   releaseId: string;
@@ -144,6 +149,17 @@ function InlineField({
   );
 }
 
+/** Year and genre in view mode: the same label and value as InlineField, as plain text. */
+function PlainField({ label, value }: { label: string; value: string }) {
+  const set = value.trim() !== "";
+  return (
+    <p className="flex items-baseline gap-1.5">
+      <span className="text-white/70">{label}</span>
+      <span className={set ? "font-semibold text-text" : "text-text-dim"}>{set ? value : "Not set"}</span>
+    </p>
+  );
+}
+
 export default function ReleaseView({
   releaseId,
   initialRelease,
@@ -176,6 +192,11 @@ export default function ReleaseView({
   // The Spotify playlists each track is in, by track id (#212). Empty until connected and read.
   const [playlists, setPlaylists] = useState<Record<string, { id: string; name: string }[]>>({});
   const copiedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A release added from a Spotify folder (#249) opens in view mode: nothing on it is editable.
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [adoptRoots, setAdoptRoots] = useState<string[]>([]);
+  const isAdopted = release?.adopted === true;
 
   const artworkUrl = release?.coverPath ? coverUrl(release.id, release.updatedAt) : null;
   const palette = useArtworkPalette(artworkUrl);
@@ -224,6 +245,20 @@ export default function ReleaseView({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
+
+  useEffect(() => {
+    // The folder line is relative to the Spotify folder, so a view-mode page needs the list once.
+    if (!isAdopted || IS_DEMO) return;
+    let cancelled = false;
+    getSettings()
+      .then((s) => {
+        if (!cancelled) setAdoptRoots(s.adoptRoots);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdopted]);
 
   useEffect(() => {
     // One request per release page open (ReleaseView is remounted per release), never per row or
@@ -354,6 +389,19 @@ export default function ReleaseView({
     }
   }
 
+  async function handleRemove() {
+    if (!release) return;
+    setRemoving(true);
+    try {
+      await forgetRelease(release.id);
+      onToast("success", "Removed from Locally");
+      onDeleted();
+    } catch (e) {
+      onToast("error", e instanceof Error ? e.message : "Couldn't remove it from Locally");
+      setRemoving(false);
+    }
+  }
+
   if (loading) {
     return <p className="text-text-muted">Loading…</p>;
   }
@@ -362,14 +410,19 @@ export default function ReleaseView({
     return <p className="text-text-muted">Release not found.</p>;
   }
 
-  const headerTitle = title.trim() || artist.trim() || release.title || release.artist;
+  const artistShown = isAdopted && artist.trim() === "" ? UNKNOWN_ARTIST : artist;
+  const headerTitle = title.trim() || artistShown.trim() || release.title || release.artist;
+  const folderLine = isAdopted ? folderAfterRoot(adoptRoots, release.folderPath) : null;
+  const viewTracks = isAdopted
+    ? Object.fromEntries(release.tracks.map((t) => [t.id, { durationSec: t.durationSec, missing: t.missing }]))
+    : undefined;
   const trackCount = `${tracks.length} track${tracks.length === 1 ? "" : "s"}`;
   const unsaved = buildPatch(release, { title, artist, year, genre, tracks }) !== null;
 
   return (
     <div className="mx-auto flex max-w-[920px] flex-col gap-12 pb-16">
       <AmbientBackdrop palette={palette} />
-      <SpotifySourceBanner onOpenSettings={onOpenSettings} onToast={onToast} />
+      {!isAdopted && <SpotifySourceBanner onOpenSettings={onOpenSettings} onToast={onToast} />}
 
       {/* From lg up the record and the tracks share a left column and the dock gets a column of
           its own on the right, spanning both so it stays pinned while the tracks scroll. Below lg
@@ -379,21 +432,49 @@ export default function ReleaseView({
             details set directly under it as inline text rather than a form (#112). */}
         <header className="flex flex-col gap-8 pt-2 lg:col-start-1 lg:row-start-1 lg:pt-4">
           <RecordSleeve labelUrl={artworkUrl} spin={spin}>
-            <CoverPicker
-              file={null}
-              existingUrl={artworkUrl}
-              onChange={handleReplaceCover}
-              disabled={replacingCover}
-              readOnly={IS_DEMO}
-              presentation="sleeve"
-            />
+            {isAdopted ? (
+              // View mode: the sleeve is only a picture, with no pencil badge and no picker.
+              <div className="record-sleeve relative size-[200px] overflow-hidden rounded-[4px] bg-card sm:size-[248px]">
+                {artworkUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={artworkUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <HouseSleeve className="h-full w-full" />
+                )}
+              </div>
+            ) : (
+              <CoverPicker
+                file={null}
+                existingUrl={artworkUrl}
+                onChange={handleReplaceCover}
+                disabled={replacingCover}
+                readOnly={IS_DEMO}
+                presentation="sleeve"
+              />
+            )}
           </RecordSleeve>
 
           <div className="flex min-w-0 flex-col gap-3">
-            <h1 className="sr-only">{headerTitle}</h1>
+            {!isAdopted && <h1 className="sr-only">{headerTitle}</h1>}
             <p className="text-sm text-white/70">
               {release.kind === "single" ? "Single" : "Album"} · {trackCount}
             </p>
+            {isAdopted ? (
+              <>
+                <h1 className="max-w-[min(100%,720px)] break-words text-[30px] font-bold leading-[1.1] tracking-[-0.035em] text-text sm:text-[44px]">
+                  {title.trim() || artistShown}
+                </h1>
+                <p className="-mt-1 text-xl font-semibold tracking-[-0.02em] text-white/85">{artistShown}</p>
+                <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-[15px]">
+                  <PlainField label="Year" value={year} />
+                  <PlainField label="Genre" value={genre} />
+                </div>
+                <p className="text-[13px] text-text-muted">
+                  {folderLine ? `In your Spotify folder · ${folderLine}` : "In your Spotify folder"}
+                </p>
+              </>
+            ) : (
+              <>
             <textarea
               aria-label="Title"
               rows={1}
@@ -427,6 +508,8 @@ export default function ReleaseView({
               />
               <InlineField label="Genre" value={genre} onChange={setGenre} placeholder="Add genre" />
             </div>
+              </>
+            )}
           </div>
         </header>
 
@@ -440,16 +523,18 @@ export default function ReleaseView({
           // The Save button's hover glow takes the cover's colour (#155); without a cover it stays the accent.
           style={palette ? ({ "--btn-tint": palette.primary } as CSSProperties) : undefined}
           className="sticky top-4 z-10 -my-4 flex w-fit max-w-full flex-wrap items-center gap-2 self-start rounded-[26px] glass-fake glass-dock p-1.5 pr-3 sm:rounded-full lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:my-0 lg:w-auto lg:flex-col lg:items-stretch lg:gap-1 lg:rounded-[26px] lg:p-2">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving || IS_DEMO}
-            title={IS_DEMO ? "Not available in the demo" : undefined}
-            className="btn-save"
-          >
-            {saving ? "Saving…" : "Save to library"}
-          </button>
-          {unsaved && !IS_DEMO && !confirmingDelete && (
+          {!isAdopted && (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || IS_DEMO}
+              title={IS_DEMO ? "Not available in the demo" : undefined}
+              className="btn-save"
+            >
+              {saving ? "Saving…" : "Save to library"}
+            </button>
+          )}
+          {unsaved && !IS_DEMO && !confirmingDelete && !isAdopted && (
             <span className="px-1 text-xs text-text-muted lg:py-1 lg:text-center">Unsaved changes</span>
           )}
           <button
@@ -461,6 +546,27 @@ export default function ReleaseView({
           >
             Show in Finder
           </button>
+          {isAdopted ? (
+            confirmingRemove ? (
+              // The release page's confirm style, without the red: the files stay where they are.
+              <span className="flex items-center gap-2 text-sm lg:flex-col lg:items-stretch lg:gap-1">
+                <span className="pl-1 text-text-muted lg:py-1 lg:pl-0 lg:text-center">
+                  Remove from Locally? The files stay in your Spotify folder, and Check for new files can add it back.
+                </span>
+                <button type="button" onClick={handleRemove} disabled={removing} className="btn-save">
+                  {removing ? "Removing…" : "Remove"}
+                </button>
+                <button type="button" onClick={() => setConfirmingRemove(false)} disabled={removing} className="btn-ink">
+                  <span className="btn-ink-label">Cancel</span>
+                </button>
+              </span>
+            ) : (
+              <button type="button" onClick={() => setConfirmingRemove(true)} className="btn-ink">
+                <span className="btn-ink-label">Remove from Locally</span>
+              </button>
+            )
+          ) : (
+            <>
           {confirmingDelete ? (
             <span className="flex items-center gap-2 text-sm lg:flex-col lg:items-stretch lg:gap-1">
               <span className="pl-1 text-text-muted lg:py-1 lg:pl-0 lg:text-center">
@@ -493,13 +599,16 @@ export default function ReleaseView({
               <span className="btn-ink-label">Delete</span>
             </button>
           )}
+            </>
+          )}
         </div>
         <div className="flex flex-col gap-3 lg:col-start-1 lg:row-start-2">
           <h2 className="text-lg font-bold tracking-[-0.03em] text-text">Tracks</h2>
           <TrackList
             tracks={tracks}
             onChange={handleTracksChange}
-            readOnly={IS_DEMO}
+            readOnly={IS_DEMO || isAdopted}
+            view={viewTracks}
             plays={plays}
             playlists={playlists}
             onOpenPlaylist={handleOpenPlaylist}

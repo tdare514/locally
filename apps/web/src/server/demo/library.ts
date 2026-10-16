@@ -69,6 +69,8 @@ export const DEMO_SETTINGS_RESPONSE: SettingsResponse = {
   countOtherDevices: false,
   // The demo can't count plays, so the one-time card stays hidden.
   playsPromptAnswered: true,
+  adoptRoots: [],
+  suggestedAdoptRoot: null,
 };
 
 /** Signed out, nothing pending. */

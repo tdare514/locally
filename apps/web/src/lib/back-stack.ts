@@ -2,7 +2,7 @@
 
 /** The minimum a view needs for a label; AppShell's `View` fits it. */
 export interface BackView {
-  type: "library" | "import" | "release" | "settings" | "stats";
+  type: "library" | "import" | "release" | "settings" | "stats" | "adopt";
 }
 
 /** One earlier view plus the state needed to put it back as it was. */
@@ -61,5 +61,7 @@ export function backLabel(destination: BackView["type"]): string {
       return "Back to Settings";
     case "release":
       return "Back to release";
+    case "adopt":
+      return "Back to your Spotify folders";
   }
 }

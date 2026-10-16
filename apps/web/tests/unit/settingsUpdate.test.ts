@@ -144,3 +144,46 @@ describe("planSettingsUpdate empty body", () => {
     expect(r).toMatchObject({ ok: false, error: "Nothing to update: pass libraryDir, sync.baseUrl, trackPlays and/or playsPromptAnswered" });
   });
 });
+
+describe("planSettingsUpdate adoptRoots (#249)", () => {
+  const probe = (dirs: string[]) => ({
+    isDirectory: (p: string) => dirs.includes(p),
+    isInside: (base: string, target: string) => {
+      const rel = path.relative(base, target);
+      return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+    },
+  });
+  const spotify = path.join(home, "Documents", "Spotify Music");
+
+  it("saves existing folders and leaves them out of other updates", () => {
+    const r = ok(planSettingsUpdate(current(), { adoptRoots: [spotify] }, home, probe([spotify])));
+    expect(r.settings.adoptRoots).toEqual([spotify]);
+    const after = ok(planSettingsUpdate(r.settings, { trackPlays: true }, home));
+    expect(after.settings.adoptRoots).toEqual([spotify]);
+  });
+
+  it("saves an empty list (removing the last folder)", () => {
+    const r = ok(planSettingsUpdate(current({ adoptRoots: [spotify] }), { adoptRoots: [] }, home, probe([])));
+    expect(r.settings.adoptRoots).toEqual([]);
+  });
+
+  it("refuses a folder that does not exist or is not a folder", () => {
+    const r = planSettingsUpdate(current(), { adoptRoots: [spotify] }, home, probe([]));
+    expect(r).toMatchObject({ ok: false });
+    expect((r as { error: string }).error).toContain("Couldn't find a folder");
+  });
+
+  it("refuses a folder inside the library folder, the library folder itself, and one that contains it", () => {
+    const lib = current().libraryDir;
+    for (const root of [path.join(lib, "sub"), lib, path.join(home, "Music")]) {
+      const r = planSettingsUpdate(current(), { adoptRoots: [root] }, home, probe([root]));
+      expect(r).toMatchObject({ ok: false });
+      expect((r as { error: string }).error).toContain("library folder");
+    }
+  });
+
+  it("checks against the library folder set in the same request", () => {
+    const r = planSettingsUpdate(current(), { libraryDir: path.join(spotify, "Lib"), adoptRoots: [spotify] }, home, probe([spotify]));
+    expect(r).toMatchObject({ ok: false });
+  });
+});

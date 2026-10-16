@@ -2,6 +2,7 @@ import path from "node:path";
 import type { Settings } from "../../shared/types";
 import type { ParsedSettingsPut } from "../http/validation";
 import { applySyncBaseUrlChange } from "../sync/settings";
+import { adoptRootsError, type RootProbe } from "./adoptRoots";
 
 export type SettingsUpdateResult =
   | {
@@ -20,7 +21,9 @@ export type SettingsUpdateResult =
 export function planSettingsUpdate(
   current: Settings,
   body: ParsedSettingsPut,
-  homeDir: string
+  homeDir: string,
+  /** Needed only when the body sets `adoptRoots`: a folder that is missing, or that overlaps the library, is refused. */
+  probe?: RootProbe
 ): SettingsUpdateResult {
   let libraryDir = current.libraryDir;
   let spotifySourceDismissed = current.spotifySourceDismissed;
@@ -49,6 +52,14 @@ export function planSettingsUpdate(
     libraryDir = dir;
   }
 
+  let adoptRoots = current.adoptRoots;
+  if (body.adoptRoots !== undefined) {
+    if (!probe) throw new Error("planSettingsUpdate needs a probe to check adoptRoots");
+    const error = adoptRootsError(body.adoptRoots, libraryDir, probe);
+    if (error) return { ok: false, error };
+    adoptRoots = body.adoptRoots;
+  }
+
   let sync = current.sync;
   let resetSyncState = false;
   if (body.sync?.baseUrl !== undefined) {
@@ -69,7 +80,8 @@ export function planSettingsUpdate(
     body.sync?.baseUrl === undefined &&
     body.trackPlays === undefined &&
     body.countOtherDevices === undefined &&
-    body.playsPromptAnswered === undefined
+    body.playsPromptAnswered === undefined &&
+    body.adoptRoots === undefined
   ) {
     return {
       ok: false,
@@ -79,7 +91,7 @@ export function planSettingsUpdate(
 
   return {
     ok: true,
-    settings: { ...current, libraryDir, sync, spotifySourceDismissed, trackPlays, countOtherDevices, playsPromptAnswered },
+    settings: { ...current, libraryDir, sync, spotifySourceDismissed, trackPlays, countOtherDevices, playsPromptAnswered, ...(adoptRoots !== undefined ? { adoptRoots } : {}) },
     resetSyncState,
   };
 }

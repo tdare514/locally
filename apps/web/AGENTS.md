@@ -20,6 +20,7 @@ src/server/
     SettingsStore.ts        # interface: get()/set() app settings
     FileSettingsStore.ts    # JSON-file impl (~/.spotify-local-import/settings.json)
     paths.ts                # default library dir, settings file path helpers
+    adoptRoots.ts           # Spotify folders (#249): the suggested ~/Documents/Spotify Music and the exists / clear-of-the-library check, behind an injectable probe
     settingsUpdate.ts       # PUT /api/settings policy: libraryDir rules, dismissed-flag and sync-state resets
     settingsView.ts         # projects server-internal Settings down to safe client response
   storage/
@@ -60,6 +61,8 @@ src/app/api/**/route.ts   # thin HTTP handlers: parse via http/validation, call 
 src/app/api/sync/**/route.ts  # sync: code/verify/status/signout, reconcile, accept/[id], resync
 electron/                 # Mac desktop shell (Electron); compiled by tsconfig.electron.json to electron/dist
   main.ts                 # spawns the Next standalone server on a free 127.0.0.1 port, opens one window, locks navigation; keeps running after the window closes, "Open at Login" menu item (#105)
+  preload.ts              # contextBridge: window.locallyDesktop.pickFolder() only, over the "locally:pick-folder" channel (#249)
+  lib/pickFolder.ts       # the main-process handler for it: main window only, folder-only dialog, path or null
   lib/freePort.ts         # findFreePort() on 127.0.0.1
   lib/serverEnv.ts        # pure: env for the server child (HOSTNAME forced to 127.0.0.1, PORT, config dir, ffmpeg, PATH)
   lib/migrateConfig.ts    # pure: first-launch copy of ~/.spotify-local-import config into Application Support
@@ -79,6 +82,7 @@ electron/vendor/          # git-ignored: the built ffmpeg binary, per uname -m a
 src/proxy.ts              # loopback-only + same-origin CSRF guard (Next middleware)
 src/lib/api-client.ts     # client-side typed fetch wrappers (imports src/shared/types)
 src/lib/inbox-copy.ts     # tray title, the origin label under a pending release ("from your iPhone", "from the web", "from another device"; #185), and the "Still sending…" footer / "Waiting on your phone" copy (#172)
+src/lib/adopt-review.ts   # pure: the Spotify folders review page's grouping, ticks, batches of 20 and copy (#249)
 src/lib/crop-geometry.ts  # pure: square/original crop geometry, mirrors iOS ImageCropper.swift
 src/lib/crop-image.ts     # crops and downscales image files, respects EXIF orientation
 src/components/**         # UI, unaffected by this architecture
