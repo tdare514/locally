@@ -83,6 +83,7 @@ export default function SleeveFan({
       ref={root}
       className="fan"
       data-size={size}
+      data-armed={armed !== null ? "true" : undefined}
       onPointerLeave={(e) => {
         // A finger leaves the moment it lifts; that must not drop the lift a tap just made.
         if (e.pointerType === "touch") return;

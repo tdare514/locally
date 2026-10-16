@@ -2124,9 +2124,10 @@ body {
 .fan-sleeve[data-active="true"] {
   transform: rotate(calc(var(--a) * var(--fan-tilt) * 0.8)) translate3d(0, calc(var(--w) * var(--fan-lift) * -1), 0);
 }
-/* At rest, before anyone points at or tabs into the fan, number one sits half as high; a hover or
-   focus anywhere on the fan lifts the chosen sleeve fully. */
-.fan:not(:hover):not(:focus-within) .fan-sleeve[data-active="true"] {
+/* At rest, before anyone points at, tabs into or taps the fan, number one sits half as high; a hover,
+   focus or touch lift (data-armed, set by SleeveFan, since sticky hover differs by browser) lifts the
+   chosen sleeve fully. */
+.fan:not(:hover):not(:focus-within):not([data-armed="true"]) .fan-sleeve[data-active="true"] {
   transform: rotate(calc(var(--a) * var(--fan-tilt) * 0.8)) translate3d(0, calc(var(--w) * var(--fan-lift) * -0.5), 0);
 }
 /* The fan-out: on the page whenever the fan appears (it is keyed by tab and period); on the shelf
@@ -2264,6 +2265,11 @@ body {
     0 calc(var(--w) * 0.075) calc(var(--w) * 0.14) calc(var(--w) * -0.07) rgb(0 0 0 / 0.8);
   transform: translate3d(0, -9%, 0);
   transition: transform 340ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* Silver and bronze peek a little further at rest than the black records, so the medals read. */
+.fan-record[data-medal="silver"],
+.fan-record[data-medal="bronze"] {
+  transform: translate3d(0, -13%, 0);
 }
 .fan-record[data-medal="gold"] {
   background:

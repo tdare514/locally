@@ -367,7 +367,9 @@ eyebrows still apply to those labels.
     (3:1 needed). Fan rank pills and tags are darker so the medal colours and white text hold on
     pale covers.
   - **Motion** (all in `globals.css`): one rise-in, the fan-out when the tab or period changes, the
-    sleeve lift, record slide and tag, the grid hover lift; nothing loops. Reduced motion drops
+    sleeve lift, record slide and tag, the grid hover lift. Nothing loops except the gold record's
+    24s shimmer, the owner's exception (its sweeps use cubic-bezier(0.45, 0, 0.25, 1), since the house
+    curve crossed the visible cap of the disc too fast to see). Reduced motion drops
     every animation and transition to nothing (its block is last in the file, after the rules it
     overrides).
 - **Library list (desktop main)**: same sectioning as mobile — YOUR COLLECTION (replaced 13 Oct 2026: sentence case) / All music
