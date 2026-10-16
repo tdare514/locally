@@ -187,6 +187,8 @@ enum Copy {
         static let keepEditing = "Keep editing"
         static let trackOrderChanged = "Track order changed"
         static let cover = "Cover"
+        /// VoiceOver for the review sheet's cover row.
+        static let coverChanged = "Cover changed"
         static let discardTitle = "Discard your changes?"
         static let discard = "Discard"
         static let keepEditingDiscard = "Keep editing"

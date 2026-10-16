@@ -261,7 +261,7 @@ struct LibraryView: View {
         let fold: Animation? = reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: Theme.Library.sectionFoldDuration)
         return VStack(alignment: .leading, spacing: 8) {
             Button {
-                withAnimation(fold) { collapsed.wrappedValue.toggle() }
+                collapsed.wrappedValue.toggle()
             } label: {
                 HStack(alignment: .firstTextBaseline) {
                     Text(label)
@@ -286,15 +286,19 @@ struct LibraryView: View {
             .accessibilityValue(isOpen ? Copy.Library.sectionExpanded : Copy.Library.sectionCollapsed)
             .accessibilityHint(Copy.Library.sectionHint)
 
-            if isOpen {
-                Group {
-                    switch layout {
-                    case .list: listPanel(items)
-                    case .covers: coverGrid(items)
+            // Only the rows' opacity animates; the section's layout jumps.
+            VStack(spacing: 0) {
+                if isOpen {
+                    Group {
+                        switch layout {
+                        case .list: listPanel(items)
+                        case .covers: coverGrid(items)
+                        }
                     }
+                    .transition(.opacity)
                 }
-                .transition(.opacity)
             }
+            .animation(fold, value: isOpen)
         }
     }
 

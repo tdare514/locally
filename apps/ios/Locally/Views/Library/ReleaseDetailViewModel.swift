@@ -4,14 +4,14 @@ import Foundation
 enum ReleaseChange: Equatable, Identifiable {
     case field(label: String, old: String, new: String)
     case cover(old: Data?, new: Data?)
-    case trackRenamed(old: String, new: String)
+    case trackRenamed(id: UUID, old: String, new: String)
     case trackOrder
 
     var id: String {
         switch self {
         case .field(let label, _, _): "field-\(label)"
         case .cover: "cover"
-        case .trackRenamed(let old, let new): "track-\(old)-\(new)"
+        case .trackRenamed(let id, _, _): "track-\(id.uuidString)"
         case .trackOrder: "order"
         }
     }
@@ -142,7 +142,7 @@ final class ReleaseDetailViewModel {
         let oldTitles = Dictionary(originalTrackRows.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
         for row in trackRows {
             if let old = oldTitles[row.id], old != row.title {
-                result.append(.trackRenamed(old: old, new: row.title))
+                result.append(.trackRenamed(id: row.id, old: old, new: row.title))
             }
         }
         if trackRows.map(\.id) != originalTrackRows.map(\.id) {

@@ -94,11 +94,6 @@ struct ReleaseDetailView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
-        // Every path out of or into edit mode (Edit, Cancel, Discard, a save) fades over 0.25 s on
-        // the signature easing; Reduce Motion has no fade.
-        .transaction(value: model.isEditing) { transaction in
-            transaction.animation = reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: Theme.Immersive.modeFade)
-        }
         // Edit mode is the iOS edit pattern: Cancel takes the back button's place, so the only ways
         // out are Cancel (asking first when there are edits) and Save.
         .navigationBarBackButtonHidden(model.isEditing)
@@ -121,10 +116,14 @@ struct ReleaseDetailView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if model.isEditing {
-                ReleaseDock(model: model, glowColors: glowColors) { isPresentingReview = true }
-                    .transition(.opacity)
+            // Mode changes are instant; only the dock fades (0.25 s, signature easing; none under Reduce Motion).
+            ZStack {
+                if model.isEditing {
+                    ReleaseDock(model: model, glowColors: glowColors) { isPresentingReview = true }
+                        .transition(.opacity)
+                }
             }
+            .animation(reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: Theme.Immersive.modeFade), value: model.isEditing)
         }
         .sheet(isPresented: $isPresentingReview) {
             ReleaseReviewSheet(model: model, glowColors: glowColors) { isPresentingReview = false }

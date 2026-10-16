@@ -9,11 +9,14 @@ struct ReleaseReviewSheet: View {
     let glowColors: [Color]
     let onClose: () -> Void
 
+    @ScaledMetric(relativeTo: .body) private var thumbSize = Theme.Immersive.reviewThumbSize
+
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Immersive.reviewRowSpacing) {
             Text(Copy.Release.reviewTitle)
-                .font(Theme.Font.sectionTitle)
+                .font(Theme.ScaledFont.fieldTitle)
                 .foregroundStyle(Theme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
 
             ScrollView {
@@ -28,8 +31,9 @@ struct ReleaseReviewSheet: View {
 
             if let error = model.errorMessage {
                 Text(error)
-                    .font(Theme.Font.rowSubtitle)
+                    .font(Theme.ScaledFont.subheadline)
                     .foregroundStyle(Theme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             VStack(spacing: Theme.Immersive.reviewValueSpacing) {
@@ -81,14 +85,18 @@ struct ReleaseReviewSheet: View {
                     thumbnail(new)
                 }
             }
-        case .trackRenamed(let old, let new):
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Copy.Release.coverChanged)
+        case .trackRenamed(_, let old, let new):
             labelled(Copy.Import.tracks) {
                 oldNew(old: old, new: new)
             }
             .accessibilityElement(children: .combine)
+            .accessibilityLabel(Copy.Import.tracks)
+            .accessibilityValue(Copy.Release.changedFrom(display(old), to: display(new)))
         case .trackOrder:
             Text(Copy.Release.trackOrderChanged)
-                .font(Theme.Font.body)
+                .font(Theme.ScaledFont.input)
                 .foregroundStyle(Theme.primaryText)
         }
     }
@@ -100,7 +108,7 @@ struct ReleaseReviewSheet: View {
     private func labelled<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: Theme.Immersive.reviewValueSpacing) {
             Text(label)
-                .font(Theme.Font.rowSubtitle)
+                .font(Theme.ScaledFont.caption)
                 .foregroundStyle(Theme.secondaryText)
             content()
         }
@@ -115,7 +123,8 @@ struct ReleaseReviewSheet: View {
             Text(display(new))
                 .foregroundStyle(Theme.primaryText)
         }
-        .font(Theme.Font.body)
+        .font(Theme.ScaledFont.input)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder
@@ -125,13 +134,13 @@ struct ReleaseReviewSheet: View {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
-                .frame(width: Theme.Immersive.reviewThumbSize, height: Theme.Immersive.reviewThumbSize)
+                .frame(width: thumbSize, height: thumbSize)
                 .clipShape(shape)
                 .overlay(shape.strokeBorder(Theme.Immersive.panelStroke, lineWidth: 1))
                 .accessibilityHidden(true)
         } else {
             shape.fill(Theme.Immersive.panelFill)
-                .frame(width: Theme.Immersive.reviewThumbSize, height: Theme.Immersive.reviewThumbSize)
+                .frame(width: thumbSize, height: thumbSize)
                 .overlay(shape.strokeBorder(Theme.Immersive.panelStroke, lineWidth: 1))
                 .accessibilityHidden(true)
         }

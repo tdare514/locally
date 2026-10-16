@@ -115,6 +115,7 @@ struct ReleaseEditModeTests {
         model.title = "Album 2"
         model.genre = "Rock"
         model.coverData = Data([1, 2, 3])
+        let renamedId = model.trackRows[0].id
         model.trackRows[0].title = "A2"
         model.moveTracks(from: IndexSet(integer: 1), to: 0)
 
@@ -122,9 +123,23 @@ struct ReleaseEditModeTests {
             .field(label: Copy.Import.fieldTitle, old: "Album", new: "Album 2"),
             .field(label: Copy.Import.fieldGenre, old: "", new: "Rock"),
             .cover(old: nil, new: Data([1, 2, 3])),
-            .trackRenamed(old: "A", new: "A2"),
+            .trackRenamed(id: renamedId, old: "A", new: "A2"),
             .trackOrder
         ])
+    }
+
+    @Test func sameTitledTracksRenamedToTheSameTitleGiveDistinctChanges() async throws {
+        let coverStore = FakeCoverStore()
+        let coordinator = makeCoordinator(coverStore)
+        let album = AlbumDraft(title: "Album", artist: "Band", year: "2020", tracks: [TrackDraft(title: "Same"), TrackDraft(title: "Same")])
+        let release = try await coordinator.importAlbum(files: [try makeFile("a.mp3"), try makeFile("b.mp3")], album: album, cover: nil)
+        let model = ReleaseDetailViewModel(release: release, coordinator: coordinator, coverStore: coverStore)
+
+        model.trackRows[0].title = "New"
+        model.trackRows[1].title = "New"
+
+        #expect(model.changes.count == 2)
+        #expect(Set(model.changes.map(\.id)).count == 2)
     }
 
     @Test func discardChangesRestoresTheOriginalsAndLeavesEditMode() async throws {
