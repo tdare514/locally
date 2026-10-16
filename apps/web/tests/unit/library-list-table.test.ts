@@ -20,10 +20,13 @@ function release(partial: Partial<Release> & { id: string }): Release {
   } as Release;
 }
 
-function render(releases: Release[]): string {
+function render(releases: Release[], open = true): string {
   return renderToStaticMarkup(
     createElement(LibrarySection, {
       label: "Albums",
+      bodyId: "library-albums",
+      open,
+      onToggleOpen: () => {},
       count: releases.length,
       releases,
       onSelectRelease: () => {},
@@ -75,5 +78,22 @@ describe("LibrarySection table", () => {
     }
     expect(html).toContain('aria-hidden="true"');
     expect(html).not.toContain("uppercase");
+  });
+});
+
+describe("LibrarySection fold (#260)", () => {
+  const one = release({ id: "a", title: "Night Drive" });
+
+  it("the header is one button with aria-expanded and aria-controls inside the h2", () => {
+    const html = render([one]);
+    expect(html).toMatch(/<h2[^>]*><button[^>]*aria-expanded="true"[^>]*aria-controls="library-albums"/);
+    expect(html).toContain('id="library-albums"');
+  });
+  it("folded: aria-expanded false and the rows are not rendered", () => {
+    const html = render([one], false);
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain("Night Drive");
+    expect(html).not.toContain('id="library-albums"');
+    expect(html).toContain("Albums");
   });
 });

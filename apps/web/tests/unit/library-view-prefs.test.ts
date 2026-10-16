@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  isSectionOpen,
   loadLibraryWidth,
+  loadSectionFolds,
+  parseSectionFolded,
+  saveSectionFolded,
   parseCoverSize,
   parseLibraryLayout,
   libraryWidthClass,
@@ -103,5 +107,60 @@ describe("library width storage", () => {
     });
     expect(loadLibraryWidth()).toBe("full");
     expect(() => saveLibraryWidth("full")).not.toThrow();
+  });
+});
+
+describe("section folds (#260)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function stubStorage(store: Record<string, string>) {
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (k: string) => store[k] ?? null,
+        setItem: (k: string, v: string) => {
+          store[k] = v;
+        },
+      },
+    });
+  }
+  const throwing = {
+    localStorage: {
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+    },
+  };
+
+  it("defaults both sections to open", () => {
+    stubStorage({});
+    expect(loadSectionFolds()).toEqual({ singles: false, albums: false });
+  });
+  it("saves and reloads each section on its own", () => {
+    const store: Record<string, string> = {};
+    stubStorage(store);
+    saveSectionFolded("singles", true);
+    expect(loadSectionFolds()).toEqual({ singles: true, albums: false });
+    saveSectionFolded("singles", false);
+    saveSectionFolded("albums", true);
+    expect(loadSectionFolds()).toEqual({ singles: false, albums: true });
+  });
+  it("treats garbage as open", () => {
+    expect(parseSectionFolded("yes")).toBe(false);
+    expect(parseSectionFolded(null)).toBe(false);
+    expect(parseSectionFolded("1")).toBe(true);
+  });
+  it("survives localStorage throwing", () => {
+    vi.stubGlobal("window", throwing);
+    expect(loadSectionFolds()).toEqual({ singles: false, albums: false });
+    expect(() => saveSectionFolded("albums", true)).not.toThrow();
+  });
+  it("a typed search opens a folded section, whitespace does not", () => {
+    expect(isSectionOpen(true, "")).toBe(false);
+    expect(isSectionOpen(true, "   ")).toBe(false);
+    expect(isSectionOpen(true, "night")).toBe(true);
+    expect(isSectionOpen(false, "")).toBe(true);
   });
 });

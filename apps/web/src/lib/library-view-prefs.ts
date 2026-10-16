@@ -83,3 +83,45 @@ export function saveLibraryWidth(width: LibraryWidth): void {
     // Not persisted; the choice still applies for this session.
   }
 }
+
+/** Which library section: Singles or Albums (#260). */
+export type LibrarySectionKey = "singles" | "albums";
+export type SectionFolds = Record<LibrarySectionKey, boolean>;
+
+const FOLD_KEYS: Record<LibrarySectionKey, string> = {
+  singles: "locally.library.singlesFolded",
+  albums: "locally.library.albumsFolded",
+};
+
+/** Both sections open: the default. */
+export const NO_FOLDS: SectionFolds = { singles: false, albums: false };
+
+export function parseSectionFolded(raw: string | null): boolean {
+  return raw === "1";
+}
+
+/** The saved fold of each section; open when nothing is saved or storage is blocked. */
+export function loadSectionFolds(): SectionFolds {
+  const folds = { ...NO_FOLDS };
+  for (const key of Object.keys(FOLD_KEYS) as LibrarySectionKey[]) {
+    try {
+      folds[key] = parseSectionFolded(window.localStorage.getItem(FOLD_KEYS[key]));
+    } catch {
+      // Storage unavailable: keep it open.
+    }
+  }
+  return folds;
+}
+
+export function saveSectionFolded(key: LibrarySectionKey, folded: boolean): void {
+  try {
+    window.localStorage.setItem(FOLD_KEYS[key], folded ? "1" : "0");
+  } catch {
+    // Not persisted; the choice still applies for this session.
+  }
+}
+
+/** A section shows its rows unless folded; a typed search opens both without touching the stored fold. */
+export function isSectionOpen(folded: boolean, query: string): boolean {
+  return !folded || query.trim() !== "";
+}

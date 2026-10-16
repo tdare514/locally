@@ -21,10 +21,16 @@ import {
 import {
   COVER_GRID_GAP_PX,
   COVER_TILE_MIN_PX,
+  NO_FOLDS,
+  isSectionOpen,
   loadLibraryViewPrefs,
   loadLibraryWidth,
+  loadSectionFolds,
   saveCoverSize,
   saveLibraryLayout,
+  saveSectionFolded,
+  type LibrarySectionKey,
+  type SectionFolds,
   type CoverSize,
   type LibraryLayout,
   type LibraryWidth,
@@ -83,6 +89,7 @@ export default function LibraryView({
   const [layout, setLayout] = useState<LibraryLayout>("list");
   const [coverSize, setCoverSize] = useState<CoverSize>(1);
   const [width, setWidth] = useState<LibraryWidth>("full");
+  const [folds, setFolds] = useState<SectionFolds>(NO_FOLDS);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
 
@@ -93,7 +100,14 @@ export default function LibraryView({
     setLayout(prefs.layout);
     setCoverSize(prefs.coverSize);
     setWidth(loadLibraryWidth());
+    setFolds(loadSectionFolds());
   }, []);
+
+  function toggleFold(key: LibrarySectionKey) {
+    const next = !folds[key];
+    setFolds({ ...folds, [key]: next });
+    saveSectionFolded(key, next);
+  }
 
   function changeLayout(next: LibraryLayout) {
     setLayout(next);
@@ -455,6 +469,9 @@ export default function LibraryView({
       {singles.length > 0 && (
         <SectionComponent
           label="Singles"
+          bodyId="library-singles"
+          open={isSectionOpen(folds.singles, query)}
+          onToggleOpen={() => toggleFold("singles")}
           count={singles.length}
           releases={singles}
           onSelectRelease={onSelectRelease}
@@ -477,6 +494,9 @@ export default function LibraryView({
       {albums.length > 0 && (
         <SectionComponent
           label="Albums"
+          bodyId="library-albums"
+          open={isSectionOpen(folds.albums, query)}
+          onToggleOpen={() => toggleFold("albums")}
           count={albums.length}
           releases={albums}
           onSelectRelease={onSelectRelease}
@@ -516,6 +536,10 @@ export default function LibraryView({
 
 interface SectionProps {
   label: string;
+  /** Id of the section body, which the header button controls. */
+  bodyId: string;
+  open: boolean;
+  onToggleOpen: () => void;
   count: number;
   releases: Release[];
   onSelectRelease: (id: string) => void;
@@ -545,8 +569,42 @@ export function formatAddedDate(iso: string, locale?: string): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(d);
 }
 
+/** The Singles or Albums heading as one button: label, count, chevron (#260). The button sits inside
+ * the h2 so the heading stays in the outline. */
+function SectionHeader({
+  label,
+  count,
+  bodyId,
+  open,
+  onToggleOpen,
+}: Pick<SectionProps, "label" | "count" | "bodyId" | "open" | "onToggleOpen">) {
+  return (
+    <h2 className="px-1 text-[22px] font-bold tracking-[-0.03em] text-text">
+      <button
+        type="button"
+        onClick={onToggleOpen}
+        aria-expanded={open}
+        aria-controls={bodyId}
+        className="group flex items-baseline gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-bg"
+      >
+        <span>{label}</span>
+        <span className="text-sm font-normal tracking-normal text-text-dim">{count}</span>
+        <ChevronRightIcon
+          aria-hidden="true"
+          className={`h-3.5 w-3.5 shrink-0 self-center text-text-dim transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:text-text-muted motion-reduce:transition-none ${
+            open ? "rotate-90" : ""
+          }`}
+        />
+      </button>
+    </h2>
+  );
+}
+
 export function LibrarySection({
   label,
+  bodyId,
+  open,
+  onToggleOpen,
   count,
   releases,
   onSelectRelease,
@@ -558,91 +616,96 @@ export function LibrarySection({
 }: SectionProps) {
   return (
     <section className="@container flex flex-col gap-2">
-      <div className="flex items-baseline gap-2 px-1">
-        <h2 className="text-[22px] font-bold tracking-[-0.03em] text-text">
-          {label}
-        </h2>
-        <span className="text-sm text-text-dim">{count}</span>
-      </div>
-      {/* Presentational: each row's button already carries the full accessible name. */}
-      <div
-        aria-hidden="true"
-        className={`${LIST_GRID} -mb-1 px-[13px] text-[12px] text-text-dim`}
-      >
-        <span>Title</span>
-        <span className={COL_GENRE}>Genre</span>
-        <span className={COL_NUMBER}>Year</span>
-        <span className={COL_NUMBER}>Tracks</span>
-        <span className={COL_ADDED}>Added</span>
-        <span />
-      </div>
-      <ul className="overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.04]">
-        {releases.map((r, index) => {
-          const isSelected = selecting && selected.has(r.id);
-          return (
-            <li key={r.id}>
-              {index > 0 && (
-                <div className="h-px bg-white/[0.06]" aria-hidden="true" />
-              )}
-              <button
-                type="button"
-                onClick={() =>
-                  selecting ? onToggle(r.id) : onSelectRelease(r.id)
-                }
-                onMouseEnter={() => onFocusRelease(r.id)}
-                onFocus={() => onFocusRelease(r.id)}
-                data-release-id={r.id}
-                disabled={selecting && disabled}
-                aria-pressed={selecting ? isSelected : undefined}
-                className={`list-row ${LIST_GRID} min-h-[78px] w-full px-3 py-3 text-left transition-colors hover:bg-white/[0.06] focus-visible:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60 ${
-                  isSelected ? "bg-white/[0.06]" : ""
-                }`}
-              >
-                <span className="flex min-w-0 items-center gap-3">
-                  {selecting && <SelectBox checked={isSelected} />}
-                  {r.coverPath ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={coverUrl(r.id, r.updatedAt)}
-                      alt=""
-                      className="list-thumb h-14 w-14 shrink-0 rounded object-cover"
-                    />
-                  ) : (
-                    <span className="list-thumb flex h-14 w-14 shrink-0 items-center justify-center rounded bg-elevated text-text-muted">
-                      <MusicNoteIcon className="h-5 w-5" />
-                    </span>
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-text">
-                      {r.title || r.artist}
-                    </span>
-                    <span className="block truncate text-xs text-text-muted">
-                      {r.artist}
+      <SectionHeader
+        label={label}
+        count={count}
+        bodyId={bodyId}
+        open={open}
+        onToggleOpen={onToggleOpen}
+      />
+      {open && (
+        <div id={bodyId} className="section-fade flex flex-col gap-2">
+        {/* Presentational: each row's button already carries the full accessible name. */}
+        <div
+          aria-hidden="true"
+          className={`${LIST_GRID} -mb-1 px-[13px] text-[12px] text-text-dim`}
+        >
+          <span>Title</span>
+          <span className={COL_GENRE}>Genre</span>
+          <span className={COL_NUMBER}>Year</span>
+          <span className={COL_NUMBER}>Tracks</span>
+          <span className={COL_ADDED}>Added</span>
+          <span />
+        </div>
+        <ul className="overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.04]">
+          {releases.map((r, index) => {
+            const isSelected = selecting && selected.has(r.id);
+            return (
+              <li key={r.id}>
+                {index > 0 && (
+                  <div className="h-px bg-white/[0.06]" aria-hidden="true" />
+                )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    selecting ? onToggle(r.id) : onSelectRelease(r.id)
+                  }
+                  onMouseEnter={() => onFocusRelease(r.id)}
+                  onFocus={() => onFocusRelease(r.id)}
+                  data-release-id={r.id}
+                  disabled={selecting && disabled}
+                  aria-pressed={selecting ? isSelected : undefined}
+                  className={`list-row ${LIST_GRID} min-h-[78px] w-full px-3 py-3 text-left transition-colors hover:bg-white/[0.06] focus-visible:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60 ${
+                    isSelected ? "bg-white/[0.06]" : ""
+                  }`}
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    {selecting && <SelectBox checked={isSelected} />}
+                    {r.coverPath ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={coverUrl(r.id, r.updatedAt)}
+                        alt=""
+                        className="list-thumb h-14 w-14 shrink-0 rounded object-cover"
+                      />
+                    ) : (
+                      <span className="list-thumb flex h-14 w-14 shrink-0 items-center justify-center rounded bg-elevated text-text-muted">
+                        <MusicNoteIcon className="h-5 w-5" />
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-text">
+                        {r.title || r.artist}
+                      </span>
+                      <span className="block truncate text-xs text-text-muted">
+                        {r.artist}
+                      </span>
                     </span>
                   </span>
-                </span>
-                <span className={`${COL_GENRE} truncate text-xs text-text-muted`}>
-                  {r.genre ?? ""}
-                </span>
-                <span className={`${COL_NUMBER} text-xs text-text-muted`}>
-                  {r.year ?? ""}
-                </span>
-                <span className={`${COL_NUMBER} text-xs text-text-muted`}>
-                  {r.tracks.length}
-                </span>
-                <span className={`${COL_ADDED} text-xs text-text-muted`}>
-                  {formatAddedDate(r.createdAt)}
-                </span>
-                {!selecting ? (
-                  <ChevronRightIcon className="h-4 w-4 shrink-0 text-text-dim" />
-                ) : (
-                  <span />
-                )}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+                  <span className={`${COL_GENRE} truncate text-xs text-text-muted`}>
+                    {r.genre ?? ""}
+                  </span>
+                  <span className={`${COL_NUMBER} text-xs text-text-muted`}>
+                    {r.year ?? ""}
+                  </span>
+                  <span className={`${COL_NUMBER} text-xs text-text-muted`}>
+                    {r.tracks.length}
+                  </span>
+                  <span className={`${COL_ADDED} text-xs text-text-muted`}>
+                    {formatAddedDate(r.createdAt)}
+                  </span>
+                  {!selecting ? (
+                    <ChevronRightIcon className="h-4 w-4 shrink-0 text-text-dim" />
+                  ) : (
+                    <span />
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        </div>
+      )}
     </section>
   );
 }
@@ -650,6 +713,9 @@ export function LibrarySection({
 /** Cover view section: a grid of bare covers that pop on hover (#112). */
 function CoverSection({
   label,
+  bodyId,
+  open,
+  onToggleOpen,
   count,
   releases,
   onSelectRelease,
@@ -662,77 +728,82 @@ function CoverSection({
 }: SectionProps) {
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex items-baseline gap-2 px-1">
-        <h2 className="text-[22px] font-bold tracking-[-0.03em] text-text">
-          {label}
-        </h2>
-        <span className="text-sm text-text-dim">{count}</span>
-      </div>
-      <div
-        className="grid"
-        style={{
-          gridTemplateColumns: `repeat(auto-fill, minmax(${COVER_TILE_MIN_PX[coverSize]}px, 1fr))`,
-          gap: COVER_GRID_GAP_PX[coverSize],
-        }}
-      >
-        {releases.map((r) => {
-          const isSelected = selecting && selected.has(r.id);
-          const url = r.coverPath ? coverUrl(r.id, r.updatedAt) : null;
-          return (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() =>
-                selecting ? onToggle(r.id) : onSelectRelease(r.id)
-              }
-              onMouseEnter={() => onFocusRelease(r.id)}
-              onFocus={() => onFocusRelease(r.id)}
-              data-release-id={r.id}
-              disabled={selecting && disabled}
-              aria-pressed={selecting ? isSelected : undefined}
-              className="shelf-tile min-w-0 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <div className="relative aspect-square">
-                <div
-                  className={`shelf-cover h-full w-full rounded-lg ${
-                    isSelected
-                      ? "ring-2 ring-accent ring-offset-2 ring-offset-bg"
-                      : ""
+      <SectionHeader
+        label={label}
+        count={count}
+        bodyId={bodyId}
+        open={open}
+        onToggleOpen={onToggleOpen}
+      />
+      {open && (
+        <div id={bodyId} className="section-fade">
+        <div
+          className="grid"
+          style={{
+            gridTemplateColumns: `repeat(auto-fill, minmax(${COVER_TILE_MIN_PX[coverSize]}px, 1fr))`,
+            gap: COVER_GRID_GAP_PX[coverSize],
+          }}
+        >
+          {releases.map((r) => {
+            const isSelected = selecting && selected.has(r.id);
+            const url = r.coverPath ? coverUrl(r.id, r.updatedAt) : null;
+            return (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() =>
+                  selecting ? onToggle(r.id) : onSelectRelease(r.id)
+                }
+                onMouseEnter={() => onFocusRelease(r.id)}
+                onFocus={() => onFocusRelease(r.id)}
+                data-release-id={r.id}
+                disabled={selecting && disabled}
+                aria-pressed={selecting ? isSelected : undefined}
+                className="shelf-tile min-w-0 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <div className="relative aspect-square">
+                  <div
+                    className={`shelf-cover h-full w-full rounded-lg ${
+                      isSelected
+                        ? "ring-2 ring-accent ring-offset-2 ring-offset-bg"
+                        : ""
+                    }`}
+                  >
+                    {url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={url}
+                        alt=""
+                        className="h-full w-full rounded-lg object-cover shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]"
+                      />
+                    ) : (
+                      <span className="flex h-full w-full items-center justify-center rounded-lg bg-elevated text-text-muted shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]">
+                        <MusicNoteIcon className="h-8 w-8" />
+                      </span>
+                    )}
+                    {selecting && (
+                      <span className="absolute left-2 top-2 rounded-md bg-black/50 p-1">
+                        <SelectBox checked={isSelected} />
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span
+                  className={`mt-3 block truncate font-semibold text-text ${
+                    coverSize === 0 ? "text-xs" : "text-sm"
                   }`}
                 >
-                  {url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={url}
-                      alt=""
-                      className="h-full w-full rounded-lg object-cover shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]"
-                    />
-                  ) : (
-                    <span className="flex h-full w-full items-center justify-center rounded-lg bg-elevated text-text-muted shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]">
-                      <MusicNoteIcon className="h-8 w-8" />
-                    </span>
-                  )}
-                  {selecting && (
-                    <span className="absolute left-2 top-2 rounded-md bg-black/50 p-1">
-                      <SelectBox checked={isSelected} />
-                    </span>
-                  )}
-                </div>
-              </div>
-              <span
-                className={`mt-3 block truncate font-semibold text-text ${
-                  coverSize === 0 ? "text-xs" : "text-sm"
-                }`}
-              >
-                {r.title || r.artist}
-              </span>
-              <span className="block truncate text-xs text-text-muted">
-                {libraryRowSubtitle(r)}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+                  {r.title || r.artist}
+                </span>
+                <span className="block truncate text-xs text-text-muted">
+                  {libraryRowSubtitle(r)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        </div>
+      )}
     </section>
   );
 }
