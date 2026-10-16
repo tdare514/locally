@@ -231,6 +231,23 @@ eyebrows still apply to those labels.
       "Track order changed". Below: **Save** (cover glow button) and **Keep editing** (text).
       Save runs the save (with the sleeve's tuck and spin) and returns to view mode; Keep editing
       closes the sheet and keeps the edits.
+  - *Accessibility pass* (16 Oct 2026, #226, from `performAccessibilityAudit` and a walk through
+    every element on the simulator). Body text on these screens holds 4.5:1, and large text
+    (18 pt, or 14 pt bold) holds 3:1, over any cover colour.
+    - Kind switch: the track gets a black 30 % base under its glass, and the unchosen option's
+      word is white at 75 % (it was 55 %). The chosen option carries the selected trait, so
+      VoiceOver says "Selected".
+    - Cover glow button: at the accessibility text sizes, where the label wraps over the clouds,
+      the clouds drop to 40 % at rest.
+    - Secondary text that sat on `text-dim` moves to `text-muted`: the reorder hint and the
+      library row's subtitle. The Sent card's hint lines are checked after its entrance has
+      settled and lifted to white 80 % if they fail.
+    - A track row the person can't edit (the release page in view mode) reads as one element:
+      "1, Headlights, 3 minutes 24 seconds, 12 plays". In edit mode its title field and replace
+      button stay separate stops.
+    - A recent cover tile reads "Use the cover of <title>".
+    - The cover picker that only hosts the crop sheet, on the release page and on import, draws
+      nothing VoiceOver can reach.
   - *Release dock*: its base is opaque black, so the panel behind it never shows through while
     the keyboard lifts it over the tracks.
 - **Sticky footer CTA (mobile)**: fixed to the bottom, padding 16 horizontal and 12 to 16
