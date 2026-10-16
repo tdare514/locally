@@ -10,6 +10,7 @@ import type { ReleaseService } from "../releases/ReleaseService";
 import type { ReleaseSyncHooks } from "../releases/ReleaseSyncHooks";
 import type { PlayCountStore } from "../plays/PlayCountStore";
 import { batchPlayEntries, pendingPlayEntries } from "../plays/releasePlays";
+import { invalidateServerSummary } from "../plays/serverSummary";
 import { fromSyncRecord, toSyncRecord, type SyncRecord } from "./SyncRecord";
 import {
   RELEASE_PAGE_LIMIT,
@@ -574,6 +575,8 @@ export class SyncEngine implements ReleaseSyncHooks {
         ? Object.fromEntries(batch.filter((e) => e.days).map((e) => [e.trackId, Object.fromEntries(e.days!.map((d) => [d.day, d.count]))]))
         : undefined;
       await store.markPushed(Object.fromEntries(batch.map((e) => [e.trackId, e.count])), epoch, days);
+      // A service summary read before this push must not be merged with markers read after it.
+      invalidateServerSummary();
     }
     // A pass with nothing refused re-arms the log for the next time something is.
     if (!refused) this.loggedPlayRejection = false;

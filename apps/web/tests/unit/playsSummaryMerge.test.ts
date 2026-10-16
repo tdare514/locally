@@ -3,8 +3,11 @@ import type { Release } from "../../src/shared/types";
 import type { PlayCounts } from "../../src/server/plays/PlayCountStore";
 import { buildPlaysSummary, loadPlaysSummary, mergeServerSummary } from "../../src/server/plays/playsSummary";
 import {
+  invalidateServerSummary,
+  readServerSummary,
   resetServerSummaryState,
   SUMMARY_BACKOFF_MS,
+  SUMMARY_PAGE_BUDGET,
   SUMMARY_CACHE_MS,
 } from "../../src/server/plays/serverSummary";
 import { SyncRequestError, type SyncApi } from "../../src/server/sync/SyncApi";
@@ -170,6 +173,37 @@ describe("loadPlaysSummary with the service (#202)", () => {
     expect((await load()).includesOtherDevices).toBe(true);
   });
 
+  it("a push landing during the summary read never counts this Mac twice (service read first)", async () => {
+    store.seed("t1", R1, 6, 5, { "2026-10-15": 6 }, { "2026-10-15": 5 });
+    store.seedDaysInSync(true);
+    playsSummary.mockImplementation(async () => {
+      // The push lands while the request is in flight: marker 5 -> 6, and the service now holds 6 + 3.
+      await store.markPushed({ t1: 6 }, store.pushedEpoch(), { t1: { "2026-10-15": 6 } });
+      return { tracks: [{ trackId: "t1", releaseId: R1, plays: 9, lastPlayedDay: "2026-10-15" }], allTime: [], nextCursor: null };
+    });
+
+    const out = await load();
+
+    expect(out.tracks[0].plays).toBe(9);
+    expect(out.tracks[0].plays).not.toBe(10);
+  });
+
+  it("a push invalidates the cached service summary, so the next read refetches and stays exact", async () => {
+    store.seed("t1", R1, 5, 5, { "2026-10-15": 5 }, { "2026-10-15": 5 });
+    store.seedDaysInSync(true);
+    const reply = (plays: number) => ({ tracks: [{ trackId: "t1", releaseId: R1, plays, lastPlayedDay: "2026-10-15" }], allTime: [], nextCursor: null });
+    playsSummary.mockResolvedValueOnce(reply(8));
+    expect((await load()).tracks[0].plays).toBe(8);
+
+    store.seed("t1", R1, 6, 6, { "2026-10-15": 6 }, { "2026-10-15": 6 });
+    store.seedDaysInSync(true);
+    invalidateServerSummary();
+    playsSummary.mockResolvedValueOnce(reply(9));
+
+    expect((await load()).tracks[0].plays).toBe(9);
+    expect(playsSummary).toHaveBeenCalledTimes(2);
+  });
+
   it.each([429, 404])("after a %i the service is left alone for 10 minutes", async (status) => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     playsSummary.mockRejectedValueOnce(new SyncRequestError("no", status));
@@ -180,5 +214,105 @@ describe("loadPlaysSummary with the service (#202)", () => {
     nowMs += 2;
     expect((await load()).includesOtherDevices).toBe(true);
     expect(playsSummary).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("readServerSummary state (#202)", () => {
+  const T0 = Date.UTC(2026, 9, 15, 12);
+  const emptyPage = { tracks: [], allTime: [], nextCursor: null };
+  const pageOf = (plays: number) => ({
+    tracks: [{ trackId: "t1", releaseId: R1, plays, lastPlayedDay: "2026-10-15" }],
+    allTime: [],
+    nextCursor: null,
+  });
+  function deferred<T>() {
+    let resolve!: (v: T) => void;
+    let reject!: (e: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+  const apiOf = (playsSummary: unknown) => ({ playsSummary }) as unknown as SyncApi;
+
+  beforeEach(() => {
+    resetServerSummaryState();
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  });
+
+  it("a read from a superseded identity neither fills the cache nor backs off the new identity", async () => {
+    const a = deferred<typeof emptyPage>();
+    const callsA = vi.fn(() => a.promise);
+    const readA = readServerSummary(apiOf(callsA), "A", "2026-10-01", "2026-10-15", T0);
+    const callsB = vi.fn(async () => pageOf(2));
+    const readB = readServerSummary(apiOf(callsB), "B", "2026-10-01", "2026-10-15", T0);
+    expect((await readB)?.tracks[0].plays).toBe(2);
+
+    a.reject(new SyncRequestError("slow", 429));
+    expect(await readA).toBeNull();
+
+    // B's cached read is B's, and A's late 429 did not back B off.
+    expect((await readServerSummary(apiOf(callsB), "B", "2026-10-01", "2026-10-15", T0 + 1))?.tracks[0].plays).toBe(2);
+    expect(callsB).toHaveBeenCalledTimes(1);
+    expect((await readServerSummary(apiOf(callsB), "B", "2026-10-02", "2026-10-15", T0 + 1))?.tracks[0].plays).toBe(2);
+    expect(callsB).toHaveBeenCalledTimes(2);
+  });
+
+  it("a late success from a superseded identity is not cached for the new one", async () => {
+    const a = deferred<ReturnType<typeof pageOf>>();
+    const readA = readServerSummary(apiOf(vi.fn(() => a.promise)), "A", "2026-10-01", "2026-10-15", T0);
+    const callsB = vi.fn(async () => pageOf(2));
+    await readServerSummary(apiOf(callsB), "B", "2026-10-01", "2026-10-15", T0);
+    a.resolve(pageOf(99));
+    expect((await readA)?.tracks[0].plays).toBe(99); // its own caller still gets it
+    expect((await readServerSummary(apiOf(callsB), "B", "2026-10-01", "2026-10-15", T0 + 1))?.tracks[0].plays).toBe(2);
+  });
+
+  it("a read started before an invalidation is not cached", async () => {
+    const d = deferred<ReturnType<typeof pageOf>>();
+    const calls = vi.fn().mockImplementationOnce(() => d.promise).mockResolvedValue(pageOf(7));
+    const first = readServerSummary(apiOf(calls), "A", "2026-10-01", "2026-10-15", T0);
+    invalidateServerSummary();
+    d.resolve(pageOf(1));
+    await first;
+    expect((await readServerSummary(apiOf(calls), "A", "2026-10-01", "2026-10-15", T0 + 1))?.tracks[0].plays).toBe(7);
+  });
+
+  it("two concurrent reads of the same range make one call", async () => {
+    const d = deferred<typeof emptyPage>();
+    const calls = vi.fn(() => d.promise);
+    const one = readServerSummary(apiOf(calls), "A", "2026-10-01", "2026-10-15", T0);
+    const two = readServerSummary(apiOf(calls), "A", "2026-10-01", "2026-10-15", T0);
+    d.resolve(emptyPage);
+    await Promise.all([one, two]);
+    expect(calls).toHaveBeenCalledTimes(1);
+  });
+
+  it("a 429 on one range stops another loop before its next page", async () => {
+    const x = deferred<unknown>();
+    const y = deferred<unknown>();
+    const calls = vi.fn().mockImplementationOnce(() => x.promise).mockImplementationOnce(() => y.promise);
+    const readX = readServerSummary(apiOf(calls), "A", "2026-10-01", "2026-10-15", T0);
+    const readY = readServerSummary(apiOf(calls), "A", "2026-09-01", "2026-09-30", T0);
+    x.reject(new SyncRequestError("slow", 429));
+    await readX;
+    y.resolve({ ...emptyPage, nextCursor: "c" });
+    expect(await readY).toBeNull();
+    expect(calls).toHaveBeenCalledTimes(2);
+  });
+
+  it("makes no more than 30 page requests in a rolling hour", async () => {
+    const calls = vi.fn(async () => emptyPage);
+    const api = apiOf(calls);
+    for (let i = 0; i < SUMMARY_PAGE_BUDGET + 1; i++) {
+      const day = String(1 + (i % 28)).padStart(2, "0");
+      const month = i < 28 ? "09" : "08";
+      await readServerSummary(api, "A", `2026-${month}-${day}`, "2026-10-15", T0);
+    }
+    expect(calls).toHaveBeenCalledTimes(SUMMARY_PAGE_BUDGET);
+    // An hour later the budget is back.
+    await readServerSummary(api, "A", "2026-07-01", "2026-10-15", T0 + 60 * 60_000 + 1);
+    expect(calls).toHaveBeenCalledTimes(SUMMARY_PAGE_BUDGET + 1);
   });
 });

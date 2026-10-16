@@ -154,12 +154,21 @@ export async function loadPlaysSummary(
 ): Promise<PlaysSummaryResponse> {
   const range = parseSummaryRange(from, to, localDay(deps.now(), deps.timeZone));
   const settings = await deps.settings.get();
+  const sync = settings.sync;
+  // The service's summary is read BEFORE plays.json: a push that lands in between then leaves the
+  // markers ahead of the service, which can only undercount other devices, never count this Mac twice.
+  const server =
+    deps.syncApiFactory && sync?.deviceToken
+      ? await readServerSummary(
+          deps.syncApiFactory(sync.baseUrl, sync.deviceToken),
+          `${sync.baseUrl}|${sync.deviceToken}`,
+          range.from,
+          range.to,
+          deps.now(),
+        )
+      : null;
   const [counts, releases] = await Promise.all([deps.playStore.get(), deps.library.list(settings.libraryDir)]);
   const liveIds = new Set(releases.map((release) => release.id));
   const local = buildPlaysSummary(counts, liveIds, range);
-  const sync = settings.sync;
-  if (!deps.syncApiFactory || !sync?.deviceToken) return local;
-  const api = deps.syncApiFactory(sync.baseUrl, sync.deviceToken);
-  const server = await readServerSummary(api, `${sync.baseUrl}|${sync.deviceToken}`, range.from, range.to, deps.now());
   return server ? mergeServerSummary(local, counts, liveIds, range, server) : local;
 }
