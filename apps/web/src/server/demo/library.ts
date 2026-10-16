@@ -66,6 +66,7 @@ export const DEMO_SETTINGS_RESPONSE: SettingsResponse = {
   libraryDir: DEMO_DIR,
   sync: { baseUrl: "https://locally-sync-api.vercel.app", email: null, signedIn: false, lastVersion: 0 },
   trackPlays: false,
+  countOtherDevices: false,
   // The demo can't count plays, so the one-time card stays hidden.
   playsPromptAnswered: true,
 };

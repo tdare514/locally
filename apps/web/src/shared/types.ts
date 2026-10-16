@@ -102,6 +102,7 @@ export interface Settings {
   sync: SyncSettings | null;
   spotifySourceDismissed?: boolean;  // user clicked "Done, I added it" on the Spotify source prompt
   trackPlays?: boolean;  // opt-in: count plays of Locally tracks in Spotify on this Mac (#106); default false
+  countOtherDevices?: boolean;  // opt-in: count plays on the user's other devices through the Spotify account (#228); default false
   spotify?: SpotifySettings;  // the Spotify connection (#239); absent when disconnected
   playsPromptAnswered?: boolean;  // user answered the one-time "Count your Spotify plays?" card, either button (#110)
   adoptRoots?: string[];  // folders Spotify reads that Locally scans to adopt in place (#245); read as [] when absent
@@ -120,6 +121,7 @@ export interface SettingsResponse {
   libraryDir: string;
   sync: SyncStatusSummary;
   trackPlays: boolean;
+  countOtherDevices: boolean;
   playsPromptAnswered: boolean;
 }
 
@@ -128,6 +130,10 @@ export type PlaysStatus = "off" | "on" | "spotify-not-running" | "permission-den
 
 export interface PlaysStatusResponse {
   status: PlaysStatus;
+  /** Where plays are read from: the Spotify account (every device) or this Mac's Spotify app only (#228). */
+  source: "account" | "this-mac";
+  /** True while the account source failed and this Mac's app is read instead. */
+  fallingBack: boolean;
 }
 
 /** One device's count for a track in GET /api/plays. `current` marks this Mac. The release page

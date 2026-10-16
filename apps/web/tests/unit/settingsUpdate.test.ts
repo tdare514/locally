@@ -107,6 +107,16 @@ describe("planSettingsUpdate trackPlays", () => {
   });
 });
 
+describe("planSettingsUpdate countOtherDevices", () => {
+  it("defaults to false, is settable on its own and survives other changes", () => {
+    expect(ok(planSettingsUpdate(current(), { trackPlays: true }, home)).settings.countOtherDevices).toBe(false);
+    const on = ok(planSettingsUpdate(current({ trackPlays: true }), { countOtherDevices: true }, home));
+    expect(on.settings).toMatchObject({ countOtherDevices: true, trackPlays: true });
+    expect(ok(planSettingsUpdate(on.settings, { libraryDir: path.join(home, "Z") }, home)).settings.countOtherDevices).toBe(true);
+    expect(ok(planSettingsUpdate(on.settings, { countOtherDevices: false }, home)).settings.countOtherDevices).toBe(false);
+  });
+});
+
 describe("planSettingsUpdate playsPromptAnswered", () => {
   it("defaults to false and is settable on its own, leaving trackPlays alone", () => {
     expect(ok(planSettingsUpdate(current(), { trackPlays: true }, home)).settings.playsPromptAnswered).toBe(false);

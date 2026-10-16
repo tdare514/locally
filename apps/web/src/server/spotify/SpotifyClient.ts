@@ -116,6 +116,18 @@ export class SpotifyClient {
 
   /** GET `path` (`/me/playlists`, or a full api.spotify.com URL such as a `next` link) and parse the JSON. */
   async request<T = unknown>(path: string): Promise<T> {
+    return this.parseJson<T>(await this.get(path));
+  }
+
+  /** Like {@link request}, but a 204 No Content answer (e.g. `/me/player` with no active device) gives null. */
+  async requestOptional<T = unknown>(path: string): Promise<T | null> {
+    const res = await this.get(path);
+    if (res.status === 204) return null;
+    return this.parseJson<T>(res);
+  }
+
+  /** The shared GET: URL guard, token, one 401 refresh-and-retry, and error mapping. */
+  private async get(path: string): Promise<Response> {
     const url = this.resolveUrl(path);
     let token = await this.getAccessToken();
     let res = await this.send(url, token);
@@ -124,6 +136,10 @@ export class SpotifyClient {
       res = await this.send(url, token);
     }
     if (!res.ok) throw await failureFromResponse(res);
+    return res;
+  }
+
+  private async parseJson<T>(res: Response): Promise<T> {
     try {
       return (await res.json()) as T;
     } catch {

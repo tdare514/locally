@@ -25,6 +25,7 @@ export function planSettingsUpdate(
   let libraryDir = current.libraryDir;
   let spotifySourceDismissed = current.spotifySourceDismissed;
   const trackPlays = body.trackPlays ?? current.trackPlays ?? false;
+  const countOtherDevices = body.countOtherDevices ?? current.countOtherDevices ?? false;
   const playsPromptAnswered = body.playsPromptAnswered ?? current.playsPromptAnswered ?? false;
   if (body.libraryDir !== undefined) {
     let dir = body.libraryDir;
@@ -67,6 +68,7 @@ export function planSettingsUpdate(
     body.libraryDir === undefined &&
     body.sync?.baseUrl === undefined &&
     body.trackPlays === undefined &&
+    body.countOtherDevices === undefined &&
     body.playsPromptAnswered === undefined
   ) {
     return {
@@ -77,7 +79,7 @@ export function planSettingsUpdate(
 
   return {
     ok: true,
-    settings: { ...current, libraryDir, sync, spotifySourceDismissed, trackPlays, playsPromptAnswered },
+    settings: { ...current, libraryDir, sync, spotifySourceDismissed, trackPlays, countOtherDevices, playsPromptAnswered },
     resetSyncState,
   };
 }
