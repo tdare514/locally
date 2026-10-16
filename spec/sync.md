@@ -261,6 +261,10 @@ Behind interfaces so local development needs no accounts:
 
 One dialect (libSQL) everywhere keeps the schema and tests identical between laptop and cloud.
 
+- Unfinished uploads are dropped after a day and count against quota until then.
+- Objects with no record are removed.
+- Files you upload are kept while their release exists. An upload that never finished is cleared within two days. A deleted release's files are removed after 30 days. Deleting your account removes everything at once.
+
 ## What each client does
 
 Both clients keep the same local library they have today; the service is a mirror, not the
