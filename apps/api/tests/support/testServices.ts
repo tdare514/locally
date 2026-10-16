@@ -40,7 +40,8 @@ export interface TestServices extends Services {
  * Builds a full `Services` graph against an isolated `:memory:` database and
  * a temp-dir `LocalFileStore`, exactly like `container.ts`'s `buildServices`
  * but without touching real env vars or process-wide singletons. Rate
- * limiters use generous limits so route-level tests aren't flaky; the limiter
+ * limiters use generous limits so route-level tests aren't flaky (except the missing-files
+ * ones, which keep their real limits); the limiter
  * itself is covered by `InMemoryRateLimiter.test.ts`.
  */
 export async function createTestServices(): Promise<TestServices> {
@@ -72,6 +73,11 @@ export async function createTestServices(): Promise<TestServices> {
       codeByIp: new InMemoryRateLimiter(1000, 15 * 60 * 1000),
       verifyByEmail: new InMemoryRateLimiter(1000, 15 * 60 * 1000),
       verifyByIp: new InMemoryRateLimiter(1000, 15 * 60 * 1000),
+      // The real limits: keyed by device id and user id, so tests that make a fresh user never collide.
+      missingFilesByDevice: new InMemoryRateLimiter(6, 60 * 60 * 1000),
+      missingFilesByUser: new InMemoryRateLimiter(24, 60 * 60 * 1000),
+      resyncRequestByDevice: new InMemoryRateLimiter(6, 60 * 60 * 1000),
+      resyncRequestByUser: new InMemoryRateLimiter(24, 60 * 60 * 1000),
       playsSummary: new InMemoryRateLimiter(1000, 60 * 60 * 1000),
     },
   };

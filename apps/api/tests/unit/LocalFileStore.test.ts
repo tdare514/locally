@@ -164,4 +164,71 @@ describe("LocalFileStore", () => {
   it("absolutePathFor accepts an ordinary nested key", () => {
     expect(() => store.absolutePathFor("users/u1/releases/r1/file.mp3")).not.toThrow();
   });
+
+  describe("listKeys", () => {
+    async function put(key: string): Promise<void> {
+      await store.writeFromRequest(key, streamOf(Buffer.from("x")), 10);
+    }
+    async function keysUnder(prefix: string): Promise<string[]> {
+      const keys: string[] = [];
+      for await (const key of store.listKeys(prefix)) keys.push(key);
+      return keys.sort();
+    }
+
+    it("yields every file under a directory prefix as its `/`-separated key, across releases", async () => {
+      await put("users/u1/releases/r1/01 - Track.mp3");
+      await put("users/u1/releases/r1/cover.jpg");
+      await put("users/u1/releases/r2/02 - It’s Over.m4a");
+      expect(await keysUnder("users/u1/releases/")).toEqual([
+        "users/u1/releases/r1/01 - Track.mp3",
+        "users/u1/releases/r1/cover.jpg",
+        "users/u1/releases/r2/02 - It’s Over.m4a",
+      ]);
+    });
+
+    it("leaves out other users, even one whose id starts with the same characters", async () => {
+      await put("users/u1/releases/r1/a.mp3");
+      await put("users/u2/releases/r1/b.mp3");
+      await put("users/u10/releases/r1/c.mp3");
+      expect(await keysUnder("users/u1/releases/")).toEqual(["users/u1/releases/r1/a.mp3"]);
+    });
+
+    it("matches a prefix that stops partway through a name", async () => {
+      await put("users/u1/releases/r1/01 - A.mp3");
+      await put("users/u1/releases/r1/02 - B.mp3");
+      await put("users/u1/releases/r2/01 - C.mp3");
+      expect(await keysUnder("users/u1/releases/r1/01")).toEqual(["users/u1/releases/r1/01 - A.mp3"]);
+      expect(await keysUnder("users/u1/rel")).toHaveLength(3);
+    });
+
+    it("yields nothing for a prefix whose directory does not exist", async () => {
+      await put("users/u1/releases/r1/a.mp3");
+      expect(await keysUnder("users/nobody/releases/")).toEqual([]);
+    });
+
+    it("yields nothing when the prefix runs through a file, not a directory", async () => {
+      await put("users/u1/releases/r1/a.mp3");
+      expect(await keysUnder("users/u1/releases/r1/a.mp3/inside/")).toEqual([]);
+    });
+
+    it("sees a file only once its bytes are written, and not after a delete", async () => {
+      expect(await keysUnder("users/u1/releases/")).toEqual([]);
+      await put("users/u1/releases/r1/a.mp3");
+      expect(await keysUnder("users/u1/releases/")).toEqual(["users/u1/releases/r1/a.mp3"]);
+      await store.delete("users/u1/releases/r1/a.mp3");
+      expect(await keysUnder("users/u1/releases/")).toEqual([]);
+    });
+
+    it("returns the keys that createUpload and readFile use", async () => {
+      const key = "users/u1/releases/r1/01 - Track.mp3";
+      await put(key);
+      const [listed] = await keysUnder("users/u1/releases/");
+      expect(listed).toBe(key);
+      expect(await store.readFile(listed!)).not.toBeNull();
+    });
+
+    it("refuses a prefix that would walk outside the root directory", async () => {
+      await expect(keysUnder("../")).rejects.toThrow(/outside the file store root/);
+    });
+  });
 });

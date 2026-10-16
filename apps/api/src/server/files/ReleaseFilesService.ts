@@ -1,12 +1,22 @@
 import crypto from "node:crypto";
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { files } from "../../db/schema";
+import { files, users } from "../../db/schema";
 import { NotFoundError, ValidationError } from "../../shared/errors";
-import type { DownloadTicket, UploadTicket } from "../../shared/types";
+import type { DownloadTicket, MissingFilesResponse, ReleaseRecord, UploadTicket } from "../../shared/types";
 import { expectedContentTypeFor } from "./contentTypes";
 import type { FileStore } from "./FileStore";
 import type { QuotaService } from "../quota/QuotaService";
+
+/** Bounds on one `missingFiles` call, so a very large account cannot make it unbounded work. */
+export interface MissingFilesLimits {
+  /** Live releases considered, newest write first. */
+  maxReleases: number;
+  /** Keys read from the store's listing: 50,000 is 50 pages of Vercel Blob's 1000. */
+  maxListedKeys: number;
+}
+
+export const DEFAULT_MISSING_FILES_LIMITS: MissingFilesLimits = { maxReleases: 2000, maxListedKeys: 50_000 };
 
 export interface RegisterFileInput {
   name: string;
@@ -23,6 +33,23 @@ export function storageKeyFor(userId: string, releaseId: string, name: string): 
   return `users/${userId}/releases/${releaseId}/${name}`;
 }
 
+/** Prefix shared by every key `storageKeyFor` builds for `userId`, and by no other user's. */
+export function userStoragePrefix(userId: string): string {
+  return `users/${userId}/releases/`;
+}
+
+/**
+ * The file names a live release's record points at: every track's `file`, plus
+ * the cover's name when the record carries a `coverHash` (a `syncVersion` 1
+ * record has none, so its cover is not checked; a v2 record with no cover has
+ * `null`). Each name once, in record order.
+ */
+function referencedNames(record: ReleaseRecord): string[] {
+  const names = new Set(record.tracks.map((track) => track.file));
+  if (record.coverHash && record.cover) names.add(record.cover);
+  return [...names];
+}
+
 /**
  * Bridges the `files` DB table (bookkeeping: name, size, content type,
  * storage key — used by `QuotaService`) and the `FileStore` (the actual
@@ -31,12 +58,17 @@ export function storageKeyFor(userId: string, releaseId: string, name: string): 
  * `spec/sync.md`); only the *net* new bytes count against quota.
  */
 export class ReleaseFilesService {
+  private readonly missingLimits: MissingFilesLimits;
+
   constructor(
     private readonly db: Db,
     private readonly fileStore: FileStore,
     private readonly quota: QuotaService,
-    private readonly now: () => number = () => Date.now()
-  ) {}
+    private readonly now: () => number = () => Date.now(),
+    missingLimits: Partial<MissingFilesLimits> = {}
+  ) {
+    this.missingLimits = { ...DEFAULT_MISSING_FILES_LIMITS, ...missingLimits };
+  }
 
   /**
    * Throws `ValidationError` if any input's declared `contentType` doesn't
@@ -121,6 +153,107 @@ export class ReleaseFilesService {
       throw new NotFoundError("File not found");
     }
     return this.fileStore.createDownload(row.storageKey);
+  }
+
+  /**
+   * The caller's live releases with files that are not stored. A name is
+   * stored only if a `files` row exists (rows are written when a ticket is
+   * issued, so a row alone proves nothing) AND its key is in the store's
+   * listing of the user's prefix. One SQL query reads the live releases with
+   * their file rows folded into a JSON map, and at most one paged `listKeys`
+   * follows, skipped when no referenced name has a row. Releases with nothing
+   * missing are left out. Tombstones are never read.
+   *
+   * Bounded by `missingLimits`: at most `maxReleases` releases (highest
+   * `version`, so the most recently written, first) and `maxListedKeys` keys
+   * read from the listing. When either cap is hit the response carries
+   * `truncated: true` and one warn line (user id and counts, no names) is
+   * logged. A listing cut short cannot show that a blob is absent, so then a
+   * name that has a row but was not seen is left out rather than reported
+   * missing; a name with no row is still missing.
+   */
+  async missingFiles(userId: string): Promise<MissingFilesResponse> {
+    const { maxReleases, maxListedKeys } = this.missingLimits;
+    const checkedAt = new Date(this.now()).toISOString();
+    // Raw SQL on purpose: Drizzle drops the table qualifier from columns in a
+    // single-table select, which would turn the correlated subquery's
+    // `f.release_id = r.id` into a compare against the inner table's own columns.
+    // One row past the cap says whether the cap cut anything off.
+    const fetched = await this.db.all<{ id: string; record: string; row_keys: string }>(sql`
+      SELECT r.id AS id, r.record AS record,
+        (SELECT json_group_object(f.name, f.storage_key) FROM files f
+          WHERE f.release_id = r.id AND f.user_id = r.user_id) AS row_keys
+      FROM releases r
+      WHERE r.user_id = ${userId} AND r.deleted = 0
+      ORDER BY r.version DESC
+      LIMIT ${maxReleases + 1}
+    `);
+    const releasesTruncated = fetched.length > maxReleases;
+    const rows = releasesTruncated ? fetched.slice(0, maxReleases) : fetched;
+
+    const checks = rows.map((row) => {
+      const record = JSON.parse(row.record) as ReleaseRecord;
+      const keysByName = new Map(Object.entries(JSON.parse(row.row_keys) as Record<string, string>));
+      return { id: row.id, record, names: referencedNames(record), keysByName };
+    });
+
+    // A priced listing is only worth making when some referenced name has a row to confirm.
+    const anyRow = checks.some((check) => check.names.some((name) => check.keysByName.has(name)));
+    const stored = new Set<string>();
+    let keysListed = 0;
+    let listingTruncated = false;
+    if (anyRow) {
+      for await (const key of this.fileStore.listKeys(userStoragePrefix(userId))) {
+        stored.add(key);
+        // Stop at the cap without reading further, so no extra page is fetched. Reaching it
+        // exactly counts as truncated: the listing may have had more.
+        if (++keysListed >= maxListedKeys) {
+          listingTruncated = true;
+          break;
+        }
+      }
+    }
+
+    const result: MissingFilesResponse["releases"] = [];
+    for (const check of checks) {
+      const missing = check.names.filter((name) => {
+        const key = check.keysByName.get(name);
+        if (key === undefined) return true;
+        return !listingTruncated && !stored.has(key);
+      });
+      if (missing.length > 0) result.push({ id: check.id, missing, recordUpdatedAt: check.record.updatedAt });
+    }
+
+    const truncated = releasesTruncated || listingTruncated;
+    if (truncated) {
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          event: "missing_files_truncated",
+          userId,
+          releasesChecked: checks.length,
+          maxReleases,
+          releasesTruncated,
+          keysListed,
+          maxListedKeys,
+          listingTruncated,
+        })
+      );
+    }
+    return truncated ? { releases: result, checkedAt, truncated } : { releases: result, checkedAt };
+  }
+
+  /** Stamp the account's "please resync" request with the current time and return it as ISO. */
+  async requestResync(userId: string): Promise<string> {
+    const at = this.now();
+    await this.db.update(users).set({ resyncRequestedAt: at }).where(eq(users.id, userId));
+    return new Date(at).toISOString();
+  }
+
+  /** When the account last asked for a resync (ISO), or `null` if it never did. */
+  async resyncRequestedAt(userId: string): Promise<string | null> {
+    const [row] = await this.db.select({ at: users.resyncRequestedAt }).from(users).where(eq(users.id, userId));
+    return row?.at == null ? null : new Date(row.at).toISOString();
   }
 
   /**

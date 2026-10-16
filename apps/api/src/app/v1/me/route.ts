@@ -16,10 +16,11 @@ export const GET = withObservability("/v1/me", async (request, obs) => {
   const services = await getServices();
   const { user, device } = await requireAuth(request, services.auth, obs);
 
-  const [usedBytes, limitBytes, deviceList] = await Promise.all([
+  const [usedBytes, limitBytes, deviceList, resyncRequestedAt] = await Promise.all([
     services.quota.usedBytes(user.id),
     services.quota.limitBytes(user.id),
     services.auth.listDevices(user.id),
+    services.files.resyncRequestedAt(user.id),
   ]);
 
   const response: MeResponse = {
@@ -28,6 +29,7 @@ export const GET = withObservability("/v1/me", async (request, obs) => {
     quota: { usedBytes, limitBytes },
     devices: deviceList.devices,
     devicesHasMore: deviceList.hasMore,
+    resyncRequestedAt,
   };
   return NextResponse.json(response);
 });

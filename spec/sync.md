@@ -109,7 +109,7 @@ sync at runtime.
 | --- | --- | --- |
 | POST `/v1/auth/code` | `{ email }` | `{ ok: true }`; sends a six-digit code, valid 10 minutes, 5 tries |
 | POST `/v1/auth/verify` | `{ email, code, deviceName, platform: "mac" \| "ios" }` | `{ token, user: { id, email }, device: { id, name } }`; a new device, except that a Mac (`platform: "mac"`) whose account has a revoked (signed-out) Mac of the same `deviceName` gets that device's id back: the row is un-revoked and the new token replaces the old one, which stops working, so a Mac that signs out and back in keeps one device and its play counts are not summed twice (#175). With several such rows the most recently seen is taken; an active Mac of the same name and every iPhone are never reused, and another account's devices are never touched. A code works once, even for two simultaneous requests |
-| GET `/v1/me` | | `{ user, device, quota: { usedBytes, limitBytes }, devices: [...], devicesHasMore }`; `devices` holds at most the 50 most recently created devices (newest first); `devicesHasMore` is true when older ones were left out |
+| GET `/v1/me` | | `{ user, device, quota: { usedBytes, limitBytes }, devices: [...], devicesHasMore, resyncRequestedAt }`; `devices` holds at most the 50 most recently created devices (newest first); `devicesHasMore` is true when older ones were left out; `resyncRequestedAt` is the ISO time of the account's last `POST /v1/files/resync-request`, or `null` if it never made one |
 | DELETE `/v1/devices/:id` | | revokes that device's token |
 | DELETE `/v1/me` | `{ email }` (must match the account) | `{ ok: true }`; deletes the account, its devices, releases and files; blobs are removed by the cleanup cron within a day; every device token becomes invalid |
 | GET `/v1/releases?sinceVersion=N&limit=N` | `limit` (optional, integer, 1 to 200; above 200 clamps to 200, below 1 or non-integer is a 400 like a bad `sinceVersion`; default 200) | `{ releases: [record + version], nextVersion, hasMore }` (tombstones included). Releases come back in ascending `version` order, at most `limit` of them, and the page stops early once its serialized records reach 2 MiB; a page always holds at least one release when any exist (a single record is at most 1 MiB by the PUT body cap, so one always fits under Vercel's 4.5 MB response limit). `hasMore: true` means more releases exist above the last one returned, and `nextVersion` is then the `version` of the last release in this page; `hasMore: false` means the page reached the end, and `nextVersion` is the user's counter, exactly as today (it can be above the last row's version, because a rewritten release moves to a new version and its old number disappears). In both cases `nextVersion` is the value to send as `sinceVersion` next, and it never runs ahead of a release this response left out (the #28 invariant). |
@@ -117,12 +117,15 @@ sync at runtime.
 | DELETE `/v1/releases/:id` | | tombstone; `{ version }` |
 | POST `/v1/releases/:id/files` | `{ files: [{ name, bytes, contentType }] }` | `{ uploads: [{ name, url, method, headers }] }`; enforces quota, 200 MB per file, and that `contentType` matches the name's extension |
 | GET `/v1/releases/:id/files/:name` | | `{ url, expiresAt }` download URL |
+| GET `/v1/files/missing` | | `{ releases: [{ id, missing: [names], recordUpdatedAt }], checkedAt, truncated? }`; the caller's live releases with files that are not stored; `truncated` is `true` only when a cap cut the check short; see "Missing files" |
+| POST `/v1/files/resync-request` | none | `{ resyncRequestedAt }` (ISO); records that this account asked its devices to re-send files; see "Missing files" |
 | PUT `/v1/plays` | `{ counts: [{ releaseId, trackId, count, days?: [{ day, count }] }] }`, 1 to 500 entries | `{ accepted, ignored }`; see "Play counts" |
 | GET `/v1/releases/:id/plays` | | `{ tracks: [{ trackId, total, devices: [{ deviceId, name, platform, count, current }] }] }`; 404 for a release that isn't the user's or is tombstoned |
 
 Rules: every path is scoped to the token's user; a release id belongs to the user that first
 wrote it; tombstones keep their files for 30 days then a cron deletes the objects; codes and
-tokens are stored hashed; auth endpoints are rate-limited per email and per IP; JSON request
+tokens are stored hashed; auth endpoints are rate-limited per email and per IP; the two missing-files routes are rate-limited
+device (6 an hour each) and per user (24 an hour each), 429 beyond; JSON request
 bodies are capped at 1 MiB (400 when exceeded). The daily cron (`GET /v1/internal/cleanup`) also
 drains `pending_deletes` (blobs of deleted accounts), oldest first.
 
@@ -182,6 +185,44 @@ the shipped web and iOS clients are unaffected. The Mac app pushing and displayi
   record). The API and the web client test them. Bodies with `days` are in
   `spec/fixtures/plays-days/`: the API and the web client (#202) both test them, so a shipped Mac's
   strict schema isn't asked to accept a field it doesn't know.
+
+## Missing files
+
+For a release whose record reached the server but whose audio or cover did not (an upload that
+never finished). Additive: no record or `syncVersion` change, and shipped clients never call either
+route. Plan: `docs/plans/119-missing-files.md`.
+
+- `GET /v1/files/missing` covers the caller's live releases only; tombstones are never read. For
+  each it checks every `tracks[].file`, plus the record's `cover` name when the record has a
+  `coverHash` (a `syncVersion` 1 record has none, so its cover is not checked).
+- A name is stored only when a `files` row exists and the object is in storage. A row is written
+  when an upload URL is issued, not when the upload finishes, so a row alone proves nothing. The
+  server reads every live release with its file rows in one query, then pages once through the
+  account's own storage prefix (`users/<userId>/releases/`, about 1000 objects a page). It never
+  makes a request per file.
+- `releases` holds only releases with at least one name not stored, so a healthy account gets
+  `{ "releases": [], "checkedAt": "..." }`. `missing` lists the names in record order, each once.
+  `recordUpdatedAt` is the record's own `updatedAt`, so a client can tell which version was
+  checked. `checkedAt` is the server time the check started. The response holds file names only,
+  never signed URLs.
+- The check is bounded. It considers at most 2000 live releases (the most recently written first,
+  by `version`) and reads at most 50,000 keys (50 pages) of the listing. When either cap is hit the
+  response carries `"truncated": true` (the field is absent otherwise) and the list may be
+  incomplete: releases past the cap are not checked, and a name that has a `files` row but was not
+  reached by the cut-short listing is left out rather than reported missing, because a partial
+  listing cannot show a blob is absent. A name with no `files` row is still reported. A client
+  treats `truncated` as informational and may ignore it; an old client never sees it.
+- `POST /v1/files/resync-request` takes no body and sets `resyncRequestedAt` on the account to the
+  server time. The server contacts no device: a device that sees `GET /v1/me` return a
+  `resyncRequestedAt` newer than its last check runs that check now.
+- Each route is limited to 6 calls an hour per device, so one device that polls cannot use up the
+  others' allowance, and to 24 calls an hour per user across all its devices. A call a device is
+  refused for its own limit does not count against the user's 24. Each route is counted on its own.
+  A storage listing is a priced call, and this is a repair path.
+- Effect on clients: `apps/web` and `apps/ios` keep working unchanged. Neither calls the routes,
+  and both ignore the new `/v1/me` field (iOS decodes `/v1/me` into a struct that names only
+  `user.email`, `device`, and `quota`; web reads the JSON without a strict schema). The iPhone
+  self-heal and the Mac "Waiting on your phone" state are the plan's steps 2 and 3.
 
 ## Storage and providers
 

@@ -30,4 +30,12 @@ export interface FileStore {
    * it (Vercel Blob `del([...])`). Empty input is a no-op. Safe on missing keys.
    */
   deleteMany(keys: string[]): Promise<void>;
+  /**
+   * Every stored object key that starts with `prefix` (the exact keys given to
+   * `createUpload`, not any backend-specific encoding), in no guaranteed order.
+   * Pages lazily, so a caller that stops iterating stops paying for pages. One
+   * paged listing replaces a HEAD request per file (Vercel Blob `list` is a
+   * priced operation, so callers keep it off hot paths).
+   */
+  listKeys(prefix: string): AsyncIterable<string>;
 }
