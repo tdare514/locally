@@ -355,29 +355,26 @@ final class ID3TagWriter: TagWriter {
         let grouped = format & 0x40 != 0, compressed = format & 0x08 != 0
         let encrypted = format & 0x04 != 0, unsynced = format & 0x02 != 0, hasLength = format & 0x01 != 0
         if compressed && !hasLength { return nil }
-        var pos = start
+        // Per-frame unsynchronisation covers everything after the frame header (group id,
+        // method, length indicator and data), so a plain frame is de-unsynchronised whole
+        // before its extra fields are read. A compressed or encrypted one is kept as it is.
+        let undo = unsynced && !compressed && !encrypted
+        let body: [UInt8] = undo ? reverseUnsynchronisation(buf[start..<end]) : Array(buf[start..<end])
+        var pos = 0
         var out = OutFrame(format: 0, prefix: [], data: [])
-        if grouped { guard pos < end else { return nil }; out.format |= 0x40; out.prefix.append(buf[pos]); pos += 1 }
-        if encrypted { guard pos < end else { return nil }; out.format |= 0x04; out.prefix.append(buf[pos]); pos += 1 }
+        if grouped { guard pos < body.count else { return nil }; out.format |= 0x40; out.prefix.append(body[pos]); pos += 1 }
+        if encrypted { guard pos < body.count else { return nil }; out.format |= 0x04; out.prefix.append(body[pos]); pos += 1 }
         if hasLength {
-            guard end - pos >= 4 else { return nil }
-            if compressed {
-                out.format |= 0x09
-                out.prefix.append(contentsOf: buf[pos..<(pos + 4)])
+            guard body.count - pos >= 4 else { return nil }
+            if compressed || encrypted { // the indicator stays with data we can't read
+                out.format |= 0x01
+                out.prefix.append(contentsOf: body[pos..<(pos + 4)])
             }
             pos += 4
         }
         if compressed { out.format |= 0x08 }
-        if unsynced {
-            if compressed || encrypted {
-                out.format |= 0x02
-                out.data = buf[pos..<end]
-            } else {
-                out.data = reverseUnsynchronisation(buf[pos..<end])[...]
-            }
-        } else {
-            out.data = buf[pos..<end]
-        }
+        if unsynced && !undo { out.format |= 0x02 }
+        out.data = body[pos...]
         if !compressed, !encrypted, isOwned(id: id, data: out.data) { return nil }
         if ownedFrameIds.contains(id) { return nil }
         return out

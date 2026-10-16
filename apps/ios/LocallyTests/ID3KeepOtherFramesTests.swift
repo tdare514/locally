@@ -240,6 +240,25 @@ struct ID3KeepOtherFramesTests {
         #expect(out.payload == dli + data)
     }
 
+    @Test func reversesUnsynchronisationAcrossAGroupedFramesWholeBodyBeforeReadingTheGroupId() async throws {
+        let text: [UInt8] = [0x00] + Array("Composer".utf8) // Latin-1
+        let body = unsynchronise([0xFF] + text) // group id FF, then the text: starts FF 00 00
+        #expect(Array(body.prefix(3)) == [0xFF, 0x00, 0x00])
+        let (frames, _) = try await retag(tag(major: 4, body: v24Frame("TCOM", body, format: 0x42)))
+        let out = try #require(frames.first { $0.id == "TCOM" })
+        #expect(out.flags == [0, 0x40])
+        #expect(out.payload == [0xFF] + text)
+    }
+
+    @Test func keepsTheDataLengthIndicatorOnAnEncryptedUncompressedFrame() async throws {
+        let dli = Array(ID3TagWriter.synchsafe(42))
+        let payload: [UInt8] = [0x05] + dli + [0xAA, 0xBB]
+        let (frames, _) = try await retag(tag(major: 4, body: v24Frame("TCOM", payload, format: 0x05)))
+        let out = try #require(frames.first { $0.id == "TCOM" })
+        #expect(out.flags == [0, 0x05])
+        #expect(out.payload == payload)
+    }
+
     @Test func dropsAFrameWhoseExtraBytesDoNotFit() async throws {
         let body = v24Frame("TCOM", [], format: 0x40) + v24Frame("TBPM", text("90"))
         let (frames, _) = try await retag(tag(major: 4, body: body))
