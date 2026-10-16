@@ -123,6 +123,23 @@ describe("HttpSyncApi request shape", () => {
     expect(calls[0].init?.body).toBe(JSON.stringify(record));
   });
 
+  it("playsSummary GETs /v1/plays/summary with from, to and the cursor, with the bearer token (#202)", async () => {
+    mockNextResponse(jsonResponse({ tracks: [], allTime: [], nextCursor: null }));
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+
+    const page = await api.playsSummary("2026-10-01", "2026-10-15", "abc");
+
+    expect(page).toEqual({ tracks: [], allTime: [], nextCursor: null });
+    expect(calls[0].url).toBe("http://localhost:4000/v1/plays/summary?from=2026-10-01&to=2026-10-15&cursor=abc");
+    expect((calls[0].init?.headers as Record<string, string>).Authorization).toBe("Bearer tok");
+  });
+
+  it("playsSummary throws SyncRequestError with the status on a 429", async () => {
+    mockNextResponse(jsonResponse({ error: "slow" }, 429));
+    const api = new HttpSyncApi("http://localhost:4000", "tok");
+    await expect(api.playsSummary("2026-10-01", "2026-10-15")).rejects.toMatchObject({ status: 429 });
+  });
+
   it("deleteRelease issues a DELETE to /v1/releases/:id", async () => {
     mockNextResponse(jsonResponse({ version: 6 }));
     const api = new HttpSyncApi("http://localhost:4000", "tok");

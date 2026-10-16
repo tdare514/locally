@@ -16,8 +16,10 @@ const PlayCountsSchema = z.object({
       pushed: z.number().int().min(0),
       // Read loosely, then cleaned by `cleanStoredDays`: a bad `days` must never cost the totals (#200).
       days: z.unknown().optional(),
+      pushedDays: z.unknown().optional(),
     }),
   ),
+  daysInSync: z.boolean().optional(),
 });
 
 /** JSON-file backed {@link PlayCountStore}: `plays.json` next to `settings.json`, owner-only. */
@@ -56,11 +58,16 @@ export class FilePlayCountStore implements PlayCountStore {
     const tracks: PlayCounts["tracks"] = {};
     for (const [trackId, entry] of Object.entries(parsed.data.tracks)) {
       const days = cleanStoredDays(entry.days);
-      tracks[trackId] = days
-        ? { releaseId: entry.releaseId, count: entry.count, pushed: entry.pushed, days }
-        : { releaseId: entry.releaseId, count: entry.count, pushed: entry.pushed };
+      const pushedDays = cleanStoredDays(entry.pushedDays);
+      tracks[trackId] = {
+        releaseId: entry.releaseId,
+        count: entry.count,
+        pushed: entry.pushed,
+        ...(days ? { days } : {}),
+        ...(pushedDays ? { pushedDays } : {}),
+      };
     }
-    return { version: 1, tracks };
+    return parsed.data.daysInSync ? { version: 1, tracks, daysInSync: true } : { version: 1, tracks };
   }
 
   increment(trackId: string, releaseId: string, day: string): Promise<void> {
@@ -86,7 +93,7 @@ export class FilePlayCountStore implements PlayCountStore {
     return this.epoch;
   }
 
-  markPushed(sent: Record<string, number>, epoch: number): Promise<void> {
+  markPushed(sent: Record<string, number>, epoch: number, sentDays?: Record<string, Record<string, number>>): Promise<void> {
     if (epoch !== this.epoch) return Promise.resolve();
     return this.mutate((counts) => {
       // Checked again when this runs: a reset can land while the write waits its turn.
@@ -95,13 +102,32 @@ export class FilePlayCountStore implements PlayCountStore {
         const entry = counts.tracks[trackId];
         if (entry && count > entry.pushed) entry.pushed = count;
       }
+      for (const [trackId, days] of Object.entries(sentDays ?? {})) {
+        const entry = counts.tracks[trackId];
+        if (!entry) continue;
+        for (const [day, count] of Object.entries(days)) {
+          if (count > (entry.pushedDays?.[day] ?? 0)) entry.pushedDays = { ...entry.pushedDays, [day]: count };
+        }
+      }
+    });
+  }
+
+  markDaysInSync(epoch: number): Promise<void> {
+    if (epoch !== this.epoch) return Promise.resolve();
+    return this.mutate((counts) => {
+      if (epoch !== this.epoch) return;
+      counts.daysInSync = true;
     });
   }
 
   resetPushed(): Promise<void> {
     this.epoch++;
     return this.mutate((counts) => {
-      for (const entry of Object.values(counts.tracks)) entry.pushed = 0;
+      for (const entry of Object.values(counts.tracks)) {
+        entry.pushed = 0;
+        delete entry.pushedDays;
+      }
+      delete counts.daysInSync;
     });
   }
 
@@ -129,10 +155,12 @@ export class FilePlayCountStore implements PlayCountStore {
   private dropOldDays(counts: PlayCounts): void {
     const today = localDay(this.now(), this.timeZone);
     for (const entry of Object.values(counts.tracks)) {
-      if (!entry.days) continue;
       const days = pruneDays(entry.days, today);
       if (days) entry.days = days;
       else delete entry.days;
+      const pushedDays = pruneDays(entry.pushedDays, today);
+      if (pushedDays) entry.pushedDays = pushedDays;
+      else delete entry.pushedDays;
     }
   }
 }

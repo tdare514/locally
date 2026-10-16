@@ -47,14 +47,40 @@ describe("pendingPlayEntries", () => {
     ]);
   });
 
-  it("never carries day buckets: an entry with days is pushed as releaseId, trackId and count only (#200)", () => {
+  it("carries only the days above their pushed marker, as absolute values, oldest first (#202)", () => {
     const counts: PlayCounts = {
       version: 1,
-      tracks: { [t(1)]: { releaseId: REL, count: 5, pushed: 0, days: { "2026-10-15": 5 } } },
+      tracks: {
+        [t(1)]: {
+          releaseId: REL,
+          count: 9,
+          pushed: 9,
+          days: { "2026-10-15": 5, "2026-10-14": 3, "2026-10-13": 1 },
+          pushedDays: { "2026-10-13": 1, "2026-10-14": 2 },
+        },
+      },
     };
-    const [entry] = pendingPlayEntries(counts);
-    expect(entry).toEqual({ releaseId: REL, trackId: t(1), count: 5 });
-    expect(Object.keys(entry).sort()).toEqual(["count", "releaseId", "trackId"]);
+    // Counts are level, but two days are ahead: still pending, with the full count.
+    expect(pendingPlayEntries(counts)).toEqual([
+      {
+        releaseId: REL,
+        trackId: t(1),
+        count: 9,
+        days: [
+          { day: "2026-10-14", count: 3 },
+          { day: "2026-10-15", count: 5 },
+        ],
+      },
+    ]);
+  });
+
+  it("splits a track with more than 400 changed days into entries of at most 400", () => {
+    const real: Record<string, number> = {};
+    let n = 0;
+    for (let y = 2020; n < 900; y++) for (let m = 1; m <= 12 && n < 900; m++) for (let d = 1; d <= 28 && n < 900; d++, n++) real[`${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`] = 1;
+    const entries = pendingPlayEntries({ version: 1, tracks: { [t(1)]: { releaseId: REL, count: 900, pushed: 900, days: real } } });
+    expect(entries.map((e) => e.days?.length)).toEqual([400, 400, 100]);
+    expect(batchPlayEntries(entries).map((b) => b.length)).toEqual([1, 1, 1]);
   });
 
   it("leaves out entries the service would refuse", () => {
@@ -83,6 +109,20 @@ describe("batchPlayEntries", () => {
 
   it("makes no request for no entries", () => {
     expect(batchPlayEntries([])).toEqual([]);
+  });
+
+  it("holds at most 2000 day rows per request (#202)", () => {
+    const days = (n: number) => Array.from({ length: n }, (_, i) => ({ day: `2026-01-${String(1 + (i % 28)).padStart(2, "0")}`, count: 1 }));
+    const entries = Array.from({ length: 5 }, (_, i) => ({ releaseId: REL, trackId: t(i + 1), count: 1, days: days(400) }));
+    const batches = batchPlayEntries(entries);
+    expect(batches.map((b) => b.length)).toEqual([5]);
+    const more = [...entries, { releaseId: REL, trackId: t(6), count: 1, days: days(1) }];
+    expect(batchPlayEntries(more).map((b) => b.length)).toEqual([5, 1]);
+  });
+
+  it("puts the pieces of one track in different requests", () => {
+    const e = (n: number) => ({ releaseId: REL, trackId: t(1), count: 1, days: [{ day: "2026-01-0" + n, count: 1 }] });
+    expect(batchPlayEntries([e(1), e(2)]).map((b) => b.length)).toEqual([1, 1]);
   });
 });
 

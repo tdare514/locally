@@ -175,13 +175,13 @@ the shipped web and iOS clients are unaffected. The Mac app pushing and displayi
   than 400 days before the UTC date, those of tombstoned releases on the 30-day schedule above,
   and account deletion removes them at once (a database trigger on the user row does too, so a
   rolled-back deploy can't leave them behind). All-time counts are kept.
-- **Clients.** Shipped clients need no change. The Mac starts pushing days and reading the
-  summary in #202; the iPhone reads the summary later for its Stats page.
+- **Clients.** Shipped clients need no change. The Mac now pushes its changed days and merges the
+  summary for other devices' plays (#202); the iPhone reads the summary later for its Stats page.
 - Fixtures: `spec/fixtures/plays/valid-*.json` and `invalid-*.json` are example PUT bodies (a
   separate folder from `spec/fixtures/sync/`, whose readers parse every file as a release
   record). The API and the web client test them. Bodies with `days` are in
-  `spec/fixtures/plays-days/`: the API tests them now, and the web client does once it sends `days`
-  (#202), so a shipped Mac's strict schema isn't asked to accept a field it doesn't know.
+  `spec/fixtures/plays-days/`: the API and the web client (#202) both test them, so a shipped Mac's
+  strict schema isn't asked to accept a field it doesn't know.
 
 ## Storage and providers
 

@@ -521,25 +521,33 @@ export class SyncEngine implements ReleaseSyncHooks {
   }
 
   /**
-   * Sends every play count that is ahead of what was last pushed, at most 500 per request, and
-   * records each request as pushed once the service accepts it. A failure throws with the rest
+   * Sends every play count that is ahead of what was last pushed, and every day bucket above its
+   * pushed marker (#202), at most 500 entries, 400 days per entry and 2,000 day rows per request.
+   * Each entry carries its absolute `count` and only its changed days, each as an absolute value.
+   * A request is recorded as pushed once the service accepts it. A failure throws with the rest
    * still pending, so the next reconcile (offline, 5xx) picks them up; a count that grew while a
    * request was in flight stays pending too, because the marker is the value that was sent.
    *
    * A batch the service refuses for good (a 4xx other than 401 and 429) is skipped for this
    * reconcile, left unmarked, and the later batches still go, so one bad batch can't hold the
-   * rest back forever. A sign-out while a request is in flight (the store's epoch moved) stops
-   * the push and marks nothing: those counts belong to the account that just went away.
+   * rest back forever. If that batch carried days (a skewed clock, or a service from before #201),
+   * it is sent once more without them and, if accepted, only its counts are marked: the days stay
+   * pending so totals keep flowing. A sign-out while a request is in flight (the store's epoch
+   * moved) stops the push and marks nothing: those counts belong to the account that just went away.
+   * A pass that ends without throwing, without a refused batch and without a reset marks the days
+   * as in sync.
    */
   private async pushPlays(api: SyncApi): Promise<void> {
     const store = this.playStore;
     if (!store) return;
     const epoch = store.pushedEpoch();
-    const pending = pendingPlayEntries(await store.get());
+    const before = await store.get();
     let refused = false;
-    for (const batch of batchPlayEntries(pending)) {
+    for (const batch of batchPlayEntries(pendingPlayEntries(before))) {
       if (store.pushedEpoch() !== epoch) return;
+      const hasDays = batch.some((e) => e.days !== undefined);
       let result;
+      let sentDays = hasDays;
       try {
         result = await api.pushPlays(batch);
       } catch (err) {
@@ -548,17 +556,31 @@ export class SyncEngine implements ReleaseSyncHooks {
         refused = true;
         if (!this.loggedPlayRejection) {
           this.loggedPlayRejection = true;
-          console.warn(`SyncEngine: the sync service refused a batch of ${batch.length} play counts (HTTP ${status}); skipping it`);
+          console.warn(`SyncEngine: the sync service refused a batch of ${batch.length} play counts (HTTP ${status}); ${hasDays ? "retrying it without days" : "skipping it"}`);
         }
-        continue;
+        if (!hasDays) continue;
+        try {
+          result = await api.pushPlays(batch.map((e) => ({ releaseId: e.releaseId, trackId: e.trackId, count: e.count })));
+          sentDays = false;
+        } catch (retryErr) {
+          if (permanentPlayRejection(retryErr) === null) throw retryErr;
+          continue;
+        }
       }
       if (result.ignored > 0) {
         console.warn(`SyncEngine: the sync service ignored ${result.ignored} of ${batch.length} play counts`);
       }
-      await store.markPushed(Object.fromEntries(batch.map((e) => [e.trackId, e.count])), epoch);
+      const days = sentDays
+        ? Object.fromEntries(batch.filter((e) => e.days).map((e) => [e.trackId, Object.fromEntries(e.days!.map((d) => [d.day, d.count]))]))
+        : undefined;
+      await store.markPushed(Object.fromEntries(batch.map((e) => [e.trackId, e.count])), epoch, days);
     }
     // A pass with nothing refused re-arms the log for the next time something is.
     if (!refused) this.loggedPlayRejection = false;
+    // In sync means every pending day reached the service under this account: a refused batch (even
+    // one whose counts went through without days) leaves its days off, so the summary merge keeps
+    // subtracting this Mac's local days rather than risk counting a copy the service still holds twice.
+    if (!refused && !before.daysInSync && store.pushedEpoch() === epoch) await store.markDaysInSync(epoch);
   }
 
   /**

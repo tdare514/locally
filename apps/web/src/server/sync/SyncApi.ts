@@ -7,9 +7,11 @@ import { z } from "zod";
 import { PublicError } from "../../shared/errors";
 import {
   PlayCountsResultSchema,
+  ServerPlaysSummaryPageSchema,
   ServerReleasePlaysSchema,
   type PlayCountsResult,
   type PlayEntry,
+  type ServerPlaysSummaryPage,
   type ServerReleasePlays,
 } from "../plays/playsWire";
 import { SyncRecordRejectedError, parseSyncRecord, type SyncRecord } from "./SyncRecord";
@@ -136,6 +138,9 @@ export interface SyncApi {
   pushPlays(counts: PlayEntry[]): Promise<PlayCountsResult>;
   /** `GET /v1/releases/:id/plays`: every device's count for the release's tracks. */
   releasePlays(releaseId: string): Promise<ServerReleasePlays>;
+  /** `GET /v1/plays/summary?from&to[&cursor]`: one page of every device's plays in the date range
+   * and all time (#201). Throws `SyncRequestError` with the status on a 404 or 429. */
+  playsSummary(from: string, to: string, cursor?: string): Promise<ServerPlaysSummaryPage>;
   /** `GET /v1/files/missing`: the caller's releases whose files are not stored. Resolves null when
    * the service answers 404, an API from before #170: callers carry on as they did without it. */
   missingFiles(): Promise<MissingFilesResult | null>;
@@ -315,6 +320,19 @@ export class HttpSyncApi implements SyncApi {
     });
     const parsed = ServerReleasePlaysSchema.safeParse(await this.handle<unknown>(res));
     if (!parsed.success) throw new PublicError("Sync service sent an unexpected reply for a release's play counts");
+    return parsed.data;
+  }
+
+  async playsSummary(from: string, to: string, cursor?: string): Promise<ServerPlaysSummaryPage> {
+    const query = new URLSearchParams({ from, to });
+    if (cursor) query.set("cursor", cursor);
+    const res = await fetch(this.url(`/v1/plays/summary?${query.toString()}`), {
+      headers: this.headers(false),
+      // A slow service must not hold the stats hostage; the caller falls back to this Mac's.
+      signal: AbortSignal.timeout(PLAYS_READ_TIMEOUT_MS),
+    });
+    const parsed = ServerPlaysSummaryPageSchema.safeParse(await this.handle<unknown>(res));
+    if (!parsed.success) throw new PublicError("Sync service sent an unexpected reply for the play summary");
     return parsed.data;
   }
 
