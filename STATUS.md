@@ -91,6 +91,7 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 - Spotify caches local-file metadata; restart Spotify to see edits to an already-imported track
 
 ## Next
+- Adopt the Spotify local files already on the Mac, details only (plan `docs/plans/245-adopt-local-files.md`, #245): in place and read-only, only metadata and covers sync, so the library and stats on both devices cover the owner's ~1,567 tracks. Steps #246 (record field) and #247 (scanner) can start now, #250 (iPhone) after #246, #248 (adopt, guards, sync, matching) after both, #249 (Mac UI) last
 - Spotify connection (plan `docs/plans/212-spotify-connection.md`, approved 16 Oct with the recommended choices; next is the owner registering the Spotify app): an opt-in, tester-only (Spotify's 5-user development mode) Spotify sign-in on the Mac, then the playlists a track is in (#212) and phone plays counted through Spotify's live player API while the Mac app runs (#228). Accounts and profiles (a sign-in offer, edit profile) are parked in #199
 - Follow-ups from the 29 Sep review of the Cursor PRs (#41–#55): web pull-page skip (#60), device-name backfill guard (#62); owner decision on the Inbox sweep and import allow-list (#65)
 - Mac library: search, sort and bulk actions landed (#7, closed); the later items (SQLite index, conversion queue, multi-library, playlist grouping) are kept in `docs/web-plan.md`
