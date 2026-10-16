@@ -89,6 +89,29 @@ struct HttpSyncApiTests {
         #expect(result.quota.usedBytes == 10)
     }
 
+    // MARK: - Server-issued URLs (#281)
+
+    private func downloadURLFor(_ ticketURL: String) async throws -> URL {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { _ in
+            (200, [:], self.jsonData(["url": ticketURL, "expiresAt": "2026-10-16T10:00:00.000Z"]))
+        }
+        return try await api.downloadURL(releaseId: "r", fileName: "x.mp3")
+    }
+
+    @Test func downloadURLEncodesBracketsWithoutDoubleEncodingExistingEscapes() async throws {
+        let url = try await downloadURLFor("https://store.private.blob.vercel-storage.com/users/u/releases/r/01%20-%20sometimes%20[1].mp3?vercel-blob-signature=abc")
+        #expect(url.absoluteString.contains("01%20-%20sometimes%20%5B1%5D.mp3"))
+        #expect(!url.absoluteString.contains("%25"))
+        #expect(url.absoluteString.hasSuffix("?vercel-blob-signature=abc"))
+    }
+
+    @Test func downloadURLWithNoInvalidCharactersRoundTripsExactly() async throws {
+        let raw = "https://store.example.test/a/01%20-%20b.mp3?sig=a%2Bb&x=1"
+        let url = try await downloadURLFor(raw)
+        #expect(url.absoluteString == raw)
+    }
+
     /// #185: `GET /v1/me` lists the account's devices with their platform;
     /// a platform this build has never heard of ("web", or a newer one) must
     /// not fail the call.
