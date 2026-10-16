@@ -72,6 +72,7 @@ export async function createTestServices(): Promise<TestServices> {
       codeByIp: new InMemoryRateLimiter(1000, 15 * 60 * 1000),
       verifyByEmail: new InMemoryRateLimiter(1000, 15 * 60 * 1000),
       verifyByIp: new InMemoryRateLimiter(1000, 15 * 60 * 1000),
+      playsSummary: new InMemoryRateLimiter(1000, 60 * 60 * 1000),
     },
   };
 }

@@ -37,6 +37,8 @@ export interface Services {
     codeByIp: RateLimiter;
     verifyByEmail: RateLimiter;
     verifyByIp: RateLimiter;
+    /** `GET /v1/plays/summary`, keyed by user id. */
+    playsSummary: RateLimiter;
   };
 }
 
@@ -79,6 +81,8 @@ async function buildServices(): Promise<Services> {
       // 5-guesses-per-code limit already enforced inside AuthService.verify).
       verifyByEmail: new DbRateLimiter(db, 10, 15 * 60 * 1000, "verify:email"),
       verifyByIp: new DbRateLimiter(db, 30, 15 * 60 * 1000, "verify:ip"),
+      // 60 plays-summary reads per user, per hour.
+      playsSummary: new DbRateLimiter(db, 60, 60 * 60 * 1000, "plays-summary:user"),
     },
   };
 }

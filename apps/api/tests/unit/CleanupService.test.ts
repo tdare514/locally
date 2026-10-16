@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createDb, migrateDb, type Db } from "../../src/db/client";
-import { authCodes, files, pendingDeletes, playCounts, rateLimits, releases, userCounters, users } from "../../src/db/schema";
+import { authCodes, files, pendingDeletes, playCounts, playDays, rateLimits, releases, userCounters, users } from "../../src/db/schema";
 import { CleanupService } from "../../src/server/cleanup/CleanupService";
 import type { FileStore } from "../../src/server/files/FileStore";
 import { makeReleaseRecord } from "../support/fixtures";
@@ -190,6 +190,56 @@ describe("CleanupService", () => {
     expect(result.deletedPlayCounts).toBe(1);
     const remaining = await db.select().from(playCounts);
     expect(remaining.map((r) => r.releaseId).sort()).toEqual([recentTombstoneId, liveReleaseId].sort());
+  });
+
+  it("deletes play days of old tombstones, and day buckets more than 400 days old, keeping the rest", async () => {
+    const oldTombstoneId = await insertRelease(true, clock - 31 * DAY_MS);
+    const liveReleaseId = await insertRelease(false, clock - 60 * DAY_MS);
+    const deviceId = crypto.randomUUID();
+    const row = (releaseId: string, day: string) => ({
+      userId,
+      deviceId,
+      releaseId,
+      trackId: crypto.randomUUID(),
+      day,
+      count: 1,
+      updatedAt: clock,
+    });
+    // clock is 2026-01-31 UTC; 400 days before is 2024-12-27, so 2024-12-26 is expired.
+    await db.insert(playDays).values([
+      row(oldTombstoneId, "2026-01-30"),
+      row(liveReleaseId, "2024-12-26"),
+      row(liveReleaseId, "2024-12-27"),
+      row(liveReleaseId, "2026-01-30"),
+    ]);
+
+    const result = await new CleanupService(db, fileStore, () => clock).run();
+
+    expect(result.deletedPlayDays).toBe(1);
+    expect(result.expiredPlayDays).toBe(1);
+    const remaining = await db.select().from(playDays);
+    expect(remaining.map((r) => r.day).sort()).toEqual(["2024-12-27", "2026-01-30"]);
+  });
+
+  it("deletes expired day buckets a page at a time and counts every page", async () => {
+    const liveReleaseId = await insertRelease(false, clock - 60 * DAY_MS);
+    const deviceId = crypto.randomUUID();
+    // 450 expired rows (more than two pages of 200) and one kept.
+    const rows = Array.from({ length: 451 }, (_, i) => ({
+      userId,
+      deviceId,
+      releaseId: liveReleaseId,
+      trackId: crypto.randomUUID(),
+      day: i === 450 ? "2026-01-30" : "2024-12-26",
+      count: 1,
+      updatedAt: clock,
+    }));
+    for (let i = 0; i < rows.length; i += 100) await db.insert(playDays).values(rows.slice(i, i + 100));
+
+    const result = await new CleanupService(db, fileStore, () => clock).run();
+
+    expect(result.expiredPlayDays).toBe(450);
+    expect((await db.select().from(playDays)).map((r) => r.day)).toEqual(["2026-01-30"]);
   });
 
   it("returns 0 total stored bytes when the files table is empty", async () => {
