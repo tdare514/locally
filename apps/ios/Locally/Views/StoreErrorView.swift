@@ -19,15 +19,15 @@ struct StoreErrorView: View {
 
                 VStack(spacing: Theme.Spacing.labelGap) {
                     Text(Copy.StoreError.title)
-                        .font(Theme.Font.pageTitle)
+                        .themeFont(.pageTitle)
                         .foregroundStyle(Theme.primaryText)
                         .multilineTextAlignment(.center)
                     Text(Copy.StoreError.body)
-                        .font(Theme.Font.body)
+                        .themeFont(.body)
                         .foregroundStyle(Theme.secondaryText)
                         .multilineTextAlignment(.center)
                     Text(Copy.StoreError.detail(detail))
-                        .font(Theme.Font.rowSubtitle)
+                        .themeFont(.rowSubtitle)
                         .foregroundStyle(Theme.danger)
                         .multilineTextAlignment(.center)
                 }

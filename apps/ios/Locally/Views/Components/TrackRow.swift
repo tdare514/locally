@@ -63,7 +63,8 @@ struct TrackRow: View {
             }
         }
         .frame(minHeight: Theme.Track.minHeight)
-        .accessibilityElement(children: .contain)
+        // View mode (nothing to edit) reads as one element; edit mode keeps its fields as stops.
+        .accessibilityElement(children: titleBinding == nil && onReplace == nil && !showsGrip ? .combine : .contain)
         .accessibilityIdentifier(number.map { "track-row-\($0)" } ?? "track-row")
     }
 

@@ -38,6 +38,14 @@ enum Theme {
     static let accent = Color(red: 0x1E / 255, green: 0x7D / 255, blue: 0xF0 / 255)
 
     /// Type roles from `docs/design.md`'s "Type" table, iOS/mobile column.
+    enum Cover {
+        /// The crop sheet's title at the default text size; it scales with title3.
+        static let cropTitleSize: CGFloat = 19
+        /// The crop canvas: its height when there's room, and the least it shrinks to.
+        static let cropCanvasHeight: CGFloat = 280
+        static let cropCanvasMinHeight: CGFloat = 160
+    }
+
     enum Font {
         static let pageTitle = SwiftUI.Font.system(size: 24, weight: .bold)
         /// "Metadata", "Tracks" section titles.
@@ -96,6 +104,14 @@ enum Theme {
         static let inputPaddingV: CGFloat = 12
         static let primaryButtonH: CGFloat = 32
         static let primaryButtonV: CGFloat = 12
+        /// Pill buttons keep these minimums at every text size; taller labels grow the pill instead.
+        static let primaryButtonMinHeight: CGFloat = 48
+        static let primaryButtonCompactMinHeight: CGFloat = 36
+        static let coverGlowMinHeight: CGFloat = 52
+        static let coverGlowCompactMinHeight: CGFloat = 40
+        /// Segmented pills: the smallest touch target of one segment.
+        static let segmentMinHeight: CGFloat = 44
+        static let segmentRowGap: CGFloat = 4
     }
 
     /// The sticky footer's fade (docs/design.md "Sticky footer CTA (mobile)").
@@ -133,7 +149,9 @@ enum Theme {
         static let thumbnailSize: CGFloat = 56
         /// The hairline between the Singles and Albums sections.
         static let sectionDivider = Color.white.opacity(0.07)
-        static let searchHeight: CGFloat = 40
+        /// The search box's minimum height; it grows with its scaled text.
+        static let searchMinHeight: CGFloat = 40
+        static let searchPaddingV: CGFloat = 8
         static let searchPaddingH: CGFloat = 14
         static let noMatchesTopPadding: CGFloat = 32
         /// Spacing between header controls and between a tile's cover and text.
@@ -141,6 +159,9 @@ enum Theme {
         static let tileTextGap: CGFloat = 8
         static let toggleIconSize: CGFloat = 15
         static let toggleButtonSize: CGFloat = 36
+        /// The empty state's Locally-to-Spotify diagram: the chevron between the tiles, and the Spotify tile's note.
+        static let diagramChevronSize: CGFloat = 13
+        static let diagramIconSize: CGFloat = 26
     }
 
     /// The "immersive" release look (#112 on the web): the record sleeve, the
@@ -317,6 +338,8 @@ enum Theme {
         /// dark base under its glass that keeps the list scrolling beneath from showing through.
         static let coverGlowRest: Double = 0.62
         static let coverGlowPressed: Double = 0.95
+        /// The clouds at rest at the accessibility text sizes, where the label wraps over them.
+        static let coverGlowRestAccessibility: Double = 0.4
         static let coverGlowBaseOpacity: Double = 0.88
         /// The kind switch: each option's minimum tap height, and the black under its thumb's tint.
         static let kindSwitchMinTarget: CGFloat = 44

@@ -11,10 +11,14 @@ struct ComponentGallery: View {
         "release-tracks",
         // Kind switch and cover glow buttons, on the studio backdrop.
         "controls",
+        // #226: Dynamic Type checks of screens that need no sample data.
+        "library-empty", "onboarding", "paywall",
         // #204: the real Stats page over sample plays.
         "stats-week", "stats-albums-grid", "stats-artists", "stats-quiet", "stats-signed-out", "stats-large-text", "stats-week-scrolled", "stats-grid-scrolled",
         // #213: the Mac's glyphs on the real tab bar, library and release page, over seeded sample data.
-        "icons-tabs-library", "icons-tabs-stats", "icons-library-list", "icons-library-grid", "icons-release", "icons-release-bottom", "icons-cover-edit", "icons-playlist-guide"]
+        "icons-tabs-library", "icons-tabs-stats", "icons-library-list", "icons-library-grid", "icons-release", "icons-release-bottom", "icons-cover-edit", "icons-playlist-guide",
+        // #226: the library search box with a typed query, and the crop sheet's Square / Original pill.
+        "icons-library-search", "crop-sheet"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -33,7 +37,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("stats-") || name.hasPrefix("icons-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls"].contains(name)
+        name.hasPrefix("stats-") || name.hasPrefix("icons-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet"].contains(name)
     }
 
     var body: some View {
@@ -90,8 +94,8 @@ struct ComponentGallery: View {
             RecordSleeve(cover: SampleArtwork.sunset, pose: .halfTucked, onAddCover: {})
         case "inline-field":
             VStack(alignment: .leading, spacing: Theme.Spacing.sectionGap) {
-                InlineField("Title", text: $empty, font: Theme.Font.pageTitle)
-                InlineField("Title", text: $title, font: Theme.Font.pageTitle)
+                InlineField("Title", text: $empty, role: .pageTitle)
+                InlineField("Title", text: $title, role: .pageTitle)
             }
             .padding(Theme.Spacing.pagePadding)
         case "cover-sheet":
@@ -140,10 +144,23 @@ struct ComponentGallery: View {
             ReleaseReviewErrorGallery()
         case "controls":
             ControlsGallery()
+        case "library-empty":
+            ZStack {
+                Theme.background.ignoresSafeArea()
+                LibraryEmptyState(onAddSingle: {}, onMakeAlbum: {})
+            }
+        case "onboarding":
+            OnboardingView(onFinished: {}).environment(FolderStatus(isConnected: false))
+        case "paywall":
+            PaywallView()
         case "icons-tabs-library", "icons-library-list":
             IconsGallery.tabs(selected: .library, layout: .list)
         case "icons-library-grid":
             IconsGallery.tabs(selected: .library, layout: .covers)
+        case "icons-library-search":
+            IconsGallery.tabs(selected: .library, layout: .list, search: "Night drive")
+        case "crop-sheet":
+            CoverCropView(imageData: SampleArtwork.sunset.pngData() ?? Data(), onDone: { _ in }, onCancel: {})
         case "icons-tabs-stats":
             IconsGallery.tabs(selected: .stats, layout: .list)
         case "icons-release":
@@ -403,10 +420,10 @@ enum IconsGallery {
     }
 
     /// The four tabs as `RootView` builds them, with one selected.
-    static func tabs(selected: RootView.Tab, layout: LibraryLayout) -> some View {
+    static func tabs(selected: RootView.Tab, layout: LibraryLayout, search: String? = nil) -> some View {
         UserDefaults.standard.set(layout.rawValue, forKey: LibraryViewPrefs.layoutKey)
         let container = container()
-        return environment(IconsTabs(selected: selected), container)
+        return environment(IconsTabs(selected: selected, search: search), container)
     }
 
     /// The cover picker's hero style: the cover with its Edit pill (the pencil).
@@ -431,7 +448,12 @@ private struct IconsTabs: View {
     @State private var importKind: ImportKind?
     @State private var search: String?
 
-    init(selected: RootView.Tab) { _selected = State(initialValue: selected) }
+    private let initialSearch: String?
+
+    init(selected: RootView.Tab, search: String? = nil) {
+        _selected = State(initialValue: selected)
+        initialSearch = search
+    }
 
     var body: some View {
         TabView(selection: $selected) {
@@ -451,6 +473,11 @@ private struct IconsTabs: View {
                 .environment(\.isTabSelected, selected == .settings)
                 .tabItem { Label(Copy.Settings.title, systemImage: "gearshape") }
                 .tag(RootView.Tab.settings)
+        }
+        .task {
+            guard let initialSearch else { return }
+            try? await Task.sleep(for: .milliseconds(600))
+            search = initialSearch
         }
     }
 }

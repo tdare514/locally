@@ -23,18 +23,18 @@ struct PaywallView: View {
                     .foregroundStyle(Theme.accent)
 
                 Text(Copy.Purchase.title)
-                    .font(Theme.Font.pageTitle)
+                    .themeFont(.pageTitle)
                     .foregroundStyle(Theme.primaryText)
 
                 Text(Copy.Purchase.body)
-                    .font(Theme.Font.body)
+                    .themeFont(.body)
                     .foregroundStyle(Theme.secondaryText)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, Theme.Spacing.pagePadding)
 
                 if let errorMessage {
                     Text(errorMessage)
-                        .font(Theme.Font.rowSubtitle)
+                        .themeFont(.rowSubtitle)
                         .foregroundStyle(Theme.danger)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, Theme.Spacing.pagePadding)
@@ -61,6 +61,7 @@ struct PaywallView: View {
                 Spacer()
             }
             .padding(Theme.Spacing.pagePadding)
+            .scrollsWhenCrowded()
             .frame(maxWidth: .infinity)
             .background(Theme.background.ignoresSafeArea())
             .navigationTitle(Copy.Purchase.title)

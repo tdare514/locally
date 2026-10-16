@@ -18,33 +18,45 @@ struct SegmentedPill<Value: Hashable>: View {
     private var trackPadding: CGFloat { isCompact ? 2 : 4 }
     private var segmentPaddingH: CGFloat { isCompact ? 12 : 16 }
     private var segmentPaddingV: CGFloat { 6 }
-    private var textSize: CGFloat { 14 }
 
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(options, id: \.value) { option in
-                Button {
-                    selection = option.value
-                } label: {
-                    Text(option.label)
-                        .font(.system(size: textSize, weight: .semibold))
-                        .foregroundStyle(selection == option.value ? Color.black : Theme.secondaryText)
-                        .padding(.horizontal, segmentPaddingH)
-                        .padding(.vertical, segmentPaddingV)
-                        .background {
-                            if selection == option.value {
-                                Capsule()
-                                    .fill(Theme.accent)
-                                    .shadow(color: .black.opacity(0.25), radius: 3, x: 0, y: 1)
-                            }
-                        }
-                }
-                .buttonStyle(.plain)
-            }
+        // One row while the words fit; otherwise the segments stack, each still a full target.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 0) { segments(fixedWidth: true) }
+            VStack(spacing: Theme.Spacing.segmentRowGap) { segments(fixedWidth: false) }
         }
         .padding(trackPadding)
         .opacity(isEnabled ? 1 : 0.5)
         .background(Theme.elevated)
-        .clipShape(Capsule())
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Spacing.segmentMinHeight / 2 + trackPadding))
+    }
+
+    private func segments(fixedWidth: Bool) -> some View {
+        ForEach(options, id: \.value) { option in
+            let isSelected = selection == option.value
+            Button {
+                selection = option.value
+            } label: {
+                Text(option.label)
+                    .themeFont(.body, weight: .semibold)
+                    .foregroundStyle(isSelected ? Color.black : Theme.secondaryText)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: true)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, segmentPaddingH)
+                    .padding(.vertical, segmentPaddingV)
+                    .frame(maxWidth: fixedWidth ? nil : .infinity, minHeight: Theme.Spacing.segmentMinHeight)
+                    .background {
+                        if isSelected {
+                            Capsule()
+                                .fill(Theme.accent)
+                                .shadow(color: .black.opacity(0.25), radius: 3, x: 0, y: 1)
+                        }
+                    }
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+        }
     }
 }

@@ -174,7 +174,7 @@ private final class CancellingCoverStore: CoverStore {
         let recent = try #require(recents.first)
         let longestSide = max(recent.thumbnail.size.width, recent.thumbnail.size.height) * recent.thumbnail.scale
         #expect(longestSide <= CGFloat(RecentCoversLoader.thumbnailPixels))
-        #expect(recent.accessibilityLabel == "Rumours, Fleetwood Mac")
+        #expect(recent.accessibilityLabel == "Use the cover of Rumours")
     }
 
     @Test func sameBytesGiveOneRecentTheNewestReleases() async throws {

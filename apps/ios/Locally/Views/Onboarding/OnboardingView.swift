@@ -24,17 +24,21 @@ struct OnboardingView: View {
             Theme.background.ignoresSafeArea()
 
             VStack(spacing: Theme.Spacing.sectionGap) {
-                Spacer()
+                // The step scrolls at larger text sizes; the action button stays put below it.
+                VStack(spacing: Theme.Spacing.sectionGap) {
+                    Spacer()
 
-                content
+                    content
 
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(Theme.Font.rowSubtitle)
-                        .foregroundStyle(Theme.danger)
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .themeFont(.rowSubtitle)
+                            .foregroundStyle(Theme.danger)
+                    }
+
+                    Spacer()
                 }
-
-                Spacer()
+                .scrollsWhenCrowded()
 
                 actionButton
             }
@@ -68,10 +72,10 @@ struct OnboardingView: View {
                 .accessibilityHidden(true)
                 .padding(.bottom, 8)
             Text(Copy.Onboarding.welcomeTitle)
-                .font(Theme.Font.pageTitle)
+                .themeFont(.pageTitle)
                 .foregroundStyle(Theme.primaryText)
             Text(Copy.Onboarding.welcomeBody)
-                .font(Theme.Font.body)
+                .themeFont(.body)
                 .foregroundStyle(Theme.secondaryText)
                 .multilineTextAlignment(.center)
         }
@@ -83,7 +87,7 @@ struct OnboardingView: View {
                 .font(.largeTitle)
                 .foregroundStyle(Theme.accent)
             Text(Copy.Onboarding.premium)
-                .font(Theme.Font.body)
+                .themeFont(.body)
                 .foregroundStyle(Theme.secondaryText)
                 .multilineTextAlignment(.center)
         }
@@ -92,10 +96,10 @@ struct OnboardingView: View {
     private var localFilesStep: some View {
         VStack(spacing: 16) {
             Text(Copy.Onboarding.localFilesTitle)
-                .font(Theme.Font.pageTitle)
+                .themeFont(.pageTitle)
                 .foregroundStyle(Theme.primaryText)
             Text(Copy.Onboarding.localFilesBody)
-                .font(Theme.Font.body)
+                .themeFont(.body)
                 .foregroundStyle(Theme.secondaryText)
                 .multilineTextAlignment(.center)
         }
@@ -104,10 +108,10 @@ struct OnboardingView: View {
     private var folderStep: some View {
         VStack(spacing: 16) {
             Text(Copy.Onboarding.folderAccessTitle)
-                .font(Theme.Font.pageTitle)
+                .themeFont(.pageTitle)
                 .foregroundStyle(Theme.primaryText)
             Text(Copy.Onboarding.folderAccessBody)
-                .font(Theme.Font.body)
+                .themeFont(.body)
                 .foregroundStyle(Theme.secondaryText)
                 .multilineTextAlignment(.center)
         }
@@ -119,10 +123,10 @@ struct OnboardingView: View {
                 .font(.largeTitle)
                 .foregroundStyle(Theme.accent)
             Text(Copy.Onboarding.confirmationTitle)
-                .font(Theme.Font.pageTitle)
+                .themeFont(.pageTitle)
                 .foregroundStyle(Theme.primaryText)
             Text(Copy.Onboarding.confirmationBody)
-                .font(Theme.Font.body)
+                .themeFont(.body)
                 .foregroundStyle(Theme.secondaryText)
                 .multilineTextAlignment(.center)
         }

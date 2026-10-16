@@ -122,7 +122,7 @@ struct RecordSleeve: View {
                         .transition(coverTransition)
                 } else if showsAddCaption {
                     Text(Copy.Immersive.addCoverArt)
-                        .font(Theme.Font.rowTitle)
+                        .themeFont(.rowTitle)
                         .foregroundStyle(Theme.secondaryText)
                         .multilineTextAlignment(.center)
                         .padding(Theme.Immersive.sleeveCaptionPadding)

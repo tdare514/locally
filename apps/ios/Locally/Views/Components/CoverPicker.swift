@@ -15,7 +15,10 @@ import UniformTypeIdentifiers
 struct CoverPicker: View {
     /// Which of the two presentations to draw. See `docs/design.md`'s
     /// "Cover drop zone" and "Editor / release detail" components.
-    enum Style { case dropZone, hero, compact, thumb }
+    ///
+    /// `.cropHostOnly` draws nothing (so VoiceOver reaches no control) and only hosts the crop
+    /// sheet and the `rawPick` handling, for a screen that has its own cover controls.
+    enum Style { case dropZone, hero, compact, thumb, cropHostOnly }
 
     @Binding var imageData: Data?
     /// The parent owns the file importer: SwiftUI honours only one
@@ -41,6 +44,7 @@ struct CoverPicker: View {
             case .hero: heroBody
             case .compact: compactBody
             case .thumb: thumbBody
+            case .cropHostOnly: Color.clear
             }
         }
         // The Photos picker is attached here, to a view that stays in the
@@ -124,7 +128,7 @@ struct CoverPicker: View {
                 .dropZone()
 
             Text(Copy.Import.coverHint)
-                .font(Theme.Font.dropZoneHint)
+                .themeFont(.dropZoneHint)
                 .foregroundStyle(Theme.textHint)
         }
     }
@@ -148,7 +152,7 @@ struct CoverPicker: View {
                             .font(.system(size: 24))
                             .foregroundStyle(Theme.secondaryText)
                         Text(Copy.Import.cover)
-                            .font(Theme.Font.rowSubtitle)
+                            .themeFont(.rowSubtitle)
                             .foregroundStyle(Theme.secondaryText)
                     }
                 }
@@ -176,7 +180,7 @@ struct CoverPicker: View {
                     .font(.system(size: 28))
                     .foregroundStyle(Theme.secondaryText)
                 Text(Copy.Import.coverCaption)
-                    .font(Theme.Font.dropZoneLine)
+                    .themeFont(.dropZoneLine)
                     .foregroundStyle(Theme.primaryText.opacity(0.85))
             }
         }
@@ -257,7 +261,7 @@ struct CoverPicker: View {
             Menu {
                 menuItems
             } label: {
-                Label { Text(Copy.Detail.edit) } icon: { LocallyIcon(.pencil, size: 18, scaled: false) }
+                Label { Text(Copy.Detail.edit) } icon: { LocallyIcon(.pencil, size: 18, relativeTo: .body) }
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.primaryText)
                     .padding(.horizontal, 12)
