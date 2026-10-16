@@ -65,9 +65,10 @@ describe("PlayCounter", () => {
     const other = "spotify:local:X:Y:Z:200";
     expect(c.push(s(30, 0, { id: other }))).toBeNull();
     expect(c.push(s(35, 5, { id: other }))).toBeNull();
-    // Back on the first track: starts from zero.
-    expect(c.push(s(40, 30))).toBeNull();
-    expect(c.push(s(45, 35))).toBeNull();
+    // Back on the first track from its start: starts from zero.
+    expect(c.push(s(40, 0))).toBeNull();
+    expect(c.push(s(45, 5))).toBeNull();
+    expect(c.push(s(50, 10))).toBeNull();
   });
 
   it("counts a 20 s track at 18 s", () => {
