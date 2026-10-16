@@ -512,8 +512,8 @@ eyebrows still apply to those labels.
   order the panel lists them; at its foot sit Settings and, at the very bottom, the profile: a
   32 px circle with the first letter of the signed-in email (white on an `accent` tint), or a
   person glyph when not signed in. *Since 15 Oct 2026 the profile replaces the quiet brand mark
-  that used to sit at the foot, and Settings moved down from under Import.* Hovering the rail
-  blooms a glass panel out of its right edge: the panel controls (**Pin down**, which shows
+  that used to sit at the foot, and Settings moved down from under Import.* Hovering the top of the rail
+  (the menu button through Stats, not Settings, the profile or the empty rail between) blooms a glass panel out of its right edge: the panel controls (**Pin down**, which shows
   "Pinned" while docked, and the Open on hover switch) level with the menu button, rows for
   Library and Import each level with its rail icon, then "Your plays" with Top tracks, Top
   albums, Top artists and an optional record-sleeve shelf (the #1 row larger, with its cover),
