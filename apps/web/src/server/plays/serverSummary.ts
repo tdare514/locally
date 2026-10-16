@@ -14,8 +14,8 @@ export interface ServerPlaysSummary {
   allTime: ServerPlaysSummaryPage["allTime"];
 }
 
-/** Most summary page requests per rolling hour, per identity: the service allows 60 an hour per user, so the rest is left to the user's other devices. */
-export const SUMMARY_PAGE_BUDGET = 30;
+/** Most summary page requests per rolling hour, per identity: the service allows 600 an hour per user, so the rest is left to the user's other devices. */
+export const SUMMARY_PAGE_BUDGET = 200;
 const HOUR_MS = 60 * 60_000;
 
 interface IdentityState {

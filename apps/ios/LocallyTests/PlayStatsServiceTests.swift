@@ -170,31 +170,85 @@ struct PlayStatsServiceTests {
         #expect(s.api.playsSummaryCalls.count == 2)
     }
 
-    @Test func twentyPageRequestsAnHourThenBusyUntilTheWindowMoves() async {
+    @Test func budgetPageRequestsAnHourThenBusyUntilTheWindowMoves() async {
+        let budget = SyncPlayStatsService.budgetPerHour
+        #expect(budget == 200)
         let s = make(script: [page(1)])
-        for i in 0..<20 {
-            #expect(await read(s, "2026-01-\(String(format: "%02d", i + 1))", "2026-01-31") == .ok(summary(1)))
+        var last = ""
+        for i in 0..<budget {
+            last = "2026-\(String(format: "%02d", i / 28 + 1))-\(String(format: "%02d", i % 28 + 1))"
+            #expect(await read(s, last, "2026-12-31") == .ok(summary(1)))
         }
-        #expect(s.api.playsSummaryCalls.count == 20)
+        #expect(s.api.playsSummaryCalls.count == budget)
         #expect(await read(s, "2025-01-01", "2025-01-31") == .busy)
-        #expect(s.api.playsSummaryCalls.count == 20)
+        #expect(s.api.playsSummaryCalls.count == budget)
         // A forced read of a range that is cached falls back to it.
-        #expect(await read(s, "2026-01-20", "2026-01-31", force: true) == .ok(summary(1)))
-        #expect(s.api.playsSummaryCalls.count == 20)
+        #expect(await read(s, last, "2026-12-31", force: true) == .ok(summary(1)))
+        #expect(s.api.playsSummaryCalls.count == budget)
         s.clock.advance(60 * 60 + 1)
         #expect(await read(s, "2025-01-01", "2025-01-31") == .ok(summary(1)))
-        #expect(s.api.playsSummaryCalls.count == 21)
+        #expect(s.api.playsSummaryCalls.count == budget + 1)
+    }
+
+    // MARK: - What counts against the budget (#267)
+
+    @Test func requestsThatNeverReachedTheServiceDoNotUseTheBudget() async {
+        let budget = SyncPlayStatsService.budgetPerHour
+        let s = make(script: [.failure(SyncApiError.unreachable("offline"))])
+        for _ in 0..<(budget + 5) { #expect(await read(s, force: true) == .failed) }
+        #expect(s.api.playsSummaryCalls.count == budget + 5)
+        // Not busy: a real read still goes out.
+        s.api.playsSummaryScript = [page(1)]
+        #expect(await read(s, force: true) == .ok(summary(1)))
+        #expect(s.api.playsSummaryCalls.count == budget + 6)
+    }
+
+    @Test func anHttpErrorStatusUsesTheBudget() async {
+        let budget = SyncPlayStatsService.budgetPerHour
+        let s = make(script: [.failure(SyncApiError.network("The server returned an error (500)."))])
+        for _ in 0..<budget { #expect(await read(s, force: true) == .failed) }
+        #expect(await read(s, force: true) == .busy)
+        #expect(s.api.playsSummaryCalls.count == budget)
+    }
+
+    @Test func aRateLimitUsesTheBudgetAndBacksOff() async {
+        let s = make(script: [.failure(SyncApiError.rateLimited), page(1)])
+        #expect(await read(s) == .busy)
+        #expect(s.defaults.array(forKey: SyncPlayStatsService.requestTimesKey)?.count == 1)
+        #expect(await read(s, force: true) == .busy) // backing off
+        #expect(s.api.playsSummaryCalls.count == 1)
+    }
+
+    @Test func signingInGivesAFreshBudgetAndNoBackOff() async {
+        let s = make(script: [.failure(SyncApiError.rateLimited), page(1)])
+        #expect(await read(s) == .busy) // backing off
+        s.account.clear()
+        #expect(await read(s) == .signedOut)
+        s.account.save(email: "b@example.com", deviceToken: "token-2", deviceId: "device-2")
+        #expect(await read(s, force: true) == .ok(summary(1)))
+        #expect(s.api.playsSummaryCalls.count == 2)
+    }
+
+    @Test func switchingAccountsClearsTheBudget() async {
+        let s = make(script: [page(1)])
+        _ = await read(s)
+        #expect(s.defaults.array(forKey: SyncPlayStatsService.requestTimesKey)?.count == 1)
+        s.account.save(email: "b@example.com", deviceToken: "token-2", deviceId: "device-2")
+        _ = await read(s, force: true)
+        #expect(s.defaults.array(forKey: SyncPlayStatsService.requestTimesKey)?.count == 1) // only the new account's one request
     }
 
     @Test func aBudgetThatRunsOutMidwayStopsTheRead() async {
+        let budget = SyncPlayStatsService.budgetPerHour
         let s = make(script: [page(1, cursor: "c", track: "t1")])
-        // Two reads of 10 pages each use the whole budget (the 10-page cap makes each fail) ...
-        #expect(await read(s, "2026-02-01", "2026-02-02") == .failed)
-        #expect(await read(s, "2026-03-01", "2026-03-02") == .failed)
-        #expect(s.api.playsSummaryCalls.count == 20)
-        // ... so a third is stopped before any request.
+        // Reads of 10 pages each use the whole budget (the 10-page cap makes each fail) ...
+        for i in 0..<(budget / SyncPlayStatsService.maxPages) {
+            #expect(await read(s, "2026-02-01", "2026-02-\(String(format: "%02d", i + 1))") == .failed)
+        }
+        #expect(s.api.playsSummaryCalls.count == budget)
+        // ... so the next is stopped before any request.
         #expect(await read(s, "2026-04-01", "2026-04-02") == .busy)
-        #expect(s.api.playsSummaryCalls.count == 20)
+        #expect(s.api.playsSummaryCalls.count == budget)
     }
 
     @Test func staleCacheIsServedOnAnError() async {
@@ -335,7 +389,7 @@ struct PlayStatsServiceTests {
     @Test func aSpentBudgetStaysSpentAfterARelaunch() async {
         let s = make(script: [page(1)])
         for _ in 0..<SyncPlayStatsService.budgetPerHour { _ = await read(s, force: true) }
-        #expect(s.api.playsSummaryCalls.count == 20)
+        #expect(s.api.playsSummaryCalls.count == SyncPlayStatsService.budgetPerHour)
         let (again, api) = relaunch(s, script: [page(1)])
         #expect(await again.summary(from: "2026-10-12", to: "2026-10-15", force: true) == .busy)
         #expect(api.playsSummaryCalls.isEmpty)

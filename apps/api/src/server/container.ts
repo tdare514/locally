@@ -94,8 +94,8 @@ async function buildServices(): Promise<Services> {
       missingFilesByUser: new DbRateLimiter(db, 24, 60 * 60 * 1000, "files-missing:user"),
       resyncRequestByDevice: new DbRateLimiter(db, 6, 60 * 60 * 1000, "resync-request:device"),
       resyncRequestByUser: new DbRateLimiter(db, 24, 60 * 60 * 1000, "resync-request:user"),
-      // 60 plays-summary reads per user, per hour.
-      playsSummary: new DbRateLimiter(db, 60, 60 * 60 * 1000, "plays-summary:user"),
+      // 600 plays-summary reads per user, per hour (#267), shared by the Mac (200) and the iPhone (200).
+      playsSummary: new DbRateLimiter(db, 600, 60 * 60 * 1000, "plays-summary:user"),
     },
   };
 }

@@ -331,9 +331,9 @@ describe("play days", () => {
       expect((await get(qs)).status).toBe(400);
     });
 
-    it("refuses the 61st call in an hour with 429", async () => {
-      testServices.rateLimiters.playsSummary = new InMemoryRateLimiter(60, 60 * 60 * 1000);
-      for (let i = 0; i < 60; i++) {
+    it("refuses the 601st call in an hour with 429", async () => {
+      testServices.rateLimiters.playsSummary = new InMemoryRateLimiter(600, 60 * 60 * 1000);
+      for (let i = 0; i < 600; i++) {
         expect((await get("?from=2026-10-14&to=2026-10-14")).status).toBe(200);
       }
       expect((await get("?from=2026-10-14&to=2026-10-14")).status).toBe(429);
