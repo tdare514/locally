@@ -159,6 +159,9 @@ export class SpotifyClient {
   private async doRefresh(): Promise<string> {
     const current = (await this.settings.get()).spotify;
     if (!current) throw new SpotifyApiError("disconnected", "Spotify isn't connected.");
+    // This refresh belongs to this connection only; it writes nothing if the user has since
+    // disconnected or signed in as someone else.
+    const revision = current.revision;
 
     let res: Response;
     try {
@@ -178,8 +181,7 @@ export class SpotifyClient {
     if (!res.ok) {
       const body = (await res.json().catch(() => null)) as { error?: unknown } | null;
       if (body && body.error === "invalid_grant") {
-        await this.clearTokens();
-        this.lastError = EXPIRED_MESSAGE;
+        if (await this.clearTokens(revision)) this.lastError = EXPIRED_MESSAGE;
         throw new SpotifyApiError("disconnected", EXPIRED_MESSAGE, { status: res.status });
       }
       throw new SpotifyApiError("http", `Spotify couldn't refresh the sign-in (${res.status}).`, {
@@ -196,26 +198,37 @@ export class SpotifyClient {
     if (!body || typeof body.access_token !== "string" || typeof body.expires_in !== "number") {
       throw new SpotifyApiError("http", "Spotify sent an answer Locally couldn't read.");
     }
-    // Re-read: the user may have disconnected while the call was in flight.
-    const latest = await this.settings.get();
-    if (!latest.spotify) throw new SpotifyApiError("disconnected", "Spotify isn't connected.");
-    const next: SpotifySettings = {
-      ...latest.spotify,
-      accessToken: body.access_token,
-      accessTokenExpiresAt: this.now() + body.expires_in * 1000,
-      refreshToken:
-        typeof body.refresh_token === "string" && body.refresh_token ? body.refresh_token : latest.spotify.refreshToken,
-      scopes: typeof body.scope === "string" && body.scope ? body.scope.split(/\s+/) : latest.spotify.scopes,
-    };
-    await this.settings.set({ ...latest, spotify: next });
-    return next.accessToken;
+    let stored: SpotifySettings | null = null;
+    let latest: SpotifySettings | undefined;
+    await this.settings.update((cur) => {
+      latest = cur.spotify;
+      if (!cur.spotify || cur.spotify.revision !== revision) return null;
+      stored = {
+        ...cur.spotify,
+        accessToken: body.access_token as string,
+        accessTokenExpiresAt: this.now() + (body.expires_in as number) * 1000,
+        refreshToken:
+          typeof body.refresh_token === "string" && body.refresh_token ? body.refresh_token : cur.spotify.refreshToken,
+        scopes: typeof body.scope === "string" && body.scope ? body.scope.split(/\s+/) : cur.spotify.scopes,
+      };
+      return { ...cur, spotify: stored };
+    });
+    if (stored) return (stored as SpotifySettings).accessToken;
+    // Disconnected, or a different connection took over meanwhile: leave it alone, use its token.
+    if (!latest) throw new SpotifyApiError("disconnected", "Spotify isn't connected.");
+    return (latest as SpotifySettings).accessToken;
   }
 
-  private async clearTokens(): Promise<void> {
-    const latest = await this.settings.get();
-    if (!latest.spotify) return;
-    const { spotify: _removed, ...rest } = latest;
-    void _removed;
-    await this.settings.set(rest);
+  /** Delete the connection, but only the one this refresh started from. True if it was deleted. */
+  private async clearTokens(revision: string): Promise<boolean> {
+    let removed = false;
+    await this.settings.update((cur) => {
+      if (!cur.spotify || cur.spotify.revision !== revision) return null;
+      const { spotify: _removed, ...rest } = cur;
+      void _removed;
+      removed = true;
+      return rest;
+    });
+    return removed;
   }
 }

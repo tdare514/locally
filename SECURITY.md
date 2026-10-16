@@ -144,8 +144,15 @@ The Mac app can connect to the user's Spotify account (#239, `apps/web/src/serve
 - **Disconnect:** Settings deletes the `spotify` block and stops any pending sign-in. Spotify has no
   revoke call for PKCE tokens, so Settings links to https://www.spotify.com/account/apps/ to
   remove Locally's access completely.
-- **Off switch:** with no client id, `HAS_SPOTIFY_CONNECTION` off, or in the demo build, the
-  `/api/spotify/connection` and `/api/spotify/auth` routes answer 404.
+- **Off switch:** with no client id or `HAS_SPOTIFY_CONNECTION` off, the `/api/spotify/connection`
+  and `/api/spotify/auth` routes answer 404. In the demo build a GET answers 404 too, and a POST or
+  DELETE is refused with 403 by `proxy.ts` before the route runs.
+- **Host check:** the callback listener answers 400 to any request whose `Host` is not exactly
+  `127.0.0.1:8888`, so a rebinding page can't reach it, and the request doesn't touch the pending sign-in.
+- **Settings writes:** every settings writer goes through `SettingsStore.update`, one at a time per
+  process, so a disconnect can't lose to a late callback write and no save writes back an old token.
+  Each stored connection has a random `revision`; a token refresh only writes to (or deletes) the
+  connection it started from, so it can't overwrite a newer sign-in.
 
 ## apps/api
 

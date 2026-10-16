@@ -62,6 +62,7 @@ export interface SpotifySettings {
   accessToken: string;
   accessTokenExpiresAt: number;  // epoch ms
   refreshToken: string;
+  revision: string;  // random id per connect; a refresh only writes to the connection it started from
   scopes: string[];
   userId: string;
   displayName: string;

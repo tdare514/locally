@@ -211,10 +211,11 @@ export class SyncEngine implements ReleaseSyncHooks {
   }
 
   private async bumpLastVersion(version: number): Promise<void> {
-    const settings = await this.settings.get();
-    if (settings.sync && version > settings.sync.lastVersion) {
-      await this.settings.set({ ...settings, sync: { ...settings.sync, lastVersion: version } });
-    }
+    await this.settings.update((current) =>
+      current.sync && version > current.sync.lastVersion
+        ? { ...current, sync: { ...current.sync, lastVersion: version } }
+        : null,
+    );
   }
 
   private async pushOne(api: SyncApi, release: Release): Promise<void> {

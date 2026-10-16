@@ -11,6 +11,7 @@ async function ensureDirExists(dir: string): Promise<void> {
 /** Settings hold a sync device token and the Spotify tokens, so its directory and file are locked to the owner. */
 const CONFIG_DIR_MODE = 0o700;
 const CONFIG_FILE_MODE = 0o600;
+let tmpCounter = 0;
 
 /** Narrow an arbitrary JSON value into `SyncSettings`, or `null` if it doesn't look right. */
 function parseSyncSettings(raw: unknown): SyncSettings | null {
@@ -38,11 +39,23 @@ function parseSpotifySettings(raw: unknown): SpotifySettings | null {
     accessToken: r.accessToken,
     accessTokenExpiresAt: r.accessTokenExpiresAt,
     refreshToken: r.refreshToken,
+    revision: typeof r.revision === "string" ? r.revision : "",
     scopes: r.scopes.filter((s): s is string => typeof s === "string"),
     userId: r.userId,
     displayName: typeof r.displayName === "string" && r.displayName ? r.displayName : r.userId,
     connectedAt: typeof r.connectedAt === "string" ? r.connectedAt : "",
   };
+}
+
+/**
+ * One writer at a time per process, shared by every store instance: a read-modify-write in
+ * `update()` can't interleave with another one or with `set()`.
+ */
+let writeChain: Promise<unknown> = Promise.resolve();
+function exclusive<T>(fn: () => Promise<T>): Promise<T> {
+  const run = writeChain.then(fn, fn);
+  writeChain = run.catch(() => undefined);
+  return run;
 }
 
 /**
@@ -66,7 +79,7 @@ export class FileSettingsStore implements SettingsStore {
           trackPlays: false,
           playsPromptAnswered: false,
         };
-        await this.set(defaults);
+        await this.writeSettings(defaults);
         return defaults;
       }
       throw err;
@@ -88,7 +101,7 @@ export class FileSettingsStore implements SettingsStore {
         trackPlays: false,
         playsPromptAnswered: false,
       };
-      await this.set(defaults);
+      await this.writeSettings(defaults);
       return defaults;
     }
 
@@ -112,7 +125,19 @@ export class FileSettingsStore implements SettingsStore {
     };
   }
 
-  async set(settings: Settings): Promise<Settings> {
+  set(settings: Settings): Promise<Settings> {
+    return exclusive(() => this.writeSettings(settings));
+  }
+
+  update(mutator: (current: Settings) => Settings | null): Promise<Settings> {
+    return exclusive(async () => {
+      const current = await this.get();
+      const next = mutator(current);
+      return next ? this.writeSettings(next) : current;
+    });
+  }
+
+  private async writeSettings(settings: Settings): Promise<Settings> {
     const dir = settingsDir();
     await fs.mkdir(dir, { recursive: true, mode: CONFIG_DIR_MODE });
     // mkdir's `mode` only applies when it creates the directory; force it on
@@ -123,7 +148,7 @@ export class FileSettingsStore implements SettingsStore {
     const file = settingsFilePath();
     // Write to a tmp file first and rename into place, so a crash mid-write
     // never leaves a half-written (and then unparsable) settings.json.
-    const tmpFile = path.join(dir, `.settings.json.tmp-${process.pid}-${Date.now()}`);
+    const tmpFile = path.join(dir, `.settings.json.tmp-${process.pid}-${Date.now()}-${tmpCounter++}`);
     await fs.writeFile(tmpFile, JSON.stringify(settings, null, 2), { encoding: "utf-8", mode: CONFIG_FILE_MODE });
     await fs.chmod(tmpFile, CONFIG_FILE_MODE);
     await fs.rename(tmpFile, file);

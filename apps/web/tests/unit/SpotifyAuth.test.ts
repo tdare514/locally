@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
+import http from "node:http";
 import net from "node:net";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SpotifyAuth, SpotifyAuthError, challengeFor } from "../../src/server/spotify/SpotifyAuth";
 import { SPOTIFY_SCOPES } from "../../src/server/spotify/config";
 import { MemorySettings, fakeFetch, formOf, jsonResponse } from "./spotifyFakes";
@@ -114,6 +115,7 @@ describe("callback", () => {
       accessToken: "AT-new",
       accessTokenExpiresAt: NOW + 3600_000,
       refreshToken: "RT-new",
+      revision: expect.stringMatching(/^[0-9a-f]{16}$/),
       scopes: SPOTIFY_SCOPES.split(" "),
       userId: "u9",
       displayName: "Sam",
@@ -264,9 +266,86 @@ describe("listener", () => {
   });
 });
 
+describe("Host check", () => {
+  it("answers 400 to a wrong Host without touching the pending sign-in", async () => {
+    const { authorizeUrl } = await auth.start();
+    const q = parse(authorizeUrl).q;
+    const redirect = new URL(q.get("redirect_uri") as string);
+    const status = await new Promise<number>((resolve, reject) => {
+      const req = http.request(
+        { host: "127.0.0.1", port: Number(redirect.port), path: `/callback?code=C&state=${q.get("state")}`, headers: { Host: `evil.example:${redirect.port}` } },
+        (res) => {
+          res.resume();
+          resolve(res.statusCode ?? 0);
+        },
+      );
+      req.on("error", reject);
+      req.end();
+    });
+    expect(status).toBe(400);
+    expect(spotify.calls).toHaveLength(0);
+    expect(auth.isPending()).toBe(true);
+    // The right Host still completes the sign-in.
+    expect((await fetch(`${redirect.origin}/callback?code=C&state=${q.get("state")}`)).status).toBe(200);
+  });
+});
+
+describe("atomic settings", () => {
+  const good = (state: string) => new URLSearchParams({ code: "C", state });
+
+  it("a disconnect during the callback's write wins", async () => {
+    const state = parse((await auth.start()).authorizeUrl).q.get("state") as string;
+    const release = settings.holdWrites();
+    const callback = auth.handleCallback(good(state));
+    await settings.holdReached; // the callback's mutator has run; its write is held open
+    const disconnect = auth.disconnect();
+    release();
+    await Promise.all([callback, disconnect]);
+    expect("spotify" in settings.value).toBe(false);
+  });
+
+  it("a disconnect queued ahead of the callback's write means nothing is stored", async () => {
+    const state = parse((await auth.start()).authorizeUrl).q.get("state") as string;
+    const release = settings.holdWrites();
+    const unrelated = settings.update((c) => ({ ...c, trackPlays: true })); // holds the write lock
+    await settings.holdReached;
+    const callback = auth.handleCallback(good(state));
+    await vi.waitFor(() => expect(spotify.calls).toHaveLength(2)); // exchange and /me are done; the write is queued
+    const disconnect = auth.disconnect();
+    release();
+    await Promise.all([unrelated, callback, disconnect]);
+    expect("spotify" in settings.value).toBe(false);
+    expect(settings.value.trackPlays).toBe(true);
+  });
+
+  it("an unrelated save during a connect neither drops nor is dropped by the spotify block", async () => {
+    const state = parse((await auth.start()).authorizeUrl).q.get("state") as string;
+    const release = settings.holdWrites();
+    const callback = auth.handleCallback(good(state));
+    await settings.holdReached;
+    const unrelated = settings.update((c) => ({ ...c, trackPlays: true }));
+    release();
+    await Promise.all([callback, unrelated]);
+    expect(settings.value.spotify?.userId).toBe("u9");
+    expect(settings.value.trackPlays).toBe(true);
+  });
+
+  it("an unrelated save during a disconnect doesn't resurrect the block", async () => {
+    settings.value = { ...settings.value, spotify: { accessToken: "a", accessTokenExpiresAt: 1, refreshToken: "r", revision: "x", scopes: [], userId: "u", displayName: "d", connectedAt: "" } };
+    const release = settings.holdWrites();
+    const disconnect = auth.disconnect();
+    await settings.holdReached;
+    const unrelated = settings.update((c) => ({ ...c, trackPlays: true }));
+    release();
+    await Promise.all([disconnect, unrelated]);
+    expect("spotify" in settings.value).toBe(false);
+    expect(settings.value.trackPlays).toBe(true);
+  });
+});
+
 describe("disconnect", () => {
   it("deletes the spotify block and stops a pending sign-in", async () => {
-    settings.value = { ...settings.value, spotify: { accessToken: "a", accessTokenExpiresAt: 1, refreshToken: "r", scopes: [], userId: "u", displayName: "d", connectedAt: "" } };
+    settings.value = { ...settings.value, spotify: { accessToken: "a", accessTokenExpiresAt: 1, refreshToken: "r", revision: "x", scopes: [], userId: "u", displayName: "d", connectedAt: "" } };
     const q = parse((await auth.start()).authorizeUrl).q;
     const port = Number(new URL(q.get("redirect_uri") as string).port);
     await auth.disconnect();

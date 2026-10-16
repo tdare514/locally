@@ -62,4 +62,17 @@ describe("settings.spotify", () => {
     await store.set(rest);
     expect(await fs.readFile(settingsFilePath(), "utf-8")).not.toContain("refreshToken");
   });
+
+  it("update() runs writers one at a time, so none is lost", async () => {
+    const store = new FileSettingsStore();
+    await store.get();
+    await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        store.update((c) => ({ ...c, sync: { baseUrl: "http://localhost:4000", deviceToken: null, email: null, lastVersion: Math.max(i, c.sync?.lastVersion ?? 0) } })),
+      ),
+    );
+    expect((await store.get()).sync?.lastVersion).toBe(19);
+    await store.update(() => null);
+    expect((await fs.stat(settingsFilePath())).mode & 0o777).toBe(0o600);
+  });
 });

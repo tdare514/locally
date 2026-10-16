@@ -89,6 +89,43 @@ describe("getAccessToken", () => {
   });
 });
 
+describe("a refresh is bound to its connection", () => {
+  const ACCOUNT_B = { ...SAMPLE_SPOTIFY, accessToken: "AT-B", refreshToken: "RT-B", revision: "rev-B", userId: "uB", accessTokenExpiresAt: NOW + 3_600_000 };
+
+  it("a successful refresh for A leaves a reconnected B untouched", async () => {
+    const made = setup(() => {
+      made.settings.value = { ...made.settings.value, spotify: ACCOUNT_B }; // the user signs in as B mid-refresh
+      return refreshOk({ refresh_token: "RT-A-rotated" });
+    }, NOW);
+    const settings = made.settings;
+    expect(await made.client.getAccessToken()).toBe("AT-B");
+    expect(settings.value.spotify).toEqual(ACCOUNT_B);
+  });
+
+  it("a failing refresh for A does not delete a reconnected B", async () => {
+    const made = setup(() => {
+      made.settings.value = { ...made.settings.value, spotify: ACCOUNT_B };
+      return jsonResponse({ error: "invalid_grant" }, { status: 400 });
+    }, NOW);
+    const settings = made.settings;
+    await fail(made.client.getAccessToken());
+    expect(settings.value.spotify).toEqual(ACCOUNT_B);
+    expect(made.client.lastError).toBeNull();
+  });
+
+  it("a refresh finishing after a disconnect stores nothing", async () => {
+    const made = setup(() => {
+      const { spotify: _gone, ...rest } = made.settings.value;
+      void _gone;
+      made.settings.value = rest;
+      return refreshOk();
+    }, NOW);
+    const settings = made.settings;
+    expect((await fail(made.client.getAccessToken())).code).toBe("disconnected");
+    expect("spotify" in settings.value).toBe(false);
+  });
+});
+
 describe("request", () => {
   it("sends the bearer token to the API and parses JSON", async () => {
     const { client, spotify } = setup(() => jsonResponse({ id: "x" }));

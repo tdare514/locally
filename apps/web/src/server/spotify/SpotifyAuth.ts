@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import type { SettingsStore } from "../config/SettingsStore";
+import type { SpotifySettings } from "../../shared/types";
 import { SPOTIFY_REDIRECT_PORT, SPOTIFY_SCOPES } from "./config";
 import {
   SPOTIFY_TOKEN_URL,
@@ -140,7 +141,8 @@ export class SpotifyAuth {
     this.lastError = null;
     const gen = ++this.generation;
 
-    const server = http.createServer((req, res) => void this.onRequest(req, res));
+    const host = { expected: "" };
+    const server = http.createServer((req, res) => void this.onRequest(req, res, host.expected));
     server.on("error", () => undefined); // after listening; a failure here just ends the sign-in
     try {
       await new Promise<void>((resolve, reject) => {
@@ -162,7 +164,9 @@ export class SpotifyAuth {
       throw new SpotifyAuthError("Spotify sign-in was replaced by a newer one.");
     }
 
-    const redirectUri = `http://${LISTEN_HOST}:${(server.address() as AddressInfo).port}/callback`;
+    const listenPort = (server.address() as AddressInfo).port;
+    host.expected = `${LISTEN_HOST}:${listenPort}`;
+    const redirectUri = `http://${host.expected}/callback`;
     const verifier = newVerifier();
     const state = newState();
     this.pending = { verifier, state, startedAt: this.now(), redirectUri };
@@ -197,7 +201,12 @@ export class SpotifyAuth {
     }
   }
 
-  private async onRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  private async onRequest(req: http.IncomingMessage, res: http.ServerResponse, expectedHost: string): Promise<void> {
+    // A DNS-rebinding page reaches this port under its own Host name. Refuse before anything else.
+    if (req.headers.host !== expectedHost) {
+      this.respond(res, 400, "This sign-in link isn't valid. Start again from Locally.");
+      return;
+    }
     let url: URL | null = null;
     try {
       url = new URL(req.url ?? "", `http://${LISTEN_HOST}`);
@@ -295,31 +304,36 @@ export class SpotifyAuth {
       throw new SpotifyApiError("http", "Spotify sent an answer Locally couldn't read.");
     }
     const me = await fetchMe(body.access_token, this.fetchFn);
-    // Disconnect or a new start() during the exchange wins: store nothing.
-    if (gen !== this.generation) throw new SpotifyAuthError("Spotify sign-in was cancelled.");
     const now = this.now();
-    const current = await this.settings.get();
-    await this.settings.set({
-      ...current,
-      spotify: {
-        accessToken: body.access_token,
-        accessTokenExpiresAt: now + body.expires_in * 1000,
-        refreshToken: body.refresh_token,
-        scopes: typeof body.scope === "string" && body.scope ? body.scope.split(/\s+/) : SPOTIFY_SCOPES.split(" "),
-        userId: me.id,
-        displayName: me.displayName,
-        connectedAt: new Date(now).toISOString(),
-      },
+    const connection: SpotifySettings = {
+      accessToken: body.access_token,
+      accessTokenExpiresAt: now + body.expires_in * 1000,
+      refreshToken: body.refresh_token,
+      revision: crypto.randomBytes(8).toString("hex"),
+      scopes: typeof body.scope === "string" && body.scope ? body.scope.split(/\s+/) : SPOTIFY_SCOPES.split(" "),
+      userId: me.id,
+      displayName: me.displayName,
+      connectedAt: new Date(now).toISOString(),
+    };
+    // The check and the write are one step: a disconnect (or a new start) that ran during the
+    // earlier awaits, or that is queued ahead of this write, wins and nothing is stored.
+    let stored = false;
+    await this.settings.update((current) => {
+      if (gen !== this.generation) return null;
+      stored = true;
+      return { ...current, spotify: connection };
     });
+    if (!stored) throw new SpotifyAuthError("Spotify sign-in was cancelled.");
   }
 
   /** Disconnect: stop any pending sign-in and delete the stored tokens. */
   async disconnect(): Promise<void> {
     this.cancel();
-    const current = await this.settings.get();
-    if (!current.spotify) return;
-    const { spotify: _removed, ...rest } = current;
-    void _removed;
-    await this.settings.set(rest);
+    await this.settings.update((current) => {
+      if (!current.spotify) return null;
+      const { spotify: _removed, ...rest } = current;
+      void _removed;
+      return rest;
+    });
   }
 }

@@ -24,6 +24,11 @@ class FakeSettingsStore {
     settingsValue = next;
     return next;
   }
+  async update(mutator: (current: Settings) => Settings | null): Promise<Settings> {
+    const next = mutator(settingsValue);
+    if (next) settingsValue = next;
+    return settingsValue;
+  }
 }
 
 /** In-memory `SyncStateStore` fake, following `tests/unit/SyncEngine.test.ts`. */
@@ -215,7 +220,7 @@ describe("PUT /api/settings", () => {
       libraryDir: "/tmp/lib",
       sync: { baseUrl: "http://localhost:4000", deviceToken: "secret-token", email: "a@b.com", lastVersion: 3 },
     };
-    const saved = vi.spyOn(services.settings, "set");
+    const saved = vi.spyOn(services.settings, "update");
     const reset = vi.spyOn(playStore, "resetPushed");
 
     const res = await PUT(putRequest({ sync: { baseUrl: "https://sync.example.com" } }));
