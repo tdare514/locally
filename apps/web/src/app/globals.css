@@ -597,6 +597,26 @@ body {
     transform: translate(8px, -8px) scale(0.94);
   }
 }
+/* The playlists popover under a track (#212): opacity and scale only, 160ms, nothing under reduced
+   motion. The open row rises above the rows after it so the list isn't painted over. */
+.track-row:has(.playlist-pop) {
+  z-index: 20;
+}
+.playlist-pop {
+  transform-origin: top left;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .playlist-pop {
+    animation: playlist-pop-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+@keyframes playlist-pop-in {
+  from {
+    opacity: 0;
+    scale: 0.96;
+  }
+}
+
 .phone-tray-row {
   display: grid;
   grid-template-rows: 1fr;

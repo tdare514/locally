@@ -36,6 +36,7 @@ beforeEach(() => {
   services = {
     settings,
     spotifyAuth: auth,
+    playlistIndex: { clear: async () => undefined },
     spotifyClient: new SpotifyClient({ settings, clientId, fetch: spotify.fn }),
   } as unknown as Services;
 });

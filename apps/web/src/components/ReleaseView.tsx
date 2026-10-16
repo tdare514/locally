@@ -8,6 +8,8 @@ import {
   deleteRelease,
   getRelease,
   getReleasePlays,
+  getSpotifyPlaylists,
+  openSpotifyPlaylist,
   replaceCover,
   reveal,
   updateRelease,
@@ -170,6 +172,8 @@ export default function ReleaseView({
   const [spin, setSpin] = useState(0);
   // Each track's total plays across devices, by track id (#107). Empty until the one fetch lands.
   const [plays, setPlays] = useState<Record<string, number>>({});
+  // The Spotify playlists each track is in, by track id (#212). Empty until connected and read.
+  const [playlists, setPlaylists] = useState<Record<string, { id: string; name: string }[]>>({});
   const copiedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const artworkUrl = release?.coverPath ? coverUrl(release.id, release.updatedAt) : null;
@@ -234,6 +238,37 @@ export default function ReleaseView({
       cancelled = true;
     };
   }, [releaseId]);
+
+  useEffect(() => {
+    // The first read can come back empty while the server fills its cache in the background
+    // (`refreshing`), so look again a few times, then stop. A failure leaves the lines off.
+    if (IS_DEMO) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const look = (attempt: number) => {
+      getSpotifyPlaylists(releaseId)
+        .then((res) => {
+          if (cancelled || !res) return;
+          setPlaylists(res.connected ? res.tracks : {});
+          if (res.connected && res.refreshing && attempt < 12) timer = setTimeout(() => look(attempt + 1), 2500);
+        })
+        .catch(() => undefined);
+    };
+    look(0);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [releaseId]);
+
+  const handleOpenPlaylist = useCallback(
+    (id: string) => {
+      openSpotifyPlaylist(id).catch((e) =>
+        onToast("error", e instanceof Error ? e.message : "Couldn't open the playlist")
+      );
+    },
+    [onToast]
+  );
 
   const hasRelease = release !== null;
   useEffect(() => {
@@ -465,7 +500,14 @@ export default function ReleaseView({
         </div>
         <div className="flex flex-col gap-3 lg:col-start-1 lg:row-start-2">
           <h2 className="text-lg font-bold tracking-[-0.03em] text-text">Tracks</h2>
-          <TrackList tracks={tracks} onChange={handleTracksChange} readOnly={IS_DEMO} plays={plays} />
+          <TrackList
+            tracks={tracks}
+            onChange={handleTracksChange}
+            readOnly={IS_DEMO}
+            plays={plays}
+            playlists={playlists}
+            onOpenPlaylist={handleOpenPlaylist}
+          />
           {tracks.some((t) => (plays[t.key] ?? 0) > 0) && (
             <p className="text-xs text-text-muted">{PLAYS_ACROSS_DEVICES}</p>
           )}

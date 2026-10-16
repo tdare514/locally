@@ -25,6 +25,8 @@ import type { ReleaseSyncHooks } from "./releases/ReleaseSyncHooks";
 import { SpotifyAuth } from "./spotify/SpotifyAuth";
 import { SpotifyClient } from "./spotify/SpotifyClient";
 import { SPOTIFY_CLIENT_ID } from "./spotify/config";
+import { PlaylistIndex } from "./spotify/PlaylistIndex";
+import { FilePlaylistCacheStore } from "./spotify/PlaylistCacheStore";
 import { isDemo } from "./demo";
 
 export interface Services {
@@ -42,6 +44,7 @@ export interface Services {
   spotify: SpotifySourceDetector;
   spotifyAuth: SpotifyAuth;
   spotifyClient: SpotifyClient;
+  playlistIndex: PlaylistIndex;
   playStore: PlayCountStore;
   playTracker: PlayTracker;
 }
@@ -89,6 +92,8 @@ function buildServices(): Services {
     .then((s) => playTracker.setEnabled(s.trackPlays === true))
     .catch(() => undefined);
 
+  const spotifyClient = new SpotifyClient({ settings, clientId: SPOTIFY_CLIENT_ID });
+
   return {
     settings,
     library,
@@ -103,7 +108,8 @@ function buildServices(): Services {
     syncEngine,
     spotify: new LocalFilesIndexDetector(),
     spotifyAuth: new SpotifyAuth({ settings, clientId: SPOTIFY_CLIENT_ID }),
-    spotifyClient: new SpotifyClient({ settings, clientId: SPOTIFY_CLIENT_ID }),
+    spotifyClient,
+    playlistIndex: new PlaylistIndex({ client: spotifyClient, store: new FilePlaylistCacheStore(), settings, library }),
     playStore,
     playTracker,
   };

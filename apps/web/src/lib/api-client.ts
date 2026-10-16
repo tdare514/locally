@@ -13,6 +13,7 @@ import type {
   SpotifySourceStatus,
   PlaysStatusResponse,
   SpotifyConnectionStatus,
+  SpotifyPlaylistsResponse,
   PlaysSummaryResponse,
   ReleasePlaysResponse,
 } from "../shared/types";
@@ -238,6 +239,23 @@ export async function getSpotifyConnection(): Promise<SpotifyConnectionStatus | 
   const res = await fetch("/api/spotify/connection");
   if (res.status === 404) return null;
   return handle<SpotifyConnectionStatus>(res);
+}
+
+/** The playlists each track of a release is in, or null when this build has no Spotify connection (404). */
+export async function getSpotifyPlaylists(releaseId: string): Promise<SpotifyPlaylistsResponse | null> {
+  const res = await fetch(`/api/spotify/playlists?releaseId=${encodeURIComponent(releaseId)}`);
+  if (res.status === 404) return null;
+  return handle<SpotifyPlaylistsResponse>(res);
+}
+
+/** Open one of the user's playlists in the Spotify app. */
+export async function openSpotifyPlaylist(id: string): Promise<{ ok: true }> {
+  const res = await fetch("/api/spotify/open-playlist", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  return handle<{ ok: true }>(res);
 }
 
 export async function startSpotifyAuth(): Promise<{ authorizeUrl: string }> {

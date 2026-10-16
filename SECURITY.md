@@ -147,6 +147,14 @@ The Mac app can connect to the user's Spotify account (#239, `apps/web/src/serve
 - **Off switch:** with no client id or `HAS_SPOTIFY_CONNECTION` off, the `/api/spotify/connection`
   and `/api/spotify/auth` routes answer 404. In the demo build a GET answers 404 too, and a POST or
   DELETE is refused with 403 by `proxy.ts` before the route runs.
+- **Playlist names (#212):** the names of the user's playlists and the `spotify:local:` ids of their
+  local files are cached in `spotify-playlists.json` in the config dir (mode 0600, written by tmp
+  and rename), tied to the connection's `revision`. The cache is deleted on Disconnect and dropped
+  when the connection changes. It is never synced, never sent to the sync API, and
+  `GET /api/spotify/playlists` returns names and ids only, no token. `POST /api/spotify/open-playlist`
+  accepts only an `id` matching `^[A-Za-z0-9]{22}$` and runs `open` with the single argument
+  `spotify:playlist:<id>` (an argument array, macOS only); it is a mutating POST, so the Origin
+  check in `proxy.ts` applies, and both routes answer 404 in the demo.
 - **Host check:** the callback listener answers 400 to any request whose `Host` is not exactly
   `127.0.0.1:8888`, so a rebinding page can't reach it, and the request doesn't touch the pending sign-in.
 - **Settings writes:** every settings writer goes through `SettingsStore.update`, one at a time per

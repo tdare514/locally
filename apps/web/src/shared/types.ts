@@ -69,6 +69,14 @@ export interface SpotifySettings {
   connectedAt: string;  // ISO timestamp
 }
 
+/** Response shape for GET /api/spotify/playlists?releaseId=: the playlists each track is in (#212). */
+export interface SpotifyPlaylistsResponse {
+  connected: boolean;
+  tracks: Record<string, { id: string; name: string }[]>;
+  /** A background refresh is running; the answer is from the cache. */
+  refreshing?: boolean;
+}
+
 /** Response shape for GET/DELETE /api/spotify/connection: no tokens. */
 export interface SpotifyConnectionStatus {
   available: boolean;
