@@ -75,7 +75,7 @@ export default function StatsView({
   onOpenSettings: () => void;
 }) {
   const { tab, period, layout, sort } = prefs;
-  const { state, countingSince, today, firstDay } = usePlayStats(period, releases, true, Infinity);
+  const { state, countingSince, allDevices, today, firstDay } = usePlayStats(period, releases, true, Infinity);
   const counting = usePlayCounting();
 
   const stats = state.status === "ready" ? state.stats : null;
@@ -144,6 +144,7 @@ export default function StatsView({
         status={state.status}
         counting={counting}
         countingSince={countingSince}
+        allDevices={allDevices}
         today={today}
         onOpenSettings={onOpenSettings}
       />
@@ -244,12 +245,14 @@ function Coverage({
   status,
   counting,
   countingSince,
+  allDevices,
   today,
   onOpenSettings,
 }: {
   status: "loading" | "empty" | "quiet" | "error" | "ready";
   counting: boolean | null;
   countingSince: string | null;
+  allDevices: boolean;
   today: string;
   onOpenSettings: () => void;
 }) {
@@ -276,7 +279,7 @@ function Coverage({
   if (status === "loading" || status === "error" || IS_DEMO || counting === null) return null;
   return (
     <p className="mt-2 text-[13px] text-text-muted">
-      {countingLine(counting, countingSince, today)}
+      {countingLine(counting, countingSince, today, allDevices)}
       {counting ? "" : <> Turn it on in {settingsLink}.</>}
     </p>
   );

@@ -125,10 +125,12 @@ export function lastPlayedLabel(day: string | null, today: string): string {
   return shortDay(day, today);
 }
 
-/** What the page counts, said quietly. Plays on other devices are not in these numbers yet (#202),
- * so it says "on this Mac". `countingSince` is the summary's earliest day. */
-export function countingLine(counting: boolean, countingSince: string | null, today: string): string {
-  if (!counting) return "Play counting is off.";
+/** What the page counts, said quietly. When the sync service's plays are merged in (#202) the
+ * numbers are one total across devices, so no "since" date: `countingSince` is only this Mac's
+ * earliest day. Otherwise it says "on this Mac" and since when. */
+export function countingLine(counting: boolean, countingSince: string | null, today: string, allDevices = false): string {
+  if (!counting) return allDevices ? "Play counting is off on this Mac." : "Play counting is off.";
+  if (allDevices) return "Collected across all your devices.";
   if (!countingSince) return "Counting plays on this Mac.";
   return `Counted on this Mac since ${shortDay(countingSince, today)}.`;
 }
