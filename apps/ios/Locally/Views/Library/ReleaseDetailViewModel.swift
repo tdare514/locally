@@ -6,7 +6,7 @@ enum ReleaseChange: Equatable, Identifiable {
     case cover(old: Data?, new: Data?)
     case trackRenamed(id: UUID, old: String, new: String)
     case trackOrder
-    /// The disc layout, as `DiscNumbering.boundaries` words it (#222).
+    /// The disc layout, as `Copy.Release.discLayout` words it (#222).
     case discs(old: String, new: String)
 
     var id: String {
@@ -151,10 +151,13 @@ final class ReleaseDetailViewModel {
         if trackRows.map(\.id) != originalTrackRows.map(\.id) {
             result.append(.trackOrder)
         }
-        let oldDiscs = Copy.Release.discLayout(DiscNumbering.boundaries(for: originalTrackRows.map(\.discNumber)))
-        let newDiscs = Copy.Release.discLayout(DiscNumbering.boundaries(for: trackRows.map(\.discNumber)))
-        if oldDiscs != newDiscs {
-            result.append(.discs(old: oldDiscs, new: newDiscs))
+        // Compared as numbers, not as words: two different layouts must never look unchanged.
+        let originalDiscs = Dictionary(originalTrackRows.map { ($0.id, $0.discNumber) }, uniquingKeysWith: { first, _ in first })
+        if trackRows.contains(where: { originalDiscs[$0.id] != $0.discNumber }) {
+            result.append(.discs(
+                old: Copy.Release.discLayout(originalTrackRows.map(\.discNumber)),
+                new: Copy.Release.discLayout(trackRows.map(\.discNumber))
+            ))
         }
         return result
     }

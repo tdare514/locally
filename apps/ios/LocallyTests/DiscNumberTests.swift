@@ -792,12 +792,38 @@ struct DiscAlbumBuilderTests {
         return ReleaseDetailViewModel(release: release, coordinator: coordinator, coverStore: FakeCoverStore())
     }
 
-    @Test func theDiscLayoutIsWordedForNoneOneAndTwoBoundaries() {
-        func words(_ discs: [Int?]) -> String { Copy.Release.discLayout(DiscNumbering.boundaries(for: discs)) }
-        #expect(words([nil, nil, nil]) == "No discs")
-        #expect(words([1, 1, 1]) == "No discs")
-        #expect(words([1, 1, 1, 2, 2]) == "Disc 2 starts at track 4")
-        #expect(words([1, 1, 1, 2, 2, 2, 2, 2, 3]) == "Disc 2 starts at track 4, disc 3 at track 9")
+    @Test func theDiscLayoutIsWordedForNoneOneAndSeveralRanges() {
+        let none = detailModel(discs: [nil, nil, nil, nil, nil, nil, nil, nil, nil])
+        none.beginEditing()
+        none.startDisc(at: 3)
+        #expect(none.changes == [.discs(old: "No discs", new: "Disc 1 from track 1, disc 2 from track 4")])
+        none.startDisc(at: 8)
+        #expect(none.changes == [.discs(old: "No discs", new: "Disc 1 from track 1, disc 2 from track 4, disc 3 from track 9")])
+
+        let one = detailModel(discs: [2, 2, 2])
+        one.beginEditing()
+        one.startDisc(at: 1)
+        #expect(one.changes == [.discs(old: "All tracks on disc 2", new: "Disc 2 from track 1, disc 3 from track 2")])
+    }
+
+    @Test func splittingThenJoiningImportedDiscOneShowsAllTracksOnDiscOneBecomingNoDiscs() {
+        let model = detailModel(discs: [1, 1, 1])
+        model.beginEditing()
+        #expect(model.changes.isEmpty)
+
+        model.startDisc(at: 1)
+        model.joinPreviousDisc(at: 1)
+        #expect(model.trackRows.map(\.discNumber) == [nil, nil, nil])
+        #expect(model.canSave)
+        #expect(model.changes == [.discs(old: "All tracks on disc 1", new: "No discs")])
+    }
+
+    @Test func joiningDiscsTwoAndThreeShowsTheTwoRangesBecomingAllTracksOnDiscTwo() {
+        let model = detailModel(discs: [2, 2, 3, 3])
+        model.beginEditing()
+        model.joinPreviousDisc(at: 2)
+        #expect(model.trackRows.map(\.discNumber) == [2, 2, 2, 2])
+        #expect(model.changes == [.discs(old: "Disc 2 from track 1, disc 3 from track 3", new: "All tracks on disc 2")])
     }
 
     @Test func aDiscOnlyEditShowsADiscChangeOnTheReviewSheet() {
@@ -807,7 +833,7 @@ struct DiscAlbumBuilderTests {
 
         model.startDisc(at: 3)
         #expect(model.hasChanges)
-        #expect(model.changes == [.discs(old: "No discs", new: "Disc 2 starts at track 4")])
+        #expect(model.changes == [.discs(old: "No discs", new: "Disc 1 from track 1, disc 2 from track 4")])
 
         model.joinPreviousDisc(at: 3)
         #expect(!model.hasChanges)
@@ -816,7 +842,7 @@ struct DiscAlbumBuilderTests {
         let two = detailModel(discs: [1, 1, 2, 2])
         two.beginEditing()
         two.joinPreviousDisc(at: 2)
-        #expect(two.changes == [.discs(old: "Disc 2 starts at track 3", new: "No discs")])
+        #expect(two.changes == [.discs(old: "Disc 1 from track 1, disc 2 from track 3", new: "No discs")])
     }
 
     // MARK: A join clears the stored discs and the tags (#222)

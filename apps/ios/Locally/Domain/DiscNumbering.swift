@@ -127,10 +127,11 @@ enum DiscNumbering {
         return renumber(discs, starts: starts.filter { $0 != index })
     }
 
-    /// Where each disc after the first begins: its disc number and the 1-based track it starts at. Empty
-    /// for a release with one disc or none. The review sheet words the layout from this (#222).
-    static func boundaries(for discs: [Int?]) -> [(disc: Int, track: Int)] {
-        rangeStarts(discs).dropFirst().map { (disc: discs[$0] ?? 1, track: $0 + 1) }
+    /// Every disc range in order: its disc number and the 1-based track it starts at, the first range
+    /// included. Empty when no row has a disc. The review sheet words the layout from this (#222).
+    static func ranges(for discs: [Int?]) -> [(disc: Int, track: Int)] {
+        guard discs.contains(where: { $0 != nil }) else { return [] }
+        return rangeStarts(discs).map { (disc: discs[$0] ?? 1, track: $0 + 1) }
     }
 
     /// What the disc menu offers on a row, as the disc numbers its labels show.
