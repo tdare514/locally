@@ -2074,7 +2074,10 @@ body {
   --fan-depth: 0.06;
   --fan-shade-base: 0.06;
   --fan-shade: 0.1;
-  height: calc(var(--w) * 2.25);
+  /* Room above the resting sleeves for a hover or focus lift only (the lifted sleeve, its popped size and its
+     record's peek, about 1.96 sleeves, plus 12px). The brief opening beat (record -55%) rises past the top of this box
+     into the space above; nothing clips it. */
+  height: calc(var(--w) * 1.96 + 12px);
 }
 .fan-list {
   margin: 0;

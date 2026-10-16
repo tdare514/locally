@@ -173,7 +173,7 @@ export default function StatsView({
       {stats && items.length > 0 && (
         <>
           {/* Keyed so each tab or period change fans the sleeves out once, in answer to the click. */}
-          <div className="st-fan-stage mt-6" key={`fan-${tab}-${period.kind}-${period.back}`}>
+          <div className="st-fan-stage mt-3" key={`fan-${tab}-${period.kind}-${period.back}`}>
             <SleeveFan
               items={items.slice(0, FAN_MAX)}
               size="page"
