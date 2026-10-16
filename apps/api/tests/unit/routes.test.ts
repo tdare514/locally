@@ -69,6 +69,20 @@ describe("routes (through the exported handler functions, no server)", () => {
     expect(res.status).toBe(401);
   });
 
+  it("POST /v1/auth/verify rejects a malformed installId with a safe 400", async () => {
+    const res = await authVerifyRoute.POST(
+      jsonRequest("http://localhost/v1/auth/verify", "POST", {
+        email: "bad-install@example.com",
+        code: "123456",
+        deviceName: "Mac",
+        platform: "mac",
+        installId: "not-a-uuid",
+      })
+    );
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(await res.json())).toContain("installId must be a UUID");
+  });
+
   it("signs in and calls GET /v1/me", async () => {
     const { token, deviceId } = await signIn("me-route@example.com");
 

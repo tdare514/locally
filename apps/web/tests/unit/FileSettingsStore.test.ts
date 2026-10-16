@@ -135,4 +135,24 @@ describe("FileSettingsStore", () => {
 
     warn.mockRestore();
   });
+
+  it("keeps the install ID across reads and updates, and the file stays mode 0600 (#210)", async () => {
+    const store = new FileSettingsStore();
+    const libraryDir = path.join(configDir, "lib");
+    const installId = "44444444-4444-4444-8444-444444444444";
+    await store.set({ libraryDir, sync: null, installId });
+
+    expect((await store.get()).installId).toBe(installId);
+    await store.update((current) => ({ ...current, trackPlays: true }));
+    expect((await store.get()).installId).toBe(installId);
+
+    expect(permBits((await fs.stat(settingsFilePath())).mode)).toBe("600");
+    expect(permBits((await fs.stat(settingsDir())).mode)).toBe("700");
+  });
+
+  it("drops an install ID that is not a UUID", async () => {
+    await fs.mkdir(configDir, { recursive: true });
+    await fs.writeFile(settingsFilePath(), JSON.stringify({ libraryDir: path.join(configDir, "lib"), sync: null, installId: "nope" }));
+    expect((await new FileSettingsStore().get()).installId).toBeUndefined();
+  });
 });

@@ -37,9 +37,12 @@ export const devices = sqliteTable("devices", {
   createdAt: integer("created_at").notNull(),
   lastSeenAt: integer("last_seen_at").notNull(),
   revokedAt: integer("revoked_at"),
+  /** A Mac's stable install ID (#210); null for phones and for rows made before it. */
+  installId: text("install_id"),
 }, (table) => ({
   tokenHashIdx: uniqueIndex("devices_token_hash_idx").on(table.tokenHash),
   userIdx: index("devices_user_idx").on(table.userId),
+  userInstallIdx: index("devices_user_install_idx").on(table.userId, table.installId),
 }));
 
 /** Per-user monotonic version counter, bumped once per release write (create, update, or tombstone). */
@@ -72,10 +75,13 @@ export const files = sqliteTable("files", {
   contentType: text("content_type").notNull(),
   storageKey: text("storage_key").notNull(),
   createdAt: integer("created_at").notNull(),
+  /** Set (ms) once the daily cleanup has seen the object in storage (#89); null until then. */
+  verifiedAt: integer("verified_at"),
 }, (table) => ({
   storageKeyIdx: uniqueIndex("files_storage_key_idx").on(table.storageKey),
   releaseNameIdx: uniqueIndex("files_release_name_idx").on(table.releaseId, table.name),
   userIdx: index("files_user_idx").on(table.userId),
+  unverifiedIdx: index("files_unverified_idx").on(table.verifiedAt, table.createdAt).where(sql`${table.verifiedAt} IS NULL`),
 }));
 
 /**

@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
-import { beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDb, migrateDb, type Db } from "../../src/db/client";
 import { authCodes, files, pendingDeletes, playCounts, playDays, rateLimits, releases, userCounters, users } from "../../src/db/schema";
 import { CleanupService } from "../../src/server/cleanup/CleanupService";
@@ -21,14 +22,22 @@ class RecordingFileStore implements FileStore {
       throw new Error(`simulated failure deleting ${key}`);
     }
     this.deleted.push(key);
+    this.stored.delete(key);
   }
   async deleteMany(keys: string[]): Promise<void> {
     for (const key of keys) {
       await this.delete(key);
     }
   }
-  listKeys(): AsyncIterable<string> {
-    throw new Error("not used in this test");
+  /** Keys `listKeys` reports as stored. */
+  public stored = new Set<string>();
+  /** The prefix of every `listKeys` call, in order. */
+  public listed: string[] = [];
+  async *listKeys(prefix: string): AsyncGenerator<string> {
+    this.listed.push(prefix);
+    for (const key of [...this.stored]) {
+      if (key.startsWith(prefix)) yield key;
+    }
   }
 }
 
@@ -396,6 +405,196 @@ describe("CleanupService", () => {
       expect(fileStore.deleted.sort()).toEqual([keyA1, keyA2].sort());
       const remaining = await db.select().from(pendingDeletes);
       expect(remaining.map((r) => r.storageKey)).toEqual([keyB1]);
+    });
+  });
+
+  describe("unfinished uploads and orphan objects (#89)", () => {
+    const releaseId = crypto.randomUUID();
+    const prefix = `users/${userId}/releases/`;
+    /** One release per owner: (release, name) is unique in `files`. */
+    const releaseOf = (owner: string) => (owner === userId ? releaseId : `release-of-${owner}`);
+    const keyFor = (name: string, owner: string = userId) => `users/${owner}/releases/${releaseOf(owner)}/${name}`;
+
+    async function insertFile(
+      name: string,
+      createdAt: number,
+      opts: { owner?: string; bytes?: number; verifiedAt?: number | null } = {}
+    ): Promise<string> {
+      const owner = opts.owner ?? userId;
+      const id = crypto.randomUUID();
+      await db.insert(files).values({
+        id,
+        releaseId: releaseOf(owner),
+        userId: owner,
+        name,
+        bytes: opts.bytes ?? 100,
+        contentType: "audio/mpeg",
+        storageKey: keyFor(name, owner),
+        createdAt,
+        verifiedAt: opts.verifiedAt ?? null,
+      });
+      return id;
+    }
+
+    async function rowNames(owner = userId): Promise<string[]> {
+      const rows = await db.select({ name: files.name }).from(files).where(eq(files.userId, owner));
+      return rows.map((r) => r.name).sort();
+    }
+
+    const run = () => new CleanupService(db, fileStore, () => clock).run();
+
+    it("marks an old row whose object is stored as verified, and never deletes it later", async () => {
+      const id = await insertFile("a.mp3", clock - 2 * DAY_MS);
+      fileStore.stored.add(keyFor("a.mp3"));
+
+      const first = await run();
+      expect(first.verifiedFiles).toBe(1);
+      const [row] = await db.select().from(files).where(eq(files.id, id));
+      expect(row!.verifiedAt).toBe(clock);
+
+      // The object vanishes later; a verified row is not looked at again.
+      fileStore.stored.clear();
+      clock += 10 * DAY_MS;
+      const second = await run();
+      expect(second.abandonedFiles).toBe(0);
+      expect(await rowNames()).toEqual(["a.mp3"]);
+    });
+
+    it("deletes an old row with no object when the listing is complete, and frees its bytes", async () => {
+      await insertFile("gone.mp3", clock - 2 * DAY_MS, { bytes: 700 });
+      await insertFile("kept.mp3", clock - 2 * DAY_MS, { bytes: 300 });
+      fileStore.stored.add(keyFor("kept.mp3"));
+
+      const result = await run();
+
+      expect(result.abandonedFiles).toBe(1);
+      expect(await rowNames()).toEqual(["kept.mp3"]);
+      expect(result.totalStoredBytes).toBe(300);
+    });
+
+    it("keeps an old row with no object when the listing was capped", async () => {
+      await insertFile("a.mp3", clock - 2 * DAY_MS);
+      for (let i = 0; i < 50_000; i++) fileStore.stored.add(`${prefix}other/${i}.mp3`);
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const result = await run();
+
+      expect(result.abandonedFiles).toBe(0);
+      expect(result.orphanObjects).toBe(0);
+      expect(fileStore.deleted).toEqual([]);
+      expect(await rowNames()).toEqual(["a.mp3"]);
+      expect(warn.mock.calls.some(([line]) => String(line).includes("verify_uploads_truncated"))).toBe(true);
+      warn.mockRestore();
+    });
+
+    it("leaves a row younger than 24 hours untouched", async () => {
+      const id = await insertFile("new.mp3", clock - 23 * 60 * 60 * 1000);
+
+      const result = await run();
+
+      expect(result.verifiedFiles + result.abandonedFiles).toBe(0);
+      expect(fileStore.listed).toEqual([]);
+      const [row] = await db.select().from(files).where(eq(files.id, id));
+      expect(row!.verifiedAt).toBeNull();
+    });
+
+    it("deletes an orphan object but not one with a row, one of a tombstoned release, or one queued for delete", async () => {
+      await insertFile("old.mp3", clock - 2 * DAY_MS);
+      await insertFile("tombstoned.mp3", clock - 2 * DAY_MS, { verifiedAt: clock - DAY_MS });
+      fileStore.stored.add(keyFor("old.mp3"));
+      fileStore.stored.add(keyFor("tombstoned.mp3"));
+      fileStore.stored.add(keyFor("orphan.mp3"));
+      fileStore.stored.add(keyFor("queued.mp3"));
+      // A failing drain leaves the key queued while its object is still listed: the sweep must skip it.
+      fileStore.failing.add(keyFor("queued.mp3"));
+      await db.insert(pendingDeletes).values({ storageKey: keyFor("queued.mp3"), enqueuedAt: clock, attempts: 0 });
+
+      const result = await run();
+
+      expect(result.orphanObjects).toBe(1);
+      expect(fileStore.deleted).toEqual([keyFor("orphan.mp3")]);
+    });
+
+    it("never sweeps with a prefix other than the user's own", async () => {
+      await insertFile("old.mp3", clock - 2 * DAY_MS);
+      fileStore.stored.add(keyFor("old.mp3"));
+      await run();
+      expect(fileStore.listed).toEqual([prefix]);
+    });
+
+    it("lists at most 50 users a run, oldest first, and the next run continues", async () => {
+      const owners: string[] = [];
+      for (let i = 0; i < 52; i++) {
+        const owner = crypto.randomUUID();
+        owners.push(owner);
+        await db.insert(users).values({ id: owner, email: `u${i}@example.com`, createdAt: clock });
+        // Older users first; none has its object, so a visited user's row is deleted.
+        await insertFile("a.mp3", clock - 3 * DAY_MS + i, { owner });
+      }
+
+      const first = await run();
+      expect(first.abandonedFiles).toBe(50);
+      expect(fileStore.listed).toHaveLength(50);
+      expect(new Set(fileStore.listed)).not.toContain(`users/${owners[50]}/releases/`);
+
+      const second = await run();
+      expect(second.abandonedFiles).toBe(2);
+      expect(fileStore.listed).toHaveLength(52);
+    });
+
+    it("deletes at most 1,000 orphans per user a run, and the next run continues", async () => {
+      await insertFile("old.mp3", clock - 2 * DAY_MS);
+      fileStore.stored.add(keyFor("old.mp3"));
+      for (let i = 0; i < 1500; i++) fileStore.stored.add(keyFor(`orphan-${i}.mp3`));
+
+      const first = await run();
+      expect(first.orphanObjects).toBe(1000);
+
+      // The row verified in run one, so the user is not listed again: no further sweep (by design).
+      await insertFile("second.mp3", clock - 2 * DAY_MS);
+      fileStore.stored.add(keyFor("second.mp3"));
+      const second = await run();
+      expect(second.orphanObjects).toBe(500);
+      expect(fileStore.stored.has(keyFor("old.mp3"))).toBe(true);
+      expect(fileStore.stored.has(keyFor("second.mp3"))).toBe(true);
+    });
+
+    it("is idempotent: a second run on the same state changes nothing", async () => {
+      await insertFile("ok.mp3", clock - 2 * DAY_MS);
+      await insertFile("gone.mp3", clock - 2 * DAY_MS);
+      fileStore.stored.add(keyFor("ok.mp3"));
+      fileStore.stored.add(keyFor("orphan.mp3"));
+
+      const first = await run();
+      expect([first.verifiedFiles, first.abandonedFiles, first.orphanObjects]).toEqual([1, 1, 1]);
+      const before = { rows: await db.select().from(files), deleted: [...fileStore.deleted] };
+
+      const second = await run();
+      expect([second.verifiedFiles, second.abandonedFiles, second.orphanObjects]).toEqual([0, 0, 0]);
+      expect(await db.select().from(files)).toEqual(before.rows);
+      expect(fileStore.deleted).toEqual(before.deleted);
+    });
+
+    it("keeps users apart: each user's orphan is deleted, the other's objects and rows are not", async () => {
+      const bob = crypto.randomUUID();
+      await db.insert(users).values({ id: bob, email: "bob@example.com", createdAt: clock });
+      await insertFile("a.mp3", clock - 2 * DAY_MS);
+      await insertFile("b.mp3", clock - 2 * DAY_MS, { owner: bob });
+      for (const [owner, name] of [
+        [userId, "a.mp3"],
+        [userId, "orphan-a.mp3"],
+        [bob, "b.mp3"],
+        [bob, "orphan-b.mp3"],
+      ] as const) {
+        fileStore.stored.add(keyFor(name, owner));
+      }
+
+      const result = await run();
+
+      expect(result.orphanObjects).toBe(2);
+      expect(fileStore.deleted.sort()).toEqual([keyFor("orphan-a.mp3"), keyFor("orphan-b.mp3", bob)].sort());
+      expect(await rowNames()).toEqual(["a.mp3"]);
+      expect(await rowNames(bob)).toEqual(["b.mp3"]);
     });
   });
 });

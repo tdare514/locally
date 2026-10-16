@@ -87,13 +87,23 @@ struct ReleaseLayout {
     /// correctly reports `false` even though the raw string starts with
     /// the folder's path. The folder itself is not "inside" itself: this
     /// exists to gate deletes/rewrites of *tracks*, and a track path should
-    /// never equal the folder that contains it.
+    /// never equal the folder that contains it. Foundation drops a leading
+    /// `/private` only for paths that exist, so a not-yet-created file inside
+    /// an existing folder was compared against a different spelling of the
+    /// folder on a real device; both sides are normalised the same way.
     func isInside(folder: URL, path: String) -> Bool {
-        let folderPath = folder.standardizedFileURL.path
-        let targetPath = URL(fileURLWithPath: path).standardizedFileURL.path
+        let folderPath = Self.withoutPrivatePrefix(folder.standardizedFileURL.path)
+        let targetPath = Self.withoutPrivatePrefix(URL(fileURLWithPath: path).standardizedFileURL.path)
         guard targetPath != folderPath else { return false }
         let prefix = folderPath.hasSuffix("/") ? folderPath : folderPath + "/"
         return targetPath.hasPrefix(prefix)
+    }
+
+    /// `/private/var/x` becomes `/var/x`; `/privatefoo` is untouched.
+    private static func withoutPrivatePrefix(_ path: String) -> String {
+        let prefix = "/private"
+        guard path.hasPrefix(prefix + "/") else { return path }
+        return String(path.dropFirst(prefix.count))
     }
 
     /// Longest name `isPlainFileName` accepts: the filename limit on every common filesystem.

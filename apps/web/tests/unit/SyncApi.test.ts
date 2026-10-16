@@ -248,6 +248,27 @@ describe("HttpSyncApi request shape", () => {
   });
 });
 
+describe("HttpSyncApi.verifyCode install ID (#210)", () => {
+  it("sends installId in the verify body when given, and leaves it out when not", async () => {
+    const result = { token: "t", user: { id: "u", email: "a@b.com" }, device: { id: "d", name: "Mac" } };
+    const api = new HttpSyncApi("http://localhost:4000", null);
+
+    mockNextResponse(jsonResponse(result));
+    await api.verifyCode("a@b.com", "123456", "Mac", "mac", "55555555-5555-4555-8555-555555555555");
+    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({
+      email: "a@b.com",
+      code: "123456",
+      deviceName: "Mac",
+      platform: "mac",
+      installId: "55555555-5555-4555-8555-555555555555",
+    });
+
+    mockNextResponse(jsonResponse(result));
+    await api.verifyCode("a@b.com", "123456", "Mac", "mac");
+    expect(JSON.parse(String(calls[1]!.init?.body))).not.toHaveProperty("installId");
+  });
+});
+
 describe("HttpSyncApi error mapping", () => {
   it("maps a 401 to SyncAuthError", async () => {
     mockNextResponse(new Response(JSON.stringify({ error: "expired" }), { status: 401 }));

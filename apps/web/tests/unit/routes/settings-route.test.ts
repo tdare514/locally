@@ -201,6 +201,23 @@ describe("PUT /api/settings", () => {
     expect(body.sync.signedIn).toBe(false);
   });
 
+  it("keeps the install ID across a sync host change and never returns it (#210)", async () => {
+    const installId = "33333333-3333-4333-8333-333333333333";
+    settingsValue = {
+      libraryDir: "/tmp/lib",
+      installId,
+      sync: { baseUrl: "http://localhost:4000", deviceToken: "secret-token", email: "a@b.com", lastVersion: 3 },
+    };
+
+    const put = await PUT(putRequest({ sync: { baseUrl: "https://sync.example.com" } }));
+    expect(put.status).toBe(200);
+    expect(settingsValue.installId).toBe(installId);
+    expect(JSON.stringify(await put.json())).not.toContain(installId);
+
+    const get = await GET();
+    expect(JSON.stringify(await get.json())).not.toContain(installId);
+  });
+
   it("changing sync.baseUrl to a different https host clears pre-seeded local sync state", async () => {
     settingsValue = {
       libraryDir: "/tmp/lib",

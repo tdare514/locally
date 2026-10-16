@@ -323,7 +323,7 @@ final class HttpSyncApi: SyncApi {
         }
         let decoded = try decode(Response.self, from: data)
         return try decoded.uploads.map { upload in
-            guard let url = URL(string: upload.url) else {
+            guard let url = Self.serverURL(upload.url) else {
                 throw SyncApiError.network("Malformed upload URL.")
             }
             return SyncUpload(name: upload.name, url: url, method: upload.method, headers: upload.headers)
@@ -350,6 +350,21 @@ final class HttpSyncApi: SyncApi {
         try Self.checkUploadResponse(response)
     }
 
+    /// Parses a URL the server issued. Storage leaves `[` and `]` raw in the
+    /// path, which makes `URL(string:)` re-encode the whole string, `%`
+    /// included, and the file is then fetched from the wrong path (#281).
+    /// Here only characters that aren't valid in a URL are percent-encoded;
+    /// existing `%XX` escapes stay as they are.
+    static func serverURL(_ string: String) -> URL? {
+        if let url = URL(string: string, encodingInvalidCharacters: false) {
+            return url
+        }
+        // ASCII only: `CharacterSet.alphanumerics` would let non-ASCII letters through unencoded.
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/?#@!$&'()*+,;=%")
+        guard let encoded = string.addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
+        return URL(string: encoded, encodingInvalidCharacters: false)
+    }
+
     func downloadURL(releaseId: String, fileName: String) async throws -> URL {
         // Names are plain (see `SyncEngine.downloadFile`) but can still hold
         // characters like `#`, `%` or `&` that would cut or mis-parse the path.
@@ -357,7 +372,7 @@ final class HttpSyncApi: SyncApi {
         let data = try await send(path: "/v1/releases/\(releaseId)/files/\(encodedName)", method: "GET")
         struct Response: Decodable { let url: String; let expiresAt: String }
         let decoded = try decode(Response.self, from: data)
-        guard let url = URL(string: decoded.url) else {
+        guard let url = Self.serverURL(decoded.url) else {
             throw SyncApiError.network("Malformed download URL.")
         }
         return url
