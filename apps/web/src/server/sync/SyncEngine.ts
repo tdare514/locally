@@ -16,6 +16,7 @@ import {
   RELEASE_PAGE_LIMIT,
   SyncConflictError,
   SyncRequestError,
+  type MeResult,
   type SyncApi,
   type SyncFileToUpload,
 } from "./SyncApi";
@@ -39,6 +40,9 @@ export const MAX_PULL_PAGES_PER_RECONCILE = 100;
 
 /** The files-missing check (#172) runs at most this often, and only while releases are pending. */
 export const MISSING_CHECK_SPACING_MS = 10 * 60_000;
+
+/** The Mac re-sends its own releases' missing files (#218) at most this often, unless nudged or asked. */
+export const SELF_HEAL_SPACING_MS = 6 * 60 * 60_000;
 
 /** A release whose record is this old and whose files are still missing has "never reached" the server. */
 export const NEVER_REACHED_AFTER_MS = 60 * 60_000;
@@ -109,6 +113,10 @@ export class SyncEngine implements ReleaseSyncHooks {
   private loggedPlayRejection = false;
   /** When the files-missing check is next due (#172); null is due now. In memory, so a restart simply checks again. */
   private nextMissingCheckMs: number | null = null;
+  /** "Resync Mac and phone" was pressed (#218): the next reconcile heals this Mac's releases at once. In memory. */
+  private healRequested = false;
+  /** After a failed heal attempt, no new attempt before this (a 429 must not be retried every 30 s). In memory. */
+  private nextHealAttemptMs: number | null = null;
 
   constructor(
     private readonly settings: SettingsStore,
@@ -479,34 +487,19 @@ export class SyncEngine implements ReleaseSyncHooks {
 
       await this.pullOnce(api);
 
-      // Back-fill: push any local release whose current `updatedAt` hasn't been pushed yet.
-      const state = await this.syncState.get();
-      const localReleases = await this.releases.list();
-      for (const release of localReleases) {
-        if (state.pushedUpdatedAt[release.id] !== release.updatedAt) {
-          try {
-            await this.pushOne(api, release);
-          } catch (err) {
-            // A tampered index entry must not block every other release from syncing;
-            // any other failure (network, server error, ...) still aborts the run as before,
-            // and this release is retried on the next reconcile.
-            if (err instanceof ValidationError) {
-              console.warn(`SyncEngine: skipping push of release ${release.id}: ${err.message}`);
-              continue;
-            }
-            throw err;
-          }
-        }
-      }
+      await this.backFill(api, null);
 
-      await this.checkMissingFiles(api);
-
+      let me: MeResult | null = null;
       try {
-        const me = await api.me();
+        me = await api.me();
         this.quota = me.quota;
       } catch {
         // Quota is a nice-to-have on the status card; don't fail the whole run for it.
       }
+
+      // Never throws: a failed or refused check just waits for the next eligible one.
+      const healed = await this.checkMissingFiles(api, me);
+      if (healed.length > 0) await this.backFill(api, new Set(healed));
 
       // After the releases above, so the service already holds the release each count belongs to
       // (it ignores counts for a release it doesn't have).
@@ -518,6 +511,32 @@ export class SyncEngine implements ReleaseSyncHooks {
     } finally {
       this.lastRunAt = new Date().toISOString();
       this.running = false;
+    }
+  }
+
+  /**
+   * Back-fill: pushes each local release (only those in `only`, when given) whose current
+   * `updatedAt` hasn't been pushed yet.
+   */
+  private async backFill(api: SyncApi, only: Set<string> | null): Promise<void> {
+    const state = await this.syncState.get();
+    const localReleases = await this.releases.list();
+    for (const release of localReleases) {
+      if (only && !only.has(release.id)) continue;
+      if (state.pushedUpdatedAt[release.id] !== release.updatedAt) {
+        try {
+          await this.pushOne(api, release);
+        } catch (err) {
+          // A tampered index entry must not block every other release from syncing;
+          // any other failure (network, server error, ...) still aborts the run as before,
+          // and this release is retried on the next reconcile.
+          if (err instanceof ValidationError) {
+            console.warn(`SyncEngine: skipping push of release ${release.id}: ${err.message}`);
+            continue;
+          }
+          throw err;
+        }
+      }
     }
   }
 
@@ -587,48 +606,115 @@ export class SyncEngine implements ReleaseSyncHooks {
   }
 
   /**
-   * Asks the service which pending releases have files that never landed (#172) and updates their
-   * marks: a release listed for the first time is "arriving", one listed again is "waiting", and
-   * one no longer listed drops out. Runs only while something is pending and at most every
-   * `MISSING_CHECK_SPACING_MS`, an attempt counting even when it fails so an outage or a rate limit
-   * is not hammered. Never fails the reconcile: a failed check, a 429 from the per-device limit
-   * included, leaves the marks as they were and waits for the next eligible check with no error
-   * line, and a service that answers 404 (before #170) clears them, which is today's plain tray.
+   * One files-missing call (`api.missingFiles()`) serves two jobs, and runs only when one is due.
+   *
+   * Tray (#172): marks the pending phone releases whose files never landed: one listed for the first
+   * time is "arriving", one listed again is "waiting", one no longer listed drops out. Due only while
+   * something is pending and at most every `MISSING_CHECK_SPACING_MS`, an attempt counting even when it
+   * fails. A service that answers 404 (before #170) clears the marks, which is today's plain tray.
+   *
+   * Heal (#218): the Mac's own releases the service lists as missing files get those names (and a
+   * listed cover's hash) dropped from the upload bookkeeping, so the back-fill sends them again. Due
+   * when never run, every `SELF_HEAL_SPACING_MS`, when the clock moved back, when `me.resyncRequestedAt`
+   * is newer than the last run, or after "Resync Mac and phone". A release the server holds in a newer
+   * version, or whose files are gone from disk, is left alone. A 404 waits the full spacing.
+   *
+   * Never fails the reconcile: a failed call, a 429 from the per-device limit included, leaves the
+   * state as it was, backs off for `MISSING_CHECK_SPACING_MS` and shows no error line. Returns the ids
+   * of the releases whose bookkeeping was cleared, for the caller to push again.
    */
-  private async checkMissingFiles(api: SyncApi): Promise<void> {
-    if (Object.keys((await this.syncState.get()).pendingFromPhone).length === 0) return;
-
+  private async checkMissingFiles(api: SyncApi, me: MeResult | null): Promise<string[]> {
     const nowMs = this.now().getTime();
-    // A due time further off than one spacing means the clock moved back; check rather than wait.
-    const untilDue = this.nextMissingCheckMs === null ? 0 : this.nextMissingCheckMs - nowMs;
-    if (untilDue > 0 && untilDue <= MISSING_CHECK_SPACING_MS) return;
-    this.nextMissingCheckMs = nowMs + MISSING_CHECK_SPACING_MS;
+    const before = await this.syncState.get();
+
+    let trayDue = false;
+    if (Object.keys(before.pendingFromPhone).length > 0) {
+      // A due time further off than one spacing means the clock moved back; check rather than wait.
+      const untilDue = this.nextMissingCheckMs === null ? 0 : this.nextMissingCheckMs - nowMs;
+      trayDue = !(untilDue > 0 && untilDue <= MISSING_CHECK_SPACING_MS);
+    }
+
+    const lastMs = before.lastMissingFilesCheckAt ? Date.parse(before.lastMissingFilesCheckAt) : NaN;
+    const nudgeMs = me?.resyncRequestedAt ? Date.parse(me.resyncRequestedAt) : NaN;
+    // The stored time can run ahead of this clock by the service's skew (it is the later of the two), so
+    // only a stored time more than one check spacing in the future means the clock moved back.
+    const spacingDue =
+      Number.isNaN(lastMs) || nowMs - lastMs >= SELF_HEAL_SPACING_MS || lastMs - nowMs > MISSING_CHECK_SPACING_MS;
+    const nudged = !Number.isNaN(nudgeMs) && !Number.isNaN(lastMs) && nudgeMs > lastMs;
+    // A backoff further off than one spacing means the clock moved back; try rather than wait.
+    const backoff = this.nextHealAttemptMs === null ? 0 : this.nextHealAttemptMs - nowMs;
+    const backedOff = backoff > 0 && backoff <= MISSING_CHECK_SPACING_MS;
+    const healDue = (spacingDue || nudged || this.healRequested) && !backedOff;
+
+    if (!trayDue && !healDue) return [];
+    if (trayDue) this.nextMissingCheckMs = nowMs + MISSING_CHECK_SPACING_MS;
 
     let result;
     try {
       result = await api.missingFiles();
     } catch {
-      return; // quiet skip: 429, an outage or a bad reply all keep the marks as they are
+      // Quiet skip: 429, an outage or a bad reply all keep the marks and the bookkeeping as they are.
+      if (healDue) this.nextHealAttemptMs = nowMs + MISSING_CHECK_SPACING_MS;
+      return [];
+    }
+
+    // The library is read before the state is re-read, so the write below follows the last await.
+    const healed: string[] = [];
+    const healPlan: { release: Release; names: string[] }[] = [];
+    if (healDue && result) {
+      const local = new Map((await this.releases.list()).map((r) => [r.id, r]));
+      for (const entry of result.releases) {
+        const release = local.get(entry.id);
+        if (!release) continue; // a phone release: the tray handles it
+        if (Date.parse(entry.recordUpdatedAt) > Date.parse(release.updatedAt)) {
+          console.info(`SyncEngine: not re-sending release ${release.id}: the service holds a newer version`);
+          continue;
+        }
+        const paths = [...release.tracks.map((t) => t.filePath), ...(release.coverPath ? [release.coverPath] : [])];
+        let onDisk = true;
+        for (const p of paths) if (!(await this.fs.exists(p))) onDisk = false;
+        if (!onDisk) {
+          console.warn(`SyncEngine: not re-sending release ${release.id}: a file is missing on disk`);
+          continue;
+        }
+        healPlan.push({ release, names: entry.missing });
+      }
     }
 
     // Read again: an accept during the request may have taken a release out of the tray.
     const state = await this.syncState.get();
-    const listed = new Set((result?.releases ?? []).map((r) => r.id));
-    const marks: Record<string, MissingMark> = {};
-    for (const id of Object.keys(state.pendingFromPhone)) {
-      if (!listed.has(id)) continue;
-      const earlier = state.missingFiles[id];
-      marks[id] = earlier
-        ? {
-            ...earlier,
-            // An early re-check after a re-send must not flip it to waiting mid-upload.
-            stillMissing:
-              earlier.stillMissing || nowMs - Date.parse(earlier.firstSeenMissingAt) >= MISSING_CHECK_SPACING_MS,
-          }
-        : { firstSeenMissingAt: new Date(nowMs).toISOString(), stillMissing: false };
+    if (trayDue) {
+      const listed = new Set((result?.releases ?? []).map((r) => r.id));
+      const marks: Record<string, MissingMark> = {};
+      for (const id of Object.keys(state.pendingFromPhone)) {
+        if (!listed.has(id)) continue;
+        const earlier = state.missingFiles[id];
+        marks[id] = earlier
+          ? {
+              ...earlier,
+              // An early re-check after a re-send must not flip it to waiting mid-upload.
+              stillMissing:
+                earlier.stillMissing || nowMs - Date.parse(earlier.firstSeenMissingAt) >= MISSING_CHECK_SPACING_MS,
+            }
+          : { firstSeenMissingAt: new Date(nowMs).toISOString(), stillMissing: false };
+      }
+      state.missingFiles = marks;
     }
-    state.missingFiles = marks;
+    if (healDue) {
+      for (const { release, names } of healPlan) {
+        const left = (state.uploadedFiles[release.id] ?? []).filter((n) => !names.includes(n));
+        if (state.uploadedFiles[release.id]) state.uploadedFiles[release.id] = left;
+        if (release.coverPath && names.includes(path.basename(release.coverPath))) delete state.coverHash[release.id];
+        delete state.pushedUpdatedAt[release.id];
+        healed.push(release.id);
+      }
+      const marked = result ? Math.max(nowMs, Number.isNaN(nudgeMs) ? 0 : nudgeMs) : nowMs;
+      state.lastMissingFilesCheckAt = new Date(marked).toISOString();
+      this.healRequested = false;
+      this.nextHealAttemptMs = null;
+    }
     await this.syncState.set(state);
+    return healed;
   }
 
   /**
@@ -645,10 +731,24 @@ export class SyncEngine implements ReleaseSyncHooks {
       throw new PublicError("Sign in to sync first");
     }
     this.nextMissingCheckMs = null;
+    // The Mac heals its own releases in this reconcile, ahead of asking the phone to do the same.
+    this.healRequested = true;
+    this.nextHealAttemptMs = null;
     await this.reconcile();
     const api = this.apiFactory(settings.sync.baseUrl, settings.sync.deviceToken);
     try {
-      return { asked: (await api.requestResync()) !== null };
+      const asked = await api.requestResync();
+      if (asked) {
+        // The Mac's own nudge must not trigger a second heal on the next reconcile.
+        const state = await this.syncState.get();
+        const stored = state.lastMissingFilesCheckAt ? Date.parse(state.lastMissingFilesCheckAt) : NaN;
+        const returned = Date.parse(asked.resyncRequestedAt);
+        if (!Number.isNaN(returned) && (Number.isNaN(stored) || returned > stored)) {
+          state.lastMissingFilesCheckAt = new Date(returned).toISOString();
+          await this.syncState.set(state);
+        }
+      }
+      return { asked: asked !== null };
     } catch (err) {
       if (err instanceof SyncRequestError && err.status === 429) return { asked: false };
       throw err;

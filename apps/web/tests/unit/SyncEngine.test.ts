@@ -95,6 +95,7 @@ class FakeSyncStateStore implements SyncStateStore {
       coverHash: { ...this.state.coverHash },
       pendingFromPhone: { ...this.state.pendingFromPhone },
       missingFiles: { ...this.state.missingFiles },
+      ...(this.state.lastMissingFilesCheckAt ? { lastMissingFilesCheckAt: this.state.lastMissingFilesCheckAt } : {}),
     };
   }
   async set(state: SyncState): Promise<SyncState> {
@@ -139,9 +140,13 @@ class FakeSyncApi implements SyncApi {
     return { token: "tok", user: { id: "u1", email: "a@b.com" }, device: { id: "d1", name: "dev" } };
   }
 
+  /** What `me()` reports as `resyncRequestedAt` (#218); absent unless a test sets it. */
+  meResyncRequestedAt: string | null | undefined = undefined;
+
   async me(): Promise<MeResult> {
     this.meCallCount++;
     return {
+      ...(this.meResyncRequestedAt === undefined ? {} : { resyncRequestedAt: this.meResyncRequestedAt }),
       user: { id: "u1", email: "a@b.com" },
       device: { id: "d1", name: "dev" },
       quota: { usedBytes: 100, limitBytes: 1_000_000_000 },
@@ -249,6 +254,10 @@ class FakeSyncApi implements SyncApi {
   missingIds = new Set<string>();
   /** How the files routes answer: normally, with a 404 (an API from before #170), a 429 or a 500. */
   filesRoutes: "ok" | "old" | "rateLimited" | "down" = "ok";
+  /** When set, the exact names `missingFiles()` lists per release id (instead of the one default name). */
+  missingNames = new Map<string, string[]>();
+  /** What `requestResync()` returns as `resyncRequestedAt`; the real clock when null. */
+  resyncAt: string | null = null;
   missingCalls = 0;
   resyncCalls = 0;
 
@@ -263,7 +272,7 @@ class FakeSyncApi implements SyncApi {
     if (this.filesRouteOutcome() === "old") return null;
     const releases = [...this.missingIds].map((id) => ({
       id,
-      missing: ["01 - Intro.mp3"],
+      missing: this.missingNames.get(id) ?? ["01 - Intro.mp3"],
       recordUpdatedAt: this.serverRecords.get(id)?.updatedAt ?? "",
     }));
     return { releases, checkedAt: new Date().toISOString() };
@@ -272,7 +281,7 @@ class FakeSyncApi implements SyncApi {
   async requestResync() {
     this.resyncCalls++;
     if (this.filesRouteOutcome() === "old") return null;
-    return { resyncRequestedAt: new Date().toISOString() };
+    return { resyncRequestedAt: this.resyncAt ?? new Date().toISOString() };
   }
 
   async uploadFile(upload: SyncUploadTarget, filePath: string): Promise<void> {
@@ -1042,7 +1051,8 @@ describe("SyncEngine", () => {
       nowMs += 30 * MIN;
       await clocked.reconcile();
 
-      expect(api.missingCalls).toBe(0);
+      // The tray makes no check; the one call is the Mac's own first self-heal (#218), 6 h apart.
+      expect(api.missingCalls).toBe(1);
       expect((await clocked.status()).lastError).toBeNull();
     });
 
@@ -1338,6 +1348,282 @@ describe("SyncEngine", () => {
         expect(await stateOf("a")).toBeUndefined();
         expect((await syncState.get()).missingFiles).toEqual({});
       });
+    });
+  });
+
+  describe("the Mac re-sends its own releases' missing files (#218)", () => {
+    const MIN = 60_000;
+    const HOUR = 60 * MIN;
+    const NOW = Date.parse("2026-10-15T12:00:00.000Z");
+    let nowMs: number;
+    let clocked: SyncEngine;
+
+    function engineOn(): SyncEngine {
+      return new SyncEngine(settingsStore, syncState, releaseService, fsSvc, () => api, () => "Toby's MacBook", null, () => new Date(nowMs));
+    }
+
+    beforeEach(() => {
+      nowMs = NOW;
+      clocked = engineOn();
+    });
+
+    /** Imports a release, pushes it, and runs a first reconcile so the first-time heal is out of the way. */
+    async function pushedRelease(withCover = false): Promise<Release> {
+      const release = withCover ? await importOneWithCover() : await importOne();
+      await clocked.reconcile();
+      expect((await clocked.status()).lastError).toBeNull();
+      api.putCalls.length = 0;
+      api.uploadCalls.length = 0;
+      api.createUploadsCalls.length = 0;
+      return release;
+    }
+
+    const trackName = (r: Release) => path.basename(r.tracks[0].filePath);
+
+    it("drops only the listed names, then uploads exactly those and marks the release pushed again", async () => {
+      const release = await pushedRelease(true);
+      const before = await syncState.get();
+      expect(before.uploadedFiles[release.id]).toContain(trackName(release));
+      expect(before.uploadedFiles[release.id]).toHaveLength(2);
+      api.missingNames.set(release.id, [trackName(release)]);
+      api.missingIds.add(release.id);
+      nowMs += 6 * HOUR;
+
+      await clocked.reconcile();
+
+      expect((await clocked.status()).lastError).toBeNull();
+      expect(api.createUploadsCalls).toHaveLength(1);
+      expect(api.createUploadsCalls[0].files.map((f) => f.name)).toEqual([trackName(release)]);
+      expect(api.uploadCalls.map((u) => u.filePath)).toEqual([release.tracks[0].filePath]);
+      const after = await syncState.get();
+      expect([...after.uploadedFiles[release.id]].sort()).toEqual([...before.uploadedFiles[release.id]].sort());
+      expect(after.coverHash[release.id]).toBe(before.coverHash[release.id]);
+      expect(after.pushedUpdatedAt[release.id]).toBe(release.updatedAt);
+    });
+
+    it("clears the cover hash for a listed cover and uploads the cover again", async () => {
+      const release = await pushedRelease(true);
+      const coverName = path.basename(release.coverPath as string);
+      api.missingNames.set(release.id, [coverName]);
+      api.missingIds.add(release.id);
+      nowMs += 6 * HOUR;
+
+      await clocked.reconcile();
+
+      expect(api.createUploadsCalls[0].files.map((f) => f.name)).toEqual([coverName]);
+      expect(api.uploadCalls.map((u) => u.filePath)).toEqual([release.coverPath]);
+      expect((await syncState.get()).coverHash[release.id]).toBeTruthy();
+    });
+
+    it("leaves a listed release that is not in the library untouched", async () => {
+      await pushedRelease();
+      api.missingIds.add("phone-only");
+      nowMs += 6 * HOUR;
+      const before = await syncState.get();
+
+      await clocked.reconcile();
+
+      const after = await syncState.get();
+      expect(after.uploadedFiles["phone-only"]).toBeUndefined();
+      expect(after.pushedUpdatedAt["phone-only"]).toBeUndefined();
+      expect(after.coverHash["phone-only"]).toBeUndefined();
+      expect({ ...after, lastMissingFilesCheckAt: undefined }).toEqual({ ...before, lastMissingFilesCheckAt: undefined });
+      expect(api.createUploadsCalls).toHaveLength(0);
+    });
+
+    it("leaves a release the server holds in a newer version alone", async () => {
+      const release = await pushedRelease();
+      const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+      api.missingFiles = async () => {
+        api.missingCalls++;
+        return {
+          releases: [
+            { id: release.id, missing: [trackName(release)], recordUpdatedAt: new Date(NOW + 365 * 24 * HOUR).toISOString() },
+          ],
+          checkedAt: new Date(nowMs).toISOString(),
+        };
+      };
+      const before = await syncState.get();
+      nowMs += 6 * HOUR;
+
+      await clocked.reconcile();
+
+      expect((await clocked.status()).lastError).toBeNull();
+      expect((await syncState.get()).uploadedFiles[release.id]).toEqual(before.uploadedFiles[release.id]);
+      expect(api.createUploadsCalls).toHaveLength(0);
+      expect(info).toHaveBeenCalled();
+      info.mockRestore();
+    });
+
+    it("leaves a release whose track file is gone from disk alone, and the reconcile still succeeds", async () => {
+      const release = await pushedRelease();
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      api.missingNames.set(release.id, [trackName(release)]);
+      api.missingIds.add(release.id);
+      await fs.rm(release.tracks[0].filePath);
+      const before = await syncState.get();
+      nowMs += 6 * HOUR;
+
+      await clocked.reconcile();
+
+      expect((await clocked.status()).lastError).toBeNull();
+      expect((await syncState.get()).uploadedFiles[release.id]).toEqual(before.uploadedFiles[release.id]);
+      expect((await syncState.get()).pushedUpdatedAt[release.id]).toBe(release.updatedAt);
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
+    it("checks at most every 6 hours", async () => {
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(1);
+
+      nowMs += HOUR;
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(1);
+
+      nowMs += 5 * HOUR;
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(2);
+    });
+
+    it("a newer resyncRequestedAt from me() bypasses the spacing, and the same value does not run it again", async () => {
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(1);
+
+      nowMs += 5 * MIN;
+      api.meResyncRequestedAt = new Date(nowMs + 2 * MIN).toISOString(); // the service clock runs ahead
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(2);
+
+      nowMs += 1 * MIN;
+      await clocked.reconcile();
+      nowMs += 30_000;
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(2);
+    });
+
+    it("a new engine on the same state store respects the stored time", async () => {
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(1);
+      expect((await syncState.get()).lastMissingFilesCheckAt).toBe(new Date(NOW).toISOString());
+
+      nowMs += HOUR;
+      const restarted = engineOn();
+      await restarted.reconcile();
+      expect(api.missingCalls).toBe(1);
+
+      nowMs += 5 * HOUR;
+      await engineOn().reconcile();
+      expect(api.missingCalls).toBe(2);
+    });
+
+    it("makes one call when the tray and the heal are both due, and both apply", async () => {
+      const release = await pushedRelease();
+      nowMs += 6 * HOUR;
+      api.seedRemoteRecord({
+        syncVersion: 2,
+        id: "ph",
+        kind: "single",
+        title: "Song",
+        artist: "Phone Artist",
+        year: null,
+        genre: null,
+        cover: null,
+        coverHash: null,
+        tracks: [{ id: "ph-t1", title: "Song", trackNumber: 1, file: "ph.mp3", bytes: 9, durationSec: 10 }],
+        origin: "ios",
+        originDevice: "Toby's iPhone",
+        createdAt: new Date(nowMs - 5 * MIN).toISOString(),
+        updatedAt: new Date(nowMs - 5 * MIN).toISOString(),
+        deleted: false,
+      });
+      api.missingIds.add("ph").add(release.id);
+      api.missingNames.set(release.id, [trackName(release)]);
+      const callsBefore = api.missingCalls;
+
+      await clocked.reconcile();
+
+      expect(api.missingCalls).toBe(callsBefore + 1);
+      expect((await syncState.get()).missingFiles.ph).toEqual({
+        firstSeenMissingAt: new Date(nowMs).toISOString(),
+        stillMissing: false,
+      });
+      expect(api.uploadCalls.map((u) => u.filePath)).toEqual([release.tracks[0].filePath]);
+    });
+
+    it("a 429 changes nothing, shows no error, is not retried 30 s later, but is after 10 minutes", async () => {
+      const release = await pushedRelease();
+      const before = await syncState.get();
+      api.filesRoutes = "rateLimited";
+      nowMs += 6 * HOUR;
+
+      await clocked.reconcile();
+      const calls = api.missingCalls;
+      expect((await clocked.status()).lastError).toBeNull();
+      expect(await syncState.get()).toEqual(before);
+
+      nowMs += 30_000;
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(calls);
+
+      nowMs += 10 * MIN;
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(calls + 1);
+      expect((await clocked.status()).lastError).toBeNull();
+      expect((await syncState.get()).pushedUpdatedAt[release.id]).toBe(release.updatedAt);
+    });
+
+    it("a 404 leaves the releases unchanged with no error and waits 6 hours", async () => {
+      const release = await pushedRelease();
+      const before = await syncState.get();
+      api.filesRoutes = "old";
+      nowMs += 6 * HOUR;
+
+      await clocked.reconcile();
+
+      expect((await clocked.status()).lastError).toBeNull();
+      const after = await syncState.get();
+      expect(after.uploadedFiles[release.id]).toEqual(before.uploadedFiles[release.id]);
+      expect(after.lastMissingFilesCheckAt).toBe(new Date(nowMs).toISOString());
+      const calls = api.missingCalls;
+      nowMs += HOUR;
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(calls);
+    });
+
+    it("Resync heals in its own reconcile inside the 6 h window, and the next reconcile makes no second call", async () => {
+      const release = await pushedRelease();
+      api.missingNames.set(release.id, [trackName(release)]);
+      api.missingIds.add(release.id);
+      nowMs += HOUR;
+      api.resyncAt = new Date(nowMs).toISOString();
+      const calls = api.missingCalls;
+
+      await expect(clocked.resync()).resolves.toEqual({ asked: true });
+
+      expect(api.missingCalls).toBe(calls + 1);
+      expect(api.uploadCalls.map((u) => u.filePath)).toEqual([release.tracks[0].filePath]);
+
+      // The Mac's own nudge, as the service would report it, is not newer than what is stored.
+      api.meResyncRequestedAt = (await syncState.get()).lastMissingFilesCheckAt as string;
+      nowMs += 30_000;
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(calls + 1);
+    });
+
+    it("Resync stores the time the service returned, so the Mac's own nudge does not heal again", async () => {
+      await clocked.reconcile();
+      nowMs += HOUR;
+      const nudge = new Date(nowMs + 5 * MIN).toISOString();
+      api.resyncAt = nudge;
+      await clocked.resync();
+      expect((await syncState.get()).lastMissingFilesCheckAt).toBe(nudge);
+      const calls = api.missingCalls;
+
+      api.meResyncRequestedAt = nudge;
+      nowMs += 30_000;
+      await clocked.reconcile();
+      expect(api.missingCalls).toBe(calls);
     });
   });
 
