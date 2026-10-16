@@ -10,6 +10,7 @@ import UniformTypeIdentifiers
 struct ReleaseDetailView: View {
     @Environment(\.appContainer) private var container
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let release: Release
 
@@ -22,6 +23,10 @@ struct ReleaseDetailView: View {
     /// Files cannot present while it is still on screen).
     @State private var pendingCoverChoice: CoverChoiceSheet.Choice?
     @State private var isPresentingDeleteConfirm = false
+    @State private var isPresentingReview = false
+    @State private var isPresentingDiscardConfirm = false
+    /// Whether Discard also leaves the page (Back) or only edit mode (Cancel).
+    @State private var discardLeavesPage = false
     @State private var photosItem: PhotosPickerItem?
     /// Raw bytes from the Files or Photos cover pick, handed to `CoverPicker` to
     /// crop; see `CoverPicker.rawPick`.
@@ -69,12 +74,16 @@ struct ReleaseDetailView: View {
 
                 Section {
                     tracksHeader(model.trackRows.count).panelRow(.top)
-                    if model.trackRows.count >= 2 { reorderHint.panelRow(.middle) }
+                    if model.isEditing && model.trackRows.count >= 2 {
+                        reorderHint.panelRow(.middle).transition(.opacity)
+                    }
                     trackRows(model)
                     if model.hasPlays { playsFootnote.panelRow(.middle) }
                     if isAlbum { playlistGuide(model).panelRow(.middle) }
                     messages(model)
-                    deleteButton.panelRow(.bottom)
+                    if model.isEditing {
+                        deleteButton.panelRow(.bottom).transition(.opacity)
+                    }
                 }
                 .panelListSection()
             }
@@ -86,8 +95,60 @@ struct ReleaseDetailView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
+        // Every path out of or into edit mode (Edit, Cancel, Discard, a save) fades over 0.25 s on
+        // the signature easing; Reduce Motion has no fade.
+        .transaction(value: model.isEditing) { transaction in
+            transaction.animation = reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: Theme.Immersive.modeFade)
+        }
+        .navigationBarBackButtonHidden(model.isEditing && model.hasChanges)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(model.isEditing ? Copy.Release.cancel : Copy.Release.edit) {
+                    if !model.isEditing {
+                        model.beginEditing()
+                    } else if model.hasChanges {
+                        discardLeavesPage = false
+                        isPresentingDiscardConfirm = true
+                    } else {
+                        model.discardChanges()
+                    }
+                }
+                .disabled(model.isSaving)
+            }
+            // With unsaved edits the system back button is hidden, so Back can ask first.
+            if model.isEditing && model.hasChanges {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        discardLeavesPage = true
+                        isPresentingDiscardConfirm = true
+                    } label: {
+                        Image(systemName: "chevron.backward")
+                            .fontWeight(.semibold)
+                    }
+                    .accessibilityLabel(Copy.Library.title)
+                }
+            }
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            ReleaseDock(model: model, glowColors: Theme.coverGlowColors(coverImage == nil ? nil : palette))
+            if model.isEditing {
+                ReleaseDock(model: model, glowColors: glowColors) { isPresentingReview = true }
+                    .transition(.opacity)
+            }
+        }
+        .sheet(isPresented: $isPresentingReview) {
+            ReleaseReviewSheet(model: model, glowColors: glowColors) { isPresentingReview = false }
+        }
+        .confirmationDialog(
+            Copy.Release.discardTitle,
+            isPresented: $isPresentingDiscardConfirm,
+            titleVisibility: .visible
+        ) {
+            Button(Copy.Release.discard, role: .destructive) {
+                let leaves = discardLeavesPage
+                model.discardChanges()
+                if leaves { dismiss() }
+            }
+            Button(Copy.Release.keepEditingDiscard, role: .cancel) {}
         }
         // Palette from the cover at 24x24, off the main thread; the previous palette
         // stays on screen until the new one is ready, and the backdrop cross-fades.
@@ -152,6 +213,10 @@ struct ReleaseDetailView: View {
             RecordSleeve(cover: coverImage, ceremony: model.saveCount) {
                 isPresentingCoverSource = true
             }
+            // View mode: the sleeve is only a picture, not a button.
+            .allowsHitTesting(model.isEditing)
+            .accessibilityRemoveTraits(model.isEditing ? [] : .isButton)
+            .accessibilityHidden(!model.isEditing)
             .sheet(isPresented: $isPresentingCoverSource, onDismiss: { applyCoverChoice(model) }) {
                 // Remove is left out: saving a release with its cover removed is not supported
                 // (`ReleaseChanges.cover` nil means "unchanged"), so it would do nothing.
@@ -193,11 +258,11 @@ struct ReleaseDetailView: View {
     @ViewBuilder
     private func fields(_ model: ReleaseDetailViewModel) -> some View {
         let gap = Theme.Immersive.labeledFieldRowGap
-        LabeledField(Copy.Import.fieldTitle, placeholder: Copy.Import.titlePlaceholder(for: model.kind), text: Binding(get: { model.title }, set: { model.title = $0 }), font: Theme.ScaledFont.fieldTitle, metricsStyle: .title3, wraps: true)
+        LabeledField(Copy.Import.fieldTitle, placeholder: Copy.Import.titlePlaceholder(for: model.kind), text: Binding(get: { model.title }, set: { model.title = $0 }), font: Theme.ScaledFont.fieldTitle, metricsStyle: .title3, wraps: true, isEditable: model.isEditing)
             .clearRow(top: 0, bottom: gap)
-        LabeledField(Copy.Import.fieldArtist, placeholder: Copy.Import.artistPlaceholder, text: Binding(get: { model.artist }, set: { model.artist = $0 }), font: Theme.ScaledFont.input, wraps: true)
+        LabeledField(Copy.Import.fieldArtist, placeholder: Copy.Import.artistPlaceholder, text: Binding(get: { model.artist }, set: { model.artist = $0 }), font: Theme.ScaledFont.input, wraps: true, isEditable: model.isEditing)
             .clearRow(top: 0, bottom: gap)
-        YearGenreRow(year: Binding(get: { model.year }, set: { model.year = $0 }), genre: Binding(get: { model.genre }, set: { model.genre = $0 }))
+        YearGenreRow(year: Binding(get: { model.year }, set: { model.year = $0 }), genre: Binding(get: { model.genre }, set: { model.genre = $0 }), isEditable: model.isEditing)
             .clearRow(top: 0, bottom: 0)
     }
 
@@ -238,20 +303,20 @@ struct ReleaseDetailView: View {
             TrackRow(
                 number: index + 1,
                 title: model.kind == .single ? model.title : row.title,
-                titleBinding: model.kind == .album
+                titleBinding: model.kind == .album && model.isEditing
                     ? Binding(get: { row.title }, set: { setTitle($0, for: row, in: model) })
                     : nil,
                 plays: model.playTotal(for: row).map(Copy.Detail.playCount),
                 length: TrackLength.format(seconds),
                 lengthSpoken: TrackLength.spoken(seconds),
-                showsGrip: model.trackRows.count >= 2
+                showsGrip: model.isEditing && model.trackRows.count >= 2
             )
             .importTrackRow(
                 isFirst: index == 0 || (headings.indices.contains(index) && headings[index] != nil),
                 isLast: index == model.trackRows.count - 1 || (headings.indices.contains(index + 1) && headings[index + 1] != nil)
             )
         }
-        .onMove(perform: model.trackRows.count >= 2 ? model.moveTracks : nil)
+        .onMove(perform: model.isEditing && model.trackRows.count >= 2 ? model.moveTracks : nil)
     }
 
     /// One line under the tracks saying where the play totals come from.
@@ -296,6 +361,12 @@ struct ReleaseDetailView: View {
         .buttonStyle(TextButtonStyle(color: Theme.danger))
         .frame(maxWidth: .infinity, minHeight: Theme.Immersive.panelActionMinHeight, alignment: .leading)
     }
+
+    private func glowColorsFor(_ palette: AmbientPalette) -> [Color] {
+        Theme.coverGlowColors(coverImage == nil ? nil : palette)
+    }
+
+    private var glowColors: [Color] { glowColorsFor(palette) }
 
     /// Sets a track row's title by its stable `Track.id` (not index), so it
     /// stays correct while `.onMove` changes positions.

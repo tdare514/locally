@@ -178,6 +178,22 @@ enum Copy {
         static let diagramSpotify = "Spotify"
     }
 
+    enum Release {
+        static let edit = "Edit"
+        static let cancel = "Cancel"
+        static let notSet = "Not set"
+        static let reviewTitle = "Check your changes"
+        static let save = "Save"
+        static let keepEditing = "Keep editing"
+        static let trackOrderChanged = "Track order changed"
+        static let cover = "Cover"
+        static let discardTitle = "Discard your changes?"
+        static let discard = "Discard"
+        static let keepEditingDiscard = "Keep editing"
+        /// VoiceOver for a review row's old and new value.
+        static func changedFrom(_ old: String, to new: String) -> String { "Was \(old), now \(new)" }
+    }
+
     enum Detail {
         /// The eyebrow over the release detail's metadata section.
         static let detailsEyebrow = "Details"

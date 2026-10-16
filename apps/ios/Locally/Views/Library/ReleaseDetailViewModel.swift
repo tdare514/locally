@@ -1,5 +1,22 @@
 import Foundation
 
+/// One line of the save-review sheet: what the user changed, old against new.
+enum ReleaseChange: Equatable, Identifiable {
+    case field(label: String, old: String, new: String)
+    case cover(old: Data?, new: Data?)
+    case trackRenamed(old: String, new: String)
+    case trackOrder
+
+    var id: String {
+        switch self {
+        case .field(let label, _, _): "field-\(label)"
+        case .cover: "cover"
+        case .trackRenamed(let old, let new): "track-\(old)-\(new)"
+        case .trackOrder: "order"
+        }
+    }
+}
+
 /// Drives `ReleaseDetailView`: holds editable copies of a release's fields
 /// and track titles/order, tracks whether anything actually changed (so
 /// "Save changes" only enables when it should), and runs saves/deletes
@@ -42,6 +59,8 @@ final class ReleaseDetailViewModel {
     private var originalCoverData: Data?
     private var originalTrackRows: [TrackRow]
 
+    /// The release page opens in view mode; Edit turns this on, a save or discard turns it off.
+    var isEditing = false
     var isSaving = false
     var isDeleting = false
     var errorMessage: String?
@@ -103,6 +122,49 @@ final class ReleaseDetailViewModel {
             || genre != originalGenre
             || coverData != originalCoverData
             || trackRows != originalTrackRows
+    }
+
+    /// What changed against the saved release, for the review sheet. Empty when nothing did.
+    var changes: [ReleaseChange] {
+        var result: [ReleaseChange] = []
+        let fields: [(String, String, String)] = [
+            (Copy.Import.fieldTitle, originalTitle, title),
+            (Copy.Import.fieldArtist, originalArtist, artist),
+            (Copy.Import.fieldYear, originalYear, year),
+            (Copy.Import.fieldGenre, originalGenre, genre)
+        ]
+        for (label, old, new) in fields where old != new {
+            result.append(.field(label: label, old: old, new: new))
+        }
+        if coverData != originalCoverData {
+            result.append(.cover(old: originalCoverData, new: coverData))
+        }
+        let oldTitles = Dictionary(originalTrackRows.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
+        for row in trackRows {
+            if let old = oldTitles[row.id], old != row.title {
+                result.append(.trackRenamed(old: old, new: row.title))
+            }
+        }
+        if trackRows.map(\.id) != originalTrackRows.map(\.id) {
+            result.append(.trackOrder)
+        }
+        return result
+    }
+
+    func beginEditing() {
+        isEditing = true
+    }
+
+    /// Puts every field back to the saved release and leaves edit mode.
+    func discardChanges() {
+        title = originalTitle
+        artist = originalArtist
+        year = originalYear
+        genre = originalGenre
+        coverData = originalCoverData
+        trackRows = originalTrackRows
+        errorMessage = nil
+        isEditing = false
     }
 
     var canSave: Bool {
@@ -180,6 +242,7 @@ final class ReleaseDetailViewModel {
             let updated = try await coordinator.updateRelease(releaseId, changes: changes)
             apply(updated)
             saveCount += 1
+            isEditing = false
             statusMessage = Copy.Import.afterEdit
         } catch {
             errorMessage = error.localizedDescription

@@ -15,6 +15,8 @@ struct LabeledField: View {
     var valueWidth: CGFloat?
     /// The text style `font` is built on, for the first-baseline metric below.
     var metricsStyle: UIFont.TextStyle = .body
+    /// False is the release page's view mode: plain label and value text, no underline, no focus.
+    var isEditable = true
 
     @FocusState private var focused: Bool
     @Environment(\.displayScale) private var displayScale
@@ -22,7 +24,7 @@ struct LabeledField: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .subheadline) private var labelWidth = Theme.Immersive.labeledFieldLabelWidth
 
-    init(_ label: String, placeholder: String, text: Binding<String>, font: Font = Theme.ScaledFont.input, metricsStyle: UIFont.TextStyle = .body, wraps: Bool = false, labelFits: Bool = false, valueWidth: CGFloat? = nil) {
+    init(_ label: String, placeholder: String, text: Binding<String>, font: Font = Theme.ScaledFont.input, metricsStyle: UIFont.TextStyle = .body, wraps: Bool = false, labelFits: Bool = false, valueWidth: CGFloat? = nil, isEditable: Bool = true) {
         self.label = label
         self.placeholder = placeholder
         self._text = text
@@ -31,6 +33,7 @@ struct LabeledField: View {
         self.wraps = wraps
         self.labelFits = labelFits
         self.valueWidth = valueWidth
+        self.isEditable = isEditable
     }
 
     /// Where the value's first line sits, from the font itself. An empty vertical TextField
@@ -61,6 +64,17 @@ struct LabeledField: View {
         focused = false
     }
 
+    /// View mode: the value as static text on the same first baseline, "Not set" when empty.
+    private var staticValue: some View {
+        Text(text.isEmpty ? Copy.Release.notSet : text)
+            .font(font)
+            .foregroundStyle(text.isEmpty ? Theme.textDim : Theme.primaryText)
+            .lineLimit(wraps ? nil : 1)
+            .fixedSize(horizontal: false, vertical: true)
+            .alignmentGuide(.firstTextBaseline) { _ in firstBaseline }
+            .padding(.bottom, Theme.Immersive.inlineFieldUnderlineGap)
+    }
+
     private var value: some View {
         field
             .alignmentGuide(.firstTextBaseline) { _ in firstBaseline }
@@ -86,21 +100,39 @@ struct LabeledField: View {
             .animation(reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: Theme.Immersive.inlineFieldFocusFade), value: focused)
     }
 
+    @ViewBuilder
     private var labelText: some View {
-        Text(label)
-            .font(Theme.ScaledFont.subheadline)
-            .foregroundStyle(Theme.secondaryText)
-            .contentShape(Rectangle())
-            // Tapping the label edits its field, as tapping the value does.
-            .onTapGesture { focused = true }
-            .accessibilityHidden(true)
+        if isEditable {
+            Text(label)
+                .font(Theme.ScaledFont.subheadline)
+                .foregroundStyle(Theme.secondaryText)
+                .contentShape(Rectangle())
+                // Tapping the label edits its field, as tapping the value does.
+                .onTapGesture { focused = true }
+                .accessibilityHidden(true)
+        } else {
+            Text(label)
+                .font(Theme.ScaledFont.subheadline)
+                .foregroundStyle(Theme.secondaryText)
+        }
+    }
+
+    @ViewBuilder
+    private var valueOrStatic: some View {
+        if isEditable { value } else { staticValue }
     }
 
     var body: some View {
+        layout
+            .modifier(StaticReading(isStatic: !isEditable))
+    }
+
+    @ViewBuilder
+    private var layout: some View {
         if dynamicTypeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: 0) {
                 labelText
-                value
+                valueOrStatic
             }
         } else {
             HStack(alignment: .firstTextBaseline, spacing: Theme.Immersive.labeledFieldLabelGap) {
@@ -109,8 +141,21 @@ struct LabeledField: View {
                 } else {
                     labelText.frame(width: labelWidth, alignment: .leading)
                 }
-                value.frame(width: valueWidth, alignment: .leading)
+                valueOrStatic.frame(width: valueWidth, alignment: .leading)
             }
+        }
+    }
+}
+
+/// View mode reads a field as one static text, label then value; edit mode is left alone.
+private struct StaticReading: ViewModifier {
+    let isStatic: Bool
+
+    func body(content: Content) -> some View {
+        if isStatic {
+            content.accessibilityElement(children: .combine)
+        } else {
+            content
         }
     }
 }
@@ -121,6 +166,7 @@ struct LabeledField: View {
 struct YearGenreRow: View {
     @Binding var year: String
     @Binding var genre: String
+    var isEditable = true
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var yearValueWidth = Theme.Immersive.yearValueWidth
@@ -129,13 +175,13 @@ struct YearGenreRow: View {
 
     private var yearField: some View {
         LabeledField(Copy.Import.fieldYear, placeholder: Copy.Import.yearPlaceholder, text: $year, font: Theme.ScaledFont.input,
-                     valueWidth: stacks ? nil : yearValueWidth)
+                     valueWidth: stacks ? nil : yearValueWidth, isEditable: isEditable)
             .keyboardType(.numberPad)
     }
 
     private func genreField(labelFits: Bool) -> some View {
         LabeledField(Copy.Import.fieldGenre, placeholder: Copy.Import.genrePlaceholder, text: $genre, font: Theme.ScaledFont.input,
-                     wraps: true, labelFits: labelFits)
+                     wraps: true, labelFits: labelFits, isEditable: isEditable)
     }
 
     var body: some View {

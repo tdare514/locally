@@ -68,3 +68,93 @@ struct ReleaseDetailViewModelTests {
         #expect(model.saveCount == 1)
     }
 }
+
+@MainActor
+struct ReleaseEditModeTests {
+    private func makeCoordinator(_ coverStore: FakeCoverStore) -> ReleaseCoordinator {
+        let tagWriter = FakeTagWriter()
+        return ReleaseCoordinator(
+            importer: FakeFileImporter(),
+            transcoder: FakeTranscoder(),
+            m4aTagWriter: tagWriter,
+            id3TagWriter: tagWriter,
+            folder: FakeSpotifyFolder(directory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)),
+            library: InMemoryLibraryStore(),
+            coverStore: coverStore,
+            durationReader: FakeDurationReader()
+        )
+    }
+
+    private func makeFile(_ name: String) throws -> URL {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent(name)
+        try Data([0xFF, 0xFB, 1, 2, 3, 4]).write(to: url)
+        return url
+    }
+
+    private func makeAlbumModel() async throws -> ReleaseDetailViewModel {
+        let coverStore = FakeCoverStore()
+        let coordinator = makeCoordinator(coverStore)
+        let album = AlbumDraft(title: "Album", artist: "Band", year: "2020", tracks: [TrackDraft(title: "A"), TrackDraft(title: "B")])
+        let release = try await coordinator.importAlbum(files: [try makeFile("a.mp3"), try makeFile("b.mp3")], album: album, cover: nil)
+        return ReleaseDetailViewModel(release: release, coordinator: coordinator, coverStore: coverStore)
+    }
+
+    @Test func opensInViewModeAndBeginEditingTurnsEditOn() async throws {
+        let model = try await makeAlbumModel()
+        #expect(!model.isEditing)
+        model.beginEditing()
+        #expect(model.isEditing)
+    }
+
+    @Test func changesListsExactlyWhatChanged() async throws {
+        let model = try await makeAlbumModel()
+        #expect(model.changes.isEmpty)
+
+        model.title = "Album 2"
+        model.genre = "Rock"
+        model.coverData = Data([1, 2, 3])
+        model.trackRows[0].title = "A2"
+        model.moveTracks(from: IndexSet(integer: 1), to: 0)
+
+        #expect(model.changes == [
+            .field(label: Copy.Import.fieldTitle, old: "Album", new: "Album 2"),
+            .field(label: Copy.Import.fieldGenre, old: "", new: "Rock"),
+            .cover(old: nil, new: Data([1, 2, 3])),
+            .trackRenamed(old: "A", new: "A2"),
+            .trackOrder
+        ])
+    }
+
+    @Test func discardChangesRestoresTheOriginalsAndLeavesEditMode() async throws {
+        let model = try await makeAlbumModel()
+        model.beginEditing()
+        model.title = "Changed"
+        model.artist = "Someone"
+        model.year = "1999"
+        model.coverData = Data([9])
+        model.trackRows[1].title = "Z"
+        model.moveTracks(from: IndexSet(integer: 1), to: 0)
+
+        model.discardChanges()
+
+        #expect(model.title == "Album")
+        #expect(model.artist == "Band")
+        #expect(model.year == "2020")
+        #expect(model.coverData == nil)
+        #expect(model.trackRows.map(\.title) == ["A", "B"])
+        #expect(!model.hasChanges)
+        #expect(!model.isEditing)
+    }
+
+    @Test func aSuccessfulSaveLeavesEditMode() async throws {
+        let model = try await makeAlbumModel()
+        model.beginEditing()
+        model.title = "New title"
+        await model.save()
+        #expect(model.saveCount == 1)
+        #expect(!model.isEditing)
+        #expect(model.changes.isEmpty)
+    }
+}

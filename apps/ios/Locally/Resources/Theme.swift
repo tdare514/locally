@@ -179,6 +179,14 @@ enum Theme {
         /// How long "Saved to your library" stays in the save dock.
         static let savedToastSeconds: Double = 2.5
         static let dockStatusFade: Double = 0.2
+        /// The view/edit mode cross-fade on the release page (opacity only).
+        static let modeFade: Double = 0.25
+        /// The review sheet's cover thumbnails and their corner radius.
+        static let reviewThumbSize: CGFloat = 56
+        static let reviewThumbRadius: CGFloat = 6
+        /// Between rows of the review sheet and between a row's old and new value.
+        static let reviewRowSpacing: CGFloat = 16
+        static let reviewValueSpacing: CGFloat = 4
         static let dockBottomPadding: CGFloat = 12
         static let dockGap: CGFloat = 12
         /// Padding inside the hero row so the sleeve's shadow (radius 26, y 24) fades out unclipped.

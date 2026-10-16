@@ -28,6 +28,8 @@ struct ReleaseDock: View {
     let model: ReleaseDetailViewModel
     /// The cover's glow colours for Save (`Theme.coverGlowColors`).
     let glowColors: [Color]
+    /// Opens the review sheet; the sheet runs the save.
+    let onSave: () -> Void
 
     @State private var showSaved = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -72,9 +74,7 @@ struct ReleaseDock: View {
     }
 
     private var saveButton: some View {
-        Button {
-            Task { await model.save() }
-        } label: {
+        Button(action: onSave) {
             HStack(spacing: 6) {
                 if !model.isSaving {
                     Image(systemName: "checkmark").accessibilityHidden(true)
