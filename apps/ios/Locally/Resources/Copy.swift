@@ -372,6 +372,7 @@ enum Copy {
         static func trackCount(_ count: Int) -> String { count == 1 ? "1 track" : "\(count) tracks" }
         static let couldntSend = "Couldn't send this yet."
         static let tryAgain = "Try again"
+        static let failedHint = "Sending didn't finish. Try again."
 
         static func queueFailed(_ detail: String) -> String { "Couldn't queue a change to sync: \(detail)" }
         static func libraryUnreadable(_ detail: String) -> String { "Couldn't read your library to sync: \(detail)" }

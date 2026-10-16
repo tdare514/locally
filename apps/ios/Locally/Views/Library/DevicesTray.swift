@@ -141,8 +141,6 @@ enum DevicesTrayMotion {
 struct DevicesTrayPanel: View {
     let rows: [DevicesTrayRow]
     let maxHeight: CGFloat
-    /// The sync error text, read out as the failed rows' accessibility hint.
-    var errorText: String?
     var headingFocus: AccessibilityFocusState<Bool>.Binding?
     let onSend: (String) -> Void
 
@@ -161,7 +159,7 @@ struct DevicesTrayPanel: View {
                     .accessibilityAddTraits(.isHeader)
                     .modifier(HeadingFocus(binding: headingFocus))
                 ForEach(rows) { row in
-                    DevicesTrayRowView(row: row, errorText: errorText, onSend: { onSend(row.id) })
+                    DevicesTrayRowView(row: row, onSend: { onSend(row.id) })
                         .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.94, anchor: .top)))
                 }
             }
@@ -208,17 +206,15 @@ private struct DevicesTrayHeightKey: PreferenceKey {
 struct DevicesTrayRowView: View {
     let row: DevicesTrayRow
     var cover: UIImage?
-    var errorText: String?
     let onSend: () -> Void
 
     @ScaledMetric(relativeTo: .subheadline) private var titleSize: CGFloat = 15
     @ScaledMetric(relativeTo: .footnote) private var detailSize: CGFloat = 13
     @ScaledMetric(relativeTo: .caption) private var labelSize: CGFloat = 12
 
-    init(row: DevicesTrayRow, cover: UIImage? = nil, errorText: String? = nil, onSend: @escaping () -> Void) {
+    init(row: DevicesTrayRow, cover: UIImage? = nil, onSend: @escaping () -> Void) {
         self.row = row
         self.cover = cover
-        self.errorText = errorText
         self.onSend = onSend
     }
 
@@ -244,7 +240,7 @@ struct DevicesTrayRowView: View {
                     }
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityHint(row.state == .failed ? (errorText ?? "") : "")
+                .accessibilityHint(row.state == .failed ? Copy.Sync.failedHint : "")
                 if row.state == .failed {
                     Button(Copy.Sync.tryAgain, action: onSend)
                         .font(.system(size: labelSize, weight: .semibold))
@@ -254,7 +250,9 @@ struct DevicesTrayRowView: View {
                         .background(Capsule().fill(Theme.Immersive.panelFill))
                         .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
                         .buttonStyle(.plain)
-                        .padding(.top, 6)
+                        // The pill stays compact; the tap area is 44 pt tall.
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

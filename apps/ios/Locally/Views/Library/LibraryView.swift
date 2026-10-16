@@ -261,7 +261,6 @@ struct LibraryView: View {
                             pending: syncStatus.pendingFromMac, accepting: syncStatus.acceptingIds,
                             failed: syncStatus.failedAcceptIds),
                         maxHeight: screen * 0.6,
-                        errorText: syncStatus.lastError,
                         headingFocus: $trayHeadingFocused,
                         onSend: { id in
                             Task {

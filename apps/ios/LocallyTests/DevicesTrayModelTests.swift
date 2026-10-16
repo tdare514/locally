@@ -73,5 +73,6 @@ struct DevicesTrayModelTests {
         #expect(Copy.Sync.sendTitleToSpotify("Low Tide") == "Send Low Tide to Spotify")
         #expect(Copy.Sync.couldntSend == "Couldn't send this yet.")
         #expect(Copy.Sync.tryAgain == "Try again")
+        #expect(Copy.Sync.failedHint == "Sending didn't finish. Try again.")
     }
 }
