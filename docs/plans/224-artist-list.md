@@ -33,9 +33,12 @@ Decided 16 Oct: 1 (an artist page) and 2 (featured artists as their own field). 
    - **Opens from:** the artist name on a release page (now a link in view mode), an artist in Stats (replacing today's filtered library), and a new Artists view in the library.
    - The alternative is to keep the filtered library: simpler, but it shows no plays and has no place for a rename.
 2. **Featured artists are their own field (owner, 16 Oct).** People enter the features separately in Locally, and Locally shows the main artist and the features apart. Written to the files, they go where Spotify's own catalogue puts them: in the title, like "Song (feat. B)" or "Song (feat. B & C)", with the artist tag left as the main artist. That keeps all of an artist's songs under one name in Spotify. See "Featuring" below. A featured artist's page lists those tracks under "Appears on".
-3. **Renaming an artist everywhere is a separate, later step,** and needs your yes. It re-tags every file by that artist in place; files keep their names. The risk is Spotify playlists: a local file's playlist entry is keyed by its tags (`spotify:local:{artist}:{album}:{title}:{seconds}`, `docs/research/playlists.md`), so renamed tracks may drop out of playlists until re-added.
-   - Before building it, one manual test: rename one artist on a track that's in a playlist, and see whether Spotify keeps it.
-   - Adopted (read-only) releases are never renamed.
+3. **Renaming an artist everywhere moves to #285 (owner, 16 Oct).** It shares #285's review page with editing adopted files (the files that came from the Mac's Spotify folders). That page:
+   - says plainly what changes and how many files Locally didn't add
+   - lists the Spotify playlists that may lose the tracks
+   - offers "Ignore for this session" as a swipe
+
+   A manual test comes first: rename one artist on a track that's in a playlist, and see whether Spotify keeps it.
 4. **MusicBrainz suggestions:** not now. They'd need network calls and a privacy note. The library alone covers the duplicate problem.
 
 ## Design
@@ -164,7 +167,7 @@ A pure `artistKey(name)` decides "same artist", and a pure `looksLike(a, b)` dec
 1. **The name key and the Featuring split and join rules** (spec and fixtures, then both apps' pure helpers and tests). No UI.
 2. **Suggestions, "Did you mean" and the Featuring field** on both apps.
 3. **Artists view and artist page** on both apps, the iPhone's sort control, and Stats and release-page links to the page.
-4. **Later, only with your yes:** rename an artist everywhere, after the manual Spotify playlist test in decision 3.
+4. **Rename an artist everywhere:** in #285, with its review page.
 
 Session briefs (for steps 1–3):
 
