@@ -214,6 +214,8 @@ enum Copy {
         }
         /// Under the tracks when any has plays: the totals add up every signed-in device.
         static let playsAcrossDevices = "Plays are counted across all your devices."
+        /// Shown on an adopted release's page: its files stay on the Mac.
+        static let adoptedNote = "In your Mac's Spotify folder"
         static let saveChanges = "Save changes"
         static let saving = "Saving…"
         static let replaceCover = "Replace cover"

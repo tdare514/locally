@@ -78,6 +78,7 @@ struct ReleaseDetailView: View {
                     }
                     trackRows(model)
                     if model.hasPlays { playsFootnote.panelRow(.middle) }
+                    if model.isAdopted { adoptedNote.panelRow(.middle) }
                     if isAlbum { playlistGuide(model).panelRow(.middle) }
                     messages(model)
                     if model.isEditing {
@@ -109,7 +110,7 @@ struct ReleaseDetailView: View {
                     }
                     .disabled(model.isSaving)
                 }
-            } else {
+            } else if !model.isAdopted {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(Copy.Release.edit) { model.beginEditing() }
                 }
@@ -311,6 +312,13 @@ struct ReleaseDetailView: View {
     /// One line under the tracks saying where the play totals come from.
     private var playsFootnote: some View {
         Text(Copy.Detail.playsAcrossDevices)
+            .font(Theme.Font.dropZoneHint)
+            .foregroundStyle(Theme.textDim)
+    }
+
+    /// Says where an adopted release's files are: they never come to this phone.
+    private var adoptedNote: some View {
+        Text(Copy.Detail.adoptedNote)
             .font(Theme.Font.dropZoneHint)
             .foregroundStyle(Theme.textDim)
     }

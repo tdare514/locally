@@ -304,7 +304,7 @@ final class SyncEngine: ReleaseSyncHook {
 
     nonisolated func pushAfterChange(_ release: Release) {
         Task { @MainActor [weak self] in
-            guard let self, self.isSignedIn else { return }
+            guard let self, self.isSignedIn, !release.isAdopted else { return }
             self.enqueue(release.id, .push)
             await self.drainOutbox()
         }
@@ -324,7 +324,7 @@ final class SyncEngine: ReleaseSyncHook {
     /// Existing callers (tests, `verify`'s implicit back-fill via
     /// `reconcile`) still call this directly.
     func push(_ release: Release) async {
-        guard isSignedIn else { return }
+        guard isSignedIn, !release.isAdopted else { return }
         enqueue(release.id, .push)
         await drainOutbox()
     }
@@ -414,6 +414,11 @@ final class SyncEngine: ReleaseSyncHook {
             // `.delete` entry queued — either way this stale `.push` entry
             // is simply dropped.
             // Best-effort: a leftover stale entry is dropped again next drain.
+            try? outbox.remove(id, ifOperation: .push)
+            return
+        }
+        // This phone doesn't own an adopted release: never push it.
+        if release.isAdopted {
             try? outbox.remove(id, ifOperation: .push)
             return
         }
@@ -687,6 +692,7 @@ final class SyncEngine: ReleaseSyncHook {
                     Self.log.info("Missing-files list names release \(entry.id, privacy: .public), which this phone doesn't have; leaving it.")
                     continue
                 }
+                if local.isAdopted { continue }
                 if requeueMissingFiles(of: local, names: Set(entry.missing)) { queued += 1 }
             }
         }
@@ -832,6 +838,14 @@ final class SyncEngine: ReleaseSyncHook {
             return
         }
 
+        // An adopted record is not offered: it goes straight into the library as a
+        // details-only release (no files, never the "From your devices" tray).
+        if record.source == .adopted {
+            status.pendingFromMac.removeAll { $0.id == record.id }
+            await applyAdopted(record, existingLocal: nil)
+            return
+        }
+
         // Offered in the tray: anything this phone didn't write itself, whether it is the Mac,
         // the web, or an origin this build has never heard of (#185). Only "ios" is held back
         // (this phone's echo, or another iPhone's), the mirror of the Mac holding back "mac".
@@ -864,6 +878,11 @@ final class SyncEngine: ReleaseSyncHook {
     /// `status.failedCoverUpdates` for `retryFailedCoverUpdates()` to
     /// retry on the next `reconcile()`, rather than being silently dropped.
     private func applyRemoteUpdate(_ record: SyncRecord, existingLocal: Release) async {
+        // Details only: never re-tagged, and no files written.
+        if existingLocal.isAdopted {
+            await applyAdopted(record, existingLocal: existingLocal)
+            return
+        }
         guard let coverName = record.cover, isCoverChanged(record, existingLocal: existingLocal) else {
             do {
                 _ = try await coordinator.applyRemoteUpdate(record)
@@ -898,6 +917,49 @@ final class SyncEngine: ReleaseSyncHook {
         }
     }
 
+    /// Stores an adopted record as a details-only release, downloading its
+    /// cover (keyed by `coverHash`, as `applyRemoteUpdate` does) when the
+    /// record has one this phone lacks or that changed. No track files are
+    /// fetched. If the cover download fails the details are still stored and
+    /// the record joins `status.failedCoverUpdates` so the next reconcile
+    /// retries the cover.
+    private func applyAdopted(_ record: SyncRecord, existingLocal: Release?) async {
+        var coverData: Data?
+        var coverFailed = false
+        if let coverName = record.cover, adoptedCoverNeeded(record, existingLocal: existingLocal) {
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("Locally-Sync-Cover-\(UUID().uuidString)", isDirectory: true)
+            do {
+                try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+                // Best-effort temp-dir cleanup.
+                defer { try? FileManager.default.removeItem(at: tempDir) }
+                try await downloadFile(releaseId: record.id, name: coverName, into: tempDir)
+                coverData = try Data(contentsOf: tempDir.appendingPathComponent(coverName))
+            } catch {
+                coverFailed = true
+                status.lastError = error.localizedDescription
+            }
+        }
+        do {
+            _ = try coordinator.importAdopted(record, coverData: coverData)
+        } catch {
+            surface(Copy.Sync.applyRemoteFailed(error.localizedDescription), error: error)
+            return
+        }
+        if coverFailed {
+            status.failedCoverUpdates[record.id] = record
+        } else {
+            status.failedCoverUpdates.removeValue(forKey: record.id)
+        }
+    }
+
+    private func adoptedCoverNeeded(_ record: SyncRecord, existingLocal: Release?) -> Bool {
+        guard record.cover != nil else { return false }
+        guard let existingLocal else { return true }
+        guard let remoteHash = record.coverHash else { return coverStore.load(existingLocal.id) == nil }
+        return remoteHash != coverStore.load(existingLocal.id)?.sha256Hex
+    }
+
     /// `true` only when `record` carries a cover whose hash differs from
     /// the release's current local cover. `coverStore.load` is re-hashed
     /// on demand rather than trusting a stored hash, for the same reason
@@ -918,7 +980,7 @@ final class SyncEngine: ReleaseSyncHook {
     /// already-queued `.push`) sitting in the outbox.
     private func backfillUnpushed() async {
         guard let localReleases = localReleases() else { return }
-        for release in localReleases where needsPush(release) {
+        for release in localReleases where !release.isAdopted && needsPush(release) {
             enqueue(release.id, .push)
         }
     }
