@@ -14,7 +14,9 @@ struct ComponentGallery: View {
         // #204: the real Stats page over sample plays.
         "stats-week", "stats-albums-grid", "stats-artists", "stats-quiet", "stats-signed-out", "stats-large-text", "stats-week-scrolled", "stats-grid-scrolled",
         // #213: the Mac's glyphs on the real tab bar, library and release page, over seeded sample data.
-        "icons-tabs-library", "icons-tabs-stats", "icons-library-list", "icons-library-grid", "icons-release", "icons-release-bottom", "icons-cover-edit", "icons-playlist-guide"]
+        "icons-tabs-library", "icons-tabs-stats", "icons-library-list", "icons-library-grid", "icons-release", "icons-release-bottom", "icons-cover-edit", "icons-playlist-guide",
+        // #269: the Library's "From your devices" button and tray, over sample pending records.
+        "devices-header-0", "devices-header-1", "devices-header-3", "devices-tray-open", "devices-tray-large-text"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -33,7 +35,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("stats-") || name.hasPrefix("icons-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls"].contains(name)
+        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls"].contains(name)
     }
 
     var body: some View {
@@ -152,6 +154,16 @@ struct ComponentGallery: View {
             IconsGallery.coverEdit()
         case "icons-playlist-guide":
             ZStack { StudioBackdrop(); PlaylistGuide(albumTitle: "Night Bus to Nowhere").padding(24) }
+        case "devices-header-0":
+            IconsGallery.devices(pending: 0, open: false)
+        case "devices-header-1":
+            IconsGallery.devices(pending: 1, open: false)
+        case "devices-header-3":
+            IconsGallery.devices(pending: 3, open: false)
+        case "devices-tray-open":
+            IconsGallery.devices(pending: 3, open: true)
+        case "devices-tray-large-text":
+            IconsGallery.devices(pending: 3, open: true).dynamicTypeSize(.accessibility3)
         case "icons-release-bottom":
             IconsGallery.release().defaultScrollAnchor(.bottom)
         default:
@@ -409,6 +421,28 @@ enum IconsGallery {
         return environment(IconsTabs(selected: selected), container)
     }
 
+    /// The real Library over sample pending records (#269): the first is ready, the second still
+    /// sending (a failed download, fresh), the third waiting (failed, two hours old).
+    static func devices(pending: Int, open: Bool) -> some View {
+        UserDefaults.standard.set(LibraryLayout.list.rawValue, forKey: LibraryViewPrefs.layoutKey)
+        let container = container()
+        let now = Date()
+        let samples: [(String, String, String, String, Double, Int)] = [
+            ("Night Bus to Nowhere", "Neon Harbor", "mac", "ready", 600, 11),
+            ("Low Tide", "The Salt Line", "mac", "sending", 120, 1),
+            ("Paper Lanterns Over the Long Way Home", "Amelia Rowe", "web", "waiting", 7200, 9),
+        ]
+        let status = container.syncStatus
+        status.pendingFromMac = samples.prefix(pending).enumerated().map { index, sample in
+            SyncRecord(
+                id: "gallery-\(index)", kind: sample.5 > 1 ? "album" : "single", title: sample.0, artist: sample.1,
+                tracks: (0..<sample.5).map { SyncTrack(id: "t\($0)", title: "Track \($0 + 1)", trackNumber: $0 + 1, file: "t\($0).m4a", bytes: 0, durationSec: nil) },
+                origin: sample.2, originDevice: "Gallery", createdAt: now.addingTimeInterval(-sample.4), updatedAt: now.addingTimeInterval(-sample.4))
+        }
+        status.failedAcceptIds = Set(samples.prefix(pending).enumerated().filter { $0.element.3 != "ready" }.map { "gallery-\($0.offset)" })
+        return environment(IconsLibrary(openTray: open), container)
+    }
+
     /// The cover picker's hero style: the cover with its Edit pill (the pencil).
     static func coverEdit() -> some View {
         ZStack {
@@ -423,6 +457,17 @@ enum IconsGallery {
         let container = container()
         let release = StatsGallery.releases[0]
         return environment(NavigationStack { ReleaseDetailView(release: release) }, container)
+    }
+}
+
+private struct IconsLibrary: View {
+    let openTray: Bool
+    @State private var tab = RootView.Tab.library
+    @State private var importKind: ImportKind?
+    @State private var search: String?
+
+    var body: some View {
+        LibraryView(selectedTab: $tab, requestedImportKind: $importKind, librarySearchRequest: $search, openTrayOnAppear: openTray)
     }
 }
 
