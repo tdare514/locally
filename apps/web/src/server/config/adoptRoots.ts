@@ -1,12 +1,15 @@
-import { realpathSync, statSync } from "node:fs";
+import { statSync } from "node:fs";
 import path from "node:path";
+import { NodeFileSystem } from "../fs/NodeFileSystem";
 
 /** The two disk questions the Spotify-folder rules ask, injectable so tests need no real folders. */
 export interface RootProbe {
   isDirectory(target: string): boolean;
-  /** The canonical path (symlinks resolved), or the resolved path itself when it does not exist. */
+  /** The canonical path (symlinks resolved), with any missing tail segments kept. */
   realpath(target: string): string;
 }
+
+const fsShared = new NodeFileSystem();
 
 export function makeRootProbe(): RootProbe {
   return {
@@ -17,13 +20,9 @@ export function makeRootProbe(): RootProbe {
         return false;
       }
     },
-    realpath(target) {
-      try {
-        return realpathSync.native(target);
-      } catch {
-        return path.resolve(target);
-      }
-    },
+    // Deepest existing ancestor resolved, missing tail re-appended: a library that does not exist yet
+    // under a symlink still lands on its real place.
+    realpath: (target) => fsShared.realAncestorPath(target),
   };
 }
 

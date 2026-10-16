@@ -84,8 +84,30 @@ describe("checkAdoptRoots on real symlinks", () => {
     expect(r.ok).toBe(false);
   });
 
+  it("refuses a library that does not exist yet under a symlink to a root", () => {
+    const alias = path.join(dir, "music-alias");
+    const r = checkAdoptRoots([path.join(dir, "music")], [], path.join(alias, "NewLibrary"), makeRootProbe());
+    expect(r.ok).toBe(false);
+  });
+
   it("stores a symlinked root as its real path", () => {
     const r = checkAdoptRoots([path.join(dir, "music-alias")], [], path.join(dir, "lib"), makeRootProbe());
     expect(r).toEqual({ ok: true, roots: [path.join(dir, "music")] });
+  });
+});
+
+describe("settings change to the library only", () => {
+  it("refuses libraryDir at <alias>/NewLibrary when the alias points to a saved root", async () => {
+    const { planSettingsUpdate } = await import("../../src/server/config/settingsUpdate");
+    const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "alias-")));
+    try {
+      fs.mkdirSync(path.join(dir, "Music"));
+      fs.symlinkSync(path.join(dir, "Music"), path.join(dir, "Alias"));
+      const current = { libraryDir: path.join(dir, "lib"), sync: null, adoptRoots: [path.join(dir, "Music")] };
+      const r = planSettingsUpdate(current, { libraryDir: path.join(dir, "Alias", "NewLibrary") }, dir + "-home", makeRootProbe());
+      expect(r).toMatchObject({ ok: false });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
