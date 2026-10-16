@@ -81,6 +81,10 @@ export class VercelBlobFileStore implements FileStore {
       allowedContentTypes: [contentType],
       maximumSizeInBytes: bytes,
       allowOverwrite: true,
+      // Explicit: the Blob service added a random suffix to presigned PUTs (16 Oct 2026, #266), so every
+      // upload landed at "<name>-<random>.<ext>" and every download, list and missing-files check, which
+      // use the exact key, found nothing.
+      addRandomSuffix: false,
     });
     return {
       url: presignedUrl,
