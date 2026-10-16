@@ -406,6 +406,36 @@ struct HttpSyncApiTests {
         }
     }
 
+    // MARK: - Downloads (#276)
+
+    @Test func downloadFileThrowsOnA404AndLeavesNoFileBehind() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { _ in (404, [:], Data("<html>not found</html>".utf8)) }
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).jpg")
+
+        do {
+            try await api.downloadFile(from: URL(string: "https://sync.example.test/v1/files/x/cover.jpg")!, to: destination)
+            Issue.record("expected a throw")
+        } catch let error as SyncApiError {
+            guard case .network = error else {
+                Issue.record("expected .network, got \(error)")
+                return
+            }
+        }
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+    }
+
+    @Test func downloadFileSavesA200Body() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { _ in (200, [:], Data([1, 2, 3])) }
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).jpg")
+        defer { try? FileManager.default.removeItem(at: destination) }
+
+        try await api.downloadFile(from: URL(string: "https://sync.example.test/v1/files/x/cover.jpg")!, to: destination)
+
+        #expect(try Data(contentsOf: destination) == Data([1, 2, 3]))
+    }
+
     // MARK: - HTTPS-only enforcement (issue #11)
 
     /// Release builds refuse to send a request over plain http — see
