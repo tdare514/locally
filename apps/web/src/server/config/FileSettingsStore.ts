@@ -12,6 +12,7 @@ async function ensureDirExists(dir: string): Promise<void> {
 const CONFIG_DIR_MODE = 0o700;
 const CONFIG_FILE_MODE = 0o600;
 let tmpCounter = 0;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Narrow an arbitrary JSON value into `SyncSettings`, or `null` if it doesn't look right. */
 function parseSyncSettings(raw: unknown): SyncSettings | null {
@@ -127,6 +128,7 @@ export class FileSettingsStore implements SettingsStore {
     const adoptRoots = Array.isArray(parsed.adoptRoots)
       ? parsed.adoptRoots.filter((r): r is string => typeof r === "string" && r.trim().length > 0)
       : [];
+    const installId = typeof parsed.installId === "string" && UUID_RE.test(parsed.installId) ? parsed.installId : undefined;
     return {
       libraryDir,
       sync: parseSyncSettings(parsed.sync),
@@ -136,6 +138,7 @@ export class FileSettingsStore implements SettingsStore {
       playsPromptAnswered,
       adoptRoots,
       ...(spotify ? { spotify } : {}),
+      ...(installId ? { installId } : {}),
     };
   }
 

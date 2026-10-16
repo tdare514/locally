@@ -37,9 +37,12 @@ export const devices = sqliteTable("devices", {
   createdAt: integer("created_at").notNull(),
   lastSeenAt: integer("last_seen_at").notNull(),
   revokedAt: integer("revoked_at"),
+  /** A Mac's stable install ID (#210); null for phones and for rows made before it. */
+  installId: text("install_id"),
 }, (table) => ({
   tokenHashIdx: uniqueIndex("devices_token_hash_idx").on(table.tokenHash),
   userIdx: index("devices_user_idx").on(table.userId),
+  userInstallIdx: index("devices_user_install_idx").on(table.userId, table.installId),
 }));
 
 /** Per-user monotonic version counter, bumped once per release write (create, update, or tombstone). */

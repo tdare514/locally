@@ -112,6 +112,8 @@ export const verifyRequestSchema = z.object({
   code: z.string().regex(/^\d{6}$/, "Code must be 6 digits"),
   deviceName: z.string().trim().min(1).max(200),
   platform: platformSchema,
+  /** A Mac's stable install ID (#210). Used only when `platform` is `mac`. */
+  installId: z.string().uuid("installId must be a UUID").optional(),
 });
 export type VerifyRequest = z.infer<typeof verifyRequestSchema>;
 

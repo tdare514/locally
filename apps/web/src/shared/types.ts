@@ -106,6 +106,7 @@ export interface Settings {
   spotify?: SpotifySettings;  // the Spotify connection (#239); absent when disconnected
   playsPromptAnswered?: boolean;  // user answered the one-time "Count your Spotify plays?" card, either button (#110)
   adoptRoots?: string[];  // folders Spotify reads that Locally scans to adopt in place (#245); read as [] when absent
+  installId?: string;  // random UUID made once on this Mac, sent with sync sign-in (#210); never logged, never sent to the browser
 }
 
 /** The `sync` field as returned to the browser by GET/PUT /api/settings: no token. */
