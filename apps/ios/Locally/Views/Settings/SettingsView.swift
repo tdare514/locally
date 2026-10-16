@@ -56,7 +56,7 @@ struct SettingsView: View {
                                 AppIconPicker().padding(16)
                                 GlassDivider()
                                 GlassToggleRow(
-                                    symbol: "sparkles", tint: Theme.Tint.slate,
+                                    symbol: "wind", tint: Theme.Tint.slate,
                                     title: Copy.Settings.keepBackdropsMoving, isOn: $keepBackdropsMoving
                                 )
                             }
