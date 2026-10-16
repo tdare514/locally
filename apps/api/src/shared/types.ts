@@ -7,18 +7,31 @@
 import { z } from "zod";
 import { isRealDay } from "./days";
 
+/** Both mirror `spec/sync-file-names.json`; `syncFileNameRules.test.ts` fails if they drift. */
 export const SUPPORTED_FILE_EXT = ["mp3", "m4a", "jpg", "jpeg", "png"] as const;
+export const MAX_FILE_NAME_BYTES = 255;
 
-/** A bare filename: no path separators, <= 200 chars, an allowed extension. */
-export const fileNameSchema = z
-  .string()
-  .max(200, "File name must be 200 characters or fewer")
-  .refine((name) => !name.includes("/") && !name.includes("\\"), {
-    message: "File name must not contain path separators",
-  })
-  .refine((name) => new RegExp(`\\.(${SUPPORTED_FILE_EXT.join("|")})$`, "i").test(name), {
-    message: `File name must end in one of: ${SUPPORTED_FILE_EXT.join(", ")}`,
-  });
+const utf8ByteLength = (name: string): number => new TextEncoder().encode(name).length;
+
+/**
+ * A bare filename: no path separators, an allowed extension, at most 255 UTF-8 bytes (the
+ * filesystem limit; the iPhone counts bytes too). `allowOverLong` names a stored name that is
+ * still accepted past the limit (a re-push of a name saved before the byte limit, #87).
+ */
+export const makeFileNameSchema = (allowOverLong: ReadonlySet<string> = new Set()) =>
+  z
+    .string()
+    .refine((name) => utf8ByteLength(name) <= MAX_FILE_NAME_BYTES || allowOverLong.has(name), {
+      message: `File name must be ${MAX_FILE_NAME_BYTES} bytes or fewer (UTF-8)`,
+    })
+    .refine((name) => !name.includes("/") && !name.includes("\\"), {
+      message: "File name must not contain path separators",
+    })
+    .refine((name) => new RegExp(`\\.(${SUPPORTED_FILE_EXT.join("|")})$`, "i").test(name), {
+      message: `File name must end in one of: ${SUPPORTED_FILE_EXT.join(", ")}`,
+    });
+
+export const fileNameSchema = makeFileNameSchema();
 
 export const uuidSchema = z.string().uuid("Must be a UUID");
 
@@ -35,23 +48,24 @@ export type Platform = z.infer<typeof platformSchema>;
 const isoDateSchema = z.string().datetime({ offset: true, message: "Must be an ISO 8601 timestamp" });
 
 /** `tracks[]` entry inside a release record. */
-export const trackRecordSchema = z.object({
+const makeTrackRecordSchema = (fileName: z.ZodType<string>) => z.object({
   id: uuidSchema,
   title: z.string().min(1).max(500),
   trackNumber: z.number().int().positive(),
   /** Which disc of a multi-disc release this track is on; absent on a single-disc release. */
   discNumber: z.number().int().min(1).max(99).optional(),
-  file: fileNameSchema,
+  file: fileName,
   bytes: z.number().int().nonnegative(),
   durationSec: z.number().nonnegative().nullable(),
 });
+export const trackRecordSchema = makeTrackRecordSchema(fileNameSchema);
 export type TrackRecord = z.infer<typeof trackRecordSchema>;
 
 /** The `release.json` document from `spec/sync.md`, as sent in `PUT /v1/releases/:id`. */
 /** Lowercase hex sha256 of a cover's bytes; the change signal for `cover.<ext>`, whose name never changes. */
 export const coverHashSchema = z.string().regex(/^[0-9a-f]{64}$/);
 
-export const releaseRecordSchema = z.object({
+const makeReleaseRecordSchema = (fileName: z.ZodType<string>) => z.object({
   /** 1: original record. 2: adds `coverHash`. Both are accepted so clients can update in any order. */
   syncVersion: z.union([z.literal(1), z.literal(2)]),
   id: uuidSchema,
@@ -63,10 +77,10 @@ export const releaseRecordSchema = z.object({
     .regex(/^\d{4}$/)
     .nullable(),
   genre: z.string().max(200).nullable(),
-  cover: fileNameSchema.nullable(),
+  cover: fileName.nullable(),
   /** Absent on `syncVersion` 1 records (no signal); `null` on a v2 record with no cover. */
   coverHash: coverHashSchema.nullable().optional(),
-  tracks: z.array(trackRecordSchema).min(1).max(500),
+  tracks: z.array(makeTrackRecordSchema(fileName)).min(1).max(500),
   /** `"adopted"`: details-only release adopted in place on the Mac (#246); absent otherwise. Any other value is a 400. */
   source: z.literal("adopted").optional(),
   origin: platformSchema,
@@ -75,6 +89,11 @@ export const releaseRecordSchema = z.object({
   updatedAt: isoDateSchema,
   deleted: z.boolean(),
 });
+export const releaseRecordSchema = makeReleaseRecordSchema(fileNameSchema);
+
+/** The PUT body schema for a release that already stores `storedLongNames` (see `makeFileNameSchema`). */
+export const releaseRecordSchemaKeeping = (storedLongNames: ReadonlySet<string>) =>
+  makeReleaseRecordSchema(makeFileNameSchema(storedLongNames));
 export type ReleaseRecord = z.infer<typeof releaseRecordSchema>;
 
 /** A release record as returned to clients: the record plus sync bookkeeping. */
@@ -96,11 +115,11 @@ export const verifyRequestSchema = z.object({
 });
 export type VerifyRequest = z.infer<typeof verifyRequestSchema>;
 
-export const filesUploadRequestSchema = z.object({
+const makeFilesUploadRequestSchema = (fileName: z.ZodType<string>) => z.object({
   files: z
     .array(
       z.object({
-        name: fileNameSchema,
+        name: fileName,
         bytes: z.number().int().positive(),
         contentType: z.string().min(1).max(200),
       })
@@ -108,6 +127,11 @@ export const filesUploadRequestSchema = z.object({
     .min(1)
     .max(50),
 });
+
+export const filesUploadRequestSchema = makeFilesUploadRequestSchema(fileNameSchema);
+/** The upload body schema for a release that already stores `storedLongNames` (see `makeFileNameSchema`). */
+export const filesUploadRequestSchemaKeeping = (storedLongNames: ReadonlySet<string>) =>
+  makeFilesUploadRequestSchema(makeFileNameSchema(storedLongNames));
 export type FilesUploadRequest = z.infer<typeof filesUploadRequestSchema>;
 
 export interface UserSummary {

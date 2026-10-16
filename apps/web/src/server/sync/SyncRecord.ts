@@ -16,8 +16,8 @@ export type SyncOrigin = "mac" | "ios" | (string & {});
  * never heard of is read as "another device" instead of failing the whole pull page. */
 const SYNC_ORIGIN_PATTERN = /^[a-z][a-z0-9-]{0,15}$/;
 
-/** Longest name accepted for a record's file names and ids: the filename limit on every common filesystem. */
-export const MAX_SYNC_NAME_LENGTH = 255;
+/** Longest name accepted for a record's file names and ids, in UTF-8 bytes: the filename limit on every common filesystem. Mirrors `spec/sync-file-names.json`. */
+export const MAX_SYNC_NAME_BYTES = 255;
 
 /** What an adopted release with no artist tag is sent as: the service refuses an empty `artist`. Lives in shared/ so the UI shows the same word. */
 export { UNKNOWN_ARTIST };
@@ -25,13 +25,13 @@ export { UNKNOWN_ARTIST };
 /**
  * True only for a name that, joined to any directory, can point at nothing but
  * a direct child of it: no separators, not `.`/`..` or any other leading-dot
- * name, no control characters, and within the filesystem length limit.
+ * name, no control characters, and within the filesystem length limit (in UTF-8 bytes).
  * Record file names and ids are used as path components (`SyncEngine`
  * downloads to `dir/<file>`, `ReleaseService.importSynced` reads them back),
  * and they arrive from the network, so anything else is refused at the wire.
  */
 export function isPlainSyncName(name: string): boolean {
-  if (name.length === 0 || name.length > MAX_SYNC_NAME_LENGTH) return false;
+  if (name.length === 0 || new TextEncoder().encode(name).length > MAX_SYNC_NAME_BYTES) return false;
   if (name.startsWith(".")) return false;
   if (name !== path.basename(name) || /[/\\]/.test(name)) return false;
   for (let i = 0; i < name.length; i++) {
@@ -43,7 +43,7 @@ export function isPlainSyncName(name: string): boolean {
 
 const plainName = (what: string) => z.string().refine(isPlainSyncName, `${what} must be a plain file name`);
 
-/** The extensions the API accepts for `tracks[].file` and `cover` (`SUPPORTED_FILE_EXT` in apps/api). */
+/** The extensions the API accepts for `tracks[].file` and `cover` (`SUPPORTED_FILE_EXT` in apps/api; mirrors `spec/sync-file-names.json`). */
 export const SYNC_FILE_EXTENSIONS = ["mp3", "m4a", "jpg", "jpeg", "png"] as const;
 
 const SYNC_FILE_EXTENSION_RE = new RegExp(`\\.(${SYNC_FILE_EXTENSIONS.join("|")})$`, "i");

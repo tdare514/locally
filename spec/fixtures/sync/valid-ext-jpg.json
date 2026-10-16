@@ -1,0 +1,26 @@
+{
+  "syncVersion": 2,
+  "id": "b6f1d2a4-8c3e-4f5a-9b7d-1e2f3a4b5c6d",
+  "kind": "single",
+  "title": "Kill for Love",
+  "artist": "Chromatics",
+  "year": "2012",
+  "genre": "Synth-pop",
+  "cover": "cover.jpg",
+  "coverHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "tracks": [
+    {
+      "id": "c7a2e3b5-9d4f-4a6b-8c8e-2f3a4b5c6d7e",
+      "title": "Kill for Love",
+      "trackNumber": 1,
+      "file": "Kill for Love.mp3",
+      "bytes": 8421376,
+      "durationSec": 253.4
+    }
+  ],
+  "origin": "mac",
+  "originDevice": "Toby's MacBook",
+  "createdAt": "2026-09-27T20:00:00Z",
+  "updatedAt": "2026-09-27T20:00:00Z",
+  "deleted": false
+}
