@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { medalFor, type StatItem } from "../../lib/play-stats";
 import { formatCount, lastPlayedLabel, playsCount } from "../../lib/stats-copy";
-import { STATS_PAGE_SIZE, moreLabel, nextShown, seaTiers } from "../../lib/stats-layout";
+import { moreLabel, nextShown, seaTiers } from "../../lib/stats-layout";
 import StatCover, { statCoverUrl } from "../sidebar/StatCover";
 
 /** The ranked list and the sorted sea under the fan on the Stats page (#145). Each row and each
@@ -16,8 +16,15 @@ function openHint(item: StatItem): string {
 
 /** Shows the first page of `total`, and a button for the next. When the last page is shown the
  * button goes, so focus moves to the first row that appeared (`firstNew` finds it in the list). */
-function usePaging(total: number, firstNew: (index: number) => HTMLElement | null | undefined) {
-  const [shown, setShown] = useState(STATS_PAGE_SIZE);
+function usePaging(
+  total: number,
+  firstNew: (index: number) => HTMLElement | null | undefined,
+  initialShown: number,
+  onShownChange: (shown: number) => void
+) {
+  const [shown, setShown] = useState(initialShown);
+  // AppShell remembers the count, so Back to this page shows the same rows (#258).
+  useEffect(() => onShownChange(shown), [shown, onShownChange]);
   const focusAt = useRef<number | null>(null);
   useEffect(() => {
     if (focusAt.current === null) return;
@@ -56,16 +63,20 @@ export function StatsList({
   round,
   today,
   onOpen,
+  initialShown,
+  onShownChange,
 }: {
   items: StatItem[];
   label: string;
   round: boolean;
   today: string;
   onOpen: (item: StatItem) => void;
+  initialShown: number;
+  onShownChange: (shown: number) => void;
 }) {
   const max = Math.max(0, ...items.map((i) => i.plays));
   const list = useRef<HTMLOListElement>(null);
-  const { shown, button } = usePaging(items.length, (i) => list.current?.querySelectorAll<HTMLElement>("button")[i]);
+  const { shown, button } = usePaging(items.length, (i) => list.current?.querySelectorAll<HTMLElement>("button")[i], initialShown, onShownChange);
   return (
     <div className="st-list">
       <ol ref={list} aria-label={label} className="mt-3">
@@ -162,14 +173,18 @@ export function StatsSea({
   label,
   round,
   onOpen,
+  initialShown,
+  onShownChange,
 }: {
   items: StatItem[];
   label: string;
   round: boolean;
   onOpen: (item: StatItem) => void;
+  initialShown: number;
+  onShownChange: (shown: number) => void;
 }) {
   const wrap = useRef<HTMLElement>(null);
-  const { shown, button } = usePaging(items.length, (i) => wrap.current?.querySelectorAll<HTMLElement>("button")[i]);
+  const { shown, button } = usePaging(items.length, (i) => wrap.current?.querySelectorAll<HTMLElement>("button")[i], initialShown, onShownChange);
   const groups = seaTiers(items.slice(0, shown));
   return (
     <section ref={wrap} aria-label={label} className="st-sea-wrap mt-4">

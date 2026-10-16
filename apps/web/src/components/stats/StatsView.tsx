@@ -60,6 +60,8 @@ export default function StatsView({
   releases,
   loadingLibrary,
   prefs,
+  shown,
+  onShownChange,
   onPrefsChange,
   onOpenRelease,
   onOpenArtist,
@@ -68,6 +70,9 @@ export default function StatsView({
   releases: Release[];
   loadingLibrary: boolean;
   prefs: StatsPrefs;
+  /** Rows the ranking shows after "Show more", kept by AppShell so Back lands on the same row (#258). */
+  shown: number;
+  onShownChange: (shown: number) => void;
   onPrefsChange: (patch: Partial<StatsPrefs>) => void;
   onOpenRelease: (id: string, trackId?: string) => void;
   /** Shows the Library filtered to this artist. */
@@ -208,9 +213,11 @@ export default function StatsView({
                   round={tab === "artists"}
                   today={today}
                   onOpen={open}
+                  initialShown={shown}
+                  onShownChange={onShownChange}
                 />
               ) : (
-                <StatsSea items={items} label={`Your ${noun}, in rank order`} round={tab === "artists"} onOpen={open} />
+                <StatsSea items={items} label={`Your ${noun}, in rank order`} round={tab === "artists"} onOpen={open} initialShown={shown} onShownChange={onShownChange} />
               )}
             </div>
           </section>

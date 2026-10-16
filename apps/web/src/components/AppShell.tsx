@@ -10,11 +10,13 @@ import ImportView from "./ImportView";
 import ReleaseView from "./ReleaseView";
 import SettingsView from "./SettingsView";
 import StatsView, { DEFAULT_STATS_PREFS, type StatsPrefs } from "./stats/StatsView";
+import { STATS_PAGE_SIZE } from "../lib/stats-layout";
 import type { LibrarySort } from "../lib/library-sections";
 import AmbientSpace from "./AmbientSpace";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
 import PhoneInbox, { type ResyncOutcome } from "./PhoneInbox";
 import BackButton from "./BackButton";
+import { runScrollRestore } from "../lib/scroll-restore";
 import {
   backLabel,
   clearStack,
@@ -38,6 +40,8 @@ interface BackState {
   query: string;
   sort: LibrarySort;
   stats: StatsPrefs;
+  /** Rows the Stats ranking shows after "Show more". */
+  statsShown: number;
 }
 
 export default function AppShell() {
@@ -58,6 +62,7 @@ export default function AppShell() {
   // the rail, sidebar panel or profile clears it.
   const [backStack, setBackStack] = useState<BackStack<View, BackState>>(clearStack);
   const pendingScroll = useRef<number | null>(null);
+  const [statsShown, setStatsShown] = useState(STATS_PAGE_SIZE);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const nextToastId = useRef(0);
   // The library sky follows the scroll through --pane-progress and --pane-swirl on the sky
@@ -161,7 +166,7 @@ export default function AppShell() {
     return {
       view,
       scrollTop: mainRef.current?.scrollTop ?? 0,
-      state: { query: libraryQuery, sort: librarySort, stats: statsPrefs },
+      state: { query: libraryQuery, sort: librarySort, stats: statsPrefs, statsShown },
     };
   }
 
@@ -185,22 +190,20 @@ export default function AppShell() {
     setLibraryQuery(popped.entry.state.query);
     setLibrarySort(popped.entry.state.sort);
     setStatsPrefs(popped.entry.state.stats);
+    setStatsShown(popped.entry.state.statsShown);
     pendingScroll.current = popped.entry.scrollTop;
     setView(popped.entry.view);
   }
 
-  // Put the scroll back once the earlier page has rendered (the library can take a frame to lay out).
+  // Put the scroll back once the earlier page is tall enough (Stats loads its rankings after it
+  // mounts); it stops when the user scrolls or presses a key, or after 3 s.
   useLayoutEffect(() => {
     const top = pendingScroll.current;
     if (top === null) return;
     pendingScroll.current = null;
     const main = mainRef.current;
     if (!main) return;
-    main.scrollTop = top;
-    const raf = requestAnimationFrame(() => {
-      main.scrollTop = top;
-    });
-    return () => cancelAnimationFrame(raf);
+    return runScrollRestore(main, top);
   }, [view]);
 
   // Cmd+[ and the mouse's back button. Not while typing in a field.
@@ -240,7 +243,7 @@ export default function AppShell() {
       stackAfterImport({
         view: { type: "library" },
         scrollTop: 0,
-        state: { query: libraryQuery, sort: librarySort, stats: statsPrefs },
+        state: { query: libraryQuery, sort: librarySort, stats: statsPrefs, statsShown },
       })
     );
     setView({ type: "release", id: release.id, justImported: release.kind === "album" });
@@ -315,7 +318,11 @@ export default function AppShell() {
       <div className="sb-stage relative isolate min-h-0 min-w-0 flex-1">
         <main
           ref={mainRef}
-          className="relative isolate h-full overflow-y-auto p-6 md:p-10 lg:p-16"
+          className={`relative isolate h-full overflow-y-auto p-6 md:p-10 lg:p-16 ${
+            // Room under the back button where the page's own padding would run into it; at lg
+            // the padding already clears it.
+            backStack.length > 0 ? "pt-[4.5rem] md:pt-20 lg:pt-16" : ""
+          }`}
         >
           {view.type === "library" && (
             <LibraryView
@@ -358,7 +365,13 @@ export default function AppShell() {
               releases={library?.releases ?? []}
               loadingLibrary={loadingLibrary}
               prefs={statsPrefs}
-              onPrefsChange={(patch) => setStatsPrefs((prev) => ({ ...prev, ...patch }))}
+              shown={statsShown}
+              onShownChange={setStatsShown}
+              onPrefsChange={(patch) => {
+                // A new tab, period or layout starts its ranking at the first page again.
+                if ("tab" in patch || "period" in patch || "layout" in patch) setStatsShown(STATS_PAGE_SIZE);
+                setStatsPrefs((prev) => ({ ...prev, ...patch }));
+              }}
               onOpenRelease={(id, trackId) => pushTo({ type: "release", id, trackId })}
               onOpenArtist={(name) => {
                 // The library's own search finds an artist by name.
