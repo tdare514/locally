@@ -39,6 +39,7 @@ struct RecentCoversLoader {
     @MainActor
     func load() async -> [RecentCover] {
         var covers: [RecentCover] = []
+        var seen = Set<String>()
         var window = Self.limit
         var scanned = 0
         while covers.count < Self.limit, !Task.isCancelled {
@@ -46,7 +47,9 @@ struct RecentCoversLoader {
             guard let releases = try? library.recent(limit: window) else { break }
             let unscanned = Array(releases.dropFirst(scanned))
             scanned = releases.count
-            covers += await Self.thumbnails(for: unscanned, room: Self.limit - covers.count, from: coverStore)
+            let found = await Self.thumbnails(for: unscanned, room: Self.limit - covers.count, seen: seen, from: coverStore)
+            covers += found.covers
+            seen = found.seen
             if releases.count < window { break }
             window *= 2
         }
@@ -56,15 +59,26 @@ struct RecentCoversLoader {
     /// Reads and decodes covers off the main actor, stopping once `room` are found or the
     /// calling task is cancelled. `Task.detached` does not inherit cancellation, so it is
     /// passed on by hand.
-    private static func thumbnails(for releases: [Release], room: Int, from store: CoverStore) async -> [RecentCover] {
+    ///
+    /// Each cover file's bytes are hashed (SHA-256) and a cover whose hash is in `seen` is
+    /// skipped, so the same picture shows once, as the newest release's. Skipped duplicates do
+    /// not count towards `room`. The updated `seen` is returned so the next pass carries on from it.
+    private static func thumbnails(
+        for releases: [Release], room: Int, seen: Set<String>, from store: CoverStore
+    ) async -> (covers: [RecentCover], seen: Set<String>) {
         let task = Task.detached(priority: .userInitiated) {
             var covers: [RecentCover] = []
+            var seen = seen
             for release in releases {
                 if covers.count == room || Task.isCancelled { break }
-                guard let url = store.fileURL(release.id), let thumbnail = Self.thumbnail(at: url) else { continue }
+                guard let url = store.fileURL(release.id),
+                      let bytes = try? Data(contentsOf: url, options: .mappedIfSafe) else { continue }
+                let hash = bytes.sha256Hex
+                guard !seen.contains(hash), let thumbnail = Self.thumbnail(at: url) else { continue }
+                seen.insert(hash)
                 covers.append(RecentCover(id: release.id, title: release.title, artist: release.artist, thumbnail: thumbnail))
             }
-            return covers
+            return (covers, seen)
         }
         return await withTaskCancellationHandler {
             await task.value

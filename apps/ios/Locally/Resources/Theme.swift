@@ -117,6 +117,10 @@ enum Theme {
         /// Gap between tiles per `CoverSize`.
         static let tileGap: [CGFloat] = [12, 16, 20]
         static let tileCornerRadius: CGFloat = 8
+        /// The Singles / Albums header buttons: tap target, chevron size and the fold's duration.
+        static let sectionHeaderMinHeight: CGFloat = 44
+        static let sectionChevronSize: CGFloat = 12
+        static let sectionFoldDuration: Double = 0.3
         static let listPanelCornerRadius: CGFloat = 16
         /// A pressed cover grows by this factor and gains a soft shadow.
         static let pressScale: CGFloat = 1.03
@@ -192,8 +196,8 @@ enum Theme {
         static let discRingWidth: CGFloat = 1.4
         static let discRingOpacity: Double = 0.35
         static let discEdgeOpacity: Double = 0.07
-        /// Darkens the dock only, so list rows scrolling under the glass stay out of the way of its text.
-        static let dockUnderlay = Color.black.opacity(0.92)
+        /// The dock's opaque base, so the tracks panel never shows through behind its text while the keyboard lifts it.
+        static let dockUnderlay = Color.black
         static var panelFill: Color { .white.opacity(panelFillOpacity) }
         static var panelStroke: Color { .white.opacity(panelStrokeOpacity) }
         static let discColor = Color(red: 0x11 / 255, green: 0x11 / 255, blue: 0x11 / 255)
@@ -460,6 +464,8 @@ enum Theme {
         /// The replace button's circling arrows, and its tap area.
         static let replaceOpacity: Double = 0.6
         static let replaceHitSize: CGFloat = 44
+        /// The track length at the trailing edge.
+        static let lengthOpacity: Double = 0.6
         static let gripOpacity: Double = 0.35
         /// The hairline between rows (`.track-list > .track-row` border).
         static let separatorOpacity: Double = 0.07

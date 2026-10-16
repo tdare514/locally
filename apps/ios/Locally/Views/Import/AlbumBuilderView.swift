@@ -57,13 +57,17 @@ struct AlbumBuilderView: View {
                             if headings.indices.contains(index), let disc = headings[index] {
                                 DiscHeading(number: disc).importPanelRow(.middle)
                             }
-                            TrackRow(
-                                number: index + 1,
-                                title: row.title,
-                                titleBinding: Binding(get: { row.title }, set: { setTitle($0, for: row) }),
-                                onReplace: { context.onReplaceTrack(row.id) },
-                                showsGrip: model.rows.count >= 2
-                            )
+                            TrackLengthReader(stored: nil, url: row.url) { seconds in
+                                TrackRow(
+                                    number: index + 1,
+                                    title: row.title,
+                                    titleBinding: Binding(get: { row.title }, set: { setTitle($0, for: row) }),
+                                    length: TrackLength.format(seconds),
+                                    lengthSpoken: TrackLength.spoken(seconds),
+                                    onReplace: { context.onReplaceTrack(row.id) },
+                                    showsGrip: model.rows.count >= 2
+                                )
+                            }
                             .importTrackRow(
                                 isFirst: index == 0 || hasHeading(headings, at: index),
                                 isLast: index == model.rows.count - 1 || hasHeading(headings, at: index + 1)
