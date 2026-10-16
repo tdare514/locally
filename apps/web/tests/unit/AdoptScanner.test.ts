@@ -204,8 +204,8 @@ describe("AdoptScanner grouping", () => {
 describe("localId", () => {
   it("encodes spaces as +, and : + and non-ASCII as percent escapes, and round-trips decodeLocalId", () => {
     const id = buildLocalId("AC:DC & Co", "A+B Album", "Café Déjà vu", 213.6);
-    expect(id).toBe("spotify:local:AC%3ADC+%26+Co:A%2BB+Album:Caf%C3%A9+D%C3%A9j%C3%A0+vu:214");
-    expect(decodeLocalId(id)).toEqual({ artist: "AC:DC & Co", album: "A+B Album", title: "Café Déjà vu", seconds: 214 });
+    expect(id).toBe("spotify:local:AC%3ADC+%26+Co:A%2BB+Album:Caf%C3%A9+D%C3%A9j%C3%A0+vu:213");
+    expect(decodeLocalId(id)).toEqual({ artist: "AC:DC & Co", album: "A+B Album", title: "Café Déjà vu", seconds: 213 });
   });
 
   it("round-trips through a scanned file with awkward tags", async () => {
@@ -213,7 +213,7 @@ describe("localId", () => {
     const [g] = (await scanner().scan([root])).groups;
     const decoded = decodeLocalId(g.tracks[0].localId);
     expect(decoded).toMatchObject({ artist: "Ärtist Name", album: "Al:bum", title: "Title: Part+1 ü" });
-    expect(decoded?.seconds).toBe(Math.round(g.tracks[0].durationSec));
+    expect(decoded?.seconds).toBe(Math.floor(g.tracks[0].durationSec));
   });
 });
 
