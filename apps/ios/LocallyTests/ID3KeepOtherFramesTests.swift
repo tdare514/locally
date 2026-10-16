@@ -11,7 +11,10 @@ struct ID3KeepOtherFramesTests {
 
     private func text(_ string: String) -> [UInt8] { [0x03] + Array(string.utf8) }
 
-    private func plain(_ n: Int) -> [UInt8] { (0..<4).map { UInt8((n >> (8 * (3 - $0))) & 0xFF) } }
+    private func plain(_ n: Int) -> [UInt8] {
+        let value = UInt32(truncatingIfNeeded: n)
+        return [UInt8(value >> 24 & 0xFF), UInt8(value >> 16 & 0xFF), UInt8(value >> 8 & 0xFF), UInt8(value & 0xFF)]
+    }
 
     private func v24Frame(_ id: String, _ payload: [UInt8], status: UInt8 = 0, format: UInt8 = 0) -> Data {
         Data(Array(id.utf8) + Array(ID3TagWriter.synchsafe(payload.count)) + [status, format] + payload)
@@ -55,7 +58,8 @@ struct ID3KeepOtherFramesTests {
     /// All frames of a v2.4 tag, in order, duplicates included, plus the audio after it.
     private func parse(_ data: Data) -> (frames: [(id: String, payload: [UInt8], flags: [UInt8])], audio: Data) {
         let bytes = [UInt8](data)
-        #expect(Array(bytes[0..<5]) == [0x49, 0x44, 0x33, 0x04, 0x00])
+        let header: [UInt8] = [0x49, 0x44, 0x33, 0x04, 0x00]
+        #expect(Array(bytes[0..<5]) == header)
         let end = 10 + ID3TagWriter.desynchsafe(Array(bytes[6...9]))
         var frames: [(String, [UInt8], [UInt8])] = []
         var offset = 10
@@ -103,7 +107,8 @@ struct ID3KeepOtherFramesTests {
         #expect(outAudio == audio)
         for id in ["TIT2", "TPE1", "TALB", "TDRC", "TYER"] { #expect(frames.filter { $0.id == id }.count == 1, "\(id)") }
         #expect(payloads(frames, "TIT2") == [text("New Title")])
-        #expect(payloads(frames, "TYER") == [[0x00] + Array("2026".utf8)]) // ISO-8859-1
+        let latin1Year: [UInt8] = [0x00] + Array("2026".utf8) // ISO-8859-1
+        #expect(payloads(frames, "TYER") == [latin1Year])
         #expect(payloads(frames, "TCOM") == [text("The Composer")])
         #expect(payloads(frames, "TBPM") == [text("120")])
         #expect(payloads(frames, "USLT").count == 1)
@@ -134,7 +139,11 @@ struct ID3KeepOtherFramesTests {
 
         #expect(outAudio == audio)
         #expect(payloads(frames, "TCOM") == [text("Composer")])
-        #expect(payloads(frames, "COMM") == [[0x03] + Array("eng".utf8) + [0x00] + long])
+        var comm: [UInt8] = [0x03]
+        comm += Array("eng".utf8)
+        comm.append(0x00)
+        comm += long
+        #expect(payloads(frames, "COMM") == [comm])
         #expect(payloads(frames, "TBPM") == [text("90")])
         #expect(payloads(frames, "TIT2") == [text("New Title")])
     }
@@ -197,12 +206,13 @@ struct ID3KeepOtherFramesTests {
         let (f23, _) = try await retag(tag(major: 3, body: v23Frame("TCOM", [0x07] + text("Composer"), format: 0x20)))
         let out23 = try #require(f23.first { $0.id == "TCOM" })
         #expect(out23.flags == [0, 0x40])
-        #expect(out23.payload == [0x07] + text("Composer"))
+        let grouped: [UInt8] = [0x07] + text("Composer")
+        #expect(out23.payload == grouped)
 
         let (f24, _) = try await retag(tag(major: 4, body: v24Frame("TCOM", [0x07] + text("Composer"), format: 0x40)))
         let out24 = try #require(f24.first { $0.id == "TCOM" })
         #expect(out24.flags == [0, 0x40])
-        #expect(out24.payload == [0x07] + text("Composer"))
+        #expect(out24.payload == grouped)
     }
 
     @Test func aCompressedV23FrameBecomesAV24FrameWithADataLengthIndicator() async throws {
@@ -237,7 +247,8 @@ struct ID3KeepOtherFramesTests {
         let (frames, _) = try await retag(tag(major: 4, body: v24Frame("TXXX", dli + data, format: 0x0B)))
         let out = try #require(frames.first { $0.id == "TXXX" })
         #expect(out.flags == [0, 0x0B])
-        #expect(out.payload == dli + data)
+        let unchanged: [UInt8] = dli + data
+        #expect(out.payload == unchanged)
     }
 
     @Test func reversesUnsynchronisationAcrossAGroupedFramesWholeBodyBeforeReadingTheGroupId() async throws {
@@ -247,7 +258,8 @@ struct ID3KeepOtherFramesTests {
         let (frames, _) = try await retag(tag(major: 4, body: v24Frame("TCOM", body, format: 0x42)))
         let out = try #require(frames.first { $0.id == "TCOM" })
         #expect(out.flags == [0, 0x40])
-        #expect(out.payload == [0xFF] + text)
+        let regrouped: [UInt8] = [0xFF] + text
+        #expect(out.payload == regrouped)
     }
 
     @Test func keepsTheDataLengthIndicatorOnAnEncryptedUncompressedFrame() async throws {
