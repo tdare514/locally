@@ -1,4 +1,4 @@
-import type { ReactNode, SVGProps } from "react";
+import { useId, type ReactNode, type SVGProps } from "react";
 
 /** Shared attributes for every icon: a 24-unit viewBox, stroked (not filled) paths,
  * round caps/joins — matches the app's design-language icon spec so we don't need to
@@ -23,14 +23,23 @@ function IconBase({
   );
 }
 
-/** Cover drop zone: a picture frame with a "+" — click or drop an image. */
+/** Cover drop zone: a photo (frame, sun, hill) with a circled "+" badge on its corner. The mask
+ * knocks the frame out under the badge, as there is no fill colour to paint over it. */
 export function ImagePlusIcon(props: SVGProps<SVGSVGElement>) {
+  const maskId = useId();
   return (
     <IconBase {...props}>
-      <rect x="2" y="4" width="14" height="14" rx="2" />
-      <circle cx="7" cy="9" r="1.5" />
-      <path d="M2.5 15.5 6 12a1 1 0 0 1 1.4 0L11 15.5" />
-      <path d="M19 3v6M16 6h6" />
+      <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
+        <rect width="24" height="24" fill="white" />
+        <circle cx="18" cy="18" r="5.5" fill="black" />
+      </mask>
+      <g mask={`url(#${maskId})`}>
+        <rect x="2" y="4" width="16" height="14" rx="2" />
+        <circle cx="7" cy="9" r="1.5" />
+        <path d="m2 15.5 4.5-4.5a1.5 1.5 0 0 1 2 0L14 16.5" />
+      </g>
+      <circle cx="18" cy="18" r="4" />
+      <path d="M18 16.2v3.6M16.2 18h3.6" />
     </IconBase>
   );
 }
@@ -96,27 +105,24 @@ export function MusicNoteIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-/** Library list view: three rows, each with a small leading square. */
+/** Library list view: three rows, each a dot and a line. */
 export function ListViewIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconBase {...props}>
-      <rect x="3" y="4.5" width="3" height="3" rx="0.5" />
-      <rect x="3" y="10.5" width="3" height="3" rx="0.5" />
-      <rect x="3" y="16.5" width="3" height="3" rx="0.5" />
-      <path d="M10 6h11M10 12h11M10 18h11" />
+      <path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" />
+      <path d="M9 6h11M9 12h11M9 18h11" />
     </IconBase>
   );
 }
 
-/** Library cover view: one rounded square holding four smaller squares in a 2x2 grid. */
+/** Library cover view: four rounded squares in a 2x2 grid, no frame. */
 export function CoverGridIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconBase {...props}>
-      <rect x="2.5" y="2.5" width="19" height="19" rx="3" />
-      <rect x="6.5" y="6.5" width="4" height="4" rx="0.5" />
-      <rect x="13.5" y="6.5" width="4" height="4" rx="0.5" />
-      <rect x="6.5" y="13.5" width="4" height="4" rx="0.5" />
-      <rect x="13.5" y="13.5" width="4" height="4" rx="0.5" />
+      <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
+      <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
     </IconBase>
   );
 }
