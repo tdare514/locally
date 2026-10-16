@@ -199,8 +199,11 @@ eyebrows still apply to those labels.
       is glass like the back button). It switches to **edit mode**, the import's look: labelled
       fields with underlines and placeholders, editable album track titles, drag to reorder with
       the grip and the hint, the cover sheet on the sleeve, Delete, and the dock (Unsaved changes,
-      Save changes). The bar item reads **Cancel**. Cancel or Back with changes asks "Discard your
-      changes?" (Discard, destructive; Keep editing); with none it just leaves edit mode.
+      Save changes). In edit mode the iOS edit pattern applies: **Cancel** takes the back button's
+      place at the top left and the top right is empty (Save is in the dock), so the only ways out
+      are Cancel and Save. Cancel with changes asks "Discard your changes?" (Discard, destructive;
+      Keep editing); with none it just leaves edit mode. In view mode VoiceOver reads the sleeve
+      as "Cover", an image.
     - Switching modes cross-fades the underlines, grips and dock over 0.25 s on the signature
       easing (opacity only; layout changes are not animated). Reduce Motion: no fade.
     - **Save changes** opens a review sheet, "Check your changes" (medium detent, the page's

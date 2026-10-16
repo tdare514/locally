@@ -26,7 +26,6 @@ struct ReleaseDetailView: View {
     @State private var isPresentingReview = false
     @State private var isPresentingDiscardConfirm = false
     /// Whether Discard also leaves the page (Back) or only edit mode (Cancel).
-    @State private var discardLeavesPage = false
     @State private var photosItem: PhotosPickerItem?
     /// Raw bytes from the Files or Photos cover pick, handed to `CoverPicker` to
     /// crop; see `CoverPicker.rawPick`.
@@ -100,32 +99,24 @@ struct ReleaseDetailView: View {
         .transaction(value: model.isEditing) { transaction in
             transaction.animation = reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: Theme.Immersive.modeFade)
         }
-        .navigationBarBackButtonHidden(model.isEditing && model.hasChanges)
+        // Edit mode is the iOS edit pattern: Cancel takes the back button's place, so the only ways
+        // out are Cancel (asking first when there are edits) and Save.
+        .navigationBarBackButtonHidden(model.isEditing)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(model.isEditing ? Copy.Release.cancel : Copy.Release.edit) {
-                    if !model.isEditing {
-                        model.beginEditing()
-                    } else if model.hasChanges {
-                        discardLeavesPage = false
-                        isPresentingDiscardConfirm = true
-                    } else {
-                        model.discardChanges()
-                    }
-                }
-                .disabled(model.isSaving)
-            }
-            // With unsaved edits the system back button is hidden, so Back can ask first.
-            if model.isEditing && model.hasChanges {
+            if model.isEditing {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        discardLeavesPage = true
-                        isPresentingDiscardConfirm = true
-                    } label: {
-                        Image(systemName: "chevron.backward")
-                            .fontWeight(.semibold)
+                    Button(Copy.Release.cancel) {
+                        if model.hasChanges {
+                            isPresentingDiscardConfirm = true
+                        } else {
+                            model.discardChanges()
+                        }
                     }
-                    .accessibilityLabel(Copy.Library.title)
+                    .disabled(model.isSaving)
+                }
+            } else {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(Copy.Release.edit) { model.beginEditing() }
                 }
             }
         }
@@ -144,9 +135,7 @@ struct ReleaseDetailView: View {
             titleVisibility: .visible
         ) {
             Button(Copy.Release.discard, role: .destructive) {
-                let leaves = discardLeavesPage
                 model.discardChanges()
-                if leaves { dismiss() }
             }
             Button(Copy.Release.keepEditingDiscard, role: .cancel) {}
         }
@@ -216,7 +205,8 @@ struct ReleaseDetailView: View {
             // View mode: the sleeve is only a picture, not a button.
             .allowsHitTesting(model.isEditing)
             .accessibilityRemoveTraits(model.isEditing ? [] : .isButton)
-            .accessibilityHidden(!model.isEditing)
+            // In view mode VoiceOver reads it as the cover, an image, not "Change cover art".
+            .modifier(ViewModeCoverAccessibility(isEditing: model.isEditing))
             .sheet(isPresented: $isPresentingCoverSource, onDismiss: { applyCoverChoice(model) }) {
                 // Remove is left out: saving a release with its cover removed is not supported
                 // (`ReleaseChanges.cover` nil means "unchanged"), so it would do nothing.
@@ -400,5 +390,21 @@ private extension View {
                 bottom: Theme.Spacing.rowGap,
                 trailing: Theme.Immersive.panelRowInset
             ))
+    }
+}
+
+/// The sleeve's VoiceOver reading in view mode: "Cover", an image. In edit mode the sleeve's own
+/// label ("Add cover art" or "Change cover art") and button trait stand.
+private struct ViewModeCoverAccessibility: ViewModifier {
+    let isEditing: Bool
+
+    func body(content: Content) -> some View {
+        if isEditing {
+            content
+        } else {
+            content
+                .accessibilityLabel(Copy.Release.cover)
+                .accessibilityAddTraits(.isImage)
+        }
     }
 }
