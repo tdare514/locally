@@ -2298,77 +2298,92 @@ body {
     inset 0 0 0 1px rgb(255 227 200 / 0.45),
     0 calc(var(--w) * 0.075) calc(var(--w) * 0.14) calc(var(--w) * -0.07) rgb(0 0 0 / 0.8);
 }
-/* The gold record's shine, the owner's exception to "one shimmer per hover, never a loop" (15 Oct 2026):
-   once per 24s cycle a band runs left to right through the top half (::before) and ends in a quick flash
-   at the right end (.fan-record-glint), then about two seconds later a second band runs right to left
-   through the body (::after). The disc clips it, the grooves sit under it and the label over it. */
-.fan-record[data-medal="gold"] {
+/* The medal records' shine, the owner's exception to "one shimmer per hover, never a loop" (15 Oct 2026):
+   once per 8s cycle a soft band glides left to right through the top half (::before, about 1.6s), a
+   light then runs clockwise along the rim like a turning record catching the light (.fan-record-rim,
+   about 1.6s), and a second band glides right to left through the body (::after, about 1.8s).
+   Gold leads; silver and bronze follow 0.3s and 0.6s behind in their own metal's light, so it ripples
+   out from number one. Plain alpha, no blend mode, transform and opacity only, so the layers stay on
+   the compositor. The disc clips it, the grooves sit under it and the label over it. */
+.fan-record[data-medal] {
   overflow: hidden;
+  --shine: 255 246 214;
+  --shine-delay: 1.5s;
 }
-.fan-record[data-medal="gold"]::before,
-.fan-record[data-medal="gold"]::after {
-  content: "";
+.fan-record[data-medal="silver"] {
+  --shine: 255 255 255;
+  --shine-delay: 1.8s;
+}
+.fan-record[data-medal="bronze"] {
+  --shine: 255 228 200;
+  --shine-delay: 2.1s;
+}
+.fan-record[data-medal]::before,
+.fan-record[data-medal]::after,
+.fan-record-rim {
   position: absolute;
-  left: 0;
-  width: 100%;
   z-index: 1;
   pointer-events: none;
   opacity: 0;
-  mix-blend-mode: plus-lighter;
-  animation-duration: 24s;
+  will-change: transform, opacity;
+  animation-duration: 8s;
   animation-iteration-count: infinite;
   animation-timing-function: linear;
-  animation-delay: 1.5s;
+  animation-delay: var(--shine-delay);
 }
-.fan-record[data-medal="gold"]::before {
+.fan-record[data-medal]::before,
+.fan-record[data-medal]::after {
+  content: "";
+  left: 0;
+  width: 100%;
+}
+.fan-record[data-medal]::before {
   top: 0;
   height: 50%;
-  background: linear-gradient(105deg, transparent 38%, rgb(255 246 214 / 0) 42%, rgb(255 246 214 / 0.9) 50%, rgb(255 246 214 / 0) 58%, transparent 62%);
+  background: linear-gradient(105deg, transparent 28%, rgb(var(--shine) / 0.18) 38%, rgb(var(--shine) / 0.62) 47%, rgb(var(--shine) / 0.85) 50%, rgb(var(--shine) / 0.62) 53%, rgb(var(--shine) / 0.18) 62%, transparent 72%);
   transform: translateX(-100%);
-  animation-name: fan-gold-sweep-a;
+  animation-name: fan-shine-sweep-a;
 }
-.fan-record[data-medal="gold"]::after {
+.fan-record[data-medal]::after {
   top: 12%;
   height: 76%;
-  background: linear-gradient(75deg, transparent 38%, rgb(255 246 214 / 0) 42%, rgb(255 246 214 / 0.9) 50%, rgb(255 246 214 / 0) 58%, transparent 62%);
+  background: linear-gradient(75deg, transparent 28%, rgb(var(--shine) / 0.16) 38%, rgb(var(--shine) / 0.55) 47%, rgb(var(--shine) / 0.78) 50%, rgb(var(--shine) / 0.55) 53%, rgb(var(--shine) / 0.16) 62%, transparent 72%);
   transform: translateX(100%);
-  animation-name: fan-gold-sweep-b;
+  animation-name: fan-shine-sweep-b;
 }
-.fan-record[data-medal="gold"] .fan-record-label {
+.fan-record[data-medal] .fan-record-label {
   z-index: 2;
 }
-.fan-record-glint {
-  position: absolute;
-  top: -6%;
-  right: 6%;
-  width: 36%;
-  aspect-ratio: 1;
-  z-index: 1;
+/* A thin ring at the disc's edge holding a comet of light: a bright head with a soft tail behind it.
+   Turning the ring carries the light round the rim; only the top of the rim shows above the sleeve. */
+.fan-record-rim {
+  inset: 0;
   border-radius: 9999px;
-  background: radial-gradient(circle, rgb(255 251 230 / 0.95), rgb(255 214 110 / 0.55) 32%, transparent 66%);
-  pointer-events: none;
-  opacity: 0;
-  transform: scale(0.4);
-  animation: fan-gold-glint 24s linear 1.5s infinite;
+  background: conic-gradient(from -46deg, transparent 0deg, rgb(var(--shine) / 0.2) 22deg, rgb(var(--shine) / 0.7) 38deg, rgb(var(--shine) / 0.95) 44deg, transparent 50deg 360deg);
+  -webkit-mask: radial-gradient(closest-side, transparent 89%, #000 94%, #000 98.5%, transparent 100%);
+  mask: radial-gradient(closest-side, transparent 89%, #000 94%, #000 98.5%, transparent 100%);
+  transform: rotate(-58deg);
+  animation-name: fan-shine-rim;
 }
-@keyframes fan-gold-sweep-a {
-  0% { transform: translateX(-100%); opacity: 0; animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
-  0.4% { transform: translateX(-92%); opacity: 1; animation-timing-function: cubic-bezier(0.45, 0, 0.25, 1); }
-  3.33% { transform: translateX(100%); opacity: 1; }
-  3.6% { transform: translateX(100%); opacity: 0; }
+@keyframes fan-shine-sweep-a {
+  0% { transform: translateX(-100%); opacity: 0; animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1); }
+  4% { opacity: 1; }
+  17% { opacity: 1; }
+  20% { transform: translateX(100%); opacity: 0; }
   100% { transform: translateX(100%); opacity: 0; }
 }
-@keyframes fan-gold-glint {
-  0%, 2.9% { transform: scale(0.4); opacity: 0; animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
-  3.54% { transform: scale(1); opacity: 1; animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
-  5% { transform: scale(1.1); opacity: 0; }
-  100% { transform: scale(1.1); opacity: 0; }
+@keyframes fan-shine-rim {
+  0%, 16% { transform: rotate(-58deg); opacity: 0; animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1); }
+  19% { opacity: 1; }
+  33% { opacity: 1; }
+  36% { transform: rotate(58deg); opacity: 0; }
+  100% { transform: rotate(58deg); opacity: 0; }
 }
-@keyframes fan-gold-sweep-b {
-  0%, 12.5% { transform: translateX(100%); opacity: 0; animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
-  12.9% { transform: translateX(92%); opacity: 1; animation-timing-function: cubic-bezier(0.45, 0, 0.25, 1); }
-  16.67% { transform: translateX(-100%); opacity: 1; }
-  16.95% { transform: translateX(-100%); opacity: 0; }
+@keyframes fan-shine-sweep-b {
+  0%, 45% { transform: translateX(100%); opacity: 0; animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1); }
+  49% { opacity: 1; }
+  64% { opacity: 1; }
+  67.5% { transform: translateX(-100%); opacity: 0; }
   100% { transform: translateX(-100%); opacity: 0; }
 }
 .fan-sleeve[data-active="true"] .fan-record {
@@ -2559,9 +2574,9 @@ body {
     animation: none;
     opacity: 1;
   }
-  .fan-record[data-medal="gold"]::before,
-  .fan-record[data-medal="gold"]::after,
-  .fan-record-glint {
+  .fan-record[data-medal]::before,
+  .fan-record[data-medal]::after,
+  .fan-record-rim {
     animation: none;
     opacity: 0;
   }
