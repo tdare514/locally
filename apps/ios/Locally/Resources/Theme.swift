@@ -261,7 +261,7 @@ enum Theme {
         static let inlineFieldUnderlineGap: CGFloat = 4
         static let inlineFieldFocusFade: Double = 0.15
         /// Labelled fields: the label column, the gap between rows, and the always-visible underline.
-        static let labeledFieldLabelWidth: CGFloat = 76
+        static let labeledFieldLabelWidth: CGFloat = 60
         static let labeledFieldRowGap: CGFloat = 12
         static let labeledFieldLabelGap: CGFloat = 12
         static let labeledFieldUnderlineRestOpacity: Double = 0.12

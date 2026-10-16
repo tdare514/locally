@@ -152,7 +152,7 @@ eyebrows still apply to those labels.
   - *Labelled fields* (`LabeledField`, import record and release page): one field per row in
     the same order on both screens: Title, Artist, Album (a single being imported only), Year,
     Genre. Each row has its label at the leading edge in a fixed column (subheadline,
-    `text-muted`, sentence case, no colon, 76 pt scaled with the text), then the value. A 1
+    `text-muted`, sentence case, no colon, 60 pt scaled with the text), then the value. A 1
     device-pixel underline sits under the value at all times: white 12 % at rest, 60 % while
     focused (fade 0.15 s). Values: the title in title3 semibold, the rest body; they wrap rather
     than truncate. Placeholders say what to type, in `text-dim`: "Enter single name" or "Enter
