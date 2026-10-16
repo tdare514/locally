@@ -41,7 +41,7 @@ identically in Spotify's Local Files.
 | album | TALB | ©alb |
 | track | TRCK `N/TOTAL` (per disc when discs are set) | trkn (N, TOTAL) per disc |
 | disc | TPOS `D/DISCS`, only when discs are set | disk (D, DISCS) |
-| year | TDRC (TYER on the Mac's node-id3) | ©day |
+| year | TDRC and TYER (the iPhone writes both, #234; the Mac's node-id3 writes TYER) | ©day |
 | genre | TCON | ©gen |
 | cover | APIC type 3 front cover, jpeg or png | covr |
 
@@ -73,10 +73,10 @@ track properties (`sdef Music.app`). Spotify on iPhone: see "On the iPhone" belo
 | album artist | TPE2 | aART | mp3 only (not m4a, not flac) | nowhere | yes | written, = artist | keep, hidden (an editable album artist waits for the artist list, #224) |
 | track number | TRCK | trkn | all formats | nowhere (list order is Spotify's own) | yes | written | keep, show (Locally's row numbers) |
 | disc number | TPOS | disk | mp3 only | nowhere | yes | written when set | keep, show (editing is #222) |
-| year | TYER (see below) | ©day | mp3 TYER only; m4a ©day; not flac | nowhere | year, release date | Mac TYER; iPhone mp3 TDRC only, so Spotify gets no year (m4a ©day is read) | keep, show; the iPhone also writes TYER (#234); full dates are #221 |
+| year | TYER (see below) | ©day | mp3 TYER only; m4a ©day; not flac | nowhere | year, release date | Mac TYER; iPhone mp3 TDRC and TYER (#234), m4a ©day | keep, show; full dates are #221 |
 | genre | TCON | ©gen | no | nowhere | yes | written | keep, show (Locally's library and search, Apple Music) |
 | cover | APIC type 3 | covr | all formats | list and now playing, 300 to 3000 px all shown | yes | written, 1500 px max | keep, show; 1500 px stays |
-| composer | TCOM | ©wrt | no | no | yes | Mac keeps it; iPhone strips it | keep hidden |
+| composer | TCOM | ©wrt | no | no | yes | kept on both apps (iPhone since #235) | keep hidden |
 | grouping | GRP1 | ©grp | no | no | yes | as composer | keep hidden |
 | work, movement | TIT1, MVNM, MVIN | ©wrk, ©mvn, ©mvi, ©mvc | no | no | yes | as composer | keep hidden |
 | BPM | TBPM | tmpo | no | no | yes | as composer | keep hidden |
@@ -87,8 +87,11 @@ track properties (`sdef Music.app`). Spotify on iPhone: see "On the iPhone" belo
 | label, copyright, ISRC | TPUB, TCOP, TSRC | LABEL, cprt, ISRC | no | no | no field (kept in the file) | as composer | keep hidden |
 
 "Keep hidden" means Locally never shows or edits the tag, and never removes it: a file keeps whatever
-the person's other tools put there. The Mac's writer already merges (`NodeID3.update`); the iPhone's two
-writers replace the whole tag, which drops these (#235). Nothing is dropped. Rating, play count,
+the person's other tools put there. The Mac's writer merges (`NodeID3.update`); the iPhone's two writers carry
+every frame or atom they don't own into the new tag (#235): an mp3's v2.3 or v2.4 frames, grouped,
+compressed and encrypted ones included (converted to v2.4's layout), and an m4a's items, freeform
+`----` atoms included. Only a frame marked "discard when the tag is altered" or a malformed one is
+dropped, and an mp3 whose old tag is over 32 MiB is refused rather than re-tagged. Nothing else is dropped. Rating, play count,
 favourite, EQ, start and stop times are Apple Music library data, not tags, so they are out of scope;
 Locally counts plays itself.
 
