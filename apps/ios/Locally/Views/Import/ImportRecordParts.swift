@@ -294,3 +294,34 @@ private struct ImportFieldsRow: ViewModifier {
             ))
     }
 }
+
+/// The quiet note under the Single / Album switch on the album record: faked glass, never blocking.
+/// Fades in and rises 6 pt when it appears; Reduce Motion: the fade only.
+struct AlbumNotice: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = false
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Theme.Immersive.albumNoticeIconGap) {
+            Image(systemName: "info.circle")
+                .accessibilityHidden(true)
+            Text(Copy.Import.albumNotice)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .font(Theme.ScaledFont.caption)
+        .foregroundStyle(Theme.primaryText.opacity(Theme.Immersive.albumNoticeTextOpacity))
+        .padding(Theme.Immersive.albumNoticePadding)
+        .background(Theme.Immersive.panelFill, in: RoundedRectangle(cornerRadius: Theme.Immersive.albumNoticeRadius, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Copy.Import.albumNotice)
+        .opacity(shown ? 1 : 0)
+        .offset(y: shown || reduceMotion ? 0 : Theme.Immersive.albumNoticeRise)
+        .onAppear {
+            // Reduce Motion keeps the fade and drops the rise (the offset above stays 0).
+            withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: Theme.Immersive.albumNoticeDuration)) {
+                shown = true
+            }
+        }
+    }
+}

@@ -117,6 +117,10 @@ enum Theme {
         /// Gap between tiles per `CoverSize`.
         static let tileGap: [CGFloat] = [12, 16, 20]
         static let tileCornerRadius: CGFloat = 8
+        /// The Singles / Albums header buttons: tap target, chevron size and the fold's duration.
+        static let sectionHeaderMinHeight: CGFloat = 44
+        static let sectionChevronSize: CGFloat = 12
+        static let sectionFoldDuration: Double = 0.3
         static let listPanelCornerRadius: CGFloat = 16
         /// A pressed cover grows by this factor and gains a soft shadow.
         static let pressScale: CGFloat = 1.03
@@ -175,6 +179,14 @@ enum Theme {
         /// How long "Saved to your library" stays in the save dock.
         static let savedToastSeconds: Double = 2.5
         static let dockStatusFade: Double = 0.2
+        /// The view/edit mode cross-fade on the release page (opacity only).
+        static let modeFade: Double = 0.25
+        /// The review sheet's cover thumbnails and their corner radius.
+        static let reviewThumbSize: CGFloat = 56
+        static let reviewThumbRadius: CGFloat = 6
+        /// Between rows of the review sheet and between a row's old and new value.
+        static let reviewRowSpacing: CGFloat = 16
+        static let reviewValueSpacing: CGFloat = 4
         static let dockBottomPadding: CGFloat = 12
         static let dockGap: CGFloat = 12
         /// Padding inside the hero row so the sleeve's shadow (radius 26, y 24) fades out unclipped.
@@ -192,8 +204,8 @@ enum Theme {
         static let discRingWidth: CGFloat = 1.4
         static let discRingOpacity: Double = 0.35
         static let discEdgeOpacity: Double = 0.07
-        /// Darkens the dock only, so list rows scrolling under the glass stay out of the way of its text.
-        static let dockUnderlay = Color.black.opacity(0.92)
+        /// The dock's opaque base, so the tracks panel never shows through behind its text while the keyboard lifts it.
+        static let dockUnderlay = Color.black
         static var panelFill: Color { .white.opacity(panelFillOpacity) }
         static var panelStroke: Color { .white.opacity(panelStrokeOpacity) }
         static let discColor = Color(red: 0x11 / 255, green: 0x11 / 255, blue: 0x11 / 255)
@@ -256,6 +268,23 @@ enum Theme {
         static let inlineFieldUnderlineOpacity: Double = 0.6
         static let inlineFieldUnderlineGap: CGFloat = 4
         static let inlineFieldFocusFade: Double = 0.15
+        /// Labelled fields: the label column, the gap between rows, and the always-visible underline.
+        static let labeledFieldLabelWidth: CGFloat = 60
+        static let labeledFieldRowGap: CGFloat = 12
+        /// Year's value width when it shares its row with Genre: room for "Enter year" at body.
+        static let yearValueWidth: CGFloat = 92
+        /// Space between Year's value and the Genre label on their shared row.
+        static let yearGenreGap: CGFloat = 20
+        static let labeledFieldLabelGap: CGFloat = 12
+        static let labeledFieldUnderlineRestOpacity: Double = 0.12
+        /// The album notice: corner radius, padding, icon gap, and its entrance (fade and rise).
+        static let albumNoticeRadius: CGFloat = 12
+        static let albumNoticePadding: CGFloat = 12
+        static let albumNoticeIconGap: CGFloat = 8
+        static let albumNoticeRise: CGFloat = 6
+        static let albumNoticeDuration: Double = 0.35
+        /// `primaryText` at this opacity keeps the notice readable over a bright cover wash.
+        static let albumNoticeTextOpacity: Double = 0.9
         /// A field row's leading inset, so a round first letter (G, S, C, O) that overshoots the
         /// text's left edge isn't clipped by the list cell. Kept to 1 pt so the text still lines up.
         static let inlineFieldOvershoot: CGFloat = 1
@@ -390,6 +419,8 @@ enum Theme {
         static let sentCardMaxHeightRatio: CGFloat = 0.62
         static let sentContentGap: CGFloat = 12
         static let sentButtonGap: CGFloat = 8
+        /// Icon to label gap in the Sent card's glow button, as in Send to Spotify.
+        static let sentButtonIconGap: CGFloat = 8
         /// The entrance: up from this far below at this scale, on a spring.
         static let sentRise: CGFloat = 40
         static let sentRiseScale: CGFloat = 0.94
@@ -475,6 +506,7 @@ enum Theme {
         static let rowTitle = SwiftUI.Font.system(.body, weight: .regular)
         static let value = SwiftUI.Font.system(.body, weight: .regular)
         static let input = SwiftUI.Font.system(.body, weight: .regular)
+        static let fieldTitle = SwiftUI.Font.system(.title3, weight: .semibold)
         static let caption = SwiftUI.Font.system(.footnote, weight: .regular)
         static let pill = SwiftUI.Font.system(.footnote, weight: .semibold)
         /// A track row (`TrackList`): the number and plays are subheadline with tabular digits, the title body semibold.
@@ -491,6 +523,8 @@ enum Theme {
         /// The replace button's circling arrows, and its tap area.
         static let replaceOpacity: Double = 0.6
         static let replaceHitSize: CGFloat = 44
+        /// The track length at the trailing edge.
+        static let lengthOpacity: Double = 0.6
         static let gripOpacity: Double = 0.35
         /// The hairline between rows (`.track-list > .track-row` border).
         static let separatorOpacity: Double = 0.07

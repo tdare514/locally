@@ -52,6 +52,7 @@ struct SyncDeviceNameContainerTests {
             m4aTagWriter: FakeTagWriter(),
             id3TagWriter: FakeTagWriter(),
             coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader(),
             inbox: FakeInboxStore(),
             purchase: FakePurchaseService(),
             syncAccount: account,

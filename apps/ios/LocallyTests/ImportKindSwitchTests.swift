@@ -15,7 +15,8 @@ struct ImportKindSwitchTests {
             id3TagWriter: FakeTagWriter(),
             folder: FakeSpotifyFolder(directory: folderDir),
             library: InMemoryLibraryStore(),
-            coverStore: FakeCoverStore()
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
         )
     }
 

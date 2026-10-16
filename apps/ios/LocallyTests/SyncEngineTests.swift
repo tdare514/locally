@@ -69,7 +69,8 @@ struct SyncEngineTests {
             id3TagWriter: tagWriter,
             folder: folder,
             library: library,
-            coverStore: coverStore
+            coverStore: coverStore,
+            durationReader: FakeDurationReader()
         )
         let resolvedAccount: InMemorySyncAccountStore
         if let account {

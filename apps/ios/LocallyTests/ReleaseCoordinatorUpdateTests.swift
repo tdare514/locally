@@ -38,7 +38,8 @@ struct ReleaseCoordinatorUpdateTests {
             id3TagWriter: tagWriter,
             folder: folder,
             library: library,
-            coverStore: coverStore
+            coverStore: coverStore,
+            durationReader: FakeDurationReader()
         )
 
         let files = try [makeSourceFile(named: "one.mp3"), makeSourceFile(named: "two.mp3")]

@@ -1,5 +1,22 @@
 import Foundation
 
+/// One line of the save-review sheet: what the user changed, old against new.
+enum ReleaseChange: Equatable, Identifiable {
+    case field(label: String, old: String, new: String)
+    case cover(old: Data?, new: Data?)
+    case trackRenamed(id: UUID, old: String, new: String)
+    case trackOrder
+
+    var id: String {
+        switch self {
+        case .field(let label, _, _): "field-\(label)"
+        case .cover: "cover"
+        case .trackRenamed(let id, _, _): "track-\(id.uuidString)"
+        case .trackOrder: "order"
+        }
+    }
+}
+
 /// Drives `ReleaseDetailView`: holds editable copies of a release's fields
 /// and track titles/order, tracks whether anything actually changed (so
 /// "Save changes" only enables when it should), and runs saves/deletes
@@ -14,6 +31,8 @@ final class ReleaseDetailViewModel {
         /// Which disc the track is on, when the release has discs. Read only: it sets the
         /// "Disc N" headings.
         var discNumber: Int?
+        /// The stored length in seconds, when the release carries one.
+        var durationSec: Double?
     }
 
     private let coordinator: ReleaseCoordinator
@@ -40,11 +59,16 @@ final class ReleaseDetailViewModel {
     private var originalCoverData: Data?
     private var originalTrackRows: [TrackRow]
 
+    /// The release page opens in view mode; Edit turns this on, a save or discard turns it off.
+    var isEditing = false
     var isSaving = false
     var isDeleting = false
     var errorMessage: String?
     var statusMessage: String?
     var isDeleted = false
+    /// Lengths read from the track files for tracks that carry none, by track id.
+    private(set) var readLengths: [UUID: Double] = [:]
+    private var release: Release
     /// Bumped after each successful save; the view plays the record ceremony on it.
     private(set) var saveCount = 0
 
@@ -66,8 +90,9 @@ final class ReleaseDetailViewModel {
         let cover = release.coverPath != nil ? coverStore.load(release.id) : nil
         let rows = release.tracks
             .sorted { $0.trackNumber < $1.trackNumber }
-            .map { TrackRow(id: $0.id, title: $0.title, discNumber: $0.discNumber) }
+            .map { TrackRow(id: $0.id, title: $0.title, discNumber: $0.discNumber, durationSec: $0.durationSec) }
 
+        self.release = release
         self.releaseId = release.id
         self.kind = release.kind
         self.coordinator = coordinator
@@ -97,6 +122,49 @@ final class ReleaseDetailViewModel {
             || genre != originalGenre
             || coverData != originalCoverData
             || trackRows != originalTrackRows
+    }
+
+    /// What changed against the saved release, for the review sheet. Empty when nothing did.
+    var changes: [ReleaseChange] {
+        var result: [ReleaseChange] = []
+        let fields: [(String, String, String)] = [
+            (Copy.Import.fieldTitle, originalTitle, title),
+            (Copy.Import.fieldArtist, originalArtist, artist),
+            (Copy.Import.fieldYear, originalYear, year),
+            (Copy.Import.fieldGenre, originalGenre, genre)
+        ]
+        for (label, old, new) in fields where old != new {
+            result.append(.field(label: label, old: old, new: new))
+        }
+        if coverData != originalCoverData {
+            result.append(.cover(old: originalCoverData, new: coverData))
+        }
+        let oldTitles = Dictionary(originalTrackRows.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
+        for row in trackRows {
+            if let old = oldTitles[row.id], old != row.title {
+                result.append(.trackRenamed(id: row.id, old: old, new: row.title))
+            }
+        }
+        if trackRows.map(\.id) != originalTrackRows.map(\.id) {
+            result.append(.trackOrder)
+        }
+        return result
+    }
+
+    func beginEditing() {
+        isEditing = true
+    }
+
+    /// Puts every field back to the saved release and leaves edit mode.
+    func discardChanges() {
+        title = originalTitle
+        artist = originalArtist
+        year = originalYear
+        genre = originalGenre
+        coverData = originalCoverData
+        trackRows = originalTrackRows
+        errorMessage = nil
+        isEditing = false
     }
 
     var canSave: Bool {
@@ -174,10 +242,30 @@ final class ReleaseDetailViewModel {
             let updated = try await coordinator.updateRelease(releaseId, changes: changes)
             apply(updated)
             saveCount += 1
+            isEditing = false
             statusMessage = Copy.Import.afterEdit
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Reads the length of every track the release has none stored for, from the file as the
+    /// coordinator resolves it (inside the Spotify folder's security scope). A folder that is
+    /// not connected, or a file that will not read, leaves that length out.
+    func loadMissingLengths() async {
+        let missing = release.tracks.filter { $0.durationSec == nil && readLengths[$0.id] == nil }
+        guard !missing.isEmpty else { return }
+        let wanted = Set(missing.map(\.id))
+        let found: [UUID: Double]? = try? await coordinator.withTrackFiles(of: release) { files in
+            var result: [UUID: Double] = [:]
+            for file in files where wanted.contains(file.track.id) {
+                if let seconds = await TrackLengthLoader.shared.duration(of: file.url) {
+                    result[file.track.id] = seconds
+                }
+            }
+            return result
+        }
+        if let found { readLengths.merge(found) { _, new in new } }
     }
 
     func delete() async {
@@ -197,6 +285,7 @@ final class ReleaseDetailViewModel {
     /// saved release, so `hasChanges`/`canSave` go back to false until the
     /// user changes something new.
     private func apply(_ release: Release) {
+        self.release = release
         title = release.title
         artist = release.artist
         year = release.year ?? ""
@@ -204,7 +293,7 @@ final class ReleaseDetailViewModel {
         coverData = release.coverPath != nil ? coverStore.load(release.id) : coverData
         trackRows = release.tracks
             .sorted { $0.trackNumber < $1.trackNumber }
-            .map { TrackRow(id: $0.id, title: $0.title, discNumber: $0.discNumber) }
+            .map { TrackRow(id: $0.id, title: $0.title, discNumber: $0.discNumber, durationSec: $0.durationSec) }
 
         originalTitle = title
         originalArtist = artist

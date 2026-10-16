@@ -12,6 +12,7 @@ final class ReleaseCoordinator {
     private let folder: SpotifyFolderAccess
     private let library: LibraryStore
     private let coverStore: CoverStore
+    private let durationReader: TrackDurationReading
     private let layout: ReleaseLayout
 
     /// Set by `AppContainer` after both this coordinator and `SyncEngine`
@@ -28,6 +29,7 @@ final class ReleaseCoordinator {
         folder: SpotifyFolderAccess,
         library: LibraryStore,
         coverStore: CoverStore,
+        durationReader: TrackDurationReading,
         layout: ReleaseLayout = ReleaseLayout()
     ) {
         self.importer = importer
@@ -37,6 +39,7 @@ final class ReleaseCoordinator {
         self.folder = folder
         self.library = library
         self.coverStore = coverStore
+        self.durationReader = durationReader
         self.layout = layout
     }
 
@@ -59,6 +62,7 @@ final class ReleaseCoordinator {
         let prepared = try await transcoder.prepare(stagedFile)
         let writer = writer(for: prepared.ext)
         try await writer.write(tags, cover: cover, to: prepared.url)
+        let durationSec = await durationReader.duration(of: prepared.url)
 
         let fileName = layout.fileName(
             artist: tags.artist,
@@ -76,7 +80,8 @@ final class ReleaseCoordinator {
             title: tags.title,
             trackNumber: tags.trackNumber,
             filePath: destinationURL.path,
-            originalName: stagedFile.originalName
+            originalName: stagedFile.originalName,
+            durationSec: durationSec
         )
 
         let release = Release(
@@ -156,6 +161,7 @@ final class ReleaseCoordinator {
 
                 let writer = writer(for: prepared.ext)
                 try await writer.write(tags, cover: cover, to: prepared.url)
+                let durationSec = await durationReader.duration(of: prepared.url)
 
                 let fileName = layout.fileName(
                     artist: album.artist,
@@ -173,7 +179,8 @@ final class ReleaseCoordinator {
                     trackNumber: trackNumber,
                     discNumber: album.tracks[index].discNumber,
                     filePath: destinationURL.path,
-                    originalName: stagedFile.originalName
+                    originalName: stagedFile.originalName,
+                    durationSec: durationSec
                 ))
 
                 progress?(trackNumber, total)

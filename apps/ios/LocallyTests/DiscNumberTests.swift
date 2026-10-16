@@ -363,7 +363,8 @@ struct DiscCoordinatorTests {
             id3TagWriter: tagWriter,
             folder: FakeSpotifyFolder(directory: dir),
             library: library,
-            coverStore: FakeCoverStore()
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
         )
     }
 
@@ -484,7 +485,8 @@ struct DiscAlbumBuilderTests {
             id3TagWriter: tagWriter,
             folder: FakeSpotifyFolder(directory: dir),
             library: InMemoryLibraryStore(),
-            coverStore: FakeCoverStore()
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
         )
         return AlbumBuilderViewModel(importer: importer, coordinator: coordinator)
     }
@@ -610,7 +612,8 @@ struct DiscAlbumBuilderTests {
                 id3TagWriter: tagWriter,
                 folder: FakeSpotifyFolder(directory: dir),
                 library: InMemoryLibraryStore(),
-                coverStore: FakeCoverStore()
+                coverStore: FakeCoverStore(),
+                durationReader: FakeDurationReader()
             )
             return ReleaseDetailViewModel(release: release, coordinator: coordinator, coverStore: FakeCoverStore()).discHeadings
         }
@@ -663,7 +666,8 @@ struct DiscAlbumBuilderTests {
             id3TagWriter: tagWriter,
             folder: FakeSpotifyFolder(directory: dir),
             library: library,
-            coverStore: coverStore
+            coverStore: coverStore,
+            durationReader: FakeDurationReader()
         )
         let files = try ["a.mp3", "b.mp3", "c.mp3"].map(makeAudioFile(named:))
         let album = AlbumDraft(

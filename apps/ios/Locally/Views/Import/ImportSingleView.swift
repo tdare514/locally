@@ -18,13 +18,11 @@ struct ImportSingleView: View {
                         .importClearRow()
                     ImportMetaLine(kind: context.kind, trackCount: model.pickedURL == nil ? 0 : 1, isSwitchDisabled: context.isBusy, tint: context.glowColors[0])
                         .importClearRow(top: 0, bottom: Theme.Immersive.fieldsMetaGap)
-                    VStack(alignment: .leading, spacing: Theme.Spacing.fieldGap) {
-                        InlineField(Copy.Import.fieldTitle, text: Binding(get: { model.title }, set: { model.title = $0 }), font: Theme.ScaledFont.pageTitle, wraps: true)
-                        InlineField(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }), font: Theme.ScaledFont.input, wraps: true)
-                        InlineField(Copy.Import.albumPlaceholder, text: Binding(get: { model.album }, set: { model.album = $0 }), font: Theme.ScaledFont.input, wraps: true)
-                        InlineField(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }), font: Theme.ScaledFont.input)
-                            .keyboardType(.numberPad)
-                        InlineField(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }), font: Theme.ScaledFont.input, wraps: true)
+                    VStack(alignment: .leading, spacing: Theme.Immersive.labeledFieldRowGap) {
+                        LabeledField(Copy.Import.fieldTitle, placeholder: Copy.Import.titlePlaceholder(for: .single), text: Binding(get: { model.title }, set: { model.title = $0 }), font: Theme.ScaledFont.fieldTitle, metricsStyle: .title3, wraps: true)
+                        LabeledField(Copy.Import.fieldArtist, placeholder: Copy.Import.artistPlaceholder, text: Binding(get: { model.artist }, set: { model.artist = $0 }), font: Theme.ScaledFont.input, wraps: true)
+                        LabeledField(Copy.Import.fieldAlbum, placeholder: Copy.Import.albumPlaceholder, text: Binding(get: { model.album }, set: { model.album = $0 }), font: Theme.ScaledFont.input, wraps: true)
+                        YearGenreRow(year: Binding(get: { model.year }, set: { model.year = $0 }), genre: Binding(get: { model.genre }, set: { model.genre = $0 }))
                     }
                     .importFieldsRow()
                     ClearSectionEnd()
@@ -32,9 +30,16 @@ struct ImportSingleView: View {
                 .recordListSection()
 
                 Section {
-                    if model.pickedURL != nil, let name = model.pickedName {
-                        TrackRow(title: name, onReplace: context.onAddTrack)
-                            .importTrackRow(isFirst: true, isLast: true)
+                    if let pickedURL = model.pickedURL, let name = model.pickedName {
+                        TrackLengthReader(stored: nil, url: pickedURL) { seconds in
+                            TrackRow(
+                                title: name,
+                                length: TrackLength.format(seconds),
+                                lengthSpoken: TrackLength.spoken(seconds),
+                                onReplace: context.onAddTrack
+                            )
+                        }
+                        .importTrackRow(isFirst: true, isLast: true)
                     } else {
                         TrackListSilhouette(rows: 1).importPanelRow(.middle)
                     }

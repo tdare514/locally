@@ -32,11 +32,12 @@ private final class CancellingCoverStore: CoverStore {
     private let base = Date(timeIntervalSince1970: 1_700_000_000)
 
     /// A real, tiny PNG, so the loader's thumbnail decode has something to decode.
-    private func pngData(side: CGFloat = 8) -> Data {
+    /// `tint` changes the colour, so covers with different tints have different bytes.
+    private func pngData(side: CGFloat = 8, tint: Int = 0) -> Data {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         let image = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { context in
-            UIColor.systemPink.setFill()
+            UIColor(hue: CGFloat(tint % 50) / 50, saturation: 1, brightness: 1, alpha: 1).setFill()
             context.fill(CGRect(x: 0, y: 0, width: side, height: side))
         }
         return image.pngData()!
@@ -62,7 +63,7 @@ private final class CancellingCoverStore: CoverStore {
         let library = InMemoryLibraryStore()
         let covers = FakeCoverStore()
         for minute in 0..<30 {
-            try add("R\(minute)", minutes: minute, cover: pngData(), to: library, covers: covers)
+            try add("R\(minute)", minutes: minute, cover: pngData(tint: minute), to: library, covers: covers)
         }
 
         let recents = await RecentCoversLoader(library: library, coverStore: covers).load()
@@ -77,7 +78,7 @@ private final class CancellingCoverStore: CoverStore {
         try add("No cover A", minutes: 100, to: library, covers: covers)
         try add("No cover B", minutes: 99, to: library, covers: covers)
         for minute in 0..<13 {
-            try add("C\(minute)", minutes: minute, cover: pngData(), to: library, covers: covers)
+            try add("C\(minute)", minutes: minute, cover: pngData(tint: minute), to: library, covers: covers)
         }
 
         let recents = await RecentCoversLoader(library: library, coverStore: covers).load()
@@ -91,7 +92,7 @@ private final class CancellingCoverStore: CoverStore {
         let covers = CancellingCoverStore()
         for minute in 0..<12 {
             let release = try add("R\(minute)", minutes: minute, to: library, covers: FakeCoverStore())
-            _ = try covers.save(pngData(), for: release.id)
+            _ = try covers.save(pngData(tint: minute), for: release.id)
         }
 
         let task = Task { @MainActor in
@@ -114,9 +115,9 @@ private final class CancellingCoverStore: CoverStore {
     @Test func newestReleaseComesFirst() async throws {
         let library = InMemoryLibraryStore()
         let covers = FakeCoverStore()
-        let middle = try add("Middle", minutes: 5, cover: pngData(), to: library, covers: covers)
-        let oldest = try add("Oldest", minutes: 1, cover: pngData(), to: library, covers: covers)
-        let newest = try add("Newest", minutes: 9, cover: pngData(), to: library, covers: covers)
+        let middle = try add("Middle", minutes: 5, cover: pngData(tint: 5), to: library, covers: covers)
+        let oldest = try add("Oldest", minutes: 1, cover: pngData(tint: 1), to: library, covers: covers)
+        let newest = try add("Newest", minutes: 9, cover: pngData(tint: 9), to: library, covers: covers)
 
         let recents = await RecentCoversLoader(library: library, coverStore: covers).load()
         #expect(recents.map(\.id) == [newest.id, middle.id, oldest.id])
@@ -128,7 +129,7 @@ private final class CancellingCoverStore: CoverStore {
         let covers = FakeCoverStore()
         var releases: [Release] = []
         for minute in 0..<15 {
-            releases.append(try add("R\(minute)", minutes: minute, cover: pngData(), to: library, covers: covers))
+            releases.append(try add("R\(minute)", minutes: minute, cover: pngData(tint: minute), to: library, covers: covers))
         }
 
         let recents = await RecentCoversLoader(library: library, coverStore: covers).load()
@@ -145,7 +146,7 @@ private final class CancellingCoverStore: CoverStore {
         try add("No cover B", minutes: 99, to: library, covers: covers)
         var withCover: [Release] = []
         for minute in 0..<13 {
-            withCover.append(try add("C\(minute)", minutes: minute, cover: pngData(), to: library, covers: covers))
+            withCover.append(try add("C\(minute)", minutes: minute, cover: pngData(tint: minute), to: library, covers: covers))
         }
 
         let recents = await RecentCoversLoader(library: library, coverStore: covers).load()
@@ -174,5 +175,44 @@ private final class CancellingCoverStore: CoverStore {
         let longestSide = max(recent.thumbnail.size.width, recent.thumbnail.size.height) * recent.thumbnail.scale
         #expect(longestSide <= CGFloat(RecentCoversLoader.thumbnailPixels))
         #expect(recent.accessibilityLabel == "Rumours, Fleetwood Mac")
+    }
+
+    @Test func sameBytesGiveOneRecentTheNewestReleases() async throws {
+        let library = InMemoryLibraryStore()
+        let covers = FakeCoverStore()
+        let same = pngData(tint: 3)
+        try add("Older", minutes: 1, cover: same, to: library, covers: covers)
+        let newer = try add("Newer", minutes: 9, cover: same, to: library, covers: covers)
+
+        let recents = await RecentCoversLoader(library: library, coverStore: covers).load()
+        #expect(recents.map(\.id) == [newer.id])
+    }
+
+    @Test func differentBytesGiveTwoRecents() async throws {
+        let library = InMemoryLibraryStore()
+        let covers = FakeCoverStore()
+        try add("A", minutes: 1, cover: pngData(tint: 1), to: library, covers: covers)
+        try add("B", minutes: 9, cover: pngData(tint: 2), to: library, covers: covers)
+
+        let recents = await RecentCoversLoader(library: library, coverStore: covers).load()
+        #expect(recents.count == 2)
+    }
+
+    @Test func duplicatesDoNotUseUpTheCapAndSeenCarriesAcrossWindows() async throws {
+        let library = InMemoryLibraryStore()
+        let covers = FakeCoverStore()
+        // 14 newest share one picture; 13 older ones are distinct. The first window (12) holds
+        // only duplicates of one cover, so a second pass must run and still skip the duplicate.
+        let same = pngData(tint: 40)
+        for minute in 100..<114 {
+            try add("D\(minute)", minutes: minute, cover: same, to: library, covers: covers)
+        }
+        for minute in 0..<13 {
+            try add("U\(minute)", minutes: minute, cover: pngData(tint: minute), to: library, covers: covers)
+        }
+
+        let recents = await RecentCoversLoader(library: library, coverStore: covers).load()
+        #expect(recents.count == 12)
+        #expect(recents.filter { $0.title.hasPrefix("D") }.count == 1)
     }
 }

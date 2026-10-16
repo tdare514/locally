@@ -21,7 +21,8 @@ struct AlbumBuilderViewModelReplaceTests {
             id3TagWriter: FakeTagWriter(),
             folder: FakeSpotifyFolder(directory: folderDir),
             library: InMemoryLibraryStore(),
-            coverStore: FakeCoverStore()
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
         )
         return AlbumBuilderViewModel(importer: importer, coordinator: coordinator)
     }
@@ -143,7 +144,8 @@ struct AlbumBuilderViewModelReplaceTests {
             id3TagWriter: FakeTagWriter(),
             folder: FakeSpotifyFolder(directory: folderDir),
             library: InMemoryLibraryStore(),
-            coverStore: FakeCoverStore()
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
         )
         let model = ImportSingleViewModel(importer: importer, coordinator: coordinator)
         let url = try makeAudioFile(named: "song.mp3")

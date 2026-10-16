@@ -57,7 +57,17 @@ enum Copy {
         /// sheet that shows the whole message.
         static let sendErrorDetails = "Details"
         static let sendErrorTitle = "Why it didn't send"
-        static let albumPlaceholder = "Album, same as track title"
+        static let albumPlaceholder = "Same as the single name"
+        static let singlePlaceholder = "Enter single name"
+        static let albumNamePlaceholder = "Enter album name"
+        static let artistPlaceholder = "Enter artist name"
+        static let yearPlaceholder = "Enter year"
+        static let genrePlaceholder = "Enter genre"
+        static let fieldAlbum = "Album"
+        /// The title field's placeholder, by the kind of release.
+        static func titlePlaceholder(for kind: ReleaseKind) -> String {
+            kind == .album ? albumNamePlaceholder : singlePlaceholder
+        }
         static let fieldYear = "Year"
         static let fieldGenre = "Genre"
         static let cover = "Cover"
@@ -95,7 +105,7 @@ enum Copy {
         static let sentSingleHint = "It's in Your Library, under Local Files."
         static let sentAlbumHint = "To play it as an album, make it a playlist from its page in your library."
         static let openInSpotify = "Open in Spotify"
-        static let albumExplainer = "Spotify can't create albums from your own files, so we'll set these up to become a playlist. They'll share this cover, artist and album name."
+        static let albumNotice = "Spotify doesn't group your own files into albums. After you send, we'll show you how to make a playlist of these tracks."
         static let albumCoverPrompt = "Pick the cover that'll be applied to all of these tracks."
         static let afterEdit = "Updated. Spotify shows a new cover right away, but keeps the old name until it rescans. In Spotify, open Settings, then Local Files, switch it off and on again, and the new details appear."
         static let kindSingle = "Single"
@@ -106,7 +116,7 @@ enum Copy {
         /// Shown under the Tracks header once there are 2+ rows to reorder;
         /// `.onMove` supports long-press drag without an Edit mode on iOS 16+.
         static let reorderHint = "Hold and drag a track to reorder."
-        static let track = "Track"
+        static let track = "Enter track name"
         /// The VoiceOver label of a track row's replace button.
         static func replaceTrack(_ title: String) -> String {
             let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -134,6 +144,10 @@ enum Copy {
         static let singlesSection = "Singles"
         static let albumsSection = "Albums"
         static func sectionCount(_ count: Int) -> String { "\(count)" }
+        /// The section headers' accessibility value and hint.
+        static let sectionExpanded = "Expanded"
+        static let sectionCollapsed = "Collapsed"
+        static let sectionHint = "Double tap to fold or open this section"
         /// Album row subtitle: "artist · 4 tracks".
         static func albumSubtitle(artist: String, tracks: Int) -> String {
             "\(artist) · \(trackCount(tracks))"
@@ -162,6 +176,24 @@ enum Copy {
         /// Captions under the two tiles in the empty state's diagram.
         static let diagramLocally = "Locally"
         static let diagramSpotify = "Spotify"
+    }
+
+    enum Release {
+        static let edit = "Edit"
+        static let cancel = "Cancel"
+        static let notSet = "Not set"
+        static let reviewTitle = "Check your changes"
+        static let save = "Save"
+        static let keepEditing = "Keep editing"
+        static let trackOrderChanged = "Track order changed"
+        static let cover = "Cover"
+        /// VoiceOver for the review sheet's cover row.
+        static let coverChanged = "Cover changed"
+        static let discardTitle = "Discard your changes?"
+        static let discard = "Discard"
+        static let keepEditingDiscard = "Keep editing"
+        /// VoiceOver for a review row's old and new value.
+        static func changedFrom(_ old: String, to new: String) -> String { "Was \(old), now \(new)" }
     }
 
     enum Detail {

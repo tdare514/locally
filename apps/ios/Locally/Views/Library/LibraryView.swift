@@ -28,6 +28,8 @@ struct LibraryView: View {
 
     @AppStorage(LibraryViewPrefs.layoutKey) private var layout: LibraryLayout = .default
     @AppStorage(LibraryViewPrefs.coverSizeKey) private var coverSize: CoverSize = .default
+    @AppStorage(LibraryViewPrefs.singlesCollapsedKey) private var singlesCollapsed = false
+    @AppStorage(LibraryViewPrefs.albumsCollapsedKey) private var albumsCollapsed = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Scroll distance, read only by `LibrarySky` so scrolling doesn't re-run this body.
@@ -106,13 +108,13 @@ struct LibraryView: View {
                                     .padding(.top, Theme.Library.noMatchesTopPadding)
                             }
                             if !singles.isEmpty {
-                                section(label: Copy.Library.singlesSection, items: singles)
+                                section(label: Copy.Library.singlesSection, items: singles, collapsed: $singlesCollapsed)
                             }
                             if !singles.isEmpty, !albums.isEmpty {
                                 sectionDivider
                             }
                             if !albums.isEmpty {
-                                section(label: Copy.Library.albumsSection, items: albums)
+                                section(label: Copy.Library.albumsSection, items: albums, collapsed: $albumsCollapsed)
                             }
                         }
                         .padding(.horizontal, Theme.Spacing.listPagePadding)
@@ -260,23 +262,50 @@ struct LibraryView: View {
 
     /// A section label with its count, then the rows (list) or tiles (covers)
     /// of that section. Singles come first, then albums.
-    private func section(label: String, items: [Release]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(label)
-                    .font(Theme.Font.sectionTitle)
-                    .foregroundStyle(Theme.primaryText)
-                Text(Copy.Library.sectionCount(items.count))
-                    .font(Theme.Font.meta)
-                    .foregroundStyle(Theme.textDim)
-                Spacer()
+    private func section(label: String, items: [Release], collapsed: Binding<Bool>) -> some View {
+        // A typed search shows both sections open without touching the stored choice.
+        let isOpen = !collapsed.wrappedValue || !query.isEmpty
+        let fold: Animation? = reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: Theme.Library.sectionFoldDuration)
+        return VStack(alignment: .leading, spacing: 8) {
+            Button {
+                collapsed.wrappedValue.toggle()
+            } label: {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(label)
+                        .font(Theme.Font.sectionTitle)
+                        .foregroundStyle(Theme.primaryText)
+                    Text(Copy.Library.sectionCount(items.count))
+                        .font(Theme.Font.meta)
+                        .foregroundStyle(Theme.textDim)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: Theme.Library.sectionChevronSize, weight: .semibold))
+                        .foregroundStyle(Theme.textDim)
+                        .rotationEffect(.degrees(isOpen ? 0 : -90))
+                        .animation(fold, value: isOpen)
+                        .accessibilityHidden(true)
+                    Spacer()
+                }
+                .padding(.horizontal, 4)
+                .frame(minHeight: Theme.Library.sectionHeaderMinHeight)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 4)
+            .buttonStyle(.plain)
+            .accessibilityValue(isOpen ? Copy.Library.sectionExpanded : Copy.Library.sectionCollapsed)
+            .accessibilityHint(Copy.Library.sectionHint)
 
-            switch layout {
-            case .list: listPanel(items)
-            case .covers: coverGrid(items)
+            // Only the rows' opacity animates; the section's layout jumps.
+            VStack(spacing: 0) {
+                if isOpen {
+                    Group {
+                        switch layout {
+                        case .list: listPanel(items)
+                        case .covers: coverGrid(items)
+                        }
+                    }
+                    .transition(.opacity)
+                }
             }
+            .animation(fold, value: isOpen)
         }
     }
 

@@ -30,12 +30,16 @@ struct RecordSleeve: View {
     var beat: ImportBeat.Frame?
     /// When set, the sleeve's side in points, in place of the size class's (the Sent card's 96).
     var size: CGFloat?
+    /// Whether an empty sleeve says "Add cover art". Off on the release page in view mode, where
+    /// the sleeve isn't a button and the words would promise a tap that does nothing.
+    var showsAddCaption = true
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(cover: UIImage?, ceremony: Int = 0, pose: CeremonyPose? = nil, beat: ImportBeat.Frame? = nil, size: CGFloat? = nil, onAddCover: @escaping () -> Void) {
+    init(cover: UIImage?, ceremony: Int = 0, pose: CeremonyPose? = nil, beat: ImportBeat.Frame? = nil, size: CGFloat? = nil, showsAddCaption: Bool = true, onAddCover: @escaping () -> Void) {
         self.cover = cover
+        self.showsAddCaption = showsAddCaption
         self.ceremony = ceremony
         self.pose = pose
         self.beat = beat
@@ -116,7 +120,7 @@ struct RecordSleeve: View {
                         .opacity(beat?.coverOpacity ?? 1)
                         .id(ObjectIdentifier(cover))
                         .transition(coverTransition)
-                } else {
+                } else if showsAddCaption {
                     Text(Copy.Immersive.addCoverArt)
                         .font(Theme.Font.rowTitle)
                         .foregroundStyle(Theme.secondaryText)
