@@ -326,9 +326,6 @@ enum Theme {
         /// The kind switch: each option's minimum tap height, and the black under its thumb's tint.
         static let kindSwitchMinTarget: CGFloat = 44
         static let kindThumbBase: Double = 0.35
-        /// The kind switch: the black under the track's glass, and the unchosen word's white.
-        static let kindTrackBase: Double = 0.30
-        static let kindUnchosenOpacity: Double = 0.75
         /// Send scrolls the record back to the sleeve over this long (docs/design.md "Make a record").
         static let sendScrollDuration: Double = 0.35
         /// Then waits this long for the scroll to settle; skipped with Reduce Motion.

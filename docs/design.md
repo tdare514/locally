@@ -234,14 +234,14 @@ eyebrows still apply to those labels.
   - *Accessibility pass* (16 Oct 2026, #226, from `performAccessibilityAudit` and a walk through
     every element on the simulator). Body text on these screens holds 4.5:1, and large text
     (18 pt, or 14 pt bold) holds 3:1, over any cover colour.
-    - Kind switch: the track gets a black 30 % base under its glass, and the unchosen option's
-      word is white at 75 % (it was 55 %). The chosen option carries the selected trait, so
-      VoiceOver says "Selected".
+    - Kind switch: no change. It is the shared `GlowSwitch` (also the Stats page's), its unchosen
+      word measured 7.1:1 over a bright cover, and the chosen option already carries the selected
+      trait, so VoiceOver says "Selected".
     - Cover glow button: at the accessibility text sizes, where the label wraps over the clouds,
       the clouds drop to 40 % at rest.
-    - Secondary text that sat on `text-dim` moves to `text-muted`: the reorder hint and the
-      library row's subtitle. The Sent card's hint lines are checked after its entrance has
-      settled and lifted to white 80 % if they fail.
+    - The reorder hint moves from `text-dim` to `text-muted` (4.0:1 to 8.5:1 on the panel). The
+      library row's subtitle was already `text-muted` (8.4:1), and the Sent card's hint lines
+      measure 9:1 once its entrance has settled, so they stay.
     - A track row the person can't edit (the release page in view mode) reads as one element:
       "1, Headlights, 3 minutes 24 seconds, 12 plays". In edit mode its title field and replace
       button stay separate stops.

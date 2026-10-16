@@ -37,14 +37,7 @@ struct GlowSwitch<Value: Hashable>: View {
             }
         }
         .padding(3)
-        .background {
-            // A black base under the glass, so the unchosen word holds contrast over a bright cover.
-            ZStack {
-                Color.black.opacity(Theme.Import.kindTrackBase)
-                GlowGlass()
-            }
-            .clipShape(Capsule())
-        }
+        .background { GlowGlass().clipShape(Capsule()) }
         .overlay { GlowRim() }
         .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: selection)
         .sensoryFeedback(.selection, trigger: selection)
@@ -89,7 +82,7 @@ struct GlowSwitch<Value: Hashable>: View {
                     Text(option.label)
                 }
                 .font(Theme.ScaledFont.subheadline.weight(.semibold))
-                .foregroundStyle(Color.white.opacity(chosen ? 1 : Theme.Import.kindUnchosenOpacity))
+                .foregroundStyle(Color.white.opacity(chosen ? 1 : 0.55))
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, compact ? 9 : 14)
                 .padding(.vertical, 8)
