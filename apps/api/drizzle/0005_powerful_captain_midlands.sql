@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `resync_requested_at` integer;

@@ -516,6 +516,23 @@ body {
 .track-list > .track-row {
   border-color: rgb(255 255 255 / 0.07);
 }
+/* The one-time tint behind a row the Stats page opened the release at (ReleaseView sets
+   data-highlight): fades in fast, out over about 1.6s. Opacity only. */
+.track-row[data-highlight]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 8px;
+  background: var(--btn-tint, var(--btn-tint-default));
+  animation: track-highlight 1600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes track-highlight {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  100% { opacity: 0; }
+}
 .track-tile {
   position: absolute;
   inset: 0;
@@ -1548,182 +1565,6 @@ body {
   pointer-events: none;
 }
 
-/* The stats shelf: three sleeves overlap in a fan, number one in the middle. Per sleeve: --a tilts
-   it, --k orders the fan-out from the middle. The active one lifts, straightens a little and shows
-   its tag. The shelf is tall enough for the lift and for the record to slide out above it. */
-.sb-shelf {
-  position: relative;
-  height: 236px;
-  margin-top: 2px;
-}
-.sb-ground {
-  position: absolute;
-  left: 10%;
-  right: 10%;
-  bottom: 24px;
-  height: 28px;
-  background: radial-gradient(closest-side, rgb(0 0 0 / 0.55), transparent);
-}
-.sb-plank {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 39px;
-  height: 1px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    rgb(255 255 255 / 0.2) 20%,
-    rgb(255 255 255 / 0.2) 80%,
-    transparent
-  );
-}
-.sb-sleeve {
-  position: absolute;
-  left: 50%;
-  bottom: 40px;
-  width: 112px;
-  height: 112px;
-  margin-left: -56px;
-  list-style: none;
-  /* A pivot well below the shelf, so the three tilt around one point like a hand of cards. */
-  transform-origin: 50% 330%;
-  transform: rotate(var(--a));
-  transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.sb-sleeve[data-active="true"] {
-  transform: rotate(calc(var(--a) * 0.8)) translate3d(0, -26px, 0);
-}
-/* The button scales about its own bottom centre; scaling the sleeve itself would swing it out
-   from the far pivot. */
-.sb-hit {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 100%;
-  transform-origin: 50% 100%;
-  transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.sb-sleeve[data-active="true"] .sb-hit {
-  transform: scale(1.07);
-}
-.sb-card[data-state="open"] .sb-sleeve {
-  animation: sb-fan 380ms cubic-bezier(0.16, 1, 0.3, 1) calc(60ms + var(--k) * 52ms) backwards;
-}
-@keyframes sb-fan {
-  from { opacity: 0; transform: rotate(0deg) translate3d(0, 34px, 0); }
-}
-.sb-art {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 8px;
-  box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.14),
-    0 14px 26px -12px rgb(0 0 0 / 0.8);
-}
-.sb-sleeve[data-shape="disc"] .sb-art {
-  border-radius: 9999px;
-}
-/* A release with no cover: a quiet tile with a music note in place of the picture. */
-.sb-art:not(img) {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgb(255 255 255 / 0.08);
-}
-/* Gold, silver and bronze rims for the first three: a thin ring and a faint glow. */
-.sb-art[data-medal="gold"] {
-  box-shadow: 0 0 0 2px #dcb860, 0 0 22px -4px rgb(220 184 96 / 0.5), 0 14px 26px -12px rgb(0 0 0 / 0.8);
-}
-.sb-art[data-medal="silver"] {
-  box-shadow: 0 0 0 2px #c5cad3, 0 0 20px -5px rgb(197 202 211 / 0.4), 0 14px 26px -12px rgb(0 0 0 / 0.8);
-}
-.sb-art[data-medal="bronze"] {
-  box-shadow: 0 0 0 2px #c98a4e, 0 0 20px -5px rgb(201 138 78 / 0.4), 0 14px 26px -12px rgb(0 0 0 / 0.8);
-}
-/* The record behind the sleeve; it slides out of the top on the active one. */
-.sb-record {
-  position: absolute;
-  left: 6%;
-  top: 0;
-  width: 88%;
-  aspect-ratio: 1;
-  border-radius: 9999px;
-  background:
-    radial-gradient(circle, transparent 0 63%, rgb(0 0 0 / 0.35) 63.5% 64.5%, transparent 65%),
-    repeating-radial-gradient(circle, rgb(255 255 255 / 0.05) 0 1px, transparent 1px 3px),
-    #111;
-  box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.1),
-    0 6px 14px -6px rgb(0 0 0 / 0.8);
-  transition: transform 340ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.sb-sleeve[data-active="true"] .sb-record {
-  transform: translate3d(0, -40%, 0);
-}
-.sb-record-label {
-  position: absolute;
-  inset: 33%;
-  border-radius: 9999px;
-  background: var(--accent) center / cover;
-  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.5);
-}
-.sb-rank {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 1;
-  width: 20px;
-  height: 20px;
-  border-radius: 9999px;
-  background: rgb(0 0 0 / 0.62);
-  color: rgb(255 255 255 / 0.85);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 20px;
-  text-align: center;
-}
-/* The silver sleeve sits left of the middle and shows its left strip, so its number sits there. */
-.sb-sleeve[data-side="left"] .sb-rank {
-  left: 6px;
-  right: auto;
-}
-.sb-rank[data-medal="gold"] { color: #ecce78; }
-.sb-rank[data-medal="silver"] { color: #d3d8e0; }
-.sb-rank[data-medal="bronze"] { color: #dc9a5e; }
-.sb-tag {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 1;
-  padding: 28px 9px 8px;
-  border-radius: 0 0 8px 8px;
-  text-align: left;
-  background: linear-gradient(to top, rgb(0 0 0 / 0.84), transparent);
-  opacity: 0;
-  transform: translate3d(0, 4px, 0);
-  transition:
-    opacity 220ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-.sb-sleeve[data-active="true"] .sb-tag {
-  opacity: 1;
-  transform: none;
-}
-.sb-sleeve[data-shape="disc"] .sb-tag {
-  left: 12%;
-  right: 12%;
-  bottom: 9%;
-  padding: 4px 8px 5px;
-  border-radius: 14px;
-  text-align: center;
-  background: rgb(0 0 0 / 0.72);
-}
-
 @media (prefers-reduced-transparency: reduce) {
   .sb-card {
     background: rgb(30 30 34);
@@ -1828,10 +1669,12 @@ body {
   .btn-save::after {
     display: none;
   }
+  /* The Stats page (#145) and the glass toggle are defined further down the file, so their
+     reduced-motion rules are in the block at the very end of it. */
 
   /* #154 sidebar (.sb-*): the card shows and hides instantly and the stagger, fan, bars and pin
-     slide are switched off. State changes (a lifted sleeve, a moved thumb) still happen, just
-     without the travel. */
+     slide are switched off. State changes (a moved thumb) still happen, just without the travel.
+     The shelf's sleeves are the shared `.fan*`, handled at the end of the file. */
   .sb-card,
   .sb-card[data-state="open"],
   .sb-pop,
@@ -1842,7 +1685,6 @@ body {
   .sb-card[data-state="open"] .sb-item,
   .sb-card[data-state="open"] .sb-row,
   .sb-card[data-state="open"] .sb-bar,
-  .sb-card[data-state="open"] .sb-sleeve,
   .sb-swap,
   .sb[data-shift] ~ .sb-stage > main {
     animation: none;
@@ -1851,11 +1693,899 @@ body {
   .sb-seg-thumb,
   .sb-tabs-thumb,
   .sb-switch-track::before,
-  .sb-switch-knob,
-  .sb-sleeve,
-  .sb-hit,
-  .sb-record,
-  .sb-tag {
+  .sb-switch-knob {
     transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Glass toggle (#145): a row of options where the chosen one sits on the Save button's hover glass,
+ * for any number of options. Built from the pieces of `.btn-save`'s hover (the corner highlight,
+ * the faint glow of --btn-tint / --btn-tint-default off the lower edge, `.glass-fake`'s body and
+ * edges), so it stays in step with it; there is no backdrop-filter.
+ *   .seg-glass        the row. Inline: --n (how many options) and --i (the chosen one, from 0).
+ *   .seg-glass-thumb  an aria-hidden span, first child: the glass under the chosen option. It slides
+ *                     with the house easing (translate only); reduced motion = it jumps.
+ *   .seg-glass-opt    one option button (aria-pressed): a plain label; hover shows the same glass
+ *                     at low opacity.
+ *   .seg-glass-face   the same glass as a static backdrop for any element (isolate it), shown when
+ *                     it has data-on="true"; the Stats stepper uses it for a period stepped back to.
+ * ------------------------------------------------------------------------- */
+.seg-glass {
+  position: relative;
+  isolation: isolate;
+  display: inline-grid;
+  grid-template-columns: repeat(var(--n), 1fr);
+}
+.seg-glass-thumb,
+.seg-glass-opt::before,
+.seg-glass-face::before {
+  background:
+    radial-gradient(120% 70% at 15% -15%, rgb(255 255 255 / 0.18), transparent 60%),
+    radial-gradient(
+      90% 140% at 50% 135%,
+      color-mix(in oklab, var(--btn-tint, var(--btn-tint-default)) 55%, transparent),
+      transparent 72%
+    ),
+    linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.04) 55%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    inset 0 -1px 0 rgb(255 255 255 / 0.08),
+    inset 0 0 0 1px rgb(255 255 255 / 0.12);
+}
+.seg-glass-thumb {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: -1;
+  width: calc(100% / var(--n));
+  border-radius: 9999px;
+  pointer-events: none;
+  translate: calc(var(--i) * 100%) 0;
+  transition: translate 340ms var(--btn-ease);
+}
+.seg-glass-opt {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.25rem;
+  padding: 0 1.1rem;
+  border-radius: 9999px;
+  color: rgb(255 255 255 / 0.62);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color 200ms var(--btn-ease),
+    scale 160ms var(--btn-ease);
+}
+.seg-glass-opt::before,
+.seg-glass-face::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms var(--btn-ease);
+}
+.seg-glass-opt[aria-pressed="true"] {
+  color: #fff;
+}
+.seg-glass-opt[aria-pressed="false"]:hover {
+  color: rgb(255 255 255 / 0.9);
+}
+.seg-glass-opt[aria-pressed="false"]:hover::before {
+  opacity: 0.35;
+}
+.seg-glass-opt:active {
+  scale: 0.96;
+}
+.seg-glass-opt:focus-visible {
+  outline: 1.5px solid rgb(255 255 255 / 0.85);
+  outline-offset: 3px;
+}
+.seg-glass-face[data-on="true"]::before {
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------------------------
+ * The Stats page (#145; components/stats). The motion for the whole page lives here, as everywhere. The
+ * budget: one entrance (rise and fade, transform and opacity only, 480ms or less, a small stagger
+ * from `--st-i`), the fan's fan-out when the tab or time frame changes, the lift and record slide
+ * of its active sleeve, and a hover lift on the grid's covers. Nothing loops and nothing follows
+ * the scroll. Content is never hidden without the animation: every entrance runs with `backwards`
+ * fill, so with no motion the page is simply there. The glass is faked (no backdrop-filter), like
+ * the sidebar's. Reduced-motion fallbacks are in the block at the end of the file, which has to
+ * stay after every rule it overrides: equal specificity is settled by order.
+ * ------------------------------------------------------------------------- */
+.st-root {
+  --st-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes st-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+.st-rise {
+  animation: st-rise 480ms var(--st-ease) backwards;
+  animation-delay: calc(var(--st-i, 0) * 70ms);
+}
+
+/* The button set's toggle is two-option only (a dot at 0 or 50%). With more options, `.st-seg`
+   spreads the columns and the dot over `--n` options and puts the dot under option `--i`. Delete
+   this when the set's toggle takes any number of options. */
+.st-seg {
+  grid-template-columns: repeat(var(--n), 1fr);
+}
+.st-seg .btn-seg-dot,
+.st-seg:has(.btn-seg-opt:last-of-type[aria-pressed="true"]) .btn-seg-dot {
+  width: calc(100% / var(--n));
+  translate: calc(var(--i) * 100%) 0;
+}
+
+/* Ranks in the list and on the grid's covers: gold, silver and bronze for the first three. */
+.st-rank[data-medal="gold"] {
+  color: #ecce78;
+}
+.st-rank[data-medal="silver"] {
+  color: #b9c3d2;
+}
+.st-rank[data-medal="bronze"] {
+  color: #dc9a5e;
+}
+/* The first three names in gold, silver and bronze too (owner, 15 Oct 2026): the list, the grid, the
+   fan and the sidebar. Each is at least as light as the #b3b3b3 grey the wash and scrim are tuned
+   for, so names stay 4.5:1 on a pale cover; that makes the bronze a shade lighter than the rank's. */
+.medal-name[data-medal="gold"] {
+  color: #ecce78;
+}
+.medal-name[data-medal="silver"] {
+  color: #b9c3d2;
+}
+.medal-name[data-medal="bronze"] {
+  color: #e8a970;
+}
+
+/* The grid's covers lift on hover or keyboard focus, and the sleeve's shadow deepens. */
+.st-lift {
+  transition: translate 320ms var(--st-ease);
+}
+.st-lift .record-sleeve {
+  transition: box-shadow 320ms var(--st-ease);
+}
+.st-lift:hover {
+  translate: 0 -6px;
+}
+.st-lift:hover .record-sleeve {
+  box-shadow:
+    0 30px 50px -18px rgb(0 0 0 / 0.9),
+    0 10px 20px -10px rgb(0 0 0 / 0.55);
+}
+.st-tile:focus-visible .st-lift {
+  translate: 0 -6px;
+}
+
+/* Artists are round discs: the cover cropped to a circle with a spindle hole and a faint groove. */
+.st-disc {
+  position: relative;
+  border-radius: 9999px;
+  box-shadow:
+    0 24px 48px -18px rgb(0 0 0 / 0.8),
+    0 8px 16px -8px rgb(0 0 0 / 0.5);
+}
+.st-disc::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, var(--bg) 0 3.2%, rgb(255 255 255 / 0.35) 3.4% 4.2%, transparent 4.4%),
+    radial-gradient(circle, transparent 0 62%, rgb(0 0 0 / 0.28) 62.5% 63.5%, transparent 64%),
+    linear-gradient(135deg, rgb(255 255 255 / 0.1), transparent 40%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+}
+
+/* Keyboard focus on the page's rows, tiles and links: the same white ring as the toggles. */
+.st-focus:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 0.9);
+  outline-offset: 3px;
+}
+
+/* A darkening step over the cover-colour wash on this page. The wash is capped for white text
+   (about 6:1) but the quieter greys (#b3b3b3) need more, and a very light cover gives the
+   brightest wash. Strongest at the top, where the wash and the heading are, gone by the middle. */
+.st-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.5), rgb(0 0 0 / 0.3) 45%, transparent 90%);
+}
+
+/* A row of controls wider than the room scrolls sideways; the padding keeps focus rings unclipped. */
+.st-scroll-x {
+  max-width: calc(100% + 12px);
+  margin: -6px;
+  padding: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.st-scroll-x::-webkit-scrollbar {
+  display: none;
+}
+
+/* The fan's room: its width sets the sleeve size (the fan is about 3.4 sleeves wide), so it scales
+   down with the window and on a phone. */
+.st-fan-stage {
+  container-type: inline-size;
+}
+
+/* The list. Rank, cover, name and total always; last played from 480px of room and the play bar
+   from 760px, measured on the list itself. */
+.st-list {
+  container-type: inline-size;
+}
+.st-row {
+  display: grid;
+  width: calc(100% + 1.5rem);
+  margin-inline: -0.75rem;
+  grid-template-columns: 1.75rem 2.75rem minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms var(--st-ease);
+}
+.st-row:hover {
+  background: rgb(255 255 255 / 0.07);
+}
+.st-row-last,
+.st-row-bar {
+  display: none;
+}
+.st-row-total {
+  min-width: 2.5rem;
+}
+@container (min-width: 480px) {
+  .st-row {
+    grid-template-columns: 1.75rem 2.75rem minmax(0, 1fr) 7rem auto;
+    column-gap: 1rem;
+  }
+  .st-row-last {
+    display: block;
+  }
+}
+@container (min-width: 760px) {
+  .st-row {
+    grid-template-columns: 1.75rem 2.75rem minmax(0, 1fr) 7.5rem minmax(6rem, 13rem) 3.5rem;
+  }
+  .st-row-bar {
+    display: flex;
+  }
+}
+.st-bar {
+  background: linear-gradient(90deg, rgb(255 255 255 / 0.55), rgb(255 255 255 / 0.92));
+}
+
+/* The sorted sea: three grids, from the biggest covers to the smallest. Columns are counted from the
+   room the sea has (container queries, generated: the smallest tier gets as many 72 to 108px
+   columns as fit, then each bigger tier gets fewer), with one gap for all three. So a tile is never
+   under 72px, nothing overlaps, and a better-ranked cover is never smaller than a lesser one:
+   a width is (room - gaps) / columns, and the bigger tiers never have more columns. */
+.st-sea {
+  --c0: 2;
+  --c1: 2;
+  --c2: 2;
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  gap: 18px 12px;
+}
+.st-sea[data-tier="0"] {
+  grid-template-columns: repeat(var(--c0), minmax(0, 1fr));
+}
+.st-sea[data-tier="1"] {
+  grid-template-columns: repeat(var(--c1), minmax(0, 1fr));
+}
+.st-sea[data-tier="2"] {
+  grid-template-columns: repeat(var(--c2), minmax(0, 1fr));
+}
+.st-sea-wrap {
+  container-type: inline-size;
+}
+@container (min-width: 150px) { .st-sea { --c0: 2; --c1: 2; --c2: 2; } }
+@container (min-width: 240px) { .st-sea { --c0: 2; --c1: 3; --c2: 3; } }
+@container (min-width: 324px) { .st-sea { --c0: 3; --c1: 4; --c2: 4; } }
+@container (min-width: 408px) { .st-sea { --c0: 3; --c1: 4; --c2: 5; } }
+@container (min-width: 492px) { .st-sea { --c0: 4; --c1: 5; --c2: 6; } }
+@container (min-width: 500px) { .st-sea { --c0: 3; --c1: 4; --c2: 5; } }
+@container (min-width: 564px) { .st-sea { --c0: 4; --c1: 5; --c2: 6; } }
+@container (min-width: 660px) { .st-sea { --c0: 5; --c1: 6; --c2: 7; } }
+@container (min-width: 756px) { .st-sea { --c0: 5; --c1: 7; --c2: 8; } }
+@container (min-width: 800px) { .st-sea { --c0: 5; --c1: 6; --c2: 7; } }
+@container (min-width: 852px) { .st-sea { --c0: 5; --c1: 7; --c2: 8; } }
+@container (min-width: 960px) { .st-sea { --c0: 6; --c1: 8; --c2: 9; } }
+@container (min-width: 1000px) { .st-sea { --c0: 5; --c1: 7; --c2: 8; } }
+@container (min-width: 1068px) { .st-sea { --c0: 6; --c1: 8; --c2: 9; } }
+@container (min-width: 1188px) { .st-sea { --c0: 7; --c1: 9; --c2: 10; } }
+@container (min-width: 1308px) { .st-sea { --c0: 7; --c1: 10; --c2: 11; } }
+.st-tile {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+}
+/* The tab words on this page sit on the wash, so the unchosen ones are a little stronger than the
+   button set's half-opacity (4.5:1 on the brightest wash a pale cover gives). */
+.st-root .btn-seg-opt[aria-pressed="false"] {
+  opacity: 0.7;
+}
+
+/* The rank and plays over a cover: white on a dark pill, dark enough for a white cover. */
+.st-chip {
+  position: absolute;
+  border-radius: 9999px;
+  padding: 0 0.375rem;
+  background: rgb(0 0 0 / 0.68);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------------
+ * The sleeve fan (#145): the sidebar's Stats shelf (`data-size="shelf"`, three sleeves, 112px) and the
+ * Stats page (`data-size="page"`, five sleeves, 68 to 210px by the room) are this one set of rules,
+ * components/stats/SleeveFan.tsx. Everything is a multiple of --w, the sleeve's width, and the
+ * rest of the size is the variables below. Sleeves overlap like a hand of cards, number one in the
+ * middle (or the middle of what there is, lib/fan-layout). Per sleeve: --a tilts it, --k is the
+ * steps out from the middle. The page fan is a wheel: every sleeve tilts round one far pivot, so
+ * they sit on one shallow arc, and each step out is a little smaller and darker, like stacked
+ * cards. The shelf keeps its tight stack of three (number one in front) with the same depth and
+ * shade, and no sideways step. The active one lifts, grows, loses its shade, straightens a little and
+ * shows its tag, and its record slides out of the top. The fan is tall enough for the lift and the record.
+ * ------------------------------------------------------------------------- */
+.fan {
+  --w: 112px;
+  --fan-radius: clamp(8px, calc(var(--w) * 0.057), 12px);
+  --fan-ring: clamp(2px, calc(var(--w) * 0.0143), 3px);
+  --fan-badge: clamp(20px, calc(var(--w) * 0.133), 28px);
+  --fan-badge-font: clamp(11px, calc(var(--w) * 0.067), 14px);
+  --fan-badge-inset: clamp(6px, calc(var(--w) * 0.043), 9px);
+  --fan-title: clamp(12px, calc(var(--w) * 0.07), 15px);
+  --fan-plays: clamp(11px, calc(var(--w) * 0.062), 13px);
+  /* The wheel and the stack: --fan-pivot is how far below the sleeve the tilt turns (a bigger
+     number is a shallower arc), --fan-tilt scales each sleeve's angle, --fan-step moves a sleeve
+     sideways by that many sleeve widths per step out (0 keeps all on the arc; unused now), --fan-lift and
+     --fan-pop are how far and how big the active one goes, --fan-depth is how much smaller each step
+     out is, and --fan-shade-base plus --fan-shade per step is the black laid over the others. */
+  --fan-pivot: 330%;
+  --fan-step: 0;
+  --fan-tilt: 1;
+  --fan-lift: 0.232;
+  --fan-pop: 1.07;
+  --fan-depth: 0;
+  --fan-shade-base: 0;
+  --fan-shade: 0;
+  /* Room added under the sleeves for the page's caption at a narrow width; nothing otherwise. */
+  --fan-base: 0px;
+  position: relative;
+  height: calc(var(--w) * 2.107);
+}
+.fan[data-size="shelf"] {
+  --fan-depth: 0.07;
+  --fan-shade-base: 0.06;
+  --fan-shade: 0.1;
+  margin-top: 2px;
+}
+.fan[data-size="page"] {
+  --w: clamp(64px, 22cqw, 210px);
+  --fan-pivot: 410%;
+  --fan-step: 0;
+  --fan-tilt: 1.15;
+  --fan-lift: 0.3;
+  --fan-pop: 1.12;
+  --fan-depth: 0.06;
+  --fan-shade-base: 0.06;
+  --fan-shade: 0.1;
+  /* Room above the resting sleeves for a hover or focus lift only (the lifted sleeve, its popped size and its
+     record's peek, about 1.96 sleeves, plus 12px). The brief opening beat (record -55%) rises past the top of this box
+     into the space above; nothing clips it. */
+  height: calc(var(--w) * 1.96 + 12px);
+}
+.fan-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fan-ground {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: calc(var(--w) * 0.214 + var(--fan-base));
+  height: calc(var(--w) * 0.25);
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.55), transparent);
+}
+.fan-plank {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--w) * 0.348 + var(--fan-base));
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgb(255 255 255 / 0.2) 20%,
+    rgb(255 255 255 / 0.2) 80%,
+    transparent
+  );
+}
+.fan-sleeve {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--w) * 0.357 + var(--fan-base));
+  width: var(--w);
+  height: var(--w);
+  margin-left: calc(var(--w) / -2);
+  list-style: none;
+  /* A pivot well below the shelf, so the sleeves tilt around one point like a wheel. */
+  transform-origin: 50% var(--fan-pivot);
+  transform: rotate(calc(var(--a) * var(--fan-tilt)));
+  /* The sideways step (0 now), on its own property so it composes with the tilt, the lift and the fan-in. */
+  translate: calc(var(--o) * var(--fan-step) * var(--w)) 0;
+  transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.fan-sleeve[data-active="true"] {
+  transform: rotate(calc(var(--a) * var(--fan-tilt) * 0.8)) translate3d(0, calc(var(--w) * var(--fan-lift) * -1), 0);
+}
+/* At rest, before anyone points at, tabs into or taps the fan, number one sits half as high; a hover,
+   focus or touch lift (data-armed, set by SleeveFan, since sticky hover differs by browser) lifts the
+   chosen sleeve fully. */
+.fan:not(:hover):not(:focus-within):not([data-armed="true"]) .fan-sleeve[data-active="true"] {
+  transform: rotate(calc(var(--a) * var(--fan-tilt) * 0.8)) translate3d(0, calc(var(--w) * var(--fan-lift) * -0.5), 0);
+}
+/* The fan-out: on the page whenever the fan appears (it is keyed by tab and period); on the shelf
+   each time the sidebar panel opens. */
+.fan[data-size="page"] .fan-sleeve,
+.sb-card[data-state="open"] .fan-sleeve {
+  animation: fan-in 400ms cubic-bezier(0.16, 1, 0.3, 1) calc(60ms + var(--k) * 52ms) backwards;
+}
+@keyframes fan-in {
+  from {
+    opacity: 0;
+    transform: rotate(0deg) translate3d(0, calc(var(--w) * 0.3), 0);
+  }
+}
+/* The button scales about its own bottom centre; scaling the sleeve itself would swing it out
+   from the far pivot. Each step out from the middle is a little smaller (the stack's depth). */
+.fan-hit {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--fan-radius);
+  cursor: pointer;
+  transform-origin: 50% 100%;
+  transform: scale(calc(1 - var(--k) * var(--fan-depth)));
+  transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* A little black over the sleeves that are not chosen; it lets clicks through and takes the
+   sleeve's or disc's shape. */
+.fan-hit::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #000;
+  opacity: calc(var(--fan-shade-base) + var(--k) * var(--fan-shade));
+  pointer-events: none;
+  transition: opacity 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.fan-sleeve[data-active="true"] .fan-hit::after {
+  opacity: 0;
+}
+.fan-sleeve[data-shape="disc"] .fan-hit {
+  border-radius: 9999px;
+}
+.fan-sleeve[data-active="true"] .fan-hit {
+  transform: scale(var(--fan-pop));
+}
+/* The active sleeve lifts away from a pointer resting near its bottom edge; this invisible strip
+   under it covers the distance it lifted, so that pointer stays on the button and the lift holds
+   (without it the lift dropped and lifted again, flickering). Not on the other sleeves. */
+.fan-sleeve[data-active="true"] .fan-hit::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: calc(var(--w) * var(--fan-lift) + 4px);
+}
+/* The opening beat, set by SleeveFan just before the release opens: the sleeve lifts a little
+   more and grows slightly, and the record slides further out. 360ms, matching OPENING_MS. */
+.fan-sleeve[data-opening="true"] {
+  transform: rotate(calc(var(--a) * var(--fan-tilt) * 0.8)) translate3d(0, calc(var(--w) * (var(--fan-lift) + 0.05) * -1), 0);
+  transition-duration: 360ms;
+}
+.fan-sleeve[data-opening="true"] .fan-hit {
+  transform: scale(calc(var(--fan-pop) * 1.04));
+  transition-duration: 360ms;
+}
+.fan-hit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.fan[data-size="page"] .fan-hit:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 0.9);
+  outline-offset: 6px;
+}
+.fan-art {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--fan-radius);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.14),
+    0 calc(var(--w) * 0.12) calc(var(--w) * 0.22) calc(var(--w) * -0.1) rgb(0 0 0 / 0.8);
+}
+.fan-sleeve[data-shape="disc"] .fan-art {
+  border-radius: 9999px;
+}
+/* A release with no cover: a quiet tile with a music note in place of the picture. */
+.fan-art:not(img) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--elevated);
+}
+/* Gold, silver and bronze rims for the first three: a thin ring and a faint glow. */
+.fan-art[data-medal="gold"] {
+  box-shadow:
+    0 0 0 var(--fan-ring) #dcb860,
+    0 0 calc(var(--w) * 0.18) calc(var(--w) * -0.03) rgb(220 184 96 / 0.5),
+    0 calc(var(--w) * 0.12) calc(var(--w) * 0.22) calc(var(--w) * -0.1) rgb(0 0 0 / 0.8);
+}
+.fan-art[data-medal="silver"] {
+  box-shadow:
+    0 0 0 var(--fan-ring) #c5cad3,
+    0 0 calc(var(--w) * 0.16) calc(var(--w) * -0.035) rgb(197 202 211 / 0.4),
+    0 calc(var(--w) * 0.12) calc(var(--w) * 0.22) calc(var(--w) * -0.1) rgb(0 0 0 / 0.8);
+}
+.fan-art[data-medal="bronze"] {
+  box-shadow:
+    0 0 0 var(--fan-ring) #c98a4e,
+    0 0 calc(var(--w) * 0.16) calc(var(--w) * -0.035) rgb(201 138 78 / 0.4),
+    0 calc(var(--w) * 0.12) calc(var(--w) * 0.22) calc(var(--w) * -0.1) rgb(0 0 0 / 0.8);
+}
+/* The record behind the sleeve, by rank: gold, silver and bronze are metallic vinyl (two light sweeps
+   across a conic sheen, under fine grooves), ranks four and five black. Every record peeks a little
+   over the sleeve's top at rest and the active one more, so the status reads at a glance; the label
+   stays hidden. */
+.fan-record {
+  position: absolute;
+  left: 6%;
+  top: 0;
+  width: 88%;
+  aspect-ratio: 1;
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle, transparent 0 63%, rgb(0 0 0 / 0.35) 63.5% 64.5%, transparent 65%),
+    repeating-radial-gradient(circle, rgb(255 255 255 / 0.05) 0 1px, transparent 1px 3px),
+    #111;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.1),
+    0 calc(var(--w) * 0.075) calc(var(--w) * 0.14) calc(var(--w) * -0.07) rgb(0 0 0 / 0.8);
+  transform: translate3d(0, -9%, 0);
+  transition: transform 340ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* Silver and bronze peek a little further at rest than the black records, so the medals read. */
+.fan-record[data-medal="silver"],
+.fan-record[data-medal="bronze"] {
+  transform: translate3d(0, -13%, 0);
+}
+.fan-record[data-medal="gold"] {
+  background:
+    radial-gradient(circle, transparent 0 63%, rgb(0 0 0 / 0.28) 63.5% 64.5%, transparent 65%),
+    repeating-radial-gradient(circle, rgb(0 0 0 / 0.1) 0 1px, transparent 1px 3px),
+    conic-gradient(from 20deg, #fff2bf, #c8921e 12%, #ffe089 25%, #7d5609 40%, #fff2bf 50%, #c8921e 62%, #ffe089 75%, #7d5609 90%, #fff2bf);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 240 190 / 0.5),
+    0 calc(var(--w) * 0.075) calc(var(--w) * 0.14) calc(var(--w) * -0.07) rgb(0 0 0 / 0.8);
+}
+.fan-record[data-medal="silver"] {
+  background:
+    radial-gradient(circle, transparent 0 63%, rgb(0 0 0 / 0.28) 63.5% 64.5%, transparent 65%),
+    repeating-radial-gradient(circle, rgb(0 0 0 / 0.1) 0 1px, transparent 1px 3px),
+    conic-gradient(from 20deg, #ffffff, #aeb6c2 12%, #eef2f7 25%, #5d6674 40%, #ffffff 50%, #aeb6c2 62%, #eef2f7 75%, #5d6674 90%, #ffffff);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.5),
+    0 calc(var(--w) * 0.075) calc(var(--w) * 0.14) calc(var(--w) * -0.07) rgb(0 0 0 / 0.8);
+}
+.fan-record[data-medal="bronze"] {
+  background:
+    radial-gradient(circle, transparent 0 63%, rgb(0 0 0 / 0.28) 63.5% 64.5%, transparent 65%),
+    repeating-radial-gradient(circle, rgb(0 0 0 / 0.1) 0 1px, transparent 1px 3px),
+    conic-gradient(from 20deg, #ffe3c8, #b56a2c 12%, #f2b67e 25%, #6a3412 40%, #ffe3c8 50%, #b56a2c 62%, #f2b67e 75%, #6a3412 90%, #ffe3c8);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 227 200 / 0.45),
+    0 calc(var(--w) * 0.075) calc(var(--w) * 0.14) calc(var(--w) * -0.07) rgb(0 0 0 / 0.8);
+}
+/* The medal records' shine, the owner's exception to "one shimmer per hover, never a loop" (15 Oct 2026):
+   once per 8s cycle a soft band glides left to right through the top half (::before, about 1.6s), then
+   about two seconds later a second band glides right to left through the body (::after, about 1.8s).
+   Gold leads; silver and bronze follow 0.3s and 0.6s behind in their own metal's light, so it ripples
+   out from number one. Plain alpha, no blend mode, transform and opacity only, so the browser can run
+   it off the main thread. The disc clips it, the grooves sit under it and the label over it. */
+.fan-record[data-medal] {
+  overflow: hidden;
+  --shine: 255 246 214;
+  --shine-delay: 1.5s;
+}
+.fan-record[data-medal="silver"] {
+  --shine: 255 255 255;
+  --shine-delay: 1.8s;
+}
+.fan-record[data-medal="bronze"] {
+  --shine: 255 228 200;
+  --shine-delay: 2.1s;
+}
+.fan-record[data-medal]::before,
+.fan-record[data-medal]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 100%;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  animation-duration: 8s;
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
+  animation-delay: var(--shine-delay);
+}
+.fan-record[data-medal]::before {
+  top: 0;
+  height: 50%;
+  background: linear-gradient(105deg, transparent 28%, rgb(var(--shine) / 0.18) 38%, rgb(var(--shine) / 0.62) 47%, rgb(var(--shine) / 0.85) 50%, rgb(var(--shine) / 0.62) 53%, rgb(var(--shine) / 0.18) 62%, transparent 72%);
+  transform: translateX(-100%);
+  animation-name: fan-shine-sweep-a;
+}
+.fan-record[data-medal]::after {
+  top: 12%;
+  height: 76%;
+  background: linear-gradient(75deg, transparent 28%, rgb(var(--shine) / 0.16) 38%, rgb(var(--shine) / 0.55) 47%, rgb(var(--shine) / 0.78) 50%, rgb(var(--shine) / 0.55) 53%, rgb(var(--shine) / 0.16) 62%, transparent 72%);
+  transform: translateX(100%);
+  animation-name: fan-shine-sweep-b;
+}
+.fan-record[data-medal] .fan-record-label {
+  z-index: 2;
+}
+@keyframes fan-shine-sweep-a {
+  0% { transform: translateX(-100%); opacity: 0; animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1); }
+  4% { opacity: 1; }
+  17% { opacity: 1; }
+  20% { transform: translateX(100%); opacity: 0; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+@keyframes fan-shine-sweep-b {
+  0%, 45% { transform: translateX(100%); opacity: 0; animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1); }
+  49% { opacity: 1; }
+  64% { opacity: 1; }
+  67.5% { transform: translateX(-100%); opacity: 0; }
+  100% { transform: translateX(-100%); opacity: 0; }
+}
+.fan-sleeve[data-active="true"] .fan-record {
+  transform: translate3d(0, -18%, 0);
+}
+.fan-sleeve[data-opening="true"] .fan-record {
+  transform: translate3d(0, -55%, 0);
+  transition-duration: 360ms;
+}
+.fan-record-label {
+  position: absolute;
+  inset: 33%;
+  border-radius: 9999px;
+  background: var(--accent) center / cover;
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.5);
+}
+/* The number, in a dark pill so the gold, silver and bronze stay readable on a pale cover. */
+.fan-rank {
+  position: absolute;
+  top: var(--fan-badge-inset);
+  right: var(--fan-badge-inset);
+  z-index: 1;
+  width: var(--fan-badge);
+  height: var(--fan-badge);
+  border-radius: 9999px;
+  background: rgb(0 0 0 / 0.78);
+  color: rgb(255 255 255 / 0.92);
+  font-size: var(--fan-badge-font);
+  font-weight: 700;
+  line-height: var(--fan-badge);
+  text-align: center;
+}
+/* The sleeves left of the middle show their left strip, so their number sits there. */
+.fan-sleeve[data-side="left"] .fan-rank {
+  left: var(--fan-badge-inset);
+  right: auto;
+}
+/* On the page's discs the number sits inside the circle, not out in the square's empty corner. */
+.fan[data-size="page"] .fan-sleeve[data-shape="disc"] .fan-rank {
+  top: 13%;
+  right: 13%;
+}
+.fan[data-size="page"] .fan-sleeve[data-shape="disc"][data-side="left"] .fan-rank {
+  left: 13%;
+  right: auto;
+}
+.fan-rank[data-medal="gold"] { color: #ecce78; }
+.fan-rank[data-medal="silver"] { color: #d3d8e0; }
+.fan-rank[data-medal="bronze"] { color: #dc9a5e; }
+.fan-tag {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  padding: clamp(28px, calc(var(--w) * 0.21), 44px) clamp(9px, calc(var(--w) * 0.067), 14px)
+    clamp(8px, calc(var(--w) * 0.057), 12px);
+  border-radius: 0 0 var(--fan-radius) var(--fan-radius);
+  text-align: left;
+  /* Dark enough behind the words for a white or cream cover (white text, 4.5:1 and up). */
+  background: linear-gradient(to top, rgb(0 0 0 / 0.9), rgb(0 0 0 / 0.8) 60%, transparent);
+  opacity: 0;
+  transform: translate3d(0, calc(var(--w) * 0.032), 0);
+  transition:
+    opacity 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.fan-sleeve[data-active="true"] .fan-tag {
+  opacity: 1;
+  transform: none;
+}
+.fan-sleeve[data-shape="disc"] .fan-tag {
+  left: 12%;
+  right: 12%;
+  bottom: 9%;
+  padding: clamp(4px, calc(var(--w) * 0.03), 6px) clamp(8px, calc(var(--w) * 0.048), 10px)
+    clamp(5px, calc(var(--w) * 0.033), 7px);
+  border-radius: clamp(14px, calc(var(--w) * 0.085), 18px);
+  text-align: center;
+  background: rgb(0 0 0 / 0.72);
+}
+/* Two lines at most, so a long name on a small sleeve ends in an ellipsis rather than off the edge. */
+.fan-tag-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: #fff;
+  font-size: var(--fan-title);
+  font-weight: 600;
+  line-height: 1.2;
+}
+/* The page's sleeves go down to 64px at a narrow width: less fade above the words there. */
+.fan[data-size="page"] .fan-sleeve:not([data-shape="disc"]) .fan-tag {
+  padding-top: clamp(14px, calc(var(--w) * 0.21), 44px);
+}
+.fan-tag-plays {
+  display: block;
+  color: rgb(255 255 255 / 0.8);
+  font-size: var(--fan-plays);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The page fan's caption: the chosen sleeve's name and plays under the fan, for where the sleeves
+   are too small to carry their own tag. Off at a wide width, so the fan there is as it was. */
+.fan-caption {
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  text-align: center;
+}
+.fan-caption-title {
+  display: block;
+  overflow: hidden;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fan-caption-plays {
+  display: block;
+  color: rgb(255 255 255 / 0.7);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+/* Narrow room (the sleeves would be under about 120px): the caption replaces the in-sleeve tag, and
+   the wheel is kept low enough that the caption clears the outer sleeves' corners. The tilted fan
+   is about five sleeves wide here, so the sleeve is a fifth of the room plus the stage's side
+   padding: it fits at any width (no fixed minimum to spill past a phone's edge). */
+@container (max-width: 545px) {
+  .fan[data-size="page"] {
+    --w: clamp(40px, calc((100cqw + 40px) / 5), 120px);
+    /* Keeps the lowest sleeve corners about 54px above the fan's foot, where the caption sits, however small they get. */
+    --fan-base: max(24px, calc(54px - var(--w) * 0.357));
+    --fan-step: 0;
+    --fan-lift: 0.6;
+    --fan-pop: 1.12;
+    height: calc(var(--w) * 2.25 + var(--fan-base));
+  }
+  .fan[data-size="page"] .fan-tag {
+    display: none;
+  }
+  .fan-caption {
+    display: block;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Reduced motion for the Stats page, the glass toggle and the fan. This block is last on purpose:
+ * its rules have the same specificity as the ones they override, so only coming after them makes
+ * them win (the main reduced-motion block is far above these rules and could not). No entrances
+ * and no fan-out; the grid's lift, the fan's lift, record slide and tag, and the glass toggle's
+ * thumb still change, but jump.
+ * ------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .st-rise,
+  .fan[data-size="page"] .fan-sleeve,
+  .sb-card[data-state="open"] .fan-sleeve {
+    animation: none;
+  }
+  .seg-glass-thumb,
+  .seg-glass-opt,
+  .seg-glass-opt::before,
+  .seg-glass-face::before,
+  .st-lift,
+  .st-lift .record-sleeve,
+  .st-row,
+  .fan-sleeve,
+  .fan-hit,
+  .fan-hit::after,
+  .fan-record,
+  .fan-tag {
+    transition: none;
+  }
+  /* SleeveFan opens at once under reduced motion, so the opening beat never shows; this keeps it off. */
+  .fan-sleeve[data-opening="true"],
+  .fan-sleeve[data-opening="true"] .fan-hit,
+  .fan-sleeve[data-opening="true"] .fan-record {
+    transition: none;
+  }
+  .track-row[data-highlight]::before {
+    animation: none;
+    opacity: 1;
+  }
+  .fan-record[data-medal]::before,
+  .fan-record[data-medal]::after {
+    animation: none;
+    opacity: 0;
   }
 }

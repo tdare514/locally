@@ -129,6 +129,10 @@ export interface PlaysSummaryAllTime {
 export interface PlaysSummaryResponse {
   tracks: PlaysSummaryTrack[];
   allTime: PlaysSummaryAllTime[];
+  /** The earliest day bucket (`YYYY-MM-DD`, the Mac's local date) among live releases' tracks: when day counting began on this Mac, as far as the kept days show. null when no day is recorded (#145). */
+  countingSince: string | null;
+  /** True when the sync service's summary was merged in, so the plays include other devices (#202). `countingSince` stays this Mac's. */
+  includesOtherDevices: boolean;
 }
 
 /** One release from another device (the phone, the web) that hasn't been imported into the local library yet. */

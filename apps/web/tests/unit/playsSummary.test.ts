@@ -138,7 +138,26 @@ describe("buildPlaysSummary", () => {
     expect(buildPlaysSummary({ version: 1, tracks: {} }, live, { from: "2026-10-01", to: "2026-10-15" })).toEqual({
       tracks: [],
       allTime: [],
+      countingSince: null,
+      includesOtherDevices: false,
     });
+  });
+
+  it("reports the earliest day among live tracks as countingSince, whatever the range", async () => {
+    const counts = await seededStore().get();
+    expect(buildPlaysSummary(counts, live, { from: "2026-10-15", to: "2026-10-15" }).countingSince).toBe("2026-09-30");
+    expect(buildPlaysSummary(counts, new Set([R1]), { from: "2026-10-01", to: "2026-10-15" }).countingSince).toBe(
+      "2026-10-12",
+    );
+  });
+
+  it("does not let a release that is not live set countingSince, and is null with no days at all", async () => {
+    const counts = await seededStore().get();
+    // t4 (GONE) has 2026-10-14 only, later than the live ones; give it an earlier day to prove it is ignored.
+    const early = { ...counts, tracks: { ...counts.tracks, t4: { ...counts.tracks.t4, days: { "2026-01-01": 1 } } } };
+    expect(buildPlaysSummary(early, live, { from: "2026-10-01", to: "2026-10-15" }).countingSince).toBe("2026-09-30");
+    const none = buildPlaysSummary(counts, new Set(["no-such-release"]), { from: "2026-10-01", to: "2026-10-15" });
+    expect(none.countingSince).toBeNull();
   });
 });
 

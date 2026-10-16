@@ -140,6 +140,12 @@ without them fail closed at startup rather than running with dev defaults.
 Keep it that way: the migrate step skips when no database is configured, which
 is what stops a preview build from touching the production schema.
 
+Only `main` deploys on a push (`git.deploymentEnabled` in `vercel.ts`, and the
+same in `apps/web/vercel.json`). A pull-request branch makes no deployment,
+because every deployment, an ignored one included, counts against the
+account's 100 a day. For a preview, run `vercel deploy` from a checkout linked
+to the project.
+
 **Operations.** A redeploy of the current production commit (dashboard
 **Redeploy**, or `vercel redeploy <url>`) now builds, so an env change can be
 applied that way. Pushes that touch only other apps in the monorepo are still

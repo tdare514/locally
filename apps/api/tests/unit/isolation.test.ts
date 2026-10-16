@@ -19,10 +19,13 @@ import * as devicesRoute from "../../src/app/v1/devices/[id]/route";
 import * as releasesListRoute from "../../src/app/v1/releases/route";
 import * as releaseRoute from "../../src/app/v1/releases/[id]/route";
 import * as playsRoute from "../../src/app/v1/plays/route";
+import * as playsSummaryRoute from "../../src/app/v1/plays/summary/route";
 import * as releasePlaysRoute from "../../src/app/v1/releases/[id]/plays/route";
 import * as filesRoute from "../../src/app/v1/releases/[id]/files/route";
 import * as fileDownloadRoute from "../../src/app/v1/releases/[id]/files/[name]/route";
 import * as localUploadRoute from "../../src/app/v1/internal/local-upload/[...key]/route";
+import * as missingRoute from "../../src/app/v1/files/missing/route";
+import * as resyncRoute from "../../src/app/v1/files/resync-request/route";
 
 function jsonRequest(url: string, method: string, body?: unknown, token?: string): Request {
   const headers: Record<string, string> = { "content-type": "application/json" };
@@ -143,6 +146,18 @@ describe("cross-user isolation", () => {
     expect(alicePlays.status).toBe(200);
     expect(await alicePlays.json()).toEqual({ accepted: 1, ignored: 0 });
 
+    // ...and a day bucket for today, so the summary has something of Alice's to leak.
+    const today = new Date().toISOString().slice(0, 10);
+    const aliceDays = await playsRoute.PUT(
+      jsonRequest("http://localhost/v1/plays", "PUT", {
+        counts: [{ releaseId: record.id, trackId: track.id, count: 5, days: [{ day: today, count: 2 }] }],
+      }, alice.token)
+    );
+    expect(aliceDays.status).toBe(200);
+    const summaryUrl = `http://localhost/v1/plays/summary?from=${today}&to=${today}`;
+    const summaryAs = (token: string) =>
+      playsSummaryRoute.GET(new Request(summaryUrl, { headers: { authorization: `Bearer ${token}` } }));
+
     cases.push({
       name: "GET release/:id/plays",
       run: () =>
@@ -172,6 +187,19 @@ describe("cross-user isolation", () => {
       expect(res.status, `${name} should 404, not leak existence via another status`).toBe(404);
     }
 
+    // GET /v1/plays/summary: Bob sees none of Alice's tracks, Alice sees hers; no token is refused.
+    const bobSummary = await summaryAs(bob.token);
+    expect(bobSummary.status).toBe(200);
+    expect(await bobSummary.json()).toEqual({ tracks: [], allTime: [], nextCursor: null });
+    const aliceSummary = await summaryAs(alice.token);
+    expect(aliceSummary.status).toBe(200);
+    expect(await aliceSummary.json()).toEqual({
+      tracks: [{ trackId: track.id, releaseId: record.id, plays: 2, lastPlayedDay: today }],
+      allTime: [{ trackId: track.id, releaseId: record.id, plays: 5 }],
+      nextCursor: null,
+    });
+    expect((await playsSummaryRoute.GET(new Request(summaryUrl))).status).toBe(401);
+
     // GET /v1/releases (list) never includes Alice's release for Bob.
     const bobList = await releasesListRoute.GET(
       new Request("http://localhost/v1/releases?sinceVersion=0", { headers: { authorization: `Bearer ${bob.token}` } })
@@ -186,6 +214,38 @@ describe("cross-user isolation", () => {
     const bobMeBody = await bobMe.json();
     expect(bobMeBody.devices).toHaveLength(1);
     expect(bobMeBody.devices[0].id).not.toBe(alice.deviceId);
+
+    // GET /v1/files/missing (#119): Alice has a second release whose file never arrived, so her
+    // own report is not empty; Bob's is, with nothing of Alice's in it.
+    const stuck = makeReleaseRecord();
+    const stuckRes = await releaseRoute.PUT(
+      jsonRequest(`http://localhost/v1/releases/${stuck.id}`, "PUT", stuck, alice.token),
+      { params: Promise.resolve({ id: stuck.id }) }
+    );
+    expect(stuckRes.status).toBe(200);
+    const aliceMissing = await missingRoute.GET(
+      new Request("http://localhost/v1/files/missing", { headers: { authorization: `Bearer ${alice.token}` } })
+    );
+    expect(aliceMissing.status).toBe(200);
+    expect((await aliceMissing.json()).releases).toEqual([
+      { id: stuck.id, missing: [stuck.tracks[0]!.file], recordUpdatedAt: stuck.updatedAt },
+    ]);
+    const bobMissing = await missingRoute.GET(
+      new Request("http://localhost/v1/files/missing", { headers: { authorization: `Bearer ${bob.token}` } })
+    );
+    expect(bobMissing.status).toBe(200);
+    const bobMissingBody = await bobMissing.json();
+    expect(bobMissingBody.releases).toEqual([]);
+
+    // POST /v1/files/resync-request (#119): Bob's request is Bob's alone.
+    const bobResync = await resyncRoute.POST(
+      new Request("http://localhost/v1/files/resync-request", { method: "POST", headers: { authorization: `Bearer ${bob.token}` } })
+    );
+    expect(bobResync.status).toBe(200);
+    const bobMeAfterResync = await meRoute.GET(
+      new Request("http://localhost/v1/me", { headers: { authorization: `Bearer ${bob.token}` } })
+    );
+    expect((await bobMeAfterResync.json()).resyncRequestedAt).toBe((await bobResync.json()).resyncRequestedAt);
 
     // --- Alice's data and device are entirely unaffected by Bob's attempts. ---
 
@@ -216,6 +276,7 @@ describe("cross-user isolation", () => {
 
     const aliceMe = await meRoute.GET(new Request("http://localhost/v1/me", { headers: { authorization: `Bearer ${alice.token}` } }));
     expect(aliceMe.status).toBe(200);
+    expect((await aliceMe.json()).resyncRequestedAt).toBeNull();
 
     const aliceDownload = await fileDownloadRoute.GET(
       new Request(`http://localhost/v1/releases/${record.id}/files/${encodeURIComponent(track.file)}`, {

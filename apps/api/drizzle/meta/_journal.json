@@ -29,6 +29,20 @@
       "when": 1792000613413,
       "tag": "0003_slimy_vulture",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1792120370801,
+      "tag": "0004_useful_quasar",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1792132412727,
+      "tag": "0005_powerful_captain_midlands",
+      "breakpoints": true
     }
   ]
 }

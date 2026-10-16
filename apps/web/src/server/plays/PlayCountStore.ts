@@ -7,14 +7,18 @@ export interface PlayCountEntry {
   /**
    * Plays per local calendar day, `YYYY-MM-DD` in this Mac's time zone at play time, kept for 400
    * days (#200). Absent in files written before it and for plays counted before it, so the sum can
-   * be below `count`. Local only: it is never pushed to the sync service (#202).
+   * be below `count`. Pushed to the sync service since #202 (changed days only).
    */
   days?: Record<string, number>;
+  /** The value of each day bucket the sync service has accepted (#202). A day missing here is pending. */
+  pushedDays?: Record<string, number>;
 }
 
 export interface PlayCounts {
   version: 1;
   tracks: Record<string, PlayCountEntry>;
+  /** True once a days push pass has run to completion since the last reset (#202). Absent means false. */
+  daysInSync?: boolean;
 }
 
 /** Persists per-track play counts counted on this Mac. */
@@ -29,9 +33,13 @@ export interface PlayCountStore {
   pushedEpoch(): number;
   /** Record that the sync service accepted these counts (trackId -> count sent). A marker only
    * moves up, a track that has since been dropped is ignored, and a stale `epoch` (a reset ran
-   * since the push began, so the account it went to is gone) changes nothing. */
-  markPushed(sent: Record<string, number>, epoch: number): Promise<void>;
-  /** Forget what was pushed, on sign-out or account deletion: counts stay, every one is pending again. */
+   * since the push began, so the account it went to is gone) changes nothing. `sentDays` (trackId ->
+   * day -> count sent) records the day buckets the same way (#202). */
+  markPushed(sent: Record<string, number>, epoch: number, sentDays?: Record<string, Record<string, number>>): Promise<void>;
+  /** Record that a days push pass ran to completion (#202); a stale `epoch` changes nothing. */
+  markDaysInSync(epoch: number): Promise<void>;
+  /** Forget what was pushed, on sign-out or account deletion: counts stay, every one is pending again.
+   * Also clears every day marker and `daysInSync` (#202). */
   resetPushed(): Promise<void>;
 }
 

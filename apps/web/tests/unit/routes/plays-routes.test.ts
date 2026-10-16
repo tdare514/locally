@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Services } from "../../../src/server/container";
 import type { PlaysStatus, PlaysSummaryResponse, Release, ReleasePlaysResponse, Settings } from "../../../src/shared/types";
 import type { SyncApi } from "../../../src/server/sync/SyncApi";
+import { resetServerSummaryState } from "../../../src/server/plays/serverSummary";
 import { FakePlayCountStore } from "../FakePlayCountStore";
 
 let services: Services;
@@ -195,6 +196,8 @@ describe("GET /api/plays/summary (#200)", () => {
         { trackId: TRACK, releaseId: REL, plays: 10 },
         { trackId: TRACK2, releaseId: REL2, plays: 4 },
       ],
+      countingSince: "2026-10-12",
+      includesOtherDevices: false,
     });
   });
 
@@ -214,20 +217,39 @@ describe("GET /api/plays/summary (#200)", () => {
     expect((await res.json()) as PlaysSummaryResponse).toEqual({
       tracks: [],
       allTime: [{ trackId: TRACK2, releaseId: REL2, plays: 4 }],
+      countingSince: null,
+      includesOtherDevices: false,
     });
   });
 
-  it("answers from this Mac alone: no sync call even when signed in", async () => {
+  it("merges the service's summary when signed in, and answers local-only when it fails", async () => {
+    resetServerSummaryState();
     settingsValue = {
       libraryDir: "/tmp/lib",
       sync: { baseUrl: "http://localhost:4000", deviceToken: "tok-123", email: "a@b.com", lastVersion: 0 },
     };
+    const playsSummary = vi.fn(async () => ({
+      tracks: [{ trackId: TRACK, releaseId: REL, plays: 9, lastPlayedDay: "2026-10-15" }],
+      allTime: [{ trackId: TRACK, releaseId: REL, plays: 14 }],
+      nextCursor: null,
+    }));
+    syncApiFactory = vi.fn(() => ({ playsSummary }) as unknown as SyncApi);
+    (services as { syncApiFactory: unknown }).syncApiFactory = syncApiFactory;
 
     const res = await summaryGET(summaryRequest("?from=2026-10-12&to=2026-10-15"));
 
+    const body = (await res.json()) as PlaysSummaryResponse;
     expect(res.status).toBe(200);
-    expect(syncApiFactory).not.toHaveBeenCalled();
-    expect(JSON.stringify(await res.json())).not.toContain("tok-123");
+    expect(playsSummary).toHaveBeenCalledWith("2026-10-12", "2026-10-15", undefined);
+    // Nothing pushed and not in sync: the service's 9 may be this Mac's own 6, so +3 from elsewhere.
+    expect(body.includesOtherDevices).toBe(true);
+    expect(body.tracks).toEqual([{ trackId: TRACK, releaseId: REL, plays: 9, lastPlayedDay: "2026-10-15" }]);
+    expect(JSON.stringify(body)).not.toContain("tok-123");
+
+    resetServerSummaryState();
+    playsSummary.mockRejectedValueOnce(new Error("offline"));
+    const failed = await summaryGET(summaryRequest("?from=2026-10-12&to=2026-10-15"));
+    expect(((await failed.json()) as PlaysSummaryResponse).includesOtherDevices).toBe(false);
   });
 
   it("accepts a range that ends tomorrow", async () => {
@@ -267,6 +289,6 @@ describe("GET /api/plays/summary (#200)", () => {
     const res = await summaryGET(summaryRequest("?from=2026-10-12&to=2026-10-15"));
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ tracks: [], allTime: [] });
+    expect(await res.json()).toEqual({ tracks: [], allTime: [], countingSince: null, includesOtherDevices: false });
   });
 });

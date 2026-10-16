@@ -100,3 +100,81 @@ export function firstDayForLanguage(language: string | undefined): number {
     return MONDAY;
   }
 }
+
+// ---------------------------------------------------------------------------------------------
+// The Stats page (#145): five periods, each of which can step back
+// ---------------------------------------------------------------------------------------------
+
+/** How many days the Mac keeps day buckets, and so how far back a request may start. The server's
+ * `RETENTION_DAYS` (server/plays/playDays.ts); a test holds the two together. */
+export const RETENTION_DAYS = 400;
+
+/** The most days one request may span (the server's `MAX_SUMMARY_DAYS`). */
+export const MAX_RANGE_DAYS = 400;
+
+/** The Stats page's periods, shortest first. */
+export type PageKind = "today" | "week" | "month" | "year" | "all";
+
+/** A period and how many steps back from the current one (0 is today, this week, ...). */
+export interface PeriodSelection {
+  kind: PageKind;
+  back: number;
+}
+
+const DAY_MS = 86_400_000;
+
+function dayNumber(day: string): number {
+  const [year, month, date] = day.split("-").map(Number);
+  return Math.round(Date.UTC(year, month - 1, date) / DAY_MS);
+}
+
+/** `day` (`YYYY-MM-DD`) moved by `n` days, which may be negative. */
+export function addDays(day: string, n: number): string {
+  return utcDay((dayNumber(day) + n) * DAY_MS);
+}
+
+/**
+ * The days a period covers, as the summary request's `from` and `to`. `today` is the Mac's local
+ * date. Back 0 ends today; a period stepped back to is the whole of that day, week, month or year.
+ * All time has no range of its own: it reads the summary's `allTime`, and asks for the longest
+ * range the server allows so the days it still has can show "last played".
+ */
+export function selectionRange(
+  selection: PeriodSelection,
+  today: string,
+  firstDay: number = MONDAY,
+): DayRange {
+  const back = Math.max(0, Math.floor(selection.back));
+  const [year, month] = today.split("-").map(Number);
+  switch (selection.kind) {
+    case "today": {
+      const day = addDays(today, -back);
+      return { from: day, to: day };
+    }
+    case "week": {
+      const from = addDays(periodRangeOfDay("week", today, firstDay).from, -7 * back);
+      return { from, to: back === 0 ? today : addDays(from, 6) };
+    }
+    case "month": {
+      const from = utcDay(Date.UTC(year, month - 1 - back, 1));
+      return { from, to: back === 0 ? today : utcDay(Date.UTC(year, month - back, 0)) };
+    }
+    case "year": {
+      const from = utcDay(Date.UTC(year - back, 0, 1));
+      return { from, to: back === 0 ? today : utcDay(Date.UTC(year - back, 11, 31)) };
+    }
+    case "all":
+      return { from: addDays(today, 1 - MAX_RANGE_DAYS), to: today };
+  }
+}
+
+/**
+ * Whether the period before this one can be asked for: it must start within the days the Mac
+ * keeps (from no earlier than today minus {@link RETENTION_DAYS}), or the server would refuse the
+ * range. All time has nothing before it.
+ */
+export function canStepBack(selection: PeriodSelection, today: string, firstDay: number = MONDAY): boolean {
+  if (selection.kind === "all") return false;
+  const earlier = selectionRange({ kind: selection.kind, back: selection.back + 1 }, today, firstDay);
+  return earlier.from >= addDays(today, -RETENTION_DAYS);
+}

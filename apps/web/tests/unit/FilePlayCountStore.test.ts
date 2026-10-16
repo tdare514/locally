@@ -174,6 +174,68 @@ describe("FilePlayCountStore", () => {
       expect((await store.get()).tracks.t1).toEqual({ releaseId: "r1", count: 1, pushed: 0, days: { [DAY]: 1 } });
     });
 
+    it("marks days pushed (only upward), sets daysInSync under the epoch, and resetPushed clears both (#202)", async () => {
+      const store = newStore();
+      await store.increment("t1", "r1", DAY);
+      await store.increment("t1", "r1", DAY);
+      const epoch = store.pushedEpoch();
+      await store.markPushed({ t1: 2, gone: 1 }, epoch, { t1: { [DAY]: 2 }, gone: { [DAY]: 1 } });
+      await store.markPushed({ t1: 1 }, epoch, { t1: { [DAY]: 1 } });
+      await store.markDaysInSync(epoch);
+      const marked = await store.get();
+      expect(marked.tracks.t1.pushedDays).toEqual({ [DAY]: 2 });
+      expect(marked.tracks.gone).toBeUndefined();
+      expect(marked.daysInSync).toBe(true);
+
+      await store.resetPushed();
+      const reset = await store.get();
+      expect(reset.tracks.t1.pushedDays).toBeUndefined();
+      expect(reset.daysInSync).toBeUndefined();
+      expect(reset.tracks.t1.days).toEqual({ [DAY]: 2 });
+    });
+
+    it("a stale epoch marks no days and does not set daysInSync", async () => {
+      const store = newStore();
+      await store.increment("t1", "r1", DAY);
+      const epoch = store.pushedEpoch();
+      await store.resetPushed();
+      await store.markPushed({ t1: 1 }, epoch, { t1: { [DAY]: 1 } });
+      await store.markDaysInSync(epoch);
+      const counts = await store.get();
+      expect(counts.tracks.t1.pushedDays).toBeUndefined();
+      expect(counts.daysInSync).toBeUndefined();
+    });
+
+    it("loads a file from before #202, which has no pushedDays or daysInSync", async () => {
+      await writeFile({
+        version: 1,
+        tracks: { t1: { releaseId: "r1", count: 3, pushed: 1, days: { [DAY]: 3 } } },
+      });
+      expect(await newStore().get()).toEqual({
+        version: 1,
+        tracks: { t1: { releaseId: "r1", count: 3, pushed: 1, days: { [DAY]: 3 } } },
+      });
+    });
+
+    it("drops pushedDays older than 400 days along with the days, when the file is written", async () => {
+      await writeFile({
+        version: 1,
+        tracks: {
+          t1: {
+            releaseId: "r1",
+            count: 2,
+            pushed: 2,
+            days: { "2025-09-09": 1, "2025-09-10": 1 },
+            pushedDays: { "2025-09-09": 1, "2025-09-10": 1 },
+          },
+        },
+      });
+      await newStore().increment("t1", "r1", DAY);
+      const entry = (await newStore().get()).tracks.t1;
+      expect(entry.days).toEqual({ "2025-09-10": 1, [DAY]: 1 });
+      expect(entry.pushedDays).toEqual({ "2025-09-10": 1 });
+    });
+
     it("drops days older than 400 days when the file is written, and keeps the counts", async () => {
       // On 2026-10-15, 400 days back is 2025-09-10: that day stays, the one before it goes.
       await writeFile({

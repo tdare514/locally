@@ -241,6 +241,10 @@ class FakeSyncApi implements SyncApi {
     return { tracks: [] };
   }
 
+  async playsSummary() {
+    return { tracks: [], allTime: [], nextCursor: null };
+  }
+
   /** Release ids `GET /v1/files/missing` lists (#172); the fake reports each record's own `updatedAt`. */
   missingIds = new Set<string>();
   /** How the files routes answer: normally, with a 404 (an API from before #170), a 429 or a 500. */
@@ -1454,20 +1458,127 @@ describe("SyncEngine", () => {
       ]);
     });
 
-    it("pushes no days: a track with day buckets goes out as the same three fields as before (#200)", async () => {
+    it("a counted play pushes only the changed day, then nothing, then that day again with its new absolute value (#202)", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5, 5, { "2026-10-14": 2, "2026-10-15": 3 }, { "2026-10-14": 2 });
+
+      await playsEngine.reconcile();
+      expect(api.playPushes).toEqual([
+        [{ releaseId: RELEASE_ID, trackId: trackId(1), count: 5, days: [{ day: "2026-10-15", count: 3 }] }],
+      ]);
+      expect((await plays.get()).tracks[trackId(1)].pushedDays).toEqual({ "2026-10-14": 2, "2026-10-15": 3 });
+
+      await playsEngine.reconcile();
+      expect(api.playPushes).toHaveLength(1);
+
+      await plays.increment(trackId(1), RELEASE_ID, "2026-10-15");
+      await playsEngine.reconcile();
+      expect(api.playPushes[1]).toEqual([
+        { releaseId: RELEASE_ID, trackId: trackId(1), count: 6, days: [{ day: "2026-10-15", count: 4 }] },
+      ]);
+    });
+
+    it("a track with day buckets and nothing pushed sends all its days, and a finished pass sets daysInSync", async () => {
       plays.seed(trackId(1), RELEASE_ID, 5, 0, { "2026-10-14": 2, "2026-10-15": 3 });
 
       await playsEngine.reconcile();
 
-      expect(api.playPushes).toEqual([[{ releaseId: RELEASE_ID, trackId: trackId(1), count: 5 }]]);
-      expect(JSON.stringify(api.playPushes)).not.toMatch(/days|2026-10/);
-      // The days stay on this Mac.
-      expect((await plays.get()).tracks[trackId(1)]).toEqual({
+      expect(api.playPushes[0][0].days).toEqual([
+        { day: "2026-10-14", count: 2 },
+        { day: "2026-10-15", count: 3 },
+      ]);
+      const counts = await plays.get();
+      expect(counts.daysInSync).toBe(true);
+      expect(counts.tracks[trackId(1)]).toEqual({
         releaseId: RELEASE_ID,
         count: 5,
         pushed: 5,
         days: { "2026-10-14": 2, "2026-10-15": 3 },
+        pushedDays: { "2026-10-14": 2, "2026-10-15": 3 },
       });
+    });
+
+    it("keeps to 2,000 day rows and 500 entries per request, and splits a track past 400 days", async () => {
+      const dayList = (n: number) => {
+        const out: Record<string, number> = {};
+        let k = 0;
+        for (let y = 2025; k < n; y++) for (let m = 1; m <= 12 && k < n; m++) for (let d = 1; d <= 28 && k < n; d++, k++) out[`${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`] = 1;
+        return out;
+      };
+      for (let i = 1; i <= 7; i++) plays.seed(trackId(i), RELEASE_ID, 400, 0, dayList(400)); // 2,800 rows
+      plays.seed(trackId(8), RELEASE_ID, 900, 0, dayList(900)); // 400 + 400 + 100
+
+      await playsEngine.reconcile();
+
+      for (const batch of api.playPushes) {
+        expect(batch.length).toBeLessThanOrEqual(500);
+        expect(batch.reduce((n, e) => n + (e.days?.length ?? 0), 0)).toBeLessThanOrEqual(2000);
+        expect(new Set(batch.map((e) => e.trackId)).size).toBe(batch.length);
+        for (const e of batch) expect(e.days?.length ?? 0).toBeLessThanOrEqual(400);
+      }
+      expect(api.playPushes.flat().filter((e) => e.trackId === trackId(8)).map((e) => e.days?.length).sort()).toEqual([100, 400, 400]);
+      const entries = Object.values((await plays.get()).tracks);
+      expect(entries.every((e) => Object.keys(e.pushedDays ?? {}).length === Object.keys(e.days ?? {}).length)).toBe(true);
+    });
+
+    it("sign-out clears the day markers and daysInSync, and the next pass sends every day again", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5, 0, { "2026-10-14": 2, "2026-10-15": 3 });
+      await playsEngine.reconcile();
+      await plays.resetPushed();
+      const cleared = await plays.get();
+      expect(cleared.daysInSync).toBeUndefined();
+      expect(cleared.tracks[trackId(1)].pushedDays).toBeUndefined();
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes[1][0].days).toEqual([
+        { day: "2026-10-14", count: 2 },
+        { day: "2026-10-15", count: 3 },
+      ]);
+      expect((await plays.get()).daysInSync).toBe(true);
+    });
+
+    it("retries a permanently refused batch with days once without them: counts marked, days pending", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5, 0, { "2026-10-15": 5 });
+      api.failPlayPushOnCall(1, new SyncRequestError("Invalid body", 400));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toEqual([[{ releaseId: RELEASE_ID, trackId: trackId(1), count: 5 }]]);
+      const entry = (await plays.get()).tracks[trackId(1)];
+      expect(entry.pushed).toBe(5);
+      expect(entry.pushedDays).toBeUndefined();
+      // Its days never reached the service, so the pass doesn't count as in sync: the summary merge
+      // keeps subtracting this Mac's local days instead of trusting the (absent) markers.
+      expect((await plays.get()).daysInSync).toBeUndefined();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect((await playsEngine.status()).lastError).toBeNull();
+      warn.mockRestore();
+    });
+
+    it("marks nothing for the retry when the days-less retry is refused too", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5, 0, { "2026-10-15": 5 });
+      api.failPlayPushOnCall(1, new SyncRequestError("Invalid body", 400));
+      api.failPlayPushOnCall(2, new SyncRequestError("Invalid body", 400));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+      await playsEngine.reconcile();
+
+      expect(api.playPushes).toEqual([]);
+      expect((await plays.get()).tracks[trackId(1)].pushed).toBe(0);
+      warn.mockRestore();
+    });
+
+    it("an epoch change mid-push marks no counts, no days, and not daysInSync", async () => {
+      plays.seed(trackId(1), RELEASE_ID, 5, 0, { "2026-10-15": 5 });
+      api.afterPlayPush = () => plays.resetPushed();
+
+      await playsEngine.reconcile();
+
+      const counts = await plays.get();
+      expect(counts.tracks[trackId(1)].pushed).toBe(0);
+      expect(counts.tracks[trackId(1)].pushedDays).toBeUndefined();
+      expect(counts.daysInSync).toBeUndefined();
     });
 
     it("records pushed on success, so the next reconcile sends nothing", async () => {
@@ -1489,7 +1600,9 @@ describe("SyncEngine", () => {
       await playsEngine.reconcile();
 
       expect(api.playPushes).toHaveLength(2);
-      expect(api.playPushes[1]).toEqual([{ releaseId: RELEASE_ID, trackId: trackId(1), count: 6 }]);
+      expect(api.playPushes[1]).toEqual([
+        { releaseId: RELEASE_ID, trackId: trackId(1), count: 6, days: [{ day: "2026-10-15", count: 1 }] },
+      ]);
     });
 
     it("sends at most 500 entries per request and marks each request once it is accepted", async () => {

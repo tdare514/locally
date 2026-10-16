@@ -8,6 +8,13 @@ import type { VercelConfig } from "@vercel/config/v1";
  * other apps in the monorepo don't redeploy it.
  */
 export const config: VercelConfig = {
+  // Only main deploys on a push. Every deployment, an ignored one included,
+  // counts against the account's 100 a day on the Hobby plan, which all of
+  // this account's projects share; branch pushes used it up and held back a
+  // production deploy (16 Oct 2026). "**" matches every branch, slashes
+  // included; a branch deploys if any rule matching it is true. A preview is
+  // made on request with `vercel deploy` from a linked checkout.
+  git: { deploymentEnabled: { "**": false, main: true } },
   crons: [{ path: "/v1/internal/cleanup", schedule: "0 0 * * *" }],
   // Migrations run once per deploy, here, not on every cold start. A failed
   // migration fails the build, so the previous deployment keeps serving.

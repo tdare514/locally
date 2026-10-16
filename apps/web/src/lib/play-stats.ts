@@ -63,6 +63,10 @@ export interface StatItem {
   subtitle: string;
   plays: number;
   cover: StatCover | null;
+  /** The release to open for this item: the track's, or the album itself. null for an artist. */
+  releaseId: string | null;
+  /** The latest day (`YYYY-MM-DD`) in the period with a play of it; null when the counts carry no days (all time). */
+  lastPlayedDay: string | null;
 }
 
 export interface PlayStats {
@@ -91,6 +95,13 @@ interface Row {
   subtitle: string;
   plays: number;
   cover: StatCover | null;
+  releaseId: string | null;
+  lastPlayedDay: string | null;
+}
+
+/** The later of two optional days. */
+function laterDay(a: string | null, b: string | null): string | null {
+  return a === null ? b : b === null ? a : a > b ? a : b;
 }
 
 function compareText(a: string, b: string): number {
@@ -124,13 +135,15 @@ interface ArtistTotals {
   best: { plays: number; release: Release } | null;
   /** The first played release with a cover, for when the best one has none. */
   coverFallback: StatCover | null;
+  lastPlayedDay: string | null;
 }
 
 /** One track's plays on this Mac: a row of the summary's `tracks` (the chosen period) or `allTime`. */
-export type TrackPlayCount = Pick<PlaysSummaryTrack, "releaseId" | "trackId" | "plays">;
+export type TrackPlayCount = Pick<PlaysSummaryTrack, "releaseId" | "trackId" | "plays"> &
+  Partial<Pick<PlaysSummaryTrack, "lastPlayedDay">>;
 
 /**
- * The top three tracks, albums (releases, singles included) and artists by plays.
+ * The top `limit` (three by default) tracks, albums (releases, singles included) and artists by plays.
  * Only tracks still in the library count, so a count left behind for a removed track is ignored.
  * Ties: A to Z by title, then by id. An artist with a blank name is left out of the artist list.
  */
@@ -144,10 +157,10 @@ export function aggregatePlays(
   const artists = new Map<string, ArtistTotals>();
   let total = 0;
 
-  const countsByRelease = new Map<string, Map<string, number>>();
+  const countsByRelease = new Map<string, Map<string, TrackPlayCount>>();
   for (const t of counts) {
-    const forRelease = countsByRelease.get(t.releaseId) ?? new Map<string, number>();
-    forRelease.set(t.trackId, t.plays);
+    const forRelease = countsByRelease.get(t.releaseId) ?? new Map<string, TrackPlayCount>();
+    forRelease.set(t.trackId, t);
     countsByRelease.set(t.releaseId, forRelease);
   }
 
@@ -160,6 +173,7 @@ export function aggregatePlays(
         releases: 0,
         best: null,
         coverFallback: null,
+        lastPlayedDay: null,
       });
     }
     const entry = artists.get(key);
@@ -171,16 +185,22 @@ export function aggregatePlays(
 
     const cover = coverOf(release);
     let releasePlays = 0;
+    let releaseLast: string | null = null;
     for (const track of release.tracks) {
-      const plays = counted?.get(track.id) ?? 0;
+      const entry = counted?.get(track.id);
+      const plays = entry?.plays ?? 0;
       if (!Number.isFinite(plays) || plays <= 0) continue;
       releasePlays += plays;
+      const lastPlayedDay = entry?.lastPlayedDay || null;
+      releaseLast = laterDay(releaseLast, lastPlayedDay);
       trackRows.push({
         id: track.id,
         title: track.title || release.title,
         subtitle: release.artist,
         plays,
         cover,
+        releaseId: release.id,
+        lastPlayedDay,
       });
     }
     if (releasePlays === 0) continue;
@@ -192,11 +212,14 @@ export function aggregatePlays(
       subtitle: release.artist,
       plays: releasePlays,
       cover,
+      releaseId: release.id,
+      lastPlayedDay: releaseLast,
     });
 
     const artist = artists.get(artistKey(release.artist));
     if (artist) {
       artist.plays += releasePlays;
+      artist.lastPlayedDay = laterDay(artist.lastPlayedDay, releaseLast);
       if (!artist.best || releasePlays > artist.best.plays) {
         artist.best = { plays: releasePlays, release };
       }
@@ -210,6 +233,8 @@ export function aggregatePlays(
     subtitle: a.best?.release.genre || releaseCountLabel(a.releases),
     plays: a.plays,
     cover: (a.best && coverOf(a.best.release)) ?? a.coverFallback,
+    releaseId: null,
+    lastPlayedDay: a.lastPlayedDay,
   }));
 
   return {

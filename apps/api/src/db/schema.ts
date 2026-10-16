@@ -10,6 +10,8 @@ export const users = sqliteTable("users", {
   email: text("email").notNull(),
   createdAt: integer("created_at").notNull(),
   storageLimitBytes: integer("storage_limit_bytes").notNull().default(DEFAULT_STORAGE_LIMIT_BYTES),
+  /** Epoch ms of the last `POST /v1/files/resync-request`; `null` until one is made. Read back by `GET /v1/me`. */
+  resyncRequestedAt: integer("resync_requested_at"),
 }, (table) => ({
   emailIdx: uniqueIndex("users_email_idx").on(table.email),
 }));
@@ -92,6 +94,25 @@ export const playCounts = sqliteTable("play_counts", {
 }, (table) => ({
   pk: primaryKey({ columns: [table.deviceId, table.trackId] }),
   userReleaseIdx: index("play_counts_user_release_idx").on(table.userId, table.releaseId),
+}));
+
+/**
+ * A device's absolute play count for one track on one calendar day
+ * (`PlaysService`, `spec/sync.md` "Play counts"). `day` is the client's local
+ * date, `YYYY-MM-DD`, stored as sent. Rows older than 400 days are deleted by
+ * the daily cleanup. Columns mirror `play_counts`.
+ */
+export const playDays = sqliteTable("play_days", {
+  userId: text("user_id").notNull(),
+  deviceId: text("device_id").notNull(),
+  releaseId: text("release_id").notNull(),
+  trackId: text("track_id").notNull(),
+  day: text("day").notNull(),
+  count: integer("count").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.deviceId, table.trackId, table.day] }),
+  userDayIdx: index("play_days_user_day_idx").on(table.userId, table.day),
 }));
 
 /** Shared-store counters behind `DbRateLimiter` (see `src/server/ratelimit`). */

@@ -5,6 +5,7 @@
  * and services import a single source of truth.
  */
 import { z } from "zod";
+import { isRealDay } from "./days";
 
 export const SUPPORTED_FILE_EXT = ["mp3", "m4a", "jpg", "jpeg", "png"] as const;
 
@@ -132,6 +133,29 @@ export interface MeResponse {
   quota: QuotaSummary;
   devices: DeviceSummary[];
   devicesHasMore: boolean;
+  /** ISO time of the last `POST /v1/files/resync-request`, or `null` when none was made. */
+  resyncRequestedAt: string | null;
+}
+
+/** One live release with files that are not stored, from `GET /v1/files/missing`. */
+export interface MissingFilesRelease {
+  id: string;
+  /** File names the record references (tracks, and the cover when it has a `coverHash`) that are not stored. */
+  missing: string[];
+  /** The record's own `updatedAt`, so a client can tell which version of the release was checked. */
+  recordUpdatedAt: string;
+}
+
+export interface MissingFilesResponse {
+  releases: MissingFilesRelease[];
+  checkedAt: string;
+  /** `true` only when a cap cut the check short, so the list may be incomplete; omitted otherwise. */
+  truncated?: boolean;
+}
+
+/** Response of `POST /v1/files/resync-request`. */
+export interface ResyncRequestResponse {
+  resyncRequestedAt: string;
 }
 
 export interface VerifyResponse {
@@ -161,6 +185,16 @@ export const MAX_PLAY_COUNT = 1_000_000;
 /** Most entries in one `PUT /v1/plays` body. */
 export const MAX_PLAY_ENTRIES = 500;
 
+/** Most day buckets in one `PUT /v1/plays` entry. */
+export const MAX_PLAY_DAYS_PER_ENTRY = 400;
+/** Most day buckets in one `PUT /v1/plays` body, across all entries. */
+export const MAX_PLAY_DAYS_PER_REQUEST = 2_000;
+/** Track ids per page of `GET /v1/plays/summary`. */
+export const PLAYS_SUMMARY_PAGE_SIZE = 1_000;
+
+/** A strict `YYYY-MM-DD` that is a real calendar date. */
+export const daySchema = z.string().refine(isRealDay, "Must be a real date as YYYY-MM-DD");
+
 /** Body of `PUT /v1/plays`. Strict: a body naming a device or user (or anything else unknown) is refused. */
 export const playCountsRequestSchema = z
   .object({
@@ -171,13 +205,29 @@ export const playCountsRequestSchema = z
             releaseId: uuidSchema,
             trackId: uuidSchema,
             count: z.number().int().min(0).max(MAX_PLAY_COUNT),
+            days: z
+              .array(
+                z
+                  .object({
+                    day: daySchema,
+                    count: z.number().int().min(0).max(MAX_PLAY_COUNT),
+                  })
+                  .strict()
+              )
+              .max(MAX_PLAY_DAYS_PER_ENTRY)
+              .refine((days) => new Set(days.map((d) => d.day)).size === days.length, "Duplicate day in one entry")
+              .optional(),
           })
           .strict()
       )
       .min(1)
       .max(MAX_PLAY_ENTRIES),
   })
-  .strict();
+  .strict()
+  .refine(
+    (body) => body.counts.reduce((sum, entry) => sum + (entry.days?.length ?? 0), 0) <= MAX_PLAY_DAYS_PER_REQUEST,
+    `At most ${MAX_PLAY_DAYS_PER_REQUEST} day rows per request`
+  );
 export type PlayCountsRequest = z.infer<typeof playCountsRequestSchema>;
 
 export interface PlayCountsResponse {
@@ -201,4 +251,18 @@ export interface TrackPlays {
 
 export interface ReleasePlaysResponse {
   tracks: TrackPlays[];
+}
+
+/** Query of `GET /v1/plays/summary` (range rules that need the clock are checked by `PlaysService`). */
+export const playsSummaryQuerySchema = z.object({
+  from: daySchema,
+  to: daySchema,
+  cursor: uuidSchema.optional(),
+});
+export type PlaysSummaryQuery = z.infer<typeof playsSummaryQuerySchema>;
+
+export interface PlaysSummaryResponse {
+  tracks: Array<{ trackId: string; releaseId: string; plays: number; lastPlayedDay: string }>;
+  allTime: Array<{ trackId: string; releaseId: string; plays: number }>;
+  nextCursor: string | null;
 }
