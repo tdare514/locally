@@ -162,6 +162,19 @@ The Mac app can connect to the user's Spotify account (#239, `apps/web/src/serve
   Each stored connection has a random `revision`; a token refresh only writes to (or deletes) the
   connection it started from, so it can't overwrite a newer sign-in.
 
+### Reading files outside the library: adopted folders (#245, #248)
+
+Until now the Mac app touched nothing outside the library folder. Adopting in place adds one
+exception: Locally **reads (never writes)** audio files under the folders listed in
+`adoptRoots` in the settings file (for example `~/Documents/Spotify Music`). Every such path is
+checked after `realpath` on both sides (`FileSystem.isInside`, `src/server/adopt/guards.ts`), so
+`..` and a symlink inside a root that points out of it are refused; a release that is not adopted
+never gets this allowance. Nothing is written inside a root: an adopted release is read-only
+(`assertWritable` on re-tag, cover replace, remote edit, accept/Send and delete), "Remove from
+Locally" and a remote tombstone only forget the record, and the sync engine uploads only the
+cover. Covers are copied into Locally's own app data (`adopted-covers/`), which is the only new
+place the app writes. Tests: `tests/unit/AdoptInPlace.test.ts`.
+
 ## apps/api
 
 Unlike `apps/web`, this is a multi-tenant network service (the hosted sync backend

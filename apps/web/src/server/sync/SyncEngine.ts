@@ -6,6 +6,7 @@ import { DEFAULT_SYNC_BASE_URL } from "../../shared/types";
 import { NotFoundError, PublicError, ValidationError } from "../../shared/errors";
 import type { SettingsStore } from "../config/SettingsStore";
 import type { FileSystem } from "../fs/FileSystem";
+import { assertReadablePath, assertWritable, isAdoptedCoverPath } from "../adopt/guards";
 import type { ReleaseService } from "../releases/ReleaseService";
 import type { ReleaseSyncHooks } from "../releases/ReleaseSyncHooks";
 import type { PlayCountStore } from "../plays/PlayCountStore";
@@ -224,11 +225,16 @@ export class SyncEngine implements ReleaseSyncHooks {
     // library to be statSize'd, hashed, or uploaded to the sync service. Checked before
     // any of that I/O happens.
     const settings = await this.settings.get();
-    this.assertInsideLibrary(settings.libraryDir, release);
+    this.assertInsideLibrary(settings.libraryDir, release, settings.adoptRoots ?? []);
 
     const trackBytes: Record<string, number> = {};
     for (const t of release.tracks) {
-      trackBytes[t.id] = await this.fs.statSize(t.filePath);
+      if (release.adopted) {
+        // Details only: the size is informational, and an adopted file may have gone missing (#245).
+        trackBytes[t.id] = await this.fs.statSize(t.filePath).catch(() => 0);
+      } else {
+        trackBytes[t.id] = await this.fs.statSize(t.filePath);
+      }
     }
     const coverHash = release.coverPath ? await sha256File(this.fs, release.coverPath) : null;
     const record = toSyncRecord(release, "mac", this.deviceName(), trackBytes, coverHash);
@@ -245,6 +251,8 @@ export class SyncEngine implements ReleaseSyncHooks {
     const toUpload: { name: string; bytes: number; filePath: string }[] = [];
 
     for (const t of record.tracks) {
+      // An adopted release uploads only its cover: its audio is already where it is needed (#245).
+      if (release.adopted) break;
       if (already.has(t.file)) continue;
       const local = release.tracks.find((x) => x.id === t.id);
       if (!local) continue;
@@ -345,6 +353,15 @@ export class SyncEngine implements ReleaseSyncHooks {
         }
 
         const local = await this.releases.get(record.id);
+        // An adopted record can't be sent to Spotify from anywhere: never offered in the tray, so it is
+        // never counted as pending or missing (#245).
+        if (!local && record.source === "adopted") continue;
+        if (local?.adopted) {
+          // Adopted releases are read-only here: a remote edit is not applied (it would re-tag the files).
+          delete state.pendingFromPhone[record.id];
+          delete state.missingFiles[record.id];
+          continue;
+        }
         if (!local) {
           // Any origin but "mac" is another device ("ios", "web", or one this build has never
           // heard of): offered in the tray, never mistaken for this Mac's own.
@@ -452,15 +469,22 @@ export class SyncEngine implements ReleaseSyncHooks {
     return record.origin === "mac" && record.originDevice === this.deviceName();
   }
 
-  /** Same shape as `ReleaseService.assertInsideLibrary`: inside the library dir and not the dir itself. */
-  private assertInsideLibrary(libraryDir: string, release: Release): void {
-    const checkPath = (target: string) => {
-      if (!this.fs.isInside(libraryDir, target) || path.resolve(target) === path.resolve(libraryDir)) {
-        throw new ValidationError(`Refusing to sync a file outside the library directory (release ${release.id})`);
-      }
-    };
-    for (const t of release.tracks) checkPath(t.filePath);
-    if (release.coverPath) checkPath(release.coverPath);
+  /**
+   * Same shape as `ReleaseService.assertInsideLibrary`: inside the library dir and not the dir itself.
+   * An adopted release (#245) is read from its tracks' place inside the adopt roots (after realpath) and
+   * its cover from Locally's app data; nothing else outside the library.
+   */
+  private assertInsideLibrary(libraryDir: string, release: Release, adoptRoots: readonly string[] = []): void {
+    const message = `Refusing to sync a file outside the library directory (release ${release.id})`;
+    for (const t of release.tracks) {
+      assertReadablePath(this.fs, libraryDir, release.adopted ? adoptRoots : [], t.filePath, message);
+    }
+    if (!release.coverPath) return;
+    if (release.adopted) {
+      if (!isAdoptedCoverPath(this.fs, release.coverPath)) throw new ValidationError(message);
+    } else {
+      assertReadablePath(this.fs, libraryDir, [], release.coverPath, message);
+    }
   }
 
   /**
@@ -668,6 +692,8 @@ export class SyncEngine implements ReleaseSyncHooks {
     if (!record) {
       throw new NotFoundError(`No pending release ${id} from your phone`);
     }
+    // Nothing to download or send for a details-only record (#245).
+    assertWritable({ adopted: record.source === "adopted", title: record.title });
     // The tray never offers Send here; this stops a stale tray from walking into the 404 below.
     const filesState = filesStateFor(record, state.missingFiles[id], this.now().getTime());
     if (filesState === "arriving") {

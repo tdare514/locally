@@ -388,3 +388,21 @@ export function parseSyncVerifyBody(body: unknown): { email: string; code: strin
   }
   return parsed.data;
 }
+
+const adoptBodySchema = z
+  .object({
+    keys: z
+      .array(z.string({ error: "keys must be strings" }).min(1, "keys must not be empty").max(64, "key is too long"), {
+        error: "keys must be a list",
+      })
+      .min(1, "Choose at least one release to adopt")
+      .max(5000, "Too many releases at once"),
+  })
+  .strict();
+
+/** Validate the JSON body of `POST /api/adopt`: the keys of the accepted groups in the stored proposal. */
+export function parseAdoptBody(body: unknown): { keys: string[] } {
+  const parsed = adoptBodySchema.safeParse(body);
+  if (!parsed.success) throw new ValidationError(parsed.error.issues[0].message);
+  return parsed.data;
+}

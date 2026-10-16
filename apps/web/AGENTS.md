@@ -35,6 +35,10 @@ src/server/
     ReleaseService.ts         # import/update/replaceCover/delete/get/list — the core domain logic
     InspectService.ts         # POST /api/inspect: read tags off uploads without storing them
     ReleaseSyncHooks.ts       # interface: post-mutation callbacks so SyncEngine can push; wired via setSyncHooks()
+  adopt/
+    AdoptScanner.ts          # walks the adopt roots read only and proposes releases (#247)
+    AdoptService.ts          # scan/proposal/adopt in place: releases with adopted:true, covers copied to app data (#248)
+    guards.ts                # assertWritable (adopted = read-only) and the read check for adopt roots (#248)
   fs/
     FileSystem.ts             # interface wrapping disk I/O (save, move, mkdirp, isInside, ...)
     NodeFileSystem.ts         # node:fs implementation
