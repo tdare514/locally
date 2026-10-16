@@ -107,6 +107,11 @@ enum Copy {
         /// `.onMove` supports long-press drag without an Edit mode on iOS 16+.
         static let reorderHint = "Hold and drag a track to reorder."
         static let track = "Track"
+        /// The VoiceOver label of a track row's replace button.
+        static func replaceTrack(_ title: String) -> String {
+            let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            return "Replace \(name.isEmpty ? track.lowercased() : name)"
+        }
 
         static func taggingProgress(done: Int, total: Int) -> String {
             "Tagging and moving \(done) of \(total)"

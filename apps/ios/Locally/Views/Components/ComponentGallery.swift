@@ -6,7 +6,9 @@ import SwiftUI
 struct ComponentGallery: View {
     static let names = ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "sleeve-bright", "sleeve-dark", "backdrop-a", "backdrop-b", "inline-field", "cover-sheet",
         // #160: the studio backdrop and the real Settings with sample sync state.
-        "studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled"]
+        "studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled",
+        // #205: the release page's tracks panel (the shared `TrackRow`, preset rows).
+        "release-tracks"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -25,7 +27,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled"].contains(name)
+        ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks"].contains(name)
     }
 
     var body: some View {
@@ -110,8 +112,32 @@ struct ComponentGallery: View {
         case "settings-scrolled":
             // Opens at the bottom of the page, to see the lower groups and the edge fade.
             Self.settings(signedIn: true).defaultScrollAnchor(.bottom)
+        case "release-tracks":
+            Self.releaseTracks
         default:
             EmptyView()
+        }
+    }
+
+    /// The release page's tracks panel: `TrackRow` with plays and the grip, no replace.
+    private static var releaseTracks: some View {
+        let rows = [("Headlights", "12 plays"), ("Overpass On The Neon Harbor Road, The Long Way Round", "1 play"), ("Last Exit", nil)]
+        return ZStack {
+            StudioBackdrop()
+            List {
+                Section {
+                    Text(Copy.Import.tracks)
+                        .font(Theme.ScaledFont.headline)
+                        .importPanelRow(.top)
+                    ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                        TrackRow(number: index + 1, title: row.0, titleBinding: .constant(row.0), plays: row.1, showsGrip: true)
+                            .importTrackRow(isFirst: index == 0, isLast: index == rows.count - 1)
+                    }
+                }
+            }
+            .listStyle(.insetGrouped)
+            .environment(\.defaultMinListRowHeight, 0)
+            .scrollContentBackground(.hidden)
         }
     }
 

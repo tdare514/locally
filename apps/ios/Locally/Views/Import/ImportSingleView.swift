@@ -27,17 +27,16 @@ struct ImportSingleView: View {
                         InlineField(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }), font: Theme.ScaledFont.input, wraps: true)
                     }
                     .importFieldsRow()
+                    ClearSectionEnd()
                 }
 
                 Section {
-                    ImportTracksHeader().importPanelRow(.top)
                     if model.pickedURL != nil, let name = model.pickedName {
-                        FileRow(index: 1, title: name, isCompact: true, showsChevron: false)
-                            .importPanelRow(.middle)
+                        TrackRow(title: name, onReplace: context.onAddTrack)
+                            .importTrackRow(isFirst: true, isLast: true)
                     } else {
                         TrackListSilhouette(rows: 1).importPanelRow(.middle)
                     }
-                    ImportAddTrackButton(action: context.onAddTrack).importPanelRow(.bottom)
                 }
             }
             .importRecordList(driver: context.driver)

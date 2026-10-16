@@ -58,6 +58,7 @@ struct ReleaseDetailView: View {
                 Section {
                     hero(model)
                     fields(model)
+                    ClearSectionEnd()
                 }
 
                 Section {
@@ -207,21 +208,19 @@ struct ReleaseDetailView: View {
             // A single's only track takes its title from the Title field above,
             // so its row shows that live value rather than the (only saved-on-send)
             // track row title.
-            FileRow(
-                index: index + 1,
+            TrackRow(
+                number: index + 1,
                 title: model.kind == .single ? model.title : row.title,
-                isEditable: model.kind == .album,
-                isCompact: true,
-                onTitleChange: { newValue in setTitle(newValue, for: row, in: model) }
+                titleBinding: model.kind == .album
+                    ? Binding(get: { row.title }, set: { setTitle($0, for: row, in: model) })
+                    : nil,
+                plays: model.playTotal(for: row).map(Copy.Detail.playCount),
+                showsGrip: model.trackRows.count >= 2
             )
-            .panelRow(.middle)
-            if let total = model.playTotal(for: row) {
-                Text(Copy.Detail.playCount(total))
-                    .font(Theme.Font.meta)
-                    .foregroundStyle(Theme.secondaryText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .panelRow(.middle)
-            }
+            .importTrackRow(
+                isFirst: index == 0 || (headings.indices.contains(index) && headings[index] != nil),
+                isLast: index == model.trackRows.count - 1 || (headings.indices.contains(index + 1) && headings[index + 1] != nil)
+            )
         }
         .onMove(perform: model.trackRows.count >= 2 ? model.moveTracks : nil)
     }

@@ -426,6 +426,24 @@ enum Theme {
         static let input = SwiftUI.Font.system(.body, weight: .regular)
         static let caption = SwiftUI.Font.system(.footnote, weight: .regular)
         static let pill = SwiftUI.Font.system(.footnote, weight: .semibold)
+        /// A track row (`TrackList`): the number and plays are subheadline with tabular digits, the title body semibold.
+        static let trackNumber = SwiftUI.Font.system(.subheadline).monospacedDigit()
+        static let trackTitle = SwiftUI.Font.system(.body, weight: .semibold)
+    }
+
+    /// A track row, after the Mac's `TrackList` (`.track-row`, `.track-affordance`).
+    enum Track {
+        static let minHeight: CGFloat = 48
+        static let numberWidth: CGFloat = 24
+        static let spacing: CGFloat = 12
+        static let numberOpacity: Double = 0.6
+        /// The replace button's circling arrows, and its tap area.
+        static let replaceOpacity: Double = 0.6
+        static let replaceHitSize: CGFloat = 44
+        static let gripOpacity: Double = 0.35
+        /// The hairline between rows (`.track-list > .track-row` border).
+        static let separatorOpacity: Double = 0.07
+        static var separatorTint: Color { .white.opacity(separatorOpacity) }
     }
 
     /// Opaque black tab and navigation bars, so a bright cover scrolling

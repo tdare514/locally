@@ -308,7 +308,10 @@ eyebrows still apply to those labels.
       is the file's), and at the trailing edge a **replace** button (circling arrows, white
       60 %, 44 pt hit area, "Replace <title>" for VoiceOver) that opens Files for one audio file
       and swaps it in at that position, the title taken from the new file's tags or name; then,
-      on an album, the Mac's grip (three lines, white 35 %) as the hint that rows drag. No music
+      on an album of two or more, the Mac's grip (three lines, white 35 %) as the hint that rows
+      drag. At the accessibility text sizes the number takes only its own width, the title wraps
+      (up to four lines) and the plays sit under it. Replace and Add a track do nothing while
+      files load or the record sends. No music
       tile, no "Audio file" caption, no chevron. Rows are divided by the Mac's hairline (white
       7 %, from the number's leading edge, none above the first or below the last). A long
       press lifts a row with the system's normal drag (owner: no glass tile, "just a normal

@@ -401,83 +401,17 @@ struct DiscHeading: View {
     }
 }
 
-/// A track row: index, tile, title, subtitle and (compact) chevron. It draws no background or
-/// outline of its own; it sits inside a panel that supplies the fill.
-struct FileRow: View {
-    let index: Int
-    let title: String
-    var isEditable: Bool = false
-    /// A denser variant (52 pt min height, 30 pt tile) used by the release
-    /// detail's compact Tracks section; the default 64 pt / 36 pt sizing is
-    /// unchanged for the album builder.
-    var isCompact: Bool = false
-    /// The compact row's trailing chevron; off where a tap does nothing (the import single).
-    var showsChevron: Bool = true
-    var onTitleChange: (String) -> Void = { _ in }
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Text("\(index)")
-                .font(Theme.Font.rowSubtitle)
-                .foregroundStyle(Theme.textDim)
-                .frame(width: 16, alignment: .trailing)
-
-            ZStack {
-                RoundedRectangle(cornerRadius: Theme.Radius.thumbnail)
-                    .fill(Theme.elevated)
-                Image(systemName: "music.note")
-                    .foregroundStyle(Theme.accent)
-            }
-            .frame(width: isCompact ? 30 : 36, height: isCompact ? 30 : 36)
-
-            VStack(alignment: .leading, spacing: 2) {
-                if isEditable {
-                    TextField(
-                        Copy.Import.track,
-                        text: Binding(get: { title }, set: onTitleChange)
-                    )
-                    .font(Theme.Font.rowTitle)
-                    .foregroundStyle(Theme.primaryText)
-                } else {
-                    Text(title)
-                        .font(Theme.Font.rowTitle)
-                        .foregroundStyle(Theme.primaryText)
-                        .lineLimit(1)
-                }
-                Text(Copy.Import.audioFile)
-                    .font(Theme.Font.rowSubtitle)
-                    .foregroundStyle(Theme.secondaryText)
-            }
-
-            Spacer(minLength: 0)
-
-            // Compact release-detail rows carry the trailing chevron from
-            // `docs/design.md`'s Mobile Editor Tracks section.
-            if isCompact && showsChevron {
-                Image(systemName: "chevron.right")
-                    .font(Theme.Font.chevron)
-                    .foregroundStyle(Theme.textDim)
-                    .accessibilityHidden(true)
-            }
-        }
-        .padding(.horizontal, 12)
-        .frame(minHeight: isCompact ? 52 : 64)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("file-row-\(index)")
-    }
-}
-
 // MARK: - Track list silhouette
 
 /// A faint placeholder shown before any tracks exist, so the Tracks section
-/// doesn't collapse to a single line of text: `rows` empty `FileRow`-shaped
+/// doesn't collapse to a single line of text: `rows` empty track-row-shaped
 /// blocks (same size and radius, `card` at 50% opacity, no outline, no
 /// text or icon) with a centred blurb explaining what will appear there.
 /// Used by the album builder (3 rows) and, while no file is chosen, the
 /// single-track flow (1 row) — see `docs/design.md`'s Tracks section notes.
 ///
 /// Spacing between placeholder cards is `2 * rowGap` so the empty state
-/// matches the gap between live `FileRow`s in a plain list (each row's top
+/// matches the gap between live track rows in a plain list (each row's top
 /// and bottom `rowGap` insets sit back to back).
 struct TrackListSilhouette: View {
     var rows: Int = 3
@@ -523,5 +457,19 @@ struct KindBadge: View {
             .padding(.vertical, 4)
             .background(Theme.elevated)
             .clipShape(Capsule())
+    }
+}
+
+/// An empty last row for a section of clear rows. An inset-grouped list rounds the corners of a
+/// section's last cell and clips what that cell holds, which cut the bottom-left off the first
+/// letter of the last field (the G of "Genre"). This zero-height row takes the rounding instead.
+struct ClearSectionEnd: View {
+    var body: some View {
+        Color.clear
+            .frame(height: 0)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets())
+            .accessibilityHidden(true)
     }
 }

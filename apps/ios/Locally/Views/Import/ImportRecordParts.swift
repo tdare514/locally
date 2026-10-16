@@ -14,6 +14,8 @@ struct ImportRecordContext {
     /// True while either model is staging files, reading tags or sending: the kind switch is off.
     let isBusy: Bool
     let onAddTrack: () -> Void
+    /// Opens Files for one audio file to swap in at this album row.
+    let onReplaceTrack: (UUID) -> Void
     let onPickCoverFromFiles: () -> Void
     let onSend: () -> Void
 }
@@ -100,6 +102,23 @@ extension View {
                 top: Theme.Spacing.rowGap,
                 leading: Theme.Immersive.panelRowInset,
                 bottom: Theme.Spacing.rowGap,
+                trailing: Theme.Immersive.panelRowInset
+            ))
+    }
+
+    /// A `TrackRow` in the tracks panel: the panel row with the Mac's hairline below it, from the
+    /// number's leading edge. There is none above the first track or below the last (`isFirst`,
+    /// `isLast`), and a disc heading next to a row counts as the edge of its run.
+    func importTrackRow(isFirst: Bool, isLast: Bool) -> some View {
+        alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
+            .listRowBackground(PanelRowBackground(edge: .middle))
+            .listRowSeparator(isFirst ? .hidden : .visible, edges: .top)
+            .listRowSeparator(isLast ? .hidden : .visible, edges: .bottom)
+            .listRowSeparatorTint(Theme.Track.separatorTint)
+            .listRowInsets(EdgeInsets(
+                top: 0,
+                leading: Theme.Immersive.panelRowInset,
+                bottom: 0,
                 trailing: Theme.Immersive.panelRowInset
             ))
     }

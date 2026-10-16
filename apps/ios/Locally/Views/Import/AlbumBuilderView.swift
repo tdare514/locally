@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The album record (#205): the sleeve, the meta line with the Single / Album switch, the inline
-/// fields, and the tracks in the faked-glass panel (reorder, swipe to delete, disc headings).
+/// fields, and the tracks in the faked-glass panel (reorder, swipe to delete, replace, disc headings).
 /// An album whose rows are all removed stays a record. The model, the beat and the pickers
 /// belong to `ImportView`, which also shows `DoneView` and the invitation.
 struct AlbumBuilderView: View {
@@ -34,6 +34,7 @@ struct AlbumBuilderView: View {
                         InlineField(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }), font: Theme.ScaledFont.input, wraps: true)
                     }
                     .importFieldsRow()
+                    ClearSectionEnd()
                 }
 
                 Section {
@@ -55,14 +56,17 @@ struct AlbumBuilderView: View {
                             if headings.indices.contains(index), let disc = headings[index] {
                                 DiscHeading(number: disc).importPanelRow(.middle)
                             }
-                            FileRow(
-                                index: index + 1,
+                            TrackRow(
+                                number: index + 1,
                                 title: row.title,
-                                isEditable: true,
-                                isCompact: true,
-                                onTitleChange: { newValue in setTitle(newValue, for: row) }
+                                titleBinding: Binding(get: { row.title }, set: { setTitle($0, for: row) }),
+                                onReplace: { context.onReplaceTrack(row.id) },
+                                showsGrip: model.rows.count >= 2
                             )
-                            .importPanelRow(.middle)
+                            .importTrackRow(
+                                isFirst: index == 0 || hasHeading(headings, at: index),
+                                isLast: index == model.rows.count - 1 || hasHeading(headings, at: index + 1)
+                            )
                         }
                         .onMove(perform: model.rows.count >= 2 ? model.moveRows : nil)
                         .onDelete(perform: model.removeRows)
@@ -103,6 +107,10 @@ struct AlbumBuilderView: View {
                 .disabled(!model.canSend || context.isSendHeld)
             }
         }
+    }
+
+    private func hasHeading(_ headings: [Int?], at index: Int) -> Bool {
+        headings.indices.contains(index) && headings[index] != nil
     }
 
     /// A title binding by row id (not index), so it stays correct while

@@ -37,7 +37,7 @@ struct ImportView: View {
 
     /// Which use the one `.fileImporter` is open for. The kind lives here rather than in
     /// `isPickerPresented`, since SwiftUI flips that Bool false before the completion handler runs.
-    private enum Picker { case start, replace, add, cover }
+    private enum Picker: Equatable { case start, replace, add, replaceRow(UUID), cover }
     @State private var activePicker: Picker?
     @State private var isPickerPresented = false
     /// Raw bytes from the Files cover pick, handed to `CoverPicker` to crop.
@@ -203,6 +203,7 @@ struct ImportView: View {
             isSendHeld: holdingForSent,
             isBusy: isLocked,
             onAddTrack: { present(kind == .single ? .replace : .add) },
+            onReplaceTrack: { present(.replaceRow($0)) },
             onPickCoverFromFiles: { present(.cover) },
             onSend: send
         )
@@ -215,6 +216,8 @@ struct ImportView: View {
     }
 
     private func present(_ picker: Picker) {
+        // A track can't change under a send or a tag read (the cover still can).
+        if picker != .cover, isLocked { return }
         activePicker = picker
         isPickerPresented = true
     }
@@ -235,6 +238,8 @@ struct ImportView: View {
             Task { await singleModel?.pick(url: urls[0]) }
         case .add:
             Task { await albumModel?.addFiles(urls) }
+        case .replaceRow(let id):
+            Task { await albumModel?.replaceRow(id, with: urls[0]) }
         case .cover:
             let url = urls[0]
             let accessed = url.startAccessingSecurityScopedResource()
