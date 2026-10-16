@@ -146,6 +146,43 @@ eyebrows still apply to those labels.
   over 600 ms, scale 0.97, easing `cubic-bezier(0.16, 1, 0.3, 1)`. Reduce Motion: the brighten
   only, no shimmer and no scale. Disabled: glass only, no clouds or halo, the label at 50 %.
   While sending it keeps its progress line in white.
+- **iPhone record fields, covers and library (16 Oct 2026, owner on the phone)**: the inline
+  fields read as floating text, so nobody could tell what a value was or that it could still be
+  edited, and the import and the release page laid the same fields out differently.
+  - *Labelled fields* (`LabeledField`, import record and release page): one field per row in
+    the same order on both screens: Title, Artist, Album (a single being imported only), Year,
+    Genre. Each row has its label at the leading edge in a fixed column (subheadline,
+    `text-muted`, sentence case, no colon, 76 pt scaled with the text), then the value. A 1
+    device-pixel underline sits under the value at all times: white 12 % at rest, 60 % while
+    focused (fade 0.15 s). Values: the title in title3 semibold, the rest body; they wrap rather
+    than truncate. Placeholders say what to type, in `text-dim`: "Enter single name" or "Enter
+    album name" by kind, "Enter artist name", "Same as the single name" (a single's album),
+    "Enter release year", "Enter genre"; a track row's title says "Enter track name". Rows are
+    12 pt apart. At the accessibility text sizes the label sits above its value. The release
+    page's Year and Genre no longer share a row.
+  - *Album notice* (import record, album only): under the Single / Album line, a quiet faked-glass
+    card (white 6 % fill, radius 12, 12 pt padding) with `info.circle` and caption text in
+    `text-muted`: "Spotify doesn't group your own files into albums. After you send, we'll show
+    you how to make a playlist of these tracks." It replaces the explainer that sat between
+    Artist and Year, never blocks anything, and is not on the release page, which has the "Make
+    it a playlist" guide. It appears when Album is chosen: fade in and rise 6 pt over 0.35 s,
+    `cubic-bezier(0.16, 1, 0.3, 1)`; Reduce Motion: the fade only.
+  - *Cover sheet on the release page*: tapping the sleeve opens the import's cover sheet (recent
+    covers, Photos, Files, then Remove cover when there is one), replacing the "Change cover art"
+    dialog. Recent covers shows each picture once: covers with the same bytes appear once, as the
+    newest release's.
+  - *Track length*: track rows show the length at the trailing edge, before the replace button,
+    as `m:ss` (`h:mm:ss` past an hour), subheadline tabular, white 60 %. It is read from the file
+    when the record does not carry it, and left out when it is unknown.
+  - *Library sections*: the Singles and Albums headers are buttons with a chevron after the
+    count (`chevron.down`, turned -90 degrees when closed). Tapping one folds that section away
+    or opens it, in the list and the cover view alike, and the choice is kept across launches.
+    While a search is typed both sections show open. The chevron turns and the rows fade over
+    0.3 s on the signature easing; Reduce Motion: no turn, rows appear and go at once.
+  - *Eyebrows on iPhone* keep their capitals and wide tracking ("YOUR COLLECTION"): the owner
+    likes them there (16 Oct 2026), an exception to the 13 Oct sentence-case rule.
+  - *Release dock*: its base is opaque black, so the panel behind it never shows through while
+    the keyboard lifts it over the tracks.
 - **Sticky footer CTA (mobile)**: fixed to the bottom, padding 16 horizontal and 12 to 16
   vertical plus the safe-area inset, containing one full-width primary button. Library: "+ New
   Import" (Locally: "Add a song"). Editor: the send or save action. Content scrolls under it with
@@ -289,7 +326,8 @@ eyebrows still apply to those labels.
     turns 1.5 times (540 degrees) and snaps back; iOS uses two turns so it ends on the same pose.
   - *Cover change*: a new cover fades in from opacity 0 and scale 0.96 over 0.52 s
     (`coverFadeDuration`, `coverFadeScale`), over the old one.
-  - *Inline fields* (`InlineField`): they read as text. A focused field shows a 1 device-pixel
+  - *Inline fields* (`InlineField`; on the iPhone record and release page replaced 16 Oct 2026 by
+    labelled fields, see "iPhone record fields, covers and library"): they read as text. A focused field shows a 1 device-pixel
     underline at 60 % opacity, with a 4 pt gap (`inlineFieldUnderlineOpacity`,
     `inlineFieldUnderlineGap`); the focus fade is 0.15 (`inlineFieldFocusFade`). Year and Genre sit
     10 pt below the title and artist (`fieldsMetaGap`). Theme.swift has no hover fill, so the
