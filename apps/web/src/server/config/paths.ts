@@ -42,6 +42,11 @@ export function playsFilePath(): string {
   return path.join(settingsDir(), "plays.json");
 }
 
+/** Full path to the cached Spotify playlists file (#212), next to settings.json. */
+export function spotifyPlaylistsFilePath(): string {
+  return path.join(settingsDir(), "spotify-playlists.json");
+}
+
 /** Full path to the last adopt-scan proposal (#245), next to settings.json. */
 export function adoptProposalFilePath(): string {
   return path.join(settingsDir(), "adopt-proposal.json");

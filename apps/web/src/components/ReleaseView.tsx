@@ -8,6 +8,8 @@ import {
   deleteRelease,
   getRelease,
   getReleasePlays,
+  getSpotifyPlaylists,
+  openSpotifyPlaylist,
   replaceCover,
   reveal,
   updateRelease,
@@ -20,6 +22,7 @@ import SpotifySourceBanner from "./SpotifySourceBanner";
 import { ChevronRightIcon, CopyIcon } from "./Icons";
 import { COPIED_LABEL, COPY_LABEL, PLAYLIST_FALLBACK, playlistSteps } from "../lib/playlist-copy";
 import { PLAYS_ACROSS_DEVICES } from "../lib/plays-copy";
+import { startPlaylistsPolling } from "../lib/playlists-poll";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
 import { IS_DEMO } from "../lib/demo";
 
@@ -170,6 +173,8 @@ export default function ReleaseView({
   const [spin, setSpin] = useState(0);
   // Each track's total plays across devices, by track id (#107). Empty until the one fetch lands.
   const [plays, setPlays] = useState<Record<string, number>>({});
+  // The Spotify playlists each track is in, by track id (#212). Empty until connected and read.
+  const [playlists, setPlaylists] = useState<Record<string, { id: string; name: string }[]>>({});
   const copiedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const artworkUrl = release?.coverPath ? coverUrl(release.id, release.updatedAt) : null;
@@ -234,6 +239,32 @@ export default function ReleaseView({
       cancelled = true;
     };
   }, [releaseId]);
+
+  useEffect(() => {
+    // The first read can come back empty while the server fills its cache in the background, and
+    // a refresh can be held up by a Retry-After, so keep looking until it is done (see
+    // playlists-poll.ts), and once more when the window regains focus. A failure leaves the lines off.
+    if (IS_DEMO) return;
+    const polling = startPlaylistsPolling(
+      () => getSpotifyPlaylists(releaseId),
+      (res) => setPlaylists(res.connected ? res.tracks : {})
+    );
+    const onFocus = () => polling.poke();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      polling.stop();
+    };
+  }, [releaseId]);
+
+  const handleOpenPlaylist = useCallback(
+    (id: string) => {
+      openSpotifyPlaylist(id).catch((e) =>
+        onToast("error", e instanceof Error ? e.message : "Couldn't open the playlist")
+      );
+    },
+    [onToast]
+  );
 
   const hasRelease = release !== null;
   useEffect(() => {
@@ -465,7 +496,14 @@ export default function ReleaseView({
         </div>
         <div className="flex flex-col gap-3 lg:col-start-1 lg:row-start-2">
           <h2 className="text-lg font-bold tracking-[-0.03em] text-text">Tracks</h2>
-          <TrackList tracks={tracks} onChange={handleTracksChange} readOnly={IS_DEMO} plays={plays} />
+          <TrackList
+            tracks={tracks}
+            onChange={handleTracksChange}
+            readOnly={IS_DEMO}
+            plays={plays}
+            playlists={playlists}
+            onOpenPlaylist={handleOpenPlaylist}
+          />
           {tracks.some((t) => (plays[t.key] ?? 0) > 0) && (
             <p className="text-xs text-text-muted">{PLAYS_ACROSS_DEVICES}</p>
           )}

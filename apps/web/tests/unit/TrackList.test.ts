@@ -108,3 +108,29 @@ describe("TrackList markup", () => {
     expect(render({ tracks: [] })).toContain("No tracks yet.");
   });
 });
+
+describe("TrackList playlists line (#212)", () => {
+  const ref = (n: string) => ({ id: n.padEnd(22, "x"), name: n });
+  const lineOf = (html: string) => /data-playlists-line[^>]*>([^<]*)</.exec(html)?.[1] ?? null;
+  const withPlaylists = (names: string[]) =>
+    render({ playlists: { "t-a": names.map(ref) }, onOpenPlaylist: () => {} });
+
+  it("says which playlists: one, two, and five", () => {
+    expect(lineOf(withPlaylists(["Night drive"]))).toBe("In Night drive");
+    expect(lineOf(withPlaylists(["Night drive", "Gym"]))).toBe("In Night drive and Gym");
+    expect(lineOf(withPlaylists(["Night drive", "Gym", "A", "B", "C"]))).toBe("In Night drive, Gym and 3 more");
+  });
+
+  it("shows nothing for no playlists, no entry, or no opener", () => {
+    expect(withPlaylists([])).not.toContain("data-playlists-line");
+    expect(render()).not.toContain("data-playlists-line");
+    expect(render({ playlists: { "t-a": [ref("Gym")] } })).not.toContain("data-playlists-line");
+  });
+
+  it("is a closed disclosure button (aria-expanded, no aria-haspopup), and no popover until clicked", () => {
+    const html = withPlaylists(["Gym"]);
+    expect(html).toMatch(/<button[^>]*data-playlists-line[^>]*aria-expanded="false"/);
+    expect(html).not.toContain("aria-haspopup");
+    expect(html).not.toContain("playlist-pop");
+  });
+});

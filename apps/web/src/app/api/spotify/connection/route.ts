@@ -28,6 +28,8 @@ export async function DELETE() {
     const services = getServices();
     await services.spotifyAuth.disconnect();
     services.spotifyClient.clearError();
+    // The cached playlist names go with the connection (#212).
+    await services.playlistIndex.clear();
     return NextResponse.json(await spotifyConnectionStatus(services));
   } catch (err) {
     return errorResponse(err);
