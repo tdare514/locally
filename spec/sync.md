@@ -78,6 +78,19 @@ file key; `discNumber` only changes the tags a receiver writes (`spec/metadata.m
 the key, and a client that does not know it strips it when it re-pushes a record; that is accepted because
 only the owner's own devices sync and they update together.
 
+A record may carry `source`: `"adopted"` for a release the Mac adopted in place from the owner's own
+audio files (`docs/plans/245-adopt-local-files.md`, decision 6), or absent for Locally's own releases. The
+key is omitted when absent, never written as null. An adopted release syncs details only: `tracks[].file`
+is the file's own name and `bytes` its size, no upload rows are made for tracks, and only the cover is
+uploaded. The API accepts only `"adopted"` for `source` and answers any other value with a 400 (the same
+closed list as `origin` and `platform` today); the value is stored and returned exactly. Effect on
+clients: older clients ignore the key (and, as with `discNumber`, drop it if they re-push a record; accepted,
+because only the owner's own devices sync and they update together). The Mac handles it in #248 and the
+iPhone in #250. A client that reads a `source` it doesn't recognise should treat the record as an ordinary
+one and must not fail a pull page. The API rules: `GET /v1/files/missing` checks only the cover of an
+adopted record, never its tracks; `POST /v1/releases/:id/files` for an adopted release accepts only the
+record's cover name, and a track name (or any other name) is a 400.
+
 `coverHash` is the lowercase hex sha256 of the cover's bytes, or `null` when the release has no
 cover. It is the only change signal for the cover, since `cover.<ext>` keeps its name when the
 image is replaced: a receiver downloads and re-embeds the cover only when the remote `coverHash`
@@ -115,7 +128,7 @@ sync at runtime.
 | GET `/v1/releases?sinceVersion=N&limit=N` | `limit` (optional, integer, 1 to 200; above 200 clamps to 200, below 1 or non-integer is a 400 like a bad `sinceVersion`; default 200) | `{ releases: [record + version], nextVersion, hasMore }` (tombstones included). Releases come back in ascending `version` order, at most `limit` of them, and the page stops early once its serialized records reach 2 MiB; a page always holds at least one release when any exist (a single record is at most 1 MiB by the PUT body cap, so one always fits under Vercel's 4.5 MB response limit). `hasMore: true` means more releases exist above the last one returned, and `nextVersion` is then the `version` of the last release in this page; `hasMore: false` means the page reached the end, and `nextVersion` is the user's counter, exactly as today (it can be above the last row's version, because a rewritten release moves to a new version and its old number disappears). In both cases `nextVersion` is the value to send as `sinceVersion` next, and it never runs ahead of a release this response left out (the #28 invariant). |
 | PUT `/v1/releases/:id` | the record (at most 500 tracks) | `{ version }`; 409 if the stored `updatedAt` is newer; stored files the record no longer references are deleted |
 | DELETE `/v1/releases/:id` | | tombstone; `{ version }` |
-| POST `/v1/releases/:id/files` | `{ files: [{ name, bytes, contentType }] }` | `{ uploads: [{ name, url, method, headers }] }`; enforces quota, 200 MB per file, and that `contentType` matches the name's extension |
+| POST `/v1/releases/:id/files` | `{ files: [{ name, bytes, contentType }] }` | `{ uploads: [{ name, url, method, headers }] }`; enforces quota, 200 MB per file, and that `contentType` matches the name's extension; for an adopted release (`source: "adopted"`) only the record's cover name is accepted, any other name is a 400 |
 | GET `/v1/releases/:id/files/:name` | | `{ url, expiresAt }` download URL |
 | GET `/v1/files/missing` | | `{ releases: [{ id, missing: [names], recordUpdatedAt }], checkedAt, truncated? }`; the caller's live releases with files that are not stored; `truncated` is `true` only when a cap cut the check short; see "Missing files" |
 | POST `/v1/files/resync-request` | none | `{ resyncRequestedAt }` (ISO); records that this account asked its devices to re-send files; see "Missing files" |
@@ -205,6 +218,8 @@ route. Plan: `docs/plans/119-missing-files.md`.
 - `GET /v1/files/missing` covers the caller's live releases only; tombstones are never read. For
   each it checks every `tracks[].file`, plus the record's `cover` name when the record has a
   `coverHash` (a `syncVersion` 1 record has none, so its cover is not checked).
+- An adopted record (`source: "adopted"`) is the exception: only its `cover` is checked (under the same
+  `coverHash` rule), never its tracks.
 - A name is stored only when a `files` row exists and the object is in storage. A row is written
   when an upload URL is issued, not when the upload finishes, so a row alone proves nothing. The
   server reads every live release with its file rows in one query, then pages once through the

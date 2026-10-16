@@ -331,4 +331,35 @@ describe("routes (through the exported handler functions, no server)", () => {
     const bobBody = (await bobReleases.json()) as { releases: { id: string }[] };
     expect(bobBody.releases.map((r) => r.id)).toEqual([bobRecord.id]);
   });
+
+  it("an adopted record round-trips through PUT and GET; a track upload is a 400, the cover is accepted; other sources are a 400", async () => {
+    const { token } = await signIn("adopted@example.com");
+    const record = makeReleaseRecord({ syncVersion: 2, source: "adopted", coverHash: "a".repeat(64) });
+    const params = { params: Promise.resolve({ id: record.id }) };
+    const put = await releaseRoute.PUT(jsonRequest(`http://localhost/v1/releases/${record.id}`, "PUT", record, token), params);
+    expect(put.status).toBe(200);
+
+    const list = await releasesListRoute.GET(
+      new Request("http://localhost/v1/releases?sinceVersion=0", { headers: { authorization: `Bearer ${token}` } })
+    );
+    const body = (await list.json()) as { releases: { id: string; source?: string }[] };
+    expect(body.releases.find((r) => r.id === record.id)?.source).toBe("adopted");
+
+    const upload = (name: string, contentType: string) =>
+      filesRoute.POST(
+        jsonRequest(`http://localhost/v1/releases/${record.id}/files`, "POST", { files: [{ name, bytes: 10, contentType }] }, token),
+        params
+      );
+    const trackRes = await upload(record.tracks[0]!.file, "audio/mpeg");
+    expect(trackRes.status).toBe(400);
+    expect(JSON.stringify(await trackRes.json())).toContain("adopted");
+    expect((await upload("cover.jpg", "image/jpeg")).status).toBe(200);
+
+    const other = makeReleaseRecord({ source: "bogus" as never });
+    const bad = await releaseRoute.PUT(
+      jsonRequest(`http://localhost/v1/releases/${other.id}`, "PUT", other, token),
+      { params: Promise.resolve({ id: other.id }) }
+    );
+    expect(bad.status).toBe(400);
+  });
 });
