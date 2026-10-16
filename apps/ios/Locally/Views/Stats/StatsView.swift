@@ -47,6 +47,7 @@ struct StatsView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.isTabSelected) private var isTabSelected
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(BackdropMotion.keepMovingKey) private var keepBackdropsMoving = false
 
     private static var edgeFade: CGFloat { 22 }
     private static var maxBottomFade: CGFloat { 90 }
@@ -134,7 +135,11 @@ struct StatsView: View {
                     .transition(.opacity)
             }
         }
-        .animation(reduceMotion ? nil : .easeInOut(duration: Theme.Immersive.backdropCrossFade), value: palette != nil)
+        .animation(
+            BackdropMotion.reducesMotion(systemReduceMotion: reduceMotion, keepMoving: keepBackdropsMoving)
+                ? nil : .easeInOut(duration: Theme.Immersive.backdropCrossFade),
+            value: palette != nil
+        )
     }
 
     /// Port of `.st-scrim`: a darkening over the cover-colour wash, strongest at the top where the
@@ -273,7 +278,7 @@ struct StatsView: View {
 
     private var stepper: some View {
         HStack(spacing: 4) {
-            stepButton("chevron.left", label: Copy.Stats.previousLabel(model.period.kind), enabled: model.canStepBack) { model.stepBack() }
+            stepButton(.chevronRight, mirrored: true, label: Copy.Stats.previousLabel(model.period.kind), enabled: model.canStepBack) { model.stepBack() }
             VStack(spacing: 2) {
                 Text(Copy.Stats.periodLabel(model.period))
                     .font(.system(.headline, weight: .semibold))
@@ -285,14 +290,13 @@ struct StatsView: View {
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .combine)
-            stepButton("chevron.right", label: Copy.Stats.nextLabel(model.period.kind), enabled: model.canStepForward) { model.stepForward() }
+            stepButton(.chevronRight, label: Copy.Stats.nextLabel(model.period.kind), enabled: model.canStepForward) { model.stepForward() }
         }
     }
 
-    private func stepButton(_ symbol: String, label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+    private func stepButton(_ icon: LocallyIcon.Name, mirrored: Bool = false, label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 16, weight: .semibold))
+            LocallyIcon(icon, size: 24, scaled: false, mirrored: mirrored)
         }
         .buttonStyle(GlowCircleButtonStyle())
         .disabled(!enabled)
@@ -304,7 +308,7 @@ struct StatsView: View {
             options: [
                 (value: StatsKind.tracks, icon: "music.note", label: Copy.Stats.tracksTab),
                 (.albums, "rectangle.stack.fill", Copy.Stats.albumsTab),
-                (.artists, "person.fill", Copy.Stats.artistsTab),
+                (.artists, LocallyIcon.Name.person.rawValue, Copy.Stats.artistsTab),
             ],
             selection: Binding(get: { model.tab }, set: { model.selectTab($0) }),
             tint: tint, overflow: .scroll

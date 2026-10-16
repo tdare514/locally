@@ -72,7 +72,12 @@ struct GlowSwitch<Value: Hashable>: View {
                 HStack(spacing: 6) {
                     // The icons step aside at the accessibility sizes, so the words fit.
                     if let icon = option.icon, !dynamicTypeSize.isAccessibilitySize {
-                        Image(systemName: icon).accessibilityHidden(true)
+                        if let mac = LocallyIcon.Name(rawValue: icon) {
+                            // A Mac glyph (`Icon/…`) rather than an SF Symbol.
+                            LocallyIcon(mac, size: 19, relativeTo: .subheadline)
+                        } else {
+                            Image(systemName: icon).accessibilityHidden(true)
+                        }
                     }
                     Text(option.label)
                 }

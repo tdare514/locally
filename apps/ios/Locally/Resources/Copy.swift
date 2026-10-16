@@ -258,6 +258,11 @@ enum Copy {
             "AppIcon": "Solid",
             "AppIcon-Line": "Line art",
         ]
+        static let motionSection = "Motion"
+        static let keepBackdropsMoving = "Keep backgrounds moving"
+        static let keepBackdropsMovingHintReduced = "Your iPhone has Reduce Motion on, so Locally holds its backgrounds still. Turn this on to let them drift slowly anyway."
+        static let keepBackdropsMovingHint = "Backgrounds drift slowly. With Reduce Motion on, this keeps them moving."
+        static let keepBackdropsMovingHintKept = "Your iPhone has Reduce Motion on. Locally's backgrounds still drift slowly while this is on."
         static let appIconFailed = "Couldn't change the icon. Try again."
         static let title = "Settings"
         static let folderConnected = "Spotify's folder is connected."

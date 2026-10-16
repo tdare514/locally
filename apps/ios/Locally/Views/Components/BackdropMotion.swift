@@ -8,6 +8,15 @@ enum BackdropMotion {
     static func isActive(scenePhase: ScenePhase, isTabSelected: Bool, isLowPowerMode: Bool) -> Bool {
         scenePhase == .active && isTabSelected && !isLowPowerMode
     }
+
+    /// UserDefaults key of the Settings switch "Keep backgrounds moving" (#231).
+    static let keepMovingKey = "keepBackdropsMoving"
+
+    /// Whether a backdrop holds still: the system's Reduce Motion, unless the user chose to keep
+    /// the backgrounds moving anyway. Only backdrops ask this; other Reduce Motion readers don't.
+    static func reducesMotion(systemReduceMotion: Bool, keepMoving: Bool) -> Bool {
+        systemReduceMotion && !keepMoving
+    }
 }
 
 private struct IsTabSelectedKey: EnvironmentKey {

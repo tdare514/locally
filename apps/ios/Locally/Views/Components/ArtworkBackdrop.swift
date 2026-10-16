@@ -29,7 +29,8 @@ struct ArtworkBackdrop: View {
     private let palette: Palette
     private let progress: Double
     @State private var layers: [Layer]
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage(BackdropMotion.keepMovingKey) private var keepMoving = false
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.isTabSelected) private var isTabSelected
     @State private var isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
@@ -64,6 +65,10 @@ struct ArtworkBackdrop: View {
             green: Double((value >> 8) & 0xFF) / 255,
             blue: Double(value & 0xFF) / 255
         )
+    }
+
+    private var reduceMotion: Bool {
+        BackdropMotion.reducesMotion(systemReduceMotion: systemReduceMotion, keepMoving: keepMoving)
     }
 
     var body: some View {
