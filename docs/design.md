@@ -105,9 +105,23 @@ eyebrows still apply to those labels.
 - **Page header**: eyebrow in `accent` (replaced 13 Oct 2026: sentence case), then the title; on desktop a `text-muted` subtitle under
   it ("Add a song or album to your Spotify library."). Section headers use the same eyebrow +
   title on the left with a `text-muted` meta on the right ("7 tracks", "Tap to edit", "1 file").
-- **Segmented pill** (Single | Album): `elevated` track with 4 padding, selected segment an
-  `accent` pill with black semibold text and a faint shadow, others `text-muted` (white on hover).
-- **Primary button**: `accent` pill, black bold text. **Secondary**: `elevated` pill, white text.
+- **Buttons on the Mac (#155, 15 Oct 2026; classes in `apps/web/src/app/globals.css`)**: no
+  filled blue. **Main actions** (`.btn-save`: Save to library, Show in Finder, Add to library,
+  Sign in, Sync now…) are just their bold white label at rest, no fill or border; on hover or press
+  they light up into the phone-tray cloud button's glass (`.glass-fake`, unchanged) with a mild
+  glow off the lower edge in the cover's colour (`--btn-tint`, set from the cover palette on the
+  release dock) or a faint clear blue (`--btn-tint-default`) elsewhere, and one soft shimmer per
+  hover. **Secondary** (`.btn-ink`: Cancel, Select, Sign out, Copy…) is underlined text whose line
+  draws in on hover, with a soft white halo; **destructive triggers** (`.btn-ink-danger`) are the
+  same in pink with a red halo, and final confirms stay a solid `danger` fill. **Toggles**
+  (`.btn-seg`: List / Grid, Single / Album, library width) are words with a dot under the chosen
+  one. **Glow** (`.btn-save.btn-glow`, the Import invitation's Add a track) is clear glass at rest
+  that fills with drifting fluorescent blue light on hover. A choice among several periods
+  (`.seg-glass`, the Stats page) puts the chosen option on the same glass as a hovered main
+  button. Not 2000s gloss: no gel highlight, no saturated fills, no coloured outer glow.
+- **Segmented pill and buttons on iOS** (until #160 carries the Mac set over): segmented pill is
+  an `elevated` track with 4 padding, selected segment an `accent` pill with black semibold text;
+  **Primary button**: `accent` pill, black bold text. **Secondary**: `elevated` pill, white text.
   **Outline**: transparent with a `text-dim` border, white text. **Text button** (Cancel):
   `text-muted`, white on hover, no background.
 - **Sticky footer CTA (mobile)**: fixed to the bottom, `bg` at 95 % with blur, 1 px `border` on
@@ -307,6 +321,61 @@ eyebrows still apply to those labels.
   left the sidebar and come back. Pin down docks the panel as a column, which a page choice
   leaves alone. The glass is faked (no blur), motion is transform and opacity only, and all of it
   stands still under reduced motion. The MagicPath sidebar is not used.
+- **Stats page (#145; `apps/web/src/components/stats/`, built 15 Oct 2026, the source of truth)**:
+  the "Stats" view in AppShell, reached from the sidebar's Stats rail icon, panel row or "See all
+  stats". Top to bottom: the heading and the period control (`.seg-glass`: Today, This week, This
+  month, This year, All time; scrolls sideways when the room is short); the digest sentence ("You
+  played your tracks 121 times this week, mostly Night Bus to Nowhere.") with a ‹ › stepper that
+  goes back (Yesterday, Last week, 2 weeks ago, Last month, ...) and wears the glass once stepped
+  back; a quiet line saying what is counted ("Counted on this Mac since 15 Oct.", or "Play counting
+  is off. Turn it on in Settings."; never claims other devices, #202); Tracks / Albums / Artists
+  (`.btn-seg`); the sleeve fan; then everyone ranked from #1 as a List (rank, cover, name, artist,
+  last played, play bar, total; Sort by Plays, Name or Recently played; ranks stay put) or a Grid
+  (the sorted sea). One play total, sentence case, tabular numbers. The cover of the current #1
+  washes the page (`AmbientBackdrop`, `--btn-tint` from its palette) under a darkening scrim.
+  - **Data**: one `GET /api/plays/summary` per (period, step), kept 60 s, read again at local
+    midnight and when the window regains focus (`usePlayStats`, shared with the sidebar). Stepping
+    back is offered only while the earlier period starts within the 400 days the Mac keeps; else
+    the ‹ is off with the tooltip "Kept for 400 days". The page never sends a range the server
+    refuses (a test runs every reachable period against the server's check). All time ranks the
+    summary's `allTime`; the response's `countingSince` (earliest day bucket) feeds the coverage
+    line. Albums are releases, artists are release artists. Nothing counted: the quiet empty line
+    (the demo's summary is empty), with the Settings link when counting is off.
+  - **Fan** (`SleeveFan`, shared with the sidebar's shelf: three sleeves there, five here, the look
+    of each size in `.fan[data-size]`): #1 in the middle in gold, silver and bronze either side (their names are gold, silver and bronze
+    too, here, in the list and grid and in the sidebar; names use a bronze a shade lighter than the
+    rank's, so every name colour is at least as light as the #b3b3b3 grey and keeps 4.5:1 on the wash),
+    #4 and #5 outside; with fewer than five the same rule runs and the set is centred, no empty
+    slots, the tilt per step widening as the fan thins (`lib/fan-layout.ts`); no items means the
+    period's empty line, no fan. Hover or focus lifts a sleeve with name and plays; every record peeks a little at rest (about 9%) and the chosen one more (about 18%), the middle (label) always hidden, and the records go by status: #1 gold, #2 silver, #3 bronze (metallic vinyl) and the rest black vinyl; artists are round discs with no record. The medal records shine on an 8s loop, the owner's exception to "one shimmer per hover, never a loop": a soft band glides left to right through the top half, then about two seconds later a reverse band glides right to left through the body, each glide about 1.6 to 1.8s with a gentle start and finish; gold leads and silver and bronze follow 0.3s and 0.6s behind in their own metal's light, clipped to the disc and off under reduced motion. The page fan is a wheel: the sleeves tilt round one far pivot, so they sit on one shallow arc (not a half circle), and it is stacked with depth, each step out a little smaller and darker, like cards. At rest, before a hover or focus, number one sits at half its lift. The chosen one lifts, grows and loses its shade, and ← → wheel through them left to right; the lift stays on the keyboard-focused sleeve when the pointer leaves. The sidebar's shelf is the original tight stack of three, number one in front, with the same depth and shading. Under about 545px of room the chosen sleeve's name and plays sit in a caption under the fan instead of on the cover, and the narrow wheel lifts the chosen sleeve higher (0.6 of its width) so it clears its neighbours: at least 47px of each sleeve stays to tap in every selection state at 390px (about 41px at 360px and 36px at 320px).
+  - **Activation**: a sleeve, list row and grid tile is a button. A sleeve first plays a short
+    opening beat (360ms: the record slides further out, the sleeve lifts and grows a little; none
+    under reduced motion, which opens at once), then the release opens. A track opens its release
+    scrolled to that track's row (centred) with a one-time soft tint on the row (about 1.6s; shown
+    still for 2s under reduced motion); list rows and tiles do the same without the beat. An album
+    opens its release with no highlight; an artist opens the Library filtered to that artist (its search
+    query). A mouse only lifts on hover. On touch the first tap lifts and the second opens; a tap
+    elsewhere drops the lift. Visible focus rings (2px white; the shelf keeps its accent ring).
+  - **Grid sizing**: three grids in rank order (ranks 1 to 6, 7 to 14, the rest), columns counted
+    from the room by container queries with one gap, so a tile is never under 72px, nothing
+    overlaps from 360 to 1600px, and a better rank is never smaller. Name under every tile (artist
+    too on the biggest); rank and plays on the cover.
+  - **Long lists**: the List and the Grid show 100 at first, then an ink button "Show 100 more"
+    ("Show 37 more" near the end); when the last page opens, focus moves to its first row. Covers
+    load lazily, and the page keeps the reads of its last 8 periods.
+  - **Narrow (390px)**: the period control scrolls, the fan scales with its room (210px sleeves down
+    to a fifth of the room below 545px, so it fits a 320px phone), the list drops last played below 480px of room and the bar below 760px.
+  - **Contrast**: the wash is capped for white text, but the greys need more over a pale cover, so
+    a scrim darkens the top of the page and the unchosen tab words are 70% rather than 50%.
+    Measured over a cream cover as #1: every text 5.36:1 or better, bars 5.8:1 against their track
+    (3:1 needed). Fan rank pills and tags are darker so the medal colours and white text hold on
+    pale covers.
+  - **Motion** (all in `globals.css`): one rise-in, the fan-out when the tab or period changes, the
+    sleeve lift, record slide and tag, the grid hover lift. Nothing loops except the medal records'
+    8s shine, the owner's exception (its glides use cubic-bezier(0.37, 0, 0.63, 1), a gentle in and
+    out, since the house curve crossed the visible cap of the disc too fast and read as rushed). Reduced motion drops
+    every animation and transition to nothing (its block is last in the file, after the rules it
+    overrides).
 - **Library list (desktop main)**: same sectioning as mobile — YOUR COLLECTION (replaced 13 Oct 2026: sentence case) / All music
   header with track-count meta, Singles then Albums in `card` containers (radius 12), "Add a
   song" primary below. *Since 15 Oct 2026 (#207)* each section is a full-width table, like a

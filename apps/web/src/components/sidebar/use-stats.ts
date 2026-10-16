@@ -8,10 +8,12 @@ import {
   firstDayForLanguage,
   localDayString,
   msUntilNextLocalMidnight,
-  periodRangeOfDay,
+  selectionRange,
+  type PeriodSelection,
 } from "../../lib/play-periods";
-import { DEFAULT_PERIOD, aggregatePlays, type PlayStats, type StatsPeriod } from "../../lib/play-stats";
+import { DEFAULT_PERIOD, TOP_COUNT, aggregatePlays, type PlayStats, type StatsPeriod } from "../../lib/play-stats";
 import { DEFAULT_WIDGETS, toggleWidget, type WidgetKey, type WidgetState } from "../../lib/sidebar-panel";
+import { keepRecent } from "../../lib/stats-layout";
 import { loadSidebarPrefs, saveSidebarPeriod, saveSidebarWidgets } from "../../lib/sidebar-prefs";
 
 /** A period's plays already read are reused for this long; opening the panel again after it reads them again. */
@@ -42,7 +44,7 @@ type Read = { status: "ok"; dates: string; summary: PlaysSummaryResponse } | { s
  * through midnight. `focuses` counts those returns, so a pinned panel that has been out of sight
  * can read again.
  */
-function useLocalDay(): { day: string; focuses: number } {
+export function useLocalDay(): { day: string; focuses: number } {
   const [clock, setClock] = useState(() => ({ day: localDayString(new Date()), focuses: 0 }));
 
   useEffect(() => {
@@ -80,31 +82,47 @@ function useLocalDay(): { day: string; focuses: number } {
   return clock;
 }
 
+/** What {@link usePlayStats} gives: the state to show, and when day counting began on this Mac (null until a read arrives, or when no day is recorded). */
+export interface PlayStatsRead {
+  state: StatsState;
+  countingSince: string | null;
+  /** The Mac's local date the read is for. */
+  today: string;
+  /** The week's first day (1 Monday to 7 Sunday) the dates were worked out with. */
+  firstDay: number;
+}
+
 /**
- * The play rankings for the sidebar widgets, for the chosen period (#203).
+ * The play rankings for a period (#203 for the sidebar, #145 for the Stats page).
  *
- * Each period is one local `GET /api/plays/summary` for its dates (lib/play-periods, in the Mac's
- * local time, the week starting on the browser language's first day), asked for per period: the
- * answer is kept for a minute, and a different period keeps its own. Nothing is requested until
- * `active` (the panel is showing); a request that fails is not repeated until the next time the
- * panel opens, or the period is chosen again. When the day changes, or the window comes back to
- * the front after a minute, a showing panel reads again; plays read for an earlier day are never
- * shown as today's. The demo has no plays and asks for none. The summary's `allTime` tells an
- * empty period from no plays at all.
+ * Each (period, step) is one local `GET /api/plays/summary` for its dates (lib/play-periods, in
+ * the Mac's local time, the week starting on the browser language's first day), asked for per
+ * period and step: the answer is kept for a minute, and another period keeps its own. Nothing is
+ * requested until `active` (the panel or page is showing); a request that fails is not repeated
+ * until the next time it is active, or the period is chosen again. When the day changes, or the
+ * window comes back to the front after a minute, a showing view reads again; plays read for an
+ * earlier day are never shown as today's. The demo has no plays and asks for none. The summary's
+ * `allTime` tells an empty period from no plays at all. `limit` is how many of each list to rank.
  */
-export function useStats(period: StatsPeriod, releases: Release[], active: boolean): StatsState {
+export function usePlayStats(
+  selection: PeriodSelection,
+  releases: Release[],
+  active: boolean,
+  limit: number = TOP_COUNT,
+): PlayStatsRead {
   const { day, focuses } = useLocalDay();
-  const [reads, setReads] = useState<Partial<Record<StatsPeriod, Read>>>({});
+  const [reads, setReads] = useState<Partial<Record<string, Read>>>({});
+  const key = `${selection.kind}:${selection.back}`;
   /** When each period was last read, and for which dates (a new day is a new read). */
-  const readAt = useRef<Partial<Record<StatsPeriod, { dates: string; at: number }>>>({});
+  const readAt = useRef<Partial<Record<string, { dates: string; at: number }>>>({});
   /** The dates each period's latest request is for, while it is out. */
-  const inFlight = useRef<Partial<Record<StatsPeriod, string>>>({});
+  const inFlight = useRef<Partial<Record<string, string>>>({});
   const mounted = useRef(true);
   const firstDay = useMemo(
     () => firstDayForLanguage(typeof navigator === "undefined" ? undefined : navigator.language),
     [],
   );
-  const { from, to } = periodRangeOfDay(period, day, firstDay);
+  const { from, to } = selectionRange({ kind: selection.kind, back: selection.back }, day, firstDay);
   const dates = `${from}..${to}`;
 
   useEffect(() => {
@@ -116,54 +134,75 @@ export function useStats(period: StatsPeriod, releases: Release[], active: boole
 
   // `focuses` is a dependency only to look again when the window returns; the staleness check decides.
   useEffect(() => {
-    if (!active || IS_DEMO || inFlight.current[period] === dates) return;
-    const last = readAt.current[period];
+    if (!active || IS_DEMO || inFlight.current[key] === dates) return;
+    const last = readAt.current[key];
     if (last && last.dates === dates && Date.now() - last.at <= STALE_MS) return;
-    inFlight.current[period] = dates;
+    inFlight.current[key] = dates;
     // A failed read that is being tried again shows as loading, not as the old error.
     setReads((prev) => {
-      if (prev[period]?.status !== "error") return prev;
+      if (prev[key]?.status !== "error") return prev;
       const rest = { ...prev };
-      delete rest[period];
+      delete rest[key];
       return rest;
     });
     getPlaysSummary(from, to)
       .then((summary) => {
-        if (inFlight.current[period] !== dates) return; // a newer day's request took over
-        readAt.current[period] = { dates, at: Date.now() };
-        if (mounted.current) setReads((prev) => ({ ...prev, [period]: { status: "ok", dates, summary } }));
-      })
-      .catch(() => {
-        if (inFlight.current[period] !== dates) return;
-        // Plays read earlier for these dates stay on screen; with none, say so. Either way the
-        // next open asks again.
-        delete readAt.current[period];
+        if (inFlight.current[key] !== dates) return; // a newer day's request took over
+        readAt.current[key] = { dates, at: Date.now() };
         if (mounted.current) {
           setReads((prev) => {
-            const kept = prev[period];
-            return kept?.status === "ok" && kept.dates === dates ? prev : { ...prev, [period]: { status: "error" } };
+            const { next, evicted } = keepRecent(prev, key, { status: "ok", dates, summary } as Read);
+            // An evicted period is read again when it is opened, not shown as loading for good.
+            for (const k of evicted) delete readAt.current[k];
+            return next;
+          });
+        }
+      })
+      .catch(() => {
+        if (inFlight.current[key] !== dates) return;
+        // Plays read earlier for these dates stay on screen; with none, say so. Either way the
+        // next open asks again.
+        delete readAt.current[key];
+        if (mounted.current) {
+          setReads((prev) => {
+            const kept = prev[key];
+            return kept?.status === "ok" && kept.dates === dates ? prev : { ...prev, [key]: { status: "error" } };
           });
         }
       })
       .finally(() => {
-        if (inFlight.current[period] === dates) delete inFlight.current[period];
+        if (inFlight.current[key] === dates) delete inFlight.current[key];
       });
-  }, [active, period, dates, from, to, focuses]);
+  }, [active, key, dates, from, to, focuses]);
 
-  const read = reads[period];
+  const read = reads[key];
+  const isAll = selection.kind === "all";
   const state = useMemo<StatsState | null>(() => {
     if (read?.status !== "ok") return null;
-    const stats = aggregatePlays(releases, read.summary.tracks);
+    // All time ranks the summary's all-time counts; the days it still has only say when a track was last played.
+    const lastDays = new Map(read.summary.tracks.map((t) => [t.trackId, t.lastPlayedDay]));
+    const counts = isAll
+      ? read.summary.allTime.map((t) => ({ ...t, lastPlayedDay: lastDays.get(t.trackId) }))
+      : read.summary.tracks;
+    const stats = aggregatePlays(releases, counts, limit);
     if (stats.total > 0) return { status: "ready", stats };
     // A limit of 0 ranks nothing: only the total is wanted.
     return aggregatePlays(releases, read.summary.allTime, 0).total > 0 ? QUIET : EMPTY;
-  }, [releases, read]);
+  }, [releases, read, limit, isAll]);
 
-  if (IS_DEMO || releases.length === 0) return EMPTY;
-  if (!read) return LOADING;
-  if (read.status === "error") return FAILED;
+  const countingSince = read?.status === "ok" ? (read.summary.countingSince ?? null) : null;
+  let current: StatsState;
+  if (IS_DEMO || releases.length === 0) current = EMPTY;
+  else if (!read) current = LOADING;
+  else if (read.status === "error") current = FAILED;
   // Plays read for an earlier day wait for the new read.
-  return read.dates === dates ? (state ?? LOADING) : LOADING;
+  else current = read.dates === dates ? (state ?? LOADING) : LOADING;
+  return { state: current, countingSince, today: day, firstDay };
+}
+
+/** The play rankings for the sidebar widgets (#203): the top three for Today, This week or This month. */
+export function useStats(period: StatsPeriod, releases: Release[], active: boolean): StatsState {
+  return usePlayStats({ kind: period, back: 0 }, releases, active).state;
 }
 
 /** The chosen period, remembered (lib/sidebar-prefs). This week until a saved one loads. */

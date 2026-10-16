@@ -29,6 +29,8 @@ interface ReleaseViewProps {
    * flashing "Loading…"; the fresh copy is fetched quietly behind it. */
   initialRelease?: Release;
   justImported?: boolean;
+  /** A track to scroll to and highlight once on arrival (opened from the Stats page). */
+  highlightTrackId?: string;
   onDeleted: () => void;
   onUpdated: () => void;
   onToast: (kind: "success" | "error", text: string) => void;
@@ -143,6 +145,7 @@ export default function ReleaseView({
   releaseId,
   initialRelease,
   justImported = false,
+  highlightTrackId,
   onDeleted,
   onUpdated,
   onToast,
@@ -231,6 +234,25 @@ export default function ReleaseView({
       cancelled = true;
     };
   }, [releaseId]);
+
+  const hasRelease = release !== null;
+  useEffect(() => {
+    // Once the rows are on screen: bring the chosen track to the middle and tint its row once.
+    // A track that is not in this release (a stale id) does nothing.
+    if (!highlightTrackId || !hasRelease) return;
+    const row = [...document.querySelectorAll<HTMLElement>(".track-list > li[data-key]")].find(
+      (li) => li.dataset.key === highlightTrackId
+    );
+    if (!row) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    row.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
+    row.dataset.highlight = "";
+    const timer = setTimeout(() => delete row.dataset.highlight, reduced ? 2000 : 1800);
+    return () => {
+      clearTimeout(timer);
+      delete row.dataset.highlight;
+    };
+  }, [highlightTrackId, hasRelease]);
 
   function handleTracksChange(next: EditableTrack[]) {
     setTracks(next);

@@ -43,7 +43,8 @@ export function parseSummaryRange(from: string | null, to: string | null, today:
  * last played day among the day buckets inside `from`..`to` (inclusive). `YYYY-MM-DD` strings sort
  * as dates, so the range test is a string compare. Tracks with no plays in the range are left out
  * of `tracks`; tracks of releases that are not in `liveReleaseIds` (deleted, or removed by a sync
- * tombstone without this file hearing of it) are left out of both lists.
+ * tombstone without this file hearing of it) are left out of both lists. `countingSince` is the
+ * earliest day bucket of those tracks, whatever the range (null when none has a day).
  */
 export function buildPlaysSummary(
   counts: PlayCounts,
@@ -52,6 +53,7 @@ export function buildPlaysSummary(
 ): PlaysSummaryResponse {
   const tracks: PlaysSummaryTrack[] = [];
   const allTime: PlaysSummaryAllTime[] = [];
+  let countingSince: string | null = null;
   for (const trackId in counts.tracks) {
     const entry = counts.tracks[trackId];
     if (!liveReleaseIds.has(entry.releaseId)) continue;
@@ -61,13 +63,14 @@ export function buildPlaysSummary(
     let plays = 0;
     let lastPlayedDay = "";
     for (const day in days) {
+      if (countingSince === null || day < countingSince) countingSince = day;
       if (day < range.from || day > range.to) continue;
       plays += days[day];
       if (day > lastPlayedDay) lastPlayedDay = day;
     }
     if (plays > 0) tracks.push({ trackId, releaseId: entry.releaseId, plays, lastPlayedDay });
   }
-  return { tracks, allTime };
+  return { tracks, allTime, countingSince };
 }
 
 export interface PlaysSummaryDeps {
