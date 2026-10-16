@@ -215,40 +215,52 @@ struct LibraryView: View {
             }
         }
         .padding(.horizontal, Theme.Library.searchPaddingH)
-        .frame(height: Theme.Library.searchHeight)
+        .padding(.vertical, Theme.Library.searchPaddingV)
+        .frame(minHeight: Theme.Library.searchMinHeight)
         .background(Capsule().fill(Theme.Immersive.panelFill))
         .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
     }
 
     /// The list / covers toggle and, in covers view, the three-step size control.
     private var controls: some View {
-        HStack(spacing: Theme.Library.headerControlGap) {
-            HStack(spacing: 0) {
-                layoutButton(.list, systemImage: "list.bullet", label: Copy.Library.layoutList)
-                layoutButton(.covers, systemImage: "square.grid.2x2", label: Copy.Library.layoutCovers)
+        // Side by side while they fit; at large text sizes the size control drops under the toggle.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Theme.Library.headerControlGap) {
+                layoutToggle
+                Spacer()
+                if layout == .covers { sizeControl }
             }
-            .padding(2)
-            .background(Capsule().fill(Theme.Immersive.panelFill))
-            .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(Copy.Library.layoutLabel)
-
-            Spacer()
-
-            if layout == .covers {
-                SegmentedPill(
-                    options: [
-                        (CoverSize.compact, Copy.Library.sizeSmall),
-                        (CoverSize.medium, Copy.Library.sizeMedium),
-                        (CoverSize.large, Copy.Library.sizeLarge),
-                    ],
-                    selection: $coverSize,
-                    isCompact: true
-                )
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel(Copy.Library.coverSizeLabel)
+            VStack(alignment: .leading, spacing: Theme.Library.headerControlGap) {
+                layoutToggle
+                if layout == .covers { sizeControl }
             }
         }
+    }
+
+    private var layoutToggle: some View {
+        HStack(spacing: 0) {
+            layoutButton(.list, systemImage: "list.bullet", label: Copy.Library.layoutList)
+            layoutButton(.covers, systemImage: "square.grid.2x2", label: Copy.Library.layoutCovers)
+        }
+        .padding(2)
+        .background(Capsule().fill(Theme.Immersive.panelFill))
+        .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Copy.Library.layoutLabel)
+    }
+
+    private var sizeControl: some View {
+        SegmentedPill(
+            options: [
+                (CoverSize.compact, Copy.Library.sizeSmall),
+                (CoverSize.medium, Copy.Library.sizeMedium),
+                (CoverSize.large, Copy.Library.sizeLarge),
+            ],
+            selection: $coverSize,
+            isCompact: true
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Copy.Library.coverSizeLabel)
     }
 
     private func layoutButton(_ value: LibraryLayout, systemImage: String, label: String) -> some View {

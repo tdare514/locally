@@ -96,6 +96,14 @@ enum Theme {
         static let inputPaddingV: CGFloat = 12
         static let primaryButtonH: CGFloat = 32
         static let primaryButtonV: CGFloat = 12
+        /// Pill buttons keep these minimums at every text size; taller labels grow the pill instead.
+        static let primaryButtonMinHeight: CGFloat = 48
+        static let primaryButtonCompactMinHeight: CGFloat = 36
+        static let coverGlowMinHeight: CGFloat = 52
+        static let coverGlowCompactMinHeight: CGFloat = 40
+        /// Segmented pills: the smallest touch target of one segment.
+        static let segmentMinHeight: CGFloat = 44
+        static let segmentRowGap: CGFloat = 4
     }
 
     /// The sticky footer's fade (docs/design.md "Sticky footer CTA (mobile)").
@@ -133,7 +141,9 @@ enum Theme {
         static let thumbnailSize: CGFloat = 56
         /// The hairline between the Singles and Albums sections.
         static let sectionDivider = Color.white.opacity(0.07)
-        static let searchHeight: CGFloat = 40
+        /// The search box's minimum height; it grows with its scaled text.
+        static let searchMinHeight: CGFloat = 40
+        static let searchPaddingV: CGFloat = 8
         static let searchPaddingH: CGFloat = 14
         static let noMatchesTopPadding: CGFloat = 32
         /// Spacing between header controls and between a tile's cover and text.

@@ -13,10 +13,6 @@ import SwiftUI
 struct PrimaryPillButtonStyle: ButtonStyle {
     var isFullWidth: Bool = true
     @Environment(\.isEnabled) private var isEnabled
-    /// The pill's height at the default text size; it grows with Dynamic Type so the label wraps inside it.
-    @ScaledMetric(relativeTo: .body) private var fullMinHeight: CGFloat = 48
-    @ScaledMetric(relativeTo: .body) private var compactMinHeight: CGFloat = 36
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -24,9 +20,9 @@ struct PrimaryPillButtonStyle: ButtonStyle {
             .foregroundStyle(Color.black)
             .multilineTextAlignment(.center)
             .padding(.horizontal, isFullWidth ? 0 : Theme.Spacing.primaryButtonH)
-            .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? Theme.Spacing.primaryButtonV : 0)
+            .padding(.vertical, Theme.Spacing.primaryButtonV)
             .frame(maxWidth: isFullWidth ? .infinity : nil)
-            .frame(minHeight: isFullWidth ? fullMinHeight : compactMinHeight)
+            .frame(minHeight: isFullWidth ? Theme.Spacing.primaryButtonMinHeight : Theme.Spacing.primaryButtonCompactMinHeight)
             .background(Theme.accent)
             .clipShape(Capsule())
             .opacity(isEnabled ? 1 : 0.5)
@@ -43,7 +39,6 @@ struct GlowPillButtonStyle: ButtonStyle {
     var pinnedLit: Bool = false
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ScaledMetric(relativeTo: .body) private var minHeight: CGFloat = Theme.Import.glowMinHeight
 
     func makeBody(configuration: Configuration) -> some View {
         let lit = pinnedLit || configuration.isPressed
@@ -53,7 +48,7 @@ struct GlowPillButtonStyle: ButtonStyle {
             .multilineTextAlignment(.center)
             .padding(.horizontal, Theme.Spacing.primaryButtonH)
             .padding(.vertical, Theme.Spacing.primaryButtonV)
-            .frame(minHeight: minHeight)
+            .frame(minHeight: Theme.Import.glowMinHeight)
             .background {
                 ZStack {
                     GlowGlass()
@@ -80,8 +75,6 @@ struct CoverGlowButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ScaledMetric(relativeTo: .body) private var fullMinHeight: CGFloat = 52
-    @ScaledMetric(relativeTo: .body) private var compactMinHeight: CGFloat = 40
 
     private var ease: Animation { .timingCurve(0.16, 1, 0.3, 1, duration: 0.45) }
 
@@ -96,7 +89,7 @@ struct CoverGlowButtonStyle: ButtonStyle {
             .opacity(isEnabled ? 1 : 0.5)
             .padding(.horizontal, Theme.Spacing.primaryButtonH)
             .padding(.vertical, Theme.Spacing.primaryButtonV)
-            .frame(maxWidth: isFullWidth ? .infinity : nil, minHeight: isFullWidth ? fullMinHeight : compactMinHeight)
+            .frame(maxWidth: isFullWidth ? .infinity : nil, minHeight: isFullWidth ? Theme.Spacing.coverGlowMinHeight : Theme.Spacing.coverGlowCompactMinHeight)
             .background {
                 ZStack {
                     if isEnabled {
