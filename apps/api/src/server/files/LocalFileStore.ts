@@ -121,6 +121,31 @@ export class LocalFileStore implements FileStore {
   }
 
   /**
+   * Walks the directory the prefix points into (everything up to its last
+   * `/`) and yields each file's key, `/`-separated, when it starts with
+   * `prefix`. A prefix whose directory doesn't exist yields nothing. The walk
+   * starts from `absolutePathFor`, so it can't leave `rootDir`.
+   */
+  async *listKeys(prefix: string): AsyncGenerator<string> {
+    yield* this.walk(prefix.slice(0, prefix.lastIndexOf("/") + 1), prefix);
+  }
+
+  private async *walk(dirKey: string, prefix: string): AsyncGenerator<string> {
+    let entries;
+    try {
+      entries = await fs.readdir(this.absolutePathFor(dirKey), { withFileTypes: true });
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT" || (err as NodeJS.ErrnoException).code === "ENOTDIR") return;
+      throw err;
+    }
+    for (const entry of entries) {
+      const key = `${dirKey}${entry.name}`;
+      if (entry.isDirectory()) yield* this.walk(`${key}/`, prefix);
+      else if (entry.isFile() && key.startsWith(prefix)) yield key;
+    }
+  }
+
+  /**
    * Write a request body to disk at `key`, creating parent directories as
    * needed. Streams the body and tracks a running total so a body larger
    * than `maxBytes` (the size verified from the upload signature) is

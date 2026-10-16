@@ -1,4 +1,4 @@
-import { del, issueSignedToken, presignUrl } from "@vercel/blob";
+import { del, issueSignedToken, list, presignUrl } from "@vercel/blob";
 import type { DownloadTicket } from "../../shared/types";
 import type { CreateUploadParams, FileStore, UploadTicket } from "./FileStore";
 
@@ -27,6 +27,22 @@ export function blobPathname(key: string): string {
     Array.from(new TextEncoder().encode(ch), (b) => "~" + b.toString(16).toUpperCase().padStart(2, "0")).join("")
   );
 }
+
+/**
+ * The inverse of `blobPathname`: turns a pathname the SDK lists back into the
+ * storage key it was derived from. Every `~XX` run is a UTF-8 byte sequence,
+ * and a literal `~` is always written `~7E`, so any `~` in a pathname this
+ * server wrote starts an escape. A `~` not followed by two hex digits (not
+ * written by us) is left alone.
+ */
+export function keyFromBlobPathname(pathname: string): string {
+  return pathname.replace(/(?:~[0-9A-F]{2})+/g, (run) =>
+    new TextDecoder().decode(Uint8Array.from(run.slice(1).split("~"), (hex) => parseInt(hex, 16)))
+  );
+}
+
+/** Blob's `list` default page size (1000, per the SDK types), set explicitly so it does not depend on an SDK default. */
+const LIST_PAGE_SIZE = 1000;
 
 /**
  * Production `FileStore`: a private Vercel Blob store, selected with
@@ -101,5 +117,22 @@ export class VercelBlobFileStore implements FileStore {
       keys.map((key) => blobPathname(key)),
       { token: this.readWriteToken }
     );
+  }
+
+  /**
+   * Pages through `list({ prefix, cursor })`, up to 1000 blobs a call, until
+   * `hasMore` is false. The prefix goes through `blobPathname` like every
+   * other pathname, and each listed pathname is decoded back to its storage
+   * key, so callers compare against the keys they built, never the encoding.
+   */
+  async *listKeys(prefix: string): AsyncGenerator<string> {
+    const pathnamePrefix = blobPathname(prefix);
+    let cursor: string | undefined;
+    do {
+      const page = await list({ prefix: pathnamePrefix, limit: LIST_PAGE_SIZE, cursor, token: this.readWriteToken });
+      for (const blob of page.blobs) yield keyFromBlobPathname(blob.pathname);
+      // A page that says hasMore but sends no cursor ends the listing rather than looping on page one.
+      cursor = page.hasMore ? page.cursor : undefined;
+    } while (cursor);
   }
 }

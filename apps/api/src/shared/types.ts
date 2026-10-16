@@ -133,6 +133,29 @@ export interface MeResponse {
   quota: QuotaSummary;
   devices: DeviceSummary[];
   devicesHasMore: boolean;
+  /** ISO time of the last `POST /v1/files/resync-request`, or `null` when none was made. */
+  resyncRequestedAt: string | null;
+}
+
+/** One live release with files that are not stored, from `GET /v1/files/missing`. */
+export interface MissingFilesRelease {
+  id: string;
+  /** File names the record references (tracks, and the cover when it has a `coverHash`) that are not stored. */
+  missing: string[];
+  /** The record's own `updatedAt`, so a client can tell which version of the release was checked. */
+  recordUpdatedAt: string;
+}
+
+export interface MissingFilesResponse {
+  releases: MissingFilesRelease[];
+  checkedAt: string;
+  /** `true` only when a cap cut the check short, so the list may be incomplete; omitted otherwise. */
+  truncated?: boolean;
+}
+
+/** Response of `POST /v1/files/resync-request`. */
+export interface ResyncRequestResponse {
+  resyncRequestedAt: string;
 }
 
 export interface VerifyResponse {
