@@ -84,12 +84,7 @@ struct AlbumBuilderView: View {
                 // A failed send's message sits just above Send, where the tap was: Send scrolls the
                 // record back to the sleeve, so a row at the end of the list would be out of view.
                 if let errorMessage = model.errorMessage {
-                    Text(errorMessage)
-                        .font(Theme.ScaledFont.caption)
-                        .foregroundStyle(Theme.danger)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .padding(.bottom, Theme.Spacing.rowGap)
+                    ImportSendError(message: errorMessage)
                 }
                 Button(action: context.onSend) {
                     if model.isSending {

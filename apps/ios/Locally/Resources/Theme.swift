@@ -273,6 +273,13 @@ enum Theme {
         static let sendScrollDuration: Double = 0.35
         /// Then waits this long for the scroll to settle; skipped with Reduce Motion.
         static let sendScrollSettle: Double = 0.45
+        /// A failed send's message: at most this many lines, or `sendErrorLinesLarge` at the
+        /// accessibility text sizes, so Send stays on screen (docs/design.md "Make a record").
+        static let sendErrorLines = 5
+        static let sendErrorLinesLarge = 3
+        /// The soft dark halo behind that message: its inset and blur radius, and its opacity.
+        static let sendErrorHaloInset: CGFloat = 8
+        static let sendErrorHaloOpacity: Double = 0.9
         /// `.imp-flash`: the flash's centre and edge, and the faint spill past the sleeve
         /// (`box-shadow: 0 0 16px 2px rgb(255 248 238 / 0.4)`).
         static let flashCenter = Color(red: 255 / 255, green: 252 / 255, blue: 246 / 255)

@@ -137,3 +137,31 @@ struct ImportAddTrackButton: View {
         .frame(maxWidth: .infinity, minHeight: Theme.Immersive.panelActionMinHeight, alignment: .leading)
     }
 }
+
+/// A failed send's message, in the footer just above Send. It sits on a soft dark halo (a blurred
+/// shape, not a backdrop blur) so the list scrolling under the footer never shows through the red
+/// text, and it is capped in height so Send stays on screen at the largest text sizes with the
+/// keyboard up; VoiceOver still reads the whole message.
+struct ImportSendError: View {
+    let message: String
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        Text(message)
+            .font(Theme.ScaledFont.caption)
+            .foregroundStyle(Theme.danger)
+            .multilineTextAlignment(.center)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? Theme.Import.sendErrorLinesLarge : Theme.Import.sendErrorLines)
+            .accessibilityLabel(message)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, Theme.Import.sendErrorHaloInset)
+            .background {
+                RoundedRectangle(cornerRadius: Theme.Import.sendErrorHaloInset * 2)
+                    .fill(Theme.background.opacity(Theme.Import.sendErrorHaloOpacity))
+                    .blur(radius: Theme.Import.sendErrorHaloInset)
+                    .allowsHitTesting(false)
+            }
+            .padding(.bottom, Theme.Spacing.rowGap)
+    }
+}
