@@ -13,7 +13,8 @@ import {
 import { watchPaneEdges, type PaneEdgesWatch } from "../lib/pane-edges";
 import { playsLabel } from "../lib/plays-copy";
 import { formatLength } from "../lib/adopt-review";
-import { adoptDiscAfterMove, discHeadings } from "../shared/discs";
+import { adoptDiscAfterMove, discActionsFor, discHeadings, joinPreviousDisc, startDiscAt } from "../shared/discs";
+import DiscMenu from "./DiscMenu";
 import { XIcon } from "./Icons";
 import TrackPlaylistsLine, { type PlaylistRef } from "./TrackPlaylistsLine";
 
@@ -126,6 +127,8 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
   const hintId = useId();
   const [announcement, setAnnouncement] = useState("");
   const [grabbedKey, setGrabbedKey] = useState<string | null>(null);
+  /** The key of the row whose disc menu is open (#222). */
+  const [discMenuKey, setDiscMenuKey] = useState<string | null>(null);
 
   // Latest props for handlers that outlive a render (the drop timer, window listeners).
   const tracksRef = useRef(tracks);
@@ -401,6 +404,16 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
   }
 
   const headings = discHeadings(tracks.map((t) => t.discNumber));
+  const discs = tracks.map((t) => t.discNumber);
+  const canEditDiscs = !readOnly && !view && tracks.length >= 2;
+
+  /** Applies a disc action through `onChange`, the path a drag-reorder takes, and gives focus back to
+   * the row's grip (the number's button may be gone, once the row no longer has an action). */
+  function applyDiscAction(key: string, next: EditableTrack[]) {
+    setDiscMenuKey(null);
+    focusKey.current = key;
+    onChange(next);
+  }
 
   return (
     <>
@@ -417,6 +430,8 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
           const heading = headings[index];
           const playTotal = plays?.[track.key] ?? 0;
           const viewInfo = view?.[track.key];
+          const discActions = canEditDiscs ? discActionsFor(discs, index) : {};
+          const hasDiscActions = discActions.start !== undefined || discActions.join !== undefined;
           const row = (
             <li
               key={track.key}
@@ -425,12 +440,29 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
               className={`track-row -mx-2 flex h-12 items-center gap-3 px-2 hover:bg-white/[0.03] data-[grabbed]:bg-white/[0.07] ${
                 readOnly ? "" : "cursor-grab"
               } ${viewInfo?.missing ? "text-text-muted" : ""}`}
+              onContextMenu={(e) => {
+                // The row's disc menu; the title input keeps the system one (copy and paste).
+                if (!hasDiscActions || (e.target as HTMLElement).closest("input, textarea")) return;
+                e.preventDefault();
+                setDiscMenuKey(track.key);
+              }}
             >
               {/* The glass tile: shown only while this row is held. */}
               <span aria-hidden className="track-tile glass-fake glass-frost" />
-              <span data-number className="w-6 shrink-0 text-sm tabular-nums text-white/60">
-                {index + 1}
-              </span>
+              {hasDiscActions ? (
+                <DiscMenu
+                  number={index + 1}
+                  actions={discActions}
+                  open={discMenuKey === track.key}
+                  onOpenChange={(open) => setDiscMenuKey(open ? track.key : null)}
+                  onStart={() => applyDiscAction(track.key, startDiscAt(tracks, index))}
+                  onJoin={() => applyDiscAction(track.key, joinPreviousDisc(tracks, index))}
+                />
+              ) : (
+                <span data-number className="w-6 shrink-0 text-sm tabular-nums text-white/60">
+                  {index + 1}
+                </span>
+              )}
               <div className="flex min-w-0 flex-col items-start">
                 {view ? (
                   <span

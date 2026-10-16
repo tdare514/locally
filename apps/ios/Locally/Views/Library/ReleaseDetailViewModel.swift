@@ -6,6 +6,8 @@ enum ReleaseChange: Equatable, Identifiable {
     case cover(old: Data?, new: Data?)
     case trackRenamed(id: UUID, old: String, new: String)
     case trackOrder
+    /// The disc layout, as `Copy.Release.discLayout` words it (#222).
+    case discs(old: String, new: String)
 
     var id: String {
         switch self {
@@ -13,6 +15,7 @@ enum ReleaseChange: Equatable, Identifiable {
         case .cover: "cover"
         case .trackRenamed(let id, _, _): "track-\(id.uuidString)"
         case .trackOrder: "order"
+        case .discs: "discs"
         }
     }
 }
@@ -148,6 +151,14 @@ final class ReleaseDetailViewModel {
         if trackRows.map(\.id) != originalTrackRows.map(\.id) {
             result.append(.trackOrder)
         }
+        // Compared as numbers, not as words: two different layouts must never look unchanged.
+        let originalDiscs = Dictionary(originalTrackRows.map { ($0.id, $0.discNumber) }, uniquingKeysWith: { first, _ in first })
+        if trackRows.contains(where: { originalDiscs[$0.id] != $0.discNumber }) {
+            result.append(.discs(
+                old: Copy.Release.discLayout(originalTrackRows.map(\.discNumber)),
+                new: Copy.Release.discLayout(trackRows.map(\.discNumber))
+            ))
+        }
         return result
     }
 
@@ -202,6 +213,23 @@ final class ReleaseDetailViewModel {
         DiscNumbering.headings(for: trackRows.map(\.discNumber))
     }
 
+    /// What the disc menu on row `index` offers (#222). Only an album in edit mode with two or more
+    /// tracks has one; view mode and singles keep a plain number.
+    func discActions(at index: Int) -> DiscNumbering.Actions {
+        guard isEditing, kind == .album, !isAdopted, trackRows.count >= 2 else { return DiscNumbering.Actions() }
+        return DiscNumbering.actions(for: trackRows.map(\.discNumber), at: index)
+    }
+
+    func startDisc(at index: Int) {
+        let discs = DiscNumbering.startDisc(at: index, in: trackRows.map(\.discNumber))
+        for i in trackRows.indices { trackRows[i].discNumber = discs[i] }
+    }
+
+    func joinPreviousDisc(at index: Int) {
+        let discs = DiscNumbering.joinPreviousDisc(at: index, in: trackRows.map(\.discNumber))
+        for i in trackRows.indices { trackRows[i].discNumber = discs[i] }
+    }
+
     func moveTracks(from source: IndexSet, to destination: Int) {
         let order = trackRows.map(\.id)
         let movedIds = source.map { trackRows[$0].id }
@@ -230,6 +258,7 @@ final class ReleaseDetailViewModel {
             trackTitles[only.id] = title
         }
 
+        let originalDiscs = Dictionary(originalTrackRows.compactMap { row in row.discNumber.map { (row.id, $0) } }, uniquingKeysWith: { first, _ in first })
         let changes = ReleaseChanges(
             title: title,
             artist: artist,
@@ -238,7 +267,8 @@ final class ReleaseDetailViewModel {
             cover: coverData != originalCoverData ? coverData : nil,
             trackTitles: trackTitles,
             trackOrder: trackRows.map { $0.id },
-            trackDiscs: Dictionary(uniqueKeysWithValues: trackRows.compactMap { row in row.discNumber.map { (row.id, $0) } })
+            trackDiscs: Dictionary(uniqueKeysWithValues: trackRows.compactMap { row in row.discNumber.map { (row.id, $0) } }),
+            clearedDiscs: Set(trackRows.filter { $0.discNumber == nil && originalDiscs[$0.id] != nil }.map(\.id))
         )
 
         do {

@@ -200,12 +200,15 @@ export class ReleaseService {
     const updatedTracks: Track[] = existing.tracks.map((t) => {
       const p = patchTrackById.get(t.id);
       if (!p) return { ...t };
-      return {
+      const next: Track = {
         ...t,
         title: p.title !== undefined ? p.title : t.title,
         trackNumber: p.trackNumber !== undefined ? p.trackNumber : t.trackNumber,
-        ...(p.discNumber !== undefined ? { discNumber: p.discNumber } : {}),
       };
+      // A number sets the disc, null clears it (a join back to one disc), absent leaves it.
+      if (typeof p.discNumber === "number") next.discNumber = p.discNumber;
+      else if (p.discNumber === null) delete next.discNumber;
+      return next;
     });
     updatedTracks.sort((a, b) => a.trackNumber - b.trackNumber);
 

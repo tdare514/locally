@@ -238,7 +238,8 @@ export interface UpdateReleaseMeta {
   artist?: string;
   year?: string | null;
   genre?: string | null;
-  tracks?: { id: string; title?: string; trackNumber?: number; discNumber?: number }[];
+  /** `discNumber: null` clears the disc (back to a release with no discs); absent leaves it as it is. */
+  tracks?: { id: string; title?: string; trackNumber?: number; discNumber?: number | null }[];
 }
 
 /** Response shape for GET /api/spotify/source and POST /api/spotify/source/dismiss. */

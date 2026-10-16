@@ -234,6 +234,8 @@ final class ReleaseCoordinator {
             }
             if let disc = changes.trackDiscs[tracks[index].id], DiscNumbering.isValidDisc(disc) {
                 tracks[index].discNumber = disc
+            } else if changes.clearedDiscs.contains(tracks[index].id) {
+                tracks[index].discNumber = nil
             }
         }
 

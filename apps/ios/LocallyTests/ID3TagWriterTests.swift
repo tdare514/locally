@@ -93,6 +93,29 @@ struct ID3TagWriterTests {
         #expect(audio == Self.audioSuffix(of: original))
     }
 
+    @Test func rewritingWithNoDiscRemovesTheTPOSAWriteLeftAndRestoresTheWholeReleaseTrackNumber() async throws {
+        let (dir, url) = try makeFile()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        var withDisc = tags()
+        withDisc.trackNumber = 1
+        withDisc.totalTracks = 2
+        withDisc.discNumber = 2
+        withDisc.totalDiscs = 2
+        try await writer.write(withDisc, cover: nil, to: url)
+        let (first, _) = parse(try Data(contentsOf: url))
+        #expect(textValue(first["TPOS"]!) == "2/2")
+        #expect(textValue(first["TRCK"]!) == "1/2")
+
+        var noDisc = tags()
+        noDisc.trackNumber = 3
+        noDisc.totalTracks = 4
+        try await writer.write(noDisc, cover: nil, to: url)
+        let (second, _) = parse(try Data(contentsOf: url))
+        #expect(second["TPOS"] == nil)
+        #expect(textValue(second["TRCK"]!) == "3/4")
+    }
+
     @Test func writesTYERBesideTDRCWithTheSameYear() async throws {
         let (dir, url) = try makeFile()
         defer { try? FileManager.default.removeItem(at: dir) }

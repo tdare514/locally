@@ -299,7 +299,10 @@ struct ReleaseDetailView: View {
                 plays: model.playTotal(for: row).map(Copy.Detail.playCount),
                 length: TrackLength.format(seconds),
                 lengthSpoken: TrackLength.spoken(seconds),
-                showsGrip: model.isEditing && model.trackRows.count >= 2
+                showsGrip: model.isEditing && model.trackRows.count >= 2,
+                discActions: model.discActions(at: index),
+                onStartDisc: { model.startDisc(at: index) },
+                onJoinDisc: { model.joinPreviousDisc(at: index) }
             )
             .importTrackRow(
                 isFirst: index == 0 || (headings.indices.contains(index) && headings[index] != nil),

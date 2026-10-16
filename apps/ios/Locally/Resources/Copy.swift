@@ -94,6 +94,10 @@ enum Copy {
         static let tracks = "Tracks"
         /// The quiet heading over a disc's tracks, shown only when a release has more than one disc.
         static func disc(_ number: Int) -> String { "Disc \(number)" }
+        /// The disc menu on a track's number (#222): the two actions, and the number button's VoiceOver label.
+        static func startDisc(_ number: Int) -> String { "Start disc \(number) here" }
+        static func joinDisc(_ number: Int) -> String { "Join disc \(number)" }
+        static func discOptions(track number: Int) -> String { "Track \(number), disc options" }
         /// A file row's caption under its title, per `docs/design.md`'s
         /// "Editor / release detail" component.
         static let audioFile = "Audio file"
@@ -186,6 +190,18 @@ enum Copy {
         static let save = "Save"
         static let keepEditing = "Keep editing"
         static let trackOrderChanged = "Track order changed"
+        /// The review sheet's disc row (#222): the layout, not every track.
+        static let discs = "Discs"
+        static let noDiscs = "No discs"
+        /// The disc layout in words, every range listed so no two layouts read alike: "No discs",
+        /// "All tracks on disc 2", or "Disc 1 from track 1, disc 2 from track 4".
+        static func discLayout(_ discs: [Int?]) -> String {
+            let ranges = DiscNumbering.ranges(for: discs)
+            guard let first = ranges.first else { return noDiscs }
+            if ranges.count == 1 { return "All tracks on disc \(first.disc)" }
+            let rest = ranges.dropFirst().map { "disc \($0.disc) from track \($0.track)" }
+            return (["Disc \(first.disc) from track \(first.track)"] + rest).joined(separator: ", ")
+        }
         static let cover = "Cover"
         /// VoiceOver for the review sheet's cover row.
         static let coverChanged = "Cover changed"

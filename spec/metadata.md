@@ -54,7 +54,7 @@ the track tag is `trackNumber/total` exactly as before and no TPOS or `disk` is 
 
 Import. When the imported files carry a disc tag, `discNumber` is prefilled from it and the files are
 ordered by (disc, the file's own track number); continuous `trackNumber` values are then assigned in that
-order. Files without disc tags import as before. Editing disc numbers in the UI is not built yet.
+order. Files without disc tags import as before. Both apps edit discs as contiguous ranges (#222): a track's number opens "Start disc N here" (that track and the rest of its range become the next disc) or, on the first track of a later disc, "Join disc N"; discs renumber by range from the first track's disc, and joining back to one disc numbered 1 clears the disc numbers.
 
 ## Tag set: what Spotify and Apple Music read (#223, 16 Oct 2026)
 

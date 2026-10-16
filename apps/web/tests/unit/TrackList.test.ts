@@ -130,7 +130,25 @@ describe("TrackList playlists line (#212)", () => {
   it("is a closed disclosure button (aria-expanded, no aria-haspopup), and no popover until clicked", () => {
     const html = withPlaylists(["Gym"]);
     expect(html).toMatch(/<button[^>]*data-playlists-line[^>]*aria-expanded="false"/);
-    expect(html).not.toContain("aria-haspopup");
+    expect(html).not.toMatch(/<button[^>]*data-playlists-line[^>]*aria-haspopup/);
     expect(html).not.toContain("playlist-pop");
+  });
+});
+
+describe("TrackList disc menu buttons (#222)", () => {
+  const buttons = (html: string) => [...html.matchAll(/aria-label="(Track \d+, disc options)"/g)].map((m) => m[1]);
+
+  it("turns the number into a menu button on every row but the first of an editable list", () => {
+    const html = render();
+    expect(buttons(html)).toEqual(["Track 2, disc options", "Track 3, disc options"]);
+    expect(html).toContain('aria-haspopup="menu"');
+  });
+
+  it("gives the first row of disc 2 a button too, and leaves one-track, read-only and view lists plain", () => {
+    const discs = tracks.map((t, i) => ({ ...t, discNumber: i < 2 ? 1 : 2 }));
+    expect(buttons(render({ tracks: discs }))).toEqual(["Track 2, disc options", "Track 3, disc options"]);
+    expect(buttons(render({ tracks: tracks.slice(0, 1) }))).toEqual([]);
+    expect(buttons(render({ readOnly: true }))).toEqual([]);
+    expect(buttons(render({ view: { "t-c": { durationSec: 1 } } }))).toEqual([]);
   });
 });

@@ -518,6 +518,8 @@ enum Theme {
     enum Track {
         static let minHeight: CGFloat = 48
         static let numberWidth: CGFloat = 24
+        /// The tap area of the number when it is a disc menu (#222).
+        static let discMenuHitSize: CGFloat = 44
         static let spacing: CGFloat = 12
         static let numberOpacity: Double = 0.6
         /// The replace button's circling arrows, and its tap area.

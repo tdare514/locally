@@ -96,7 +96,7 @@ export function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | 
   draft.tracks.forEach((t, i) => {
     const original = release.tracks.find((o) => o.id === t.key);
     const trackNumber = i + 1;
-    const change: { id: string; title?: string; trackNumber?: number; discNumber?: number } = {
+    const change: { id: string; title?: string; trackNumber?: number; discNumber?: number | null } = {
       id: t.key,
     };
     let changed = false;
@@ -111,6 +111,10 @@ export function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | 
     // A track dropped in among another disc's tracks joins that disc.
     if (t.discNumber !== undefined && (!original || original.discNumber !== t.discNumber)) {
       change.discNumber = t.discNumber;
+      changed = true;
+    } else if (t.discNumber === undefined && original?.discNumber !== undefined) {
+      // The discs were joined back into one: clear the stored disc.
+      change.discNumber = null;
       changed = true;
     }
     if (changed) trackPatches.push(change);

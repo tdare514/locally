@@ -91,6 +91,74 @@ export function adoptDiscAfterMove<T extends { discNumber?: number }>(tracks: re
   return out;
 }
 
+/** The row index where each disc range begins: row 0, and every row whose disc differs from the row
+ * before it (a row with no disc counts as disc 1). Discs are contiguous ranges. */
+function discStarts(discs: readonly (number | undefined)[]): number[] {
+  const starts: number[] = [];
+  discs.forEach((d, i) => {
+    if (i === 0 || (d ?? 1) !== (discs[i - 1] ?? 1)) starts.push(i);
+  });
+  return starts;
+}
+
+/** `tracks` with the ranges that begin at `starts` numbered from the first row's disc (1 when it
+ * has none). One range numbered from 1 clears every disc number: the release goes back to no discs. */
+function renumberRanges<T extends { discNumber?: number }>(tracks: readonly T[], starts: readonly number[]): T[] {
+  const base = tracks[0]?.discNumber ?? 1;
+  const clear = starts.length === 1 && base === 1;
+  let range = -1;
+  return tracks.map((t, i) => {
+    if (starts.includes(i)) range++;
+    const next = { ...t };
+    if (clear) delete next.discNumber;
+    else next.discNumber = base + range;
+    return next;
+  });
+}
+
+/**
+ * `tracks` with a new disc starting at row `index` (#222): that row and the rest of its disc range
+ * move up to a new disc, and later discs shift up by one. Nothing changes for the first row or a row
+ * that already begins a disc. Returns a new array; the input is left as it is.
+ */
+export function startDiscAt<T extends { discNumber?: number }>(tracks: readonly T[], index: number): T[] {
+  const starts = discStarts(tracks.map((t) => t.discNumber));
+  if (index <= 0 || index >= tracks.length || starts.includes(index)) return tracks.slice();
+  // The highest disc after the split must still be a valid one.
+  if ((tracks[0].discNumber ?? 1) + starts.length > MAX_DISC_NUMBER) return tracks.slice();
+  return renumberRanges(tracks, [...starts, index].sort((a, b) => a - b));
+}
+
+/**
+ * `tracks` with the disc that begins at row `index` merged into the one before it (#222), later
+ * discs shifting down by one. Nothing changes unless `index` is the first row of a disc after the
+ * first. Returns a new array; the input is left as it is.
+ */
+export function joinPreviousDisc<T extends { discNumber?: number }>(tracks: readonly T[], index: number): T[] {
+  const starts = discStarts(tracks.map((t) => t.discNumber));
+  if (index <= 0 || !starts.includes(index)) return tracks.slice();
+  return renumberRanges(tracks, starts.filter((s) => s !== index));
+}
+
+/**
+ * What the disc menu offers on row `index`, as the disc numbers its labels show: `start` for "Start
+ * disc N here" (any row but the first, unless it already begins a disc), `join` for "Join disc N"
+ * (the first row of a disc after the first; N is the disc before). Neither means a plain number.
+ */
+export function discActionsFor(
+  discs: readonly (number | undefined)[],
+  index: number,
+): { start?: number; join?: number } {
+  if (index <= 0 || index >= discs.length) return {};
+  const starts = discStarts(discs);
+  const base = discs[0] ?? 1;
+  if (starts.includes(index)) return { join: base + starts.indexOf(index) - 1 };
+  const range = starts.filter((s) => s < index).length - 1;
+  // No Start when the highest disc after the split would pass the largest valid disc.
+  if (base + starts.length > MAX_DISC_NUMBER) return {};
+  return { start: base + range + 1 };
+}
+
 /** An imported file as far as ordering cares: the disc and track number its own tags carry. */
 export interface TaggedForOrder {
   discNumber?: number;

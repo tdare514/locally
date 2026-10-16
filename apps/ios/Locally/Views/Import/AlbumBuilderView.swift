@@ -58,7 +58,10 @@ struct AlbumBuilderView: View {
                                     length: TrackLength.format(seconds),
                                     lengthSpoken: TrackLength.spoken(seconds),
                                     onReplace: { context.onReplaceTrack(row.id) },
-                                    showsGrip: model.rows.count >= 2
+                                    showsGrip: model.rows.count >= 2,
+                                    discActions: model.discActions(at: index),
+                                    onStartDisc: { model.startDisc(at: index) },
+                                    onJoinDisc: { model.joinPreviousDisc(at: index) }
                                 )
                             }
                             .importTrackRow(
