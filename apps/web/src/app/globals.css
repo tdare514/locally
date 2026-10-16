@@ -2289,6 +2289,79 @@ body {
     inset 0 0 0 1px rgb(255 227 200 / 0.45),
     0 calc(var(--w) * 0.075) calc(var(--w) * 0.14) calc(var(--w) * -0.07) rgb(0 0 0 / 0.8);
 }
+/* The gold record's shine, the owner's exception to "one shimmer per hover, never a loop" (15 Oct 2026):
+   once per 24s cycle a band runs left to right through the top half (::before) and ends in a quick flash
+   at the right end (.fan-record-glint), then about two seconds later a second band runs right to left
+   through the body (::after). The disc clips it, the grooves sit under it and the label over it. */
+.fan-record[data-medal="gold"] {
+  overflow: hidden;
+}
+.fan-record[data-medal="gold"]::before,
+.fan-record[data-medal="gold"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 100%;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: plus-lighter;
+  animation-duration: 24s;
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
+  animation-delay: 1.5s;
+}
+.fan-record[data-medal="gold"]::before {
+  top: 0;
+  height: 50%;
+  background: linear-gradient(105deg, transparent 38%, rgb(255 246 214 / 0) 42%, rgb(255 246 214 / 0.9) 50%, rgb(255 246 214 / 0) 58%, transparent 62%);
+  transform: translateX(-100%);
+  animation-name: fan-gold-sweep-a;
+}
+.fan-record[data-medal="gold"]::after {
+  top: 12%;
+  height: 76%;
+  background: linear-gradient(75deg, transparent 38%, rgb(255 246 214 / 0) 42%, rgb(255 246 214 / 0.9) 50%, rgb(255 246 214 / 0) 58%, transparent 62%);
+  transform: translateX(100%);
+  animation-name: fan-gold-sweep-b;
+}
+.fan-record[data-medal="gold"] .fan-record-label {
+  z-index: 2;
+}
+.fan-record-glint {
+  position: absolute;
+  top: -6%;
+  right: 6%;
+  width: 36%;
+  aspect-ratio: 1;
+  z-index: 1;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgb(255 251 230 / 0.95), rgb(255 214 110 / 0.55) 32%, transparent 66%);
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.4);
+  animation: fan-gold-glint 24s linear 1.5s infinite;
+}
+@keyframes fan-gold-sweep-a {
+  0% { transform: translateX(-100%); opacity: 0; animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
+  0.4% { transform: translateX(-92%); opacity: 1; animation-timing-function: cubic-bezier(0.45, 0, 0.25, 1); }
+  3.33% { transform: translateX(100%); opacity: 1; }
+  3.6% { transform: translateX(100%); opacity: 0; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+@keyframes fan-gold-glint {
+  0%, 2.9% { transform: scale(0.4); opacity: 0; animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
+  3.54% { transform: scale(1); opacity: 1; animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
+  5% { transform: scale(1.1); opacity: 0; }
+  100% { transform: scale(1.1); opacity: 0; }
+}
+@keyframes fan-gold-sweep-b {
+  0%, 12.5% { transform: translateX(100%); opacity: 0; animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
+  12.9% { transform: translateX(92%); opacity: 1; animation-timing-function: cubic-bezier(0.45, 0, 0.25, 1); }
+  16.67% { transform: translateX(-100%); opacity: 1; }
+  16.95% { transform: translateX(-100%); opacity: 0; }
+  100% { transform: translateX(-100%); opacity: 0; }
+}
 .fan-sleeve[data-active="true"] .fan-record {
   transform: translate3d(0, -18%, 0);
 }
@@ -2476,5 +2549,11 @@ body {
   .track-row[data-highlight]::before {
     animation: none;
     opacity: 1;
+  }
+  .fan-record[data-medal="gold"]::before,
+  .fan-record[data-medal="gold"]::after,
+  .fan-record-glint {
+    animation: none;
+    opacity: 0;
   }
 }

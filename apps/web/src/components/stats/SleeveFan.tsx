@@ -212,6 +212,7 @@ function Sleeve({
         {!disc && (
           <span aria-hidden data-medal={medal} className="fan-record">
             <span className="fan-record-label" style={cover ? { backgroundImage: `url("${cover}")` } : undefined} />
+            {medal === "gold" && <span aria-hidden className="fan-record-glint" />}
           </span>
         )}
         {cover ? (
