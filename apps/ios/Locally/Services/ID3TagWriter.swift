@@ -2,7 +2,7 @@ import Foundation
 
 /// A minimal, pure-Swift ID3v2.4 writer for mp3 files: no third-party
 /// dependency, just enough of the spec to write the text frames Spotify's
-/// Local Files reads (TIT2/TPE1/TPE2/TALB/TRCK/TDRC/TCON, and TPOS on a
+/// Local Files reads (TIT2/TPE1/TPE2/TALB/TRCK/TDRC/TYER/TCON, and TPOS on a
 /// multi-disc release) plus one APIC
 /// cover frame. Any existing ID3v2 header is stripped and replaced (never
 /// stacked) so re-tagging in place keeps the file's audio bytes untouched.
@@ -122,6 +122,10 @@ final class ID3TagWriter: TagWriter {
         }
         if let year = tags.year, !year.isEmpty {
             frames.append(textFrame("TDRC", year))
+            // Spotify reads an mp3's year only from TYER, so a plain 4-digit year goes there too.
+            if Self.isFourDigitYear(year) {
+                frames.append(textFrame("TYER", year))
+            }
         }
         if let genre = tags.genre, !genre.isEmpty {
             frames.append(textFrame("TCON", genre))
@@ -162,6 +166,11 @@ final class ID3TagWriter: TagWriter {
     }
 
     // MARK: - Helpers
+
+    static func isFourDigitYear(_ text: String) -> Bool {
+        let bytes = Array(text.utf8)
+        return bytes.count == 4 && bytes.allSatisfy { $0 >= 0x30 && $0 <= 0x39 }
+    }
 
     static func mimeType(for data: Data) -> String {
         if data.count >= 8, data[data.startIndex] == 0x89, data[data.startIndex + 1] == 0x50 {
