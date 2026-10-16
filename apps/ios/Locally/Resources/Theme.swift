@@ -256,6 +256,17 @@ enum Theme {
         static let inlineFieldUnderlineOpacity: Double = 0.6
         static let inlineFieldUnderlineGap: CGFloat = 4
         static let inlineFieldFocusFade: Double = 0.15
+        /// Labelled fields: the label column, the gap between rows, and the always-visible underline.
+        static let labeledFieldLabelWidth: CGFloat = 76
+        static let labeledFieldRowGap: CGFloat = 12
+        static let labeledFieldLabelGap: CGFloat = 12
+        static let labeledFieldUnderlineRestOpacity: Double = 0.12
+        /// The album notice: corner radius, padding, icon gap, and its entrance (fade and rise).
+        static let albumNoticeRadius: CGFloat = 12
+        static let albumNoticePadding: CGFloat = 12
+        static let albumNoticeIconGap: CGFloat = 8
+        static let albumNoticeRise: CGFloat = 6
+        static let albumNoticeDuration: Double = 0.35
         /// A field row's leading inset, so a round first letter (G, S, C, O) that overshoots the
         /// text's left edge isn't clipped by the list cell. Kept to 1 pt so the text still lines up.
         static let inlineFieldOvershoot: CGFloat = 1
@@ -444,6 +455,7 @@ enum Theme {
         static let rowTitle = SwiftUI.Font.system(.body, weight: .regular)
         static let value = SwiftUI.Font.system(.body, weight: .regular)
         static let input = SwiftUI.Font.system(.body, weight: .regular)
+        static let fieldTitle = SwiftUI.Font.system(.title3, weight: .semibold)
         static let caption = SwiftUI.Font.system(.footnote, weight: .regular)
         static let pill = SwiftUI.Font.system(.footnote, weight: .semibold)
         /// A track row (`TrackList`): the number and plays are subheadline with tabular digits, the title body semibold.

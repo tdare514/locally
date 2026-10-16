@@ -19,19 +19,14 @@ struct AlbumBuilderView: View {
                         .importClearRow()
                     ImportMetaLine(kind: context.kind, trackCount: model.rows.count, isSwitchDisabled: context.isBusy, tint: context.glowColors[0])
                         .importClearRow(top: 0, bottom: Theme.Immersive.fieldsMetaGap)
-                    VStack(alignment: .leading, spacing: Theme.Spacing.fieldGap) {
-                        InlineField(Copy.Import.fieldAlbumTitle, text: Binding(get: { model.albumTitle }, set: { model.albumTitle = $0 }), font: Theme.ScaledFont.pageTitle, wraps: true)
-                        InlineField(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }), font: Theme.ScaledFont.input, wraps: true)
-                    }
-                    .importFieldsRow()
-                    Text(Copy.Import.albumExplainer)
-                        .font(Theme.ScaledFont.caption)
-                        .foregroundStyle(Theme.secondaryText)
-                        .importClearRow(top: Theme.Spacing.rowGap, bottom: Theme.Spacing.rowGap)
-                    VStack(alignment: .leading, spacing: Theme.Spacing.fieldGap) {
-                        InlineField(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }), font: Theme.ScaledFont.input)
+                    AlbumNotice()
+                        .importClearRow(top: 0, bottom: Theme.Immersive.fieldsMetaGap)
+                    VStack(alignment: .leading, spacing: Theme.Immersive.labeledFieldRowGap) {
+                        LabeledField(Copy.Import.fieldTitle, placeholder: Copy.Import.titlePlaceholder(for: .album), text: Binding(get: { model.albumTitle }, set: { model.albumTitle = $0 }), font: Theme.ScaledFont.fieldTitle, wraps: true)
+                        LabeledField(Copy.Import.fieldArtist, placeholder: Copy.Import.artistPlaceholder, text: Binding(get: { model.artist }, set: { model.artist = $0 }), font: Theme.ScaledFont.input, wraps: true)
+                        LabeledField(Copy.Import.fieldYear, placeholder: Copy.Import.yearPlaceholder, text: Binding(get: { model.year }, set: { model.year = $0 }), font: Theme.ScaledFont.input)
                             .keyboardType(.numberPad)
-                        InlineField(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }), font: Theme.ScaledFont.input, wraps: true)
+                        LabeledField(Copy.Import.fieldGenre, placeholder: Copy.Import.genrePlaceholder, text: Binding(get: { model.genre }, set: { model.genre = $0 }), font: Theme.ScaledFont.input, wraps: true)
                     }
                     .importFieldsRow()
                     ClearSectionEnd()

@@ -165,16 +165,16 @@ struct ReleaseDetailView: View {
 
     @ViewBuilder
     private func fields(_ model: ReleaseDetailViewModel) -> some View {
-        InlineField(Copy.Import.fieldTitle, text: Binding(get: { model.title }, set: { model.title = $0 }), font: Theme.Font.pageTitle)
+        let gap = Theme.Immersive.labeledFieldRowGap
+        LabeledField(Copy.Import.fieldTitle, placeholder: Copy.Import.titlePlaceholder(for: model.kind), text: Binding(get: { model.title }, set: { model.title = $0 }), font: Theme.ScaledFont.fieldTitle, wraps: true)
+            .clearRow(top: 0, bottom: gap)
+        LabeledField(Copy.Import.fieldArtist, placeholder: Copy.Import.artistPlaceholder, text: Binding(get: { model.artist }, set: { model.artist = $0 }), font: Theme.ScaledFont.input, wraps: true)
+            .clearRow(top: 0, bottom: gap)
+        LabeledField(Copy.Import.fieldYear, placeholder: Copy.Import.yearPlaceholder, text: Binding(get: { model.year }, set: { model.year = $0 }), font: Theme.ScaledFont.input)
+            .keyboardType(.numberPad)
+            .clearRow(top: 0, bottom: gap)
+        LabeledField(Copy.Import.fieldGenre, placeholder: Copy.Import.genrePlaceholder, text: Binding(get: { model.genre }, set: { model.genre = $0 }), font: Theme.ScaledFont.input, wraps: true)
             .clearRow(top: 0, bottom: 0)
-        InlineField(Copy.Import.fieldArtist, text: Binding(get: { model.artist }, set: { model.artist = $0 }), font: Theme.Font.rowSubtitle)
-            .clearRow(top: 0, bottom: 0)
-        HStack(spacing: Theme.Immersive.dockGap) {
-            InlineField(Copy.Import.fieldYear, text: Binding(get: { model.year }, set: { model.year = $0 }))
-                .keyboardType(.numberPad)
-            InlineField(Copy.Import.fieldGenre, text: Binding(get: { model.genre }, set: { model.genre = $0 }))
-        }
-        .clearRow(top: Theme.Immersive.fieldsMetaGap, bottom: 0)
     }
 
     // MARK: Panel rows

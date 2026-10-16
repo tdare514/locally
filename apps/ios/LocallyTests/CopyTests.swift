@@ -47,3 +47,21 @@ struct CopyTests {
         #expect(Copy.Detail.reorderHint == Copy.Import.reorderHint)
     }
 }
+
+struct FieldCopyTests {
+    @Test func titlePlaceholderFollowsTheKind() {
+        #expect(Copy.Import.titlePlaceholder(for: .single) == "Enter single name")
+        #expect(Copy.Import.titlePlaceholder(for: .album) == "Enter album name")
+    }
+
+    @Test func fieldCopyHasNoDashes() {
+        let strings = [
+            Copy.Import.albumNotice, Copy.Import.albumPlaceholder, Copy.Import.singlePlaceholder,
+            Copy.Import.albumNamePlaceholder, Copy.Import.artistPlaceholder, Copy.Import.yearPlaceholder,
+            Copy.Import.genrePlaceholder, Copy.Import.track
+        ]
+        for string in strings {
+            #expect(!string.contains("\u{2013}") && !string.contains("\u{2014}"))
+        }
+    }
+}
