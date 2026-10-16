@@ -44,8 +44,23 @@ interface AdoptReviewViewProps {
 
 type Phase = "reading" | "failed" | "ready" | "no-folders";
 
-/** Scan requests give up after this long, so a stuck request ends in "Locally didn't answer." */
-const SCAN_TIMEOUT_MS = 10 * 60_000;
+/** Every request on opening gives up after its own limit, so Reading can never hang. */
+const SCAN_TIMEOUT_MS = 30_000;
+const READ_TIMEOUT_MS = 10_000;
+
+/** Runs `run` with a signal that aborts after `ms`, or when `parent` (the page going away) aborts. */
+async function bounded<T>(ms: number, parent: AbortSignal, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const own = new AbortController();
+  const timer = setTimeout(() => own.abort(), ms);
+  const onParent = () => own.abort();
+  parent.addEventListener("abort", onParent);
+  try {
+    return await run(own.signal);
+  } finally {
+    clearTimeout(timer);
+    parent.removeEventListener("abort", onParent);
+  }
+}
 
 const DOCK_FALLBACK_PX = 64;
 
@@ -118,16 +133,16 @@ export default function AdoptReviewView({ scan, onBack, onAllAdded, onLibraryCha
   // Opening the page always reads the findings fresh (and the library, to hide what is already in it).
   useEffect(() => {
     const abort = new AbortController();
-    const timer = setTimeout(() => abort.abort(), SCAN_TIMEOUT_MS);
     let ended = false;
+    const gone = () => !alive.current || ended;
     async function open() {
       setPhase("reading");
       setAnnouncement("Reading your Spotify folders");
       const [settings, library] = await Promise.all([
-        getSettings().catch(() => null),
-        getLibrary().catch(() => null),
+        bounded(READ_TIMEOUT_MS, abort.signal, (s) => getSettings(s)).catch(() => null),
+        bounded(READ_TIMEOUT_MS, abort.signal, (s) => getLibrary(s)).catch(() => null),
       ]);
-      if (!alive.current || ended) return;
+      if (gone()) return;
       if (settings && settings.adoptRoots.length === 0) {
         setPhase("no-folders");
         setAnnouncement("Add a folder in Settings first.");
@@ -137,25 +152,28 @@ export default function AdoptReviewView({ scan, onBack, onAllAdded, onLibraryCha
       try {
         let found: AdoptProposal | null = null;
         // A retry always re-reads; the first open reads only when asked to, or when nothing is stored.
-        if (!scan && retry === 0) found = await getAdoptProposal(abort.signal);
-        if (!found) found = await scanAdopt(abort.signal);
-        if (!alive.current || ended) return;
+        if (!scan && retry === 0) found = await bounded(READ_TIMEOUT_MS, abort.signal, (s) => getAdoptProposal(s));
+        if (!found) found = await bounded(SCAN_TIMEOUT_MS, abort.signal, (s) => scanAdopt(s));
+        if (gone()) return;
         showFindings(found, inLibrary, null);
       } catch (e) {
-        if (!alive.current || ended) return;
-        const stored = await getAdoptProposal().catch(() => null);
-        if (!alive.current || ended) return;
+        if (gone()) return;
+        // The failure shows first; the earlier findings are an optional extra that arrives later or never.
         setReleases(inLibrary);
-        setEarlier(stored);
+        setEarlier(null);
         setError(e instanceof Error && e.name !== "AbortError" ? e.message : "Locally didn't answer.");
         setPhase("failed");
         setAnnouncement("Couldn't check your Spotify folders");
+        bounded(READ_TIMEOUT_MS, abort.signal, (s) => getAdoptProposal(s))
+          .then((stored) => {
+            if (!gone()) setEarlier(stored);
+          })
+          .catch(() => undefined);
       }
     }
     void open();
     return () => {
       ended = true;
-      clearTimeout(timer);
       abort.abort();
     };
   }, [scan, retry, showFindings]);
@@ -263,7 +281,7 @@ export default function AdoptReviewView({ scan, onBack, onAllAdded, onLibraryCha
   const retrying = rowErrors.size > 0;
 
   return (
-    <div ref={rootRef} className={`flex flex-col gap-8 ${libraryWidthClass(width)}`}>
+    <div ref={rootRef} className={`flex min-h-full flex-col gap-8 ${libraryWidthClass(width)}`}>
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {announcement}
       </div>
@@ -365,7 +383,7 @@ export default function AdoptReviewView({ scan, onBack, onAllAdded, onLibraryCha
         <>
           <div
             ref={listRef}
-            className="flex flex-col gap-8"
+            className="flex flex-1 flex-col gap-8"
             style={{ paddingBottom: `calc(var(--adopt-dock, ${DOCK_FALLBACK_PX}px) + 24px)` }}
           >
             {reviewGroups.map((group) => {

@@ -18,7 +18,7 @@ export async function GET() {
   try {
     const services = getServices();
     const settings = await services.settings.get();
-    const suggestion = suggestedAdoptRoot(homeDir(), settings.adoptRoots ?? [], makeRootProbe(services.fs));
+    const suggestion = suggestedAdoptRoot(homeDir(), settings.adoptRoots ?? [], makeRootProbe());
     return NextResponse.json(toSettingsResponse(settings, suggestion));
   } catch (err) {
     return errorResponse(err);
@@ -31,7 +31,7 @@ export async function PUT(request: NextRequest) {
     const rawBody = await request.json();
     const body = parseSettingsPutBody(rawBody);
     const services = getServices();
-    const probe = makeRootProbe(services.fs);
+    const probe = makeRootProbe();
     // Planned from the settings as they are at write time, so a concurrent change isn't overwritten.
     let rejection = null as string | null;
     let resetSyncState = false;

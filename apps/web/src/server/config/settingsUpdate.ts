@@ -2,7 +2,7 @@ import path from "node:path";
 import type { Settings } from "../../shared/types";
 import type { ParsedSettingsPut } from "../http/validation";
 import { applySyncBaseUrlChange } from "../sync/settings";
-import { adoptRootsError, type RootProbe } from "./adoptRoots";
+import { checkAdoptRoots, type RootProbe } from "./adoptRoots";
 
 export type SettingsUpdateResult =
   | {
@@ -53,11 +53,15 @@ export function planSettingsUpdate(
   }
 
   let adoptRoots = current.adoptRoots;
-  if (body.adoptRoots !== undefined) {
+  // Roots and library must stay apart whenever either one changes (a new library inside a Spotify folder
+  // would make that folder writable).
+  const rootsInPlay = body.adoptRoots !== undefined || (current.adoptRoots ?? []).length > 0;
+  if (rootsInPlay && (body.adoptRoots !== undefined || libraryDir !== current.libraryDir)) {
     if (!probe) throw new Error("planSettingsUpdate needs a probe to check adoptRoots");
-    const error = adoptRootsError(body.adoptRoots, libraryDir, probe);
-    if (error) return { ok: false, error };
-    adoptRoots = body.adoptRoots;
+    const saved = current.adoptRoots ?? [];
+    const check = checkAdoptRoots(body.adoptRoots ?? saved, saved, libraryDir, probe);
+    if (!check.ok) return { ok: false, error: check.error };
+    if (body.adoptRoots !== undefined) adoptRoots = check.roots;
   }
 
   let sync = current.sync;

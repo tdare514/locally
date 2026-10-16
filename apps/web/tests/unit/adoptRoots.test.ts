@@ -4,8 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ValidationError } from "../../src/shared/errors";
 import { parseSettingsPutBody } from "../../src/server/http/validation";
-import { makeRootProbe, suggestedAdoptRoot } from "../../src/server/config/adoptRoots";
-import { NodeFileSystem } from "../../src/server/fs/NodeFileSystem";
+import { checkAdoptRoots, makeRootProbe, suggestedAdoptRoot } from "../../src/server/config/adoptRoots";
 import { toSettingsResponse } from "../../src/server/config/settingsView";
 
 describe("parseSettingsPutBody adoptRoots", () => {
@@ -42,7 +41,7 @@ describe("suggestedAdoptRoot", () => {
     home = fs.mkdtempSync(path.join(os.tmpdir(), "suggest-"));
   });
   afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
-  const probe = () => makeRootProbe(new NodeFileSystem());
+  const probe = () => makeRootProbe();
 
   it("is null when ~/Documents/Spotify Music does not exist", () => {
     expect(suggestedAdoptRoot(home, [], probe())).toBeNull();
@@ -66,5 +65,27 @@ describe("suggestedAdoptRoot", () => {
     expect(res.adoptRoots).toEqual(["/r"]);
     expect(res.suggestedAdoptRoot).toBe("/s");
     expect(toSettingsResponse({ libraryDir: "/l", sync: null }).adoptRoots).toEqual([]);
+  });
+});
+
+describe("checkAdoptRoots on real symlinks", () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "roots-")));
+    fs.mkdirSync(path.join(dir, "lib"));
+    fs.mkdirSync(path.join(dir, "music"));
+    fs.symlinkSync(path.join(dir, "lib"), path.join(dir, "lib-alias"));
+    fs.symlinkSync(path.join(dir, "music"), path.join(dir, "music-alias"));
+  });
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  it("refuses an alias of the library", () => {
+    const r = checkAdoptRoots([path.join(dir, "lib-alias")], [], path.join(dir, "lib"), makeRootProbe());
+    expect(r.ok).toBe(false);
+  });
+
+  it("stores a symlinked root as its real path", () => {
+    const r = checkAdoptRoots([path.join(dir, "music-alias")], [], path.join(dir, "lib"), makeRootProbe());
+    expect(r).toEqual({ ok: true, roots: [path.join(dir, "music")] });
   });
 });

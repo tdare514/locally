@@ -1,14 +1,14 @@
-import { statSync } from "node:fs";
+import { realpathSync, statSync } from "node:fs";
 import path from "node:path";
-import type { FileSystem } from "../fs/FileSystem";
 
 /** The two disk questions the Spotify-folder rules ask, injectable so tests need no real folders. */
 export interface RootProbe {
   isDirectory(target: string): boolean;
-  isInside(base: string, target: string): boolean;
+  /** The canonical path (symlinks resolved), or the resolved path itself when it does not exist. */
+  realpath(target: string): string;
 }
 
-export function makeRootProbe(fs: Pick<FileSystem, "isInside">): RootProbe {
+export function makeRootProbe(): RootProbe {
   return {
     isDirectory(target) {
       try {
@@ -17,7 +17,13 @@ export function makeRootProbe(fs: Pick<FileSystem, "isInside">): RootProbe {
         return false;
       }
     },
-    isInside: (base, target) => fs.isInside(base, target),
+    realpath(target) {
+      try {
+        return realpathSync.native(target);
+      } catch {
+        return path.resolve(target);
+      }
+    },
   };
 }
 
@@ -28,13 +34,36 @@ export function suggestedAdoptRoot(home: string, current: readonly string[], pro
   return probe.isDirectory(candidate) ? candidate : null;
 }
 
-/** Null when every root is a folder that sits clear of the library folder, else a user-safe message. */
-export function adoptRootsError(roots: readonly string[], libraryDir: string, probe: RootProbe): string | null {
-  for (const root of roots) {
-    if (!probe.isDirectory(root)) return `Couldn't find a folder at ${root}.`;
-    if (probe.isInside(libraryDir, root) || probe.isInside(root, libraryDir)) {
-      return "Choose a folder that is not your Locally library folder or inside it.";
+function inside(base: string, target: string): boolean {
+  const rel = path.relative(base, target);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
+export type RootsCheck = { ok: true; roots: string[] } | { ok: false; error: string };
+
+/**
+ * Canonicalises `requested` (realpath, de-duplicated) and checks it against the library folder, also by
+ * realpath, so a symlink alias cannot slip past. Only roots that are not already saved must exist: a
+ * saved folder that has gone missing can still be kept or removed. Returns the canonical roots to store.
+ */
+export function checkAdoptRoots(
+  requested: readonly string[],
+  saved: readonly string[],
+  libraryDir: string,
+  probe: RootProbe
+): RootsCheck {
+  const library = probe.realpath(libraryDir);
+  const known = new Set(saved.flatMap((r) => [path.resolve(r), probe.realpath(r)]));
+  const out: string[] = [];
+  for (const raw of requested) {
+    const resolved = path.resolve(raw);
+    const isNew = !known.has(resolved) && !known.has(probe.realpath(resolved));
+    if (isNew && !probe.isDirectory(resolved)) return { ok: false, error: `Couldn't find a folder at ${resolved}.` };
+    const root = probe.realpath(resolved);
+    if (inside(library, root) || inside(root, library)) {
+      return { ok: false, error: "Choose a folder that is not your Locally library folder or inside it." };
     }
+    if (!out.includes(root)) out.push(root);
   }
-  return null;
+  return { ok: true, roots: out };
 }

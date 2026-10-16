@@ -37,7 +37,9 @@ export async function POST(request: NextRequest) {
       const adoptRoots = settings.adoptRoots ?? [];
       const releases = adoptRoots.length > 0 ? await services.library.list(settings.libraryDir) : [];
       const isAdoptedFolder = releases.some((r) => r.adopted === true && path.resolve(r.folderPath) === target);
-      if (!isAdoptedFolder || !isReadablePath(services.fs, libraryDir, adoptRoots, target)) {
+      // A release stored straight in a Spotify folder has that folder itself as its folderPath.
+      const isRoot = adoptRoots.some((r) => path.resolve(r) === target);
+      if (!isAdoptedFolder || !(isRoot || isReadablePath(services.fs, libraryDir, adoptRoots, target))) {
         return badRequest("path must be inside the library directory");
       }
     }

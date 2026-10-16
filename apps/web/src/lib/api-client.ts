@@ -56,8 +56,8 @@ async function handle<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function getSettings(): Promise<SettingsResponse> {
-  const res = await fetch("/api/settings");
+export async function getSettings(signal?: AbortSignal): Promise<SettingsResponse> {
+  const res = await fetch("/api/settings", { signal });
   return handle<SettingsResponse>(res);
 }
 
@@ -213,8 +213,8 @@ export async function acceptFromPhone(id: string): Promise<{ ok: true; release: 
   return handle<{ ok: true; release: Release }>(res);
 }
 
-export async function getLibrary(): Promise<Library> {
-  const res = await fetch("/api/library");
+export async function getLibrary(signal?: AbortSignal): Promise<Library> {
+  const res = await fetch("/api/library", { signal });
   return handle<Library>(res);
 }
 

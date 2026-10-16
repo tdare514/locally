@@ -176,7 +176,18 @@ describe("POST /api/reveal for releases added from a Spotify folder (#249)", () 
     expect(execCalls).toEqual([{ cmd: "open", args: ["-R", folder] }]);
   });
 
-  it("refuses a Spotify folder path that no added release owns", async () => {
+  it("reveals the Spotify folder itself for a release stored straight in it", async () => {
+    releases = [release(spotifyDir, true)];
+    const res = await POST(revealRequest({ path: spotifyDir }));
+    expect(res.status).toBe(200);
+    expect(execCalls).toEqual([{ cmd: "open", args: ["-R", spotifyDir] }]);
+  });
+
+  it("still refuses a Spotify folder itself that no added release owns", async () => {
+    expect((await POST(revealRequest({ path: spotifyDir }))).status).toBe(400);
+  });
+
+  it("refuses a Spotify path that no added release owns", async () => {
     const res = await POST(revealRequest({ path: path.join(spotifyDir, "Masters", "Summer EP") }));
     expect(res.status).toBe(400);
     expect(execCalls).toEqual([]);

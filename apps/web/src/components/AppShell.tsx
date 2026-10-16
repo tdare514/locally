@@ -303,8 +303,9 @@ export default function AppShell() {
     >
       {/* The library sky fills the whole window, outside the scroller so it never scrolls away,
           and paints under both the sidebar and the pane. */}
-      {view.type === "library" && (library?.releases.length ?? 0) > 0 && (
-        <AmbientSpace palette={libraryPalette} />
+      {((view.type === "library" && (library?.releases.length ?? 0) > 0) || view.type === "adopt") && (
+        // The Spotify folders' review page sits in the library's colour space, with the neutral wash.
+        <AmbientSpace palette={view.type === "library" ? libraryPalette : null} />
       )}
       <Sidebar
         releases={library?.releases ?? []}
