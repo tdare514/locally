@@ -122,7 +122,13 @@ export class SyncAuthError extends Error {}
  */
 export interface SyncApi {
   requestCode(email: string): Promise<void>;
-  verifyCode(email: string, code: string, deviceName: string, platform: SyncPlatform): Promise<VerifyCodeResult>;
+  verifyCode(
+    email: string,
+    code: string,
+    deviceName: string,
+    platform: SyncPlatform,
+    installId?: string
+  ): Promise<VerifyCodeResult>;
   me(): Promise<MeResult>;
   revokeDevice(deviceId: string): Promise<void>;
   /** `DELETE /v1/me`: deletes the account, its devices, releases and files. Every device token
@@ -205,12 +211,13 @@ export class HttpSyncApi implements SyncApi {
     email: string,
     code: string,
     deviceName: string,
-    platform: SyncPlatform
+    platform: SyncPlatform,
+    installId?: string
   ): Promise<VerifyCodeResult> {
     const res = await fetch(this.url("/v1/auth/verify"), {
       method: "POST",
       headers: this.headers(true),
-      body: JSON.stringify({ email, code, deviceName, platform }),
+      body: JSON.stringify({ email, code, deviceName, platform, ...(installId ? { installId } : {}) }),
     });
     return this.handle<VerifyCodeResult>(res);
   }

@@ -50,6 +50,13 @@
       "when": 1792184438966,
       "tag": "0006_busy_red_wolf",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1792186042502,
+      "tag": "0007_goofy_shocker",
+      "breakpoints": true
     }
   ]
 }

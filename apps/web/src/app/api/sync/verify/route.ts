@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import os from "node:os";
 import { NextRequest, NextResponse } from "next/server";
 import { getServices } from "../../../../server/container";
@@ -17,10 +18,13 @@ export async function POST(request: NextRequest) {
     const body = parseSyncVerifyBody(rawBody);
 
     const services = getServices();
-    const settings = await services.settings.get();
+    // The install ID is made once, here, under the settings lock, and then kept (#210).
+    const settings = await services.settings.update((current) =>
+      current.installId ? null : { ...current, installId: crypto.randomUUID() }
+    );
     const baseUrl = settings.sync?.baseUrl ?? DEFAULT_SYNC_BASE_URL;
     const api = services.syncApiFactory(baseUrl, null);
-    const result = await api.verifyCode(body.email.trim(), body.code.trim(), os.hostname(), "mac");
+    const result = await api.verifyCode(body.email.trim(), body.code.trim(), os.hostname(), "mac", settings.installId);
 
     const updated = await services.settings.update((current) => ({
       ...current,
