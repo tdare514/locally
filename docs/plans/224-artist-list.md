@@ -25,12 +25,14 @@ Spotify's artist database isn't an option. Development-mode apps are capped and 
 
 ## Decisions for the owner
 
+Decided 16 Oct: 1 (an artist page) and 2 (featured artists as their own field). 3 and 4 stand as recommended unless the owner says otherwise.
+
 1. **An artist page, not just a filter (recommended).** It's what Apple Music, SoundCloud and Deezer do: a header with the name, then the releases.
    - **Header:** the artist's name over the cover wash of their newest release.
    - **Sections:** Albums, then Singles (cover tiles), then "Most played" (the top five tracks from plays, if any).
    - **Opens from:** the artist name on a release page (now a link in view mode), an artist in Stats (replacing today's filtered library), and a new Artists view in the library.
    - The alternative is to keep the filtered library: simpler, but it shows no plays and has no place for a rename.
-2. **Featured artists.** The list keeps each artist string whole, because that's what Spotify shows. An artist page for A also lists releases whose artist begins with A and then a featuring or joining part ("A feat. B", "A ft. B", "A & B", "A, B", "A x B"), under "Appears on". (Recommended.)
+2. **Featured artists are their own field (owner, 16 Oct).** People enter the features separately in Locally, and Locally shows the main artist and the features apart. Written to the files, they go where Spotify's own catalogue puts them: in the title, like "Song (feat. B)" or "Song (feat. B & C)", with the artist tag left as the main artist. That keeps all of an artist's songs under one name in Spotify. See "Featuring" below. A featured artist's page lists those tracks under "Appears on".
 3. **Renaming an artist everywhere is a separate, later step,** and needs your yes. It re-tags every file by that artist in place; files keep their names. The risk is Spotify playlists: a local file's playlist entry is keyed by its tags (`spotify:local:{artist}:{album}:{title}:{seconds}`, `docs/research/playlists.md`), so renamed tracks may drop out of playlists until re-added.
    - Before building it, one manual test: rename one artist on a track that's in a playlist, and see whether Spotify keeps it.
    - Adopted (read-only) releases are never renamed.
@@ -52,7 +54,7 @@ A pure `artistKey(name)` decides "same artist", and a pure `looksLike(a, b)` dec
   - they are equal after dropping a leading "the "
   - their edit distance is 1 (keys of 5 or more characters) or 2 (keys of 10 or more characters)
   - one is the other plus a featuring or joining part
-- **Primary artist,** for "Appears on": the part before the first " feat. ", " ft. ", " featuring ", " & ", ", ", " x " or " with ", compared by key.
+- **Featured names** come from the titles, by the Featuring rule below. Any track that features an artist is listed under "Appears on" on that artist's page. An artist string with " & " (a duo such as "Simon & Garfunkel") stays one artist.
 
 ### Suggestions as you type (both apps, every artist field)
 
@@ -79,10 +81,29 @@ A pure `artistKey(name)` decides "same artist", and a pure `looksLike(a, b)` dec
 - **Case-only difference:** when the key matches but the spelling differs (for example "the weeknd" against "The Weeknd"), the line reads "Matches The Weeknd. Use that spelling?" with the same link.
 - **On the iPhone review sheet** ("Check your changes"), a new artist that looks like an existing one gets the same line under the Artist row.
 
+### Featuring (both apps)
+
+**Storage.** No new stored field and no sync change. Each track's title keeps the features in Spotify's catalogue form, "Song (feat. B)" or "Song (feat. B & C)". Locally splits that into Title and Featuring when it shows or edits a track, and joins them again when it saves.
+- **The split rule:** a trailing "(feat. …)", "[feat. …]", "(ft. …)", "(featuring …)", or a bare " feat. " or " ft. " at the end of a title. Names are separated by ", " and " & ".
+- **Joining:** "(feat. " + the names joined with ", " and a final " & " + ")".
+- **Shared spec:** both rules go in `spec/artist-names.md` with fixtures, so both apps agree.
+
+**Editing.**
+- **A single,** on the import record and the release page: a **Featuring** field under Artist. Each name is a pill, with artist suggestions as you type and a pill's ✕ to remove it.
+- **An album:** each track row shows "feat. B" dimmed after the title. A small **feat.** button on the row (on hover or focus on the Mac, in edit mode on the iPhone) opens the same pill field for that track.
+
+**Imported files.**
+- A title in the form above already splits.
+- An artist tag like "A feat. B" shows as artist A featuring B. Nothing is rewritten until the user saves an edit to that release.
+  - On a brand-new import, before anything is in Spotify, the first save writes the title form.
+  - Adopted, read-only releases are never rewritten, so their Spotify identity stays as it is.
+
+**Display.** Wherever a track's artist line shows (track rows, Stats, the artist page), it reads "A, feat. B" with the feature dimmed, and the title shows without the "(feat. …)".
+
 ### Library by artist
 
 - **iPhone:** gains the Mac's sort control: Recently updated, Title, Artist A–Z, Year. It's remembered, like list or grid.
-- **New Artists view, both apps:** a third library view beside List and Grid. It shows every artist A–Z, by primary artist, with:
+- **New Artists view, both apps:** a third library view beside List and Grid. It shows every main artist A–Z (featured-only artists are included, with their "Appears on" count), with:
   - a small cover stack
   - the track count
   - the release count
@@ -97,7 +118,8 @@ A pure `artistKey(name)` decides "same artist", and a pure `looksLike(a, b)` dec
 
 ## Contract and compatibility
 
-- **No sync, API or tag change.** The artist strings already exist and sync. Everything is derived on each device.
+- **No sync or API change.** Artists, and features inside titles, already sync. Everything else is derived on each device.
+- **Tags:** features are written into the title (TIT2 / ©nam), as above. The artist tag (TPE1 / ©ART) holds only the main artist for tracks saved after this change.
 - **Old clients:** nothing changes for them.
 - **Adopted releases:** they appear in lists and pages. Their artist fields are read-only, so they never show suggestions.
 
@@ -131,8 +153,8 @@ A pure `artistKey(name)` decides "same artist", and a pure `looksLike(a, b)` dec
 
 ## Rollout (each an issue with a session brief)
 
-1. **The name key** (spec and fixtures, then both apps' pure helpers and tests). No UI.
-2. **Suggestions and "Did you mean"** on both apps' artist fields.
+1. **The name key and the Featuring split and join rules** (spec and fixtures, then both apps' pure helpers and tests). No UI.
+2. **Suggestions, "Did you mean" and the Featuring field** on both apps.
 3. **Artists view and artist page** on both apps, the iPhone's sort control, and Stats and release-page links to the page.
 4. **Later, only with your yes:** rename an artist everywhere, after the manual Spotify playlist test in decision 3.
 
@@ -143,7 +165,7 @@ Step 1 — Model: sonnet (pure functions from a written spec)
 Read only: docs/plans/224-artist-list.md, spec/fixtures/filenames/ (as the fixture pattern), apps/web/src/lib/library-sections.ts, apps/ios/Locally/Domain/LibrarySearch.swift
 Do not touch: any UI, sync, apps/api
 Verify: cd apps/web && npm run check; iOS xcodebuild test on a throwaway simulator
-Done when: spec/artist-names.md and spec/fixtures/artists/ exist and both apps pass every fixture
+Done when: spec/artist-names.md and spec/fixtures/artists/ (keys, look-alikes, feat. split/join) exist and both apps pass every fixture
 ```
 
 ```
@@ -151,7 +173,7 @@ Step 2 — Model: sonnet (UI from this plan), design judged by the session model
 Read only: this plan, the step 1 helpers, the Mac's inline field components and bulk edit, the iPhone's import record and release page fields
 Do not touch: sync, tag writers, apps/api
 Verify: npm run check; xcodebuild test; screenshots of suggestions and the warning on both apps
-Done when: both apps suggest artists and warn on look-alikes as above
+Done when: both apps suggest artists, warn on look-alikes, and edit features apart from the title, written as "Song (feat. B)"
 ```
 
 ```
