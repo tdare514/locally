@@ -1819,10 +1819,22 @@ body {
   color: #ecce78;
 }
 .st-rank[data-medal="silver"] {
-  color: #d3d8e0;
+  color: #b9c3d2;
 }
 .st-rank[data-medal="bronze"] {
   color: #dc9a5e;
+}
+/* The first three names in gold, silver and bronze too (owner, 15 Oct 2026): the list, the grid, the
+   fan and the sidebar. Each is at least as light as the #b3b3b3 grey the wash and scrim are tuned
+   for, so names stay 4.5:1 on a pale cover; that makes the bronze a shade lighter than the rank's. */
+.medal-name[data-medal="gold"] {
+  color: #ecce78;
+}
+.medal-name[data-medal="silver"] {
+  color: #b9c3d2;
+}
+.medal-name[data-medal="bronze"] {
+  color: #e8a970;
 }
 
 /* The grid's covers lift on hover or keyboard focus, and the sleeve's shadow deepens. */
@@ -2299,9 +2311,8 @@ body {
     0 calc(var(--w) * 0.075) calc(var(--w) * 0.14) calc(var(--w) * -0.07) rgb(0 0 0 / 0.8);
 }
 /* The medal records' shine, the owner's exception to "one shimmer per hover, never a loop" (15 Oct 2026):
-   once per 8s cycle a soft band glides left to right through the top half (::before, about 1.6s), a
-   light then runs clockwise along the rim like a turning record catching the light (.fan-record-rim,
-   about 1.6s), and a second band glides right to left through the body (::after, about 1.8s).
+   once per 8s cycle a soft band glides left to right through the top half (::before, about 1.6s), then
+   about two seconds later a second band glides right to left through the body (::after, about 1.8s).
    Gold leads; silver and bronze follow 0.3s and 0.6s behind in their own metal's light, so it ripples
    out from number one. Plain alpha, no blend mode, transform and opacity only, so the browser can run
    it off the main thread. The disc clips it, the grooves sit under it and the label over it. */
@@ -2319,9 +2330,11 @@ body {
   --shine-delay: 2.1s;
 }
 .fan-record[data-medal]::before,
-.fan-record[data-medal]::after,
-.fan-record-rim {
+.fan-record[data-medal]::after {
+  content: "";
   position: absolute;
+  left: 0;
+  width: 100%;
   z-index: 1;
   pointer-events: none;
   opacity: 0;
@@ -2329,12 +2342,6 @@ body {
   animation-iteration-count: infinite;
   animation-timing-function: linear;
   animation-delay: var(--shine-delay);
-}
-.fan-record[data-medal]::before,
-.fan-record[data-medal]::after {
-  content: "";
-  left: 0;
-  width: 100%;
 }
 .fan-record[data-medal]::before {
   top: 0;
@@ -2353,30 +2360,12 @@ body {
 .fan-record[data-medal] .fan-record-label {
   z-index: 2;
 }
-/* A thin ring at the disc's edge holding a comet of light: a bright head with a soft tail behind it.
-   Turning the ring carries the light round the rim; only the top of the rim shows above the sleeve. */
-.fan-record-rim {
-  inset: 0;
-  border-radius: 9999px;
-  background: conic-gradient(from -46deg, transparent 0deg, rgb(var(--shine) / 0.2) 22deg, rgb(var(--shine) / 0.7) 38deg, rgb(var(--shine) / 0.95) 44deg, transparent 50deg 360deg);
-  -webkit-mask: radial-gradient(closest-side, transparent 89%, #000 94%, #000 98.5%, transparent 100%);
-  mask: radial-gradient(closest-side, transparent 89%, #000 94%, #000 98.5%, transparent 100%);
-  transform: rotate(-58deg);
-  animation-name: fan-shine-rim;
-}
 @keyframes fan-shine-sweep-a {
   0% { transform: translateX(-100%); opacity: 0; animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1); }
   4% { opacity: 1; }
   17% { opacity: 1; }
   20% { transform: translateX(100%); opacity: 0; }
   100% { transform: translateX(100%); opacity: 0; }
-}
-@keyframes fan-shine-rim {
-  0%, 16% { transform: rotate(-58deg); opacity: 0; animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1); }
-  19% { opacity: 1; }
-  33% { opacity: 1; }
-  36% { transform: rotate(58deg); opacity: 0; }
-  100% { transform: rotate(58deg); opacity: 0; }
 }
 @keyframes fan-shine-sweep-b {
   0%, 45% { transform: translateX(100%); opacity: 0; animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1); }
@@ -2574,8 +2563,7 @@ body {
     opacity: 1;
   }
   .fan-record[data-medal]::before,
-  .fan-record[data-medal]::after,
-  .fan-record-rim {
+  .fan-record[data-medal]::after {
     animation: none;
     opacity: 0;
   }

@@ -152,7 +152,9 @@ export default function SleeveFan({
         // Where the sleeves are small the tag no longer fits on the cover; this says the same under the fan.
         // Hidden from screen readers: each sleeve's own name already carries the title and plays.
         <p aria-hidden className="fan-caption">
-          <span className="fan-caption-title">{shown[current].title}</span>
+          <span className="fan-caption-title medal-name" data-medal={medalFor(shown[current].rank)}>
+            {shown[current].title}
+          </span>
           <span className="fan-caption-plays">{playsLabel(shown[current].plays)}</span>
         </p>
       )}
@@ -213,7 +215,6 @@ function Sleeve({
         {!disc && (
           <span aria-hidden data-medal={medal} className="fan-record">
             <span className="fan-record-label" style={cover ? { backgroundImage: `url("${cover}")` } : undefined} />
-            {medal && <span aria-hidden className="fan-record-rim" />}
           </span>
         )}
         {cover ? (
@@ -228,7 +229,9 @@ function Sleeve({
           {item.rank}
         </span>
         <span aria-hidden className="fan-tag">
-          <span className="fan-tag-title line-clamp-2">{item.title}</span>
+          <span className="fan-tag-title medal-name line-clamp-2" data-medal={medal}>
+            {item.title}
+          </span>
           <span className="fan-tag-plays">{playsLabel(item.plays)}</span>
         </span>
       </button>

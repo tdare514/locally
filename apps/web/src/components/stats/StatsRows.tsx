@@ -77,7 +77,9 @@ export function StatsList({
               </span>
               <StatCover cover={item.cover} round={round} className="h-11 w-11 shadow-[0_8px_18px_-8px_rgb(0_0_0/0.7)]" />
               <span className="min-w-0">
-                <span className="block truncate text-[15px] font-semibold">{item.title}</span>
+                <span className="medal-name block truncate text-[15px] font-semibold" data-medal={medalFor(item.rank)}>
+                  {item.title}
+                </span>
                 <span className="block truncate text-sm text-text-muted">{item.subtitle}</span>
               </span>
               <span className="st-row-last truncate text-sm text-text-muted">{lastPlayedLabel(item.lastPlayedDay, today)}</span>
@@ -135,7 +137,10 @@ function Tile({ item, tier, round, onOpen }: { item: StatItem; tier: number; rou
           </span>
         </span>
         <span className="mt-2 block text-left">
-          <span className={`block truncate font-semibold ${tier === 0 ? "text-sm" : tier === 1 ? "text-[13px]" : "text-xs"}`}>
+          <span
+            className={`medal-name block truncate font-semibold ${tier === 0 ? "text-sm" : tier === 1 ? "text-[13px]" : "text-xs"}`}
+            data-medal={medalFor(item.rank)}
+          >
             {item.title}
           </span>
           {caption === "full" && <span className="block truncate text-[13px] text-text-muted">{item.subtitle}</span>}

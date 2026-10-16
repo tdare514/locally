@@ -84,7 +84,10 @@ function Row({
       <span key={item.id} className="sb-swap relative flex min-w-0 flex-1 items-center gap-2.5">
         {lead && <StatCover cover={item.cover} round={round} className="h-10 w-10" />}
         <span className="min-w-0 flex-1">
-          <span className={`block truncate ${lead ? "text-sm font-semibold" : "text-[13px] font-medium"} text-text`}>
+          <span
+            data-medal={medal}
+            className={`medal-name block truncate ${lead ? "text-sm font-semibold" : "text-[13px] font-medium"} text-text`}
+          >
             {item.title}
           </span>
           <span className={lead ? "block truncate text-[11px] text-text-muted" : "sr-only"}>{item.subtitle}</span>
