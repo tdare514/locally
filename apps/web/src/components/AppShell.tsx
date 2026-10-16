@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Library, Release, ReleaseKind, SyncStatus } from "../shared/types";
 import { acceptFromPhone, getLibrary, getSyncStatus, resyncFromPhone } from "../lib/api-client";
 import Sidebar, { type SidebarPage } from "./sidebar/Sidebar";
@@ -10,10 +10,22 @@ import ImportView from "./ImportView";
 import ReleaseView from "./ReleaseView";
 import SettingsView from "./SettingsView";
 import StatsView, { DEFAULT_STATS_PREFS, type StatsPrefs } from "./stats/StatsView";
+import { STATS_PAGE_SIZE } from "../lib/stats-layout";
 import type { LibrarySort } from "../lib/library-sections";
 import AmbientSpace from "./AmbientSpace";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
 import PhoneInbox, { type ResyncOutcome } from "./PhoneInbox";
+import BackButton from "./BackButton";
+import { runScrollRestore } from "../lib/scroll-restore";
+import {
+  backLabel,
+  clearStack,
+  popEntry,
+  pushEntry,
+  stackAfterImport,
+  type BackEntry,
+  type BackStack,
+} from "../lib/back-stack";
 import Toast, { type ToastMessage } from "./Toast";
 
 export type View =
@@ -22,6 +34,15 @@ export type View =
   | { type: "release"; id: string; justImported?: boolean; trackId?: string }
   | { type: "settings"; section?: "account" }
   | { type: "stats" };
+
+/** What a back entry restores besides the view: the state AppShell keeps for the pages. */
+interface BackState {
+  query: string;
+  sort: LibrarySort;
+  stats: StatsPrefs;
+  /** Rows the Stats ranking shows after "Show more". */
+  statsShown: number;
+}
 
 export default function AppShell() {
   const [view, setView] = useState<View>({ type: "library" });
@@ -37,6 +58,13 @@ export default function AppShell() {
   // sits outside the scrolling pane.
   const [ambientCoverUrl, setAmbientCoverUrl] = useState<string | null>(null);
   const libraryPalette = useArtworkPalette(view.type === "library" ? ambientCoverUrl : null);
+  // The views left behind by opening a release or an artist's library (#258). A page chosen from
+  // the rail, sidebar panel or profile clears it.
+  const [backStack, setBackStack] = useState<BackStack<View, BackState>>(clearStack);
+  const pendingScroll = useRef<number | null>(null);
+  // Stats says when its ranking has loaded (or failed); every other page is ready at once.
+  const contentReady = useRef(true);
+  const [statsShown, setStatsShown] = useState(STATS_PAGE_SIZE);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const nextToastId = useRef(0);
   // The library sky follows the scroll through --pane-progress and --pane-swirl on the sky
@@ -136,18 +164,101 @@ export default function AppShell() {
     return () => clearInterval(id);
   }, [syncStatus?.signedIn, refreshSyncStatus]);
 
+  function snapshot(): BackEntry<View, BackState> {
+    return {
+      view,
+      scrollTop: mainRef.current?.scrollTop ?? 0,
+      state: { query: libraryQuery, sort: librarySort, stats: statsPrefs, statsShown },
+    };
+  }
+
+  /** Opens a view and remembers the current one, so the back button can return to it. */
+  function pushTo(next: View) {
+    setBackStack((prev) => pushEntry(prev, snapshot()));
+    setView(next);
+  }
+
+  /** A page chosen from the rail, sidebar panel, profile or a Settings link: a fresh history. */
+  function goTo(next: View) {
+    setBackStack(clearStack());
+    setView(next);
+  }
+
+  function goBack() {
+    const popped = popEntry(backStack);
+    if (!popped) return;
+    // Leaving a release by back drops unsaved edits, exactly as leaving it by the rail does.
+    setBackStack(popped.stack);
+    setLibraryQuery(popped.entry.state.query);
+    setLibrarySort(popped.entry.state.sort);
+    setStatsPrefs(popped.entry.state.stats);
+    setStatsShown(popped.entry.state.statsShown);
+    pendingScroll.current = popped.entry.scrollTop;
+    contentReady.current = popped.entry.view.type !== "stats";
+    setView(popped.entry.view);
+  }
+
+  // Put the scroll back once the earlier page is tall enough (Stats loads its rankings after it
+  // mounts); it stops when the user scrolls or presses a key, or after 3 s.
+  useLayoutEffect(() => {
+    const top = pendingScroll.current;
+    if (top === null) return;
+    pendingScroll.current = null;
+    const main = mainRef.current;
+    if (!main) return;
+    return runScrollRestore(main, top, () => contentReady.current);
+  }, [view]);
+
+  // Cmd+[ and the mouse's back button. Not while typing in a field.
+  const goBackRef = useRef(goBack);
+  useEffect(() => {
+    goBackRef.current = goBack;
+  });
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!e.metaKey || e.key !== "[") return;
+      const t = e.target;
+      if (
+        t instanceof HTMLElement &&
+        (t.isContentEditable || t.tagName === "INPUT" || t.tagName === "TEXTAREA")
+      )
+        return;
+      e.preventDefault();
+      goBackRef.current();
+    }
+    function onMouseUp(e: MouseEvent) {
+      if (e.button !== 3) return;
+      e.preventDefault();
+      goBackRef.current();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, []);
+
   function handleImported(release: Release) {
     refreshLibrary();
+    // Back from a fresh import goes to the Library, not to the used import page.
+    setBackStack(
+      stackAfterImport({
+        view: { type: "library" },
+        scrollTop: 0,
+        state: { query: libraryQuery, sort: librarySort, stats: statsPrefs, statsShown },
+      })
+    );
     setView({ type: "release", id: release.id, justImported: release.kind === "album" });
   }
 
   function handleDeleted() {
     refreshLibrary();
-    setView({ type: "library" });
+    goTo({ type: "library" });
   }
 
   function openImport(kind?: ReleaseKind) {
-    setView({ type: "import", kind });
+    goTo({ type: "import", kind });
   }
 
   // The sidebar highlights the page on screen; a release page is none of them.
@@ -194,11 +305,11 @@ export default function AppShell() {
         releases={library?.releases ?? []}
         loading={loadingLibrary}
         activePage={activePage}
-        onLibraryClick={() => setView({ type: "library" })}
+        onLibraryClick={() => goTo({ type: "library" })}
         onImportClick={() => openImport()}
-        onSettingsClick={() => setView({ type: "settings" })}
-        onProfileClick={() => setView({ type: "settings", section: "account" })}
-        onStatsClick={() => setView({ type: "stats" })}
+        onSettingsClick={() => goTo({ type: "settings" })}
+        onProfileClick={() => goTo({ type: "settings", section: "account" })}
+        onStatsClick={() => goTo({ type: "stats" })}
         signedIn={syncStatus?.signedIn ?? false}
         email={syncStatus?.email ?? null}
         palette={view.type === "library" ? libraryPalette : null}
@@ -210,7 +321,11 @@ export default function AppShell() {
       <div className="sb-stage relative isolate min-h-0 min-w-0 flex-1">
         <main
           ref={mainRef}
-          className="relative isolate h-full overflow-y-auto p-6 md:p-10 lg:p-16"
+          className={`relative isolate h-full overflow-y-auto p-6 md:p-10 lg:p-16 ${
+            // Room under the back button where the page's own padding would run into it; at lg
+            // the padding already clears it.
+            backStack.length > 0 ? "pt-[4.5rem] md:pt-20 lg:pt-16" : ""
+          }`}
         >
           {view.type === "library" && (
             <LibraryView
@@ -220,7 +335,7 @@ export default function AppShell() {
               sort={librarySort}
               onQueryChange={setLibraryQuery}
               onSortChange={setLibrarySort}
-              onSelectRelease={(id) => setView({ type: "release", id })}
+              onSelectRelease={(id) => pushTo({ type: "release", id })}
               onImport={openImport}
               onBulkDone={refreshLibrary}
               onToast={showToast}
@@ -245,7 +360,7 @@ export default function AppShell() {
               onDeleted={handleDeleted}
               onUpdated={refreshLibrary}
               onToast={showToast}
-              onOpenSettings={() => setView({ type: "settings" })}
+              onOpenSettings={() => goTo({ type: "settings" })}
             />
           )}
           {view.type === "stats" && (
@@ -253,14 +368,23 @@ export default function AppShell() {
               releases={library?.releases ?? []}
               loadingLibrary={loadingLibrary}
               prefs={statsPrefs}
-              onPrefsChange={(patch) => setStatsPrefs((prev) => ({ ...prev, ...patch }))}
-              onOpenRelease={(id, trackId) => setView({ type: "release", id, trackId })}
+              onContentReady={() => {
+                contentReady.current = true;
+              }}
+              shown={statsShown}
+              onShownChange={setStatsShown}
+              onPrefsChange={(patch) => {
+                // A new tab, period or layout starts its ranking at the first page again.
+                if ("tab" in patch || "period" in patch || "layout" in patch) setStatsShown(STATS_PAGE_SIZE);
+                setStatsPrefs((prev) => ({ ...prev, ...patch }));
+              }}
+              onOpenRelease={(id, trackId) => pushTo({ type: "release", id, trackId })}
               onOpenArtist={(name) => {
                 // The library's own search finds an artist by name.
+                pushTo({ type: "library" });
                 setLibraryQuery(name);
-                setView({ type: "library" });
               }}
-              onOpenSettings={() => setView({ type: "settings" })}
+              onOpenSettings={() => goTo({ type: "settings" })}
             />
           )}
           {view.type === "settings" && (
@@ -272,6 +396,16 @@ export default function AppShell() {
             />
           )}
         </main>
+        {/* The back button's wrapper has no `left`: an absolute box with left auto starts at the pane's
+            padding edge, so it clears the rail (and the pinned panel) the way the page does. */}
+        {backStack.length > 0 && (
+          <div className="absolute top-4 z-20 ml-4 md:top-6 md:ml-6">
+            <BackButton
+              label={backLabel(backStack[backStack.length - 1].view.type)}
+              onClick={goBack}
+            />
+          </div>
+        )}
         {!IS_DEMO && (
           <div className="absolute right-4 top-4 z-20 md:right-6 md:top-6">
             <PhoneInbox
