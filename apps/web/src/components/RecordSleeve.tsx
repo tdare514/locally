@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 interface RecordSleeveProps {
   /** The sleeve: the release's cover picker in its `sleeve` presentation. */
   children: ReactNode;
-  /** The cover, printed on the record's centre label. Null shows the accent house label. */
+  /** The cover, printed on the record's centre label. Null shows the black label. */
   labelUrl: string | null;
   /** Bumped after each successful save; every new value tucks the record into the sleeve
    * and brings it back out spinning. */
@@ -29,7 +29,7 @@ export default function RecordSleeve({ children, labelUrl, spin, discKey }: Reco
       >
         <div className={`record-face ${spin > 0 ? "record-spin" : ""}`}>
           <div
-            className="record-label"
+            className={`record-label ${labelUrl ? "" : "record-label-bare"}`}
             style={labelUrl ? { backgroundImage: `url("${labelUrl}")` } : undefined}
           />
         </div>

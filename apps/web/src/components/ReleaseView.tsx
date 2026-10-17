@@ -1,6 +1,5 @@
 "use client";
 
-import type { CSSProperties } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Release, UpdateReleaseMeta } from "../shared/types";
 import {
@@ -29,7 +28,12 @@ import { useArtworkPalette } from "../lib/use-artwork-palette";
 import { IS_DEMO } from "../lib/demo";
 import { UNKNOWN_ARTIST } from "../shared/adopt";
 import { folderAfterRoot } from "../lib/adopt-review";
-import HouseSleeve from "./HouseSleeve";
+import NoCover from "./NoCover";
+import ReleaseBar, { BarConfirm, useBarConfirm } from "./ReleaseBar";
+import { libraryWidthClass } from "../lib/library-view-prefs";
+import { useLibraryWidth } from "../lib/use-library-width";
+import { usePaneWidth } from "../lib/use-element-size";
+import { BAR_MIN_HEIGHT, barPadding, detailsBesideSleeve } from "../lib/page-layout";
 import ArtistCombobox from "./ArtistCombobox";
 import type { ArtistEntry } from "../lib/artist-index";
 
@@ -192,7 +196,13 @@ export default function ReleaseView({
   const shown = useRef<Release | null>(initialRelease ?? null);
   const [saving, setSaving] = useState(false);
   const [replacingCover, setReplacingCover] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const {
+    open: confirmingDelete,
+    ask: askDelete,
+    cancel: cancelDelete,
+    close: closeDeleteConfirm,
+    bindOpener: bindDeleteOpener,
+  } = useBarConfirm();
   const [deleting, setDeleting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [spin, setSpin] = useState(0);
@@ -202,10 +212,19 @@ export default function ReleaseView({
   const [playlists, setPlaylists] = useState<Record<string, { id: string; name: string }[]>>({});
   const copiedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   // A release added from a Spotify folder (#249) opens in view mode: nothing on it is editable.
-  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const {
+    open: confirmingRemove,
+    ask: askRemove,
+    cancel: cancelRemove,
+    bindOpener: bindRemoveOpener,
+  } = useBarConfirm();
   const [removing, setRemoving] = useState(false);
   const [adoptRoots, setAdoptRoots] = useState<string[]>([]);
   const isAdopted = release?.adopted === true;
+  const [width] = useLibraryWidth();
+  const pageRef = useRef<HTMLDivElement>(null);
+  const paneWidth = usePaneWidth(pageRef, !loading && release !== null);
+  const [barHeight, setBarHeight] = useState(BAR_MIN_HEIGHT);
 
   const artworkUrl = release?.coverPath ? coverUrl(release.id, release.updatedAt) : null;
   const palette = useArtworkPalette(artworkUrl);
@@ -239,19 +258,18 @@ export default function ReleaseView({
 
   const load = useCallback(() => {
     if (!shown.current) setLoading(true);
-    setConfirmingDelete(false);
+    closeDeleteConfirm();
     getRelease(releaseId)
       .then(applyRelease)
       .catch((e) =>
         onToast("error", e instanceof Error ? e.message : "Failed to load release")
       )
       .finally(() => setLoading(false));
-  }, [releaseId, applyRelease, onToast]);
+  }, [releaseId, applyRelease, onToast, closeDeleteConfirm]);
 
   useEffect(() => {
     // Fetch-on-mount: load() sets loading state before its async fetch resolves. ReleaseView is
     // remounted (via `key={releaseId}`) whenever the selected release changes.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
 
@@ -383,10 +401,6 @@ export default function ReleaseView({
 
   async function handleDelete() {
     if (!release) return;
-    if (!confirmingDelete) {
-      setConfirmingDelete(true);
-      return;
-    }
     setDeleting(true);
     try {
       await deleteRelease(release.id);
@@ -428,27 +442,32 @@ export default function ReleaseView({
   const trackCount = `${tracks.length} track${tracks.length === 1 ? "" : "s"}`;
   const unsaved = buildPatch(release, { title, artist, year, genre, tracks }) !== null;
 
+  const beside = detailsBesideSleeve(paneWidth);
+  const durations = Object.fromEntries(release.tracks.map((t) => [t.id, t.durationSec]));
+
   return (
-    <div className="mx-auto flex max-w-[920px] flex-col gap-12 pb-16">
+    // The bottom margin cancels the pane's own bottom padding (AppShell's p-6 md:p-10 lg:p-16), so the
+    // bar's anchor sits at the pane's bottom edge and the bar stays 24 above it at the end of the scroll.
+    <div ref={pageRef} className={`flex min-h-[calc(100%+1.5rem)] flex-col -mb-6 md:min-h-[calc(100%+2.5rem)] md:-mb-10 lg:min-h-[calc(100%+4rem)] lg:-mb-16 ${libraryWidthClass(width)}`}>
+      <div className="flex flex-1 flex-col gap-12" style={{ paddingBottom: barPadding(barHeight) }}>
       <AmbientBackdrop palette={palette} />
       {!isAdopted && <SpotifySourceBanner onOpenSettings={onOpenSettings} onToast={onToast} />}
 
-      {/* From lg up the record and the tracks share a left column and the dock gets a column of
-          its own on the right, spanning both so it stays pinned while the tracks scroll. Below lg
-          everything stacks and the dock sits under the details. */}
-      <div className="flex flex-col gap-12 lg:grid lg:grid-cols-[minmax(0,1fr)_13rem] lg:items-start lg:gap-x-10">
-        {/* The record is the hero: the sleeve (cover picker) with the disc peeking out, and the
-            details set directly under it as inline text rather than a form (#112). */}
-        <header className="flex flex-col gap-8 pt-2 lg:col-start-1 lg:row-start-1 lg:pt-4">
+      {/* The record is the hero: the sleeve (cover picker) with the disc peeking out. The details sit
+          beside it once the pane is wider than about 900, bottom-aligned to it, and under it below
+          that. The actions are in the release bar at the bottom of the pane. */}
+      <div className="flex flex-col gap-12">
+        <header className={`flex pt-2 lg:pt-4 ${beside ? "flex-row items-end gap-10" : "flex-col gap-8"}`}>
           <RecordSleeve labelUrl={artworkUrl} spin={spin}>
             {isAdopted ? (
-              // View mode: the sleeve is only a picture, with no pencil badge and no picker.
+              // View mode: the sleeve is only a picture, with no pencil badge and no picker. With no
+              // cover it is the note and nothing else.
               <div className="record-sleeve relative size-[200px] overflow-hidden rounded-[4px] bg-card sm:size-[248px]">
                 {artworkUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={artworkUrl} alt="" className="h-full w-full object-cover" />
                 ) : (
-                  <HouseSleeve className="h-full w-full" />
+                  <NoCover className="h-full w-full" />
                 )}
               </div>
             ) : (
@@ -463,7 +482,7 @@ export default function ReleaseView({
             )}
           </RecordSleeve>
 
-          <div className="flex min-w-0 flex-col gap-3">
+          <div className={`flex min-w-0 flex-col gap-3 ${beside ? "flex-1" : ""}`}>
             {!isAdopted && <h1 className="sr-only">{headerTitle}</h1>}
             <p className="text-sm text-white/70">
               {release.kind === "single" ? "Single" : "Album"} · {trackCount}
@@ -525,102 +544,15 @@ export default function ReleaseView({
           </div>
         </header>
 
-        {/* Dock: under the details below lg; from lg up a column on the right, level with the
-            record. It pins to the top of the pane so the save action stays in reach while you
-            edit the tracks. A sticky offset counts from <main>'s padding edge, so the 4rem of
-            lg:p-16 plus top-4 leaves the dock 5rem below the pane's top: clear of the phone-tray
-            button AppShell pins there (md:top-6 + --tray-size = 4rem, and a rem of air). Keep
-            that sum if the pane's padding changes. */}
-        <div
-          // The Save button's hover glow takes the cover's colour (#155); without a cover it stays the accent.
-          style={palette ? ({ "--btn-tint": palette.primary } as CSSProperties) : undefined}
-          className="sticky top-4 z-10 -my-4 flex w-fit max-w-full flex-wrap items-center gap-2 self-start rounded-[26px] glass-fake glass-dock p-1.5 pr-3 sm:rounded-full lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:my-0 lg:w-auto lg:flex-col lg:items-stretch lg:gap-1 lg:rounded-[26px] lg:p-2">
-          {!isAdopted && (
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving || IS_DEMO}
-              title={IS_DEMO ? "Not available in the demo" : undefined}
-              className="btn-save"
-            >
-              {saving ? "Saving…" : "Save to library"}
-            </button>
-          )}
-          {unsaved && !IS_DEMO && !confirmingDelete && !isAdopted && (
-            <span className="px-1 text-xs text-text-muted lg:py-1 lg:text-center">Unsaved changes</span>
-          )}
-          <button
-            type="button"
-            onClick={handleReveal}
-            disabled={IS_DEMO}
-            title={IS_DEMO ? "Not available in the demo" : undefined}
-            className="btn-save"
-          >
-            Show in Finder
-          </button>
-          {isAdopted ? (
-            confirmingRemove ? (
-              // The release page's confirm style, without the red: the files stay where they are.
-              <span className="flex items-center gap-2 text-sm lg:flex-col lg:items-stretch lg:gap-1">
-                <span className="pl-1 text-text-muted lg:py-1 lg:pl-0 lg:text-center">
-                  Remove from Locally? The files stay in your Spotify folder, and Check for new files can add it back.
-                </span>
-                <button type="button" onClick={handleRemove} disabled={removing} className="btn-save">
-                  {removing ? "Removing…" : "Remove"}
-                </button>
-                <button type="button" onClick={() => setConfirmingRemove(false)} disabled={removing} className="btn-ink">
-                  <span className="btn-ink-label">Cancel</span>
-                </button>
-              </span>
-            ) : (
-              <button type="button" onClick={() => setConfirmingRemove(true)} className="btn-ink">
-                <span className="btn-ink-label">Remove from Locally</span>
-              </button>
-            )
-          ) : (
-            <>
-          {confirmingDelete ? (
-            <span className="flex items-center gap-2 text-sm lg:flex-col lg:items-stretch lg:gap-1">
-              <span className="pl-1 text-text-muted lg:py-1 lg:pl-0 lg:text-center">
-                Delete this release?
-              </span>
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="rounded-full bg-danger px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                {deleting ? "Deleting…" : "Confirm delete"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmingDelete(false)}
-                className="btn-ink"
-              >
-                <span className="btn-ink-label">Cancel</span>
-              </button>
-            </span>
-          ) : (
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={IS_DEMO}
-              title={IS_DEMO ? "Not available in the demo" : undefined}
-              className="btn-ink-danger"
-            >
-              <span className="btn-ink-label">Delete</span>
-            </button>
-          )}
-            </>
-          )}
-        </div>
-        <div className="flex flex-col gap-3 lg:col-start-1 lg:row-start-2">
+        <div className="flex flex-col gap-3">
           <h2 className="text-lg font-bold tracking-[-0.03em] text-text">Tracks</h2>
           <TrackList
             tracks={tracks}
             onChange={handleTracksChange}
             readOnly={IS_DEMO || isAdopted}
             view={viewTracks}
+            durations={durations}
+            releaseArtist={artistShown}
             plays={plays}
             playlists={playlists}
             onOpenPlaylist={handleOpenPlaylist}
@@ -630,6 +562,7 @@ export default function ReleaseView({
           )}
         </div>
       </div>
+
 
       {release.kind === "album" && (
         <details
@@ -657,7 +590,86 @@ export default function ReleaseView({
           </div>
         </details>
       )}
+      </div>
 
+      <ReleaseBar
+        label="Release actions"
+        tint={palette?.primary}
+        onHeight={setBarHeight}
+        left={
+          isAdopted ? (
+            confirmingRemove ? (
+              // The release page's confirm style, without the red: the files stay where they are.
+              <BarConfirm
+                message="Remove from Locally? The files stay in your Spotify folder, and Check for new files can add it back."
+                onCancel={cancelRemove}
+                disabled={removing}
+              >
+                <button type="button" onClick={handleRemove} disabled={removing} className="btn-save">
+                  {removing ? "Removing…" : "Remove"}
+                </button>
+              </BarConfirm>
+            ) : (
+              <button ref={bindRemoveOpener} type="button" onClick={askRemove} className="btn-ink">
+                <span className="btn-ink-label">Remove from Locally</span>
+              </button>
+            )
+          ) : confirmingDelete ? (
+            <BarConfirm message="Delete this release?" onCancel={cancelDelete}>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="rounded-full bg-danger px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {deleting ? "Deleting…" : "Confirm delete"}
+              </button>
+            </BarConfirm>
+          ) : (
+            <button
+              ref={bindDeleteOpener}
+              type="button"
+              onClick={askDelete}
+              disabled={IS_DEMO}
+              title={IS_DEMO ? "Not available in the demo" : undefined}
+              className="btn-ink-danger"
+            >
+              <span className="btn-ink-label">Delete</span>
+            </button>
+          )
+        }
+        status={unsaved && !IS_DEMO && !confirmingDelete && !isAdopted ? "Unsaved changes" : undefined}
+        beforeMain={
+          isAdopted ? undefined : (
+            <button
+              type="button"
+              onClick={handleReveal}
+              disabled={IS_DEMO}
+              title={IS_DEMO ? "Not available in the demo" : undefined}
+              className="btn-ink"
+            >
+              <span className="btn-ink-label">Show in Finder</span>
+            </button>
+          )
+        }
+        main={
+          isAdopted ? (
+            <button type="button" onClick={handleReveal} disabled={IS_DEMO} className="btn-save btn-save-lit">
+              Show in Finder
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || IS_DEMO}
+              title={IS_DEMO ? "Not available in the demo" : undefined}
+              className="btn-save btn-save-lit"
+            >
+              {saving ? "Saving…" : "Save to library"}
+            </button>
+          )
+        }
+      />
     </div>
   );
 }

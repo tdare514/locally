@@ -272,7 +272,7 @@ export function lastCheckedLine(iso: string, now: Date = new Date(), locale?: st
   return `Last checked ${day} at ${time}`;
 }
 
-/** The sleeve for a row or release with no cover is the house label; the artist shown for an empty tag. */
+/** The artist shown for an empty tag (a row or release with no cover shows the `NoCover` note). */
 export function displayArtist(artist: string, unknownArtist: string): string {
   return artist.trim() === "" ? unknownArtist : artist;
 }
