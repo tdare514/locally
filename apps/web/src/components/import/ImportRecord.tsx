@@ -7,6 +7,7 @@ import RecordSleeve from "../RecordSleeve";
 import TrackList, { type EditableTrack } from "../TrackList";
 import ArtistCombobox from "../ArtistCombobox";
 import type { ArtistEntry } from "../../lib/artist-index";
+import FeaturingRow from "../FeaturingRow";
 
 /** What the page shows of the cover beat: nothing before a cover, "playing" while it runs,
  * "settled" once it has ended or been skipped. */
@@ -176,6 +177,14 @@ export default function ImportRecord({
               hintClassName="self-start"
               inputClassName={`field-sizing-content min-w-[16ch] max-w-full rounded-md bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent ${UNDERLINE}`}
             />
+            {kind === "single" && tracks.length > 0 && (
+              <FeaturingRow
+                names={tracks[0].featuring ?? []}
+                onChange={(featuring) => onTracksChange(tracks.map((t, i) => (i === 0 ? { ...t, featuring } : t)))}
+                index={artistIndex}
+                inputExtraClassName={UNDERLINE}
+              />
+            )}
             <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-[15px]">
               <InlineField
                 label="Year"
@@ -216,7 +225,12 @@ export default function ImportRecord({
             <h2 className="text-lg font-bold tracking-[-0.03em] text-text">Tracks</h2>
             {inspecting && <p className="text-xs text-text-muted">Reading tags…</p>}
           </div>
-          <TrackList tracks={tracks} onChange={onTracksChange} onRemove={onRemoveTrack} />
+          <TrackList
+            tracks={tracks}
+            onChange={onTracksChange}
+            onRemove={onRemoveTrack}
+            featuringIndex={kind === "album" ? artistIndex : undefined}
+          />
         </div>
       </div>
     </div>

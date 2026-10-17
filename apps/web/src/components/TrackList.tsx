@@ -17,12 +17,18 @@ import { adoptDiscAfterMove, discActionsFor, discHeadings, joinPreviousDisc, sta
 import DiscMenu from "./DiscMenu";
 import { XIcon } from "./Icons";
 import TrackPlaylistsLine, { type PlaylistRef } from "./TrackPlaylistsLine";
+import TrackFeaturing from "./TrackFeaturing";
+import type { ArtistEntry } from "../lib/artist-index";
+import { featuringText } from "../lib/featuring-field";
 
 export interface EditableTrack {
   /** Stable identifier for this row — a release track's `id`, or a locally-generated key
    * for a not-yet-imported file. Travels with the row when the list is reordered. */
   key: string;
   title: string;
+  /** The featured artists, kept apart from the plain `title` (#287); the stored title is
+   * `joinFeaturing(title, featuring)`. Absent means none. */
+  featuring?: string[];
   /** Which disc the track is on, when the release has discs. It sets the "Disc N" headings and
    * travels with the row when the list is reordered; a row moved in among another disc's rows
    * joins that disc (`moveTrack`). */
@@ -45,6 +51,9 @@ interface TrackListProps {
   /** View mode (a release added from a Spotify folder, #249): titles are plain text, each row shows its
    * length (by `key`) where an edit would not fit, and a track whose file is gone says "File missing". */
   view?: Record<string, { durationSec: number | null; missing?: boolean }>;
+  /** Album rows get a "feat." button after the title that opens the Featuring popover (#287). A
+   * single's names are edited in the Featuring row under its Artist, so it leaves this off. */
+  featuringIndex?: ArtistEntry[];
 }
 
 /** Pixels the pointer must travel before a press turns into a drag. */
@@ -122,7 +131,7 @@ interface Drag {
  * fields. Reorder by dragging a row (or its grip) or from the keyboard: focus the grip, then
  * Alt+Up/Down, or Space to pick up, the arrows to move, Space or Enter to drop, Escape to
  * cancel. Track numbers are implicit: they always equal the row's position (1-based). */
-export default function TrackList({ tracks, onChange, onRemove, readOnly = false, plays, playlists, onOpenPlaylist, view }: TrackListProps) {
+export default function TrackList({ tracks, onChange, onRemove, readOnly = false, plays, playlists, onOpenPlaylist, view, featuringIndex }: TrackListProps) {
   const listRef = useRef<HTMLOListElement>(null);
   const hintId = useId();
   const [announcement, setAnnouncement] = useState("");
@@ -155,6 +164,12 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
     );
     row?.querySelector<HTMLElement>("[data-handle]")?.focus();
   });
+
+  function updateFeaturing(index: number, featuring: string[]) {
+    const next = tracks.slice();
+    next[index] = { ...next[index], featuring };
+    onChange(next);
+  }
 
   function updateTitle(index: number, title: string) {
     const next = tracks.slice();
@@ -437,7 +452,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
               key={track.key}
               data-key={track.key}
               data-grabbed={grabbed ? "" : undefined}
-              className={`track-row -mx-2 flex h-12 items-center gap-3 px-2 hover:bg-white/[0.03] data-[grabbed]:bg-white/[0.07] ${
+              className={`track-row group/track -mx-2 flex h-12 items-center gap-3 px-2 hover:bg-white/[0.03] data-[grabbed]:bg-white/[0.07] ${
                 readOnly ? "" : "cursor-grab"
               } ${viewInfo?.missing ? "text-text-muted" : ""}`}
               onContextMenu={(e) => {
@@ -473,6 +488,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
                     {track.title || "Untitled"}
                   </span>
                 ) : (
+                <div className="flex min-w-0 max-w-full items-baseline">
                 <input
                   type="text"
                   aria-label={`Track ${index + 1} title`}
@@ -482,6 +498,18 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
                   placeholder="Track title"
                   className="field-sizing-content -mx-1.5 min-w-[8ch] cursor-text rounded-md bg-transparent px-1.5 py-0.5 text-[15px] font-semibold tracking-[-0.01em] text-text outline-none placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
                 />
+                {featuringIndex && !readOnly && (
+                  <TrackFeaturing
+                    trackName={track.title.trim() || `track ${index + 1}`}
+                    names={track.featuring ?? []}
+                    onChange={(names) => updateFeaturing(index, names)}
+                    index={featuringIndex}
+                  />
+                )}
+                {featuringIndex && readOnly && (track.featuring?.length ?? 0) > 0 && (
+                  <span className="px-1.5 py-0.5 text-[15px] text-text-muted">{featuringText(track.featuring ?? [])}</span>
+                )}
+                </div>
                 )}
                 {onOpenPlaylist && (playlists?.[track.key]?.length ?? 0) > 0 && (
                   <TrackPlaylistsLine
