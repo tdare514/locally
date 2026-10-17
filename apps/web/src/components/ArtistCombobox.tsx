@@ -14,6 +14,12 @@ import { focusRing } from "./sidebar/controls";
 
 const MAX_OPTIONS = 5;
 
+/** Where the settled "Did you mean" hint shows: under the field, or as a footer inside an open list. */
+export function hintPlacement(open: boolean, hint: unknown): "none" | "footer" | "line" {
+  if (!hint) return "none";
+  return open ? "footer" : "line";
+}
+
 export type ComboboxKeyAction =
   | { type: "none" }
   | { type: "move"; to: number }
@@ -108,6 +114,7 @@ export default function ArtistCombobox({
     () => (editable && settled === value ? didYouMean(index, value) : null),
     [editable, settled, value, index]
   );
+  const placement = hintPlacement(open, hint);
   const optionId = (i: number) => `${listId}-${i}`;
 
   function change(next: string) {
@@ -116,6 +123,14 @@ export default function ArtistCombobox({
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setSettled(next), HINT_PAUSE_MS);
     onChange(next);
+  }
+
+  /** The footer's button: the same as taking an option, with the hint's artist. */
+  function takeHint(artist: string) {
+    if (timer.current) clearTimeout(timer.current);
+    setDismissed(true);
+    setActive(-1);
+    onChange(artist);
   }
 
   function pick(entry: ArtistEntry) {
@@ -186,12 +201,8 @@ export default function ArtistCombobox({
           className={inputClassName}
         />
         {open && (
-          <ul
-            id={listId}
-            role="listbox"
-            aria-label="Artists in your library"
-            className="playlist-pop glass-fake glass-frost absolute left-0 top-full z-30 isolate mt-1 w-full min-w-56 max-w-80 rounded-2xl p-1.5"
-          >
+          <div className="playlist-pop glass-fake glass-frost absolute left-0 top-full z-30 isolate mt-1 w-full min-w-56 max-w-80 rounded-2xl p-1.5">
+          <ul id={listId} role="listbox" aria-label="Artists in your library">
             {suggestions.map((entry, i) => {
               const range = matchRange(entry.display, value);
               return (
@@ -226,25 +237,49 @@ export default function ArtistCombobox({
               );
             })}
           </ul>
+          {placement === "footer" && hint && (
+            // The live region below speaks for this; it is only for eyes.
+            <div aria-hidden="true" className="mt-1 border-t border-white/10 px-3 pt-2 pb-1.5 text-[13px] leading-snug text-text-dim">
+              {didYouMeanLine(hint)}{" "}
+              <button
+                type="button"
+                tabIndex={-1}
+                // mousedown, not click: the input keeps focus and the list closes with the pick.
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  takeHint(hint.artist);
+                }}
+                className="rounded font-medium text-text-muted underline underline-offset-2 transition-colors hover:text-text"
+              >
+                {didYouMeanButton(hint)}
+              </button>
+            </div>
+          )}
+          </div>
         )}
       </div>
-      {/* Always in the page so a screen reader hears the line when it arrives; never blocks saving.
-          Hidden while the list is open: in the spelling case the hinted artist is always the list's
-          first option, and the line appears after Escape or on blur. */}
+      {/* Always in the page so a screen reader hears the settled hint after the pause, open list or
+          not; never blocks saving. The line shows under the field when the list is closed, and as
+          a footer inside the list when it is open (the live region is then sr-only, text only). */}
       <p
         aria-live="polite"
-        className={hint && !open ? `text-[13px] leading-snug text-text-dim ${hintClassName}` : "sr-only"}
+        className={placement === "line" ? `text-[13px] leading-snug text-text-dim ${hintClassName}` : "sr-only"}
       >
-        {hint && !open && (
+        {hint && (
           <>
-            {didYouMeanLine(hint)}{" "}
-            <button
-              type="button"
-              onClick={() => change(hint.artist)}
-              className={`rounded font-medium text-text-muted underline underline-offset-2 transition-colors hover:text-text ${focusRing}`}
-            >
-              {didYouMeanButton(hint)}
-            </button>
+            {didYouMeanLine(hint)}
+            {placement === "line" && (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  onClick={() => change(hint.artist)}
+                  className={`rounded font-medium text-text-muted underline underline-offset-2 transition-colors hover:text-text ${focusRing}`}
+                >
+                  {didYouMeanButton(hint)}
+                </button>
+              </>
+            )}
           </>
         )}
       </p>

@@ -12,7 +12,7 @@ import {
   type ArtistEntry,
   type DidYouMean,
 } from "../../src/lib/artist-index";
-import { comboboxKeyAction } from "../../src/components/ArtistCombobox";
+import { comboboxKeyAction, hintPlacement } from "../../src/components/ArtistCombobox";
 
 const file = fileURLToPath(new URL("../../../../spec/fixtures/artists/index.json", import.meta.url));
 
@@ -90,5 +90,15 @@ describe("comboboxKeyAction", () => {
     expect(comboboxKeyAction("ArrowDown", false, true, 2, 3)).toEqual({ type: "move", to: 0 });
     expect(comboboxKeyAction("ArrowUp", false, true, -1, 3)).toEqual({ type: "move", to: 2 });
     expect(comboboxKeyAction("ArrowDown", false, false, -1, 3)).toEqual({ type: "open", to: 0 });
+  });
+});
+
+describe("hintPlacement", () => {
+  it("is a footer under an open list, a line under a closed one, and none without a hint", () => {
+    const hint = { kind: "spelling", artist: "The Weeknd", trackCount: 3 };
+    expect(hintPlacement(true, hint)).toBe("footer");
+    expect(hintPlacement(false, hint)).toBe("line");
+    expect(hintPlacement(true, null)).toBe("none");
+    expect(hintPlacement(false, null)).toBe("none");
   });
 });
