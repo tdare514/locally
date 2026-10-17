@@ -14,6 +14,11 @@ export function addFeatured(names: string[], typed: string): string[] {
   return [...names, name];
 }
 
+/** Typed text still in the input when it loses focus or its popover closes: it joins the names, never lost. */
+export function commitDraft(names: string[], draft: string): { names: string[]; draft: string } {
+  return { names: addFeatured(names, draft), draft: "" };
+}
+
 export function removeFeatured(names: string[], index: number): string[] {
   return names.filter((_, i) => i !== index);
 }
@@ -52,8 +57,9 @@ export function fromEditor(title: string, featuring: string[]): string {
   return joinFeaturing(title, featuring);
 }
 
-function sameKeys(a: string[], b: string[]): boolean {
-  return a.length === b.length && a.every((name, i) => artistKey(name) === artistKey(b[i]));
+/** Exact, NFC-normalised equality: a re-capitalised or re-spelled name is a change. */
+function sameNames(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((name, i) => name.normalize("NFC") === b[i].normalize("NFC"));
 }
 
 /**
@@ -64,7 +70,7 @@ function sameKeys(a: string[], b: string[]): boolean {
 export function titleForSave(original: string | undefined, title: string, featuring: string[]): string {
   if (original !== undefined) {
     const was = splitFeaturing(original);
-    if (was.title === title && sameKeys(was.featuring, featuring)) return original;
+    if (was.title.normalize("NFC") === title.normalize("NFC") && sameNames(was.featuring, featuring)) return original;
   }
   return fromEditor(title, featuring);
 }

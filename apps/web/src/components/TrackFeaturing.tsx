@@ -31,6 +31,8 @@ export default function TrackFeaturing({ trackName, names, onChange, index }: Pr
     function onPointerDown(e: PointerEvent) {
       const target = e.target as Element | null;
       if (!target || wrapRef.current?.contains(target)) return;
+      // Blur first, so a name typed but not added is kept before the popover unmounts.
+      (document.activeElement as HTMLElement | null)?.blur();
       setOpen(false);
       // Focus returns to the button unless the click landed on something that takes focus itself.
       if (!target.closest(FOCUSABLE)) buttonRef.current?.focus();
@@ -40,6 +42,7 @@ export default function TrackFeaturing({ trackName, names, onChange, index }: Pr
   }, [open]);
 
   function close() {
+    (document.activeElement as HTMLElement | null)?.blur();
     setOpen(false);
     buttonRef.current?.focus();
   }

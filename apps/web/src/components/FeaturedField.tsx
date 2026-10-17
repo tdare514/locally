@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { ArtistEntry } from "../lib/artist-index";
-import { addFeatured, featuredKeyAction, removeFeatured, removeLastFeatured } from "../lib/featuring-field";
+import { addFeatured, commitDraft, featuredKeyAction, removeFeatured, removeLastFeatured } from "../lib/featuring-field";
 import ArtistCombobox from "./ArtistCombobox";
 import { XIcon } from "./Icons";
 import { focusRing } from "./sidebar/controls";
@@ -56,8 +56,17 @@ export default function FeaturedField({
     }
   }
 
+  // Focus leaving the input (a click on Save, Tab, a pill's remove button) keeps what was typed.
+  // Picking a suggestion is a mousedown with preventDefault, so it never blurs.
+  function onBlur(e: React.FocusEvent<HTMLDivElement>) {
+    if (readOnly || (e.target as HTMLElement).tagName !== "INPUT" || draft.trim() === "") return;
+    const next = commitDraft(names, draft);
+    setDraft(next.draft);
+    if (next.names !== names) onChange(next.names);
+  }
+
   return (
-    <div ref={wrapRef} onKeyDown={onKeyDown} className="flex min-w-0 flex-wrap items-center gap-1.5">
+    <div ref={wrapRef} onKeyDown={onKeyDown} onBlur={onBlur} className="flex min-w-0 flex-wrap items-center gap-1.5">
       {names.map((name, i) => (
         <span
           key={`${name}-${i}`}

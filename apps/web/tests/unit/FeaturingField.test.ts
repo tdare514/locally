@@ -13,6 +13,7 @@ import { parseUpdateMeta } from "../../src/server/http/validation";
 import { applyTrackEdits } from "../../src/lib/track-order";
 import {
   addFeatured,
+  commitDraft,
   featuredKeyAction,
   featuringText,
   fromEditor,
@@ -122,6 +123,17 @@ describe("the editor split and join", () => {
     expect(fromEditor("Song", ["Sunn O)))"])).toBe("Song (feat. Sunn O))))");
     expect(toEditor("Song (feat. Sunn O))))")).toEqual({ title: "Song", featuring: ["Sunn O)))"] });
     expect(toEditor("Sunn O)))")).toEqual({ title: "Sunn O)))", featuring: [] });
+  });
+
+  it("saves a re-capitalised name, which is a change", () => {
+    expect(titleForSave("Song (feat. bianca)", "Song", ["Bianca"])).toBe("Song (feat. Bianca)");
+    expect(titleForSave("Song (feat. Bianca)", "Song", ["Bianca"])).toBe("Song (feat. Bianca)");
+  });
+
+  it("keeps typed text when the input loses focus, and drops a blank or duplicate draft", () => {
+    expect(commitDraft(["Bianca"], " Dana ")).toEqual({ names: ["Bianca", "Dana"], draft: "" });
+    expect(commitDraft(["Bianca"], "bianca").names).toEqual(["Bianca"]);
+    expect(commitDraft(["Bianca"], "  ")).toEqual({ names: ["Bianca"], draft: "" });
   });
 
   it("keeps a stored title the user did not touch, and writes the catalogue form once they do", () => {
