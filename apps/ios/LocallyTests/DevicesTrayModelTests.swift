@@ -71,8 +71,67 @@ struct DevicesTrayModelTests {
         #expect(Copy.Sync.trayButtonLabel(count: 3) == "From your devices, 3 waiting")
         #expect(Copy.Sync.trayClose == "Close")
         #expect(Copy.Sync.sendTitleToSpotify("Low Tide") == "Send Low Tide to Spotify")
-        #expect(Copy.Sync.couldntSend == "Couldn't send this yet.")
-        #expect(Copy.Sync.tryAgain == "Try again")
+        #expect(Copy.Sync.readyToAdd == "Ready to add")
+        #expect(Copy.Sync.couldntSendYet == "Couldn't send yet")
+        #expect(Copy.Sync.couldntSendThese == "Locally couldn't send these yet.")
+        #expect(Copy.Sync.addAll == "Add all" && Copy.Sync.adding == "Adding…")
+        #expect(Copy.Sync.tryAllAgain == "Try all again" && Copy.Sync.trying == "Trying…")
+        #expect(Copy.Sync.sectionHeading("Ready to add", count: 2) == "Ready to add, 2")
+        #expect(Copy.Sync.tryTitleAgain("Low Tide") == "Try Low Tide again")
         #expect(Copy.Sync.failedHint == "Sending didn't finish. Try again.")
+    }
+
+    // MARK: Sections (#296)
+
+    private func sections(_ pending: [SyncRecord], accepting: Set<String> = [], failed: Set<String> = []) -> DevicesTraySections {
+        DevicesTraySections(rows: DevicesTrayModel.rows(pending: pending, accepting: accepting, failed: failed))
+    }
+
+    @Test("ready and failed rows land in their own sections, never both")
+    func disjointSections() {
+        let s = sections([record("a"), record("b"), record("c")], failed: ["b"])
+        #expect(s.ready.map(\.id) == ["a", "c"])
+        #expect(s.failed.map(\.id) == ["b"])
+        #expect(Set(s.ready.map(\.id)).isDisjoint(with: s.failed.map(\.id)))
+    }
+
+    @Test("a row being sent stays in the section it was in")
+    func sendingKeepsItsSection() {
+        let s = sections([record("a"), record("b")], accepting: ["a", "b"], failed: ["b"])
+        #expect(s.ready.map(\.id) == ["a"])
+        #expect(s.failed.map(\.id) == ["b"])
+        #expect(s.ready.first?.state == .sending && s.failed.first?.state == .sending)
+    }
+
+    @Test("Add all shows from two ready rows, and stays while its own run goes")
+    func addAllVisibility() {
+        #expect(!sections([record("a")]).showsAddAll(running: false))
+        #expect(sections([record("a"), record("b")]).showsAddAll(running: false))
+        // Both reserved by the run: none is addable now, but the button stays, reading "Adding…".
+        let running = sections([record("a"), record("b")], accepting: ["a", "b"])
+        #expect(running.addableCount == 0)
+        #expect(!running.showsAddAll(running: false))
+        #expect(running.showsAddAll(running: true))
+    }
+
+    @Test("Try all again shows whenever the second section does")
+    func tryAllVisibility() {
+        #expect(!sections([record("a")]).showsTryAllAgain)
+        #expect(sections([record("a")], failed: ["a"]).showsTryAllAgain)
+        #expect(sections([record("a"), record("b")], accepting: ["a"], failed: ["a", "b"]).retryableCount == 1)
+    }
+
+    @Test("a leaving row hands focus to the next row, else the previous, else a section action, else the heading")
+    func focusAfterLeaving() {
+        let before = sections([record("a"), record("b"), record("c")])
+        let wo = { (gone: String) in sections([record("a"), record("b"), record("c")].filter { $0.id != gone }) }
+        #expect(DevicesTraySections.focusAfterLeaving("a", before: before, after: wo("a"), addAllRunning: false) == .send("b"))
+        #expect(DevicesTraySections.focusAfterLeaving("c", before: before, after: wo("c"), addAllRunning: false) == .send("b"))
+        let two = sections([record("a"), record("b")])
+        #expect(DevicesTraySections.focusAfterLeaving("a", before: two, after: sections([record("b")]), addAllRunning: false) == .send("b"))
+        let failedOne = sections([record("f")], failed: ["f"])
+        let mixed = sections([record("f"), record("g")], failed: ["f"])
+        #expect(DevicesTraySections.focusAfterLeaving("g", before: mixed, after: failedOne, addAllRunning: false) == .send("f"))
+        #expect(DevicesTraySections.focusAfterLeaving("f", before: failedOne, after: sections([]), addAllRunning: false) == .heading)
     }
 }

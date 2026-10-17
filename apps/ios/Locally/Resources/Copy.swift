@@ -35,6 +35,9 @@ enum Copy {
     /// The immersive release look's reusable components (not yet on a screen).
     enum Immersive {
         static let addCoverArt = "Add cover art"
+        /// An empty sleeve that can be edited: the title and the line under it (#296).
+        static let addCover = "Add cover"
+        static let chooseCoverHint = "Choose a photo or a file"
         /// Accessibility label of the sleeve once it has a cover.
         static let changeCoverArt = "Change cover art"
         static let savedToLibrary = "Saved to your library"
@@ -245,6 +248,18 @@ enum Copy {
         static func playCount(_ count: Int) -> String {
             count == 1 ? "1 play" : "\(count) plays"
         }
+        /// Page and track details (#296): "Album · 5 tracks", "Year 2025", "Genre Rap".
+        static func metaLine(kind: String, tracks: Int) -> String {
+            "\(kind) · \(tracks == 1 ? "1 track" : "\(tracks) tracks")"
+        }
+        static let yearLabel = "Year"
+        static let genreLabel = "Genre"
+        /// The track table's quiet header.
+        static let colNumber = "#"
+        static let colTitle = "Title"
+        static let colPlays = "Plays"
+        static let colTime = "Time"
+        static let unknownArtist = "Unknown artist"
         /// Under the tracks when any has plays: the totals add up every signed-in device.
         static let playsAcrossDevices = "Plays are counted across all your devices."
         /// Shown on an adopted release's page: its files stay on the Mac.
@@ -403,8 +418,21 @@ enum Copy {
         static let trayClose = "Close"
         static func sendTitleToSpotify(_ title: String) -> String { "Send \(title) to Spotify" }
         static func trackCount(_ count: Int) -> String { count == 1 ? "1 track" : "\(count) tracks" }
-        static let couldntSend = "Couldn't send this yet."
-        static let tryAgain = "Try again"
+        /// The tray's sections (#296): a name, its count, and the section's one action.
+        static let readyToAdd = "Ready to add"
+        static let couldntSendYet = "Couldn't send yet"
+        static let addAll = "Add all"
+        static let adding = "Adding…"
+        static let tryAllAgain = "Try all again"
+        static let trying = "Trying…"
+        static let couldntSendThese = "Locally couldn't send these yet."
+        /// A section's heading for VoiceOver, with its count: "Ready to add, 2".
+        static func sectionHeading(_ name: String, count: Int) -> String { "\(name), \(count)" }
+        /// A failed row's own retry icon.
+        static func tryTitleAgain(_ title: String) -> String { "Try \(title) again" }
+        /// Announced after a section's action finishes.
+        static let addAllDone = "Added."
+        static let tryAllDone = "Tried again."
         static let failedHint = "Sending didn't finish. Try again."
 
         static func queueFailed(_ detail: String) -> String { "Couldn't queue a change to sync: \(detail)" }

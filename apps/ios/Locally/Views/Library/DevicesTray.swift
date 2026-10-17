@@ -23,9 +23,62 @@ struct DevicesTrayRow: Identifiable, Equatable {
     let trackCount: Int
     let origin: String
     let state: DevicesTrayRowState
+    /// Which section it is in: the last send failed (#296). Separate from `state`, because a row
+    /// being sent keeps the section it was in, with its sending look.
+    let inFailedSection: Bool
 
     /// A row can be sent unless a send is already running.
     var canSend: Bool { state != .sending }
+}
+
+/// The two runs a section's action can start (#296).
+enum DevicesTrayRun: Hashable { case addAll, tryAllAgain }
+
+/// Where VoiceOver focus can sit in the tray: a row's sleeve, a failed row's retry, a section's
+/// action, or the tray heading.
+enum DevicesTrayFocus: Hashable {
+    case send(String)
+    case retry(String)
+    case sectionAction(DevicesTrayRun)
+    case heading
+}
+
+/// The tray's rows in its two sections (#296): **Ready to add**, then **Couldn't send yet**. A row
+/// is in exactly one, by whether its last send failed; a row being sent stays where it was.
+struct DevicesTraySections: Equatable {
+    let ready: [DevicesTrayRow]
+    let failed: [DevicesTrayRow]
+
+    init(rows: [DevicesTrayRow]) {
+        ready = rows.filter { !$0.inFailedSection }
+        failed = rows.filter(\.inFailedSection)
+    }
+
+    /// The rows "Add all" would take now: ready and not being sent.
+    var addableCount: Int { ready.filter { $0.state == .ready }.count }
+    /// The rows "Try all again" would take now.
+    var retryableCount: Int { failed.filter { $0.state == .failed }.count }
+
+    /// "Add all" shows from two ready rows, and stays while its own run is going.
+    func showsAddAll(running: Bool) -> Bool { running || addableCount >= 2 }
+    /// "Try all again" shows whenever the second section does.
+    var showsTryAllAgain: Bool { !failed.isEmpty }
+
+    var orderedIDs: [String] { (ready + failed).map(\.id) }
+
+    /// Where focus goes when the row `id` leaves while focus was on its own control: the next row's
+    /// control, else the previous row's, else a section's action, else the tray heading.
+    static func focusAfterLeaving(_ id: String, before: DevicesTraySections, after: DevicesTraySections, addAllRunning: Bool) -> DevicesTrayFocus {
+        let order = before.orderedIDs
+        let remaining = Set(after.orderedIDs)
+        if let index = order.firstIndex(of: id) {
+            if let next = order[(index + 1)...].first(where: { remaining.contains($0) }) { return .send(next) }
+            if let previous = order[..<index].last(where: { remaining.contains($0) }) { return .send(previous) }
+        }
+        if after.showsAddAll(running: addAllRunning) { return .sectionAction(.addAll) }
+        if after.showsTryAllAgain { return .sectionAction(.tryAllAgain) }
+        return .heading
+    }
 }
 
 struct DevicesTrayModel: Equatable {
@@ -48,7 +101,8 @@ struct DevicesTrayModel: Equatable {
             let state: DevicesTrayRowState = accepting.contains(record.id) ? .sending
                 : failed.contains(record.id) ? .failed : .ready
             return DevicesTrayRow(id: record.id, title: record.title, artist: record.artist,
-                                  trackCount: record.tracks.count, origin: record.origin, state: state)
+                                  trackCount: record.tracks.count, origin: record.origin, state: state,
+                                  inFailedSection: failed.contains(record.id))
         }
     }
 }
@@ -139,30 +193,54 @@ enum DevicesTrayMotion {
 
 // MARK: - Panel
 
-/// The drop-down: heading, the rows, and the still-sending footer, scrolling when taller than `maxHeight`.
+/// The drop-down: heading, the two sections (each a header line with its count and action, then
+/// its rows), scrolling when taller than `maxHeight`.
 struct DevicesTrayPanel: View {
     let rows: [DevicesTrayRow]
     let maxHeight: CGFloat
     var headingFocus: AccessibilityFocusState<Bool>.Binding?
+    /// The runs in flight: their buttons read "Adding…" or "Trying…" and are disabled.
+    var runs: Set<DevicesTrayRun> = []
     let onSend: (String) -> Void
+    var onAddAll: () -> Void = {}
+    var onTryAllAgain: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.displayScale) private var displayScale
     @State private var contentHeight: CGFloat = 0
+    @AccessibilityFocusState private var focus: DevicesTrayFocus?
+    /// The row whose own control had focus when it was used; if that row leaves, focus moves on.
+    @State private var focusedRowWhenUsed: String?
+    @State private var previousSections: DevicesTraySections?
 
     private static let radius: CGFloat = 22
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
+        let sections = DevicesTraySections(rows: rows)
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 Text(Copy.Sync.fromYourDevices)
                     .font(.system(.subheadline, weight: .semibold))
                     .foregroundStyle(Theme.primaryText)
                     .accessibilityAddTraits(.isHeader)
+                    .accessibilityHeading(.h2)
                     .modifier(HeadingFocus(binding: headingFocus))
-                ForEach(rows) { row in
-                    DevicesTrayRowView(row: row, onSend: { onSend(row.id) })
-                        .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.94, anchor: .top)))
+                    .accessibilityFocused($focus, equals: .heading)
+                if !sections.ready.isEmpty {
+                    section(name: Copy.Sync.readyToAdd, rows: sections.ready, run: .addAll,
+                            showsAction: sections.showsAddAll(running: runs.contains(.addAll)),
+                            actionEnabled: sections.addableCount > 0, note: nil)
+                }
+                if !sections.ready.isEmpty && !sections.failed.isEmpty {
+                    Rectangle().fill(Theme.Track.separatorTint).frame(height: 1 / displayScale)
+                        .accessibilityHidden(true)
+                }
+                if !sections.failed.isEmpty {
+                    section(name: Copy.Sync.couldntSendYet, rows: sections.failed, run: .tryAllAgain,
+                            showsAction: sections.showsTryAllAgain,
+                            actionEnabled: sections.retryableCount > 0, note: Copy.Sync.couldntSendThese)
                 }
             }
             .padding(16)
@@ -187,6 +265,120 @@ struct DevicesTrayPanel: View {
         .shadow(color: .black.opacity(0.45), radius: 18, y: 8)
         .animation(reduceMotion ? nil : DevicesTrayMotion.collapse, value: rows.map(\.id))
         .accessibilityElement(children: .contain)
+        .onAppear { previousSections = sections }
+        .onChange(of: rows.map(\.id)) { _, _ in
+            let after = DevicesTraySections(rows: rows)
+            defer { previousSections = after }
+            // Focus moves only when it was on the leaving row's own control (design: #296).
+            guard let leaving = focusedRowWhenUsed, let before = previousSections,
+                  !after.orderedIDs.contains(leaving) else { return }
+            focusedRowWhenUsed = nil
+            let target = DevicesTraySections.focusAfterLeaving(leaving, before: before, after: after, addAllRunning: runs.contains(.addAll))
+            if target == .heading, let headingFocus { headingFocus.wrappedValue = true } else { focus = target }
+        }
+        .onChange(of: focus) { _, new in
+            // Focus went somewhere else: a later departure is not ours to follow.
+            guard let used = focusedRowWhenUsed, new != .send(used), new != .retry(used) else { return }
+            if new != nil { focusedRowWhenUsed = nil }
+        }
+    }
+
+    /// One section: its header line (name, count and the one action), an optional note, then its rows.
+    private func section(name: String, rows: [DevicesTrayRow], run: DevicesTrayRun, showsAction: Bool, actionEnabled: Bool, note: String?) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionHeader(name: name, count: rows.count, run: run, showsAction: showsAction, actionEnabled: actionEnabled)
+            if let note {
+                Text(note)
+                    .font(Theme.Font.dropZoneHint)
+                    .foregroundStyle(Theme.secondaryText)
+            }
+            VStack(alignment: .leading, spacing: 14) {
+                ForEach(rows) { row in
+                    DevicesTrayRowView(
+                        row: row,
+                        onSend: { used(row.id, retry: false); onSend(row.id) },
+                        onRetry: { used(row.id, retry: true); onSend(row.id) },
+                        focus: $focus
+                    )
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.94, anchor: .top)))
+                }
+            }
+        }
+    }
+
+    private func used(_ id: String, retry: Bool) {
+        focusedRowWhenUsed = (focus == .send(id) || focus == .retry(id)) ? id : nil
+    }
+
+    @ViewBuilder
+    private func sectionHeader(name: String, count: Int, run: DevicesTrayRun, showsAction: Bool, actionEnabled: Bool) -> some View {
+        let heading = HStack(spacing: 6) {
+            Text(name).font(.system(.footnote, weight: .semibold)).foregroundStyle(Theme.primaryText)
+            Text("\(count)").font(.system(.footnote)).foregroundStyle(Theme.textDim)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Copy.Sync.sectionHeading(name, count: count))
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityHeading(.h3)
+        let action = DevicesTraySectionAction(run: run, isRunning: runs.contains(run), isEnabled: actionEnabled) {
+            run == .addAll ? onAddAll() : onTryAllAgain()
+        }
+        .accessibilityFocused($focus, equals: .sectionAction(run))
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 8) {
+                heading
+                if showsAction { action }
+            }
+        } else {
+            HStack {
+                heading
+                Spacer(minLength: 8)
+                if showsAction { action }
+            }
+        }
+    }
+}
+
+/// The section's one action, **Add all** or **Try all again**: the same secondary pill, the same
+/// size, reading "Adding…" or "Trying…" and disabled until its own run ends.
+struct DevicesTraySectionAction: View {
+    let run: DevicesTrayRun
+    let isRunning: Bool
+    let isEnabled: Bool
+    let action: () -> Void
+
+    @ScaledMetric(relativeTo: .caption) private var labelSize: CGFloat = 12
+    @ScaledMetric(relativeTo: .caption) private var width: CGFloat = 96
+
+    private var title: String {
+        switch (run, isRunning) {
+        case (.addAll, false): Copy.Sync.addAll
+        case (.addAll, true): Copy.Sync.adding
+        case (.tryAllAgain, false): Copy.Sync.tryAllAgain
+        case (.tryAllAgain, true): Copy.Sync.trying
+        }
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: labelSize, weight: .semibold))
+                .foregroundStyle(Theme.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(minWidth: width)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(Theme.Immersive.panelFill))
+                .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
+                .opacity(isRunning || !isEnabled ? 0.5 : 1)
+                // The pill stays compact; the tap area is 44 pt tall.
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isRunning || !isEnabled)
+        .accessibilityIdentifier(run == .addAll ? "tray-add-all" : "tray-try-all-again")
     }
 }
 
@@ -209,61 +401,69 @@ struct DevicesTrayRowView: View {
     let row: DevicesTrayRow
     var cover: UIImage?
     let onSend: () -> Void
+    var onRetry: () -> Void = {}
+    var focus: AccessibilityFocusState<DevicesTrayFocus?>.Binding?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .subheadline) private var titleSize: CGFloat = 15
     @ScaledMetric(relativeTo: .footnote) private var detailSize: CGFloat = 13
     @ScaledMetric(relativeTo: .caption) private var labelSize: CGFloat = 12
 
-    init(row: DevicesTrayRow, cover: UIImage? = nil, onSend: @escaping () -> Void) {
+    init(row: DevicesTrayRow, cover: UIImage? = nil, onSend: @escaping () -> Void, onRetry: @escaping () -> Void = {}, focus: AccessibilityFocusState<DevicesTrayFocus?>.Binding? = nil) {
         self.row = row
         self.cover = cover
         self.onSend = onSend
+        self.onRetry = onRetry
+        self.focus = focus
     }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            DevicesSleeve(state: row.state, cover: cover, title: row.title, onSend: onSend)
+            sleeve
             VStack(alignment: .leading, spacing: 2) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(row.title)
-                        .font(.system(size: titleSize, weight: .semibold))
-                        .foregroundStyle(Theme.primaryText)
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                        .truncationMode(.tail)
-                    Text("\(row.artist) · \(Copy.Sync.trackCount(row.trackCount))")
-                        .font(.system(size: detailSize))
-                        .foregroundStyle(Theme.secondaryText)
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                        .truncationMode(.tail)
-                    Text(Copy.Sync.originLabel(row.origin))
-                        .font(.system(size: labelSize))
-                        .foregroundStyle(Theme.textDim)
-                    if row.state == .failed {
-                        Text(Copy.Sync.couldntSend)
-                            .font(.system(size: labelSize))
-                            .foregroundStyle(Theme.danger)
-                            .padding(.top, 2)
-                    }
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityHint(row.state == .failed ? Copy.Sync.failedHint : "")
-                if row.state == .failed {
-                    Button(Copy.Sync.tryAgain, action: onSend)
-                        .font(.system(size: labelSize, weight: .semibold))
-                        .foregroundStyle(Theme.primaryText)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(Theme.Immersive.panelFill))
-                        .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
-                        .buttonStyle(.plain)
-                        // The pill stays compact; the tap area is 44 pt tall.
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
-                }
+                Text(row.title)
+                    .font(.system(size: titleSize, weight: .semibold))
+                    .foregroundStyle(Theme.primaryText)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                    .truncationMode(.tail)
+                Text("\(row.artist) · \(Copy.Sync.trackCount(row.trackCount))")
+                    .font(.system(size: detailSize))
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                    .truncationMode(.tail)
+                Text(Copy.Sync.originLabel(row.origin))
+                    .font(.system(size: labelSize))
+                    .foregroundStyle(Theme.textDim)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+            .accessibilityHint(row.inFailedSection ? Copy.Sync.failedHint : "")
+            if row.inFailedSection { retryButton }
         }
+    }
+
+    @ViewBuilder private var sleeve: some View {
+        let sleeve = DevicesSleeve(state: row.state, cover: cover, title: row.title, onSend: onSend)
+        if let focus { sleeve.accessibilityFocused(focus, equals: .send(row.id)) } else { sleeve }
+    }
+
+    /// A failed row's own retry: a small icon button at its end (a send there is one download).
+    @ViewBuilder private var retryButton: some View {
+        let button = Button(action: onRetry) {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.primaryText)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(row.state == .sending)
+        .opacity(row.state == .sending ? 0.4 : 1)
+        .accessibilityLabel(Copy.Sync.tryTitleAgain(row.title))
+        // 44 pt target, but it sits flush with the row's top and trailing edge.
+        .padding(.top, -4)
+        .padding(.trailing, -8)
+        if let focus { button.accessibilityFocused(focus, equals: .retry(row.id)) } else { button }
     }
 }
 
@@ -309,10 +509,7 @@ struct DevicesSleeve: View {
                 if let cover {
                     Image(uiImage: cover).resizable().scaledToFill()
                 } else {
-                    Theme.card
-                    Image(systemName: "music.note")
-                        .font(.system(size: 18, weight: .regular))
-                        .foregroundStyle(Theme.secondaryText)
+                    NoCoverArt()
                 }
                 if pressed || spinner {
                     Theme.accent

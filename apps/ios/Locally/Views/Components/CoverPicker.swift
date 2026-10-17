@@ -195,12 +195,7 @@ struct CoverPicker: View {
                         .resizable()
                         .scaledToFill()
                 } else {
-                    ZStack {
-                        Theme.card
-                        Image(systemName: "music.note")
-                            .font(.system(size: 28))
-                            .foregroundStyle(Theme.secondaryText)
-                    }
+                    NoCoverArt()
                 }
             }
             .frame(width: 112, height: 112)
@@ -241,12 +236,7 @@ struct CoverPicker: View {
                         .resizable()
                         .scaledToFill()
                 } else {
-                    ZStack {
-                        Theme.card
-                        Image(systemName: "music.note")
-                            .font(.system(size: 40))
-                            .foregroundStyle(Theme.secondaryText)
-                    }
+                    NoCoverArt()
                 }
             }
             .aspectRatio(1, contentMode: .fit)

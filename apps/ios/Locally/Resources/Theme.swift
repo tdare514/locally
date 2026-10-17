@@ -33,6 +33,9 @@ enum Theme {
     static let textDim = Color(red: 0x77 / 255, green: 0x77 / 255, blue: 0x77 / 255)
     /// `text-hint`: hint lines under drop zones.
     static let textHint = Color(red: 0x88 / 255, green: 0x88 / 255, blue: 0x88 / 255)
+    /// A record's label with no art (#296): black, with a 1 pt ring, never `accent`.
+    static let noCoverLabel = Color(red: 0x05 / 255, green: 0x05 / 255, blue: 0x05 / 255)
+    static let noCoverLabelRing = Color(red: 0x1E / 255, green: 0x1E / 255, blue: 0x1E / 255)
     static let danger = Color(red: 0xF1 / 255, green: 0x5E / 255, blue: 0x6C / 255)
     /// iOS accent (#1E7DF0) — never Spotify green.
     static let accent = Color(red: 0x1E / 255, green: 0x7D / 255, blue: 0xF0 / 255)

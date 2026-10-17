@@ -157,6 +157,7 @@ struct ImportSentCard: View {
             cover: cover,
             beat: ImportBeat.sendSealFrame(at: ImportBeat.sendSealDuration, reduced: reduceMotion),
             size: size,
+            showsAddCaption: false,
             onAddCover: {}
         )
         // The disc is fully inside the sleeve; only the sleeve takes room.
