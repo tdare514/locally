@@ -289,7 +289,7 @@ struct ReleaseDetailView: View {
 
     /// The Mac's details: meta line, title, artist, "Year 2025   Genre Rap".
     private func details(_ model: ReleaseDetailViewModel) -> some View {
-        ReleaseDetailsView(kind: model.kind, trackCount: model.trackRows.count, title: model.title, artist: model.artist, year: model.year, genre: model.genre)
+        ReleaseDetailsView(kind: model.kind, trackCount: model.trackRows.count, title: model.title, artist: model.artist, featuring: model.kind == .single ? model.singleFeaturing : [], year: model.year, genre: model.genre)
             .clearRow(top: 0, bottom: 0)
     }
 
@@ -316,6 +316,7 @@ struct ReleaseDetailView: View {
             ReleaseTrackRow(
                 number: index + 1,
                 title: model.kind == .single ? model.title : row.title,
+                featuring: model.kind == .album ? row.featuring : [],
                 artist: model.artist.isEmpty ? Copy.Detail.unknownArtist : model.artist,
                 plays: model.playTotal(for: row),
                 time: TrackLength.format(seconds),

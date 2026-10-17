@@ -20,6 +20,8 @@ struct ReleaseDetailsView: View {
     let trackCount: Int
     let title: String
     let artist: String
+    /// A single's featured artists (#287): a "Featuring B, C" line, left out when there are none.
+    var featuring: [String] = []
     let year: String
     let genre: String
 
@@ -48,6 +50,16 @@ struct ReleaseDetailsView: View {
                     .font(.system(size: artistSize, weight: .semibold))
                     .foregroundStyle(Theme.primaryText.opacity(0.85))
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            if !featuring.isEmpty {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(Copy.Featuring.field).foregroundStyle(Theme.secondaryText)
+                    Text(Copy.Featuring.viewValue(featuring)).foregroundStyle(Theme.primaryText)
+                }
+                .font(.system(size: pairSize))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 4)
+                .accessibilityElement(children: .combine)
             }
             if !pairs.isEmpty {
                 let layout = dynamicTypeSize.isAccessibilitySize
@@ -108,6 +120,8 @@ struct ReleaseTrackHeader: View {
 struct ReleaseTrackRow: View {
     let number: Int
     let title: String
+    /// An album track's featured artists (#287), dimmed after the title as "feat. B & C".
+    var featuring: [String] = []
     let artist: String
     let plays: Int?
     let time: String?
@@ -128,9 +142,10 @@ struct ReleaseTrackRow: View {
                 .frame(width: accessible ? nil : columns.number, alignment: .leading)
                 .fixedSize(horizontal: accessible, vertical: false)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                (featuring.isEmpty
+                    ? Text(title).foregroundStyle(Theme.primaryText)
+                    : Text(title).foregroundStyle(Theme.primaryText) + Text(" " + Copy.Featuring.suffix(featuring)).foregroundStyle(Theme.textDim))
                     .font(.system(size: titleSize, weight: .semibold))
-                    .foregroundStyle(Theme.primaryText)
                     .lineLimit(accessible ? nil : 1)
                     .truncationMode(.tail)
                 Text(artist)

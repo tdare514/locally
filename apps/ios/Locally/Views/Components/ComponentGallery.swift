@@ -20,7 +20,7 @@ struct ComponentGallery: View {
         // #296: view mode in the Mac's look, no cover, the empty sleeve in edit mode, the tray's sections.
         "release-view-nocover", "release-edit-nocover", "release-view-large-text", "release-view-large-text-bottom", "devices-tray-sections", "devices-tray-sections-large-text",
         // #287: the Featuring field. The import cases are `import-record-featuring` and `import-record-album-featuring-sheet`.
-        "release-featuring-view", "featuring-fields-ax"]
+        "release-featuring-view", "release-featuring-edit", "featuring-fields-ax"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -39,7 +39,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "release-featuring-view", "featuring-fields-ax"].contains(name)
+        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax"].contains(name)
     }
 
     var body: some View {
@@ -150,6 +150,8 @@ struct ComponentGallery: View {
             FeaturingFieldsGallery()
         case "release-featuring-view":
             IconsGallery.featuringRelease()
+        case "release-featuring-edit":
+            IconsGallery.featuringRelease(editing: true)
         case "icons-tabs-library", "icons-library-list":
             IconsGallery.tabs(selected: .library, layout: .list)
         case "icons-library-grid":
@@ -486,13 +488,13 @@ enum IconsGallery {
     }
 
     /// A single's release page in view mode, with two featured artists (#287).
-    static func featuringRelease() -> some View {
+    static func featuringRelease(editing: Bool = false) -> some View {
         let container = container()
         let track = Track(title: "Headlights (feat. Mira Vale & Jonah Reyes)", trackNumber: 1, filePath: "/gallery/Headlights.mp3", originalName: "Headlights.mp3", durationSec: 214)
         var release = Release(kind: .single, title: "Headlights", artist: "Neon Harbor", year: "2026", genre: "Synthwave", folderPath: "/gallery", tracks: [track])
         let cover = StatsGallery.covers[StatsGallery.releases[0].id]
         release.coverPath = cover.flatMap { try? container.coverStore.save($0, for: release.id) }
-        return environment(NavigationStack { ReleaseDetailView(release: release) }, container)
+        return environment(NavigationStack { ReleaseDetailView(release: release, startsEditing: editing) }, container)
     }
 
     /// An album's release page, with its cover (Edit) and the playlist guide (Copy).
