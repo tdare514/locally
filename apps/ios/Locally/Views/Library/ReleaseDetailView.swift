@@ -120,11 +120,19 @@ struct ReleaseDetailView: View {
             // Mode changes are instant; only the dock fades (0.25 s, signature easing; none under Reduce Motion).
             ZStack {
                 if model.isEditing {
-                    ReleaseDock(model: model, glowColors: glowColors) { isPresentingReview = true }
+                    ReleaseDock(model: model, glowColors: glowColors) {
+                        model.commitFeaturingDraft()
+                        isPresentingReview = true
+                    }
                         .transition(.opacity)
                 }
             }
             .animation(reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: Theme.Immersive.modeFade), value: model.isEditing)
+        }
+        .sheet(isPresented: Binding(get: { featuringIndex(model) != nil }, set: { if !$0 { model.featuringRowID = nil } })) {
+            if let id = model.featuringRowID, let index = featuringIndex(model) {
+                FeaturingSheet(trackTitle: model.trackRows[index].title, names: featuringBinding(id, in: model)) { model.featuringRowID = nil }
+            }
         }
         .sheet(isPresented: $isPresentingReview) {
             ReleaseReviewSheet(model: model, glowColors: glowColors) { isPresentingReview = false }
@@ -252,6 +260,10 @@ struct ReleaseDetailView: View {
             .clearRow(top: 0, bottom: gap)
         ArtistField(text: Binding(get: { model.artist }, set: { model.artist = $0 }), isEditable: model.isEditing && !model.isAdopted)
             .clearRow(top: 0, bottom: gap)
+        if model.kind == .single {
+            FeaturingField(names: Binding(get: { model.singleFeaturing }, set: { model.singleFeaturing = $0 }), draft: Binding(get: { model.featuringDraft }, set: { model.featuringDraft = $0 }), isEditable: model.isEditing && !model.isAdopted)
+                .clearRow(top: 0, bottom: model.isEditing || !model.singleFeaturing.isEmpty ? gap : 0)
+        }
         YearGenreRow(year: Binding(get: { model.year }, set: { model.year = $0 }), genre: Binding(get: { model.genre }, set: { model.genre = $0 }), isEditable: model.isEditing)
             .clearRow(top: 0, bottom: 0)
     }
@@ -293,6 +305,8 @@ struct ReleaseDetailView: View {
             TrackRow(
                 number: index + 1,
                 title: model.kind == .single ? model.title : row.title,
+                featuring: model.kind == .album ? row.featuring : [],
+                onFeat: model.kind == .album && model.isEditing ? { model.featuringRowID = row.id } : nil,
                 titleBinding: model.kind == .album && model.isEditing
                     ? Binding(get: { row.title }, set: { setTitle($0, for: row, in: model) })
                     : nil,
@@ -367,6 +381,19 @@ struct ReleaseDetailView: View {
     }
 
     private var glowColors: [Color] { glowColorsFor(palette) }
+
+    private func featuringIndex(_ model: ReleaseDetailViewModel) -> Int? {
+        model.featuringRowID.flatMap { id in model.trackRows.firstIndex { $0.id == id } }
+    }
+
+    private func featuringBinding(_ id: UUID, in model: ReleaseDetailViewModel) -> Binding<[String]> {
+        Binding(
+            get: { model.trackRows.first { $0.id == id }?.featuring ?? [] },
+            set: { names in
+                if let index = model.trackRows.firstIndex(where: { $0.id == id }) { model.trackRows[index].featuring = names }
+            }
+        )
+    }
 
     /// Sets a track row's title by its stable `Track.id` (not index), so it
     /// stays correct while `.onMove` changes positions.

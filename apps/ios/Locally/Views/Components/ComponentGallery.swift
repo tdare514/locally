@@ -16,7 +16,9 @@ struct ComponentGallery: View {
         // #213: the Mac's glyphs on the real tab bar, library and release page, over seeded sample data.
         "icons-tabs-library", "icons-tabs-stats", "icons-library-list", "icons-library-grid", "icons-release", "icons-release-bottom", "icons-cover-edit", "icons-playlist-guide",
         // #269: the Library's "From your devices" button and tray, over sample pending records.
-        "devices-header-0", "devices-header-1", "devices-header-3", "devices-tray-open", "devices-tray-large-text", "devices-tray-failed"]
+        "devices-header-0", "devices-header-1", "devices-header-3", "devices-tray-open", "devices-tray-large-text", "devices-tray-failed",
+        // #287: the Featuring field. The import cases are `import-record-featuring` and `import-record-album-featuring-sheet`.
+        "release-featuring-view"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -35,7 +37,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls"].contains(name)
+        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "release-featuring-view"].contains(name)
     }
 
     var body: some View {
@@ -142,6 +144,8 @@ struct ComponentGallery: View {
             ReleaseReviewErrorGallery()
         case "controls":
             ControlsGallery()
+        case "release-featuring-view":
+            IconsGallery.featuringRelease()
         case "icons-tabs-library", "icons-library-list":
             IconsGallery.tabs(selected: .library, layout: .list)
         case "icons-library-grid":
@@ -457,6 +461,16 @@ enum IconsGallery {
         }
     }
 
+    /// A single's release page in view mode, with two featured artists (#287).
+    static func featuringRelease() -> some View {
+        let container = container()
+        let track = Track(title: "Headlights (feat. Mira Vale & Jonah Reyes)", trackNumber: 1, filePath: "/gallery/Headlights.mp3", originalName: "Headlights.mp3", durationSec: 214)
+        var release = Release(kind: .single, title: "Headlights", artist: "Neon Harbor", year: "2026", genre: "Synthwave", folderPath: "/gallery", tracks: [track])
+        let cover = StatsGallery.covers[StatsGallery.releases[0].id]
+        release.coverPath = cover.flatMap { try? container.coverStore.save($0, for: release.id) }
+        return environment(NavigationStack { ReleaseDetailView(release: release) }, container)
+    }
+
     /// An album's release page, with its cover (Edit) and the playlist guide (Copy).
     static func release() -> some View {
         let container = container()
@@ -573,7 +587,7 @@ private struct ImportRecordGallery: View {
 
     init(name: String) {
         self.name = name
-        _container = State(initialValue: name.contains("artist") ? IconsGallery.container() : nil)
+        _container = State(initialValue: name.contains("artist") || name.contains("featuring") ? IconsGallery.container() : nil)
         let container = try! ModelStore.open(at: nil)
         let coordinator = ReleaseCoordinator(
             importer: LocalFileImporter(),
@@ -628,6 +642,21 @@ private struct ImportRecordGallery: View {
                 album.coverData = cover
                 driver.showAtRest(cover: cover)
             }
+        case "import-record-featuring":
+            // #287: two pills and the field, under Artist.
+            Self.fill(single)
+            single.featuring = ["Mira Vale", "Jonah Reyes"]
+        case "import-record-album-featuring-sheet":
+            // #287: the feat. sheet open on the second track.
+            kind = .album
+            album.albumTitle = "Midnight Drive"
+            album.artist = "Neon Harbor"
+            album.rows = ["Headlights", "Overpass", "Last Exit"].map {
+                AlbumBuilderViewModel.TrackRow(url: URL(fileURLWithPath: "/gallery/\($0).mp3"), title: $0)
+            }
+            album.rows[0].featuring = ["Mira Vale"]
+            album.rows[1].featuring = ["Jonah Reyes", "Mira Vale"]
+            album.featuringRowID = album.rows[1].id
         case "import-record-live":
             Self.fill(single)
         case "import-record-artist-pills", "import-record-artist-typo":

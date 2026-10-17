@@ -143,26 +143,7 @@ struct LabeledField: View {
     }
 
     private var pillRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(pills, id: \.key) { entry in
-                    Button {
-                        text = entry.display
-                    } label: {
-                        Text(Copy.ArtistSuggest.pill(artist: entry.display, trackCount: entry.trackCount))
-                            .font(Theme.ScaledFont.subheadline)
-                            .foregroundStyle(Theme.Tint.accentText)
-                            .lineLimit(1)
-                            .padding(.horizontal, 14)
-                            .frame(minHeight: 44)
-                            .background(Capsule().fill(Theme.accent.opacity(0.18)))
-                            .contentShape(Capsule())
-                    }
-                    .accessibilityLabel(Copy.ArtistSuggest.pillLabel(artist: entry.display, trackCount: entry.trackCount))
-                }
-            }
-        }
-        .accessibilityLabel(Copy.ArtistSuggest.pillsLabel)
+        ArtistPillRow(entries: pills) { entry in text = entry.display }
     }
 
     /// One line under the field. Never blocks saving: it is a hint, not a validation.
