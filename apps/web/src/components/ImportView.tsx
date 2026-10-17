@@ -22,6 +22,7 @@ import {
   trimForKind,
 } from "../lib/import-flow";
 import { applyTrackEdits } from "../lib/track-order";
+import type { ArtistEntry } from "../lib/artist-index";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
 import { useObjectUrl } from "../lib/use-object-url";
 import { usePrefersReducedMotion } from "../lib/use-reduced-motion";
@@ -33,6 +34,8 @@ interface ImportViewProps {
   initialKind?: ReleaseKind;
   onImported: (release: Release) => void;
   onToast: (kind: "success" | "error", text: string) => void;
+  /** Every artist in the library, for the Artist field's suggestions (#287). */
+  artistIndex: ArtistEntry[];
 }
 
 interface Entry {
@@ -55,6 +58,7 @@ export default function ImportView({
   initialKind,
   onImported,
   onToast,
+  artistIndex,
 }: ImportViewProps) {
   const [kind, setKind] = useState<ReleaseKind>(initialKind ?? "single");
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -324,6 +328,7 @@ export default function ImportView({
           importing={importing}
           onSubmit={handleSubmit}
           onAddTrack={() => audioInputRef.current?.click()}
+          artistIndex={artistIndex}
         />
       ) : (
         <>

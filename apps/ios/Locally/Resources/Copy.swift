@@ -212,6 +212,23 @@ enum Copy {
         static func changedFrom(_ old: String, to new: String) -> String { "Was \(old), now \(new)" }
     }
 
+    /// Artist suggestions and "Did you mean" (#287); the web says the same in `artist-index.ts`.
+    enum ArtistSuggest {
+        static func trackCount(_ count: Int) -> String { "\(count) \(count == 1 ? "track" : "tracks")" }
+        /// A suggestion pill: "The Weeknd · 12".
+        static func pill(artist: String, trackCount: Int) -> String { "\(artist) · \(trackCount)" }
+        /// VoiceOver for a pill.
+        static func pillLabel(artist: String, trackCount: Int) -> String { "\(artist), \(Self.trackCount(trackCount))" }
+        static let pillsLabel = "Artists in your library"
+        static func line(for hint: DidYouMean) -> String {
+            switch hint.kind {
+            case .looksLike: "You have \(trackCount(hint.trackCount)) by \(hint.artist)."
+            case .spelling: "Matches \(hint.artist). Use that spelling?"
+            }
+        }
+        static func useButton(artist: String) -> String { "Use \(artist)" }
+    }
+
     enum Detail {
         /// The eyebrow over the release detail's metadata section.
         static let detailsEyebrow = "Details"

@@ -30,6 +30,8 @@ import { IS_DEMO } from "../lib/demo";
 import { UNKNOWN_ARTIST } from "../shared/adopt";
 import { folderAfterRoot } from "../lib/adopt-review";
 import HouseSleeve from "./HouseSleeve";
+import ArtistCombobox from "./ArtistCombobox";
+import type { ArtistEntry } from "../lib/artist-index";
 
 interface ReleaseViewProps {
   releaseId: string;
@@ -43,6 +45,8 @@ interface ReleaseViewProps {
   onUpdated: () => void;
   onToast: (kind: "success" | "error", text: string) => void;
   onOpenSettings: () => void;
+  /** Every artist in the library, for the Artist field's suggestions (#287). */
+  artistIndex: ArtistEntry[];
 }
 
 /** Copies `text` from a user gesture: the async Clipboard API first, then the
@@ -173,6 +177,7 @@ export default function ReleaseView({
   onUpdated,
   onToast,
   onOpenSettings,
+  artistIndex,
 }: ReleaseViewProps) {
   const [release, setRelease] = useState<Release | null>(initialRelease ?? null);
   const [loading, setLoading] = useState(!initialRelease);
@@ -494,13 +499,16 @@ export default function ReleaseView({
               }}
               className="field-sizing-content -mx-2 max-w-[min(100%,720px)] resize-none rounded-lg bg-transparent px-2 py-1 text-[30px] font-bold leading-[1.1] tracking-[-0.035em] text-text outline-none transition-colors placeholder:text-white/40 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent sm:text-[44px]"
             />
-            <input
-              aria-label="Artist"
+            <ArtistCombobox
+              ariaLabel="Artist"
               value={artist}
               readOnly={IS_DEMO}
               placeholder="Add artist"
-              onChange={(e) => setArtist(e.target.value)}
-              className="field-sizing-content -mx-2 -mt-1 min-w-[8ch] max-w-full self-start rounded-md bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
+              onChange={setArtist}
+              index={artistIndex}
+              wrapperClassName="-mx-2 -mt-1 max-w-full self-start"
+              hintClassName="self-start"
+              inputClassName="field-sizing-content min-w-[8ch] max-w-full rounded-md bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
             />
             <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-[15px]">
               <InlineField

@@ -38,6 +38,7 @@ import {
   libraryWidthClass,
 } from "../lib/library-view-prefs";
 import BulkEditDialog from "./BulkEditDialog";
+import type { ArtistEntry } from "../lib/artist-index";
 import {
   ChevronRightIcon,
   CoverLargeIcon,
@@ -67,6 +68,8 @@ function AdoptedMark() {
 
 interface LibraryViewProps {
   releases: Release[];
+  /** Every artist in the library, for the bulk edit's Artist field (#287). */
+  artistIndex: ArtistEntry[];
   loading: boolean;
   query: string;
   sort: LibrarySort;
@@ -98,6 +101,7 @@ export default function LibraryView({
   onBulkDone,
   onToast,
   onAmbientCoverChange,
+  artistIndex,
 }: LibraryViewProps) {
   const searchRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -556,6 +560,7 @@ export default function LibraryView({
           if (!busy) setEditing(false);
         }}
         onApply={handleBulkEdit}
+        artistIndex={artistIndex}
       />
     </div>
   );

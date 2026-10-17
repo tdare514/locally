@@ -5,6 +5,8 @@ import type { ReleaseKind } from "../../shared/types";
 import CoverPicker from "../CoverPicker";
 import RecordSleeve from "../RecordSleeve";
 import TrackList, { type EditableTrack } from "../TrackList";
+import ArtistCombobox from "../ArtistCombobox";
+import type { ArtistEntry } from "../../lib/artist-index";
 
 /** What the page shows of the cover beat: nothing before a cover, "playing" while it runs,
  * "settled" once it has ended or been skipped. */
@@ -36,6 +38,8 @@ interface ImportRecordProps {
   importing: boolean;
   onSubmit: () => void;
   onAddTrack: () => void;
+  /** Every artist in the library, for the Artist field's suggestions (#287). */
+  artistIndex: ArtistEntry[];
 }
 
 /* An empty field is a faint underline, so the page reads as a record waiting to be filled
@@ -100,6 +104,7 @@ export default function ImportRecord({
   importing,
   onSubmit,
   onAddTrack,
+  artistIndex,
 }: ImportRecordProps) {
   const trackCount = `${tracks.length} track${tracks.length === 1 ? "" : "s"}`;
   // The wrapper's class is how the beat reaches the disc inside RecordSleeve.
@@ -161,12 +166,15 @@ export default function ImportRecord({
               }}
               className={`field-sizing-content -mx-2 max-w-[min(100%,720px)] min-w-[12ch] resize-none self-start rounded-lg bg-transparent px-2 py-1 text-[30px] font-bold leading-[1.1] tracking-[-0.035em] text-text outline-none transition-colors placeholder:text-white/40 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent sm:text-[44px] ${UNDERLINE}`}
             />
-            <input
-              aria-label="Artist"
+            <ArtistCombobox
+              ariaLabel="Artist"
               value={artist}
               placeholder="Artist"
-              onChange={(e) => onArtistChange(e.target.value)}
-              className={`field-sizing-content -mx-2 -mt-1 min-w-[16ch] max-w-full self-start rounded-md bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent ${UNDERLINE}`}
+              onChange={onArtistChange}
+              index={artistIndex}
+              wrapperClassName="-mx-2 -mt-1 max-w-full self-start"
+              hintClassName="self-start"
+              inputClassName={`field-sizing-content min-w-[16ch] max-w-full rounded-md bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent ${UNDERLINE}`}
             />
             <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-[15px]">
               <InlineField

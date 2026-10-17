@@ -250,7 +250,7 @@ struct ReleaseDetailView: View {
         let gap = Theme.Immersive.labeledFieldRowGap
         LabeledField(Copy.Import.fieldTitle, placeholder: Copy.Import.titlePlaceholder(for: model.kind), text: Binding(get: { model.title }, set: { model.title = $0 }), font: Theme.ScaledFont.fieldTitle, metricsStyle: .title3, wraps: true, isEditable: model.isEditing)
             .clearRow(top: 0, bottom: gap)
-        LabeledField(Copy.Import.fieldArtist, placeholder: Copy.Import.artistPlaceholder, text: Binding(get: { model.artist }, set: { model.artist = $0 }), font: Theme.ScaledFont.input, wraps: true, isEditable: model.isEditing)
+        ArtistField(text: Binding(get: { model.artist }, set: { model.artist = $0 }), isEditable: model.isEditing && !model.isAdopted)
             .clearRow(top: 0, bottom: gap)
         YearGenreRow(year: Binding(get: { model.year }, set: { model.year = $0 }), genre: Binding(get: { model.genre }, set: { model.genre = $0 }), isEditable: model.isEditing)
             .clearRow(top: 0, bottom: 0)

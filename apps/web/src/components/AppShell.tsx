@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Library, Release, ReleaseKind, SyncStatus } from "../shared/types";
 import { acceptFromPhone, getLibrary, getSyncStatus, resyncFromPhone } from "../lib/api-client";
 import Sidebar, { type SidebarPage } from "./sidebar/Sidebar";
 import LibraryView from "./LibraryView";
+import { buildArtistIndex } from "../lib/artist-index";
 import { IS_DEMO } from "../lib/demo";
 import ImportView from "./ImportView";
 import ReleaseView from "./ReleaseView";
@@ -50,6 +51,8 @@ interface BackState {
 export default function AppShell() {
   const [view, setView] = useState<View>({ type: "library" });
   const [library, setLibrary] = useState<Library | null>(null);
+  // Every artist name the library holds, for the Artist fields' suggestions (#287).
+  const artistIndex = useMemo(() => buildArtistIndex(library?.releases ?? []), [library]);
   const [loadingLibrary, setLoadingLibrary] = useState(true);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   // Lives here (not in LibraryView) so the query survives opening a release and coming back.
@@ -336,6 +339,7 @@ export default function AppShell() {
           {view.type === "library" && (
             <LibraryView
               releases={library?.releases ?? []}
+              artistIndex={artistIndex}
               loading={loadingLibrary}
               query={libraryQuery}
               sort={librarySort}
@@ -352,6 +356,7 @@ export default function AppShell() {
             <ImportView
               key={view.kind ?? "any"}
               initialKind={view.kind}
+              artistIndex={artistIndex}
               onImported={handleImported}
               onToast={showToast}
             />
@@ -367,6 +372,7 @@ export default function AppShell() {
               onUpdated={refreshLibrary}
               onToast={showToast}
               onOpenSettings={() => goTo({ type: "settings" })}
+              artistIndex={artistIndex}
             />
           )}
           {view.type === "stats" && (
