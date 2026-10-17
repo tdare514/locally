@@ -2287,12 +2287,10 @@ body {
 .fan-sleeve[data-shape="disc"] .fan-art {
   border-radius: 9999px;
 }
-/* A release with no cover: a quiet tile with a music note in place of the picture. */
+/* A release with no cover: the NoCover square fills the tile (#294). */
 .fan-art:not(img) {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--elevated);
+  overflow: hidden;
 }
 /* Gold, silver and bronze rims for the first three: a thin ring and a faint glow. */
 .fan-art[data-medal="gold"] {
@@ -2443,6 +2441,11 @@ body {
   border-radius: 9999px;
   background: var(--accent) center / cover;
   box-shadow: 0 0 0 2px rgb(0 0 0 / 0.5);
+}
+/* No art: the black label, as on the release page's disc (#294). */
+.fan-record-label.record-label-bare {
+  background-color: #050505;
+  box-shadow: 0 0 0 1px #1e1e1e;
 }
 /* The number, in a dark pill so the gold, silver and bronze stay readable on a pale cover. */
 .fan-rank {

@@ -75,3 +75,13 @@ describe("ReleaseBar (#294)", () => {
     expect(html.indexOf("Confirm delete")).toBeLessThan(html.indexOf("Cancel"));
   });
 });
+
+describe("Stats covers with no art (#294)", () => {
+  it("StatCover draws the NoCover square", async () => {
+    const { default: StatCover } = await import("../../src/components/sidebar/StatCover");
+    const html = renderToStaticMarkup(createElement(StatCover, { cover: null, round: true, className: "h-10 w-10" }));
+    expect(html).toContain("bg-card");
+    expect(html).toContain("rounded-full");
+    expect(html.match(/<circle/g)).toHaveLength(2);
+  });
+});
