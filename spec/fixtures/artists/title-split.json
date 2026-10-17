@@ -347,5 +347,23 @@
     "input": "Song feat. B",
     "title": "Song feat. B",
     "featuring": []
+  },
+  {
+    "name": "feat. group followed by two other groups",
+    "input": "Song (feat. B) [Live] (Remaster)",
+    "title": "Song (feat. B) [Live] (Remaster)",
+    "featuring": []
+  },
+  {
+    "name": "square feat. group followed by a round group",
+    "input": "Song [feat. B] (Live)",
+    "title": "Song [feat. B] (Live)",
+    "featuring": []
+  },
+  {
+    "name": "round feat. group followed by a square group",
+    "input": "Song (feat. B) [Live]",
+    "title": "Song (feat. B) [Live]",
+    "featuring": []
   }
 ]

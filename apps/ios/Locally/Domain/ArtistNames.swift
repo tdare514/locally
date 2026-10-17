@@ -154,14 +154,12 @@ enum ArtistNames {
         index >= 0 && index < text.count ? text[index] : nil
     }
 
-    /// True when the text holds a closer, whitespace, then an opener: ") (".
-    private static func hasSeparateGroup(
-        _ text: ArraySlice<Unicode.Scalar>, closer: Unicode.Scalar, opener: Unicode.Scalar
-    ) -> Bool {
+    /// True when the text holds a closer, whitespace, then an opener, of either kind: ") [".
+    private static func hasSeparateGroup(_ text: ArraySlice<Unicode.Scalar>) -> Bool {
         let array = Array(text)
-        for i in array.indices where array[i] == closer {
+        for i in array.indices where array[i] == ")" || array[i] == "]" {
             let next = skipWhitespace(array, from: i + 1)
-            if next > i + 1 && at(array, next) == opener { return true }
+            if next > i + 1, let char = at(array, next), char == "(" || char == "[" { return true }
         }
         return false
     }
@@ -186,7 +184,7 @@ enum ArtistNames {
             if afterMarker < end && trimmed[afterMarker] != "." && trimmed[afterMarker] != " " { continue }
             var namesText = trimmed[afterMarker..<end]
             if namesText.first == "." { namesText = namesText.dropFirst() }
-            if hasSeparateGroup(namesText, closer: closer, opener: opener) { continue }
+            if hasSeparateGroup(namesText) { continue }
             let names = splitNames(namesText)
             let rest = string(trimWhitespace(trimmed[0..<i]))
             return (!rest.isEmpty && !names.isEmpty) ? (rest, names) : nil

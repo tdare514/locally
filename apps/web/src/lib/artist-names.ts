@@ -105,12 +105,13 @@ function skipWhitespace(text: string, index: number): number {
   return i;
 }
 
-/** True when the text holds a closer, whitespace, then an opener: ") (". */
-function hasSeparateGroup(text: string, closer: string, opener: string): boolean {
+/** True when the text holds a closer, whitespace, then an opener, of either kind: ") [". */
+function hasSeparateGroup(text: string): boolean {
   for (let i = 0; i < text.length; i++) {
-    if (text.charAt(i) !== closer) continue;
+    if (text.charAt(i) !== ")" && text.charAt(i) !== "]") continue;
     const next = skipWhitespace(text, i + 1);
-    if (next > i + 1 && text.charAt(next) === opener) return true;
+    const char = text.charAt(next);
+    if (next > i + 1 && (char === "(" || char === "[")) return true;
   }
   return false;
 }
@@ -140,7 +141,7 @@ function splitBracketFeaturing(text: string): Split | null {
     const afterMarker = start + length;
     if (afterMarker < end && trimmed.charAt(afterMarker) !== "." && trimmed.charAt(afterMarker) !== " ") continue;
     const namesText = trimmed.slice(afterMarker, end).replace(/^\./, "");
-    if (hasSeparateGroup(namesText, closer, opener)) continue;
+    if (hasSeparateGroup(namesText)) continue;
     const names = splitNames(namesText);
     const rest = trimWhitespace(trimmed.slice(0, i));
     return rest !== "" && names.length > 0 ? { rest, featuring: names } : null;
