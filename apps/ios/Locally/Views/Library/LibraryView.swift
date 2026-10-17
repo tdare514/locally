@@ -36,6 +36,8 @@ struct LibraryView: View {
     @Environment(SyncStatus.self) private var syncStatus
     /// The "From your devices" tray (#269): open or closed.
     @State private var tray = DevicesTrayModel()
+    /// Add all / Try all again runs in flight (#296): each button reads "Adding…" or "Trying…".
+    @State private var trayRuns: Set<DevicesTrayRun> = []
     @AccessibilityFocusState private var trayHeadingFocused: Bool
     @AccessibilityFocusState private var cloudButtonFocused: Bool
 
@@ -247,6 +249,26 @@ struct LibraryView: View {
         }
     }
 
+    /// Starts a section's run. The button locks at the press; the engine reserves the rows it takes
+    /// (ready ones for Add all, the failed ones for Try all again) so none is sent twice.
+    private func runTray(_ run: DevicesTrayRun) {
+        guard !trayRuns.contains(run), let engine = container?.syncEngine else { return }
+        trayRuns.insert(run)
+        Task {
+            let result: SyncEngine.AcceptRunResult
+            switch run {
+            case .addAll: result = await engine.acceptReadyFromMac()
+            case .tryAllAgain: result = await engine.retryFailedAcceptsFromMac()
+            }
+            trayRuns.remove(run)
+            load()
+            // A polite announcement (it waits for VoiceOver to finish what it is saying), from this run's results.
+            var message = AttributedString(Copy.Sync.runAnnouncement(added: result.added, failed: result.failed))
+            message.accessibilitySpeechAnnouncementPriority = .low
+            AccessibilityNotification.Announcement(message).post()
+        }
+    }
+
     /// The scrim, the X and the panel, over the library while the tray is open.
     @ViewBuilder
     private func devicesTrayLayer(anchor: Anchor<CGRect>?) -> some View {
@@ -267,12 +289,15 @@ struct LibraryView: View {
                             failed: syncStatus.failedAcceptIds),
                         maxHeight: screen * 0.6,
                         headingFocus: $trayHeadingFocused,
+                        runs: trayRuns,
                         onSend: { id in
                             Task {
                                 await container?.syncEngine.acceptFromMac(id)
                                 load()
                             }
-                        }
+                        },
+                        onAddAll: { runTray(.addAll) },
+                        onTryAllAgain: { runTray(.tryAllAgain) }
                     )
                     .accessibilityAction(.escape) { setTray(open: false) }
                     .frame(width: panelWidth)
@@ -518,7 +543,7 @@ struct LibraryView: View {
             .overlay { coverImage(for: release, cornerRadius: Theme.Radius.thumbnail) }
     }
 
-    /// The stored cover filling its frame, or a `music.note` on `elevated`.
+    /// The stored cover filling its frame, or the double note on `card` (#296).
     @ViewBuilder
     private func coverImage(for release: Release, cornerRadius: CGFloat) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius)
@@ -531,8 +556,7 @@ struct LibraryView: View {
                 }
                 .clipShape(shape)
         } else {
-            shape.fill(Theme.elevated)
-                .overlay { Image(systemName: "music.note").foregroundStyle(Theme.secondaryText) }
+            NoCoverArt().clipShape(shape)
         }
     }
 

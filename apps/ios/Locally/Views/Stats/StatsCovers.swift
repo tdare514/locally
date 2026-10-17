@@ -68,15 +68,12 @@ struct StatsCoverView: View {
 
     var body: some View {
         ZStack {
-            Theme.elevated
             if let image {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
             } else {
-                Image(systemName: "music.note")
-                    .font(.system(size: 18, weight: .regular))
-                    .foregroundStyle(Theme.secondaryText)
+                NoCoverArt()
             }
         }
         .clipShape(round ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)))

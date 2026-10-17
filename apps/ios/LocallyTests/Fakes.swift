@@ -611,9 +611,13 @@ final class FakeSyncApi: SyncApi {
         URL(string: "https://fake-storage.example.com/\(releaseId)/\(fileName)")!
     }
 
+    /// Awaited at the top of `downloadFile`, so a test can hold an acceptance open mid-download.
+    var downloadGate: (() async -> Void)?
+
     func downloadFile(from url: URL, to destination: URL) async throws {
         let name = url.lastPathComponent
         downloadFileCalls.append(name)
+        await downloadGate?()
         if let remaining = downloadFailCountRemaining[name], remaining > 0 {
             downloadFailCountRemaining[name] = remaining - 1
             throw SyncApiError.network("Not found yet (simulated upload-in-progress).")

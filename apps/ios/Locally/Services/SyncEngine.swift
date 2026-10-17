@@ -1097,16 +1097,53 @@ final class SyncEngine: ReleaseSyncHook {
 
     // MARK: - Accept from Mac
 
-    /// Downloads every file `record` names into a fresh temp directory, then
-    /// hands it to `ReleaseCoordinator.importSynced` to move into Spotify's
-    /// folder. The temp directory is removed afterwards either way.
+    /// What a tray run did, for its announcement: records added, and records that failed.
+    struct AcceptRunResult: Equatable {
+        var added = 0
+        var failed = 0
+    }
+
+    /// Ids whose acceptance is running or reserved by a run (Add all, Try all again). A second ask
+    /// for one of them, from any control, does nothing (#296), so nothing is sent twice.
+    private var reservedAcceptIds: Set<String> = []
+
+    /// Accepts one pending record. Does nothing when it is already being accepted or is reserved
+    /// by a run that has not reached it yet.
     func acceptFromMac(_ recordId: String) async {
-        guard let record = status.pendingFromMac.first(where: { $0.id == recordId }) else { return }
+        guard !reservedAcceptIds.contains(recordId) else { return }
+        reservedAcceptIds.insert(recordId)
         status.acceptingIds.insert(recordId)
         defer {
+            reservedAcceptIds.remove(recordId)
             status.acceptingIds.remove(recordId)
             persistSyncQueues()
         }
+        await performAccept(recordId)
+    }
+
+    /// Reserves `ids` at once, so each shows its sending look and refuses other asks at the press,
+    /// then accepts them one at a time; each reservation ends when its own turn does.
+    @discardableResult
+    private func acceptReserved(_ ids: [String]) async -> AcceptRunResult {
+        var result = AcceptRunResult()
+        let mine = ids.filter { !reservedAcceptIds.contains($0) }
+        reservedAcceptIds.formUnion(mine)
+        status.acceptingIds.formUnion(mine)
+        for recordId in mine {
+            await performAccept(recordId)
+            if status.pendingFromMac.contains(where: { $0.id == recordId }) { result.failed += 1 } else { result.added += 1 }
+            reservedAcceptIds.remove(recordId)
+            status.acceptingIds.remove(recordId)
+            persistSyncQueues()
+        }
+        return result
+    }
+
+    /// Downloads every file `record` names into a fresh temp directory, then
+    /// hands it to `ReleaseCoordinator.importSynced` to move into Spotify's
+    /// folder. The temp directory is removed afterwards either way.
+    private func performAccept(_ recordId: String) async {
+        guard let record = status.pendingFromMac.first(where: { $0.id == recordId }) else { return }
 
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("Locally-Sync-\(UUID().uuidString)", isDirectory: true)
@@ -1140,9 +1177,29 @@ final class SyncEngine: ReleaseSyncHook {
     /// Convenience for "Send all": accepts every currently pending record,
     /// one at a time (each is its own temp directory and coordinator call).
     func acceptAllFromMac() async {
-        for record in status.pendingFromMac {
-            await acceptFromMac(record.id)
+        await acceptReserved(status.pendingFromMac.map(\.id))
+    }
+
+    /// The ids "Add all" takes: pending, not sending (or reserved) and not failed.
+    var readyAcceptIds: [String] {
+        status.pendingFromMac.map(\.id).filter {
+            !status.failedAcceptIds.contains($0) && !status.acceptingIds.contains($0) && !reservedAcceptIds.contains($0)
         }
+    }
+
+    /// "Add all" (#296): accepts the ready records as they are when pressed. Failed and sending
+    /// ones belong to the other section and are left alone.
+    @discardableResult
+    func acceptReadyFromMac() async -> AcceptRunResult {
+        await acceptReserved(readyAcceptIds)
+    }
+
+    /// "Try all again" (#296): retries the failed ids as they are when pressed. A record that
+    /// fails again stays failed; one that becomes ready later is not picked up by this run.
+    @discardableResult
+    func retryFailedAcceptsFromMac() async -> AcceptRunResult {
+        let snapshot = status.pendingFromMac.map(\.id).filter { status.failedAcceptIds.contains($0) }
+        return await acceptReserved(snapshot)
     }
 
     /// `name` came off the network in a record. It is written under `dir`,
