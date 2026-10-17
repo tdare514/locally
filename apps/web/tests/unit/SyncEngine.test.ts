@@ -100,11 +100,17 @@ class FakeSyncStateStore implements SyncStateStore {
       coverHash: { ...this.state.coverHash },
       pendingFromPhone: { ...this.state.pendingFromPhone },
       missingFiles: { ...this.state.missingFiles },
+      hiddenFromTray: { ...this.state.hiddenFromTray },
     };
   }
   async set(state: SyncState): Promise<SyncState> {
-    this.state = state;
+    this.state = { ...state, hiddenFromTray: this.state.hiddenFromTray };
     return state;
+  }
+  async update(mutator: (current: SyncState) => SyncState | null): Promise<SyncState> {
+    const next = mutator(await this.get());
+    if (next) this.state = next;
+    return this.state;
   }
 }
 
@@ -542,7 +548,7 @@ describe("SyncEngine", () => {
 
     const statusAfterReconcile = await engine.status();
     expect(statusAfterReconcile.pendingFromPhone).toEqual([
-      { id: "ios-release-1", origin: "ios", title: "Phone Song", artist: "Phone Artist", kind: "single", trackCount: 1 },
+      expect.objectContaining({ id: "ios-release-1", origin: "ios", title: "Phone Song", artist: "Phone Artist", kind: "single", trackCount: 1 }),
     ]);
 
     const imported = await engine.acceptFromPhone("ios-release-1");

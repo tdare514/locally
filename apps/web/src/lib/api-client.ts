@@ -208,6 +208,26 @@ export async function resyncFromPhone(): Promise<{ ok: true; asked: boolean }> {
   return handle<{ ok: true; asked: boolean }>(res);
 }
 
+/** Hide (#295): out of this Mac's tray at its current version; nothing is deleted. */
+export async function hideFromTray(id: string): Promise<void> {
+  const res = await fetch("/api/sync/hide", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  await handle<{ ok: true }>(res);
+}
+
+/** Undo for Hide. */
+export async function unhideFromTray(id: string): Promise<void> {
+  const res = await fetch("/api/sync/hide", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  await handle<{ ok: true }>(res);
+}
+
 export async function acceptFromPhone(id: string): Promise<{ ok: true; release: Release }> {
   const res = await fetch(`/api/sync/accept/${encodeURIComponent(id)}`, { method: "POST" });
   return handle<{ ok: true; release: Release }>(res);

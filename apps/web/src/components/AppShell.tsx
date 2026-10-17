@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Library, Release, ReleaseKind, SyncStatus } from "../shared/types";
-import { acceptFromPhone, getLibrary, getSyncStatus, resyncFromPhone } from "../lib/api-client";
+import { acceptFromPhone, getLibrary, getSyncStatus, hideFromTray, resyncFromPhone, unhideFromTray } from "../lib/api-client";
 import Sidebar, { type SidebarPage } from "./sidebar/Sidebar";
 import LibraryView from "./LibraryView";
 import { buildArtistIndex } from "../lib/artist-index";
@@ -79,13 +79,14 @@ export default function AppShell() {
   const mainRef = useRef<HTMLElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
 
-  const showToast = useCallback((kind: "success" | "error", text: string) => {
+  const showToast = useCallback((kind: "success" | "error", text: string, action?: ToastMessage["action"]) => {
     nextToastId.current += 1;
     const id = nextToastId.current;
-    setToasts((prev) => [...prev, { id, kind, text }]);
+    setToasts((prev) => [...prev, { id, kind, text, action }]);
+    // A toast with an action stays long enough to be used.
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
+    }, action ? 8000 : 4000);
   }, []);
 
   const dismissToast = useCallback((id: number) => {
@@ -285,6 +286,26 @@ export default function AppShell() {
     }
   }
 
+  /** Hide (#295): out of this tray on this Mac, with an Undo. Resolves true once hidden. */
+  async function handleHide(id: string): Promise<boolean> {
+    try {
+      await hideFromTray(id);
+      await refreshSyncStatus();
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "Failed to hide it");
+      return false;
+    }
+    showToast("success", "Hidden. It comes back if your iPhone sends it again.", {
+      label: "Undo",
+      onClick: () => {
+        unhideFromTray(id)
+          .then(refreshSyncStatus)
+          .catch((e) => showToast("error", e instanceof Error ? e.message : "Failed to undo"));
+      },
+    });
+    return true;
+  }
+
   /** "Resync Mac and phone": reconciles, asks the other devices to upload again, then reloads the tray. */
   async function handleResync(): Promise<ResyncOutcome> {
     try {
@@ -435,7 +456,9 @@ export default function AppShell() {
           <div className="absolute right-4 top-4 z-20 md:right-6 md:top-6">
             <PhoneInbox
               pending={syncStatus?.pendingFromPhone ?? []}
+              hidden={syncStatus?.hiddenFromTray ?? {}}
               onAccept={handleAcceptFromPhone}
+              onHide={handleHide}
               onResync={handleResync}
             />
           </div>

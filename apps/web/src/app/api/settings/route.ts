@@ -45,7 +45,7 @@ export async function PUT(request: NextRequest) {
       return plan.settings;
     });
     if (rejection !== null) return badRequest(rejection);
-    if (resetSyncState) await services.syncState.set(emptySyncState());
+    if (resetSyncState) await services.syncState.update(() => emptySyncState());
     // After the settings are saved, as sign-out does it: a new host is a new account, and its play
     // counts were never pushed there (#107).
     if (resetSyncState) await services.playStore.resetPushed();

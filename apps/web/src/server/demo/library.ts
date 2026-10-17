@@ -82,6 +82,7 @@ export const DEMO_SYNC_STATUS: SyncStatus = {
   lastRunAt: null,
   lastError: null,
   pendingFromPhone: [],
+  hiddenFromTray: {},
   quota: null,
 };
 
