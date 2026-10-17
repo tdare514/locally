@@ -1097,6 +1097,12 @@ final class SyncEngine: ReleaseSyncHook {
 
     // MARK: - Accept from Mac
 
+    /// What a tray run did, for its announcement: records added, and records that failed.
+    struct AcceptRunResult: Equatable {
+        var added = 0
+        var failed = 0
+    }
+
     /// Ids whose acceptance is running or reserved by a run (Add all, Try all again). A second ask
     /// for one of them, from any control, does nothing (#296), so nothing is sent twice.
     private var reservedAcceptIds: Set<String> = []
@@ -1117,16 +1123,20 @@ final class SyncEngine: ReleaseSyncHook {
 
     /// Reserves `ids` at once, so each shows its sending look and refuses other asks at the press,
     /// then accepts them one at a time; each reservation ends when its own turn does.
-    private func acceptReserved(_ ids: [String]) async {
+    @discardableResult
+    private func acceptReserved(_ ids: [String]) async -> AcceptRunResult {
+        var result = AcceptRunResult()
         let mine = ids.filter { !reservedAcceptIds.contains($0) }
         reservedAcceptIds.formUnion(mine)
         status.acceptingIds.formUnion(mine)
         for recordId in mine {
             await performAccept(recordId)
+            if status.pendingFromMac.contains(where: { $0.id == recordId }) { result.failed += 1 } else { result.added += 1 }
             reservedAcceptIds.remove(recordId)
             status.acceptingIds.remove(recordId)
             persistSyncQueues()
         }
+        return result
     }
 
     /// Downloads every file `record` names into a fresh temp directory, then
@@ -1179,15 +1189,17 @@ final class SyncEngine: ReleaseSyncHook {
 
     /// "Add all" (#296): accepts the ready records as they are when pressed. Failed and sending
     /// ones belong to the other section and are left alone.
-    func acceptReadyFromMac() async {
+    @discardableResult
+    func acceptReadyFromMac() async -> AcceptRunResult {
         await acceptReserved(readyAcceptIds)
     }
 
     /// "Try all again" (#296): retries the failed ids as they are when pressed. A record that
     /// fails again stays failed; one that becomes ready later is not picked up by this run.
-    func retryFailedAcceptsFromMac() async {
+    @discardableResult
+    func retryFailedAcceptsFromMac() async -> AcceptRunResult {
         let snapshot = status.pendingFromMac.map(\.id).filter { status.failedAcceptIds.contains($0) }
-        await acceptReserved(snapshot)
+        return await acceptReserved(snapshot)
     }
 
     /// `name` came off the network in a record. It is written under `dir`,

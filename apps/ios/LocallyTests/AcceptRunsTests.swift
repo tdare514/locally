@@ -41,7 +41,8 @@ struct AcceptRunsTests {
         h.engine.status.pendingFromMac = [ready, failed]
         h.engine.status.failedAcceptIds = [failed.id]
 
-        await h.engine.acceptReadyFromMac()
+        let result = await h.engine.acceptReadyFromMac()
+        #expect(result == SyncEngine.AcceptRunResult(added: 1, failed: 0))
 
         #expect(h.engine.status.pendingFromMac.map(\.id) == [failed.id], "the failed one is not the ready section's")
         #expect(h.api.downloadFileCalls == ["ready.mp3"])
@@ -104,7 +105,8 @@ struct AcceptRunsTests {
         h.engine.status.failedAcceptIds = [failedOne.id, failedTwo.id]
         h.api.downloadFailCountRemaining["f2.mp3"] = 1   // f2 fails again
 
-        await h.engine.retryFailedAcceptsFromMac()
+        let result = await h.engine.retryFailedAcceptsFromMac()
+        #expect(result == SyncEngine.AcceptRunResult(added: 1, failed: 1))
 
         #expect(Set(h.engine.status.pendingFromMac.map(\.id)) == [ready.id, failedTwo.id], "r was not in the snapshot")
         #expect(h.engine.status.failedAcceptIds == [failedTwo.id], "f1 is done, f2 failed again")

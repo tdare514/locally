@@ -431,8 +431,12 @@ enum Copy {
         /// A failed row's own retry icon.
         static func tryTitleAgain(_ title: String) -> String { "Try \(title) again" }
         /// Announced after a section's action finishes.
-        static let addAllDone = "Added."
-        static let tryAllDone = "Tried again."
+        /// Announced when a run ends, from that run's results.
+        static func runAnnouncement(added: Int, failed: Int) -> String {
+            if failed == 0 { return "Added." }
+            if added == 0 { return "Couldn't send these yet." }
+            return "Added \(added). \(failed) couldn't be sent yet."
+        }
         static let failedHint = "Sending didn't finish. Try again."
 
         static func queueFailed(_ detail: String) -> String { "Couldn't queue a change to sync: \(detail)" }

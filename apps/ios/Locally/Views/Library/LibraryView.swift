@@ -255,17 +255,15 @@ struct LibraryView: View {
         guard !trayRuns.contains(run), let engine = container?.syncEngine else { return }
         trayRuns.insert(run)
         Task {
+            let result: SyncEngine.AcceptRunResult
             switch run {
-            case .addAll: await engine.acceptReadyFromMac()
-            case .tryAllAgain: await engine.retryFailedAcceptsFromMac()
+            case .addAll: result = await engine.acceptReadyFromMac()
+            case .tryAllAgain: result = await engine.retryFailedAcceptsFromMac()
             }
             trayRuns.remove(run)
             load()
-            // A polite announcement (it waits for VoiceOver to finish what it is saying).
-            let text = run == .tryAllAgain && !syncStatus.failedAcceptIds.isEmpty
-                ? Copy.Sync.couldntSendThese
-                : (run == .addAll ? Copy.Sync.addAllDone : Copy.Sync.tryAllDone)
-            var message = AttributedString(text)
+            // A polite announcement (it waits for VoiceOver to finish what it is saying), from this run's results.
+            var message = AttributedString(Copy.Sync.runAnnouncement(added: result.added, failed: result.failed))
             message.accessibilitySpeechAnnouncementPriority = .low
             AccessibilityNotification.Announcement(message).post()
         }

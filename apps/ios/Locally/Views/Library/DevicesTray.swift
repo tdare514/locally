@@ -67,16 +67,17 @@ struct DevicesTraySections: Equatable {
     var orderedIDs: [String] { (ready + failed).map(\.id) }
 
     /// Where focus goes when the row `id` leaves while focus was on its own control: the next row's
-    /// control, else the previous row's, else a section's action, else the tray heading.
-    static func focusAfterLeaving(_ id: String, before: DevicesTraySections, after: DevicesTraySections, addAllRunning: Bool) -> DevicesTrayFocus {
+    /// control, else the previous row's, else a section's action, else the tray heading. Only
+    /// enabled controls count: a row being sent (or reserved) and a disabled action are skipped.
+    static func focusAfterLeaving(_ id: String, before: DevicesTraySections, after: DevicesTraySections, runs: Set<DevicesTrayRun>) -> DevicesTrayFocus {
         let order = before.orderedIDs
-        let remaining = Set(after.orderedIDs)
+        let enabled = Set((after.ready + after.failed).filter { $0.state != .sending }.map(\.id))
         if let index = order.firstIndex(of: id) {
-            if let next = order[(index + 1)...].first(where: { remaining.contains($0) }) { return .send(next) }
-            if let previous = order[..<index].last(where: { remaining.contains($0) }) { return .send(previous) }
+            if let next = order[(index + 1)...].first(where: { enabled.contains($0) }) { return .send(next) }
+            if let previous = order[..<index].last(where: { enabled.contains($0) }) { return .send(previous) }
         }
-        if after.showsAddAll(running: addAllRunning) { return .sectionAction(.addAll) }
-        if after.showsTryAllAgain { return .sectionAction(.tryAllAgain) }
+        if after.showsAddAll(running: runs.contains(.addAll)) && !runs.contains(.addAll) && after.addableCount > 0 { return .sectionAction(.addAll) }
+        if after.showsTryAllAgain && !runs.contains(.tryAllAgain) && after.retryableCount > 0 { return .sectionAction(.tryAllAgain) }
         return .heading
     }
 }
@@ -273,7 +274,7 @@ struct DevicesTrayPanel: View {
             guard let leaving = focusedRowWhenUsed, let before = previousSections,
                   !after.orderedIDs.contains(leaving) else { return }
             focusedRowWhenUsed = nil
-            let target = DevicesTraySections.focusAfterLeaving(leaving, before: before, after: after, addAllRunning: runs.contains(.addAll))
+            let target = DevicesTraySections.focusAfterLeaving(leaving, before: before, after: after, runs: runs)
             if target == .heading, let headingFocus { headingFocus.wrappedValue = true } else { focus = target }
         }
         .onChange(of: focus) { _, new in
