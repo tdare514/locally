@@ -377,7 +377,7 @@ enum StatsGallery {
 /// The services are the production ones over an in-memory index, and nothing here signs in or syncs.
 @MainActor
 enum IconsGallery {
-    private static func container() -> AppContainer {
+    static func container() -> AppContainer {
         // swiftlint:disable:next force_try
         let modelContainer = try! ModelStore.open(at: nil)
         let library = SwiftDataLibraryStore(context: modelContainer.mainContext)
@@ -567,10 +567,13 @@ private struct ImportRecordGallery: View {
     let name: String
 
     @State private var preset: ImportViewPreset
+    /// Only the artist cases (#287) get a library to suggest from.
+    @State private var container: AppContainer?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(name: String) {
         self.name = name
+        _container = State(initialValue: name.contains("artist") ? IconsGallery.container() : nil)
         let container = try! ModelStore.open(at: nil)
         let coordinator = ReleaseCoordinator(
             importer: LocalFileImporter(),
@@ -627,6 +630,11 @@ private struct ImportRecordGallery: View {
             }
         case "import-record-live":
             Self.fill(single)
+        case "import-record-artist-pills", "import-record-artist-typo":
+            // #287: the library's artists (the seeded Stats releases) behind the Artist field. Tap the
+            // field to see the keyboard pills; for the typo, tap the field, then tap away.
+            Self.fill(single)
+            single.artist = name == "import-record-artist-pills" ? "ne" : "Neon Harbour"
         default:
             // import-record-single: a file, the fields, no cover.
             Self.fill(single)
@@ -651,6 +659,7 @@ private struct ImportRecordGallery: View {
         }
         .tint(Theme.accent)
         .environment(SyncStatus())
+        .environment(\.appContainer, container)
         .onAppear {
             // The live case sets its cover as the screen appears, so the beat plays in the record.
             guard name == "import-record-live" || name == "import-record-album-live", let cover = SampleArtwork.sunset.pngData() else { return }

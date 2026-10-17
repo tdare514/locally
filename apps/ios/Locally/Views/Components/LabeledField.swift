@@ -17,14 +17,20 @@ struct LabeledField: View {
     var metricsStyle: UIFont.TextStyle = .body
     /// False is the release page's view mode: plain label and value text, no underline, no focus.
     var isEditable = true
+    /// Set on the Artist field only (#287): the library's artists, for the keyboard pills and the
+    /// "Did you mean" line. nil, or a read-only field, gets neither.
+    var artistIndex: [ArtistEntry]?
 
     @FocusState private var focused: Bool
+    /// The text "Did you mean" was last asked about: after a pause in typing, or when focus leaves.
+    @State private var settledText: String?
+    @State private var settleTask: Task<Void, Never>?
     @Environment(\.displayScale) private var displayScale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .subheadline) private var labelWidth = Theme.Immersive.labeledFieldLabelWidth
 
-    init(_ label: String, placeholder: String, text: Binding<String>, font: Font = Theme.ScaledFont.input, metricsStyle: UIFont.TextStyle = .body, wraps: Bool = false, labelFits: Bool = false, valueWidth: CGFloat? = nil, isEditable: Bool = true) {
+    init(_ label: String, placeholder: String, text: Binding<String>, font: Font = Theme.ScaledFont.input, metricsStyle: UIFont.TextStyle = .body, wraps: Bool = false, labelFits: Bool = false, valueWidth: CGFloat? = nil, isEditable: Bool = true, artistIndex: [ArtistEntry]? = nil) {
         self.label = label
         self.placeholder = placeholder
         self._text = text
@@ -34,6 +40,7 @@ struct LabeledField: View {
         self.labelFits = labelFits
         self.valueWidth = valueWidth
         self.isEditable = isEditable
+        self.artistIndex = artistIndex
     }
 
     /// Where the value's first line sits, from the font itself. An empty vertical TextField
@@ -98,6 +105,87 @@ struct LabeledField: View {
                 .frame(height: 1 / displayScale)
             }
             .animation(reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: Theme.Immersive.inlineFieldFocusFade), value: focused)
+            .onChange(of: text) { _, newValue in settleSoon(newValue) }
+            .onChange(of: focused) { _, isFocused in
+                if !isFocused { settleTask?.cancel(); settledText = text }
+            }
+            .toolbar {
+                if focused, !pills.isEmpty {
+                    ToolbarItemGroup(placement: .keyboard) { pillRow }
+                }
+            }
+    }
+
+    // MARK: Artist suggestions (#287)
+
+    private static let pillLimit = 3
+    private static let hintPause: Duration = .milliseconds(600)
+
+    private var suggestsArtists: Bool { isEditable && artistIndex != nil }
+
+    private var pills: [ArtistEntry] {
+        guard suggestsArtists, let artistIndex else { return [] }
+        return ArtistIndex.suggest(artistIndex, query: text, limit: Self.pillLimit)
+    }
+
+    private var hint: DidYouMean? {
+        guard suggestsArtists, let artistIndex, settledText == text else { return nil }
+        return ArtistIndex.didYouMean(artistIndex, typed: text)
+    }
+
+    private func settleSoon(_ newValue: String) {
+        guard suggestsArtists else { return }
+        settleTask?.cancel()
+        settleTask = Task {
+            try? await Task.sleep(for: Self.hintPause)
+            if !Task.isCancelled { settledText = newValue }
+        }
+    }
+
+    private var pillRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(pills, id: \.key) { entry in
+                    Button {
+                        text = entry.display
+                    } label: {
+                        Text(Copy.ArtistSuggest.pill(artist: entry.display, trackCount: entry.trackCount))
+                            .font(Theme.ScaledFont.subheadline)
+                            .foregroundStyle(Theme.Tint.accentText)
+                            .lineLimit(1)
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 44)
+                            .background(Capsule().fill(Theme.accent.opacity(0.18)))
+                            .contentShape(Capsule())
+                    }
+                    .accessibilityLabel(Copy.ArtistSuggest.pillLabel(artist: entry.display, trackCount: entry.trackCount))
+                }
+            }
+        }
+        .accessibilityLabel(Copy.ArtistSuggest.pillsLabel)
+    }
+
+    /// One line under the field. Never blocks saving: it is a hint, not a validation.
+    @ViewBuilder
+    private func hintLine(_ hint: DidYouMean) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(Copy.ArtistSuggest.line(for: hint))
+                .font(Theme.ScaledFont.caption)
+                .foregroundStyle(Theme.textDim)
+            Button {
+                text = hint.artist
+            } label: {
+                Text(Copy.ArtistSuggest.useButton(artist: hint.artist))
+                    .font(Theme.ScaledFont.caption.weight(.semibold))
+                    .foregroundStyle(Theme.Tint.accentText)
+                    // A 44 pt target without a 44 pt line.
+                    .padding(.vertical, 14)
+                    .contentShape(Rectangle())
+                    .padding(.vertical, -14)
+            }
+            .buttonStyle(.plain)
+        }
+        .onAppear { AccessibilityNotification.Announcement(Copy.ArtistSuggest.line(for: hint)).post() }
     }
 
     @ViewBuilder
@@ -123,8 +211,13 @@ struct LabeledField: View {
     }
 
     var body: some View {
-        layout
-            .modifier(StaticReading(isStatic: !isEditable))
+        VStack(alignment: .leading, spacing: 2) {
+            layout
+                .modifier(StaticReading(isStatic: !isEditable))
+            if let hint {
+                hintLine(hint)
+            }
+        }
     }
 
     @ViewBuilder

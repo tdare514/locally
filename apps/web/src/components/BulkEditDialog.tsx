@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { bulkDetailsPatch, type BulkDetails } from "../lib/library-bulk";
 import Field from "./Field";
+import ArtistCombobox from "./ArtistCombobox";
+import type { ArtistEntry } from "../lib/artist-index";
 
 interface BulkEditDialogProps {
   open: boolean;
@@ -10,6 +12,8 @@ interface BulkEditDialogProps {
   busy: boolean;
   onCancel: () => void;
   onApply: (details: BulkDetails) => void;
+  /** Every artist in the library, for the Artist field's suggestions (#287). */
+  artistIndex: ArtistEntry[];
 }
 
 /**
@@ -23,6 +27,7 @@ export default function BulkEditDialog({
   busy,
   onCancel,
   onApply,
+  artistIndex,
 }: BulkEditDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -61,6 +66,7 @@ export default function BulkEditDialog({
           busy={busy}
           onCancel={onCancel}
           onApply={onApply}
+          artistIndex={artistIndex}
         />
       )}
     </dialog>
@@ -72,6 +78,7 @@ function BulkEditForm({
   busy,
   onCancel,
   onApply,
+  artistIndex,
 }: Omit<BulkEditDialogProps, "open">) {
   const [artist, setArtist] = useState("");
   const [year, setYear] = useState("");
@@ -99,13 +106,21 @@ function BulkEditForm({
         Blank fields are left unchanged. Tracks are re-tagged in place; files
         keep their names.
       </p>
-      <Field
-        label="Artist"
-        value={artist}
-        onChange={setArtist}
-        placeholder="Leave unchanged"
-        disabled={busy}
-      />
+      <div className="flex flex-col gap-2 text-sm">
+        <label htmlFor="bulk-artist" className="text-xs font-bold uppercase tracking-[0.14em] text-text-muted">
+          Artist
+        </label>
+        <ArtistCombobox
+          id="bulk-artist"
+          value={artist}
+          onChange={setArtist}
+          index={artistIndex}
+          placeholder="Leave unchanged"
+          disabled={busy}
+          wrapperClassName="flex flex-col"
+          inputClassName="rounded-md bg-elevated px-4 py-3 text-sm text-text outline-none placeholder:text-text-muted/60 focus:ring-2 focus:ring-accent disabled:opacity-50"
+        />
+      </div>
       <div className="grid grid-cols-2 gap-4">
         <Field
           label="Year"
