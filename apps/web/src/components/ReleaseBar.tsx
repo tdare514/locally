@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { watchEscape } from "../lib/escape-watch";
 import { BAR_CLEARANCE } from "../lib/page-layout";
 
 /** The nearest ancestor that scrolls vertically (the app's main pane). */
@@ -121,7 +122,7 @@ export function useBarConfirm(): {
 }
 
 /** An inline confirm in the bar's left slot: a sentence, the confirming button and Cancel. Focus
- * moves to Cancel (the safe choice) when it opens; Escape cancels it. */
+ * moves to Cancel (the safe choice) when it opens; Escape anywhere cancels it. */
 export function BarConfirm({
   message,
   children,
@@ -137,19 +138,20 @@ export function BarConfirm({
   disabled?: boolean;
 }) {
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const onCancelRef = useRef(onCancel);
+  useLayoutEffect(() => {
+    onCancelRef.current = onCancel;
+  });
   useEffect(() => {
     cancelRef.current?.focus();
+    // Escape cancels wherever focus is while the confirm is open, not only inside it; the listener
+    // goes when the confirm closes.
+    return watchEscape(document, () => onCancelRef.current());
   }, []);
   return (
     <div
       role="group"
       aria-label={message}
-      onKeyDown={(e) => {
-        if (e.key !== "Escape") return;
-        e.preventDefault();
-        e.stopPropagation();
-        onCancel();
-      }}
       className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-sm"
     >
       <span className="min-w-0 max-w-[40rem] text-text-muted">{message}</span>
