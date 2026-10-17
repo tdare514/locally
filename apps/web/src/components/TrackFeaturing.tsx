@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ArtistEntry } from "../lib/artist-index";
 import { featuringText } from "../lib/featuring-field";
 import FeaturedField from "./FeaturedField";
@@ -24,6 +24,7 @@ export default function TrackFeaturing({ trackName, names, onChange, index }: Pr
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const dialogId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -56,7 +57,8 @@ export default function TrackFeaturing({ trackName, names, onChange, index }: Pr
         type="button"
         data-featuring-button
         aria-expanded={open}
-        aria-haspopup="true"
+        aria-haspopup="dialog"
+        aria-controls={open ? dialogId : undefined}
         onClick={() => (open ? close() : setOpen(true))}
         className={`cursor-pointer truncate rounded-md px-1.5 py-0.5 text-left text-[15px] outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-accent ${
           has
@@ -68,7 +70,8 @@ export default function TrackFeaturing({ trackName, names, onChange, index }: Pr
       </button>
       {open && (
         <div
-          role="group"
+          id={dialogId}
+          role="dialog"
           aria-label={`Featured artists on ${trackName}`}
           // The track list starts a drag from a bare press; a press in here is not one.
           onPointerDown={(e) => e.stopPropagation()}
