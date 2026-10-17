@@ -54,7 +54,7 @@ enum FlowLayoutFill: LayoutValueKey {
 
 /// The Featuring row (#287), in `LabeledField`'s style: the names as capsule pills that wrap, each
 /// with a remove button, and a text field to add more. Return or a comma adds the typed name,
-/// Delete in an empty field removes the last pill, and the keyboard offers the library's artists.
+/// the remove buttons take pills away, and the keyboard offers the library's artists.
 /// Read-only, it is the plain "Featuring B, C" row, left out when there are no names.
 struct FeaturingField: View {
     @Binding var names: [String]
@@ -65,7 +65,6 @@ struct FeaturingField: View {
     var autofocus = false
 
     @FocusState private var focused: Bool
-    @State private var raw = FeaturingNames.backspaceSentinel
     @State private var index: [ArtistEntry]?
     @Environment(\.appContainer) private var container
     @Environment(\.displayScale) private var displayScale
@@ -83,7 +82,7 @@ struct FeaturingField: View {
                     index = ArtistIndex.build((try? container.library.all()) ?? [])
                 }
         } else if !names.isEmpty {
-            LabeledField(Copy.Featuring.field, placeholder: "", text: .constant(Copy.Featuring.viewValue(names)), wraps: true, labelFits: true, isEditable: false)
+            LabeledField(Copy.Featuring.field, placeholder: "", text: .constant(Copy.Featuring.viewValue(names)), wraps: true, isEditable: false)
         }
     }
 
@@ -98,9 +97,7 @@ struct FeaturingField: View {
                 }
             } else {
                 HStack(alignment: .top, spacing: Theme.Immersive.labeledFieldLabelGap) {
-                    // "Featuring" is wider than the shared label column: it takes its own width rather than
-                    // breaking mid-word.
-                    label.frame(minWidth: labelWidth, alignment: .leading).fixedSize(horizontal: true, vertical: false)
+                    label.frame(width: labelWidth, alignment: .leading)
                     value
                 }
             }
@@ -164,50 +161,33 @@ struct FeaturingField: View {
         .background(Capsule().fill(Theme.accent.opacity(0.18)))
     }
 
-    /// The text field. Its text always starts with a zero-width character, so that Delete with
-    /// nothing typed still changes the text and the last pill can go.
     private var entry: some View {
-        ZStack(alignment: .leading) {
-            if draft.isEmpty {
-                Text(Copy.Featuring.placeholder)
-                    .font(Theme.ScaledFont.input)
-                    .foregroundStyle(Theme.textDim)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
+        TextField("", text: $draft, prompt: Text(Copy.Featuring.placeholder).foregroundColor(Theme.textDim))
+            .font(Theme.ScaledFont.input)
+            .foregroundStyle(Theme.primaryText)
+            .focused($focused)
+            .submitLabel(.done)
+            .autocorrectionDisabled()
+            .accessibilityLabel(Copy.Featuring.placeholder)
+            .frame(minWidth: 140, minHeight: 44, alignment: .leading)
+            .onChange(of: draft) { _, newValue in absorbCommas(newValue) }
+            .onSubmit {
+                commit()
+                focused = true
             }
-            TextField("", text: $raw)
-                .font(Theme.ScaledFont.input)
-                .foregroundStyle(Theme.primaryText)
-                .focused($focused)
-                .submitLabel(.done)
-                .autocorrectionDisabled()
-                .accessibilityLabel(Copy.Featuring.placeholder)
-                .accessibilityValue(draft)
-                .onSubmit {
-                    commit()
-                    focused = true
-                }
-        }
-        .frame(minWidth: 140, minHeight: 44, alignment: .leading)
-        .onChange(of: raw) { _, newValue in read(newValue) }
-        .onChange(of: draft) { _, newValue in
-            if FeaturingNames.readField(raw).typed != newValue { raw = FeaturingNames.backspaceSentinel + newValue }
-        }
-        .onChange(of: focused) { _, isFocused in
-            if !isFocused { commit() }
-        }
-        .toolbar {
-            if focused, !pills.isEmpty {
-                ToolbarItemGroup(placement: .keyboard) {
-                    ArtistPillRow(entries: pills) { entry in
-                        names = FeaturingNames.add(entry.display, to: names)
-                        draft = ""
-                        raw = FeaturingNames.backspaceSentinel
+            .onChange(of: focused) { _, isFocused in
+                if !isFocused { commit() }
+            }
+            .toolbar {
+                if focused, !pills.isEmpty {
+                    ToolbarItemGroup(placement: .keyboard) {
+                        ArtistPillRow(entries: pills) { entry in
+                            names = FeaturingNames.add(entry.display, to: names)
+                            draft = ""
+                        }
                     }
                 }
             }
-        }
-        .onAppear { raw = FeaturingNames.backspaceSentinel + draft }
     }
 
     private var pills: [ArtistEntry] {
@@ -217,26 +197,18 @@ struct FeaturingField: View {
         return Array(found.filter { !taken.contains($0.key) }.prefix(Self.pillLimit))
     }
 
-    private func read(_ newValue: String) {
-        let field = FeaturingNames.readField(newValue)
-        if field.deletedEmpty {
-            names = FeaturingNames.removeLast(names)
-            raw = FeaturingNames.backspaceSentinel
-            draft = ""
-            return
-        }
+    /// A comma ends a name: the complete ones become pills, the rest stays in the field.
+    private func absorbCommas(_ newValue: String) {
+        guard newValue.contains(",") else { return }
         var updated = names
-        let rest = FeaturingNames.absorbCommas(field.typed, into: &updated)
-        if updated != names { names = updated }
+        let rest = FeaturingNames.absorbCommas(newValue, into: &updated)
+        names = updated
         draft = rest
-        let wanted = FeaturingNames.backspaceSentinel + rest
-        if raw != wanted { raw = wanted }
     }
 
     private func commit() {
         names = FeaturingNames.commit(draft, to: names)
         draft = ""
-        raw = FeaturingNames.backspaceSentinel
     }
 }
 

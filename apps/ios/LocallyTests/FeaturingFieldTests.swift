@@ -26,16 +26,15 @@ struct FeaturingFieldTests {
         #expect(FeaturingNames.commit("B, C,  D", to: []) == ["B", "C", "D"])
     }
 
-    @Test func removeLastTakesTheLastPill() {
-        #expect(FeaturingNames.removeLast(["B", "C"]) == ["B"])
-        #expect(FeaturingNames.removeLast([]).isEmpty)
+    @Test func noSavedNameCanHoldAZeroWidthSpace() {
+        #expect(FeaturingNames.add("\u{200B}Mira\u{200B} Vale\u{200B}", to: []) == ["Mira Vale"])
+        #expect(FeaturingNames.add("\u{200B}", to: ["B"]) == ["B"])
+        #expect(FeaturingNames.commit("\u{200B}C\u{200B}, \u{200B}D", to: []) == ["C", "D"])
+        #expect(FeaturingNames.add("\u{200B}mira vale", to: ["Mira Vale"]) == ["Mira Vale"])
     }
 
-    @Test func deleteInAnEmptyFieldIsTheSentinelGone() {
-        #expect(FeaturingNames.readField(FeaturingNames.backspaceSentinel).deletedEmpty == false)
-        #expect(FeaturingNames.readField("").deletedEmpty)
-        let typed = FeaturingNames.readField(FeaturingNames.backspaceSentinel + "Mi")
-        #expect(typed.typed == "Mi" && !typed.deletedEmpty)
+    @Test func removeTakesOnePillAway() {
+        #expect(FeaturingNames.remove("B", from: ["B", "C"]) == ["C"])
     }
 
     @Test func displayAndMergeUseTheTitleWording() {
@@ -219,5 +218,56 @@ struct FeaturingFieldTests {
         let titles = try #require(rig.library.all().first).tracks.sorted { $0.trackNumber < $1.trackNumber }.map(\.title)
         #expect(titles == ["One (feat. B, C, D)", "Two (feat. E)"])
         #expect(try rig.library.all().first?.title == "Album")
+    }
+
+    // MARK: Legacy singles
+
+    /// A single saved before the Featuring field: release title and track title both "Song (feat. B)".
+    private func legacySingle(_ rig: Rig) async throws -> Release {
+        let url = try makeSourceFile()
+        let release = try await rig.coordinator.importSingle(file: url, tags: TagSet(title: "Song", artist: "A", album: "Song", year: "2020"), cover: nil)
+        var legacy = release
+        legacy.title = "Song (feat. B)"
+        legacy.tracks[0].title = "Song (feat. B)"
+        try rig.library.upsert(legacy)
+        return legacy
+    }
+
+    @Test func aNoChangeSaveLeavesALegacySinglesTitlesAlone() async throws {
+        let rig = Rig()
+        let release = try await legacySingle(rig)
+        let model = ReleaseDetailViewModel(release: release, coordinator: rig.coordinator, coverStore: rig.coverStore)
+        #expect(model.title == "Song")
+        #expect(model.singleFeaturing == ["B"])
+        #expect(!model.hasChanges)
+
+        model.beginEditing()
+        model.year = "2021"
+        await model.save()
+
+        let last = try #require(rig.tagWriter.calls.last).tags
+        #expect(last.title == "Song (feat. B)")
+        #expect(last.album == "Song (feat. B)")
+        #expect(last.year == "2021")
+        let saved = try #require(rig.library.all().first)
+        #expect(saved.title == "Song (feat. B)")
+        #expect(saved.tracks.first?.title == "Song (feat. B)")
+        #expect(saved.year == "2021")
+    }
+
+    @Test func editingALegacySinglesTitleMakesTheReleaseTitlePlainAndTheTrackTitleJoined() async throws {
+        let rig = Rig()
+        let release = try await legacySingle(rig)
+        let model = ReleaseDetailViewModel(release: release, coordinator: rig.coordinator, coverStore: rig.coverStore)
+
+        model.title = "Tune"
+        await model.save()
+
+        let last = try #require(rig.tagWriter.calls.last).tags
+        #expect(last.title == "Tune (feat. B)")
+        #expect(last.album == "Tune")
+        let saved = try #require(rig.library.all().first)
+        #expect(saved.title == "Tune")
+        #expect(saved.tracks.first?.title == "Tune (feat. B)")
     }
 }

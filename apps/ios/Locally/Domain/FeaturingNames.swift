@@ -4,10 +4,6 @@ import Foundation
 /// (same `artistKey`) is skipped, and a comma ends a name. Kept apart from the view so the
 /// editors and their tests share them.
 enum FeaturingNames {
-    /// A zero-width character the field keeps at the start of its text, so that Delete in an
-    /// "empty" field is a change SwiftUI can see (see `FeaturingField`).
-    static let backspaceSentinel = "\u{200B}"
-
     /// `names` plus `name`, trimmed; unchanged when the name is empty or its key is already there.
     static func add(_ name: String, to names: [String]) -> [String] {
         let trimmed = clean(name)
@@ -32,11 +28,6 @@ enum FeaturingNames {
         return add(rest, to: result)
     }
 
-    /// Delete in an empty field takes the last name away.
-    static func removeLast(_ names: [String]) -> [String] {
-        Array(names.dropLast())
-    }
-
     static func remove(_ name: String, from names: [String]) -> [String] {
         names.filter { $0 != name }
     }
@@ -51,13 +42,6 @@ enum FeaturingNames {
         ArtistNames.joinNames(names)
     }
 
-    /// What the field text means once the sentinel is accounted for: the typed text, and whether
-    /// Delete was pressed with nothing typed (the sentinel gone and nothing in its place).
-    static func readField(_ raw: String) -> (typed: String, deletedEmpty: Bool) {
-        if raw.hasPrefix(backspaceSentinel) { return (String(raw.dropFirst(backspaceSentinel.count)), false) }
-        return (raw, raw.isEmpty)
-    }
-
     /// A track's full title for the file's tag: unchanged when the text the editor split it
     /// into is unchanged (so "B, C, D" is not reworded to "B, C & D"), else the joined form.
     static func fullTitle(plain: String, featuring: [String], original: String?) -> String {
@@ -68,7 +52,8 @@ enum FeaturingNames {
         return ArtistNames.joinFeaturing(plain, featuring)
     }
 
+    /// Trimmed, with any zero-width space (U+200B) removed: no saved name ever holds one.
     private static func clean(_ name: String) -> String {
-        name.replacingOccurrences(of: backspaceSentinel, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        name.replacingOccurrences(of: "\u{200B}", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

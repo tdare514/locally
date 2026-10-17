@@ -18,7 +18,7 @@ struct ComponentGallery: View {
         // #269: the Library's "From your devices" button and tray, over sample pending records.
         "devices-header-0", "devices-header-1", "devices-header-3", "devices-tray-open", "devices-tray-large-text", "devices-tray-failed",
         // #287: the Featuring field. The import cases are `import-record-featuring` and `import-record-album-featuring-sheet`.
-        "release-featuring-view"]
+        "release-featuring-view", "featuring-fields-ax"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -37,7 +37,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "release-featuring-view"].contains(name)
+        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "release-featuring-view", "featuring-fields-ax"].contains(name)
     }
 
     var body: some View {
@@ -144,6 +144,8 @@ struct ComponentGallery: View {
             ReleaseReviewErrorGallery()
         case "controls":
             ControlsGallery()
+        case "featuring-fields-ax":
+            FeaturingFieldsGallery()
         case "release-featuring-view":
             IconsGallery.featuringRelease()
         case "icons-tabs-library", "icons-library-list":
@@ -574,6 +576,30 @@ private struct ReleaseReviewErrorGallery: View {
     var body: some View {
         ReleaseReviewSheet(model: model, glowColors: Theme.coverGlowColors(nil)) {}
             .background(Theme.card)
+    }
+}
+
+/// `featuring-fields-ax`: Title, Artist and the Featuring row (edit and view) at an accessibility
+/// size, where the label sits above its value. The import record scrolls past these at that size.
+private struct FeaturingFieldsGallery: View {
+    @State private var names = ["Mira Vale", "Jonah Reyes"]
+    @State private var draft = ""
+    @State private var title = "Headlights"
+    @State private var artist = "Neon Harbor"
+
+    var body: some View {
+        ZStack {
+            StudioBackdrop()
+            VStack(alignment: .leading, spacing: Theme.Immersive.labeledFieldRowGap) {
+                LabeledField(Copy.Import.fieldTitle, placeholder: "", text: $title, font: Theme.ScaledFont.fieldTitle, metricsStyle: .title3, wraps: true)
+                LabeledField(Copy.Import.fieldArtist, placeholder: "", text: $artist, wraps: true)
+                FeaturingField(names: $names, draft: $draft)
+                FeaturingField(names: $names, draft: $draft, isEditable: false)
+            }
+            .padding(Theme.Spacing.pagePadding)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .dynamicTypeSize(.accessibility2)
+        }
     }
 }
 

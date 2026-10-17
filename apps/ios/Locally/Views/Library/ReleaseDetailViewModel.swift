@@ -312,8 +312,10 @@ final class ReleaseDetailViewModel {
         }
 
         let originalDiscs = Dictionary(originalTrackRows.compactMap { row in row.discNumber.map { (row.id, $0) } }, uniquingKeysWith: { first, _ in first })
+        // The Title field shows a legacy single's "Song (feat. B)" as "Song". Left alone, the release
+        // title stays as it was saved; edited, it is the plain title typed.
         let changes = ReleaseChanges(
-            title: title,
+            title: title == originalTitle ? release.title : title,
             artist: artist,
             year: year,
             genre: genre,
