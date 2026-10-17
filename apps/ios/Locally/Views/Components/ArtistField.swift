@@ -12,8 +12,13 @@ struct ArtistField: View {
 
     var body: some View {
         LabeledField(Copy.Import.fieldArtist, placeholder: Copy.Import.artistPlaceholder, text: $text, font: Theme.ScaledFont.input, wraps: true, isEditable: isEditable, artistIndex: isEditable ? index : nil)
+            // Fires on every change of `isEditable`: each Edit tap reads the library again, so counts
+            // from a save are not stale, and leaving edit mode drops the index.
             .task(id: isEditable) { @MainActor in
-                guard isEditable, index == nil, let container else { return }
+                guard isEditable, let container else {
+                    index = nil
+                    return
+                }
                 index = ArtistIndex.build((try? container.library.all()) ?? [])
             }
     }

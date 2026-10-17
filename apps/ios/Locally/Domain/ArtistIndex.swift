@@ -39,7 +39,8 @@ enum ArtistIndex {
         }
         var groups: [String: Group] = [:]
         func add(_ name: String, tracks: Int, releases: Int) {
-            let display = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            // NFC first, so "e" + U+0301 and U+00E9 are one spelling, as on the web.
+            let display = name.trimmingCharacters(in: .whitespacesAndNewlines).precomposedStringWithCanonicalMapping
             let key = ArtistNames.artistKey(display)
             if key.isEmpty { return }
             var group = groups[key] ?? Group()
@@ -71,7 +72,8 @@ enum ArtistIndex {
         if queryKey.isEmpty || limit <= 0 { return [] }
         var starts: [ArtistEntry] = []
         var inside: [ArtistEntry] = []
-        for entry in index where entry.display != query {
+        let exact = query.precomposedStringWithCanonicalMapping
+        for entry in index where entry.display != exact {
             guard let offset = matchOffset(Array(entry.key.unicodeScalars), queryKey) else { continue }
             if offset == 0 { starts.append(entry) } else { inside.append(entry) }
         }
@@ -82,7 +84,7 @@ enum ArtistIndex {
         let key = ArtistNames.artistKey(typed)
         if key.isEmpty { return nil }
         if let same = index.first(where: { $0.key == key }) {
-            if same.display == typed.trimmingCharacters(in: .whitespacesAndNewlines) { return nil }
+            if same.display == typed.trimmingCharacters(in: .whitespacesAndNewlines).precomposedStringWithCanonicalMapping { return nil }
             return DidYouMean(kind: .spelling, artist: same.display, trackCount: same.trackCount)
         }
         var best: ArtistEntry?

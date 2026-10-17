@@ -394,6 +394,78 @@
     ]
   },
   {
+    "name": "one artist spelled precomposed and decomposed is one entry, shown precomposed",
+    "releases": [
+      {
+        "artist": "Beyoncé",
+        "tracks": [
+          "Song 1",
+          "Song 2"
+        ]
+      },
+      {
+        "artist": "Beyoncé",
+        "tracks": [
+          "Song 1"
+        ]
+      }
+    ],
+    "index": [
+      {
+        "display": "Beyoncé",
+        "key": "beyonce",
+        "trackCount": 3,
+        "releaseCount": 2
+      }
+    ],
+    "suggest": [
+      {
+        "query": "bey",
+        "limit": 5,
+        "expected": [
+          "Beyoncé"
+        ]
+      }
+    ],
+    "didYouMean": [
+      {
+        "typed": "Beyoncé",
+        "expected": null
+      }
+    ]
+  },
+  {
+    "name": "a tie goes by code point, not UTF-16 unit: U+FF21 before U+1D11E",
+    "releases": [
+      {
+        "artist": "𝄞 Band",
+        "tracks": [
+          "Song 1"
+        ]
+      },
+      {
+        "artist": "Ａ Band",
+        "tracks": [
+          "Song 1"
+        ]
+      }
+    ],
+    "index": [
+      {
+        "display": "Ａ Band",
+        "key": "a band",
+        "trackCount": 1,
+        "releaseCount": 1
+      },
+      {
+        "display": "𝄞 Band",
+        "key": "band",
+        "trackCount": 1,
+        "releaseCount": 1
+      }
+    ]
+  },
+  {
     "name": "an empty library suggests and says nothing",
     "releases": [],
     "index": [],

@@ -24,9 +24,15 @@ export interface IndexedRelease {
   tracks: { title: string }[];
 }
 
-/** Plain code point order, the same on both apps. */
+/** Plain code point order on NFC strings, the same as Swift's scalar order (not UTF-16 unit order). */
 function before(a: string, b: string): boolean {
-  return a < b;
+  const left = Array.from(a, (c) => c.codePointAt(0) as number);
+  const right = Array.from(b, (c) => c.codePointAt(0) as number);
+  const shared = Math.min(left.length, right.length);
+  for (let i = 0; i < shared; i++) {
+    if (left[i] !== right[i]) return left[i] < right[i];
+  }
+  return left.length < right.length;
 }
 
 /** Most tracks first, then A to Z. */
@@ -46,7 +52,8 @@ export function buildArtistIndex(releases: IndexedRelease[]): ArtistEntry[] {
     return found;
   };
   const add = (name: string, tracks: number, releases: number) => {
-    const display = name.trim();
+    // NFC first, so "e" + U+0301 and U+00E9 are one spelling, as they are to Swift.
+    const display = name.trim().normalize("NFC");
     const key = artistKey(display);
     if (key === "") return;
     const g = group(key);
@@ -93,7 +100,7 @@ export function suggestArtists(index: ArtistEntry[], query: string, limit: numbe
   const starts: ArtistEntry[] = [];
   const inside: ArtistEntry[] = [];
   for (const entry of index) {
-    if (entry.display === query) continue;
+    if (entry.display === query.normalize("NFC")) continue;
     const offset = matchOffset(entry.key, queryKey);
     if (offset === null) continue;
     (offset === 0 ? starts : inside).push(entry);
@@ -108,7 +115,7 @@ export function didYouMean(index: ArtistEntry[], typed: string): DidYouMean | nu
   if (key === "") return null;
   const same = index.find((entry) => entry.key === key);
   if (same) {
-    if (same.display === typed.trim()) return null;
+    if (same.display === typed.trim().normalize("NFC")) return null;
     return { kind: "spelling", artist: same.display, trackCount: same.trackCount };
   }
   let best: ArtistEntry | null = null;

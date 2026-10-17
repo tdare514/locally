@@ -13,6 +13,40 @@ import {
 import { focusRing } from "./sidebar/controls";
 
 const MAX_OPTIONS = 5;
+
+export type ComboboxKeyAction =
+  | { type: "none" }
+  | { type: "move"; to: number }
+  | { type: "open"; to: number }
+  | { type: "pick"; index: number; preventDefault: boolean }
+  | { type: "close" };
+
+/**
+ * What a key does in the combobox. Pure so it is testable without a DOM. A key pressed during
+ * IME composition (Enter confirming a candidate, arrows moving through candidates) is never ours.
+ */
+export function comboboxKeyAction(
+  key: string,
+  isComposing: boolean,
+  open: boolean,
+  active: number,
+  count: number,
+  hasText = true
+): ComboboxKeyAction {
+  if (isComposing) return { type: "none" };
+  if (key === "ArrowDown" || key === "ArrowUp") {
+    if (count === 0 || !hasText) return { type: "none" };
+    const down = key === "ArrowDown";
+    if (!open) return { type: "open", to: down ? 0 : count - 1 };
+    if (active === -1) return { type: "move", to: down ? 0 : count - 1 };
+    return { type: "move", to: (active + (down ? 1 : -1) + count) % count };
+  }
+  if (open && key === "Enter" && active >= 0) return { type: "pick", index: active, preventDefault: true };
+  // Takes the option and lets Tab carry on to the next field.
+  if (open && key === "Tab" && active >= 0) return { type: "pick", index: active, preventDefault: false };
+  if (open && key === "Escape") return { type: "close" };
+  return { type: "none" };
+}
 /** How long typing must pause before the "Did you mean" line appears (#287). */
 const HINT_PAUSE_MS = 600;
 
@@ -93,27 +127,34 @@ export default function ArtistCombobox({
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (!editable) return;
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      if (suggestions.length === 0 || value.trim() === "") return;
-      e.preventDefault();
-      if (!open) {
+    const action = comboboxKeyAction(
+      e.key,
+      e.nativeEvent.isComposing || e.keyCode === 229,
+      open,
+      active,
+      suggestions.length,
+      value.trim() !== ""
+    );
+    switch (action.type) {
+      case "open":
+        e.preventDefault();
         setDismissed(false);
-        setActive(e.key === "ArrowDown" ? 0 : suggestions.length - 1);
-        return;
-      }
-      const step = e.key === "ArrowDown" ? 1 : -1;
-      setActive((a) => (a === -1 ? (step === 1 ? 0 : suggestions.length - 1) : (a + step + suggestions.length) % suggestions.length));
-    } else if (open && e.key === "Enter" && active >= 0) {
-      e.preventDefault();
-      pick(suggestions[active]);
-    } else if (open && e.key === "Tab" && active >= 0) {
-      // Takes the option and lets Tab carry on to the next field.
-      pick(suggestions[active]);
-    } else if (open && e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-      setDismissed(true);
-      setActive(-1);
+        setActive(action.to);
+        break;
+      case "move":
+        e.preventDefault();
+        setActive(action.to);
+        break;
+      case "pick":
+        if (action.preventDefault) e.preventDefault();
+        pick(suggestions[action.index]);
+        break;
+      case "close":
+        e.preventDefault();
+        e.stopPropagation();
+        setDismissed(true);
+        setActive(-1);
+        break;
     }
   }
 
@@ -187,7 +228,9 @@ export default function ArtistCombobox({
           </ul>
         )}
       </div>
-      {/* Always in the page so a screen reader hears the line when it arrives; never blocks saving. */}
+      {/* Always in the page so a screen reader hears the line when it arrives; never blocks saving.
+          Hidden while the list is open: in the spelling case the hinted artist is always the list's
+          first option, and the line appears after Escape or on blur. */}
       <p
         aria-live="polite"
         className={hint && !open ? `text-[13px] leading-snug text-text-dim ${hintClassName}` : "sr-only"}

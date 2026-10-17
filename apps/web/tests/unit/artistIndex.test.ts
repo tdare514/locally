@@ -12,6 +12,7 @@ import {
   type ArtistEntry,
   type DidYouMean,
 } from "../../src/lib/artist-index";
+import { comboboxKeyAction } from "../../src/components/ArtistCombobox";
 
 const file = fileURLToPath(new URL("../../../../spec/fixtures/artists/index.json", import.meta.url));
 
@@ -71,5 +72,23 @@ describe("matchRange", () => {
     expect(matchRange("Beyoncé", "beyonc")).toEqual({ start: 0, end: 6 });
     expect(matchRange("Weezer", "zzz")).toBeNull();
     expect(matchRange("Weezer", "  ")).toBeNull();
+  });
+});
+
+describe("comboboxKeyAction", () => {
+  it("ignores every key during IME composition", () => {
+    for (const key of ["Enter", "Tab", "Escape", "ArrowDown", "ArrowUp"]) {
+      expect(comboboxKeyAction(key, true, true, 1, 3)).toEqual({ type: "none" });
+    }
+  });
+  it("picks on Enter and Tab only with a highlight, closes on Escape, moves with arrows", () => {
+    expect(comboboxKeyAction("Enter", false, true, 1, 3)).toEqual({ type: "pick", index: 1, preventDefault: true });
+    expect(comboboxKeyAction("Enter", false, true, -1, 3)).toEqual({ type: "none" });
+    expect(comboboxKeyAction("Tab", false, true, 0, 3)).toEqual({ type: "pick", index: 0, preventDefault: false });
+    expect(comboboxKeyAction("Escape", false, true, -1, 3)).toEqual({ type: "close" });
+    expect(comboboxKeyAction("Escape", false, false, -1, 3)).toEqual({ type: "none" });
+    expect(comboboxKeyAction("ArrowDown", false, true, 2, 3)).toEqual({ type: "move", to: 0 });
+    expect(comboboxKeyAction("ArrowUp", false, true, -1, 3)).toEqual({ type: "move", to: 2 });
+    expect(comboboxKeyAction("ArrowDown", false, false, -1, 3)).toEqual({ type: "open", to: 0 });
   });
 });
