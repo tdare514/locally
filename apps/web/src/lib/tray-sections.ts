@@ -91,13 +91,6 @@ export function sinceLabel(iso: string | undefined): string {
   return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
 }
 
-/** "kwaylone, 1 track, since 27 Sep" for a compact row. */
-export function compactSubline(p: PendingFromPhone): string {
-  const parts = [p.artist, `${p.trackCount} track${p.trackCount === 1 ? "" : "s"}`].filter(Boolean);
-  const since = sinceLabel(p.sentAt);
-  return since ? `${parts.join(", ")}, since ${since}` : parts.join(", ");
-}
-
 /**
  * Which releases are being sent right now, so a send never starts twice for the same one,
  * whichever control asked. `reserve` returns the ids that were free and are now held.

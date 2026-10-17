@@ -68,7 +68,8 @@ describe("PendingRow files states (#172)", () => {
 
   it("a waiting row is compact, has no Send and no per-row retry, and offers Hide", () => {
     const { html, text } = render({ ...base, title: "kwaylone", artist: "kwaylone", sentAt: "2026-09-27T12:00:00Z", filesState: "waiting" });
-    expect(text).toContain("kwaylone, 1 track, since 27 Sep");
+    expect(text).toContain("kwaylone · 1 track");
+    expect(text).toContain("since 27 Sep");
     expect(html).not.toContain("Send kwaylone to Spotify");
     expect(text).not.toMatch(/Resync|Waiting on your phone|hasn't arrived/);
     expect(html.match(/<button/g)).toHaveLength(1);

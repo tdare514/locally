@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   Reservations,
-  compactSubline,
   focusAfterLeave,
   hideKeyFor,
   isReady,
@@ -78,10 +77,9 @@ describe("copy by origin mix", () => {
   });
 });
 
-describe("compact row line", () => {
+describe("since label", () => {
   it("reads artist, tracks and the date", () => {
-    expect(compactSubline(row("a", { sentAt: "2026-09-27T12:00:00Z" }))).toBe("kwaylone, 1 track, since 27 Sep");
-    expect(compactSubline(row("a", { trackCount: 6 }))).toBe("kwaylone, 6 tracks");
+    expect(sinceLabel("2026-09-27T12:00:00Z")).toBe("27 Sep");
     expect(sinceLabel("nonsense")).toBe("");
   });
 });

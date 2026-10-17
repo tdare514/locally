@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { INBOX_TITLE, originLabel } from "../lib/inbox-copy";
 import {
   Reservations,
-  compactSubline,
+  sinceLabel,
   focusAfterLeave,
   landedOnEmptySpace,
   otherSectionCopy,
@@ -276,7 +276,7 @@ export default function PhoneInbox({ pending: allPending, hidden = {}, onAccept,
           aria-labelledby={headingId}
           tabIndex={-1}
           data-state={open ? "open" : "closed"}
-          className="phone-tray glass-fake glass-frost absolute right-full top-full z-30 isolate w-[17rem] max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain rounded-[22px] p-2 outline-none"
+          className="phone-tray glass-fake glass-frost absolute right-full top-full z-30 isolate w-[300px] max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain rounded-[22px] p-2 outline-none"
         >
           <h2 id={headingId} tabIndex={-1} className="sr-only">
             {INBOX_TITLE}
@@ -493,20 +493,18 @@ export function PendingRow({
           >
             {title}
           </span>
+          {/* A long artist name gives way first; the track count always shows. */}
+          <span className="flex text-[13px] text-text-muted">
+            <span className="truncate">{item.artist}</span>
+            <span className="shrink-0 whitespace-pre">
+              {" · "}
+              {item.trackCount} track{item.trackCount === 1 ? "" : "s"}
+            </span>
+          </span>
           {compact ? (
-            <span className="block truncate text-[12px] text-text-dim">{compactSubline(item)}</span>
+            sinceLabel(item.sentAt) && <span className="block text-[12px] text-text-dim">since {sinceLabel(item.sentAt)}</span>
           ) : (
-            <>
-              {/* A long artist name gives way first; the track count always shows. */}
-              <span className="flex text-[13px] text-text-muted">
-                <span className="truncate">{item.artist}</span>
-                <span className="shrink-0 whitespace-pre">
-                  {" · "}
-                  {item.trackCount} track{item.trackCount === 1 ? "" : "s"}
-                </span>
-              </span>
-              <span className="block truncate text-[12px] text-text-dim">{originLabel(item.origin)}</span>
-            </>
+            <span className="block truncate text-[12px] text-text-dim">{originLabel(item.origin)}</span>
           )}
           {arriving && <span className="sr-only">Still being sent from your {item.origin === "ios" ? "phone" : "other device"}.</span>}
         </span>
