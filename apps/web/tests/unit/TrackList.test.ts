@@ -77,9 +77,13 @@ describe("TrackList markup", () => {
     expect(render({ tracks: tracks.map((t) => ({ ...t, discNumber: 1 })) })).not.toContain("data-disc-heading");
   });
 
-  it("shows each track's total plays at the right, quietly, before the grip (#107)", () => {
+  it("shows each track's total plays in the Plays column, quietly, before the grip (#107, #294)", () => {
     const html = render({ plays: { "t-c": 12, "t-a": 1 } });
-    expect([...html.matchAll(/data-plays[^>]*>([^<]*)</g)].map((m) => m[1])).toEqual(["12 plays", "1 play"]);
+    // The count is the number; the unit is for screen readers.
+    expect([...html.matchAll(/data-plays[^>]*>([^<]*)<span class="sr-only">([^<]*)</g)].map((m) => m[1] + m[2])).toEqual([
+      "12 plays",
+      "1 play",
+    ]);
     const tag = html.match(/<span[^>]*data-plays[^>]*>/)?.[0] ?? "";
     expect(tag).toContain("tabular-nums");
     expect(tag).toContain("text-text-muted");
@@ -100,8 +104,50 @@ describe("TrackList markup", () => {
 
   it("shows the plays in the demo's read-only list too, without a grip", () => {
     const html = render({ readOnly: true, plays: { "t-b": 3 } });
-    expect(html).toContain("3 plays");
+    expect(html).toMatch(/data-plays[^>]*>3</);
     expect(html).not.toContain("data-handle");
+  });
+
+  it("has a quiet header row (#, Title, Plays, In playlists, Time) and a title over the artist (#294)", () => {
+    const html = render({ releaseArtist: "Mira Valdane" });
+    const head = html.slice(html.indexOf("track-head"), html.indexOf("<ol"));
+    expect([...head.matchAll(/<span[^>]*>([^<]+)</g)].map((m) => m[1])).toEqual([
+      "#",
+      "Title",
+      "Plays",
+      "In playlists",
+      "Time",
+    ]);
+    // The header is not a list item, so the drag code never counts it as a row.
+    expect(head).not.toContain("<li");
+    expect([...html.matchAll(/data-track-artist[^>]*>([^<]*)</g)].map((m) => m[1])).toEqual([
+      "Mira Valdane",
+      "Mira Valdane",
+      "Mira Valdane",
+    ]);
+  });
+
+  it("falls back to Unknown artist when the release has none", () => {
+    expect(render()).toContain(">Unknown artist<");
+  });
+
+  it("shows each track's length in the Time column, and File missing in its place", () => {
+    const html = render({
+      readOnly: true,
+      view: { "t-c": { durationSec: 142 }, "t-a": { durationSec: null, missing: true } },
+      durations: { "t-b": 61 },
+    });
+    expect(html).toContain(">2:22<");
+    expect(html).toContain(">File missing<");
+    // Without view mode the Time column reads `durations`.
+    expect(render({ durations: { "t-b": 61 } })).toContain(">1:01<");
+  });
+
+  it("keeps the grip and remove buttons in the last column", () => {
+    const html = render({ onRemove: () => {} });
+    expect(html).toContain("data-handle");
+    expect(html).toContain('aria-label="Remove Cathedral"');
+    expect(html).toContain("2rem minmax(0,1fr) 4.5rem minmax(0,15rem) 4rem 64px");
   });
 
   it("says so when there are no tracks", () => {

@@ -1,11 +1,15 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useState } from "react";
 import type { ReleaseKind } from "../../shared/types";
 import CoverPicker from "../CoverPicker";
 import RecordSleeve from "../RecordSleeve";
 import TrackList, { type EditableTrack } from "../TrackList";
 import ArtistCombobox from "../ArtistCombobox";
+import ReleaseBar from "../ReleaseBar";
+import { libraryWidthClass } from "../../lib/library-view-prefs";
+import { useLibraryWidth } from "../../lib/use-library-width";
+import { BAR_MIN_HEIGHT, barPadding } from "../../lib/page-layout";
 import type { ArtistEntry } from "../../lib/artist-index";
 
 /** What the page shows of the cover beat: nothing before a cover, "playing" while it runs,
@@ -32,7 +36,7 @@ interface ImportRecordProps {
   beat: { stage: BeatStage; replay: boolean; discKey: string };
   /** The cover, printed on the disc's centre label. */
   labelUrl: string | null;
-  /** The cover's colour, for the glow of the dock's buttons. */
+  /** The cover's colour, for the glow of the release bar's main action. */
   tint: string | undefined;
   canSubmit: boolean;
   importing: boolean;
@@ -78,7 +82,7 @@ function InlineField({
 }
 
 /** The release page (#112) with the record being made: the sleeve and disc, blank inline fields,
- * the tracks and the dock. A cover is the moment: it slides in, the light flashes, the disc tucks
+ * the tracks and the release bar (#294). A cover is the moment: it slides in, the light flashes, the disc tucks
  * away (the beat, driven by `beat` and globals.css `.imp-*`). */
 export default function ImportRecord({
   kind,
@@ -106,14 +110,22 @@ export default function ImportRecord({
   onAddTrack,
   artistIndex,
 }: ImportRecordProps) {
+  const [width] = useLibraryWidth();
+  const [barHeight, setBarHeight] = useState(BAR_MIN_HEIGHT);
   const trackCount = `${tracks.length} track${tracks.length === 1 ? "" : "s"}`;
   // The wrapper's class is how the beat reaches the disc inside RecordSleeve.
   const stateClass = beat.stage === "playing" ? "imp-beat" : beat.stage === "settled" ? "imp-rest" : "";
 
   return (
-    <div className="imp-page-in mx-auto flex w-full max-w-[920px] flex-col gap-12 pb-16">
-      <div className="flex flex-col gap-12 lg:grid lg:grid-cols-[minmax(0,1fr)_13rem] lg:items-start lg:gap-x-10">
-        <header className="flex flex-col gap-8 pt-2 lg:col-start-1 lg:row-start-1 lg:pt-4">
+    // The bottom margin cancels the pane's own bottom padding (AppShell's p-6 md:p-10 lg:p-16), so the
+    // bar's anchor sits at the pane's bottom edge. The bar is outside `imp-page-in`: it never fades in.
+    <div className={`flex flex-col -mb-6 md:-mb-10 lg:-mb-16 ${libraryWidthClass(width)}`}>
+    <div
+      className="imp-page-in flex flex-col gap-12"
+      style={{ paddingBottom: barPadding(barHeight) }}
+    >
+      <div className="flex flex-col gap-12">
+        <header className="flex flex-col gap-8 pt-2 lg:pt-4">
           <div className={stateClass} data-replay={beat.replay ? "true" : undefined}>
             <RecordSleeve labelUrl={labelUrl} spin={0} discKey={beat.discKey}>
               <CoverPicker
@@ -196,29 +208,31 @@ export default function ImportRecord({
           </div>
         </header>
 
-        {/* The dock, as on the release page, with the import actions. Faked glass, not
-            backdrop-blur: the colour sky drifts behind it before there is a cover. The sticky
-            offset is the release page's (see ReleaseView). */}
-        <div
-          style={tint ? ({ "--btn-tint": tint } as CSSProperties) : undefined}
-          className="sticky top-4 z-10 -my-4 flex w-fit max-w-full flex-wrap items-center gap-2 self-start rounded-[26px] glass-fake glass-dock p-1.5 pr-3 sm:rounded-full lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:my-0 lg:w-auto lg:flex-col lg:items-stretch lg:gap-1 lg:rounded-[26px] lg:p-2"
-        >
-          <button type="button" onClick={onSubmit} disabled={!canSubmit} className="btn-save">
-            {importing ? "Adding…" : "Add to library"}
-          </button>
-          <button type="button" onClick={onAddTrack} disabled={importing} className="btn-ink">
-            <span className="btn-ink-label">Add a track</span>
-          </button>
-        </div>
-
-        <div className="flex flex-col gap-3 lg:col-start-1 lg:row-start-2">
+        <div className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between gap-4">
             <h2 className="text-lg font-bold tracking-[-0.03em] text-text">Tracks</h2>
             {inspecting && <p className="text-xs text-text-muted">Reading tags…</p>}
           </div>
-          <TrackList tracks={tracks} onChange={onTracksChange} onRemove={onRemoveTrack} />
+          <TrackList tracks={tracks} onChange={onTracksChange} onRemove={onRemoveTrack} releaseArtist={artist} />
         </div>
       </div>
+    </div>
+
+    <ReleaseBar
+      label="Import actions"
+      tint={tint}
+      onHeight={setBarHeight}
+      left={
+        <button type="button" onClick={onAddTrack} disabled={importing} className="btn-ink">
+          <span className="btn-ink-label">Add a track</span>
+        </button>
+      }
+      main={
+        <button type="button" onClick={onSubmit} disabled={!canSubmit} className="btn-save btn-save-lit">
+          {importing ? "Adding…" : "Add to library"}
+        </button>
+      }
+    />
     </div>
   );
 }

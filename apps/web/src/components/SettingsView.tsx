@@ -21,7 +21,8 @@ import {
   syncNow,
   verifySyncCode,
 } from "../lib/api-client";
-import { loadLibraryWidth, saveLibraryWidth, type LibraryWidth } from "../lib/library-view-prefs";
+import { libraryWidthClass } from "../lib/library-view-prefs";
+import { useLibraryWidth } from "../lib/use-library-width";
 import { IS_DEMO } from "../lib/demo";
 import Field from "./Field";
 import SpotifyFoldersCard from "./SpotifyFoldersCard";
@@ -70,23 +71,12 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
   const [libraryDir, setLibraryDir] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [libraryWidth, setLibraryWidth] = useState<LibraryWidth>("full");
-
-  // Saved width loads after mount so the server and first client render agree.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLibraryWidth(loadLibraryWidth());
-  }, []);
+  const [libraryWidth, changeLibraryWidth] = useLibraryWidth();
 
   // Opened from the sidebar profile: bring the account and sync section to the top, once.
   useEffect(() => {
     if (section === "account") document.getElementById("account")?.scrollIntoView({ block: "start", behavior: "auto" });
   }, [section]);
-
-  function changeLibraryWidth(next: LibraryWidth) {
-    setLibraryWidth(next);
-    saveLibraryWidth(next);
-  }
 
   const [baseUrl, setBaseUrl] = useState(DEFAULT_SYNC_BASE_URL);
   const [knownBaseUrl, setKnownBaseUrl] = useState<string | null>(null);
@@ -383,7 +373,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
   const signedIn = syncStatus?.signedIn ?? false;
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-8 pb-16">
+    <div className={`flex flex-col gap-8 pb-16 ${libraryWidthClass(libraryWidth)}`}>
       <div>
         <p className="text-sm font-semibold text-accent">
           Local library
@@ -391,6 +381,8 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
         <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">Settings</h1>
       </div>
 
+      {/* Two columns from lg, each card at its natural height (CSS columns), one column below. */}
+      <div className="lg:columns-2 lg:gap-x-8 [&>*]:mb-8 [&>*]:break-inside-avoid [&>*:last-child]:mb-0">
       <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
         <p className="text-sm font-bold text-text">Library folder</p>
         <fieldset disabled={IS_DEMO} className="m-0 min-w-0 border-0 p-0">
@@ -822,6 +814,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
           Local Files only reads mp3 (and mp4/m4a) files.
         </p>
       </section>
+      </div>
     </div>
   );
 }

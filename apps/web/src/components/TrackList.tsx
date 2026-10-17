@@ -11,7 +11,8 @@ import {
   stepTarget,
 } from "../lib/track-order";
 import { watchPaneEdges, type PaneEdgesWatch } from "../lib/pane-edges";
-import { playsLabel } from "../lib/plays-copy";
+import { useElementWidth } from "../lib/use-element-size";
+import { trackArtist, trackColumns, trackGridTemplate } from "../lib/track-columns";
 import { formatLength } from "../lib/adopt-review";
 import { adoptDiscAfterMove, discActionsFor, discHeadings, joinPreviousDisc, startDiscAt } from "../shared/discs";
 import DiscMenu from "./DiscMenu";
@@ -45,6 +46,10 @@ interface TrackListProps {
   /** View mode (a release added from a Spotify folder, #249): titles are plain text, each row shows its
    * length (by `key`) where an edit would not fit, and a track whose file is gone says "File missing". */
   view?: Record<string, { durationSec: number | null; missing?: boolean }>;
+  /** Each track's length in seconds by `key`, for the Time column of a release that is not in view mode. */
+  durations?: Record<string, number | null>;
+  /** The release's artist, shown under a track's title when the track has none of its own (#294). */
+  releaseArtist?: string;
 }
 
 /** Pixels the pointer must travel before a press turns into a drag. */
@@ -122,8 +127,22 @@ interface Drag {
  * fields. Reorder by dragging a row (or its grip) or from the keyboard: focus the grip, then
  * Alt+Up/Down, or Space to pick up, the arrows to move, Space or Enter to drop, Escape to
  * cancel. Track numbers are implicit: they always equal the row's position (1-based). */
-export default function TrackList({ tracks, onChange, onRemove, readOnly = false, plays, playlists, onOpenPlaylist, view }: TrackListProps) {
+export default function TrackList({
+  tracks,
+  onChange,
+  onRemove,
+  readOnly = false,
+  plays,
+  playlists,
+  onOpenPlaylist,
+  view,
+  durations,
+  releaseArtist,
+}: TrackListProps) {
   const listRef = useRef<HTMLOListElement>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
+  // The columns follow the table's own width, not the window's: Plays drops under 560, In playlists under 760.
+  const columns = trackColumns(useElementWidth(tableRef, tracks.length > 0));
   const hintId = useId();
   const [announcement, setAnnouncement] = useState("");
   const [grabbedKey, setGrabbedKey] = useState<string | null>(null);
@@ -415,8 +434,24 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
     onChange(next);
   }
 
+  const actionsWidth = (readOnly ? 0 : 32) + (onRemove ? 32 : 0);
+  const gridTemplate = trackGridTemplate(columns, actionsWidth);
+
   return (
-    <>
+    <div ref={tableRef} className="min-w-0">
+      {/* The quiet header row: the same grid as the rows. Not a list item, so the drag code skips it. */}
+      <div
+        aria-hidden="true"
+        style={{ gridTemplateColumns: gridTemplate }}
+        className="track-head -mx-2 grid items-end gap-x-3 px-2 pb-2 text-xs text-text-dim"
+      >
+        <span>#</span>
+        <span>Title</span>
+        {columns.plays && <span className="text-right">Plays</span>}
+        {columns.playlists && <span>In playlists</span>}
+        <span className="text-right">Time</span>
+        {actionsWidth > 0 && <span />}
+      </div>
       <ol
         ref={listRef}
         className="track-list relative flex flex-col divide-y"
@@ -430,6 +465,8 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
           const heading = headings[index];
           const playTotal = plays?.[track.key] ?? 0;
           const viewInfo = view?.[track.key];
+          const seconds = viewInfo ? viewInfo.durationSec : (durations?.[track.key] ?? null);
+          const trackPlaylists = playlists?.[track.key] ?? [];
           const discActions = canEditDiscs ? discActionsFor(discs, index) : {};
           const hasDiscActions = discActions.start !== undefined || discActions.join !== undefined;
           const row = (
@@ -437,7 +474,8 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
               key={track.key}
               data-key={track.key}
               data-grabbed={grabbed ? "" : undefined}
-              className={`track-row -mx-2 flex h-12 items-center gap-3 px-2 hover:bg-white/[0.03] data-[grabbed]:bg-white/[0.07] ${
+              style={{ gridTemplateColumns: gridTemplate }}
+              className={`track-row -mx-2 grid min-h-14 items-center gap-x-3 px-2 py-1.5 hover:bg-white/[0.03] data-[grabbed]:bg-white/[0.07] ${
                 readOnly ? "" : "cursor-grab"
               } ${viewInfo?.missing ? "text-text-muted" : ""}`}
               onContextMenu={(e) => {
@@ -466,7 +504,7 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
               <div className="flex min-w-0 flex-col items-start">
                 {view ? (
                   <span
-                    className={`py-0.5 text-[15px] font-semibold tracking-[-0.01em] ${
+                    className={`max-w-full truncate py-0.5 text-[15px] font-semibold tracking-[-0.01em] ${
                       viewInfo?.missing ? "text-text-muted" : "text-text"
                     }`}
                   >
@@ -480,28 +518,38 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
                   readOnly={readOnly}
                   onChange={(e) => updateTitle(index, e.target.value)}
                   placeholder="Track title"
-                  className="field-sizing-content -mx-1.5 min-w-[8ch] cursor-text rounded-md bg-transparent px-1.5 py-0.5 text-[15px] font-semibold tracking-[-0.01em] text-text outline-none placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
+                  className="field-sizing-content -mx-1.5 min-w-[8ch] max-w-[calc(100%+0.75rem)] cursor-text rounded-md bg-transparent px-1.5 py-0.5 text-[15px] font-semibold tracking-[-0.01em] text-text outline-none placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
                 />
                 )}
-                {onOpenPlaylist && (playlists?.[track.key]?.length ?? 0) > 0 && (
-                  <TrackPlaylistsLine
-                    trackTitle={track.title}
-                    playlists={playlists?.[track.key] ?? []}
-                    onOpen={onOpenPlaylist}
-                  />
-                )}
-              </div>
-              <span aria-hidden className="min-w-0 flex-1" />
-              {viewInfo?.missing ? (
-                <span className="shrink-0 text-xs text-text-dim">File missing</span>
-              ) : viewInfo && viewInfo.durationSec !== null ? (
-                <span className="shrink-0 text-sm tabular-nums text-text-muted">{formatLength(viewInfo.durationSec)}</span>
-              ) : null}
-              {playTotal > 0 && (
-                <span data-plays className="shrink-0 text-sm tabular-nums text-text-muted">
-                  {playsLabel(playTotal)}
+                <span data-track-artist className="max-w-full truncate text-[13px] text-text-muted">
+                  {trackArtist(undefined, releaseArtist)}
                 </span>
+              </div>
+              {columns.plays &&
+                (playTotal > 0 ? (
+                  <span data-plays className="text-right text-sm tabular-nums text-text-muted">
+                    {playTotal}
+                    <span className="sr-only"> {playTotal === 1 ? "play" : "plays"}</span>
+                  </span>
+                ) : (
+                  <span aria-hidden />
+                ))}
+              {columns.playlists && (
+                <div className="min-w-0">
+                  {onOpenPlaylist && trackPlaylists.length > 0 && (
+                    <TrackPlaylistsLine trackTitle={track.title} playlists={trackPlaylists} onOpen={onOpenPlaylist} />
+                  )}
+                </div>
               )}
+              {viewInfo?.missing ? (
+                <span className="text-right text-xs text-text-dim">File missing</span>
+              ) : seconds !== null ? (
+                <span className="text-right text-sm tabular-nums text-text-muted">{formatLength(seconds)}</span>
+              ) : (
+                <span aria-hidden />
+              )}
+              {actionsWidth > 0 && (
+                <div className="flex justify-end">
               {!readOnly && (
                 <button
                   type="button"
@@ -533,6 +581,8 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
                   <XIcon className="size-4" />
                 </button>
               )}
+                </div>
+              )}
             </li>
           );
           if (heading === null) return row;
@@ -559,6 +609,6 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {announcement}
       </div>
-    </>
+    </div>
   );
 }

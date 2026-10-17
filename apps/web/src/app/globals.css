@@ -208,15 +208,19 @@ body {
     inset 0 0 0 1px rgb(255 255 255 / 0.07);
 }
 
-/* Centre label: the cover art itself, or the accent as a house label before there is one. */
+/* Centre label: the cover art itself, or black (#294) before there is one. */
 .record-label {
   position: absolute;
   inset: 32%;
   border-radius: 9999px;
-  background-color: var(--accent);
+  background-color: #050505;
   background-size: cover;
   background-position: center;
   box-shadow: 0 0 0 3px rgb(0 0 0 / 0.5);
+}
+/* A label with no art: the black label with a hairline ring. */
+.record-label-bare {
+  box-shadow: 0 0 0 1px #1e1e1e;
 }
 .record-label::after {
   content: "";
@@ -515,6 +519,10 @@ body {
    rule above is unlayered and would beat a Tailwind colour utility. */
 .track-list > .track-row {
   border-color: rgb(255 255 255 / 0.07);
+}
+/* The track table's header row (#294): a hairline under it, like the rows' own. */
+.track-head {
+  border-bottom: 1px solid rgb(255 255 255 / 0.07);
 }
 /* The one-time tint behind a row the Stats page opened the release at (ReleaseView sets
    data-highlight): fades in fast, out over about 1.6s. Opacity only. */
@@ -956,6 +964,12 @@ body {
 }
 .btn-save:where(:not(:disabled)):is(:hover, :active)::before,
 .btn-save:is([data-state="hover"], [data-state="press"])::before {
+  opacity: 1;
+}
+/* The release bar's main action (#294) rests in the lit state, so the bar reads as one control
+   strip. Same glass and --btn-tint glow as hover; it is already there when the page loads, so
+   nothing animates in. The hover shimmer and press still work. */
+.btn-save.btn-save-lit::before {
   opacity: 1;
 }
 /* One pass per hover, not a loop. The sweep eases in and out like the Import label's shimmer;

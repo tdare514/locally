@@ -27,8 +27,9 @@ import {
   toggleGroupTicks,
   unreadableLine,
 } from "../lib/adopt-review";
-import { libraryWidthClass, loadLibraryWidth, type LibraryWidth } from "../lib/library-view-prefs";
-import HouseSleeve from "./HouseSleeve";
+import { libraryWidthClass } from "../lib/library-view-prefs";
+import { useLibraryWidth } from "../lib/use-library-width";
+import NoCover from "./NoCover";
 import Tick from "./Tick";
 
 interface AdoptReviewViewProps {
@@ -77,7 +78,7 @@ export default function AdoptReviewView({ scan, onBack, onAllAdded, onLibraryCha
   const [summary, setSummary] = useState<{ added: number; total: number; failed: number } | null>(null);
   const [datedFrom, setDatedFrom] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("Reading your Spotify folders");
-  const [width, setWidth] = useState<LibraryWidth>("full");
+  const [width] = useLibraryWidth();
   const [retry, setRetry] = useState(0);
 
   // A response that lands after the page has gone must change nothing: no state, no focus, no navigation.
@@ -102,9 +103,6 @@ export default function AdoptReviewView({ scan, onBack, onAllAdded, onLibraryCha
   }, []);
 
   useEffect(() => {
-    // Saved width loads after mount so the server and first client render agree.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setWidth(loadLibraryWidth());
     titleRef.current?.focus({ preventScroll: true });
   }, []);
 
@@ -438,7 +436,7 @@ export default function AdoptReviewView({ scan, onBack, onAllAdded, onLibraryCha
                             className="flex min-h-[64px] scroll-mb-[calc(var(--adopt-dock,64px)+24px)] cursor-pointer items-center gap-3 px-3 py-2 outline-none hover:bg-white/[0.06] focus-visible:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
                           >
                             <Tick state={on ? "all" : "none"} />
-                            <HouseSleeve className={`size-12 shrink-0 rounded-[4px] ${on ? "" : "opacity-40"}`} />
+                            <NoCover className={`size-12 shrink-0 rounded-[4px] ${on ? "" : "opacity-40"}`} />
                             <span className="min-w-0 flex-1">
                               <span className={`block truncate text-[15px] font-semibold ${on ? "text-text" : "text-text-muted"}`}>
                                 {g.title}
