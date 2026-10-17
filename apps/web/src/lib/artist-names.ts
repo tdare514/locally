@@ -60,17 +60,27 @@ export function looksLike(a: string, b: string): boolean {
   return isKeyPlusJoiningPart(keyA, keyB) || isKeyPlusJoiningPart(keyB, keyA);
 }
 
+/** The one whitespace set both apps use: U+0009 to U+000D and U+0020. */
+function isWhitespace(char: string): boolean {
+  return char === " " || (char >= "\t" && char <= "\r");
+}
+
+function trimWhitespace(text: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && isWhitespace(text.charAt(start))) start++;
+  while (end > start && isWhitespace(text.charAt(end - 1))) end--;
+  return text.slice(start, end);
+}
+
 function splitNames(text: string): string[] {
   return text
     .split(" & ")
     .join(", ")
     .split(", ")
-    .map((name) => name.trim())
+    .map(trimWhitespace)
     .filter((name) => name !== "");
 }
-
-const BARE_TITLE_FEATURING = /\s+(?:feat|ft)\.\s+(.+)$/i;
-const WORD_ARTIST_FEATURING = /\s+(?:featuring|feat|ft)(?:\.\s*|\s+)(.+)$/i;
 
 const FEATURING_MARKERS = ["featuring", "feat", "ft"];
 
@@ -78,56 +88,97 @@ function asciiLower(char: string): string {
   return char >= "A" && char <= "Z" ? char.toLowerCase() : char;
 }
 
+/** The length of the marker (ASCII, any case) that starts at `index`, or 0. */
+function markerAt(text: string, index: number, markers: string[]): number {
+  for (const marker of markers) {
+    const slice = text.slice(index, index + marker.length);
+    if (slice.length === marker.length && Array.from(slice, asciiLower).join("") === marker) {
+      return marker.length;
+    }
+  }
+  return 0;
+}
+
+function skipWhitespace(text: string, index: number): number {
+  let i = index;
+  while (i < text.length && isWhitespace(text.charAt(i))) i++;
+  return i;
+}
+
+/** True when the text holds a closer, whitespace, then an opener: ") (". */
+function hasSeparateGroup(text: string, closer: string, opener: string): boolean {
+  for (let i = 0; i < text.length; i++) {
+    if (text.charAt(i) !== closer) continue;
+    const next = skipWhitespace(text, i + 1);
+    if (next > i + 1 && text.charAt(next) === opener) return true;
+  }
+  return false;
+}
+
+type Split = { rest: string; featuring: string[] };
+
 /**
- * A trailing "(feat. ...)" or "[feat. ...]". The group is found by matching
- * brackets, so brackets inside a name survive: "Song (feat. (G)I-DLE)". The
- * marker must be followed by ".", a space or the end.
+ * A trailing "(feat. ...)" or "[feat. ...]", anchored on its last opener: the
+ * text ends with ")" or "]", and the last matching "(" or "[" that starts the
+ * text or follows whitespace and is followed by feat, ft or featuring (then
+ * ".", a space or the closer) opens it. The names are everything up to the
+ * final closer, so "(G)I-DLE" and "Sunn O)))" survive. A candidate whose names
+ * hold a separate later group, ") (", is skipped.
  */
-function splitBracketFeaturing(text: string): { rest: string; featuring: string[] } | null {
-  const trimmed = text.trimEnd();
+function splitBracketFeaturing(text: string): Split | null {
+  const trimmed = trimWhitespace(text);
   const closer = trimmed.charAt(trimmed.length - 1);
   if (closer !== ")" && closer !== "]") return null;
-  let depth = 0;
-  for (let i = trimmed.length - 1; i >= 0; i--) {
-    const char = trimmed.charAt(i);
-    if (char === ")" || char === "]") depth++;
-    else if (char === "(" || char === "[") depth--;
-    else continue;
-    if (depth !== 0) continue;
-    if (char !== (closer === ")" ? "(" : "[")) return null;
-    const inner = trimmed.slice(i + 1, -1).trimStart();
-    const lowered = Array.from(inner.slice(0, 9), asciiLower).join("");
-    for (const marker of FEATURING_MARKERS) {
-      if (!lowered.startsWith(marker)) continue;
-      const next = inner.charAt(marker.length);
-      if (next !== "" && next !== "." && next !== " ") continue;
-      const names = splitNames(inner.slice(marker.length).replace(/^\./, ""));
-      const rest = trimmed.slice(0, i).trim();
-      return rest !== "" && names.length > 0 ? { rest, featuring: names } : null;
-    }
-    return null;
+  const opener = closer === ")" ? "(" : "[";
+  const end = trimmed.length - 1;
+  for (let i = end - 1; i >= 0; i--) {
+    if (trimmed.charAt(i) !== opener) continue;
+    if (i > 0 && !isWhitespace(trimmed.charAt(i - 1))) continue;
+    const start = skipWhitespace(trimmed, i + 1);
+    const length = markerAt(trimmed, start, FEATURING_MARKERS);
+    if (length === 0) continue;
+    const afterMarker = start + length;
+    if (afterMarker < end && trimmed.charAt(afterMarker) !== "." && trimmed.charAt(afterMarker) !== " ") continue;
+    const namesText = trimmed.slice(afterMarker, end).replace(/^\./, "");
+    if (hasSeparateGroup(namesText, closer, opener)) continue;
+    const names = splitNames(namesText);
+    const rest = trimWhitespace(trimmed.slice(0, i));
+    return rest !== "" && names.length > 0 ? { rest, featuring: names } : null;
   }
   return null;
 }
 
-function splitWith(
-  text: string,
-  pattern: RegExp,
-): { rest: string; featuring: string[] } {
-  const fromBracket = splitBracketFeaturing(text);
-  if (fromBracket) return fromBracket;
-  const match = pattern.exec(text);
-  if (match) {
-    const rest = text.slice(0, match.index).trim();
-    const featuring = splitNames(match[1]);
+/**
+ * The bare form: whitespace, a marker, then names to the end. `dotRequired`
+ * is the title form (" feat. X"); otherwise a dot or whitespace may follow.
+ */
+function splitBareFeaturing(text: string, markers: string[], dotRequired: boolean): Split {
+  for (let i = 0; i < text.length; i++) {
+    if (!isWhitespace(text.charAt(i)) || (i > 0 && isWhitespace(text.charAt(i - 1)))) continue;
+    const start = skipWhitespace(text, i);
+    const length = markerAt(text, start, markers);
+    if (length === 0) continue;
+    let after = start + length;
+    if (text.charAt(after) === ".") {
+      const next = skipWhitespace(text, after + 1);
+      if (dotRequired && next === after + 1) continue;
+      after = next;
+    } else if (dotRequired || !isWhitespace(text.charAt(after))) {
+      continue;
+    } else {
+      after = skipWhitespace(text, after);
+    }
+    const rest = trimWhitespace(text.slice(0, i));
+    const featuring = splitNames(text.slice(after));
     if (rest !== "" && featuring.length > 0) return { rest, featuring };
+    break;
   }
   return { rest: text, featuring: [] };
 }
 
 /** "Song (feat. B & C)" becomes title "Song" with featuring ["B", "C"]. */
 export function splitFeaturing(title: string): { title: string; featuring: string[] } {
-  const { rest, featuring } = splitWith(title, BARE_TITLE_FEATURING);
+  const { rest, featuring } = splitBracketFeaturing(title) ?? splitBareFeaturing(title, ["feat", "ft"], true);
   return { title: rest, featuring };
 }
 
@@ -143,6 +194,6 @@ export function joinFeaturing(title: string, names: string[]): string {
 
 /** An imported artist tag "A feat. B" becomes artist "A" featuring ["B"]. Never splits on "&" alone. */
 export function splitArtistFeaturing(artist: string): { artist: string; featuring: string[] } {
-  const { rest, featuring } = splitWith(artist, WORD_ARTIST_FEATURING);
+  const { rest, featuring } = splitBracketFeaturing(artist) ?? splitBareFeaturing(artist, FEATURING_MARKERS, false);
   return { artist: rest, featuring };
 }

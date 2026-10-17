@@ -261,5 +261,91 @@
     "input": "Song (ft)",
     "title": "Song (ft)",
     "featuring": []
+  },
+  {
+    "name": "unbalanced closers in a name",
+    "input": "Song (feat. Sunn O))))",
+    "title": "Song",
+    "featuring": [
+      "Sunn O)))"
+    ]
+  },
+  {
+    "name": "unbalanced closers in a square-bracket name",
+    "input": "Song [feat. Sunn O]]]",
+    "title": "Song",
+    "featuring": [
+      "Sunn O]]"
+    ]
+  },
+  {
+    "name": "square brackets",
+    "input": "Song [feat. A]",
+    "title": "Song",
+    "featuring": [
+      "A"
+    ]
+  },
+  {
+    "name": "last wrapper wins",
+    "input": "Song (feat. A) (feat. B)",
+    "title": "Song (feat. A)",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "opener must follow whitespace or start",
+    "input": "Song(feat. B)",
+    "title": "Song(feat. B)",
+    "featuring": []
+  },
+  {
+    "name": "trailing tab is trimmed",
+    "input": "Song (feat. B)\t",
+    "title": "Song",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "trailing NEL is not whitespace",
+    "input": "Song (feat. B)",
+    "title": "Song (feat. B)",
+    "featuring": []
+  },
+  {
+    "name": "trailing BOM is not whitespace",
+    "input": "Song (feat. B)﻿",
+    "title": "Song (feat. B)﻿",
+    "featuring": []
+  },
+  {
+    "name": "leading NBSP is not trimmed",
+    "input": " Song (feat. B)",
+    "title": " Song",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "NBSP before the opener is not whitespace",
+    "input": "Song (feat. B)",
+    "title": "Song (feat. B)",
+    "featuring": []
+  },
+  {
+    "name": "NEL inside a name is kept",
+    "input": "Song (feat. B)",
+    "title": "Song",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "NBSP before a bare marker is not whitespace",
+    "input": "Song feat. B",
+    "title": "Song feat. B",
+    "featuring": []
   }
 ]

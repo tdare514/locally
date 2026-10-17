@@ -125,5 +125,35 @@
     "input": "A fté B",
     "artist": "A fté B",
     "featuring": []
+  },
+  {
+    "name": "unbalanced closers in a name",
+    "input": "A (feat. Sunn O)))",
+    "artist": "A",
+    "featuring": [
+      "Sunn O))"
+    ]
+  },
+  {
+    "name": "NEL inside a name is kept",
+    "input": "A feat. B",
+    "artist": "A",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "NBSP before the marker is not whitespace",
+    "input": "A feat. B",
+    "artist": "A feat. B",
+    "featuring": []
+  },
+  {
+    "name": "trailing tab is trimmed",
+    "input": "A feat. B\t",
+    "artist": "A",
+    "featuring": [
+      "B"
+    ]
   }
 ]

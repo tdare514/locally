@@ -56,7 +56,7 @@ enum ArtistNames {
 
     /// "Song (feat. B & C)" becomes title "Song" with featuring ["B", "C"].
     static func splitFeaturing(_ title: String) -> (title: String, featuring: [String]) {
-        let result = splitWith(title, bareTitleFeaturing)
+        let result = splitBracketFeaturing(title) ?? splitBareFeaturing(title, markers: ["feat", "ft"], dotRequired: true)
         return (result.rest, result.featuring)
     }
 
@@ -72,7 +72,8 @@ enum ArtistNames {
     /// An imported artist tag "A feat. B" becomes artist "A" featuring ["B"].
     /// Never splits on "&" alone.
     static func splitArtistFeaturing(_ artist: String) -> (artist: String, featuring: [String]) {
-        let result = splitWith(artist, wordArtistFeaturing)
+        let result = splitBracketFeaturing(artist)
+            ?? splitBareFeaturing(artist, markers: featuringMarkers, dotRequired: false)
         return (result.rest, result.featuring)
     }
 
@@ -103,19 +104,29 @@ enum ArtistNames {
         return previous[b.count]
     }
 
-    private static func splitNames(_ text: String) -> [String] {
-        text.replacingOccurrences(of: " & ", with: ", ")
-            .components(separatedBy: ", ")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+    /// The one whitespace set both apps use: U+0009 to U+000D and U+0020.
+    private static func isWhitespace(_ scalar: Unicode.Scalar) -> Bool {
+        scalar == " " || (scalar.value >= 0x09 && scalar.value <= 0x0D)
     }
 
-    // swiftlint:disable force_try
-    private static let bareTitleFeaturing = try! NSRegularExpression(
-        pattern: #"\s+(?:feat|ft)\.\s+(.+)$"#, options: [.caseInsensitive])
-    private static let wordArtistFeaturing = try! NSRegularExpression(
-        pattern: #"\s+(?:featuring|feat|ft)(?:\.\s*|\s+)(.+)$"#, options: [.caseInsensitive])
-    // swiftlint:enable force_try
+    private static func trimWhitespace(_ scalars: ArraySlice<Unicode.Scalar>) -> [Unicode.Scalar] {
+        var slice = scalars
+        while let first = slice.first, isWhitespace(first) { slice.removeFirst() }
+        while let last = slice.last, isWhitespace(last) { slice.removeLast() }
+        return Array(slice)
+    }
+
+    private static func string(_ scalars: [Unicode.Scalar]) -> String {
+        String(String.UnicodeScalarView(scalars))
+    }
+
+    private static func splitNames(_ scalars: ArraySlice<Unicode.Scalar>) -> [String] {
+        string(Array(scalars))
+            .replacingOccurrences(of: " & ", with: ", ")
+            .components(separatedBy: ", ")
+            .map { string(trimWhitespace(Array($0.unicodeScalars)[...])) }
+            .filter { !$0.isEmpty }
+    }
 
     private static let featuringMarkers = ["featuring", "feat", "ft"]
 
@@ -123,57 +134,91 @@ enum ArtistNames {
         (scalar.value >= 0x41 && scalar.value <= 0x5A) ? Unicode.Scalar(scalar.value + 32)! : scalar
     }
 
-    /// A trailing "(feat. ...)" or "[feat. ...]". The group is found by matching
-    /// brackets, so brackets inside a name survive: "Song (feat. (G)I-DLE)". The
-    /// marker must be followed by ".", a space or the end. Works on scalars so it
-    /// agrees with the web version.
+    /// The length of the marker (ASCII, any case) that starts at `index`, or 0.
+    private static func markerLength(_ text: [Unicode.Scalar], at index: Int, _ markers: [String]) -> Int {
+        for marker in markers {
+            let wanted = Array(marker.unicodeScalars)
+            guard index + wanted.count <= text.count else { continue }
+            if text[index..<(index + wanted.count)].map(asciiLower) == wanted { return wanted.count }
+        }
+        return 0
+    }
+
+    private static func skipWhitespace(_ text: [Unicode.Scalar], from index: Int) -> Int {
+        var i = index
+        while i < text.count && isWhitespace(text[i]) { i += 1 }
+        return i
+    }
+
+    private static func at(_ text: [Unicode.Scalar], _ index: Int) -> Unicode.Scalar? {
+        index >= 0 && index < text.count ? text[index] : nil
+    }
+
+    /// True when the text holds a closer, whitespace, then an opener: ") (".
+    private static func hasSeparateGroup(
+        _ text: ArraySlice<Unicode.Scalar>, closer: Unicode.Scalar, opener: Unicode.Scalar
+    ) -> Bool {
+        let array = Array(text)
+        for i in array.indices where array[i] == closer {
+            let next = skipWhitespace(array, from: i + 1)
+            if next > i + 1 && at(array, next) == opener { return true }
+        }
+        return false
+    }
+
+    /// A trailing "(feat. ...)" or "[feat. ...]", anchored on its last opener
+    /// (see `spec/artist-names.md`). The names run to the final closer, so
+    /// "(G)I-DLE" and "Sunn O)))" survive.
     private static func splitBracketFeaturing(_ text: String) -> (rest: String, featuring: [String])? {
-        var scalars = Array(text.unicodeScalars)
-        while let last = scalars.last, Character(last).isWhitespace { scalars.removeLast() }
-        guard let closer = scalars.last, closer == ")" || closer == "]" else { return nil }
-        var depth = 0
-        for index in stride(from: scalars.count - 1, through: 0, by: -1) {
-            let char = scalars[index]
-            if char == ")" || char == "]" {
-                depth += 1
-            } else if char == "(" || char == "[" {
-                depth -= 1
-            } else {
-                continue
-            }
-            if depth != 0 { continue }
-            if char != (closer == ")" ? "(" : "[") { return nil }
-            var inner = Array(scalars[(index + 1)..<(scalars.count - 1)])
-            while let first = inner.first, Character(first).isWhitespace { inner.removeFirst() }
-            for marker in featuringMarkers
-            where inner.prefix(marker.count).map(asciiLower) == Array(marker.unicodeScalars) {
-                if inner.count > marker.count {
-                    let next = inner[marker.count]
-                    if next != "." && next != " " { continue }
-                }
-                var rest = Array(inner.dropFirst(marker.count))
-                if rest.first == "." { rest.removeFirst() }
-                let names = splitNames(String(String.UnicodeScalarView(rest)))
-                let head = String(String.UnicodeScalarView(scalars[0..<index]))
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                return (!head.isEmpty && !names.isEmpty) ? (head, names) : nil
-            }
-            return nil
+        let trimmed = trimWhitespace(Array(text.unicodeScalars)[...])
+        guard let closer = trimmed.last, closer == ")" || closer == "]" else { return nil }
+        let opener: Unicode.Scalar = closer == ")" ? "(" : "["
+        let end = trimmed.count - 1
+        var i = end - 1
+        while i >= 0 {
+            defer { i -= 1 }
+            guard trimmed[i] == opener else { continue }
+            if i > 0 && !isWhitespace(trimmed[i - 1]) { continue }
+            let start = skipWhitespace(trimmed, from: i + 1)
+            let length = markerLength(trimmed, at: start, featuringMarkers)
+            if length == 0 { continue }
+            let afterMarker = start + length
+            if afterMarker < end && trimmed[afterMarker] != "." && trimmed[afterMarker] != " " { continue }
+            var namesText = trimmed[afterMarker..<end]
+            if namesText.first == "." { namesText = namesText.dropFirst() }
+            if hasSeparateGroup(namesText, closer: closer, opener: opener) { continue }
+            let names = splitNames(namesText)
+            let rest = string(trimWhitespace(trimmed[0..<i]))
+            return (!rest.isEmpty && !names.isEmpty) ? (rest, names) : nil
         }
         return nil
     }
 
-    private static func splitWith(
-        _ text: String, _ pattern: NSRegularExpression
+    /// The bare form: whitespace, a marker, then names to the end. `dotRequired`
+    /// is the title form (" feat. X"); otherwise a dot or whitespace may follow.
+    private static func splitBareFeaturing(
+        _ text: String, markers: [String], dotRequired: Bool
     ) -> (rest: String, featuring: [String]) {
-        if let fromBracket = splitBracketFeaturing(text) { return fromBracket }
-        let full = NSRange(text.startIndex..., in: text)
-        if let match = pattern.firstMatch(in: text, range: full),
-           let head = Range(NSRange(location: 0, length: match.range.location), in: text),
-           let names = Range(match.range(at: 1), in: text) {
-            let rest = text[head].trimmingCharacters(in: .whitespacesAndNewlines)
-            let featuring = splitNames(String(text[names]))
+        let scalars = Array(text.unicodeScalars)
+        for i in scalars.indices {
+            if !isWhitespace(scalars[i]) || (i > 0 && isWhitespace(scalars[i - 1])) { continue }
+            let start = skipWhitespace(scalars, from: i)
+            let length = markerLength(scalars, at: start, markers)
+            if length == 0 { continue }
+            var after = start + length
+            if at(scalars, after) == "." {
+                let next = skipWhitespace(scalars, from: after + 1)
+                if dotRequired && next == after + 1 { continue }
+                after = next
+            } else if dotRequired || !(at(scalars, after).map(isWhitespace) ?? false) {
+                continue
+            } else {
+                after = skipWhitespace(scalars, from: after)
+            }
+            let rest = string(trimWhitespace(scalars[0..<i]))
+            let featuring = splitNames(scalars[after...])
             if !rest.isEmpty && !featuring.isEmpty { return (rest, featuring) }
+            break
         }
         return (text, [])
     }

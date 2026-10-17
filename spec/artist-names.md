@@ -2,7 +2,7 @@
 
 The rules for "same artist", "might be the same artist" and featured artists, stated once. Both apps implement them as pure functions with the same names (Mac: `apps/web/src/lib/artist-names.ts`; iPhone: `apps/ios/Locally/Domain/ArtistNames.swift`, `enum ArtistNames`) and run every case in `spec/fixtures/artists/`. Plan: `docs/plans/224-artist-list.md`.
 
-A "character" below is a Unicode code point.
+A "character" below is a Unicode code point. "Whitespace", wherever trimming or splitting is described, means exactly U+0009 to U+000D and U+0020. No other character (NBSP, U+0085, U+FEFF and so on) is trimmed.
 
 ## `artistKey(name)`
 
@@ -29,10 +29,10 @@ Takes two names, computes both keys. False when the keys are equal. Otherwise tr
 
 Returns `{ title, featuring }`. Case-insensitive. Matches one trailing part:
 
-- A bracket form, "(" or "[" ... ")" or "]", starting with `feat`, `ft` or `featuring`, the dot optional: "Song (feat. B)", "Song [ft B]", "Song (featuring B)".
-- A bare form at the very end: " feat. X" or " ft. X", with the dot and a space before the marker.
+- A bracket form: the text ends with ")" or "]", and the last matching opener "(" or "[" that starts the text or follows whitespace, followed by optional whitespace and `feat`, `ft` or `featuring` (any ASCII case), then ".", a space or the closer, opens it. The names are everything up to the final closer, so brackets inside a name survive: "Song (feat. (G)I-DLE)" and "Song (feat. Sunn O))))". An opener whose names hold a later separate group (a closer, whitespace, then an opener) is skipped, so "Song (feat. B) (Live)" does not split. A closer that does not match the opener does not split.
+- A bare form at the very end: " feat. X" or " ft. X", with whitespace, the marker, a dot and whitespace.
 
-The marker is a whole word, so "Defeat" and "Soft Touch" never split. Names are split on ", " and " & ", trimmed, and empty names dropped. The title is trimmed. No marker, no names, or an empty remaining title returns the input unchanged with `featuring: []`.
+The marker is a whole word (the next character must be as above, so "featé" is not a marker), so "Defeat" and "Soft Touch" never split. Names are split on ", " and " & ", trimmed, and empty names dropped. The title is trimmed. No marker, no names, or an empty remaining title returns the input unchanged with `featuring: []`.
 
 ## `joinFeaturing(title, names)`
 

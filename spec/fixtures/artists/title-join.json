@@ -58,5 +58,13 @@
       "(G)I-DLE"
     ],
     "expected": "Song (feat. (G)I-DLE)"
+  },
+  {
+    "name": "unbalanced closers in a name",
+    "title": "Song",
+    "featuring": [
+      "Sunn O)))"
+    ],
+    "expected": "Song (feat. Sunn O))))"
   }
 ]
