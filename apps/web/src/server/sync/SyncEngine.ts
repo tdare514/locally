@@ -164,7 +164,7 @@ export class SyncEngine implements ReleaseSyncHooks {
       ),
       // Only the hidden releases still pending, so a sent or removed one doesn't linger in the payload.
       hiddenFromTray: Object.fromEntries(
-        Object.entries(state.hiddenFromTray ?? {}).filter(([id]) => id in state.pendingFromPhone)
+        Object.entries(state.hiddenFromTray ?? {}).filter(([id]) => Object.hasOwn(state.pendingFromPhone, id))
       ),
       quota: this.quota,
     };
@@ -701,11 +701,11 @@ export class SyncEngine implements ReleaseSyncHooks {
   async hideFromTray(id: string): Promise<void> {
     let found = false;
     await this.syncState.update((current) => {
-      const record = current.pendingFromPhone[id];
+      const record = Object.hasOwn(current.pendingFromPhone, id) ? current.pendingFromPhone[id] : undefined;
       if (!record) return null;
       found = true;
       const hidden = Object.fromEntries(
-        Object.entries(current.hiddenFromTray ?? {}).filter(([other]) => other in current.pendingFromPhone)
+        Object.entries(current.hiddenFromTray ?? {}).filter(([other]) => Object.hasOwn(current.pendingFromPhone, other))
       );
       hidden[id] = hideKeyFor(record);
       return { ...current, hiddenFromTray: hidden };
@@ -716,7 +716,7 @@ export class SyncEngine implements ReleaseSyncHooks {
   /** Undo for Hide: the release shows in the tray again. Quietly does nothing when it wasn't hidden. */
   async unhideFromTray(id: string): Promise<void> {
     await this.syncState.update((current) => {
-      if (!current.hiddenFromTray || !(id in current.hiddenFromTray)) return null;
+      if (!current.hiddenFromTray || !Object.hasOwn(current.hiddenFromTray, id)) return null;
       const rest = { ...current.hiddenFromTray };
       delete rest[id];
       return { ...current, hiddenFromTray: rest };

@@ -2,6 +2,7 @@ import path from "node:path";
 import { z } from "zod";
 import type { ImportMeta, UpdateReleaseMeta } from "../../shared/types";
 import { SUPPORTED_AUDIO_EXT, SUPPORTED_IMAGE_EXT } from "../../shared/types";
+import { isPlainSyncName } from "../sync/SyncRecord";
 import { ValidationError } from "../../shared/errors";
 import { MAX_DISC_NUMBER } from "../../shared/discs";
 import { MAX_ADOPT_ROOTS } from "../../shared/adopt";
@@ -423,11 +424,9 @@ export function parseAdoptBody(body: unknown): { keys: string[] } {
   return parsed.data;
 }
 
-/** Body of POST and DELETE /api/sync/hide: just the release id, a plain name like a sync record's. */
+/** Body of POST and DELETE /api/sync/hide: just the release id, checked like a sync record's id. */
 export function parseHideBody(raw: unknown): { id: string } {
   const id = typeof raw === "object" && raw !== null ? (raw as { id?: unknown }).id : undefined;
-  if (typeof id !== "string" || id.length === 0 || id.length > MAX_TEXT_LENGTH || /[\\/\0]/.test(id) || id === "." || id === "..") {
-    throw new ValidationError("A release id is required");
-  }
+  if (typeof id !== "string" || !isPlainSyncName(id)) throw new ValidationError("A release id is required");
   return { id };
 }

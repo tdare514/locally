@@ -109,10 +109,12 @@ describe("/api/sync/hide (#295)", () => {
   });
 
   it("refuses a bad body and an unknown release", async () => {
-    for (const body of [{}, { id: "" }, { id: 5 }, { id: "../x" }, { id: "a".repeat(300) }, "not json"]) {
+    for (const body of [{}, { id: "" }, { id: 5 }, { id: "../x" }, { id: ".hidden" }, { id: "a".repeat(300) }, "not json"]) {
       expect((await POST(req("POST", body))).status, JSON.stringify(body)).toBe(400);
     }
     expect((await POST(req("POST", { id: "nope" }))).status).toBe(404);
+    // An inherited property is not a pending release.
+    expect((await POST(req("POST", { id: "toString" }))).status).toBe(404);
     expect((await DELETE(req("DELETE", {}))).status).toBe(400);
   });
 });
