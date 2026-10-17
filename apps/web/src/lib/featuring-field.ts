@@ -75,6 +75,20 @@ export function titleForSave(original: string | undefined, title: string, featur
   return fromEditor(title, featuring);
 }
 
+/** A single's release title as the editor shows it: the plain part, the names being in the Featuring field. */
+export function releaseTitleShown(storedTitle: string): string {
+  return splitFeaturing(storedTitle).title;
+}
+
+/**
+ * The release title to save for a single whose stored title was `original`: the original while the
+ * Title input still holds what it splits into (a legacy "Song (feat. B)" is not rewritten), else the
+ * edited plain title. Albums never use this.
+ */
+export function releaseTitleForSave(original: string, editedPlain: string): string {
+  return releaseTitleShown(original).normalize("NFC") === editedPlain.normalize("NFC") ? original : editedPlain;
+}
+
 /** What an inspected file fills into an import row. */
 export function fromInspected(info: { title?: string | null; artist?: string | null }, fallbackTitle: string): {
   artist: string;

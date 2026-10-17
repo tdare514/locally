@@ -18,6 +18,8 @@ import {
   featuringText,
   fromEditor,
   fromInspected,
+  releaseTitleForSave,
+  releaseTitleShown,
   removeLastFeatured,
   titleForSave,
   toEditor,
@@ -123,6 +125,14 @@ describe("the editor split and join", () => {
     expect(fromEditor("Song", ["Sunn O)))"])).toBe("Song (feat. Sunn O))))");
     expect(toEditor("Song (feat. Sunn O))))")).toEqual({ title: "Song", featuring: ["Sunn O)))"] });
     expect(toEditor("Sunn O)))")).toEqual({ title: "Sunn O)))", featuring: [] });
+  });
+
+  it("shows a legacy single's release title split, and keeps it unless edited", () => {
+    expect(releaseTitleShown("Song (feat. B)")).toBe("Song");
+    expect(releaseTitleForSave("Song (feat. B)", "Song")).toBe("Song (feat. B)");
+    expect(releaseTitleForSave("Song (feat. B)", "New song")).toBe("New song");
+    expect(releaseTitleForSave("Song", "Song")).toBe("Song");
+    expect(releaseTitleForSave("Song", "Song 2")).toBe("Song 2");
   });
 
   it("saves a re-capitalised name, which is a change", () => {

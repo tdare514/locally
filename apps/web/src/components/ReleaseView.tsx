@@ -33,7 +33,7 @@ import HouseSleeve from "./HouseSleeve";
 import ArtistCombobox from "./ArtistCombobox";
 import type { ArtistEntry } from "../lib/artist-index";
 import FeaturingRow from "./FeaturingRow";
-import { titleForSave, toEditor } from "../lib/featuring-field";
+import { releaseTitleForSave, releaseTitleShown, titleForSave, toEditor } from "../lib/featuring-field";
 
 interface ReleaseViewProps {
   releaseId: string;
@@ -87,6 +87,11 @@ interface Draft {
 
 /** The update to send for `draft`, or null when nothing differs from `release`. Track
  * numbers follow list order, so a reorder alone is a change. */
+/** The Title input's text: a single's plain title (names go in Featuring), an album's or adopted title as is. */
+function shownTitle(r: Release): string {
+  return r.kind === "single" && !r.adopted ? releaseTitleShown(r.title) : r.title;
+}
+
 /** A stored track as the editor holds it: the plain title and the featured names apart (#287).
  * An adopted release is view mode and keeps its titles as they are. */
 export function editableTrack(
@@ -100,7 +105,9 @@ export function editableTrack(
 
 export function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | null {
   const patch: UpdateReleaseMeta = {};
-  if (draft.title !== release.title) patch.title = draft.title;
+  // A single's Title input shows the plain title; the names are in its Featuring row.
+  const releaseTitle = release.kind === "single" && !release.adopted ? releaseTitleForSave(release.title, draft.title) : draft.title;
+  if (releaseTitle !== release.title) patch.title = releaseTitle;
   if (draft.artist !== release.artist) patch.artist = draft.artist;
 
   const yearValue = draft.year.trim() === "" ? null : draft.year.trim();
@@ -197,7 +204,7 @@ export default function ReleaseView({
 }: ReleaseViewProps) {
   const [release, setRelease] = useState<Release | null>(initialRelease ?? null);
   const [loading, setLoading] = useState(!initialRelease);
-  const [title, setTitle] = useState(initialRelease?.title ?? "");
+  const [title, setTitle] = useState(initialRelease ? shownTitle(initialRelease) : "");
   const [artist, setArtist] = useState(initialRelease?.artist ?? "");
   const [year, setYear] = useState(initialRelease?.year ?? "");
   const [genre, setGenre] = useState(initialRelease?.genre ?? "");
@@ -246,7 +253,7 @@ export default function ReleaseView({
   const applyRelease = useCallback((r: Release) => {
     shown.current = r;
     setRelease(r);
-    setTitle(r.title);
+    setTitle(shownTitle(r));
     setArtist(r.artist);
     setYear(r.year ?? "");
     setGenre(r.genre ?? "");

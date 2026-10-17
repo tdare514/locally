@@ -27,7 +27,7 @@ import { useArtworkPalette } from "../lib/use-artwork-palette";
 import { useObjectUrl } from "../lib/use-object-url";
 import { usePrefersReducedMotion } from "../lib/use-reduced-motion";
 import { orderByDisc } from "../shared/discs";
-import { fromEditor, fromInspected } from "../lib/featuring-field";
+import { fromEditor, fromInspected, releaseTitleShown } from "../lib/featuring-field";
 import type { EditableTrack } from "./TrackList";
 
 interface ImportViewProps {
@@ -190,7 +190,7 @@ export default function ImportView({
         const first = res.files[0];
         if (first) {
           setArtist((prev) => prev || fromInspected(first, "").artist);
-          setTitle((prev) => prev || first.album || "");
+          setTitle((prev) => prev || (kind === "single" ? releaseTitleShown(first.album ?? "") : first.album) || "");
           setYear((prev) => prev || first.year || "");
           setGenre((prev) => prev || first.genre || "");
         }
