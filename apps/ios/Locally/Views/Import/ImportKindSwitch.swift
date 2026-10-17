@@ -7,7 +7,7 @@ enum ImportKindSwitch {
     /// The picked file becomes the album's one row, titled with the single's title. The album
     /// title is the single's album, or its title when the album is empty.
     static func singleToAlbum(_ single: ImportSingleViewModel, into album: AlbumBuilderViewModel) {
-        album.rows = single.pickedURL.map { [AlbumBuilderViewModel.TrackRow(url: $0, title: single.title)] } ?? []
+        album.rows = single.pickedURL.map { [AlbumBuilderViewModel.TrackRow(url: $0, title: single.title, featuring: FeaturingNames.commit(single.featuringDraft, to: single.featuring))] } ?? []
         album.albumTitle = single.album.isEmpty ? single.title : single.album
         album.artist = single.artist
         album.year = single.year
@@ -23,6 +23,7 @@ enum ImportKindSwitch {
         single.pickedURL = first?.url
         single.pickedName = first?.url.lastPathComponent
         single.title = first?.title ?? ""
+        single.featuring = first?.featuring ?? []
         single.album = album.albumTitle
         single.artist = album.artist
         single.year = album.year

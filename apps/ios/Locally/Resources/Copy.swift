@@ -232,6 +232,26 @@ enum Copy {
         static func useButton(artist: String) -> String { "Use \(artist)" }
     }
 
+    /// The Featuring field and the album rows' feat. button (#287).
+    enum Featuring {
+        static let field = "Featuring"
+        static let placeholder = "Add a featured artist"
+        static let button = "feat."
+        static let done = "Done"
+        static let sheetTitle = "Featured artists"
+        static let pillsLabel = "Featured artists"
+        /// VoiceOver for a name's pill.
+        static func pillLabel(_ name: String) -> String { "Featured artist \(name)" }
+        /// VoiceOver for a pill's remove button.
+        static func removeLabel(_ name: String) -> String { "Remove \(name)" }
+        /// VoiceOver for a row's feat. button.
+        static func buttonLabel(track title: String) -> String { "Featured artists, \(title)" }
+        /// Dimmed after a track's title: "feat. B & C".
+        static func suffix(_ names: [String]) -> String { "feat. \(FeaturingNames.display(names))" }
+        /// The view-mode row's value: "B, C".
+        static func viewValue(_ names: [String]) -> String { names.joined(separator: ", ") }
+    }
+
     enum Detail {
         /// The eyebrow over the release detail's metadata section.
         static let detailsEyebrow = "Details"

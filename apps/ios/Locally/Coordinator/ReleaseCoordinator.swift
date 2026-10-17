@@ -87,7 +87,8 @@ final class ReleaseCoordinator {
         let release = Release(
             id: releaseId,
             kind: .single,
-            title: tags.title,
+            // The track carries "Song (feat. B)"; the release title stays plain (#287).
+            title: ArtistNames.splitFeaturing(tags.title).title,
             artist: tags.artist,
             year: tags.year,
             genre: tags.genre,

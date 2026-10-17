@@ -7,6 +7,10 @@ import SwiftUI
 struct TrackRow: View {
     var number: Int?
     let title: String
+    /// The track's featured artists (#287), shown dimmed after the title as "feat. B & C".
+    var featuring: [String] = []
+    /// Set where the names can be edited (an album's rows): the feat. button opens their sheet.
+    var onFeat: (() -> Void)?
     /// Set for an editable title (an album's); nil shows the title as plain text.
     var titleBinding: Binding<String>?
     var plays: String?
@@ -50,6 +54,20 @@ struct TrackRow: View {
                 }
             }
             lengthView
+            if let onFeat {
+                Button(action: onFeat) {
+                    Text(Copy.Featuring.button)
+                        .font(Theme.ScaledFont.subheadline)
+                        .foregroundStyle(Theme.Tint.accentText)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Copy.Featuring.buttonLabel(track: title))
+                .accessibilityIdentifier("feat-button")
+            }
             if let onReplace {
                 Button(action: onReplace) {
                     Image(systemName: "arrow.triangle.2.circlepath")
@@ -144,13 +162,22 @@ struct TrackRow: View {
     @ViewBuilder private var titleView: some View {
         if let titleBinding {
             // Wraps at the accessibility sizes rather than cutting the title to a few letters.
-            InlineField(Copy.Import.track, text: titleBinding, font: Theme.ScaledFont.trackTitle, wraps: dynamicTypeSize.isAccessibilitySize)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                InlineField(Copy.Import.track, text: titleBinding, font: Theme.ScaledFont.trackTitle, wraps: dynamicTypeSize.isAccessibilitySize)
+                if !featuring.isEmpty {
+                    Text(Copy.Featuring.suffix(featuring))
+                        .font(Theme.ScaledFont.subheadline)
+                        .foregroundStyle(Theme.textDim)
+                        .lineLimit(2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            Text(title)
+            (featuring.isEmpty
+                ? Text(title).foregroundStyle(Theme.primaryText)
+                : Text(title).foregroundStyle(Theme.primaryText) + Text(" " + Copy.Featuring.suffix(featuring)).foregroundStyle(Theme.textDim))
                 .font(Theme.ScaledFont.trackTitle)
-                .foregroundStyle(Theme.primaryText)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize || !featuring.isEmpty ? 2 : 1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

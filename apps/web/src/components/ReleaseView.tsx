@@ -36,6 +36,8 @@ import { usePaneWidth } from "../lib/use-element-size";
 import { BAR_MIN_HEIGHT, barPadding, detailsBesideSleeve } from "../lib/page-layout";
 import ArtistCombobox from "./ArtistCombobox";
 import type { ArtistEntry } from "../lib/artist-index";
+import FeaturingRow from "./FeaturingRow";
+import { releaseTitleForSave, releaseTitleShown, titleForSave, toEditor } from "../lib/featuring-field";
 
 interface ReleaseViewProps {
   releaseId: string;
@@ -89,9 +91,27 @@ interface Draft {
 
 /** The update to send for `draft`, or null when nothing differs from `release`. Track
  * numbers follow list order, so a reorder alone is a change. */
+/** The Title input's text: a single's plain title (names go in Featuring), an album's or adopted title as is. */
+function shownTitle(r: Release): string {
+  return r.kind === "single" && !r.adopted ? releaseTitleShown(r.title) : r.title;
+}
+
+/** A stored track as the editor holds it: the plain title and the featured names apart (#287).
+ * An adopted release is view mode and keeps its titles as they are. */
+export function editableTrack(
+  t: { id: string; title: string; discNumber?: number },
+  adopted: boolean
+): EditableTrack {
+  if (adopted) return { key: t.id, title: t.title, discNumber: t.discNumber };
+  const { title, featuring } = toEditor(t.title);
+  return { key: t.id, title, featuring, discNumber: t.discNumber };
+}
+
 export function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | null {
   const patch: UpdateReleaseMeta = {};
-  if (draft.title !== release.title) patch.title = draft.title;
+  // A single's Title input shows the plain title; the names are in its Featuring row.
+  const releaseTitle = release.kind === "single" && !release.adopted ? releaseTitleForSave(release.title, draft.title) : draft.title;
+  if (releaseTitle !== release.title) patch.title = releaseTitle;
   if (draft.artist !== release.artist) patch.artist = draft.artist;
 
   const yearValue = draft.year.trim() === "" ? null : draft.year.trim();
@@ -108,8 +128,11 @@ export function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | 
       id: t.key,
     };
     let changed = false;
-    if (!original || original.title !== t.title) {
-      change.title = t.title;
+    // The stored title is the plain one joined with the names (Spotify's "Song (feat. B)"); a title the
+    // user did not touch is sent as it was.
+    const storedTitle = titleForSave(original?.title, t.title, t.featuring ?? []);
+    if (!original || original.title !== storedTitle) {
+      change.title = storedTitle;
       changed = true;
     }
     if (!original || original.trackNumber !== trackNumber) {
@@ -185,12 +208,12 @@ export default function ReleaseView({
 }: ReleaseViewProps) {
   const [release, setRelease] = useState<Release | null>(initialRelease ?? null);
   const [loading, setLoading] = useState(!initialRelease);
-  const [title, setTitle] = useState(initialRelease?.title ?? "");
+  const [title, setTitle] = useState(initialRelease ? shownTitle(initialRelease) : "");
   const [artist, setArtist] = useState(initialRelease?.artist ?? "");
   const [year, setYear] = useState(initialRelease?.year ?? "");
   const [genre, setGenre] = useState(initialRelease?.genre ?? "");
   const [tracks, setTracks] = useState<EditableTrack[]>(
-    () => initialRelease?.tracks.map((t) => ({ key: t.id, title: t.title, discNumber: t.discNumber })) ?? []
+    () => initialRelease?.tracks.map((t) => editableTrack(t, initialRelease.adopted === true)) ?? []
   );
   // While a copy is on screen, a load refreshes it quietly instead of flashing "Loading…".
   const shown = useRef<Release | null>(initialRelease ?? null);
@@ -249,11 +272,11 @@ export default function ReleaseView({
   const applyRelease = useCallback((r: Release) => {
     shown.current = r;
     setRelease(r);
-    setTitle(r.title);
+    setTitle(shownTitle(r));
     setArtist(r.artist);
     setYear(r.year ?? "");
     setGenre(r.genre ?? "");
-    setTracks(r.tracks.map((t) => ({ key: t.id, title: t.title, discNumber: t.discNumber })));
+    setTracks(r.tracks.map((t) => editableTrack(t, r.adopted === true)));
   }, []);
 
   const load = useCallback(() => {
@@ -529,6 +552,14 @@ export default function ReleaseView({
               hintClassName="self-start"
               inputClassName="field-sizing-content min-w-[8ch] max-w-full rounded-md bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
             />
+            {release.kind === "single" && tracks.length > 0 && (
+              <FeaturingRow
+                names={tracks[0].featuring ?? []}
+                onChange={(featuring) => setTracks((prev) => prev.map((t, i) => (i === 0 ? { ...t, featuring } : t)))}
+                index={artistIndex}
+                readOnly={IS_DEMO}
+              />
+            )}
             <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-[15px]">
               <InlineField
                 label="Year"
@@ -551,6 +582,7 @@ export default function ReleaseView({
             onChange={handleTracksChange}
             readOnly={IS_DEMO || isAdopted}
             view={viewTracks}
+            featuringIndex={release.kind === "album" && !isAdopted ? artistIndex : undefined}
             durations={durations}
             releaseArtist={artistShown}
             plays={plays}
