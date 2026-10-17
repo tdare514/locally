@@ -21,6 +21,7 @@ import {
   type SyncFileToUpload,
 } from "./SyncApi";
 import type { MissingMark, SyncStateStore } from "./SyncState";
+import { hideKeyFor } from "../../lib/tray-sections";
 
 /** Builds a `SyncApi` for a given base URL/token; a factory (not a singleton) because both can change while the app runs. */
 export type SyncApiFactory = (baseUrl: string, token: string | null) => SyncApi;
@@ -69,6 +70,8 @@ function pendingSummary(record: SyncRecord, filesState: PendingFilesState | unde
     kind: meta.kind,
     trackCount: meta.tracks.length,
     ...(filesState ? { filesState } : {}),
+    hideKey: hideKeyFor(record),
+    sentAt: record.updatedAt,
   };
 }
 
@@ -158,6 +161,10 @@ export class SyncEngine implements ReleaseSyncHooks {
       lastError: this.lastError,
       pendingFromPhone: Object.values(state.pendingFromPhone).map((record) =>
         pendingSummary(record, filesStateFor(record, state.missingFiles[record.id], nowMs))
+      ),
+      // Only the hidden releases still pending, so a sent or removed one doesn't linger in the payload.
+      hiddenFromTray: Object.fromEntries(
+        Object.entries(state.hiddenFromTray ?? {}).filter(([id]) => id in state.pendingFromPhone)
       ),
       quota: this.quota,
     };
@@ -686,6 +693,35 @@ export class SyncEngine implements ReleaseSyncHooks {
   }
 
   // --- Inbox ("From your devices") ----------------------------------------
+
+  /**
+   * Hide (#295): takes a pending release out of this Mac's tray at the version it has now. Nothing
+   * is deleted anywhere; a newer version has another token and shows again.
+   */
+  async hideFromTray(id: string): Promise<void> {
+    let found = false;
+    await this.syncState.update((current) => {
+      const record = current.pendingFromPhone[id];
+      if (!record) return null;
+      found = true;
+      const hidden = Object.fromEntries(
+        Object.entries(current.hiddenFromTray ?? {}).filter(([other]) => other in current.pendingFromPhone)
+      );
+      hidden[id] = hideKeyFor(record);
+      return { ...current, hiddenFromTray: hidden };
+    });
+    if (!found) throw new NotFoundError(`No pending release ${id} from your phone`);
+  }
+
+  /** Undo for Hide: the release shows in the tray again. Quietly does nothing when it wasn't hidden. */
+  async unhideFromTray(id: string): Promise<void> {
+    await this.syncState.update((current) => {
+      if (!current.hiddenFromTray || !(id in current.hiddenFromTray)) return null;
+      const rest = { ...current.hiddenFromTray };
+      delete rest[id];
+      return { ...current, hiddenFromTray: rest };
+    });
+  }
 
   async acceptFromPhone(id: string): Promise<Release> {
     const settings = await this.settings.get();

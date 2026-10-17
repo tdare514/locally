@@ -79,6 +79,7 @@ describe("FileSyncStateStore", () => {
       },
       pendingFromPhone: { "rel-1": pending },
       missingFiles: { "rel-1": { firstSeenMissingAt: "2026-01-01T00:05:00.000Z", stillMissing: true } },
+      hiddenFromTray: {},
     };
 
     await store.set(state);
@@ -148,6 +149,7 @@ describe("FileSyncStateStore", () => {
       },
       pendingFromPhone: {},
       missingFiles: {},
+      hiddenFromTray: {},
     });
   });
 
@@ -212,6 +214,7 @@ describe("FileSyncStateStore", () => {
         }),
       },
       missingFiles: {},
+      hiddenFromTray: {},
     };
     await store.set(input);
     const loaded = await store.get();

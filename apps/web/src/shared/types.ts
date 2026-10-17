@@ -202,6 +202,10 @@ export interface PendingFromPhone {
   trackCount: number;
   /** Set only while the files-missing check lists this release; an older service never sets it. */
   filesState?: PendingFilesState;
+  /** Which server version of the record this is, so a Hide on this Mac holds for it only (#295). */
+  hideKey?: string;
+  /** When the record was last written (ISO), for the "since 27 Sep" on a waiting row. */
+  sentAt?: string;
 }
 
 export interface SyncQuota {
@@ -218,6 +222,8 @@ export interface SyncStatus {
   lastRunAt: string | null;
   lastError: string | null;
   pendingFromPhone: PendingFromPhone[];
+  /** releaseId -> the `hideKey` hidden from the tray on this Mac (#295). */
+  hiddenFromTray?: Record<string, string>;
   quota: SyncQuota | null;
 }
 

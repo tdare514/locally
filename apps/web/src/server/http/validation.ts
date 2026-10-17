@@ -422,3 +422,12 @@ export function parseAdoptBody(body: unknown): { keys: string[] } {
   if (!parsed.success) throw new ValidationError(parsed.error.issues[0].message);
   return parsed.data;
 }
+
+/** Body of POST and DELETE /api/sync/hide: just the release id, a plain name like a sync record's. */
+export function parseHideBody(raw: unknown): { id: string } {
+  const id = typeof raw === "object" && raw !== null ? (raw as { id?: unknown }).id : undefined;
+  if (typeof id !== "string" || id.length === 0 || id.length > MAX_TEXT_LENGTH || /[\\/\0]/.test(id) || id === "." || id === "..") {
+    throw new ValidationError("A release id is required");
+  }
+  return { id };
+}
