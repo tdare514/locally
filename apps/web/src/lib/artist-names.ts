@@ -69,17 +69,55 @@ function splitNames(text: string): string[] {
     .filter((name) => name !== "");
 }
 
-const BRACKET_FEATURING = /\s*[(\[]\s*(?:feat|ft|featuring)\b\.?\s*([^)\]]*?)\s*[)\]]\s*$/i;
 const BARE_TITLE_FEATURING = /\s+(?:feat|ft)\.\s+(.+)$/i;
-const WORD_ARTIST_FEATURING = /\s+(?:feat|ft|featuring)\b\.?\s+(.+)$/i;
+const WORD_ARTIST_FEATURING = /\s+(?:featuring|feat|ft)(?:\.\s*|\s+)(.+)$/i;
+
+const FEATURING_MARKERS = ["featuring", "feat", "ft"];
+
+function asciiLower(char: string): string {
+  return char >= "A" && char <= "Z" ? char.toLowerCase() : char;
+}
+
+/**
+ * A trailing "(feat. ...)" or "[feat. ...]". The group is found by matching
+ * brackets, so brackets inside a name survive: "Song (feat. (G)I-DLE)". The
+ * marker must be followed by ".", a space or the end.
+ */
+function splitBracketFeaturing(text: string): { rest: string; featuring: string[] } | null {
+  const trimmed = text.trimEnd();
+  const closer = trimmed.charAt(trimmed.length - 1);
+  if (closer !== ")" && closer !== "]") return null;
+  let depth = 0;
+  for (let i = trimmed.length - 1; i >= 0; i--) {
+    const char = trimmed.charAt(i);
+    if (char === ")" || char === "]") depth++;
+    else if (char === "(" || char === "[") depth--;
+    else continue;
+    if (depth !== 0) continue;
+    if (char !== (closer === ")" ? "(" : "[")) return null;
+    const inner = trimmed.slice(i + 1, -1).trimStart();
+    const lowered = Array.from(inner.slice(0, 9), asciiLower).join("");
+    for (const marker of FEATURING_MARKERS) {
+      if (!lowered.startsWith(marker)) continue;
+      const next = inner.charAt(marker.length);
+      if (next !== "" && next !== "." && next !== " ") continue;
+      const names = splitNames(inner.slice(marker.length).replace(/^\./, ""));
+      const rest = trimmed.slice(0, i).trim();
+      return rest !== "" && names.length > 0 ? { rest, featuring: names } : null;
+    }
+    return null;
+  }
+  return null;
+}
 
 function splitWith(
   text: string,
-  patterns: RegExp[],
+  pattern: RegExp,
 ): { rest: string; featuring: string[] } {
-  for (const pattern of patterns) {
-    const match = pattern.exec(text);
-    if (!match) continue;
+  const fromBracket = splitBracketFeaturing(text);
+  if (fromBracket) return fromBracket;
+  const match = pattern.exec(text);
+  if (match) {
     const rest = text.slice(0, match.index).trim();
     const featuring = splitNames(match[1]);
     if (rest !== "" && featuring.length > 0) return { rest, featuring };
@@ -89,7 +127,7 @@ function splitWith(
 
 /** "Song (feat. B & C)" becomes title "Song" with featuring ["B", "C"]. */
 export function splitFeaturing(title: string): { title: string; featuring: string[] } {
-  const { rest, featuring } = splitWith(title, [BRACKET_FEATURING, BARE_TITLE_FEATURING]);
+  const { rest, featuring } = splitWith(title, BARE_TITLE_FEATURING);
   return { title: rest, featuring };
 }
 
@@ -105,6 +143,6 @@ export function joinFeaturing(title: string, names: string[]): string {
 
 /** An imported artist tag "A feat. B" becomes artist "A" featuring ["B"]. Never splits on "&" alone. */
 export function splitArtistFeaturing(artist: string): { artist: string; featuring: string[] } {
-  const { rest, featuring } = splitWith(artist, [BRACKET_FEATURING, WORD_ARTIST_FEATURING]);
+  const { rest, featuring } = splitWith(artist, WORD_ARTIST_FEATURING);
   return { artist: rest, featuring };
 }

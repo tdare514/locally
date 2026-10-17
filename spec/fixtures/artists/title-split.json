@@ -178,5 +178,88 @@
     "input": "",
     "title": "",
     "featuring": []
+  },
+  {
+    "name": "brackets inside a featured name",
+    "input": "Song (feat. (G)I-DLE)",
+    "title": "Song",
+    "featuring": [
+      "(G)I-DLE"
+    ]
+  },
+  {
+    "name": "brackets inside one of several names",
+    "input": "Song [feat. B & (G)I-DLE]",
+    "title": "Song",
+    "featuring": [
+      "B",
+      "(G)I-DLE"
+    ]
+  },
+  {
+    "name": "mismatched closer",
+    "input": "Song (feat. B]",
+    "title": "Song (feat. B]",
+    "featuring": []
+  },
+  {
+    "name": "marker followed by an accented letter",
+    "input": "Song (featé B)",
+    "title": "Song (featé B)",
+    "featuring": []
+  },
+  {
+    "name": "marker followed by a CJK letter",
+    "input": "Song (feat日本 B)",
+    "title": "Song (feat日本 B)",
+    "featuring": []
+  },
+  {
+    "name": "marker followed by a combining mark",
+    "input": "Song (feat́ B)",
+    "title": "Song (feat́ B)",
+    "featuring": []
+  },
+  {
+    "name": "ft followed by an accented letter",
+    "input": "Song (fté B)",
+    "title": "Song (fté B)",
+    "featuring": []
+  },
+  {
+    "name": "featuring followed by a letter",
+    "input": "Song (featuringé B)",
+    "title": "Song (featuringé B)",
+    "featuring": []
+  },
+  {
+    "name": "marker then dot then accented name",
+    "input": "Song (feat.é)",
+    "title": "Song",
+    "featuring": [
+      "é"
+    ]
+  },
+  {
+    "name": "accented name after a space",
+    "input": "Song (feat é)",
+    "title": "Song",
+    "featuring": [
+      "é"
+    ]
+  },
+  {
+    "name": "CJK name after a dot",
+    "input": "Song (ft. 日本)",
+    "title": "Song",
+    "featuring": [
+      "日本"
+    ]
+  },
+  {
+    "name": "marker with no names",
+    "input": "Song (ft)",
+    "title": "Song (ft)",
+    "featuring": []
   }
 ]

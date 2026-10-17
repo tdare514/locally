@@ -45,6 +45,7 @@ describe("artist name fixtures", () => {
   it.each(joins.map((c) => [c.name, c] as const))("joinFeaturing: %s", (_name, c) => {
     expect(joinFeaturing(c.title, c.featuring)).toBe(c.expected);
     const split = splitFeaturing(c.expected);
+    expect(split).toEqual({ title: c.title, featuring: c.featuring });
     expect(joinFeaturing(split.title, split.featuring)).toBe(c.expected);
   });
 

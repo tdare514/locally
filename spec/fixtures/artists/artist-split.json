@@ -93,5 +93,37 @@
     "input": "A feat. ",
     "artist": "A feat. ",
     "featuring": []
+  },
+  {
+    "name": "brackets inside a featured name",
+    "input": "A (feat. (G)I-DLE)",
+    "artist": "A",
+    "featuring": [
+      "(G)I-DLE"
+    ]
+  },
+  {
+    "name": "marker followed by an accented letter",
+    "input": "A featé B",
+    "artist": "A featé B",
+    "featuring": []
+  },
+  {
+    "name": "marker followed by a CJK letter",
+    "input": "A feat日本 B",
+    "artist": "A feat日本 B",
+    "featuring": []
+  },
+  {
+    "name": "marker followed by a combining mark",
+    "input": "A feat́ B",
+    "artist": "A feat́ B",
+    "featuring": []
+  },
+  {
+    "name": "ft followed by an accented letter",
+    "input": "A fté B",
+    "artist": "A fté B",
+    "featuring": []
   }
 ]

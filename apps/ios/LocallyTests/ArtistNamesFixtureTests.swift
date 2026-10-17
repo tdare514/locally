@@ -99,6 +99,8 @@ struct ArtistNamesFixtureTests {
     func joinFeaturingMatchesFixtureAndRoundTrips(_ fixture: JoinCase) {
         #expect(ArtistNames.joinFeaturing(fixture.title, fixture.featuring) == fixture.expected)
         let split = ArtistNames.splitFeaturing(fixture.expected)
+        #expect(split.title == fixture.title)
+        #expect(split.featuring == fixture.featuring)
         #expect(ArtistNames.joinFeaturing(split.title, split.featuring) == fixture.expected)
     }
 

@@ -50,5 +50,13 @@
       "B"
     ],
     "expected": "Song (Live) (feat. B)"
+  },
+  {
+    "name": "brackets inside a name",
+    "title": "Song",
+    "featuring": [
+      "(G)I-DLE"
+    ],
+    "expected": "Song (feat. (G)I-DLE)"
   }
 ]

@@ -83,5 +83,12 @@
       "!!"
     ],
     "key": ""
+  },
+  {
+    "name": "spaces collapse around a combining mark",
+    "inputs": [
+      "A  ゙ B"
+    ],
+    "key": "a ゙ b"
   }
 ]

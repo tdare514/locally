@@ -25,7 +25,15 @@ enum ArtistNames {
                 }
             }
         }
-        return String(kept).split(separator: " ").joined(separator: " ")
+        // Collapse and trim U+0020 over scalars: a space followed by a combining
+        // mark is one Character, so a Character-wise split would keep it.
+        var collapsed = String.UnicodeScalarView()
+        for scalar in kept {
+            if scalar == " " && (collapsed.isEmpty || collapsed.last == " ") { continue }
+            collapsed.append(scalar)
+        }
+        if collapsed.last == " " { collapsed.removeLast() }
+        return String(collapsed)
     }
 
     /// True when two different names might be the same artist.
@@ -48,7 +56,7 @@ enum ArtistNames {
 
     /// "Song (feat. B & C)" becomes title "Song" with featuring ["B", "C"].
     static func splitFeaturing(_ title: String) -> (title: String, featuring: [String]) {
-        let result = splitWith(title, [bracketFeaturing, bareTitleFeaturing])
+        let result = splitWith(title, bareTitleFeaturing)
         return (result.rest, result.featuring)
     }
 
@@ -64,7 +72,7 @@ enum ArtistNames {
     /// An imported artist tag "A feat. B" becomes artist "A" featuring ["B"].
     /// Never splits on "&" alone.
     static func splitArtistFeaturing(_ artist: String) -> (artist: String, featuring: [String]) {
-        let result = splitWith(artist, [bracketFeaturing, wordArtistFeaturing])
+        let result = splitWith(artist, wordArtistFeaturing)
         return (result.rest, result.featuring)
     }
 
@@ -103,23 +111,66 @@ enum ArtistNames {
     }
 
     // swiftlint:disable force_try
-    private static let bracketFeaturing = try! NSRegularExpression(
-        pattern: #"\s*[(\[]\s*(?:feat|ft|featuring)\b\.?\s*([^)\]]*?)\s*[)\]]\s*$"#,
-        options: [.caseInsensitive])
     private static let bareTitleFeaturing = try! NSRegularExpression(
         pattern: #"\s+(?:feat|ft)\.\s+(.+)$"#, options: [.caseInsensitive])
     private static let wordArtistFeaturing = try! NSRegularExpression(
-        pattern: #"\s+(?:feat|ft|featuring)\b\.?\s+(.+)$"#, options: [.caseInsensitive])
+        pattern: #"\s+(?:featuring|feat|ft)(?:\.\s*|\s+)(.+)$"#, options: [.caseInsensitive])
     // swiftlint:enable force_try
 
+    private static let featuringMarkers = ["featuring", "feat", "ft"]
+
+    private static func asciiLower(_ scalar: Unicode.Scalar) -> Unicode.Scalar {
+        (scalar.value >= 0x41 && scalar.value <= 0x5A) ? Unicode.Scalar(scalar.value + 32)! : scalar
+    }
+
+    /// A trailing "(feat. ...)" or "[feat. ...]". The group is found by matching
+    /// brackets, so brackets inside a name survive: "Song (feat. (G)I-DLE)". The
+    /// marker must be followed by ".", a space or the end. Works on scalars so it
+    /// agrees with the web version.
+    private static func splitBracketFeaturing(_ text: String) -> (rest: String, featuring: [String])? {
+        var scalars = Array(text.unicodeScalars)
+        while let last = scalars.last, Character(last).isWhitespace { scalars.removeLast() }
+        guard let closer = scalars.last, closer == ")" || closer == "]" else { return nil }
+        var depth = 0
+        for index in stride(from: scalars.count - 1, through: 0, by: -1) {
+            let char = scalars[index]
+            if char == ")" || char == "]" {
+                depth += 1
+            } else if char == "(" || char == "[" {
+                depth -= 1
+            } else {
+                continue
+            }
+            if depth != 0 { continue }
+            if char != (closer == ")" ? "(" : "[") { return nil }
+            var inner = Array(scalars[(index + 1)..<(scalars.count - 1)])
+            while let first = inner.first, Character(first).isWhitespace { inner.removeFirst() }
+            for marker in featuringMarkers
+            where inner.prefix(marker.count).map(asciiLower) == Array(marker.unicodeScalars) {
+                if inner.count > marker.count {
+                    let next = inner[marker.count]
+                    if next != "." && next != " " { continue }
+                }
+                var rest = Array(inner.dropFirst(marker.count))
+                if rest.first == "." { rest.removeFirst() }
+                let names = splitNames(String(String.UnicodeScalarView(rest)))
+                let head = String(String.UnicodeScalarView(scalars[0..<index]))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                return (!head.isEmpty && !names.isEmpty) ? (head, names) : nil
+            }
+            return nil
+        }
+        return nil
+    }
+
     private static func splitWith(
-        _ text: String, _ patterns: [NSRegularExpression]
+        _ text: String, _ pattern: NSRegularExpression
     ) -> (rest: String, featuring: [String]) {
+        if let fromBracket = splitBracketFeaturing(text) { return fromBracket }
         let full = NSRange(text.startIndex..., in: text)
-        for pattern in patterns {
-            guard let match = pattern.firstMatch(in: text, range: full),
-                  let head = Range(NSRange(location: 0, length: match.range.location), in: text),
-                  let names = Range(match.range(at: 1), in: text) else { continue }
+        if let match = pattern.firstMatch(in: text, range: full),
+           let head = Range(NSRange(location: 0, length: match.range.location), in: text),
+           let names = Range(match.range(at: 1), in: text) {
             let rest = text[head].trimmingCharacters(in: .whitespacesAndNewlines)
             let featuring = splitNames(String(text[names]))
             if !rest.isEmpty && !featuring.isEmpty { return (rest, featuring) }
