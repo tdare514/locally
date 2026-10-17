@@ -23,6 +23,8 @@ import {
 } from "../lib/import-flow";
 import { applyTrackEdits } from "../lib/track-order";
 import type { ArtistEntry } from "../lib/artist-index";
+import { libraryWidthClass } from "../lib/library-view-prefs";
+import { useLibraryWidth } from "../lib/use-library-width";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
 import { useObjectUrl } from "../lib/use-object-url";
 import { usePrefersReducedMotion } from "../lib/use-reduced-motion";
@@ -63,6 +65,7 @@ export default function ImportView({
   onToast,
   artistIndex,
 }: ImportViewProps) {
+  const [width] = useLibraryWidth();
   const [kind, setKind] = useState<ReleaseKind>(initialKind ?? "single");
   const [entries, setEntries] = useState<Entry[]>([]);
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -260,7 +263,7 @@ export default function ImportView({
 
   if (IS_DEMO) {
     return (
-      <div className="mx-auto flex max-w-4xl flex-col gap-3 pb-16">
+      <div className={`flex flex-col gap-3 pb-16 ${libraryWidthClass(width)}`}>
         <h1 className="text-4xl font-bold tracking-[-0.02em] text-text">Import</h1>
         <p className="text-base text-text-muted">
           Importing isn&apos;t available in the demo. Browse the sample library instead.

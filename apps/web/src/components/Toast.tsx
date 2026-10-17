@@ -4,6 +4,8 @@ export interface ToastMessage {
   id: number;
   kind: "success" | "error";
   text: string;
+  /** A quiet action in the toast, such as Undo. */
+  action?: { label: string; onClick: () => void };
 }
 
 interface ToastProps {
@@ -26,6 +28,18 @@ export default function Toast({ toasts, onDismiss }: ToastProps) {
           }`}
         >
           <span>{t.text}</span>
+          {t.action && (
+            <button
+              type="button"
+              onClick={() => {
+                t.action?.onClick();
+                onDismiss(t.id);
+              }}
+              className="font-semibold underline underline-offset-2"
+            >
+              {t.action.label}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onDismiss(t.id)}

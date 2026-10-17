@@ -13,6 +13,8 @@ struct ReleaseDetailView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let release: Release
+    /// DEBUG screenshots open the page already in edit mode.
+    var startsEditing = false
 
     @State private var model: ReleaseDetailViewModel?
     @State private var isPresentingFileImporter = false
@@ -49,6 +51,7 @@ struct ReleaseDetailView: View {
                 let made = ReleaseDetailViewModel(release: release, coordinator: container.coordinator, coverStore: container.coverStore, syncApi: container.syncApi, isSignedIn: { container.syncAccount.deviceToken != nil })
                 coverImage = made.coverData.flatMap(UIImage.init(data:))
                 coverImageData = made.coverData
+                if startsEditing { made.beginEditing() }
                 model = made
             }
             await model?.loadPlays()
@@ -66,11 +69,24 @@ struct ReleaseDetailView: View {
             List {
                 Section {
                     hero(model)
-                    fields(model)
+                    if model.isEditing {
+                        fields(model)
+                    } else {
+                        details(model)
+                    }
                     ClearSectionEnd()
                 }
                 .recordListSection()
 
+                if !model.isEditing {
+                    Section {
+                        viewTracks(model)
+                        ClearSectionEnd()
+                    }
+                    .recordListSection()
+                }
+
+                if model.isEditing {
                 Section {
                     tracksHeader(model.trackRows.count).panelRow(.top)
                     if model.isEditing && model.trackRows.count >= 2 {
@@ -86,6 +102,7 @@ struct ReleaseDetailView: View {
                     }
                 }
                 .panelListSection()
+                }
             }
             .listStyle(.insetGrouped)
             .listSectionSpacing(.custom(Theme.Spacing.editorSectionGap))
@@ -266,6 +283,69 @@ struct ReleaseDetailView: View {
         }
         YearGenreRow(year: Binding(get: { model.year }, set: { model.year = $0 }), genre: Binding(get: { model.genre }, set: { model.genre = $0 }), isEditable: model.isEditing)
             .clearRow(top: 0, bottom: 0)
+    }
+
+    // MARK: View mode (#296)
+
+    /// The Mac's details: meta line, title, artist, "Year 2025   Genre Rap".
+    private func details(_ model: ReleaseDetailViewModel) -> some View {
+        ReleaseDetailsView(kind: model.kind, trackCount: model.trackRows.count, title: model.title, artist: model.artist, year: model.year, genre: model.genre)
+            .clearRow(top: 0, bottom: 0)
+    }
+
+    /// The tracks with no card: a "Tracks" heading, the quiet header row, then a row per track with a
+    /// hairline between rows. Playlists aren't a column on the phone.
+    @ViewBuilder
+    private func viewTracks(_ model: ReleaseDetailViewModel) -> some View {
+        let headings = model.discHeadings
+        let last = model.trackRows.count - 1
+        Text(Copy.Import.tracks)
+            .font(.system(size: 17, weight: .bold))
+            .foregroundStyle(Theme.primaryText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+            .clearRow(top: 0, bottom: 8)
+        ReleaseTrackHeader()
+            .padding(.bottom, 6)
+            .clearRow(top: 0, bottom: 0)
+        ForEach(Array(model.trackRows.enumerated()), id: \.element.id) { index, row in
+            if headings.indices.contains(index), let disc = headings[index] {
+                DiscHeading(number: disc).clearRow(top: 8, bottom: 4)
+            }
+            let seconds = row.durationSec ?? model.readLengths[row.id]
+            ReleaseTrackRow(
+                number: index + 1,
+                title: model.kind == .single ? model.title : row.title,
+                artist: model.artist.isEmpty ? Copy.Detail.unknownArtist : model.artist,
+                plays: model.playTotal(for: row),
+                time: TrackLength.format(seconds),
+                timeSpoken: TrackLength.spoken(seconds)
+            )
+            .overlay(alignment: .bottom) {
+                if index != last { Rectangle().fill(Theme.Track.separatorTint).frame(height: 1) }
+            }
+            .clearRow(top: 0, bottom: 0)
+        }
+        if model.hasPlays { playsFootnote.clearRow(top: 12, bottom: 0) }
+        if model.isAdopted { adoptedNote.clearRow(top: 8, bottom: 0) }
+        if model.kind == .album { playlistGuide(model).clearRow(top: 8, bottom: 0) }
+        viewMessages(model)
+    }
+
+    @ViewBuilder
+    private func viewMessages(_ model: ReleaseDetailViewModel) -> some View {
+        if let statusMessage = model.statusMessage {
+            Text(statusMessage)
+                .font(Theme.Font.meta)
+                .foregroundStyle(Theme.secondaryText)
+                .clearRow(top: 8, bottom: 0)
+        }
+        if let errorMessage = model.errorMessage {
+            Text(errorMessage)
+                .font(Theme.Font.rowSubtitle)
+                .foregroundStyle(Theme.danger)
+                .clearRow(top: 8, bottom: 0)
+        }
     }
 
     // MARK: Panel rows

@@ -33,14 +33,21 @@ export interface SyncState {
    * has no such check.
    */
   missingFiles: Record<string, MissingMark>;
+  /**
+   * releaseId -> the version token (`hideKeyFor`) of the pending record the owner hid from the
+   * tray on this Mac (#295). A newer version has another token, so the release shows again.
+   */
+  hiddenFromTray?: Record<string, string>;
 }
 
 /** Persists {@link SyncState}. Behind an interface so tests use an in-memory fake. */
 export interface SyncStateStore {
   get(): Promise<SyncState>;
   set(state: SyncState): Promise<SyncState>;
+  /** A read-modify-write under the store's lock; the mutator returns null to change nothing. */
+  update(mutator: (current: SyncState) => SyncState | null): Promise<SyncState>;
 }
 
 export function emptySyncState(): SyncState {
-  return { pushedUpdatedAt: {}, uploadedFiles: {}, coverHash: {}, pendingFromPhone: {}, missingFiles: {} };
+  return { pushedUpdatedAt: {}, uploadedFiles: {}, coverHash: {}, pendingFromPhone: {}, missingFiles: {}, hiddenFromTray: {} };
 }

@@ -163,6 +163,17 @@ export function XIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** Hide from the tray (#295): an eye with a line through it. */
+export function EyeOffIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M4 20 20 4" />
+    </IconBase>
+  );
+}
+
 /** Phone inbox trigger (#115): a cloud with a down arrow. */
 export function CloudDownIcon(props: SVGProps<SVGSVGElement>) {
   return (

@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { orderRows, PendingRow, SendingFooter } from "../../src/components/PhoneInbox";
+import { PendingRow, SectionHeader } from "../../src/components/PhoneInbox";
 import type { PendingFromPhone } from "../../src/shared/types";
 
 const base: PendingFromPhone = {
@@ -16,16 +16,16 @@ const base: PendingFromPhone = {
 /** The row as text: tags dropped, entities decoded, so the owner-facing copy can be compared. */
 function render(
   item: PendingFromPhone,
-  extra: { outcome?: "asked" | "later"; resyncing?: boolean } = {}
+  extra: { busy?: boolean; compact?: boolean } = {}
 ): { html: string; text: string } {
   const html = renderToStaticMarkup(
     createElement(PendingRow, {
       item,
       leaving: false,
+      busy: extra.busy,
+      compact: extra.compact ?? item.filesState !== undefined,
       onSend: () => {},
-      onResync: () => {},
-      resyncing: extra.resyncing ?? false,
-      outcome: extra.outcome,
+      onHide: () => {},
     })
   );
   const text = html
@@ -45,7 +45,7 @@ describe("PendingRow files states (#172)", () => {
     expect(text).not.toMatch(/arriving|waiting|resync/i);
   });
 
-  it("an arriving row is greyed out with three dots, cannot be sent, and shows no Resync", () => {
+  it("an arriving row is greyed out with three dots, cannot be sent, and has no Hide", () => {
     const { html, text } = render({ ...base, filesState: "arriving" });
     expect(html).not.toContain("<button");
     expect(html).not.toContain("Send Phone Song to Spotify");
@@ -66,93 +66,49 @@ describe("PendingRow files states (#172)", () => {
     expect(html).not.toMatch(/text-danger|role="alert"/);
   });
 
-  it("orders ready, then waiting, then arriving, keeping the order within each group", () => {
-    const row = (id: string, filesState?: PendingFromPhone["filesState"]): PendingFromPhone => ({
-      ...base,
-      id,
-      ...(filesState ? { filesState } : {}),
-    });
-    const ordered = orderRows([
-      row("a1", "arriving"),
-      row("w1", "waiting"),
-      row("r1"),
-      row("a2", "arriving"),
-      row("r2"),
-      row("w2", "waiting"),
-    ]);
-    expect(ordered.map((p) => p.id)).toEqual(["r1", "r2", "w1", "w2", "a1", "a2"]);
-  });
-
-  it("shows the footer once when rows are arriving, and not at all otherwise", () => {
-    const foot = (pending: PendingFromPhone[]) =>
-      renderToStaticMarkup(createElement(SendingFooter, { pending })).replace(/<[^>]+>/g, "");
-    const arriving = (id: string, origin = "ios"): PendingFromPhone => ({ ...base, id, origin, filesState: "arriving" });
-    expect(foot([arriving("a")])).toBe("Still sending this one from your phone…");
-    expect(foot([arriving("a"), arriving("b")])).toBe("Still sending these from your phone…");
-    expect(foot([arriving("a", "web")])).toBe("Still sending this one from that device…");
-    expect(foot([arriving("a"), arriving("b", "web")])).toBe("Still sending these…");
-    expect(foot([base, { ...base, id: "w", filesState: "waiting" }])).toBe("");
-    expect(foot([])).toBe("");
-  });
-
-  it("a waiting phone row shows the copy and the Resync button, and offers no Send", () => {
-    const { html, text } = render({ ...base, filesState: "waiting" });
-    expect(text).toContain("Waiting on your phone");
-    expect(text).toContain("The audio hasn't arrived yet.");
-    expect(text).toContain("Resync Mac and phone");
-    expect(html).toContain("<button");
-    expect(html).not.toContain("Send Phone Song to Spotify");
-    expect(html).not.toContain('title="Send to Spotify"');
-    // The one button left is Resync.
+  it("a waiting row is compact, has no Send and no per-row retry, and offers Hide", () => {
+    const { html, text } = render({ ...base, title: "kwaylone", artist: "kwaylone", sentAt: "2026-09-27T12:00:00Z", filesState: "waiting" });
+    expect(text).toContain("kwaylone · 1 track");
+    expect(text).toContain("since 27 Sep");
+    expect(html).not.toContain("Send kwaylone to Spotify");
+    expect(text).not.toMatch(/Resync|Waiting on your phone|hasn't arrived/);
     expect(html.match(/<button/g)).toHaveLength(1);
+    expect(html).toContain('aria-label="Hide kwaylone"');
+    expect(html).toContain("group-focus-within/row:opacity-100");
+    expect(html).toContain("opacity-60");
+    expect(html).toContain("h-10 w-10");
   });
 
-  it("a waiting album row uses the same line, which never calls it a song", () => {
-    const { text } = render({ ...base, kind: "album", trackCount: 6, filesState: "waiting" });
-    expect(text).toContain("The audio hasn't arrived yet.");
-    expect(text).not.toContain("This song's");
+  it("a reserved row shows the sending look and its controls are off", () => {
+    const ready = render(base, { busy: true });
+    expect(ready.html).toMatch(/<button[^>]*disabled/);
+    expect(ready.html).toContain("sending-dots");
+    const waiting = render({ ...base, filesState: "waiting" }, { busy: true });
+    expect(waiting.html.match(/<button[^>]*disabled/g)).toHaveLength(1);
+    expect(waiting.html).toContain("sending-dots");
   });
 
-  it("after Resync it shows what happened in place of the button", () => {
-    const { html, text } = render({ ...base, filesState: "waiting" }, { outcome: "asked" });
-    expect(text).toContain("Asked your phone to send it again. Open Locally on your iPhone to finish.");
-    expect(html).not.toContain("<button");
-    expect(text).not.toContain("Resync Mac and phone");
+  it("a release with no cover is the card square with the double note and a black label", () => {
+    const { html } = render(base);
+    expect(html).toContain("bg-card");
+    expect(html).toContain("text-text-dim");
+    expect(html).toContain("bg-[#050505] ring-1 ring-[#1E1E1E]");
+    expect(html).not.toContain("color-mix");
   });
 
-  it("when the request had to wait it says to try again, with the button still there", () => {
-    const { html, text } = render({ ...base, filesState: "waiting" }, { outcome: "later" });
-    expect(text).toContain("Try again in a few minutes.");
-    expect(text).toContain("Resync Mac and phone");
-    expect(text).not.toContain("Asked your phone");
-    expect(html.match(/<button/g)).toHaveLength(1);
-  });
-
-  it("disables the button while the request is in flight", () => {
-    const { html } = render({ ...base, filesState: "waiting" }, { resyncing: true });
-    expect(html).toMatch(/<button[^>]*disabled/);
-  });
-
-  it("uses the generic wording for the web and unknown origins", () => {
-    for (const origin of ["web", "future-thing"]) {
-      const { text } = render({ ...base, origin, filesState: "waiting" });
-      expect(text, origin).toContain("Waiting on that device");
-      expect(text, origin).toContain("Resync");
-      expect(text, origin).not.toMatch(/Resync Mac and phone|your phone/);
-    }
-    const asked = render({ ...base, origin: "web", filesState: "waiting" }, { outcome: "asked" });
-    expect(asked.text).toContain("Asked that device to send it again. Open Locally there to finish.");
-    expect(render({ ...base, origin: "web", filesState: "arriving" }).text).toContain(
-      "Still being sent from your other device."
+  it("a section header has the count in the heading's name and one action of the same class", () => {
+    const html = renderToStaticMarkup(
+      createElement(SectionHeader, { id: "h", name: "Ready to add", count: 2, action: { label: "Add all", busy: false, onClick: () => {} } })
     );
+    expect(html).toContain("<h3");
+    expect(html.replace(/<[^>]+>/g, "")).toBe("Ready to add, 2Add all");
+    expect(html).toContain('class="btn-save btn-save-compact"');
+    const none = renderToStaticMarkup(createElement(SectionHeader, { id: "h", name: "Ready to add", count: 1 }));
+    expect(none).not.toContain("<button");
   });
 
-  it("keeps the origin label on every state", () => {
-    expect(render({ ...base, origin: "web", filesState: "waiting" }).text).toContain("from the web");
-    expect(render({ ...base, origin: "ios", filesState: "arriving" }).text).toContain("from your iPhone");
-  });
-
-  it("has no uppercase labels", () => {
+  it("keeps the origin label on a ready row and has no uppercase labels", () => {
+    expect(render({ ...base, origin: "web" }).text).toContain("from the web");
     for (const filesState of ["arriving", "waiting"] as const) {
       expect(render({ ...base, filesState }).html).not.toMatch(/uppercase|tracking-wide/);
     }

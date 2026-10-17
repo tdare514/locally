@@ -20,6 +20,8 @@ import { useArtworkPalette } from "../../lib/use-artwork-palette";
 import AmbientBackdrop from "../AmbientBackdrop";
 import { statCoverUrl } from "../sidebar/StatCover";
 import { usePlayStats } from "../sidebar/use-stats";
+import { libraryWidthClass } from "../../lib/library-view-prefs";
+import { useLibraryWidth } from "../../lib/use-library-width";
 import { GlassToggle, PeriodStepper, SelectMenu, Toggle } from "./controls";
 import SleeveFan from "./SleeveFan";
 import { StatsList, StatsSea } from "./StatsRows";
@@ -113,9 +115,10 @@ export default function StatsView({
     if (!busy) onContentReady();
   }, [busy, onContentReady]);
   const showControls = state.status !== "empty";
+  const [width] = useLibraryWidth();
 
   return (
-    <div className="st-root mx-auto max-w-[1180px] pb-10" style={palette ? ({ "--btn-tint": palette.primary } as CSSProperties) : undefined}>
+    <div className={`st-root pb-10 ${libraryWidthClass(width)}`} style={palette ? ({ "--btn-tint": palette.primary } as CSSProperties) : undefined}>
       <AmbientBackdrop palette={palette} />
       <div aria-hidden className="st-scrim" />
       <header className="st-rise flex flex-wrap items-center justify-between gap-x-6 gap-y-3" style={{ "--st-i": 0 } as CSSProperties}>

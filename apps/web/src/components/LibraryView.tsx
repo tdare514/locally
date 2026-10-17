@@ -25,7 +25,6 @@ import {
   NO_FOLDS,
   isSectionOpen,
   loadLibraryViewPrefs,
-  loadLibraryWidth,
   loadSectionFolds,
   saveCoverSize,
   saveLibraryLayout,
@@ -34,9 +33,9 @@ import {
   type SectionFolds,
   type CoverSize,
   type LibraryLayout,
-  type LibraryWidth,
   libraryWidthClass,
 } from "../lib/library-view-prefs";
+import { useLibraryWidth } from "../lib/use-library-width";
 import BulkEditDialog from "./BulkEditDialog";
 import type { ArtistEntry } from "../lib/artist-index";
 import {
@@ -47,7 +46,7 @@ import {
   MusicNoteIcon,
   SearchIcon,
 } from "./Icons";
-import HouseSleeve from "./HouseSleeve";
+import NoCover from "./NoCover";
 
 const ADOPTED_LABEL = "In your Spotify folder";
 const ADOPTED_NOT_SELECTABLE = "Releases from your Spotify folder can't be selected. Remove one from its own page.";
@@ -112,7 +111,7 @@ export default function LibraryView({
   const [busy, setBusy] = useState(false);
   const [layout, setLayout] = useState<LibraryLayout>("list");
   const [coverSize, setCoverSize] = useState<CoverSize>(1);
-  const [width, setWidth] = useState<LibraryWidth>("full");
+  const [width] = useLibraryWidth();
   const [folds, setFolds] = useState<SectionFolds>(NO_FOLDS);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
@@ -123,7 +122,6 @@ export default function LibraryView({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLayout(prefs.layout);
     setCoverSize(prefs.coverSize);
-    setWidth(loadLibraryWidth());
     setFolds(loadSectionFolds());
   }, []);
 
@@ -712,12 +710,8 @@ export function LibrarySection({
                         alt=""
                         className="list-thumb h-14 w-14 shrink-0 rounded object-cover"
                       />
-                    ) : r.adopted ? (
-                      <HouseSleeve className="list-thumb h-14 w-14 shrink-0 rounded" />
                     ) : (
-                      <span className="list-thumb flex h-14 w-14 shrink-0 items-center justify-center rounded bg-elevated text-text-muted">
-                        <MusicNoteIcon className="h-5 w-5" />
-                      </span>
+                      <NoCover className="list-thumb h-14 w-14 shrink-0 rounded" />
                     )}
                     <span className="min-w-0 flex-1">
                       <span className="flex min-w-0 items-center gap-1.5">
@@ -839,12 +833,8 @@ function CoverSection({
                         alt=""
                         className="h-full w-full rounded-lg object-cover shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]"
                       />
-                    ) : r.adopted ? (
-                      <HouseSleeve className="h-full w-full rounded-lg shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]" />
                     ) : (
-                      <span className="flex h-full w-full items-center justify-center rounded-lg bg-elevated text-text-muted shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]">
-                        <MusicNoteIcon className="h-8 w-8" />
-                      </span>
+                      <NoCover className="h-full w-full rounded-lg shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]" />
                     )}
                     {selecting && !locked && (
                       <span className="absolute left-2 top-2 rounded-md bg-black/50 p-1">

@@ -17,6 +17,8 @@ struct ComponentGallery: View {
         "icons-tabs-library", "icons-tabs-stats", "icons-library-list", "icons-library-grid", "icons-release", "icons-release-bottom", "icons-cover-edit", "icons-playlist-guide",
         // #269: the Library's "From your devices" button and tray, over sample pending records.
         "devices-header-0", "devices-header-1", "devices-header-3", "devices-tray-open", "devices-tray-large-text", "devices-tray-failed",
+        // #296: view mode in the Mac's look, no cover, the empty sleeve in edit mode, the tray's sections.
+        "release-view-nocover", "release-edit-nocover", "release-view-large-text", "release-view-large-text-bottom", "devices-tray-sections", "devices-tray-sections-large-text",
         // #287: the Featuring field. The import cases are `import-record-featuring` and `import-record-album-featuring-sheet`.
         "release-featuring-view", "featuring-fields-ax"]
 
@@ -174,6 +176,18 @@ struct ComponentGallery: View {
             IconsGallery.devices(pending: 3, open: true).dynamicTypeSize(.accessibility3)
         case "icons-release-bottom":
             IconsGallery.release().defaultScrollAnchor(.bottom)
+        case "release-view-nocover":
+            IconsGallery.release(noCover: true)
+        case "release-edit-nocover":
+            IconsGallery.release(noCover: true, editing: true)
+        case "release-view-large-text":
+            IconsGallery.release().dynamicTypeSize(.accessibility3)
+        case "release-view-large-text-bottom":
+            IconsGallery.release().dynamicTypeSize(.accessibility3).defaultScrollAnchor(.bottom)
+        case "devices-tray-sections":
+            IconsGallery.devices(pending: 5, open: true, sections: true)
+        case "devices-tray-sections-large-text":
+            IconsGallery.devices(pending: 5, open: true, sections: true).dynamicTypeSize(.accessibility2)
         default:
             EmptyView()
         }
@@ -431,7 +445,7 @@ enum IconsGallery {
 
     /// The real Library over sample pending records (#269): the first is ready, the second's last
     /// send failed, the third is sending now. `failedOnly` shows just the failed one.
-    static func devices(pending: Int, open: Bool, failedOnly: Bool = false) -> some View {
+    static func devices(pending: Int, open: Bool, failedOnly: Bool = false, sections: Bool = false) -> some View {
         UserDefaults.standard.set(LibraryLayout.list.rawValue, forKey: LibraryViewPrefs.layoutKey)
         let container = container()
         let now = Date()
@@ -440,7 +454,15 @@ enum IconsGallery {
             ("Low Tide", "The Salt Line", "mac", "failed", 1),
             ("Paper Lanterns Over the Long Way Home", "Amelia Rowe", "web", "sending", 9),
         ]
-        let shown = failedOnly ? [samples[1]] : Array(samples.prefix(pending))
+        // #296: two ready, one being sent (still in Ready to add), two that couldn't send.
+        let sectionSamples: [(String, String, String, String, Int)] = [
+            ("Night Bus to Nowhere", "Neon Harbor", "mac", "ready", 11),
+            ("Slow Fires", "Juniper Hale", "mac", "ready", 1),
+            ("Paper Lanterns Over the Long Way Home", "Amelia Rowe", "web", "sending", 9),
+            ("Low Tide", "The Salt Line", "mac", "failed", 1),
+            ("Kitchen Radio", "Mira Valdane", "web", "failed", 4),
+        ]
+        let shown = sections ? sectionSamples : failedOnly ? [samples[1]] : Array(samples.prefix(pending))
         let status = container.syncStatus
         status.pendingFromMac = shown.enumerated().map { index, sample in
             SyncRecord(
@@ -474,10 +496,12 @@ enum IconsGallery {
     }
 
     /// An album's release page, with its cover (Edit) and the playlist guide (Copy).
-    static func release() -> some View {
+    static func release(noCover: Bool = false, editing: Bool = false) -> some View {
         let container = container()
-        let release = StatsGallery.releases[0]
-        return environment(NavigationStack { ReleaseDetailView(release: release) }, container)
+        var release = StatsGallery.releases[0]
+        release.year = "2025"
+        if noCover { release.coverPath = nil }
+        return environment(NavigationStack { ReleaseDetailView(release: release, startsEditing: editing) }, container)
     }
 }
 
