@@ -23,3 +23,32 @@ struct ArtistField: View {
             }
     }
 }
+
+/// The keyboard-toolbar row of library artists (#287), shared by the Artist and Featuring fields.
+struct ArtistPillRow: View {
+    let entries: [ArtistEntry]
+    let onPick: (ArtistEntry) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(entries, id: \.key) { entry in
+                    Button {
+                        onPick(entry)
+                    } label: {
+                        Text(Copy.ArtistSuggest.pill(artist: entry.display, trackCount: entry.trackCount))
+                            .font(Theme.ScaledFont.subheadline)
+                            .foregroundStyle(Theme.Tint.accentText)
+                            .lineLimit(1)
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 44)
+                            .background(Capsule().fill(Theme.accent.opacity(0.18)))
+                            .contentShape(Capsule())
+                    }
+                    .accessibilityLabel(Copy.ArtistSuggest.pillLabel(artist: entry.display, trackCount: entry.trackCount))
+                }
+            }
+        }
+        .accessibilityLabel(Copy.ArtistSuggest.pillsLabel)
+    }
+}

@@ -30,7 +30,10 @@ final class ReleaseDetailViewModel {
     /// reordering never mixes up which title belongs to which file.
     struct TrackRow: Identifiable, Hashable {
         let id: UUID
+        /// The plain title: "Song (feat. B)" is split into this and `featuring` (#287), and save
+        /// joins them again.
         var title: String
+        var featuring: [String] = []
         /// Which disc the track is on, when the release has discs. Read only: it sets the
         /// "Disc N" headings.
         var discNumber: Int?
@@ -54,6 +57,11 @@ final class ReleaseDetailViewModel {
     var trackRows: [TrackRow]
     /// Spotify play totals across all devices, by lowercased track id; empty when signed out or offline.
     private(set) var playTotals: [String: Int] = [:]
+
+    /// What is typed in a single's Featuring field and not yet added; saving adds it.
+    var featuringDraft = ""
+    /// The album row whose feat. sheet is open, if any.
+    var featuringRowID: UUID?
 
     private var originalTitle: String
     private var originalArtist: String
@@ -86,14 +94,12 @@ final class ReleaseDetailViewModel {
         // every stored property is initialized, so every value below is
         // computed into a local first and used to set both the editable
         // and "original" properties — never re-read from `self`.
-        let title = release.title
+        let title = Self.editorTitle(of: release)
         let artist = release.artist
         let year = release.year ?? ""
         let genre = release.genre ?? ""
         let cover = release.coverPath != nil ? coverStore.load(release.id) : nil
-        let rows = release.tracks
-            .sorted { $0.trackNumber < $1.trackNumber }
-            .map { TrackRow(id: $0.id, title: $0.title, discNumber: $0.discNumber, durationSec: $0.durationSec) }
+        let rows = Self.rows(of: release)
 
         self.release = release
         self.releaseId = release.id
@@ -118,8 +124,42 @@ final class ReleaseDetailViewModel {
         self.originalTrackRows = rows
     }
 
+    /// The Title field's text. A single's release title is plain, but one saved before the
+    /// Featuring field may hold "Song (feat. B)", which the field splits.
+    private static func editorTitle(of release: Release) -> String {
+        release.kind == .single ? ArtistNames.splitFeaturing(release.title).title : release.title
+    }
+
+    /// The editable rows: each track's title split into the plain title and its featured artists.
+    private static func rows(of release: Release) -> [TrackRow] {
+        release.tracks
+            .sorted { $0.trackNumber < $1.trackNumber }
+            .map {
+                let split = ArtistNames.splitFeaturing($0.title)
+                return TrackRow(id: $0.id, title: split.title, featuring: split.featuring, discNumber: $0.discNumber, durationSec: $0.durationSec)
+            }
+    }
+
+    /// A single's featured artists, kept on its one track row.
+    var singleFeaturing: [String] {
+        get { trackRows.first?.featuring ?? [] }
+        set { if !trackRows.isEmpty { trackRows[0].featuring = newValue } }
+    }
+
+    /// Adds a name typed in the single's Featuring field and not yet confirmed.
+    func commitFeaturingDraft() {
+        singleFeaturing = FeaturingNames.commit(featuringDraft, to: singleFeaturing)
+        featuringDraft = ""
+    }
+
+    /// The track's title as saved in its file, by id.
+    private func savedTitle(of id: UUID) -> String? {
+        release.tracks.first { $0.id == id }?.title
+    }
+
     var hasChanges: Bool {
-        title != originalTitle
+        !FeaturingNames.add(featuringDraft, to: []).isEmpty
+            || title != originalTitle
             || artist != originalArtist
             || year != originalYear
             || genre != originalGenre
@@ -142,10 +182,19 @@ final class ReleaseDetailViewModel {
         if coverData != originalCoverData {
             result.append(.cover(old: originalCoverData, new: coverData))
         }
-        let oldTitles = Dictionary(originalTrackRows.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
-        for row in trackRows {
-            if let old = oldTitles[row.id], old != row.title {
-                result.append(.trackRenamed(id: row.id, old: old, new: row.title))
+        if kind == .single {
+            let old = originalTrackRows.first?.featuring ?? []
+            let new = FeaturingNames.commit(featuringDraft, to: singleFeaturing)
+            if old != new {
+                result.append(.field(label: Copy.Featuring.field, old: FeaturingNames.display(old), new: FeaturingNames.display(new)))
+            }
+        } else {
+            for row in trackRows {
+                guard let old = savedTitle(of: row.id) else { continue }
+                let new = FeaturingNames.fullTitle(plain: row.title, featuring: row.featuring, original: old)
+                if old != new {
+                    result.append(.trackRenamed(id: row.id, old: old, new: new))
+                }
             }
         }
         if trackRows.map(\.id) != originalTrackRows.map(\.id) {
@@ -175,6 +224,8 @@ final class ReleaseDetailViewModel {
         genre = originalGenre
         coverData = originalCoverData
         trackRows = originalTrackRows
+        featuringDraft = ""
+        featuringRowID = nil
         errorMessage = nil
         isEditing = false
     }
@@ -248,19 +299,23 @@ final class ReleaseDetailViewModel {
         isSaving = true
         defer { isSaving = false }
 
+        commitFeaturingDraft()
+        // A track's file carries its title in the "Song (feat. B)" form; the release title stays plain.
         var trackTitles: [UUID: String] = [:]
         for row in trackRows {
-            trackTitles[row.id] = row.title
+            trackTitles[row.id] = FeaturingNames.fullTitle(plain: row.title, featuring: row.featuring, original: savedTitle(of: row.id))
         }
         // A single has one title: what the user edits as "Title" is what
         // Spotify shows for the track, so the track tag follows it.
         if kind == .single, let only = trackRows.first {
-            trackTitles[only.id] = title
+            trackTitles[only.id] = FeaturingNames.fullTitle(plain: title, featuring: only.featuring, original: savedTitle(of: only.id))
         }
 
         let originalDiscs = Dictionary(originalTrackRows.compactMap { row in row.discNumber.map { (row.id, $0) } }, uniquingKeysWith: { first, _ in first })
+        // The Title field shows a legacy single's "Song (feat. B)" as "Song". Left alone, the release
+        // title stays as it was saved; edited, it is the plain title typed.
         let changes = ReleaseChanges(
-            title: title,
+            title: title == originalTitle ? release.title : title,
             artist: artist,
             year: year,
             genre: genre,
@@ -319,14 +374,13 @@ final class ReleaseDetailViewModel {
     /// user changes something new.
     private func apply(_ release: Release) {
         self.release = release
-        title = release.title
+        title = Self.editorTitle(of: release)
         artist = release.artist
         year = release.year ?? ""
         genre = release.genre ?? ""
         coverData = release.coverPath != nil ? coverStore.load(release.id) : coverData
-        trackRows = release.tracks
-            .sorted { $0.trackNumber < $1.trackNumber }
-            .map { TrackRow(id: $0.id, title: $0.title, discNumber: $0.discNumber, durationSec: $0.durationSec) }
+        trackRows = Self.rows(of: release)
+        featuringDraft = ""
 
         originalTitle = title
         originalArtist = artist

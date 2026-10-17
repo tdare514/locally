@@ -269,7 +269,7 @@ enum Theme {
         static let inlineFieldUnderlineGap: CGFloat = 4
         static let inlineFieldFocusFade: Double = 0.15
         /// Labelled fields: the label column, the gap between rows, and the always-visible underline.
-        static let labeledFieldLabelWidth: CGFloat = 60
+        static let labeledFieldLabelWidth: CGFloat = 66
         static let labeledFieldRowGap: CGFloat = 12
         /// Year's value width when it shares its row with Genre: room for "Enter year" at body.
         static let yearValueWidth: CGFloat = 92

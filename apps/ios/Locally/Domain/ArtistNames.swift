@@ -62,11 +62,14 @@ enum ArtistNames {
 
     /// The inverse of `splitFeaturing`: "Song (feat. B & C)".
     static func joinFeaturing(_ title: String, _ names: [String]) -> String {
-        guard let last = names.last else { return title }
-        let joined = names.count == 1
-            ? last
-            : names.dropLast().joined(separator: ", ") + " & " + last
-        return "\(title) (feat. \(joined))"
+        guard !names.isEmpty else { return title }
+        return "\(title) (feat. \(joinNames(names)))"
+    }
+
+    /// The names as the title form words them: "B", "B & C", "B, C & D".
+    static func joinNames(_ names: [String]) -> String {
+        guard let last = names.last else { return "" }
+        return names.count == 1 ? last : names.dropLast().joined(separator: ", ") + " & " + last
     }
 
     /// An imported artist tag "A feat. B" becomes artist "A" featuring ["B"].

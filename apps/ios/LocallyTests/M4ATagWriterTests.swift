@@ -65,6 +65,19 @@ struct M4ATagWriterTests {
         #expect(artist == "First Artist")
     }
 
+    /// #287: the same single as the ID3 test: TIT2's counterpart carries the Spotify form.
+    @Test func aSinglesFeaturesGoIntoTheTitleAndTheArtistStaysPlain() async throws {
+        let (dir, url) = try makeTinyM4A()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let tags = TagSet(title: ArtistNames.joinFeaturing("Song", ["B"]), artist: "A", album: "Song", trackNumber: 1, totalTracks: 1)
+
+        try await writer.write(tags, cover: nil, to: url)
+
+        let (title, artist) = try await readBackTitleAndArtist(url)
+        #expect(title == "Song (feat. B)")
+        #expect(artist == "A")
+    }
+
     /// The whole point of re-tagging in place: writing a second, different
     /// set of tags onto a file that already carries metadata must replace
     /// it, not error out or leave the first set behind.
