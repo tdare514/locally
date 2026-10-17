@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { INBOX_TITLE, sendingFooter, originLabel } from "../lib/inbox-copy";
+import { INBOX_TITLE, originLabel } from "../lib/inbox-copy";
 import {
   Reservations,
   compactSubline,
@@ -336,7 +336,6 @@ export default function PhoneInbox({ pending: allPending, hidden = {}, onAccept,
               ))}
             </section>
           )}
-          <SendingFooter pending={pending} />
         </div>
       )}
     </div>
@@ -396,13 +395,6 @@ export function SectionHeader({
       )}
     </div>
   );
-}
-
-/** The one quiet line at the bottom of the tray while any row is still being sent. */
-export function SendingFooter({ pending }: { pending: PendingFromPhone[] }) {
-  const origins = pending.filter((p) => p.filesState === "arriving").map((p) => p.origin);
-  if (origins.length === 0) return null;
-  return <p className="px-3 pb-2 pt-1 text-[12px] leading-snug text-text-muted">{sendingFooter(origins)}</p>;
 }
 
 /** One pending release as a small record sleeve, echoing the release page. The sleeve is the

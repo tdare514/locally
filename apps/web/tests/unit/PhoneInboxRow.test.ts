@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { PendingRow, SectionHeader, SendingFooter } from "../../src/components/PhoneInbox";
+import { PendingRow, SectionHeader } from "../../src/components/PhoneInbox";
 import type { PendingFromPhone } from "../../src/shared/types";
 
 const base: PendingFromPhone = {
@@ -64,18 +64,6 @@ describe("PendingRow files states (#172)", () => {
     expect(text).toContain("Still being sent from your phone.");
     expect(text).not.toMatch(/resync|never reached|Still arriving/i);
     expect(html).not.toMatch(/text-danger|role="alert"/);
-  });
-
-  it("shows the footer once when rows are arriving, and not at all otherwise", () => {
-    const foot = (pending: PendingFromPhone[]) =>
-      renderToStaticMarkup(createElement(SendingFooter, { pending })).replace(/<[^>]+>/g, "");
-    const arriving = (id: string, origin = "ios"): PendingFromPhone => ({ ...base, id, origin, filesState: "arriving" });
-    expect(foot([arriving("a")])).toBe("Still sending this one from your phone…");
-    expect(foot([arriving("a"), arriving("b")])).toBe("Still sending these from your phone…");
-    expect(foot([arriving("a", "web")])).toBe("Still sending this one from that device…");
-    expect(foot([arriving("a"), arriving("b", "web")])).toBe("Still sending these…");
-    expect(foot([base, { ...base, id: "w", filesState: "waiting" }])).toBe("");
-    expect(foot([])).toBe("");
   });
 
   it("a waiting row is compact, has no Send and no per-row retry, and offers Hide", () => {
