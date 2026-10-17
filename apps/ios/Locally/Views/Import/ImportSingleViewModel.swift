@@ -119,12 +119,20 @@ final class ImportSingleViewModel {
         return TagSet(
             title: ArtistNames.joinFeaturing(title, featuring),
             artist: artist,
-            album: album.isEmpty ? title : album,
+            album: albumTag,
             trackNumber: 1,
             totalTracks: 1,
             year: year.isEmpty ? nil : year,
             genre: genre.isEmpty ? nil : genre
         )
+    }
+
+    /// The album tag. A later save writes the plain release title for a single, so an album that is
+    /// the title's own song ("Song (feat. B)" beside the title "Song") is written plain here too,
+    /// and an unrelated edit never changes the tag. Any other album is kept as typed.
+    private var albumTag: String {
+        let typed = album.isEmpty ? title : album
+        return ArtistNames.splitFeaturing(typed).title == title ? title : typed
     }
 
     /// Empties the draft (file, fields, cover, messages) and leaves the share queue alone. Used by

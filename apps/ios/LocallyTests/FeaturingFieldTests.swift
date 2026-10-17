@@ -270,4 +270,93 @@ struct FeaturingFieldTests {
         #expect(saved.title == "Tune")
         #expect(saved.tracks.first?.title == "Tune (feat. B)")
     }
+
+    // MARK: Single whose track title differs from the release title (a record from the Mac)
+
+    private func macSingle(_ rig: Rig) async throws -> Release {
+        let release = try await rig.coordinator.importSingle(file: try makeSourceFile(), tags: TagSet(title: "Album", artist: "A", album: "Album", year: "2020"), cover: nil)
+        var mac = release
+        mac.tracks[0].title = "Song (feat. B)"
+        try rig.library.upsert(mac)
+        return mac
+    }
+
+    @Test func addingAFeatureKeepsTheTracksOwnPlainTitle() async throws {
+        let rig = Rig()
+        let release = try await macSingle(rig)
+        let model = ReleaseDetailViewModel(release: release, coordinator: rig.coordinator, coverStore: rig.coverStore)
+        #expect(model.title == "Album")
+        #expect(model.singleFeaturing == ["B"])
+
+        model.beginEditing()
+        model.singleFeaturing = ["B", "C"]
+        await model.save()
+
+        let saved = try #require(rig.library.all().first)
+        #expect(saved.title == "Album")
+        #expect(saved.tracks.first?.title == "Song (feat. B & C)")
+        #expect(try #require(rig.tagWriter.calls.last).tags.title == "Song (feat. B & C)")
+    }
+
+    @Test func aYearOnlySaveLeavesBothTitlesOfThatSingleAlone() async throws {
+        let rig = Rig()
+        let release = try await macSingle(rig)
+        let model = ReleaseDetailViewModel(release: release, coordinator: rig.coordinator, coverStore: rig.coverStore)
+
+        model.beginEditing()
+        model.year = "2021"
+        await model.save()
+
+        let saved = try #require(rig.library.all().first)
+        #expect(saved.title == "Album")
+        #expect(saved.tracks.first?.title == "Song (feat. B)")
+        #expect(saved.year == "2021")
+    }
+
+    @Test func editingTheTitleOfThatSingleReplacesTheTracksPlainTitle() async throws {
+        let rig = Rig()
+        let release = try await macSingle(rig)
+        let model = ReleaseDetailViewModel(release: release, coordinator: rig.coordinator, coverStore: rig.coverStore)
+
+        model.title = "Tune"
+        await model.save()
+
+        let saved = try #require(rig.library.all().first)
+        #expect(saved.title == "Tune")
+        #expect(saved.tracks.first?.title == "Tune (feat. B)")
+    }
+
+    // MARK: The album tag of a single
+
+    @Test func theAlbumTagIsTheSameAfterImportAndAfterAYearOnlySave() async throws {
+        let rig = Rig()
+        let url = try makeSourceFile()
+        rig.importer.tagsByURL[url] = TagSet(title: "Song (feat. B)", artist: "A", album: "Song (feat. B)")
+        let single = ImportSingleViewModel(importer: rig.importer, coordinator: rig.coordinator)
+        await single.pick(url: url)
+        await single.send()
+        let imported = try #require(rig.tagWriter.calls.last).tags
+        #expect(imported.album == "Song")
+
+        let release = try #require(rig.library.all().first)
+        let model = ReleaseDetailViewModel(release: release, coordinator: rig.coordinator, coverStore: rig.coverStore)
+        model.beginEditing()
+        model.year = "2021"
+        await model.save()
+
+        let saved = try #require(rig.tagWriter.calls.last).tags
+        #expect(saved.album == imported.album)
+        #expect(saved.title == imported.title)
+    }
+
+    @Test func aDifferentAlbumTypedOnImportIsKept() async throws {
+        let rig = Rig()
+        let url = try makeSourceFile()
+        rig.importer.tagsByURL[url] = TagSet(title: "Song", artist: "A", album: "Greatest Hits")
+        let single = ImportSingleViewModel(importer: rig.importer, coordinator: rig.coordinator)
+        await single.pick(url: url)
+        await single.send()
+
+        #expect(try #require(rig.tagWriter.calls.last).tags.album == "Greatest Hits")
+    }
 }

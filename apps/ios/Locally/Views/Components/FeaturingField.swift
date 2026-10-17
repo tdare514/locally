@@ -220,6 +220,15 @@ struct FeaturingSheet: View {
 
     @State private var draft = ""
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private static let endID = "featuring-sheet-end"
+
+    private func scrollToInput(_ proxy: ScrollViewProxy) {
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+            proxy.scrollTo(Self.endID, anchor: .bottom)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -238,12 +247,31 @@ struct FeaturingSheet: View {
                     .buttonStyle(TextButtonStyle(color: Theme.Tint.accentText))
                     .frame(minWidth: 44, minHeight: 44)
                 }
-                Text(trackTitle)
-                    .font(Theme.ScaledFont.subheadline)
-                    .foregroundStyle(Theme.secondaryText)
-                    .lineLimit(2)
-                FeaturingField(names: $names, draft: $draft, autofocus: true)
-                Spacer(minLength: 0)
+                // The title, the pills and the input scroll; Done stays above them. The input is
+                // scrolled into view as names are added, so eight long names at a large text size
+                // with the keyboard up never leave it out of reach.
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: Theme.Immersive.labeledFieldRowGap) {
+                            Text(trackTitle)
+                                .font(Theme.ScaledFont.subheadline)
+                                .foregroundStyle(Theme.secondaryText)
+                                .lineLimit(2)
+                            FeaturingField(names: $names, draft: $draft, autofocus: true)
+                            Color.clear.frame(height: 1).id(Self.endID)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .scrollDismissesKeyboard(.interactively)
+                    .onChange(of: names) { scrollToInput(proxy) }
+                    .onChange(of: draft) { scrollToInput(proxy) }
+                    .task {
+                        // After the keyboard has come up and the sheet has settled.
+                        try? await Task.sleep(for: .milliseconds(500))
+                        scrollToInput(proxy)
+                    }
+                }
             }
             .padding(Theme.Spacing.pagePadding)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
