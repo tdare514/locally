@@ -308,7 +308,10 @@ final class ReleaseDetailViewModel {
         // A single has one title: what the user edits as "Title" is what
         // Spotify shows for the track, so the track tag follows it.
         if kind == .single, let only = trackRows.first {
-            trackTitles[only.id] = FeaturingNames.fullTitle(plain: title, featuring: only.featuring, original: savedTitle(of: only.id))
+            // The track keeps its own plain title (the Mac can give it one unlike the release's);
+            // only an edited Title field replaces it.
+            let plain = title == originalTitle ? only.title : title
+            trackTitles[only.id] = FeaturingNames.fullTitle(plain: plain, featuring: only.featuring, original: savedTitle(of: only.id))
         }
 
         let originalDiscs = Dictionary(originalTrackRows.compactMap { row in row.discNumber.map { (row.id, $0) } }, uniquingKeysWith: { first, _ in first })

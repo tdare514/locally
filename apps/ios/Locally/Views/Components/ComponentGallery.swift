@@ -672,7 +672,7 @@ private struct ImportRecordGallery: View {
             // #287: two pills and the field, under Artist.
             Self.fill(single)
             single.featuring = ["Mira Vale", "Jonah Reyes"]
-        case "import-record-album-featuring-sheet":
+        case "import-record-album-featuring-sheet", "import-record-album-featuring-sheet-many":
             // #287: the feat. sheet open on the second track.
             kind = .album
             album.albumTitle = "Midnight Drive"
@@ -682,6 +682,10 @@ private struct ImportRecordGallery: View {
             }
             album.rows[0].featuring = ["Mira Vale"]
             album.rows[1].featuring = ["Jonah Reyes", "Mira Vale"]
+            if name.hasSuffix("-many") {
+                // Eight long names: the sheet must scroll (use with a large text size).
+                album.rows[1].featuring = (1...8).map { "Bartholomew Featherstonehaugh \($0)" }
+            }
             album.featuringRowID = album.rows[1].id
         case "import-record-live":
             Self.fill(single)
