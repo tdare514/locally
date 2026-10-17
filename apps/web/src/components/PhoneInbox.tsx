@@ -384,12 +384,12 @@ export function SectionHeader({
 }) {
   return (
     <div className="flex items-center justify-between gap-2 px-3 pb-1 pt-1.5">
-      <h3 id={id} className="min-w-0 text-[13px] font-semibold leading-snug text-text">
+      <h3 id={id} className="min-w-0 whitespace-nowrap text-[13px] font-semibold leading-snug text-text">
         {name}
         <span className="sr-only">,</span> <span className="font-normal text-text-dim">{count}</span>
       </h3>
       {action && (
-        <button type="button" data-header-action disabled={action.busy} onClick={action.onClick} className="btn-save">
+        <button type="button" data-header-action disabled={action.busy} onClick={action.onClick} className="btn-save btn-save-compact">
           {action.label}
         </button>
       )}

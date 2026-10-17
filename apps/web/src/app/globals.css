@@ -912,6 +912,10 @@ body {
   background: transparent;
   transition: scale 200ms var(--btn-ease);
 }
+/* The same control with less side padding, for a section header line (the tray's Add all and Try all again). */
+.btn-save.btn-save-compact {
+  padding: 0 0.625rem;
+}
 /* It fades in as opacity; there is no backdrop-filter. Layers, top first: `.glass-fake`'s corner
    highlight, the colour glow, `.glass-fake`'s body. */
 .btn-save::before {
