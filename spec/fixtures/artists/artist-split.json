@@ -1,0 +1,97 @@
+[
+  {
+    "name": "feat.",
+    "input": "A feat. B",
+    "artist": "A",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "ft.",
+    "input": "A ft. B",
+    "artist": "A",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "featuring",
+    "input": "A featuring B",
+    "artist": "A",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "ft without dot",
+    "input": "A ft B",
+    "artist": "A",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "case-insensitive",
+    "input": "A FEAT. B",
+    "artist": "A",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "several names",
+    "input": "A feat. B & C",
+    "artist": "A",
+    "featuring": [
+      "B",
+      "C"
+    ]
+  },
+  {
+    "name": "duo with ampersand stays whole",
+    "input": "Simon & Garfunkel",
+    "artist": "Simon & Garfunkel",
+    "featuring": []
+  },
+  {
+    "name": "duo with and stays whole",
+    "input": "Hall and Oates",
+    "artist": "Hall and Oates",
+    "featuring": []
+  },
+  {
+    "name": "duo plus feat",
+    "input": "Simon & Garfunkel feat. B",
+    "artist": "Simon & Garfunkel",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "bracket form",
+    "input": "A (feat. B)",
+    "artist": "A",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "plain artist",
+    "input": "Drake",
+    "artist": "Drake",
+    "featuring": []
+  },
+  {
+    "name": "feat mid-word",
+    "input": "Defeat",
+    "artist": "Defeat",
+    "featuring": []
+  },
+  {
+    "name": "empty names",
+    "input": "A feat. ",
+    "artist": "A feat. ",
+    "featuring": []
+  }
+]
