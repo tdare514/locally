@@ -60,7 +60,7 @@ describe("ReleaseBar (#294)", () => {
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html).toContain("min-h-[68px]");
     expect(html).toContain("rounded-[24px]");
-    expect(html).toContain("bottom-6");
+    expect(html).toContain("lg:-bottom-10");
     // It never animates in.
     expect(html).not.toMatch(/animate|transition|imp-/);
   });

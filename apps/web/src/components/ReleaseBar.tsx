@@ -40,6 +40,8 @@ interface ReleaseBarProps {
  * reported through `onHeight` (see `barPadding`), and the pane's `scroll-padding-bottom` is set here
  * so a focused row scrolls clear of it. Tab order is the DOM order: left, status, secondary, main.
  */
+// A sticky offset counts from the scroll container's content edge, inside its padding, so the 24 above the
+// pane's bottom is 24 minus AppShell's bottom padding (p-6 md:p-10 lg:p-16): 0, -16 and -40.
 export default function ReleaseBar({ tint, left, status, beforeMain, main, onHeight, label }: ReleaseBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const onHeightRef = useRef(onHeight);
@@ -67,7 +69,7 @@ export default function ReleaseBar({ tint, left, status, beforeMain, main, onHei
   }, []);
 
   return (
-    <div className="pointer-events-none sticky bottom-6 z-20 h-0">
+    <div className="pointer-events-none sticky bottom-0 z-20 h-0 md:-bottom-4 lg:-bottom-10">
       <div
         ref={barRef}
         role="region"
