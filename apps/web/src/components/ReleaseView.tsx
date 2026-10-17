@@ -448,8 +448,8 @@ export default function ReleaseView({
   return (
     // The bottom margin cancels the pane's own bottom padding (AppShell's p-6 md:p-10 lg:p-16), so the
     // bar's anchor sits at the pane's bottom edge and the bar stays 24 above it at the end of the scroll.
-    <div ref={pageRef} className={`flex flex-col -mb-6 md:-mb-10 lg:-mb-16 ${libraryWidthClass(width)}`}>
-      <div className="flex flex-col gap-12" style={{ paddingBottom: barPadding(barHeight) }}>
+    <div ref={pageRef} className={`flex min-h-[calc(100%+1.5rem)] flex-col -mb-6 md:min-h-[calc(100%+2.5rem)] md:-mb-10 lg:min-h-[calc(100%+4rem)] lg:-mb-16 ${libraryWidthClass(width)}`}>
+      <div className="flex flex-1 flex-col gap-12" style={{ paddingBottom: barPadding(barHeight) }}>
       <AmbientBackdrop palette={palette} />
       {!isAdopted && <SpotifySourceBanner onOpenSettings={onOpenSettings} onToast={onToast} />}
 

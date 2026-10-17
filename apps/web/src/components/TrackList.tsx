@@ -443,7 +443,7 @@ export default function TrackList({
       <div
         aria-hidden="true"
         style={{ gridTemplateColumns: gridTemplate }}
-        className="track-head -mx-2 grid items-end gap-x-3 px-2 pb-2 text-xs text-text-dim"
+        className="track-head -mx-2 grid items-end gap-x-5 px-2 pb-2 text-xs text-text-dim"
       >
         <span>#</span>
         <span>Title</span>
@@ -475,7 +475,7 @@ export default function TrackList({
               data-key={track.key}
               data-grabbed={grabbed ? "" : undefined}
               style={{ gridTemplateColumns: gridTemplate }}
-              className={`track-row -mx-2 grid min-h-14 items-center gap-x-3 px-2 py-1.5 hover:bg-white/[0.03] data-[grabbed]:bg-white/[0.07] ${
+              className={`track-row -mx-2 grid min-h-14 items-center gap-x-5 px-2 py-1.5 hover:bg-white/[0.03] data-[grabbed]:bg-white/[0.07] ${
                 readOnly ? "" : "cursor-grab"
               } ${viewInfo?.missing ? "text-text-muted" : ""}`}
               onContextMenu={(e) => {
@@ -542,7 +542,7 @@ export default function TrackList({
                 </div>
               )}
               {viewInfo?.missing ? (
-                <span className="text-right text-xs text-text-dim">File missing</span>
+                <span className="whitespace-nowrap text-right text-xs text-text-dim">File missing</span>
               ) : seconds !== null ? (
                 <span className="text-right text-sm tabular-nums text-text-muted">{formatLength(seconds)}</span>
               ) : (

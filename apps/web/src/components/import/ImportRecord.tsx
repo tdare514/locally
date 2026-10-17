@@ -119,9 +119,9 @@ export default function ImportRecord({
   return (
     // The bottom margin cancels the pane's own bottom padding (AppShell's p-6 md:p-10 lg:p-16), so the
     // bar's anchor sits at the pane's bottom edge. The bar is outside `imp-page-in`: it never fades in.
-    <div className={`flex flex-col -mb-6 md:-mb-10 lg:-mb-16 ${libraryWidthClass(width)}`}>
+    <div className={`flex flex-1 flex-col -mb-6 md:-mb-10 lg:-mb-16 ${libraryWidthClass(width)}`}>
     <div
-      className="imp-page-in flex flex-col gap-12"
+      className="imp-page-in flex flex-1 flex-col gap-12"
       style={{ paddingBottom: barPadding(barHeight) }}
     >
       <div className="flex flex-col gap-12">

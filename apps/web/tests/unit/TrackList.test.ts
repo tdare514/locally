@@ -147,7 +147,7 @@ describe("TrackList markup", () => {
     const html = render({ onRemove: () => {} });
     expect(html).toContain("data-handle");
     expect(html).toContain('aria-label="Remove Cathedral"');
-    expect(html).toContain("2rem minmax(0,1fr) 4.5rem minmax(0,15rem) 4rem 64px");
+    expect(html).toContain("2rem minmax(0,1fr) 4.5rem minmax(0,15rem) 5.5rem 64px");
   });
 
   it("says so when there are no tracks", () => {

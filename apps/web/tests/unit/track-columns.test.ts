@@ -32,9 +32,9 @@ describe("trackArtist (#294)", () => {
 
 describe("trackGridTemplate (#294)", () => {
   it("lists the columns that are shown, in order", () => {
-    expect(trackGridTemplate({ plays: true, playlists: true }, 0)).toBe("2rem minmax(0,1fr) 4.5rem minmax(0,15rem) 4rem");
-    expect(trackGridTemplate({ plays: true, playlists: false }, 32)).toBe("2rem minmax(0,1fr) 4.5rem 4rem 32px");
-    expect(trackGridTemplate({ plays: false, playlists: false }, 64)).toBe("2rem minmax(0,1fr) 4rem 64px");
+    expect(trackGridTemplate({ plays: true, playlists: true }, 0)).toBe("2rem minmax(0,1fr) 4.5rem minmax(0,15rem) 5.5rem");
+    expect(trackGridTemplate({ plays: true, playlists: false }, 32)).toBe("2rem minmax(0,1fr) 4.5rem 5.5rem 32px");
+    expect(trackGridTemplate({ plays: false, playlists: false }, 64)).toBe("2rem minmax(0,1fr) 5.5rem 64px");
   });
 });
 

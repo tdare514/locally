@@ -29,7 +29,7 @@ export function trackGridTemplate(columns: TrackColumns, actions: number): strin
   const parts = ["2rem", "minmax(0,1fr)"];
   if (columns.plays) parts.push("4.5rem");
   if (columns.playlists) parts.push("minmax(0,15rem)");
-  parts.push("4rem");
+  parts.push("5.5rem");
   if (actions > 0) parts.push(`${actions}px`);
   return parts.join(" ");
 }
