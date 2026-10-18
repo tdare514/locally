@@ -62,7 +62,7 @@ These are files Locally didn't create, often the only copy the owner has. So the
   - genre
   - the cover
 - **Track fields:** title, featuring (#224, written into the title), track number and disc number.
-- **Preserved, never edited:** album artist and the track and disc totals. The totals are derived as today when numbers change; everything else stays as it is in the file.
+- **Preserved, never edited:** album artist, and the track and disc totals. When a track or disc number changes, the file keeps its own total ("3/12" becomes "4/12"), and a missing total stays missing. Totals are never recomputed from the adopted tracks, which may not be the whole album; `deriveTagNumbers` is not used on this path.
 - **What Locally never does to an adopted file:** move it to another folder, delete it, or add other files to the chosen folders. Renames happen only through the setting below, inside the file's own folder.
 
 ### Patch, don't flatten
@@ -77,12 +77,14 @@ These are files Locally didn't create, often the only copy the owner has. So the
 - **Album artist and totals stay in the files only,** as they do for every release now. There is no contract change.
 
 ### Every adopted write, step by step
-The write is a small transaction. Each step is durable before the next one starts: the file is fsynced, then its folder.
+The write is a small transaction. Each step is durable before the next one starts.
+- **What "durable" means here:** `fcntl(F_FULLFSYNC)` on the file, then on every folder it touches. On macOS a plain `fsync` lets the drive reorder writes in its cache. The helper does these flushes. Step 1c checks whether Node's own `fsync` uses `F_FULLFSYNC` on macOS; if it doesn't, the server's flushes go through the helper too.
+- **The journal** is append-only JSON Lines, with a checksum on each record. A torn last line is detected and ignored.
 1. **At review,** record each file's identity:
    - its realpath, device and inode
    - its size and modified time in nanoseconds
    - a SHA-256 of its bytes
-   - the device and inode of its parent folder
+   - the adopt root it sits under, and the device and inode of every folder from that root down to the file's parent
    - it must be a regular file with one link (lstat, not a symlink, link count 1; hard-linked files are refused for now)
 2. **One at a time.** Adopted writes go through one queue on the server, so two saves can't race on the same file.
 3. **Same volume only.** The work folder is `<app data>/adopted-work/`. Locally refuses a file on a different volume from its data folder (a different device id). The message reads: "Locally can only edit files on the same disk as its data for now." The owner's folders are on the Mac's main disk.
@@ -102,23 +104,31 @@ The write is a small transaction. Each step is durable before the next one start
    - the new tags and the new `localId`
    - the `library.json` change
    - its state, `staged`
-7. **Swap, checked from inside the folder.** A small bundled helper, `locally-swap` (a Swift command-line tool shipped next to ffmpeg, given its paths as an argument array), does the swap:
-   - It opens the target's parent folder with `O_DIRECTORY | O_NOFOLLOW` and checks its device and inode against the review.
-   - It checks the target relative to that descriptor (`fstatat` with `AT_SYMLINK_NOFOLLOW`): device, inode, size and modified time.
-   - It swaps the staged copy and the target in one call, `renameatx_np(…, RENAME_SWAP)`. The original isn't overwritten: it moves to the staged path, still whole.
-   - **After the swap,** the displaced original must still be the reviewed file: the same device and inode, and the "before" hash.
-   - **If anything differs** (another app changed or replaced the file in the gap before the swap), the helper swaps back at once. The page reports a conflict, nothing is lost, and the review opens again with fresh tags.
-   - Otherwise the journal entry moves to `swapped` and is made durable.
+
+   Then, immediately before the swap, append `swapping`.
+7. **Swap, reached from the root.** A small bundled helper, `locally-swap` (a Swift command-line tool shipped next to ffmpeg, given its paths as an argument array), does the swap:
+   - **The walk.** It opens the adopt root with `O_DIRECTORY | O_NOFOLLOW`, checks the root's device and inode against the review, then walks down one folder at a time with `openat(…, O_DIRECTORY | O_NOFOLLOW)`. Every folder on the way must match its reviewed device and inode. A symlink, a swapped folder or a moved folder anywhere on the path stops it. Because each step is opened relative to the one above, the parent descriptor it ends with was reached through the root.
+   - **The target check.** Relative to the parent descriptor (`fstatat` with `AT_SYMLINK_NOFOLLOW`): the device, inode, size and modified time match the review.
+   - **The exchange.** `renameatx_np(…, RENAME_SWAP)` swaps the staged copy and the target in one call. The original isn't overwritten: it moves to the staged path, still whole. Both folders are flushed.
+   - **After the exchange,** the helper checks two things:
+     - The displaced original is still the reviewed file: the same device and inode, and the "before" hash.
+     - The path from the root still leads to the same parent (the walk again).
+   - **No automatic swap-back.** There is no lock that stops another app, so undoing the exchange could itself throw away a save that app made a moment later. When either check fails:
+     - Locally keeps both versions: the edited file stays at the target, and the displaced file moves to `adopted-recovery/`.
+     - The result reports a conflict in plain words: "Another app changed this file while Locally was saving. Both versions are kept."
+     - Recovered files lets the user put the other version back, through the same checked swap.
+   - **Otherwise** the journal entry moves to `swapped`.
 8. **Update the library.** `library.json` gets the track's tags and `localId`, written to a temp file, fsynced and renamed into place, then its folder is fsynced. Today `JsonLibraryRepository.writeRaw` doesn't fsync; this step adds it. The journal entry moves to `committed`.
 9. **Clean up.** Delete the displaced original from the work folder, then remove the journal entry.
 
-**Recovery at the next launch** follows each journal entry's state:
-- **`staged`:** the swap never happened, so the original is untouched. Delete the staged copy.
-- **`swapped`:**
-  - The target's hash is the "after" hash: finish step 8 and step 9.
-  - It isn't (something changed the file after the swap): leave the target alone, and keep the displaced original.
-- **`committed`:** finish step 9.
-- **Keep, never delete, what doesn't fit.** A displaced original that couldn't be settled, and any file in the work folder with no journal entry, moves to `<app data>/adopted-recovery/`. Settings › Files lists them under "Recovered files", with Show in Finder.
+**Recovery at the next launch** never trusts the journal state alone.
+- **Hash both files first.** For each entry, Locally hashes the file at the target and the file at the staged path, then compares them with the entry's "before" and "after" hashes. The state only says which step to finish.
+- **Target is "after", staged is "before":** the swap happened. Finish steps 8 and 9.
+- **Target is "before", staged is "after":** the swap didn't happen. Delete the staged copy, which is only Locally's own edited copy.
+- **Target is "after", staged is gone:** step 9 had started. Finish it.
+- **Anything else:** for example, one side matches neither hash because an external edit or a crash landed at the wrong moment. Leave the target alone, move whatever is at the staged path to `adopted-recovery/`, and flag the release.
+- **Never delete a file Locally can't identify.** Locally deletes only a file whose hash is its own "after" hash, or a displaced original whose hash is the "before" hash once the edit is committed.
+- **Keep the rest.** A work-folder file with no journal entry moves to `<app data>/adopted-recovery/`. Settings › Files lists every recovered file under "Recovered files", with Show in Finder and, where it applies, "Use this version".
 
 The helper is macOS only. Unit tests use a fake `Swapper` through the server's container. Integration tests run the real helper on macOS, including a change injected between its checks and the swap through a test-only hook, and are skipped elsewhere.
 
@@ -142,7 +152,7 @@ The helper is macOS only. Unit tests use a fake `Swapper` through the server's c
 
 ### Undo: "Restore original tags"
 - **Before the first edit** of an adopted file, Locally saves everything any writer could change. It goes in `<app data>/adopted-originals/<release id>/<track id>.json` (0600):
-  - every editable field's value, or an explicit "absent"
+  - every editable field's value, or an explicit "absent", with track and disc kept as their full raw values (TRCK and TPOS, or `trkn` and `disk`) so their totals come back exactly
   - the embedded artwork's bytes (as `<track id>.cover`), or "no artwork", taken even when the first edit doesn't touch the cover, so a later cover edit can still be undone
   - the original file name
   - the original `localId`
@@ -226,7 +236,7 @@ The lines are drafts until decision 4's test.
 ## Tests
 
 - **`Id3Patcher` (mp3, generated in temp dirs, as `Id3TagService.test.ts` does):**
-  - Each field changes, and clearing removes it.
+  - Each field changes, and clearing removes it. A changed track or disc number keeps the file's own total, or its absence.
   - v2.3 and v2.4 tags keep their version, every other frame's bytes, and the audio after the tag.
   - The tag grows when the padding runs out.
   - v2.2, unsynchronised, compressed or encrypted frames are each refused.
@@ -237,11 +247,15 @@ The lines are drafts until decision 4's test.
   - Fragmented, multi-track and unparseable files are refused.
 - **The write steps:**
   - A failed verify leaves the original untouched.
-  - **Recovery:** a crash in each journal state (`staged`, `swapped`, `committed`) recovers at the next launch, and an unsettled original or a stray work file lands in "Recovered files".
+  - **Recovery:**
+    - A crash in each state (`staged`, `swapping`, `swapped`, `committed`) recovers at the next launch, decided by hashes. The cases include a crash between the exchange and the journal update.
+    - A torn last journal line is ignored.
+    - An unidentified file is never deleted and lands in "Recovered files".
   - **Conflicts:**
     - A file changed between review and the swap (same size and modified time, new content) is refused.
-    - A change injected between the helper's checks and its swap is swapped back, with the original intact (macOS integration test).
-    - A parent folder replaced by a symlink before the swap is refused.
+    - A change injected between the helper's checks and its exchange keeps both versions and reports a conflict (macOS integration test).
+    - A second external save during the post-swap check keeps both versions, and nothing is lost.
+    - A folder on the path replaced by a symlink is refused, and so is a parent moved out of the root (reparenting), both before the swap and during it.
   - **Refusals:** a different volume, a symlink, a hard link and a path outside the roots are each refused.
   - **Kept:** the mode and extended attributes.
   - **`library.json`:** it is written with fsync, through a temp file and a rename.
@@ -310,7 +324,7 @@ Step 1c — Model: sonnet (a small native tool and its wiring)
 Read only: this plan (Every adopted write: step 7, Recovery; Security), apps/web/AGENTS.md, apps/web/package.json (desktop scripts), the ffmpeg build and packaging scripts it names, apps/web/electron-builder config, apps/web/src/server/container.ts, apps/web/src/server/storage/JsonLibraryRepository.ts
 Do not touch: UI, sync, apps/ios, apps/api
 Verify: cd apps/web && npm run check; on macOS, the helper's integration tests (swap, swap-back on an injected change, refused symlinked parent)
-Done when: locally-swap builds from a script, is packaged beside ffmpeg, swaps with RENAME_SWAP relative to the parent folder's descriptor and swaps back on a mismatch, the server reaches it only through a Swapper interface with a fake for unit tests, and library.json is written with fsync through a temp file
+Done when: locally-swap builds from a script and is packaged beside ffmpeg; it walks from the root with openat and O_NOFOLLOW, exchanges with RENAME_SWAP, keeps both versions on any mismatch (no swap-back), and flushes with F_FULLFSYNC; Node's fsync behaviour on macOS is checked and the server routes its flushes accordingly; the server reaches the helper only through a Swapper interface with a fake for unit tests; and library.json is written through a fully flushed temp file and a rename
 ```
 
 ```
