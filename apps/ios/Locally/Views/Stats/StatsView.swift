@@ -38,7 +38,7 @@ struct StatsView: View {
     @Binding var selectedTab: RootView.Tab
     @Binding var librarySearchRequest: String?
 
-    @State private var path: [Release] = []
+    @State private var path = NavigationPath()
     /// The sleeve a tap has lifted; the next tap on it opens it.
     @State private var armed: Int?
     @State private var palette: AmbientPalette?
@@ -107,7 +107,12 @@ struct StatsView: View {
             .navigationDestination(for: Release.self) { release in
                 ReleaseDetailView(release: release)
             }
+            .navigationDestination(for: ArtistRoute.self) { route in
+                ArtistPageView(route: route)
+            }
         }
+        // Every artist name opens that artist's page (#288); put on the stack so pushed pages inherit it.
+        .artistLinks { path.append($0) }
         .task(id: isTabSelected) {
             if isTabSelected { await model.read() }
         }
@@ -464,10 +469,7 @@ struct StatsView: View {
         model.open(
             item,
             openRelease: { path.append($0) },
-            requestLibrarySearch: { name in
-                librarySearchRequest = name
-                selectedTab = .library
-            }
+            openArtist: { path.append(ArtistRoute(key: $0)) }
         )
     }
 }

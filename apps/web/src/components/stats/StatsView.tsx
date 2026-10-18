@@ -80,7 +80,7 @@ export default function StatsView({
   onContentReady: () => void;
   onPrefsChange: (patch: Partial<StatsPrefs>) => void;
   onOpenRelease: (id: string, trackId?: string) => void;
-  /** Shows the Library filtered to this artist. */
+  /** Opens the artist's page (#288). */
   onOpenArtist: (name: string) => void;
   onOpenSettings: () => void;
 }) {
@@ -221,6 +221,7 @@ export default function StatsView({
                   label={`Your ${noun}, ${sort === "plays" ? "most played first" : sort === "name" ? "by name" : "most recent first"}`}
                   round={tab === "artists"}
                   today={today}
+                  linkArtists={tab !== "artists"}
                   onOpen={open}
                   initialShown={shown}
                   onShownChange={onShownChange}

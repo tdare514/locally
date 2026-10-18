@@ -13,15 +13,17 @@ import {
 } from "../../src/lib/library-view-prefs";
 
 describe("parseLibraryLayout", () => {
-  it("accepts the two layouts", () => {
+  it("accepts the three layouts", () => {
     expect(parseLibraryLayout("list")).toBe("list");
     expect(parseLibraryLayout("covers")).toBe("covers");
+    expect(parseLibraryLayout("artists")).toBe("artists");
   });
   it("defaults to list for null and garbage", () => {
     expect(parseLibraryLayout(null)).toBe("list");
     expect(parseLibraryLayout("")).toBe("list");
     expect(parseLibraryLayout("grid")).toBe("list");
     expect(parseLibraryLayout("COVERS")).toBe("list");
+    expect(parseLibraryLayout("ARTISTS")).toBe("list");
   });
 });
 

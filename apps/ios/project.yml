@@ -134,6 +134,22 @@ targets:
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Locally.app/Locally"
         BUNDLE_LOADER: "$(TEST_HOST)"
 
+  # XCUITest over the component gallery's seeded data (#288): artist links stay in the app.
+  LocallyUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: LocallyUITests
+    dependencies:
+      - target: Locally
+    settings:
+      base:
+        SWIFT_VERSION: "5.10"
+        PRODUCT_BUNDLE_IDENTIFIER: com.tdare.locally.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Locally
+
 schemes:
   Locally:
     build:
@@ -147,3 +163,13 @@ schemes:
     run:
       config: Debug
       storeKitConfiguration: Locally.storekit
+  # UI tests run on demand, not in CI's `-scheme Locally` run (#288):
+  # xcodebuild test -scheme LocallyUITests -destination 'platform=iOS Simulator,name=<device>'
+  LocallyUITests:
+    build:
+      targets:
+        Locally: all
+        LocallyUITests: [test]
+    test:
+      targets:
+        - LocallyUITests

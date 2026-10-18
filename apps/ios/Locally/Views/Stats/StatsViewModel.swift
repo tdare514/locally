@@ -249,12 +249,13 @@ final class StatsViewModel {
 
     // MARK: - Opening
 
-    /// Tracks and albums open their release; an artist asks for the Library filtered to their name.
-    func open(_ item: StatItem, openRelease: (Release) -> Void, requestLibrarySearch: (String) -> Void) {
+    /// Tracks and albums open their release; an artist opens their artist page (#288), by the key of
+    /// their main name (an "A feat. B" release artist counts for A).
+    func open(_ item: StatItem, openRelease: (Release) -> Void, openArtist: (String) -> Void) {
         if let id = item.releaseId {
             if let release = releases.first(where: { $0.id == id }) { openRelease(release) }
         } else {
-            requestLibrarySearch(item.title)
+            openArtist(ArtistNames.artistKey(ArtistNames.splitArtistFeaturing(item.title).artist))
         }
     }
 

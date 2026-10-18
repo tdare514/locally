@@ -25,7 +25,7 @@ export interface IndexedRelease {
 }
 
 /** Plain code point order on NFC strings, the same as Swift's scalar order (not UTF-16 unit order). */
-function before(a: string, b: string): boolean {
+export function before(a: string, b: string): boolean {
   const left = Array.from(a, (c) => c.codePointAt(0) as number);
   const right = Array.from(b, (c) => c.codePointAt(0) as number);
   const shared = Math.min(left.length, right.length);

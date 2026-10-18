@@ -1,7 +1,7 @@
-/** Library home view preferences (#112): list or cover grid, and the cover grid's tile size.
+/** Library home view preferences (#112, #288): list, cover grid or artists, and the cover grid's tile size.
  * Kept in localStorage; every access is guarded so a blocked or full store falls back to defaults. */
 
-export type LibraryLayout = "list" | "covers";
+export type LibraryLayout = "list" | "covers" | "artists";
 /** Cover tile size: 0 compact, 1 medium, 2 large. */
 export type CoverSize = 0 | 1 | 2;
 /** Library width, shared by both layouts: "full" fills the main pane (default), "comfortable" is a centred 920px column. */
@@ -17,7 +17,7 @@ const COVER_SIZE_KEY = "locally.library.coverSize";
 const WIDTH_KEY = "locally.library.width";
 
 export function parseLibraryLayout(raw: string | null): LibraryLayout {
-  return raw === "covers" ? "covers" : "list";
+  return raw === "covers" || raw === "artists" ? raw : "list";
 }
 
 export function parseCoverSize(raw: string | null): CoverSize {

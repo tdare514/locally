@@ -60,6 +60,18 @@ export const DEMO_RELEASES: Release[] = [
   release("demo-copper-sky-sessions", "album", "Copper Sky Sessions", "Dax Holloway Trio", "2016", "Jazz",
     [["Copper Sky", 342], ["Quarter Past Blue", 296], ["Rooftop Waltz", 258], ["Understudy", 311]],
     "2020-04-18T13:00:00.000Z"),
+  // Artist pages (#288): Mira Valdane has an album and two singles and is featured by others, and
+  // Wren Alder only ever appears on other artists' tracks. Their covers reuse the drawings above.
+  release("demo-velvet-hours", "album", "Velvet Hours", "Mira Valdane", "2023", "Dream pop",
+    [["Velvet Hours", 223], ["Softer Light", 201], ["Tidepool Telephone", 246], ["Paper Moon Cab", 218], ["Last Train Home", 264]],
+    "2023-05-20T16:45:00.000Z"),
+  release("demo-pink-static", "single", "Pink Static", "Mira Valdane", "2022", "Dream pop",
+    [["Pink Static", 195]], "2022-11-02T08:10:00.000Z"),
+  release("demo-low-orbit", "single", "Low Orbit", "Juno Kessler", "2024", "Synthwave",
+    [["Low Orbit (feat. Mira Valdane)", 233]], "2024-09-12T19:30:00.000Z"),
+  release("demo-afterimage", "album", "Afterimage", "Pale Meridian", "2024", "Electronic",
+    [["Afterimage", 207], ["Glass Reprise (feat. Wren Alder)", 238], ["Signal Fade (feat. Mira Valdane & Wren Alder)", 255], ["Quiet Machine", 226]],
+    "2024-03-08T12:00:00.000Z"),
 ];
 
 export const DEMO_SETTINGS_RESPONSE: SettingsResponse = {

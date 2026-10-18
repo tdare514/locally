@@ -64,6 +64,15 @@ const COVERS: Record<string, string> = {
 <rect y="470" width="600" height="8" fill="#f2b872" fill-opacity="0.6"/></svg>`,
 };
 
+/** Releases added for the artist pages (#288) show a drawing from above instead of a new one. */
+const ALIASES: Record<string, string> = {
+  "demo-velvet-hours": "demo-static-bloom",
+  "demo-pink-static": "demo-copper-sky-sessions",
+  "demo-low-orbit": "demo-night-bus-to-nowhere",
+  "demo-afterimage": "demo-paper-lanterns",
+};
+
 export function getDemoCover(id: string): string | undefined {
-  return Object.hasOwn(COVERS, id) ? COVERS[id] : undefined;
+  const own = Object.hasOwn(ALIASES, id) ? ALIASES[id] : id;
+  return Object.hasOwn(COVERS, own) ? COVERS[own] : undefined;
 }

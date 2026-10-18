@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import type { ArtistEntry } from "../lib/artist-index";
 import { addFeatured, commitDraft, featuredKeyAction, removeFeatured, removeLastFeatured } from "../lib/featuring-field";
 import ArtistCombobox from "./ArtistCombobox";
+import { ArtistLink } from "./ArtistNav";
 import { XIcon } from "./Icons";
 import { focusRing } from "./sidebar/controls";
 
@@ -17,6 +18,8 @@ interface FeaturedFieldProps {
   ariaLabel?: string;
   placeholder?: string;
   readOnly?: boolean;
+  /** Each pill's name is a link to that artist's page (#288); the ✕ still removes it. */
+  linkNames?: boolean;
   inputClassName: string;
 }
 
@@ -32,6 +35,7 @@ export default function FeaturedField({
   ariaLabel,
   placeholder = "Add a featured artist",
   readOnly,
+  linkNames,
   inputClassName,
 }: FeaturedFieldProps) {
   const [draft, setDraft] = useState("");
@@ -72,7 +76,7 @@ export default function FeaturedField({
           key={`${name}-${i}`}
           className="inline-flex items-center gap-0.5 rounded-full border border-white/15 bg-white/10 py-0.5 pl-2.5 pr-1 text-sm font-semibold text-text"
         >
-          {name}
+          {linkNames ? <ArtistLink name={name} /> : name}
           {!readOnly && (
             <button
               type="button"
