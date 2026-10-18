@@ -22,7 +22,6 @@ struct ImportSingleView: View {
                         LabeledField(Copy.Import.fieldTitle, placeholder: Copy.Import.titlePlaceholder(for: .single), text: Binding(get: { model.title }, set: { model.title = $0 }), font: Theme.ScaledFont.fieldTitle, metricsStyle: .title3, wraps: true)
                         ArtistField(text: Binding(get: { model.artist }, set: { model.artist = $0 }))
                         FeaturingField(names: Binding(get: { model.featuring }, set: { model.featuring = $0 }), draft: Binding(get: { model.featuringDraft }, set: { model.featuringDraft = $0 }))
-                        LabeledField(Copy.Import.fieldAlbum, placeholder: Copy.Import.albumPlaceholder, text: Binding(get: { model.album }, set: { model.album = $0 }), font: Theme.ScaledFont.input, wraps: true)
                         YearGenreRow(year: Binding(get: { model.year }, set: { model.year = $0 }), genre: Binding(get: { model.genre }, set: { model.genre = $0 }))
                     }
                     .importFieldsRow()
@@ -49,7 +48,7 @@ struct ImportSingleView: View {
             }
             .importRecordList(driver: context.driver)
             // Typing mid-beat skips it too (a tag prefill from a picked file is not typing).
-            .onChange(of: [model.title, model.artist, model.album, model.year, model.genre] + model.featuring + [model.featuringDraft]) { _, _ in
+            .onChange(of: [model.title, model.artist, model.year, model.genre] + model.featuring + [model.featuringDraft]) { _, _ in
                 if !model.isLoadingTags { context.driver.skip() }
             }
             .onChange(of: context.sleeveScrollRequest) {

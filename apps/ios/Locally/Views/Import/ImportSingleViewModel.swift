@@ -21,7 +21,6 @@ final class ImportSingleViewModel {
     var featuring: [String] = []
     /// What is typed in the Featuring field and not yet added; send adds it.
     var featuringDraft = ""
-    var album: String = ""
     var year: String = ""
     var genre: String = ""
     var coverData: Data?
@@ -66,7 +65,6 @@ final class ImportSingleViewModel {
                 title = splitTitle.title
                 artist = splitArtist.artist
                 featuring = FeaturingNames.merged(splitTitle.featuring, splitArtist.featuring)
-                album = tags.album
                 year = tags.year ?? ""
                 genre = tags.genre ?? ""
             } else if title.isEmpty {
@@ -111,28 +109,21 @@ final class ImportSingleViewModel {
         }
     }
 
-    /// The tags for the file: the track's title in the "Song (feat. B)" form, the album and the
-    /// artist plain. A name typed in the Featuring field and not yet added is added first.
+    /// The tags for the file: the track's title in the "Song (feat. B)" form, the artist plain,
+    /// and the album the plain title, which is what every later save writes too (#293). A name
+    /// typed in the Featuring field and not yet added is added first.
     func tagSet() -> TagSet {
         featuring = FeaturingNames.commit(featuringDraft, to: featuring)
         featuringDraft = ""
         return TagSet(
             title: ArtistNames.joinFeaturing(title, featuring),
             artist: artist,
-            album: albumTag,
+            album: title,
             trackNumber: 1,
             totalTracks: 1,
             year: year.isEmpty ? nil : year,
             genre: genre.isEmpty ? nil : genre
         )
-    }
-
-    /// The album tag. A later save writes the plain release title for a single, so an album that is
-    /// the title's own song ("Song (feat. B)" beside the title "Song") is written plain here too,
-    /// and an unrelated edit never changes the tag. Any other album is kept as typed.
-    private var albumTag: String {
-        let typed = album.isEmpty ? title : album
-        return ArtistNames.splitFeaturing(typed).title == title ? title : typed
     }
 
     /// Empties the draft (file, fields, cover, messages) and leaves the share queue alone. Used by
@@ -144,7 +135,6 @@ final class ImportSingleViewModel {
         artist = ""
         featuring = []
         featuringDraft = ""
-        album = ""
         year = ""
         genre = ""
         coverData = nil
