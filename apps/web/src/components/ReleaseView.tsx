@@ -37,6 +37,8 @@ import { BAR_MIN_HEIGHT, barPadding, detailsBesideSleeve } from "../lib/page-lay
 import ArtistCombobox from "./ArtistCombobox";
 import type { ArtistEntry } from "../lib/artist-index";
 import FeaturingRow from "./FeaturingRow";
+import ArtistLinks, { ArtistNavProvider, ArtistOpenButton, LOCKED_TIP, useArtistNav } from "./ArtistNav";
+import { splitFeaturing } from "../lib/artist-names";
 import { releaseTitleForSave, releaseTitleShown, titleForSave, toEditor } from "../lib/featuring-field";
 
 interface ReleaseViewProps {
@@ -206,6 +208,7 @@ export default function ReleaseView({
   onOpenSettings,
   artistIndex,
 }: ReleaseViewProps) {
+  const artistNav = useArtistNav();
   const [release, setRelease] = useState<Release | null>(initialRelease ?? null);
   const [loading, setLoading] = useState(!initialRelease);
   const [title, setTitle] = useState(initialRelease ? shownTitle(initialRelease) : "");
@@ -465,12 +468,24 @@ export default function ReleaseView({
   const trackCount = `${tracks.length} track${tracks.length === 1 ? "" : "s"}`;
   const unsaved = buildPatch(release, { title, artist, year, genre, tracks }) !== null;
 
+  // A name on this page opens that artist's page; leaving drops unsaved edits, so while there are
+  // some the links are disabled (#288).
+  const artistNavHere = { open: artistNav.open, lockedReason: unsaved ? LOCKED_TIP : null };
+  // The names a single features, as links in a read-only header; an album has none of its own.
+  const headerFeaturing =
+    release.kind === "single" && tracks.length > 0
+      ? isAdopted
+        ? splitFeaturing(tracks[0].title).featuring
+        : (tracks[0].featuring ?? [])
+      : [];
+  const linkedArtist = artist.trim() !== "";
   const beside = detailsBesideSleeve(paneWidth);
   const durations = Object.fromEntries(release.tracks.map((t) => [t.id, t.durationSec]));
 
   return (
     // The bottom margin cancels the pane's own bottom padding (AppShell's p-6 md:p-10 lg:p-16), so the
     // bar's anchor sits at the pane's bottom edge and the bar stays 24 above it at the end of the scroll.
+    <ArtistNavProvider value={artistNavHere}>
     <div ref={pageRef} className={`flex min-h-[calc(100%+1.5rem)] flex-col -mb-6 md:min-h-[calc(100%+2.5rem)] md:-mb-10 lg:min-h-[calc(100%+4rem)] lg:-mb-16 ${libraryWidthClass(width)}`}>
       <div className="flex flex-1 flex-col gap-12" style={{ paddingBottom: barPadding(barHeight) }}>
       <AmbientBackdrop palette={palette} />
@@ -515,7 +530,9 @@ export default function ReleaseView({
                 <h1 className="max-w-[min(100%,720px)] break-words text-[30px] font-bold leading-[1.1] tracking-[-0.035em] text-text sm:text-[44px]">
                   {title.trim() || artistShown}
                 </h1>
-                <p className="-mt-1 text-xl font-semibold tracking-[-0.02em] text-white/85">{artistShown}</p>
+                <p className="-mt-1 text-xl font-semibold tracking-[-0.02em] text-white/85">
+                  {linkedArtist ? <ArtistLinks artist={artistShown} featuring={headerFeaturing} /> : artistShown}
+                </p>
                 <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-[15px]">
                   <PlainField label="Year" value={year} />
                   <PlainField label="Genre" value={genre} />
@@ -541,23 +558,36 @@ export default function ReleaseView({
               }}
               className="field-sizing-content -mx-2 max-w-[min(100%,720px)] resize-none rounded-lg bg-transparent px-2 py-1 text-[30px] font-bold leading-[1.1] tracking-[-0.035em] text-text outline-none transition-colors placeholder:text-white/40 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent sm:text-[44px]"
             />
-            <ArtistCombobox
-              ariaLabel="Artist"
-              value={artist}
-              readOnly={IS_DEMO}
-              placeholder="Add artist"
-              onChange={setArtist}
-              index={artistIndex}
-              wrapperClassName="-mx-2 -mt-1 max-w-full self-start"
-              hintClassName="self-start"
-              inputClassName="field-sizing-content min-w-[8ch] max-w-full rounded-md bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
-            />
-            {release.kind === "single" && tracks.length > 0 && (
+            {IS_DEMO && linkedArtist ? (
+              // Read-only (the demo): the plain artist line, every name a link.
+              <p className="-mt-1 text-xl font-semibold tracking-[-0.02em] text-white/85">
+                <ArtistLinks artist={artist} featuring={headerFeaturing} />
+              </p>
+            ) : (
+              <div className="-mt-1 flex min-w-0 max-w-full items-start gap-1 self-start">
+                <ArtistCombobox
+                  ariaLabel="Artist"
+                  value={artist}
+                  readOnly={IS_DEMO}
+                  placeholder="Add artist"
+                  onChange={setArtist}
+                  index={artistIndex}
+                  wrapperClassName="-mx-2 max-w-full self-start"
+                  hintClassName="self-start"
+                  inputClassName="field-sizing-content min-w-[8ch] max-w-full rounded-md bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
+                />
+                <span className="flex h-8 items-center">
+                  <ArtistOpenButton artist={artist} />
+                </span>
+              </div>
+            )}
+            {release.kind === "single" && tracks.length > 0 && !IS_DEMO && (
               <FeaturingRow
                 names={tracks[0].featuring ?? []}
                 onChange={(featuring) => setTracks((prev) => prev.map((t, i) => (i === 0 ? { ...t, featuring } : t)))}
                 index={artistIndex}
                 readOnly={IS_DEMO}
+                linkNames
               />
             )}
             <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-[15px]">
@@ -585,6 +615,7 @@ export default function ReleaseView({
             featuringIndex={release.kind === "album" && !isAdopted ? artistIndex : undefined}
             durations={durations}
             releaseArtist={artistShown}
+            linkArtists={linkedArtist}
             plays={plays}
             playlists={playlists}
             onOpenPlaylist={handleOpenPlaylist}
@@ -703,5 +734,6 @@ export default function ReleaseView({
         }
       />
     </div>
+    </ArtistNavProvider>
   );
 }

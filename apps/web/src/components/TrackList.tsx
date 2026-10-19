@@ -21,6 +21,8 @@ import TrackPlaylistsLine, { type PlaylistRef } from "./TrackPlaylistsLine";
 import TrackFeaturing from "./TrackFeaturing";
 import type { ArtistEntry } from "../lib/artist-index";
 import { featuringText } from "../lib/featuring-field";
+import { splitFeaturing } from "../lib/artist-names";
+import ArtistLinks from "./ArtistNav";
 
 export interface EditableTrack {
   /** Stable identifier for this row — a release track's `id`, or a locally-generated key
@@ -59,6 +61,9 @@ interface TrackListProps {
   durations?: Record<string, number | null>;
   /** The release's artist, shown under a track's title when the track has none of its own (#294). */
   releaseArtist?: string;
+  /** Release page (#288): the artist line under each title is "A, feat. B & C" with every name a link
+   * to that artist's page, so a track's features show there and not again after the title. */
+  linkArtists?: boolean;
 }
 
 /** Pixels the pointer must travel before a press turns into a drag. */
@@ -148,6 +153,7 @@ export default function TrackList({
   durations,
   releaseArtist,
   featuringIndex,
+  linkArtists,
 }: TrackListProps) {
   const listRef = useRef<HTMLOListElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -543,15 +549,23 @@ export default function TrackList({
                     names={track.featuring ?? []}
                     onChange={(names) => updateFeaturing(index, names)}
                     index={featuringIndex}
+                    namesShownElsewhere={linkArtists}
                   />
                 )}
-                {featuringIndex && readOnly && (track.featuring?.length ?? 0) > 0 && (
+                {featuringIndex && readOnly && !linkArtists && (track.featuring?.length ?? 0) > 0 && (
                   <span className="px-1.5 py-0.5 text-[15px] text-text-muted">{featuringText(track.featuring ?? [])}</span>
                 )}
                 </div>
                 )}
                 <span data-track-artist className="max-w-full truncate text-[13px] text-text-muted">
-                  {trackArtist(undefined, releaseArtist)}
+                  {linkArtists && releaseArtist?.trim() ? (
+                    <ArtistLinks
+                      artist={releaseArtist}
+                      featuring={view ? splitFeaturing(track.title).featuring : (track.featuring ?? [])}
+                    />
+                  ) : (
+                    trackArtist(undefined, releaseArtist)
+                  )}
                 </span>
               </div>
               {columns.plays &&

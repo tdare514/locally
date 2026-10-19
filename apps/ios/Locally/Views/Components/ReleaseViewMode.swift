@@ -26,6 +26,7 @@ struct ReleaseDetailsView: View {
     let genre: String
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.openURL) private var openURL
     @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 30
     @ScaledMetric(relativeTo: .title3) private var artistSize: CGFloat = 18
     @ScaledMetric(relativeTo: .footnote) private var metaSize: CGFloat = 13
@@ -46,20 +47,18 @@ struct ReleaseDetailsView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             if !artist.isEmpty {
-                Text(artist)
-                    .font(.system(size: artistSize, weight: .semibold))
-                    .foregroundStyle(Theme.primaryText.opacity(0.85))
-                    .fixedSize(horizontal: false, vertical: true)
+                artistLine
             }
             if !featuring.isEmpty {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(Copy.Featuring.field).foregroundStyle(Theme.secondaryText)
-                    Text(Copy.Featuring.viewValue(featuring)).foregroundStyle(Theme.primaryText)
+                    Text(ArtistLink.featuringList(featuring, linked: true, color: Theme.primaryText))
+                        .tint(Theme.primaryText)
                 }
                 .font(.system(size: pairSize))
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 4)
-                .accessibilityElement(children: .combine)
+                .accessibilityElement(children: .contain)
             }
             if !pairs.isEmpty {
                 let layout = dynamicTypeSize.isAccessibilitySize
@@ -79,6 +78,38 @@ struct ReleaseDetailsView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+extension ReleaseDetailsView {
+    /// View mode only (#288): the artist's name with a small chevron is one tap target that opens
+    /// their page; a release artist of "A feat. B" keeps B as linked dim text under it.
+    @ViewBuilder
+    fileprivate var artistLine: some View {
+        let credit = ArtistNames.splitArtistFeaturing(artist)
+        VStack(alignment: .leading, spacing: 2) {
+            Button {
+                if let url = ArtistLink.url(forName: credit.artist) { openURL(url) }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(credit.artist)
+                        .font(.system(size: artistSize, weight: .semibold))
+                        .foregroundStyle(Theme.primaryText.opacity(0.85))
+                    LocallyIcon(.chevronRight, size: artistSize * 0.6, scaled: false)
+                        .foregroundStyle(Theme.textDim)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Copy.Artists.openLabel(credit.artist))
+            .accessibilityAddTraits(.isLink)
+            if !credit.featuring.isEmpty {
+                Text(ArtistLink.featuringSuffix(credit.featuring, linked: true, color: Theme.secondaryText))
+                    .font(.system(size: pairSize))
+                    .tint(Theme.secondaryText)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -142,17 +173,16 @@ struct ReleaseTrackRow: View {
                 .frame(width: accessible ? nil : columns.number, alignment: .leading)
                 .fixedSize(horizontal: accessible, vertical: false)
             VStack(alignment: .leading, spacing: 2) {
-                (featuring.isEmpty
-                    ? Text(title).foregroundStyle(Theme.primaryText)
-                    : Text(title).foregroundStyle(Theme.primaryText) + Text(" " + Copy.Featuring.suffix(featuring)).foregroundStyle(Theme.textDim))
+                Text(title)
+                    .foregroundStyle(Theme.primaryText)
                     .font(.system(size: titleSize, weight: .semibold))
                     .lineLimit(accessible ? nil : 1)
                     .truncationMode(.tail)
-                Text(artist)
-                    .font(.system(size: artistSize))
-                    .foregroundStyle(Theme.secondaryText)
-                    .lineLimit(accessible ? nil : 1)
-                    .truncationMode(.tail)
+                // View mode only (#288): "A, feat. B & C", every name its own link, wrapping.
+                ArtistLineText(
+                    main: credit.artist, featuring: credit.featuring, linkMain: artist != Copy.Detail.unknownArtist,
+                    font: .system(size: artistSize), mainColor: Theme.secondaryText, dimColor: Theme.secondaryText
+                )
                 if accessible, let line = TrackRowLine.playsAndTime(plays: plays, time: time) {
                     Text(line)
                         .font(.system(size: artistSize).monospacedDigit())
@@ -173,7 +203,13 @@ struct ReleaseTrackRow: View {
         .font(.system(size: numberSize).monospacedDigit())
         .foregroundStyle(Theme.secondaryText)
         .frame(minHeight: Theme.Track.minHeight)
-        .accessibilityElement(children: .combine)
+        // The artist line holds links, which a combined element would swallow.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("track-row-\(number)")
+    }
+
+    private var credit: (artist: String, featuring: [String]) {
+        let split = ArtistNames.splitArtistFeaturing(artist)
+        return (split.artist, FeaturingNames.merged(featuring, split.featuring))
     }
 }

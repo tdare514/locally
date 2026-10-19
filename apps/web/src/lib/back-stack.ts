@@ -2,7 +2,7 @@
 
 /** The minimum a view needs for a label; AppShell's `View` fits it. */
 export interface BackView {
-  type: "library" | "import" | "release" | "settings" | "stats" | "adopt";
+  type: "library" | "import" | "release" | "settings" | "stats" | "adopt" | "artist";
 }
 
 /** One earlier view plus the state needed to put it back as it was. */
@@ -49,7 +49,7 @@ export function canGoBack<V extends BackView, S>(stack: BackStack<V, S>): boolea
 }
 
 /** Where the back button goes, for its aria-label and tooltip. */
-export function backLabel(destination: BackView["type"]): string {
+export function backLabel(destination: BackView["type"], artistName?: string): string {
   switch (destination) {
     case "library":
       return "Back to Library";
@@ -63,5 +63,10 @@ export function backLabel(destination: BackView["type"]): string {
       return "Back to release";
     case "adopt":
       return "Back to your Spotify folders";
+    case "artist": {
+      // The name comes from the catalogue; an artist no longer in it is just "Back".
+      const name = artistName?.trim();
+      return name ? `Back to ${name}` : "Back";
+    }
   }
 }

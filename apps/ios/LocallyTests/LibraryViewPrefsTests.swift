@@ -27,6 +27,13 @@ import Testing
         }
     }
 
+    @Test func artistsLayoutLoadsAndOldValuesStillDo() {
+        #expect(LibraryLayout(storedRaw: "artists") == .artists)
+        #expect(LibraryLayout(storedRaw: "list") == .list)
+        #expect(LibraryLayout(storedRaw: "covers") == .covers)
+        #expect(LibraryLayout.allCases == [.list, .covers, .artists])
+    }
+
     @Test func tileMinWidthsIncreaseWithSize() {
         let widths = CoverSize.allCases.map(\.tileMinWidth)
         #expect(zip(widths, widths.dropFirst()).allSatisfy { $0 < $1 })

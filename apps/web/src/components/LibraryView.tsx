@@ -47,6 +47,8 @@ import {
   SearchIcon,
 } from "./Icons";
 import NoCover from "./NoCover";
+import ArtistsGrid from "./ArtistsGrid";
+import { filterArtists, type CatalogEntry } from "../lib/artist-catalog";
 
 const ADOPTED_LABEL = "In your Spotify folder";
 const ADOPTED_NOT_SELECTABLE = "Releases from your Spotify folder can't be selected. Remove one from its own page.";
@@ -69,12 +71,16 @@ interface LibraryViewProps {
   releases: Release[];
   /** Every artist in the library, for the bulk edit's Artist field (#287). */
   artistIndex: ArtistEntry[];
+  /** One entry per artist, A to Z, for the Artists view (#288). */
+  catalog: CatalogEntry[];
   loading: boolean;
   query: string;
   sort: LibrarySort;
   onQueryChange: (query: string) => void;
   onSortChange: (sort: LibrarySort) => void;
   onSelectRelease: (id: string) => void;
+  /** Opens an artist's page (#288). */
+  onSelectArtist: (key: string) => void;
   onImport: (kind?: ReleaseKind) => void;
   /** Refresh the library after a bulk action. */
   onBulkDone: () => Promise<unknown> | void;
@@ -96,11 +102,13 @@ export default function LibraryView({
   onQueryChange,
   onSortChange,
   onSelectRelease,
+  onSelectArtist,
   onImport,
   onBulkDone,
   onToast,
   onAmbientCoverChange,
   artistIndex,
+  catalog,
 }: LibraryViewProps) {
   const searchRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -114,6 +122,7 @@ export default function LibraryView({
   const [width] = useLibraryWidth();
   const [folds, setFolds] = useState<SectionFolds>(NO_FOLDS);
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [focusArtistKey, setFocusArtistKey] = useState<string | null>(null);
   const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
 
   // Saved view prefs load after mount so the server and first client render agree.
@@ -151,9 +160,18 @@ export default function LibraryView({
     coverReleases.find((r) => visibleIds.has(r.id)) ??
     coverReleases[0] ??
     null;
-  const ambientUrl = focusRelease
-    ? coverUrl(focusRelease.id, focusRelease.updatedAt)
-    : null;
+  // The Artists view tints by the hovered artist's front cover, else the first artist's.
+  const visibleArtists = filterArtists(catalog, query);
+  const focusArtist = visibleArtists.find((a) => a.key === focusArtistKey) ?? visibleArtists[0];
+  const artistCover = focusArtist?.covers[0];
+  const ambientUrl =
+    layout === "artists"
+      ? artistCover
+        ? coverUrl(artistCover.releaseId, artistCover.updatedAt)
+        : null
+      : focusRelease
+        ? coverUrl(focusRelease.id, focusRelease.updatedAt)
+        : null;
   useEffect(() => {
     onAmbientCoverChange(ambientUrl);
   }, [ambientUrl, onAmbientCoverChange]);
@@ -298,6 +316,7 @@ export default function LibraryView({
   }
 
   const SectionComponent = layout === "covers" ? CoverSection : LibrarySection;
+  const artistsView = layout === "artists";
 
   return (
     <div
@@ -333,7 +352,7 @@ export default function LibraryView({
               <CoverLargeIcon className="h-4 w-4" />
             </div>
           )}
-          <div role="group" aria-label="Library layout" className="btn-seg">
+          <div role="group" aria-label="Library layout" className="btn-seg btn-seg-3">
             <span aria-hidden className="btn-seg-dot">
               <span />
             </span>
@@ -341,6 +360,7 @@ export default function LibraryView({
               [
                 { value: "list", label: "List" },
                 { value: "covers", label: "Grid" },
+                { value: "artists", label: "Artists" },
               ] as const
             ).map(({ value, label }) => (
               <button
@@ -359,7 +379,7 @@ export default function LibraryView({
 
       <PlaysPromptCard onToast={onToast} />
 
-      {selecting ? (
+      {selecting && !artistsView ? (
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-border bg-card px-4 py-3">
           <div className="flex items-center gap-4">
             {selectedCount === 0 ? (
@@ -440,7 +460,7 @@ export default function LibraryView({
               ref={searchRef}
               type="search"
               value={query}
-              placeholder="Search titles, artists, genres…"
+              placeholder={artistsView ? "Search artists…" : "Search titles, artists, genres…"}
               aria-label="Search library"
               onChange={(e) => onQueryChange(e.target.value)}
               onKeyDown={(e) => {
@@ -452,6 +472,7 @@ export default function LibraryView({
               className="w-full rounded-md bg-elevated py-3 pl-11 pr-4 text-sm text-text outline-none placeholder:text-text-muted/60 focus:ring-2 focus:ring-accent"
             />
           </div>
+          {!artistsView && (
           <div className="relative shrink-0">
             <select
               aria-label="Sort library"
@@ -467,7 +488,8 @@ export default function LibraryView({
             </select>
             <ChevronRightIcon className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 rotate-90 text-text-muted" />
           </div>
-          {!IS_DEMO && (
+          )}
+          {!IS_DEMO && !artistsView && (
             <button
               type="button"
               onClick={() => setSelecting(true)}
@@ -479,7 +501,22 @@ export default function LibraryView({
         </div>
       )}
 
-      {searching && visible.length === 0 && (
+      {artistsView && visibleArtists.length > 0 && (
+        <ArtistsGrid entries={visibleArtists} onOpenArtist={onSelectArtist} onFocusArtist={setFocusArtistKey} />
+      )}
+
+      {artistsView && visibleArtists.length === 0 && (
+        <div className="flex flex-col items-center gap-2 py-12 text-center">
+          <p className="text-text-muted">{searching ? `No artists match “${query.trim()}”.` : "No artists yet."}</p>
+          {searching && (
+            <button type="button" onClick={() => onQueryChange("")} className="btn-ink mt-2">
+              <span className="btn-ink-label">Clear search</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {!artistsView && searching && visible.length === 0 && (
         <div className="flex flex-col items-center gap-2 py-12 text-center">
           <p className="text-text-muted">No matches for “{query.trim()}”</p>
           <p className="text-xs text-text-dim">
@@ -495,7 +532,7 @@ export default function LibraryView({
         </div>
       )}
 
-      {singles.length > 0 && (
+      {!artistsView && singles.length > 0 && (
         <SectionComponent
           label="Singles"
           bodyId="library-singles"
@@ -513,14 +550,14 @@ export default function LibraryView({
         />
       )}
 
-      {singles.length > 0 && albums.length > 0 && (
+      {!artistsView && singles.length > 0 && albums.length > 0 && (
         <div
           className="border-t border-dashed border-border-dashed"
           aria-hidden="true"
         />
       )}
 
-      {albums.length > 0 && (
+      {!artistsView && albums.length > 0 && (
         <SectionComponent
           label="Albums"
           bodyId="library-albums"

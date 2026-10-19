@@ -163,7 +163,19 @@ enum Copy {
         static func noMatches(_ query: String) -> String { "No matches for \u{201C}\(query)\u{201D}" }
         static let layoutList = "List"
         static let layoutCovers = "Covers"
+        static let layoutArtists = "Artists"
         static let layoutLabel = "Library view"
+        /// The sort menu (#288): the Mac's four options, in the Mac's order.
+        static let sortMenuTitle = "Sort"
+        static func sortLabel(_ current: String) -> String { "Sort, \(current)" }
+        static func sortName(_ option: LibrarySortOption) -> String {
+            switch option {
+            case .newest: return "Recently updated"
+            case .title: return "Title"
+            case .artist: return "Artist"
+            case .year: return "Year"
+            }
+        }
         static let coverSizeLabel = "Cover size"
         static let sizeSmall = "Small"
         static let sizeMedium = "Medium"
@@ -181,6 +193,47 @@ enum Copy {
         /// Captions under the two tiles in the empty state's diagram.
         static let diagramLocally = "Locally"
         static let diagramSpotify = "Spotify"
+    }
+
+    /// The Artists view and the artist page (#288).
+    enum Artists {
+        static let title = "Artists"
+        static func noMatches(_ query: String) -> String { "No artists match \u{201C}\(query)\u{201D}." }
+        static func releases(_ n: Int) -> String { n == 1 ? "1 release" : "\(n) releases" }
+        static func tracks(_ n: Int) -> String { n == 1 ? "1 track" : "\(n) tracks" }
+        static func albums(_ n: Int) -> String { n == 1 ? "1 album" : "\(n) albums" }
+        static func singles(_ n: Int) -> String { n == 1 ? "1 single" : "\(n) singles" }
+        /// The Artists view's count line: "2 releases, 9 tracks"; a featured-only artist "Appears on 3 tracks".
+        static func countLine(releases: Int, tracks tracksOnOwn: Int, appearsOn: Int) -> String {
+            releases == 0 ? appearsOnLine(appearsOn) : "\(Self.releases(releases)), \(tracks(tracksOnOwn))"
+        }
+        static func appearsOnLine(_ n: Int) -> String { "Appears on \(tracks(n))" }
+        /// The page header's one dim line from the non-zero parts: "1 album, 2 singles, appears on 3 tracks".
+        static func pageLine(albums: Int, singles: Int, appearsOn: Int) -> String {
+            var parts: [String] = []
+            if albums > 0 { parts.append(Self.albums(albums)) }
+            if singles > 0 { parts.append(Self.singles(singles)) }
+            if appearsOn > 0 { parts.append(appearsOnLine(appearsOn).lowercasedFirst) }
+            let line = parts.joined(separator: ", ")
+            return line.prefix(1).uppercased() + line.dropFirst()
+        }
+        static let albumsSection = "Albums"
+        static let singlesSection = "Singles"
+        static let appearsOnSection = "Appears on"
+        static let mostPlayedSection = "Most played"
+        static func sectionCount(_ n: Int) -> String { "\(n)" }
+        /// An Appears on row's dim line: the release title and its year.
+        static func releaseLine(title: String, year: String?) -> String {
+            guard let year, !year.isEmpty else { return title }
+            return "\(title), \(year)"
+        }
+        static let gone = "This artist isn't in your library any more."
+        static let backToLibrary = "Back to Library"
+        /// VoiceOver for the release page's artist name in view mode.
+        static func openLabel(_ name: String) -> String { "Open \(name)" }
+        /// VoiceOver for an Artists view row: "Okoro, 2 releases, 9 tracks".
+        static func rowLabel(name: String, countLine: String) -> String { "\(name), \(countLine)" }
+        static func rankLabel(_ rank: Int) -> String { "Number \(rank)" }
     }
 
     enum Release {
@@ -629,4 +682,9 @@ enum Copy {
             return shortDay(day, today: today)
         }
     }
+}
+
+private extension String {
+    /// "Appears on 3 tracks" as "appears on 3 tracks".
+    var lowercasedFirst: String { prefix(1).lowercased() + dropFirst() }
 }

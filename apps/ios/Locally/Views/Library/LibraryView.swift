@@ -29,6 +29,7 @@ struct LibraryView: View {
     @State private var query = ""
 
     @AppStorage(LibraryViewPrefs.layoutKey) private var layout: LibraryLayout = .default
+    @AppStorage(LibraryViewPrefs.sortKey) private var sort: LibrarySortOption = .default
     @AppStorage(LibraryViewPrefs.coverSizeKey) private var coverSize: CoverSize = .default
     @AppStorage(LibraryViewPrefs.singlesCollapsedKey) private var singlesCollapsed = false
     @AppStorage(LibraryViewPrefs.albumsCollapsedKey) private var albumsCollapsed = false
@@ -53,6 +54,11 @@ struct LibraryView: View {
     @State private var palettes: [CoverKey: AmbientPalette] = [:]
     /// Decoded covers, read once per `CoverKey` in `load()`.
     @State private var covers: [CoverKey: UIImage] = [:]
+    /// The Artists view (#288): the catalogue of `releases`, its covers, and the stack's path
+    /// (release and artist pages push onto it).
+    @State private var catalog = ArtistCatalog(releases: [])
+    @State private var artistCovers: ArtistCoverSource?
+    @State private var path = NavigationPath()
 
     /// A release's cover identity: a replaced cover bumps `updatedAt`.
     private struct CoverKey: Hashable {
@@ -70,10 +76,13 @@ struct LibraryView: View {
         releases.reduce(0) { $0 + $1.tracks.count }
     }
 
-    /// `releases` narrowed by the search box; the sections and the sky follow this.
-    private var matching: [Release] { LibrarySearch.filter(releases, query: query) }
-    private var singles: [Release] { matching.filter { $0.kind == .single } }
-    private var albums: [Release] { matching.filter { $0.kind == .album } }
+    /// `releases` narrowed by the search box; the sections and the sky follow this. In the Artists
+    /// view the box filters artist names instead, so every release stays.
+    private var matching: [Release] { layout == .artists ? releases : LibrarySearch.filter(releases, query: query) }
+    /// Singles and Albums are each ordered by the sort menu.
+    private var sortedMatching: [Release] { LibrarySort.sorted(matching, by: sort) }
+    private var singles: [Release] { sortedMatching.filter { $0.kind == .single } }
+    private var albums: [Release] { sortedMatching.filter { $0.kind == .album } }
 
     /// Display order: singles, then albums.
     private var displayOrder: [Release] { singles + albums }
@@ -94,7 +103,7 @@ struct LibraryView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ZStack {
                 if releases.isEmpty {
                     Theme.background.ignoresSafeArea()
@@ -115,22 +124,21 @@ struct LibraryView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
                             header
-                            if matching.isEmpty {
-                                Text(Copy.Library.noMatches(query))
-                                    .font(Theme.Font.body)
-                                    .foregroundStyle(Theme.secondaryText)
-                                    .multilineTextAlignment(.center)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.top, Theme.Library.noMatchesTopPadding)
-                            }
-                            if !singles.isEmpty {
-                                section(label: Copy.Library.singlesSection, items: singles, collapsed: $singlesCollapsed)
-                            }
-                            if !singles.isEmpty, !albums.isEmpty {
-                                sectionDivider
-                            }
-                            if !albums.isEmpty {
-                                section(label: Copy.Library.albumsSection, items: albums, collapsed: $albumsCollapsed)
+                            if layout == .artists {
+                                artistsContent
+                            } else {
+                                if matching.isEmpty {
+                                    noMatchesText(Copy.Library.noMatches(query))
+                                }
+                                if !singles.isEmpty {
+                                    section(label: Copy.Library.singlesSection, items: singles, collapsed: $singlesCollapsed)
+                                }
+                                if !singles.isEmpty, !albums.isEmpty {
+                                    sectionDivider
+                                }
+                                if !albums.isEmpty {
+                                    section(label: Copy.Library.albumsSection, items: albums, collapsed: $albumsCollapsed)
+                                }
                             }
                         }
                         .padding(.horizontal, Theme.Spacing.listPagePadding)
@@ -168,6 +176,9 @@ struct LibraryView: View {
             .navigationDestination(for: Release.self) { release in
                 ReleaseDetailView(release: release)
             }
+            .navigationDestination(for: ArtistRoute.self) { route in
+                ArtistPageView(route: route)
+            }
             // `.onAppear` (not `.task`) so returning from `ReleaseDetailView`
             // after a save/delete re-reads the store and reflects it here.
             .onAppear {
@@ -189,6 +200,28 @@ struct LibraryView: View {
                 devicesTrayLayer(anchor: anchor)
             }
         }
+        // Every artist name opens that artist's page (#288); on the stack so pushed pages inherit it.
+        .artistLinks { path.append($0) }
+    }
+
+    /// The Artists view: A to Z in letter groups, filtered by the search box.
+    @ViewBuilder
+    private var artistsContent: some View {
+        let groups = catalog.groups(query: query)
+        if groups.isEmpty {
+            noMatchesText(Copy.Artists.noMatches(query))
+        } else if let artistCovers {
+            ArtistsListView(groups: groups, source: artistCovers)
+        }
+    }
+
+    private func noMatchesText(_ text: String) -> some View {
+        Text(text)
+            .font(Theme.Font.body)
+            .foregroundStyle(Theme.secondaryText)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.top, Theme.Library.noMatchesTopPadding)
     }
 
     private func startImport(_ kind: ImportKind?) {
@@ -346,12 +379,16 @@ struct LibraryView: View {
             HStack(spacing: 0) {
                 layoutButton(.list, systemImage: "list.bullet", label: Copy.Library.layoutList)
                 layoutButton(.covers, systemImage: "square.grid.2x2", label: Copy.Library.layoutCovers)
+                layoutButton(.artists, icon: .person, label: Copy.Library.layoutArtists)
             }
             .padding(2)
             .background(Capsule().fill(Theme.Immersive.panelFill))
             .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
             .accessibilityElement(children: .contain)
             .accessibilityLabel(Copy.Library.layoutLabel)
+
+            // The sort is within Singles and Albums, so the Artists view (always A to Z) has none.
+            if layout != .artists { sortMenu }
 
             Spacer()
 
@@ -371,13 +408,46 @@ struct LibraryView: View {
         }
     }
 
+    /// The sort menu (#288): the Mac's four options with a check on the current one.
+    private var sortMenu: some View {
+        Menu {
+            Picker(Copy.Library.sortMenuTitle, selection: $sort) {
+                ForEach(LibrarySortOption.allCases, id: \.self) { option in
+                    Text(Copy.Library.sortName(option)).tag(option)
+                }
+            }
+        } label: {
+            Image(systemName: "arrow.up.arrow.down")
+                .font(.system(size: Theme.Library.toggleIconSize, weight: .semibold))
+                .foregroundStyle(Theme.secondaryText)
+                .frame(width: Theme.Library.toggleButtonSize, height: Theme.Library.toggleButtonSize - 4)
+                .background(Capsule().fill(Theme.Immersive.panelFill))
+                .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
+                .contentShape(Capsule())
+        }
+        .accessibilityLabel(Copy.Library.sortLabel(Copy.Library.sortName(sort)))
+    }
+
     private func layoutButton(_ value: LibraryLayout, systemImage: String, label: String) -> some View {
+        layoutButton(value, label: label) {
+            Image(systemName: systemImage)
+                .font(.system(size: Theme.Library.toggleIconSize, weight: .semibold))
+        }
+    }
+
+    /// The hand-drawn glyph variant (#213), for the Artists choice.
+    private func layoutButton(_ value: LibraryLayout, icon: LocallyIcon.Name, label: String) -> some View {
+        layoutButton(value, label: label) {
+            LocallyIcon(icon, size: Theme.Library.toggleIconSize + 3, scaled: false)
+        }
+    }
+
+    private func layoutButton<Glyph: View>(_ value: LibraryLayout, label: String, @ViewBuilder glyph: () -> Glyph) -> some View {
         let selected = layout == value
         return Button {
             layout = value
         } label: {
-            Image(systemName: systemImage)
-                .font(.system(size: Theme.Library.toggleIconSize, weight: .semibold))
+            glyph()
                 .foregroundStyle(selected ? Theme.onAccent : Theme.secondaryText)
                 .frame(width: Theme.Library.toggleButtonSize, height: Theme.Library.toggleButtonSize - 8)
                 .background { if selected { Capsule().fill(Theme.accent) } }
@@ -428,6 +498,8 @@ struct LibraryView: View {
                         switch layout {
                         case .list: listPanel(items)
                         case .covers: coverGrid(items)
+                        // Sections only exist in the other two views; the Artists view has its own list.
+                        case .artists: EmptyView()
                         }
                     }
                     .transition(.opacity)
@@ -574,6 +646,11 @@ struct LibraryView: View {
         guard let container else { return }
         do {
             releases = try container.library.all().sorted { $0.updatedAt > $1.updatedAt }
+            catalog = ArtistCatalog(releases: releases)
+            let store = container.coverStore
+            let source = artistCovers ?? ArtistCoverSource(loader: { store.load($0) })
+            source.refresh(releases)
+            artistCovers = source
             let live = Set(releases.map(key))
             palettes = palettes.filter { live.contains($0.key) }
             covers = covers.filter { live.contains($0.key) }
@@ -603,7 +680,7 @@ private extension EnvironmentValues {
 /// Renders the link's label, passes `isPressed` down as `libraryCoverPressed`
 /// so the cover can lift, and optionally fills the row with `row-hover` per
 /// `docs/design.md`'s "Library list" component. `onPress` fires when a press begins.
-private struct PressAwareStyle: ButtonStyle {
+struct PressAwareStyle: ButtonStyle {
     let rowHighlight: Bool
     let onPress: () -> Void
 

@@ -1,10 +1,11 @@
 import Foundation
 
-/// How the library home lays out releases: rows in a panel, or a cover grid.
-/// Mirrors the web's `LibraryLayout`.
+/// How the library home lays out releases: rows in a panel, a cover grid, or the artists A to Z
+/// (#288). Mirrors the web's `LibraryLayout`. Values stored before `artists` existed still load.
 enum LibraryLayout: String, CaseIterable {
     case list
     case covers
+    case artists
 
     static let `default`: LibraryLayout = .list
 
@@ -36,6 +37,7 @@ enum CoverSize: Int, CaseIterable {
 /// `UserDefaults` / `@AppStorage` keys for the library view choices.
 enum LibraryViewPrefs {
     static let layoutKey = "locally.library.layout"
+    static let sortKey = "locally.library.sort"
     static let coverSizeKey = "locally.library.coverSize"
     static let singlesCollapsedKey = "locally.library.singlesCollapsed"
     static let albumsCollapsedKey = "locally.library.albumsCollapsed"

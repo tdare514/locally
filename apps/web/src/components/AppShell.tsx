@@ -6,6 +6,9 @@ import { acceptFromPhone, getLibrary, getSyncStatus, hideFromTray, resyncFromPho
 import Sidebar, { type SidebarPage } from "./sidebar/Sidebar";
 import LibraryView from "./LibraryView";
 import { buildArtistIndex } from "../lib/artist-index";
+import { buildArtistCatalog, catalogEntry, creditKey } from "../lib/artist-catalog";
+import ArtistView from "./ArtistView";
+import { ArtistNavProvider } from "./ArtistNav";
 import { IS_DEMO } from "../lib/demo";
 import ImportView from "./ImportView";
 import ReleaseView from "./ReleaseView";
@@ -36,6 +39,8 @@ export type View =
   | { type: "release"; id: string; justImported?: boolean; trackId?: string }
   | { type: "settings"; section?: "account" }
   | { type: "stats" }
+  /** An artist's page (#288), by `artistKey`. */
+  | { type: "artist"; key: string }
   /** The review page for the Spotify folders (#249). `scan`: read the folders first. */
   | { type: "adopt"; scan: boolean };
 
@@ -53,6 +58,8 @@ export default function AppShell() {
   const [library, setLibrary] = useState<Library | null>(null);
   // Every artist name the library holds, for the Artist fields' suggestions (#287).
   const artistIndex = useMemo(() => buildArtistIndex(library?.releases ?? []), [library]);
+  // One entry per artist for the Artists view and the artist page (#288).
+  const artistCatalog = useMemo(() => buildArtistCatalog(library?.releases ?? []), [library]);
   const [loadingLibrary, setLoadingLibrary] = useState(true);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   // Lives here (not in LibraryView) so the query survives opening a release and coming back.
@@ -268,10 +275,17 @@ export default function AppShell() {
     goTo({ type: "import", kind });
   }
 
+  /** "Back to {name}" for an artist page, resolved from the catalogue ("Back" when it is gone). */
+  function backLabelFor(target: View): string {
+    return target.type === "artist"
+      ? backLabel("artist", catalogEntry(artistCatalog, target.key)?.name)
+      : backLabel(target.type);
+  }
+
   // The sidebar highlights the page on screen; a release page is none of them.
   // The Spotify folders' review page belongs to Settings.
   const activePage: SidebarPage | null =
-    view.type === "release" ? null : view.type === "adopt" ? "settings" : view.type;
+    view.type === "release" || view.type === "artist" ? null : view.type === "adopt" ? "settings" : view.type;
 
   /** Resolves true once the release is imported, false (after a toast) when it failed. */
   async function handleAcceptFromPhone(id: string): Promise<boolean> {
@@ -349,6 +363,7 @@ export default function AppShell() {
           page's AmbientBackdrop paints behind its content but inside this pane, so it never
           covers the sidebar. */}
       <div className="sb-stage relative isolate min-h-0 min-w-0 flex-1">
+        <ArtistNavProvider value={{ open: (key) => pushTo({ type: "artist", key }), lockedReason: null }}>
         <main
           ref={mainRef}
           className={`relative isolate h-full overflow-y-auto p-6 md:p-10 lg:p-16 ${
@@ -367,6 +382,8 @@ export default function AppShell() {
               onQueryChange={setLibraryQuery}
               onSortChange={setLibrarySort}
               onSelectRelease={(id) => pushTo({ type: "release", id })}
+              onSelectArtist={(key) => pushTo({ type: "artist", key })}
+              catalog={artistCatalog}
               onImport={openImport}
               onBulkDone={refreshLibrary}
               onToast={showToast}
@@ -412,14 +429,21 @@ export default function AppShell() {
                 setStatsPrefs((prev) => ({ ...prev, ...patch }));
               }}
               onOpenRelease={(id, trackId) => pushTo({ type: "release", id, trackId })}
-              onOpenArtist={(name) => {
-                // The library's own search finds an artist by name.
-                pushTo({ type: "library" });
-                setLibraryQuery(name);
-              }}
+              onOpenArtist={(name) => pushTo({ type: "artist", key: creditKey(name) })}
               onOpenSettings={() => goTo({ type: "settings" })}
             />
           )}
+          {view.type === "artist" &&
+            (loadingLibrary ? (
+              <p className="text-text-muted">Loading…</p>
+            ) : (
+              <ArtistView
+                entry={catalogEntry(artistCatalog, view.key)}
+                releases={library?.releases ?? []}
+                onOpenRelease={(id, trackId) => pushTo({ type: "release", id, trackId })}
+                onGoToLibrary={() => goTo({ type: "library" })}
+              />
+            ))}
           {view.type === "settings" && (
             <SettingsView
               onToast={showToast}
@@ -442,12 +466,13 @@ export default function AppShell() {
             />
           )}
         </main>
+        </ArtistNavProvider>
         {/* The back button's wrapper has no `left`: an absolute box with left auto starts at the pane's
             padding edge, so it clears the rail (and the pinned panel) the way the page does. */}
         {backStack.length > 0 && (
           <div className="absolute top-4 z-20 ml-4 md:top-6 md:ml-6">
             <BackButton
-              label={backLabel(backStack[backStack.length - 1].view.type)}
+              label={backLabelFor(backStack[backStack.length - 1].view)}
               onClick={goBack}
             />
           </div>

@@ -5,13 +5,15 @@ import { medalFor, type StatItem } from "../../lib/play-stats";
 import { formatCount, lastPlayedLabel, playsCount } from "../../lib/stats-copy";
 import { moreLabel, nextShown, seaTiers } from "../../lib/stats-layout";
 import StatCover, { statCoverUrl } from "../sidebar/StatCover";
+import ArtistLinks from "../ArtistNav";
+import { splitFeaturing } from "../../lib/artist-names";
 
 /** The ranked list and the sorted sea under the fan on the Stats page (#145). Each row and each
  * tile is a real button: it opens the release, or for an artist their releases in the Library. */
 
 /** What opening an item does, for the tooltip. */
 function openHint(item: StatItem): string {
-  return item.releaseId ? "Open release" : "Show in Library";
+  return item.releaseId ? "Open release" : "Open artist";
 }
 
 /** Shows the first page of `total`, and a button for the next. When the last page is shown the
@@ -62,6 +64,8 @@ export function StatsList({
   label,
   round,
   today,
+  linkArtists,
+  trackRows = false,
   onOpen,
   initialShown,
   onShownChange,
@@ -70,28 +74,42 @@ export function StatsList({
   label: string;
   round: boolean;
   today: string;
+  /** The subtitle is the artist's name (Tracks and Albums): each name opens that artist's page (#288). */
+  linkArtists: boolean;
+  /** Tracks ranking: "Song (feat. Guest)" shows the plain title and Guest joins the artist line as a link. */
+  trackRows?: boolean;
   onOpen: (item: StatItem) => void;
   initialShown: number;
   onShownChange: (shown: number) => void;
 }) {
   const max = Math.max(0, ...items.map((i) => i.plays));
   const list = useRef<HTMLOListElement>(null);
-  const { shown, button } = usePaging(items.length, (i) => list.current?.querySelectorAll<HTMLElement>("button")[i], initialShown, onShownChange);
+  const { shown, button } = usePaging(items.length, (i) => list.current?.querySelectorAll<HTMLElement>("[data-row-open]")[i], initialShown, onShownChange);
   return (
     <div className="st-list">
       <ol ref={list} aria-label={label} className="mt-3">
         {items.slice(0, shown).map((item) => (
           <li key={item.id}>
-            <button type="button" className="st-row st-focus" title={openHint(item)} onClick={() => onOpen(item)}>
+            {/* A div, not a button: the artist names inside are links, and a link can't sit in a button. The
+                title is the keyboard stop; a click anywhere else on the row opens it too. */}
+            <div className="st-row" onClick={() => onOpen(item)}>
               <span className="st-rank text-center text-sm font-semibold tabular-nums text-text-muted" data-medal={medalFor(item.rank)}>
                 {item.rank}
               </span>
               <StatCover cover={item.cover} round={round} className="h-11 w-11 shadow-[0_8px_18px_-8px_rgb(0_0_0/0.7)]" />
               <span className="min-w-0">
-                <span className="medal-name block truncate text-[15px] font-semibold" data-medal={medalFor(item.rank)}>
-                  {item.title}
+                <button
+                  type="button"
+                  data-row-open
+                  title={openHint(item)}
+                  className="medal-name st-focus block max-w-full truncate rounded-sm text-left text-[15px] font-semibold"
+                  data-medal={medalFor(item.rank)}
+                >
+                  {trackRows ? splitFeaturing(item.title).title : item.title}
+                </button>
+                <span className="block truncate text-sm text-text-muted">
+                  {linkArtists && item.subtitle.trim() !== "" ? <ArtistLinks artist={item.subtitle} featuring={trackRows ? splitFeaturing(item.title).featuring : []} /> : item.subtitle}
                 </span>
-                <span className="block truncate text-sm text-text-muted">{item.subtitle}</span>
               </span>
               <span className="st-row-last truncate text-sm text-text-muted">{lastPlayedLabel(item.lastPlayedDay, today)}</span>
               <span className="st-row-bar flex items-center gap-3">
@@ -101,7 +119,7 @@ export function StatsList({
                 {formatCount(item.plays)}
                 <span className="sr-only">{item.plays === 1 ? " play" : " plays"}</span>
               </span>
-            </button>
+            </div>
           </li>
         ))}
       </ol>

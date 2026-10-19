@@ -11,6 +11,8 @@ interface Props {
   names: string[];
   onChange: (names: string[]) => void;
   index: ArtistEntry[];
+  /** The names are on the track's artist line as links (#288): the button is just "feat.". */
+  namesShownElsewhere?: boolean;
 }
 
 const FOCUSABLE = "input, button, a, textarea, select, [tabindex]";
@@ -20,7 +22,7 @@ const FOCUSABLE = "input, button, a, textarea, select, [tabindex]";
  * or focus. Either opens a small glass popover with the pill field and a Done button. Escape or
  * Done closes it and gives focus back to the button; so does a click outside.
  */
-export default function TrackFeaturing({ trackName, names, onChange, index }: Props) {
+export default function TrackFeaturing({ trackName, names, onChange, index, namesShownElsewhere }: Props) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -66,7 +68,7 @@ export default function TrackFeaturing({ trackName, names, onChange, index }: Pr
             : "text-text-dim opacity-0 group-hover/track:opacity-100 group-focus-within/track:opacity-100 aria-expanded:opacity-100"
         }`}
       >
-        {has ? featuringText(names) : "feat."}
+        {has && !namesShownElsewhere ? featuringText(names) : "feat."}
       </button>
       {open && (
         <div
