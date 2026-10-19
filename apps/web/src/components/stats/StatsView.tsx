@@ -222,6 +222,7 @@ export default function StatsView({
                   round={tab === "artists"}
                   today={today}
                   linkArtists={tab !== "artists"}
+                  trackRows={tab === "tracks"}
                   onOpen={open}
                   initialShown={shown}
                   onShownChange={onShownChange}

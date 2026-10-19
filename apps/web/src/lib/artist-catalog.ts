@@ -231,6 +231,11 @@ export function filterArtists(entries: CatalogEntry[], query: string): CatalogEn
   });
 }
 
+/** The key to open for a credit as Stats shows it: "A feat. B" opens A, the main artist. */
+export function creditKey(credit: string): string {
+  return artistKey(splitArtistFeaturing(credit).artist);
+}
+
 export function plural(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }

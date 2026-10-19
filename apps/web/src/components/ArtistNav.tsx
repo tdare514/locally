@@ -34,6 +34,7 @@ export function ArtistLink({ name, className = "" }: { name: string; className?:
   return (
     <button
       type="button"
+      role="link"
       data-artist-link={key}
       aria-disabled={lockedReason ? true : undefined}
       title={lockedReason ?? undefined}
@@ -101,6 +102,7 @@ export function ArtistOpenButton({ artist }: { artist: string }) {
   return (
     <button
       type="button"
+      role="link"
       aria-label={label}
       aria-disabled={lockedReason ? true : undefined}
       title={lockedReason ?? label}

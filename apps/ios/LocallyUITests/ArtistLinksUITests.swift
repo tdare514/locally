@@ -33,6 +33,8 @@ final class ArtistLinksUITests: XCTestCase {
         }
         scrollTo(row)
         row.tap()
+        // A tap that lands while the list is still coasting from a swipe only stops the scroll.
+        if !app.staticTexts["artist-page-title"].waitForExistence(timeout: 4) { row.tap() }
         title(name)
     }
 

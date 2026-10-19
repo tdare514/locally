@@ -5,6 +5,7 @@ import {
   artistPageLine,
   buildArtistCatalog,
   catalogEntry,
+  creditKey,
   filterArtists,
   groupByLetter,
   mostPlayed,
@@ -159,5 +160,13 @@ describe("counts and search", () => {
     expect(filterArtists(catalog, "BJORK").map((e) => e.name)).toEqual(["Björk"]);
     expect(filterArtists(catalog, "  ")).toBe(catalog);
     expect(filterArtists(catalog, "zzz")).toEqual([]);
+  });
+});
+
+describe("creditKey", () => {
+  it("opens the main artist of a credit", () => {
+    expect(creditKey("Alpha feat. Beta")).toBe("alpha");
+    expect(creditKey("Alpha")).toBe("alpha");
+    expect(creditKey("Hall & Oates")).toBe("hall and oates");
   });
 });

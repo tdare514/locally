@@ -329,7 +329,7 @@ enum StatsGallery {
 
     private static let seeds: [Seed] = [
         Seed(n: 1, artist: "Mira Valdane", title: "Night Bus to Nowhere", genre: "Indie pop", colors: [.systemIndigo, .systemPurple, .systemPink],
-             tracks: [("Night Bus to Nowhere", 48, 0), ("Orange Streetlight", 31, 1), ("Paper Moon", 12, 4)]),
+             tracks: [("Night Bus to Nowhere", 48, 0), ("Orange Streetlight", 31, 1), ("Paper Moon (feat. Okoro)", 12, 4)]),
         Seed(n: 2, artist: "The Salt Line", title: "Low Tide", genre: "Folk", colors: [.systemTeal, .systemBlue, .systemIndigo],
              tracks: [("Low Tide", 36, 0), ("Harbour Lights", 22, 2)]),
         Seed(n: 3, artist: "Okoro", title: "Saltwater Hymns", genre: "Ambient", colors: [UIColor(red: 0.95, green: 0.75, blue: 0.30, alpha: 1), .systemOrange, .systemRed],
@@ -875,7 +875,7 @@ extension IconsGallery {
     /// All-time plays: most tracks have some, a few have none.
     private static func artistsPlays(_ releases: [Release]) -> PlayStatsRead {
         let byTitle: [String: Int] = [
-            "Night Bus to Nowhere": 192, "Orange Streetlight": 124, "Paper Moon": 48, "Kitchen Radio": 28, "Tide": 108, "Hymn": 36,
+            "Night Bus to Nowhere": 192, "Orange Streetlight": 124, "Paper Moon (feat. Okoro)": 48, "Kitchen Radio": 28, "Tide": 108, "Hymn": 36,
             "Night Bus": 16, "Late Trains": 61, "Glass Harbor (feat. Mira Valdane)": 71, "Slow Water": 0, "Low Light": 9,
             "Headlights (feat. Mira Valdane & Okoro)": 90, "Harbour Lights (feat. Jonah Reyes)": 22, "Sparrow": 14,
         ]

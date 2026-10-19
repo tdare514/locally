@@ -65,12 +65,17 @@ struct ArtistsListView: View {
     let groups: [ArtistCatalog.Group]
     let source: ArtistCoverSource
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var stackSize: CGFloat = 52
+
+    private var wraps: Bool { dynamicTypeSize.isAccessibilitySize }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             ForEach(groups, id: \.letter) { group in
                 VStack(alignment: .leading, spacing: 8) {
                     Text(group.letter)
-                        .font(Theme.Font.sectionTitle)
+                        .font(Font.system(.headline, weight: .bold))
                         .foregroundStyle(Theme.primaryText)
                         .padding(.horizontal, 4)
                         .frame(minHeight: Theme.Library.sectionHeaderMinHeight, alignment: .leading)
@@ -100,16 +105,16 @@ struct ArtistsListView: View {
     private func row(_ entry: ArtistCatalogEntry) -> some View {
         let count = Copy.Artists.countLine(releases: entry.releaseCount, tracks: entry.trackCount, appearsOn: entry.appearsOn.count)
         return HStack(spacing: 12) {
-            ArtistCoverStack(releases: entry.covers, source: source)
+            ArtistCoverStack(releases: entry.covers, source: source, size: min(stackSize, 76))
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.name)
-                    .font(Theme.Font.rowTitle)
+                    .font(Font.system(.subheadline, weight: .semibold))
                     .foregroundStyle(Theme.primaryText)
-                    .lineLimit(1)
+                    .lineLimit(wraps ? 3 : 1)
                 Text(count)
-                    .font(Theme.Font.rowSubtitle)
+                    .font(Font.subheadline)
                     .foregroundStyle(Theme.secondaryText)
-                    .lineLimit(1)
+                    .lineLimit(wraps ? 3 : 1)
             }
             Spacer()
             LocallyIcon(.chevronRight, size: 20, scaled: false)

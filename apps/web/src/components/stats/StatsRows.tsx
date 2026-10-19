@@ -6,6 +6,7 @@ import { formatCount, lastPlayedLabel, playsCount } from "../../lib/stats-copy";
 import { moreLabel, nextShown, seaTiers } from "../../lib/stats-layout";
 import StatCover, { statCoverUrl } from "../sidebar/StatCover";
 import ArtistLinks from "../ArtistNav";
+import { splitFeaturing } from "../../lib/artist-names";
 
 /** The ranked list and the sorted sea under the fan on the Stats page (#145). Each row and each
  * tile is a real button: it opens the release, or for an artist their releases in the Library. */
@@ -64,6 +65,7 @@ export function StatsList({
   round,
   today,
   linkArtists,
+  trackRows = false,
   onOpen,
   initialShown,
   onShownChange,
@@ -74,6 +76,8 @@ export function StatsList({
   today: string;
   /** The subtitle is the artist's name (Tracks and Albums): each name opens that artist's page (#288). */
   linkArtists: boolean;
+  /** Tracks ranking: "Song (feat. Guest)" shows the plain title and Guest joins the artist line as a link. */
+  trackRows?: boolean;
   onOpen: (item: StatItem) => void;
   initialShown: number;
   onShownChange: (shown: number) => void;
@@ -101,10 +105,10 @@ export function StatsList({
                   className="medal-name st-focus block max-w-full truncate rounded-sm text-left text-[15px] font-semibold"
                   data-medal={medalFor(item.rank)}
                 >
-                  {item.title}
+                  {trackRows ? splitFeaturing(item.title).title : item.title}
                 </button>
                 <span className="block truncate text-sm text-text-muted">
-                  {linkArtists && item.subtitle.trim() !== "" ? <ArtistLinks artist={item.subtitle} /> : item.subtitle}
+                  {linkArtists && item.subtitle.trim() !== "" ? <ArtistLinks artist={item.subtitle} featuring={trackRows ? splitFeaturing(item.title).featuring : []} /> : item.subtitle}
                 </span>
               </span>
               <span className="st-row-last truncate text-sm text-text-muted">{lastPlayedLabel(item.lastPlayedDay, today)}</span>

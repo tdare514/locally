@@ -70,11 +70,20 @@ private struct StatsRow: View {
 
     private var stacked: Bool { typeSize.isAccessibilitySize }
 
+    /// A track's title without its "(feat. ...)" (the names move to the artist line); other rows keep theirs.
+    private var plainTitle: String {
+        guard item.trackId != nil else { return item.title }
+        let plain = ArtistNames.splitFeaturing(item.title).title
+        return plain.isEmpty ? item.title : plain
+    }
+
     /// Tracks and albums carry their artist as the subtitle: it becomes the linked artist line (#288).
+    /// A track's line also holds the features from its title, merged with any in an "A feat. B" artist.
     private var artistCredit: (artist: String, featuring: [String])? {
         guard item.releaseId != nil, !item.subtitle.isEmpty else { return nil }
         let split = ArtistNames.splitArtistFeaturing(item.subtitle)
-        return (split.artist, split.featuring)
+        let fromTitle = item.trackId != nil ? ArtistNames.splitFeaturing(item.title).featuring : []
+        return (split.artist, FeaturingNames.merged(fromTitle, split.featuring))
     }
 
     /// The row opens the release through a button behind it; the artist links sit on top, so no
@@ -91,7 +100,7 @@ private struct StatsRow: View {
                 .frame(width: Theme.Stats.rowCover, height: Theme.Stats.rowCover)
                 .shadow(color: .black.opacity(0.5), radius: 6, y: 4)
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.title)
+                Text(plainTitle)
                     .font(.system(.body, weight: .semibold))
                     .foregroundStyle(StatsStyle.nameColor(item.medal))
                     .lineLimit(stacked ? 4 : 1)
@@ -99,7 +108,7 @@ private struct StatsRow: View {
                 if let credit = artistCredit {
                     ArtistLineText(
                         main: credit.artist, featuring: credit.featuring, font: .subheadline,
-                        mainColor: Theme.secondaryText, dimColor: Theme.secondaryText, lineLimit: stacked ? 3 : 1
+                        mainColor: Theme.secondaryText, dimColor: Theme.secondaryText, lineLimit: stacked ? nil : 2
                     )
                 } else {
                     Text(item.subtitle)
@@ -126,7 +135,7 @@ private struct StatsRow: View {
     }
 
     private var buttonLabel: String {
-        let base = Copy.Stats.itemLabel(rank: item.rank, title: item.title, plays: item.plays)
+        let base = Copy.Stats.itemLabel(rank: item.rank, title: plainTitle, plays: item.plays)
         let played = Copy.Stats.lastPlayedLabel(item.lastPlayedDay, today: today)
         return artistCredit == nil ? "\(base), \(item.subtitle), \(played)" : "\(base), \(played)"
     }

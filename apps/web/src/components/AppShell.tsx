@@ -6,8 +6,7 @@ import { acceptFromPhone, getLibrary, getSyncStatus, hideFromTray, resyncFromPho
 import Sidebar, { type SidebarPage } from "./sidebar/Sidebar";
 import LibraryView from "./LibraryView";
 import { buildArtistIndex } from "../lib/artist-index";
-import { buildArtistCatalog, catalogEntry } from "../lib/artist-catalog";
-import { artistKey } from "../lib/artist-names";
+import { buildArtistCatalog, catalogEntry, creditKey } from "../lib/artist-catalog";
 import ArtistView from "./ArtistView";
 import { ArtistNavProvider } from "./ArtistNav";
 import { IS_DEMO } from "../lib/demo";
@@ -430,7 +429,7 @@ export default function AppShell() {
                 setStatsPrefs((prev) => ({ ...prev, ...patch }));
               }}
               onOpenRelease={(id, trackId) => pushTo({ type: "release", id, trackId })}
-              onOpenArtist={(name) => pushTo({ type: "artist", key: artistKey(name) })}
+              onOpenArtist={(name) => pushTo({ type: "artist", key: creditKey(name) })}
               onOpenSettings={() => goTo({ type: "settings" })}
             />
           )}

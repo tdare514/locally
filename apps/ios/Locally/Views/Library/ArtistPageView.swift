@@ -19,6 +19,12 @@ struct ArtistPageView: View {
     @State private var palette: AmbientPalette?
     @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 30
     @ScaledMetric(relativeTo: .subheadline) private var lineSize: CGFloat = 14
+    /// Row covers grow with the text, up to a size that still leaves room for the words.
+    @ScaledMetric(relativeTo: .body) private var rowCover: CGFloat = 40
+
+    private static let sectionFont = Font.system(.headline, weight: .bold)
+    private static let metaFont = Font.subheadline
+    private static let rowTitleFont = Font.system(.subheadline, weight: .semibold)
 
     private var entry: ArtistCatalogEntry? { catalog?.entry(forKey: route.key) }
     private var stacked: Bool { dynamicTypeSize.isAccessibilitySize }
@@ -133,10 +139,10 @@ struct ArtistPageView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 Text(label)
-                    .font(Theme.Font.sectionTitle)
+                    .font(Self.sectionFont)
                     .foregroundStyle(Theme.primaryText)
                 Text(Copy.Artists.sectionCount(count))
-                    .font(Theme.Font.meta)
+                    .font(Self.metaFont)
                     .foregroundStyle(Theme.textDim)
                 Spacer()
             }
@@ -167,12 +173,12 @@ struct ArtistPageView: View {
                             }
                         VStack(alignment: .leading, spacing: 2) {
                             Text(release.title)
-                                .font(Theme.Font.rowTitle)
+                                .font(Self.rowTitleFont)
                                 .foregroundStyle(Theme.primaryText)
                                 .lineLimit(stacked ? 3 : 1)
                             if let year = release.year, !year.isEmpty {
                                 Text(year)
-                                    .font(Theme.Font.rowSubtitle)
+                                    .font(Self.metaFont)
                                     .foregroundStyle(Theme.secondaryText)
                                     .lineLimit(1)
                             }
@@ -218,18 +224,18 @@ struct ArtistPageView: View {
             }
             StatsCoverView(owner: release.id, cache: covers.cache, cornerRadius: 6)
                 .id(covers.generation)
-                .frame(width: 40, height: 40)
+                .frame(width: min(rowCover, 64), height: min(rowCover, 64))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(Theme.Font.rowTitle)
+                    .font(Self.rowTitleFont)
                     .foregroundStyle(Theme.primaryText)
                     .lineLimit(stacked ? 4 : 2)
                     .accessibilityHidden(true)
-                ArtistLineText(main: credit.main, featuring: credit.featuring, font: .system(size: 13), lineLimit: stacked ? nil : 2)
+                ArtistLineText(main: credit.main, featuring: credit.featuring, font: .footnote, lineLimit: stacked ? nil : 2)
                 if let detail {
                     Text(detail)
-                        .font(.system(size: 12))
+                        .font(.caption)
                         .foregroundStyle(Theme.textHint)
                         .lineLimit(stacked ? 3 : 1)
                         .accessibilityHidden(true)
@@ -263,7 +269,7 @@ struct ArtistPageView: View {
     private var gone: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(Copy.Artists.gone)
-                .font(Theme.Font.sectionTitle)
+                .font(Self.sectionFont)
                 .foregroundStyle(Theme.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
