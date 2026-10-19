@@ -1,4 +1,4 @@
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, eq, lte, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "../../db/client";
 import { playCounts, playDays, releases, samplerLease, spotifyLinks } from "../../db/schema";
@@ -62,10 +62,19 @@ export class SpotifySampler {
   async run(): Promise<SampleRunResult> {
     if (!(await this.takeLease())) return { sampled: 0, counted: 0, skipped: true };
 
+    try {
+      return await this.sampleAll();
+    } finally {
+      // Release the lease so a trigger that fires a few seconds early is not skipped. The 50 s expiry stays
+      // as the safety net for a run that crashes before this line.
+      await this.releaseLease().catch(() => undefined);
+    }
+  }
+
+  private async sampleAll(): Promise<SampleRunResult> {
     const links = (await this.db.select().from(spotifyLinks)).filter(
       (link) => !(link.problem && STOPPING_PROBLEMS.has(link.problem)) && (link.backoffUntil === null || link.backoffUntil <= this.now())
     );
-
     let sampled = 0;
     let counted = 0;
     let next = 0;
@@ -88,13 +97,17 @@ export class SpotifySampler {
     return { sampled, counted, skipped: false };
   }
 
-  /** `until` < now → now + 50 s, in one statement; a row comes back only when this run took the lease. */
+  private async releaseLease(): Promise<void> {
+    await this.db.update(samplerLease).set({ until: this.now() }).where(eq(samplerLease.id, LEASE_ID));
+  }
+
+  /** `until` <= now → now + 50 s, in one statement; a row comes back only when this run took the lease. */
   private async takeLease(): Promise<boolean> {
     const now = this.now();
     const rows = await this.db
       .insert(samplerLease)
       .values({ id: LEASE_ID, until: now + SAMPLER_LEASE_MS })
-      .onConflictDoUpdate({ target: samplerLease.id, set: { until: now + SAMPLER_LEASE_MS }, setWhere: lt(samplerLease.until, now) })
+      .onConflictDoUpdate({ target: samplerLease.id, set: { until: now + SAMPLER_LEASE_MS }, setWhere: lte(samplerLease.until, now) })
       .returning({ id: samplerLease.id });
     return rows.length > 0;
   }

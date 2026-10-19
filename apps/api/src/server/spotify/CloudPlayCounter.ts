@@ -51,8 +51,9 @@ export function thresholdMs(durationMs: number | null): number {
  * (null means the uri did not resolve); otherwise the session's own ids are reused.
  * - idle (a 204) keeps the session as it is;
  * - an item that isn't local, or doesn't resolve, clears it;
- * - a session counts once, at the first playing sample at or past the threshold (a track paused past it never
- *   starts a count).
+ * - a session counts once, at the first sample at or past the threshold that is playing, or in the same session
+ *   with progress that moved forward (it played in between, then was paused). A new session counts only while
+ *   playing, so a track first seen paused past the threshold never counts, however often it is seen.
  */
 export function countSample(prev: SessionState | null, sample: PlayerSample, at: number, ids: LocalIds | null): CountOutcome {
   if (sample.kind === "idle") return { next: prev, counted: false };
@@ -72,9 +73,7 @@ export function countSample(prev: SessionState | null, sample: PlayerSample, at:
 
   let counted = false;
   if (!alreadyCounted && sample.progressMs >= thresholdMs(sample.durationMs)) {
-    // Only a playing sample counts. The spec lets a continuing session count while paused, but a track left
-    // paused past the threshold would then count on its second sample, so a count always needs is_playing.
-    counted = sample.isPlaying;
+    counted = sample.isPlaying || (sameSession && sample.progressMs > prev.progressMs);
   }
 
   return {

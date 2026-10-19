@@ -155,16 +155,36 @@ describe("SpotifySampler counting", () => {
 });
 
 describe("SpotifySampler lease", () => {
-  it("skips a second run inside 50 s and runs again after", async () => {
+  it("lets a run right after a finished run proceed (the lease is released at the end)", async () => {
     kit.spotify.answer(PLAYER_URL, idle);
     expect(await kit.sampler.run()).toEqual({ sampled: 1, counted: 0, skipped: false });
-    kit.clock.now += 49_000;
+    kit.clock.now += 5_000;
+    expect(await kit.sampler.run()).toEqual({ sampled: 1, counted: 0, skipped: false });
+    const [lease] = await services.db.select().from(samplerLease);
+    expect(lease!.until).toBe(kit.clock.now);
+  });
+
+  it("skips a run that overlaps one still in progress, and the lease expires after 50 s if a run crashed", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    kit.spotify.answer(PLAYER_URL, idle);
+    kit.spotify.onCall = async () => {
+      await gate;
+    };
+    const first = kit.sampler.run();
+    await vi.waitFor(() => expect(kit.spotify.callsTo(PLAYER_URL)).toHaveLength(1));
+    kit.clock.now += 10_000;
     expect(await kit.sampler.run()).toEqual({ sampled: 0, counted: 0, skipped: true });
-    expect(kit.spotify.callsTo(PLAYER_URL)).toHaveLength(1);
+    release();
+    expect(await first).toEqual({ sampled: 1, counted: 0, skipped: false });
+
+    // A crashed run never released: simulate it and check the expiry.
+    await services.db.update(samplerLease).set({ until: kit.clock.now + 50_000 });
+    kit.spotify.onCall = null;
+    kit.clock.now += 49_000;
+    expect((await kit.sampler.run()).skipped).toBe(true);
     kit.clock.now += 2_000;
     expect((await kit.sampler.run()).skipped).toBe(false);
-    const [lease] = await services.db.select().from(samplerLease);
-    expect(lease!.until).toBe(kit.clock.now + 50_000);
   });
 });
 

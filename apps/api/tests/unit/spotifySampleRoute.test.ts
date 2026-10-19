@@ -66,15 +66,16 @@ describe("POST /v1/internal/spotify-sample", () => {
     expect((await sampleRoute.POST(post("Bearer the-cron-secret"))).status).toBe(401);
   });
 
-  it("runs with the right bearer, replies with counts only, and skips a second run inside the lease", async () => {
+  it("runs with the right bearer, replies with counts only, and skips a call while a lease is held", async () => {
     const kit = await enable();
     const { userId } = await signIn("a@example.com");
     await insertLink(testServices.db, kit.cipher, userId, Date.now());
     kit.spotify.answer(PLAYER_URL, idle);
-    // The route's sampler uses the kit's frozen clock, so the lease from run one still holds for run two.
     const first = await sampleRoute.POST(post(`Bearer ${SECRET}`));
     expect(first.status).toBe(200);
     expect(await first.json()).toEqual({ sampled: 1, counted: 0, skipped: false });
+    const { samplerLease } = await import("../../src/db/schema");
+    await testServices.db.update(samplerLease).set({ until: Date.now() + 30_000 }); // another run holds it
     const second = await sampleRoute.POST(post(`Bearer ${SECRET}`));
     expect(second.status).toBe(200);
     expect(await second.json()).toEqual({ sampled: 0, counted: 0, skipped: true });

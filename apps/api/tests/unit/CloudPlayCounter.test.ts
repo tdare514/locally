@@ -75,9 +75,9 @@ describe("countSample (one sample a minute)", () => {
   it("counts a pause and resume once", () => {
     const r = run([
       { min: 0, sample: item(A, 20_000), counts: false },
-      { min: 1, sample: item(A, 35_000, false), counts: false },
+      { min: 1, sample: item(A, 35_000, false), counts: true }, // progress moved forward: it played, then paused
       { min: 3, sample: item(A, 35_000, false), counts: false },
-      { min: 5, sample: item(A, 45_000, true), counts: true },
+      { min: 5, sample: item(A, 45_000, true), counts: false },
       { min: 6, sample: item(A, 105_000), counts: false },
     ]);
     expect(r.total).toBe(1);
@@ -91,6 +91,31 @@ describe("countSample (one sample a minute)", () => {
     ]);
     expect(r.total).toBe(0);
     expect(r.state?.counted).toBe(false);
+  });
+
+  it("counts a play that passed the threshold and was paused before the next sample, once", () => {
+    const r = run([
+      { min: 0, sample: item(A, 20_000), counts: false },
+      { min: 1, sample: item(A, 45_000, false), counts: true },
+      { min: 2, sample: item(A, 45_000, false), counts: false },
+    ]);
+    expect(r.total).toBe(1);
+  });
+
+  it("never counts a new session first seen paused past the threshold, nor one that has not advanced", () => {
+    expect(
+      run([
+        { min: 0, sample: item(A, 120_000, false), counts: false },
+        { min: 1, sample: item(A, 120_000, false), counts: false },
+      ]).total
+    ).toBe(0);
+    expect(
+      run([
+        { min: 0, sample: item(A, 20_000), counts: false },
+        { min: 1, sample: item(A, 20_000, false), counts: false },
+        { min: 2, sample: item(A, 20_000, false), counts: false },
+      ]).total
+    ).toBe(0);
   });
 
   it("does not count a seek back within the same play again", () => {
