@@ -24,7 +24,8 @@ import {
   syncNow,
   verifySyncCode,
 } from "../lib/api-client";
-import { CLOUD_PLAYS_LABEL, cloudPlaysLines } from "../lib/cloud-plays-copy";
+import { CLOUD_PLAYS_LABEL, cloudPlaysAnnouncement, cloudPlaysLines } from "../lib/cloud-plays-copy";
+import { watchCloudPlays } from "../lib/cloud-plays-refresh";
 import { libraryWidthClass } from "../lib/library-view-prefs";
 import { useLibraryWidth } from "../lib/use-library-width";
 import { IS_DEMO } from "../lib/demo";
@@ -90,6 +91,13 @@ function CloudPlaysRow({
     return () => clearInterval(timer);
   }, []);
   const lines = cloudPlaysLines(status, now);
+  // Announce state changes only: the first state is silent, and the clock never reaches the region.
+  const [seen, setSeen] = useState(lines.state);
+  const [announced, setAnnounced] = useState("");
+  if (seen !== lines.state) {
+    setSeen(lines.state);
+    setAnnounced(cloudPlaysAnnouncement(lines.state));
+  }
   return (
     <>
       <div className="flex items-center justify-between gap-4">
@@ -101,6 +109,7 @@ function CloudPlaysRow({
           role="switch"
           aria-checked={lines.on}
           aria-labelledby="cloud-plays-label"
+          aria-describedby="cloud-plays-help"
           onClick={onToggle}
           disabled={busy}
           className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40 ${
@@ -111,7 +120,9 @@ function CloudPlaysRow({
         </button>
       </div>
       <div className="flex items-center justify-between gap-4">
-        <p className="text-xs text-text-dim">{lines.line}</p>
+        <p id="cloud-plays-help" className="text-xs text-text-dim">
+          {lines.line}
+        </p>
         {lines.reconnect && (
           <button type="button" onClick={onReconnect} disabled={busy} className="btn-ink">
             <span className="btn-ink-label">Reconnect</span>
@@ -119,6 +130,9 @@ function CloudPlaysRow({
         )}
       </div>
       {lines.quiet && <p className="text-xs text-text-dim">{lines.quiet}</p>}
+      <p role="status" aria-live="polite" className="sr-only">
+        {announced}
+      </p>
     </>
   );
 }
@@ -312,6 +326,26 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
       clearTimeout(giveUp);
     };
   }, [cloudPending]);
+
+  // While Settings is open: re-read every 60 s and when the window comes back (after consent in the browser).
+  useEffect(() => {
+    if (IS_DEMO || !HAS_SPOTIFY_CONNECTION || !cloudSignedIn) return;
+    let cancelled = false;
+    const reread = () => {
+      getCloudPlays()
+        .then((status) => {
+          if (!cancelled) setCloud(status.available ? status : null);
+        })
+        .catch(() => {
+          // Keep the last answer; the next tick tries again.
+        });
+    };
+    const stop = watchCloudPlays(reread, window, document);
+    return () => {
+      cancelled = true;
+      stop();
+    };
+  }, [cloudSignedIn]);
 
   async function startCloudLink() {
     setCloudBusy(true);
@@ -712,7 +746,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
           ) : (
             <>
               <div className="flex items-center justify-between gap-4">
-                <span className="text-sm text-text-muted">Not connected</span>
+                <span className="text-sm text-text-muted">Not connected on this Mac</span>
                 <button
                   type="button"
                   onClick={handleConnectSpotify}

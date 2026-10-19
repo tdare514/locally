@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cloudPlaysLines, relativeChecked } from "../../src/lib/cloud-plays-copy";
+import { cloudPlaysAnnouncement, cloudPlaysLines, relativeChecked } from "../../src/lib/cloud-plays-copy";
 import type { CloudPlaysStatus } from "../../src/shared/types";
 
 const NOW = Date.UTC(2026, 9, 19, 12, 0, 0);
@@ -10,7 +10,7 @@ describe("cloudPlaysLines (#307)", () => {
     expect(cloudPlaysLines(base, NOW)).toEqual({
       state: "off",
       on: false,
-      line: "Counts your plays on any device, even while this Mac sleeps.",
+      line: "Counts your plays on any device, even while this Mac sleeps. Spotify asks once, separately from this Mac's connection.",
       quiet: null,
       reconnect: false,
     });
@@ -64,5 +64,24 @@ describe("relativeChecked", () => {
   it("null and junk read as not checked", () => {
     expect(relativeChecked(null, NOW)).toBe("Not checked yet");
     expect(relativeChecked("nope", NOW)).toBe("Not checked yet");
+  });
+});
+
+describe("cloudPlaysAnnouncement", () => {
+  it.each([
+    ["pending", "Finish linking in your browser."],
+    ["linked", "Online counting is on."],
+    ["reconnect", "Online counting needs you to reconnect Spotify."],
+    ["notOnTesterList", "This Spotify account isn't on the app's tester list."],
+    ["rateLimited", "Spotify is busy; counting resumes in a few minutes."],
+    ["off", "Online counting is off."],
+  ] as const)("%s", (state, text) => {
+    expect(cloudPlaysAnnouncement(state)).toBe(text);
+  });
+
+  it("never carries the ticking last-checked text", () => {
+    for (const s of ["pending", "linked", "reconnect", "notOnTesterList", "rateLimited", "off"] as const) {
+      expect(cloudPlaysAnnouncement(s)).not.toMatch(/checked|ago/i);
+    }
   });
 });

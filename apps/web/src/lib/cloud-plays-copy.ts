@@ -41,7 +41,7 @@ export function cloudPlaysLines(status: CloudPlaysStatus, nowMs: number): CloudP
     return {
       state: "off",
       on: false,
-      line: "Counts your plays on any device, even while this Mac sleeps.",
+      line: "Counts your plays on any device, even while this Mac sleeps. Spotify asks once, separately from this Mac's connection.",
       quiet: null,
       reconnect: false,
     };
@@ -73,5 +73,23 @@ export function cloudPlaysLines(status: CloudPlaysStatus, nowMs: number): CloudP
         quiet: "A track skipped in its first minute may not count.",
         reconnect: false,
       };
+  }
+}
+
+/** What the row's status region says when the state changes; never the ticking "Last checked" text. */
+export function cloudPlaysAnnouncement(state: CloudPlaysState): string {
+  switch (state) {
+    case "pending":
+      return "Finish linking in your browser.";
+    case "linked":
+      return "Online counting is on.";
+    case "reconnect":
+      return "Online counting needs you to reconnect Spotify.";
+    case "notOnTesterList":
+      return "This Spotify account isn't on the app's tester list.";
+    case "rateLimited":
+      return "Spotify is busy; counting resumes in a few minutes.";
+    case "off":
+      return "Online counting is off.";
   }
 }
