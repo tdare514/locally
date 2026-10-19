@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { authCodes, devices, files, pendingDeletes, playCounts, playDays, releases, userCounters, users } from "../../db/schema";
+import { authCodes, devices, files, pendingDeletes, playCounts, playDays, releases, spotifyLinkRequests, spotifyLinks, userCounters, users } from "../../db/schema";
 import { NotFoundError, ValidationError } from "../../shared/errors";
 import { emailSchema } from "../../shared/types";
 
@@ -14,7 +14,7 @@ export interface DeleteAccountResult {
 
 /**
  * Deletes a sync account: every row scoped to it (`devices`, `user_counters`,
- * `releases`, `files`, `play_counts`, `play_days`, `auth_codes`), plus the `users` row itself, in one
+ * `releases`, `files`, `play_counts`, `play_days`, `spotify_links`, `spotify_link_requests`, `auth_codes`), plus the `users` row itself, in one
  * transaction — then queues each removed file's storage key in
  * `pending_deletes` so its blob is removed afterward (see
  * `CleanupService.drainPendingDeletes`/`run`). Never deletes a blob inline;
@@ -35,6 +35,8 @@ export class AccountService {
       this.db.delete(files).where(eq(files.userId, userId)).returning({ id: files.id }),
       this.db.delete(playCounts).where(eq(playCounts.userId, userId)),
       this.db.delete(playDays).where(eq(playDays.userId, userId)),
+      this.db.delete(spotifyLinks).where(eq(spotifyLinks.userId, userId)),
+      this.db.delete(spotifyLinkRequests).where(eq(spotifyLinkRequests.userId, userId)),
       this.db.delete(authCodes).where(eq(authCodes.email, email)),
       this.db.delete(users).where(eq(users.id, userId)),
     ] as const;

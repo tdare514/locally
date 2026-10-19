@@ -302,6 +302,27 @@ value, not `!==`. It's deliberately left open when unset, which only happens in
 local development (`.env.example` leaves it blank on purpose), so it can be
 exercised directly with curl.
 
+### Spotify tokens on the sync service (#305)
+
+Only when `SPOTIFY_CLIENT_ID` is set; otherwise the routes answer 404 and nothing is stored.
+
+- **At rest:** refresh and access tokens are AES-256-GCM with a random 12-byte IV and the associated
+  data `spotify-link:<userId>`, so a ciphertext copied into another user's row fails to decrypt. The key
+  is `SPOTIFY_TOKEN_KEY` (base64 of 32 bytes); ciphertexts carry a `v1:` prefix so the key can be rotated.
+- **Never exposed:** tokens, the code, the state and the verifier are never logged, put in an error
+  message or returned, and tokens go only to `accounts.spotify.com` (and `api.spotify.com` from #306).
+- **Least scope:** `user-read-playback-state` only.
+- **OAuth:** PKCE S256; the state is random, stored as its sha256, single use and expires in 10 minutes.
+  The authorize URL goes only to the device that asked (rate limited, 10 an hour per user). The callback
+  page is fixed text that echoes nothing, is `no-store`, loads nothing (`default-src 'none'`) and sends
+  `Referrer-Policy: no-referrer`.
+- **Startup:** with the client id set, production refuses to start without `SPOTIFY_REDIRECT_URI`
+  (https), `SPOTIFY_TOKEN_KEY` (a valid 32-byte key) and `SAMPLER_SECRET`.
+- **Removal:** `DELETE /v1/spotify/link` and account deletion remove the tokens at once; the owner can
+  also revoke the grant at spotify.com/account/apps.
+- **Still to do:** the owner re-reads Spotify's Developer Terms on server-side token storage before the
+  sampler ships (#303 step 5).
+
 ### Env vars
 
 See `apps/api/.env.example` for the full list (`DATABASE_URL`, `AUTH_PEPPER`,
