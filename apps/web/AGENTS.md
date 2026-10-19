@@ -53,6 +53,7 @@ src/server/
     config.ts                 # client id (bundled, LOCALLY_SPOTIFY_CLIENT_ID overrides), redirect 127.0.0.1:8888/callback, scopes (#239)
     SpotifyAuth.ts            # PKCE sign-in: one-shot loopback listener, single-use state, code exchange, disconnect
     SpotifyClient.ts          # token refresh bound to its connection revision, request + error mapping
+    CloudPlays.ts             # online play counting (#307): caches GET /v1/spotify/link, link/unlink, authorize-URL allowlist; PlayTracker stands down while it is active; served at /api/spotify/cloud
   http/
     responses.ts              # errorResponse/badRequest
     validation.ts             # upload limits, mime sniffing, zod schemas: request → validated DTO parsers

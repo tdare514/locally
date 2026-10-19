@@ -5,6 +5,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { z } from "zod";
 import { PublicError } from "../../shared/errors";
+import type { CloudPlaysProblem } from "../../shared/types";
 import {
   PlayCountsResultSchema,
   ServerPlaysSummaryPageSchema,
@@ -93,6 +94,8 @@ export const RELEASE_PAGE_LIMIT = 200;
 const PLAYS_READ_TIMEOUT_MS = 5_000;
 /** How long the missing-files check and the resync request wait; both are optional extras. */
 const FILES_REPAIR_TIMEOUT_MS = 10_000;
+/** How long the Spotify link calls wait (#307). */
+const SPOTIFY_LINK_TIMEOUT_MS = 10_000;
 /** How long `pushPlays` waits; a batch of 500 entries is a small body, so this is generous. */
 const PLAYS_PUSH_TIMEOUT_MS = 15_000;
 
@@ -109,6 +112,36 @@ export class SyncRequestError extends PublicError {
     super(message);
   }
 }
+
+/** Thrown by the `/v1/spotify/link` calls on a 404: this server has no online play counting (#305). */
+export class SyncUnavailableError extends Error {}
+
+/** Why online counting is not running right now, as the service reports it (#305). */
+export type SpotifyLinkProblem = CloudPlaysProblem;
+
+/** `GET /v1/spotify/link`. */
+export type SpotifyLinkStatus =
+  | { linked: false }
+  | { linked: true; since: string | null; lastSampleAt: string | null; problem: SpotifyLinkProblem | null };
+
+const SpotifyLinkStatusSchema = z.union([
+  z.object({ linked: z.literal(false) }),
+  z.object({
+    linked: z.literal(true),
+    since: z.string().nullable().default(null),
+    lastSampleAt: z.string().nullable().default(null),
+    // An unknown problem word from a newer server reads as the generic "reconnect".
+    problem: z
+      .string()
+      .nullable()
+      .default(null)
+      .transform((p): SpotifyLinkProblem | null =>
+        p === null ? null : p === "notOnTesterList" || p === "rateLimited" ? p : "reconnect",
+      ),
+  }),
+]);
+
+const SpotifyLinkStartSchema = z.object({ authorizeUrl: z.string() });
 
 /** Thrown on a 401: the device token has been revoked or is otherwise no longer valid. */
 export class SyncAuthError extends Error {}
@@ -153,6 +186,13 @@ export interface SyncApi {
   /** `POST /v1/files/resync-request`: asks the account's other devices to upload again. Resolves
    * null on a 404 (an API from before #170). */
   requestResync(): Promise<{ resyncRequestedAt: string } | null>;
+  /** `POST /v1/spotify/link`: starts linking this account's Spotify to the service (#307). Throws
+   * `SyncUnavailableError` on a 404 and `SyncRequestError` (429) when rate-limited. */
+  spotifyLinkStart(timeZone: string): Promise<{ authorizeUrl: string }>;
+  /** `GET /v1/spotify/link`. Throws `SyncUnavailableError` on a 404, a server without the feature. */
+  spotifyLinkStatus(): Promise<SpotifyLinkStatus>;
+  /** `DELETE /v1/spotify/link`. Throws `SyncUnavailableError` on a 404. */
+  spotifyUnlink(): Promise<void>;
   /** Streams `filePath` to the given upload target without buffering it in memory. */
   uploadFile(upload: SyncUploadTarget, filePath: string): Promise<void>;
   /** Streams the response body at `url` to `destPath` without buffering it in memory. */
@@ -364,6 +404,40 @@ export class HttpSyncApi implements SyncApi {
     const parsed = ResyncRequestResultSchema.safeParse(await this.handle<unknown>(res));
     if (!parsed.success) throw new PublicError("Sync service sent an unexpected reply to a resync request");
     return parsed.data;
+  }
+
+  async spotifyLinkStart(timeZone: string): Promise<{ authorizeUrl: string }> {
+    const res = await fetch(this.url("/v1/spotify/link"), {
+      method: "POST",
+      headers: this.headers(true),
+      body: JSON.stringify({ timeZone }),
+      signal: AbortSignal.timeout(SPOTIFY_LINK_TIMEOUT_MS),
+    });
+    if (res.status === 404) throw new SyncUnavailableError("Online play counting is not available on this sync service");
+    const parsed = SpotifyLinkStartSchema.safeParse(await this.handle<unknown>(res));
+    if (!parsed.success) throw new PublicError("Sync service sent an unexpected reply to a Spotify link request");
+    return parsed.data;
+  }
+
+  async spotifyLinkStatus(): Promise<SpotifyLinkStatus> {
+    const res = await fetch(this.url("/v1/spotify/link"), {
+      headers: this.headers(false),
+      signal: AbortSignal.timeout(SPOTIFY_LINK_TIMEOUT_MS),
+    });
+    if (res.status === 404) throw new SyncUnavailableError("Online play counting is not available on this sync service");
+    const parsed = SpotifyLinkStatusSchema.safeParse(await this.handle<unknown>(res));
+    if (!parsed.success) throw new PublicError("Sync service sent an unexpected reply for the Spotify link");
+    return parsed.data;
+  }
+
+  async spotifyUnlink(): Promise<void> {
+    const res = await fetch(this.url("/v1/spotify/link"), {
+      method: "DELETE",
+      headers: this.headers(false),
+      signal: AbortSignal.timeout(SPOTIFY_LINK_TIMEOUT_MS),
+    });
+    if (res.status === 404) throw new SyncUnavailableError("Online play counting is not available on this sync service");
+    await this.handle(res);
   }
 
   async uploadFile(upload: SyncUploadTarget, filePath: string): Promise<void> {

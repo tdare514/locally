@@ -38,6 +38,14 @@ export interface SyncState {
    * tray on this Mac (#295). A newer version has another token, so the release shows again.
    */
   hiddenFromTray?: Record<string, string>;
+  /**
+   * releaseId -> ISO time a push of this adopted release was last queued to put its track `localId`s
+   * back on the server (#307). A release is queued at most once a day, so a server that keeps
+   * stripping the field cannot cause a push loop.
+   */
+  localIdQueuedAt?: Record<string, string>;
+  /** True once the one-time back-fill of adopted releases (#307) has been queued under this account. */
+  localIdBackfilled?: boolean;
 }
 
 /** Persists {@link SyncState}. Behind an interface so tests use an in-memory fake. */

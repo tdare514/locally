@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { PlaysStatus, SpotifyConnectionStatus, SyncStatus } from "../shared/types";
+import type { CloudPlaysStatus, PlaysStatus, SpotifyConnectionStatus, SyncStatus } from "../shared/types";
 import { DEFAULT_SYNC_BASE_URL } from "../shared/types";
 import {
   deleteSyncAccount,
   disconnectSpotify,
+  getCloudPlays,
   getPlaysStatus,
   putCountOtherDevices,
   getSettings,
@@ -17,10 +18,13 @@ import {
   requestSyncCode,
   reveal,
   signOutSync,
+  startCloudPlays,
   startSpotifyAuth,
+  stopCloudPlays,
   syncNow,
   verifySyncCode,
 } from "../lib/api-client";
+import { CLOUD_PLAYS_LABEL, cloudPlaysLines } from "../lib/cloud-plays-copy";
 import { libraryWidthClass } from "../lib/library-view-prefs";
 import { useLibraryWidth } from "../lib/use-library-width";
 import { IS_DEMO } from "../lib/demo";
@@ -67,6 +71,58 @@ function formatLastSync(iso: string | null): string {
   return new Date(iso).toLocaleString();
 }
 
+/** "Count plays when this Mac is off" (#307): the same switch row as "Count plays on my other devices". */
+function CloudPlaysRow({
+  status,
+  busy,
+  onToggle,
+  onReconnect,
+}: {
+  status: CloudPlaysStatus;
+  busy: boolean;
+  onToggle: () => void;
+  onReconnect: () => void;
+}) {
+  // The clock only moves on a timer, so "Last checked" ages while the page is open.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+  const lines = cloudPlaysLines(status, now);
+  return (
+    <>
+      <div className="flex items-center justify-between gap-4">
+        <span id="cloud-plays-label" className="text-sm text-text-muted">
+          {CLOUD_PLAYS_LABEL}
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={lines.on}
+          aria-labelledby="cloud-plays-label"
+          onClick={onToggle}
+          disabled={busy}
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40 ${
+            lines.on ? "bg-accent text-black" : "bg-elevated-hover text-text-dim hover:text-text-muted"
+          }`}
+        >
+          {lines.on ? "On" : "Off"}
+        </button>
+      </div>
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-xs text-text-dim">{lines.line}</p>
+        {lines.reconnect && (
+          <button type="button" onClick={onReconnect} disabled={busy} className="btn-ink">
+            <span className="btn-ink-label">Reconnect</span>
+          </button>
+        )}
+      </div>
+      {lines.quiet && <p className="text-xs text-text-dim">{lines.quiet}</p>}
+    </>
+  );
+}
+
 export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, section, onCheckSpotifyFolders }: SettingsViewProps) {
   const [libraryDir, setLibraryDir] = useState("");
   const [loading, setLoading] = useState(true);
@@ -104,7 +160,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
   const [playsStatus, setPlaysStatus] = useState<PlaysStatus>("off");
   const [countOtherDevices, setCountOtherDevices] = useState(false);
   const [savingOtherDevices, setSavingOtherDevices] = useState(false);
-  const [playsSource, setPlaysSource] = useState<"account" | "this-mac">("this-mac");
+  const [playsSource, setPlaysSource] = useState<"account" | "this-mac" | "online">("this-mac");
   const [playsFallingBack, setPlaysFallingBack] = useState(false);
 
   // While counting is on: read the tracker status now, after toggling, and every 10 s.
@@ -207,7 +263,87 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
     }
   }
 
-  const showOtherDevicesRow = HAS_SPOTIFY_CONNECTION && spotify?.connected === true && trackPlays;
+  // Online counting (#307). null: not loaded, signed out, or the service lacks it (row hidden).
+  const [cloudState, setCloud] = useState<CloudPlaysStatus | null>(null);
+  const [cloudBusy, setCloudBusy] = useState(false);
+  const cloudSignedIn = syncStatus?.signedIn ?? false;
+  // Signed out (or the demo): whatever was loaded is not shown.
+  const cloud = cloudSignedIn && !IS_DEMO ? cloudState : null;
+  const cloudPending = cloud?.pending === true;
+  // Linked with no problem: the service counts every device, so the "other devices" row has nothing to add.
+  const cloudActive = cloud?.available === true && cloud.linked && cloud.problem === null;
+
+  useEffect(() => {
+    if (IS_DEMO || !HAS_SPOTIFY_CONNECTION || !cloudSignedIn) return;
+    let cancelled = false;
+    getCloudPlays()
+      .then((status) => {
+        if (!cancelled) setCloud(status.available ? status : null);
+      })
+      .catch(() => {
+        // A 404 or an error hides the row.
+        if (!cancelled) setCloud(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [cloudSignedIn]);
+
+  // While a link is pending: ask every 2 s, give up after 10 min, stop on unmount.
+  useEffect(() => {
+    if (!cloudPending) return;
+    let cancelled = false;
+    const timer = setInterval(() => {
+      getCloudPlays()
+        .then((status) => {
+          if (!cancelled) setCloud(status.available ? status : null);
+        })
+        .catch(() => {
+          // Keep waiting; the next tick tries again.
+        });
+    }, SPOTIFY_POLL_MS);
+    const giveUp = setTimeout(() => {
+      clearInterval(timer);
+      setCloud((prev) => (prev ? { ...prev, pending: false } : prev));
+    }, SPOTIFY_GIVE_UP_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      clearTimeout(giveUp);
+    };
+  }, [cloudPending]);
+
+  async function startCloudLink() {
+    setCloudBusy(true);
+    try {
+      const { authorizeUrl } = await startCloudPlays();
+      // Electron hands this to the system browser (its window-open handler); a browser opens a tab.
+      window.open(authorizeUrl, "_blank", "noopener,noreferrer");
+      setCloud((prev) => (prev ? { ...prev, pending: true } : prev));
+    } catch (e) {
+      onToast("error", e instanceof Error ? e.message : "Couldn't start linking Spotify.");
+    } finally {
+      setCloudBusy(false);
+    }
+  }
+
+  async function handleToggleCloud() {
+    if (cloud?.linked || cloud?.pending) {
+      setCloudBusy(true);
+      try {
+        const status = await stopCloudPlays();
+        setCloud(status.available ? status : null);
+      } catch (e) {
+        onToast("error", e instanceof Error ? e.message : "Couldn't turn off online counting.");
+      } finally {
+        setCloudBusy(false);
+      }
+      return;
+    }
+    await startCloudLink();
+  }
+
+  const showOtherDevicesRow = HAS_SPOTIFY_CONNECTION && spotify?.connected === true && trackPlays && !cloudActive;
   const otherDevicesOn = showOtherDevicesRow && countOtherDevices;
 
   async function handleToggleTrackPlays() {
@@ -471,7 +607,9 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
             </button>
           </div>
           <p className="text-xs text-text-dim">
-            {otherDevicesOn
+            {cloudActive
+              ? "Counts a Locally track once it has played 30 seconds in Spotify, on any of your devices, even when this Mac is off."
+              : otherDevicesOn
               ? "Counts a Locally track once it has played 30 seconds in Spotify, on any of your devices."
               : showOtherDevicesRow
                 ? "Counts a Locally track once it has played 30 seconds in Spotify on this Mac, or on another device while Spotify is open here."
@@ -589,6 +727,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
               </p>
             </>
           )}
+          {cloud && <CloudPlaysRow status={cloud} busy={cloudBusy} onToggle={handleToggleCloud} onReconnect={startCloudLink} />}
           {(spotifyStartError || spotify.error) && (
             <p className="text-sm text-danger">{spotifyStartError ?? spotify.error}</p>
           )}

@@ -65,6 +65,8 @@ export const SyncTrackSchema = z.object({
   file: syncFileName("track file"),
   bytes: z.number().int().nonnegative(),
   durationSec: z.number().nullable(),
+  /** Adopted tracks only (#307): the `spotify:local:` id, so the sync service can match a cloud play to the track. Omitted otherwise. */
+  localId: z.string().optional(),
 });
 
 /**
@@ -164,6 +166,7 @@ export function toSyncRecord(
       file: syncTrackFileName(release, t),
       bytes: trackBytesById[t.id] ?? 0,
       durationSec: t.durationSec,
+      ...(release.adopted && t.localId ? { localId: t.localId } : {}),
     }));
 
   return {

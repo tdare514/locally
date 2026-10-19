@@ -10,6 +10,7 @@ import { FakePlayCountStore } from "../FakePlayCountStore";
 let services: Services;
 let status: PlaysStatus;
 let source: "account" | "this-mac";
+let standingDown: boolean;
 let fallingBack: boolean;
 let playStore: FakePlayCountStore;
 let settingsValue: Settings;
@@ -32,13 +33,14 @@ beforeEach(() => {
   status = "off";
   source = "this-mac";
   fallingBack = false;
+  standingDown = false;
   playStore = new FakePlayCountStore();
   settingsValue = { libraryDir: "/tmp/lib", sync: null };
   liveReleases = [];
   releasePlays = vi.fn(async () => ({ tracks: [] }));
   syncApiFactory = vi.fn(() => ({ releasePlays }) as unknown as SyncApi);
   services = {
-    playTracker: { status: () => status },
+    playTracker: { status: () => status, standingDown: () => standingDown },
     nowPlaying: { currentSource: () => source, fallingBack: () => fallingBack },
     playStore,
     library: { list: async () => liveReleases },
@@ -64,6 +66,14 @@ describe("GET /api/plays/status", () => {
     source = "this-mac";
     fallingBack = true;
     expect(await (await GET()).json()).toEqual({ status: "on", source: "this-mac", fallingBack: true });
+  });
+
+  it("reads online while the tracker stands down for online counting (#307)", async () => {
+    status = "on";
+    source = "account";
+    fallingBack = true;
+    standingDown = true;
+    expect(await (await GET()).json()).toEqual({ status: "on", source: "online", fallingBack: false });
   });
 });
 

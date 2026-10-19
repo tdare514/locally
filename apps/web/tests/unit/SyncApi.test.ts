@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { HttpSyncApi, SyncAuthError, SyncConflictError, SyncRequestError } from "../../src/server/sync/SyncApi";
+import { HttpSyncApi, SyncAuthError, SyncConflictError, SyncRequestError, SyncUnavailableError } from "../../src/server/sync/SyncApi";
 import { SyncRecordRejectedError } from "../../src/server/sync/SyncRecord";
 import { PublicError } from "../../src/shared/errors";
 
@@ -543,5 +543,53 @@ describe("HttpSyncApi missing files (#172)", () => {
     expect(calls[0].init?.method).toBe("POST");
     expect(calls[0].init?.body).toBeUndefined();
     expect((calls[0].init?.headers as Record<string, string>)["Authorization"]).toBe("Bearer tok-123");
+  });
+});
+
+describe("Spotify link calls (#307)", () => {
+  it("POST /v1/spotify/link sends the time zone with the token and returns the address", async () => {
+    mockNextResponse(jsonResponse({ authorizeUrl: "https://accounts.spotify.com/authorize?state=x" }));
+    const api = new HttpSyncApi("https://sync.example", "tok");
+    await expect(api.spotifyLinkStart("Europe/London")).resolves.toEqual({
+      authorizeUrl: "https://accounts.spotify.com/authorize?state=x",
+    });
+    expect(calls[0].url).toBe("https://sync.example/v1/spotify/link");
+    expect(calls[0].init?.method).toBe("POST");
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({ timeZone: "Europe/London" });
+    expect((calls[0].init?.headers as Record<string, string>).Authorization).toBe("Bearer tok");
+  });
+
+  it("GET /v1/spotify/link reads each state, and maps an unknown problem to reconnect", async () => {
+    const api = new HttpSyncApi("https://sync.example", "tok");
+    mockNextResponse(jsonResponse({ linked: false }));
+    await expect(api.spotifyLinkStatus()).resolves.toEqual({ linked: false });
+    mockNextResponse(jsonResponse({ linked: true, since: "s", lastSampleAt: "l", problem: null }));
+    await expect(api.spotifyLinkStatus()).resolves.toEqual({ linked: true, since: "s", lastSampleAt: "l", problem: null });
+    mockNextResponse(jsonResponse({ linked: true, since: "s", lastSampleAt: null, problem: "rateLimited" }));
+    await expect(api.spotifyLinkStatus()).resolves.toMatchObject({ problem: "rateLimited" });
+    mockNextResponse(jsonResponse({ linked: true, since: "s", lastSampleAt: null, problem: "somethingNew" }));
+    await expect(api.spotifyLinkStatus()).resolves.toMatchObject({ problem: "reconnect" });
+  });
+
+  it("DELETE /v1/spotify/link accepts a 204", async () => {
+    mockNextResponse(new Response(null, { status: 204 }));
+    await expect(new HttpSyncApi("https://sync.example", "tok").spotifyUnlink()).resolves.toBeUndefined();
+    expect(calls[0].init?.method).toBe("DELETE");
+  });
+
+  it("answers a 404 with a typed unavailable on all three calls", async () => {
+    const api = new HttpSyncApi("https://sync.example", "tok");
+    for (const call of [() => api.spotifyLinkStart("UTC"), () => api.spotifyLinkStatus(), () => api.spotifyUnlink()]) {
+      mockNextResponse(jsonResponse({ error: "Not found" }, 404));
+      await expect(call()).rejects.toBeInstanceOf(SyncUnavailableError);
+    }
+  });
+
+  it("keeps the usual errors: 401 is a sign-in error, 429 carries its status", async () => {
+    const api = new HttpSyncApi("https://sync.example", "tok");
+    mockNextResponse(jsonResponse({ error: "no" }, 401));
+    await expect(api.spotifyLinkStatus()).rejects.toBeInstanceOf(SyncAuthError);
+    mockNextResponse(jsonResponse({ error: "slow down" }, 429));
+    await expect(api.spotifyLinkStart("UTC")).rejects.toMatchObject({ status: 429 });
   });
 });
