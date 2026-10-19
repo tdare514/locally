@@ -96,4 +96,8 @@ struct StatsCopyTests {
         #expect(Copy.Stats.failed == "Couldn't load your plays. Pull down to try again.")
         #expect(Copy.Stats.busy == "Couldn't load your plays just now. Try again in a few minutes.")
     }
+
+    @Test func noPlaysExplainsWhenTheMacCounts() {
+        #expect(Copy.Stats.noPlays == "Plays show up here once Locally on your Mac has counted some. They count while your Mac is on, or all the time with Count plays when this Mac is off in its Settings.")
+    }
 }

@@ -321,4 +321,37 @@ struct SyncRecordTests {
         #expect(tracksJSON[0].keys.contains("durationSec"))
         #expect(tracksJSON[0]["durationSec"] is NSNull)
     }
+
+    // MARK: - localId (#308)
+
+    private func trackJSON(extra: String) -> Data {
+        Data("""
+        {"id": "d290f1ee-6c54-4b01-90e6-d701748f0851", "title": "Intro", "trackNumber": 1, "file": "01 - Intro.mp3", "bytes": 10, "durationSec": null\(extra)}
+        """.utf8)
+    }
+
+    @Test func aTrackDecodesLocalIdWhenPresentAndNilWhenAbsent() throws {
+        let with = try JSONDecoder.syncApi.decode(SyncTrack.self, from: trackJSON(extra: ", \"localId\": \"spotify:local:a:b:c:61\""))
+        #expect(with.localId == "spotify:local:a:b:c:61")
+        #expect(try JSONDecoder.syncApi.decode(SyncTrack.self, from: trackJSON(extra: "")).localId == nil)
+    }
+
+    @Test func aTrackWithoutLocalIdEncodesNoLocalIdKey() throws {
+        let track = SyncTrack(id: "d290f1ee-6c54-4b01-90e6-d701748f0851", title: "Intro", trackNumber: 1, file: "a.mp3", bytes: 1)
+        let json = try #require(String(data: try JSONEncoder().encode(track), encoding: .utf8))
+        #expect(!json.contains("localId"))
+        let withId = SyncTrack(id: "d290f1ee-6c54-4b01-90e6-d701748f0851", title: "Intro", trackNumber: 1, file: "a.mp3", bytes: 1, localId: "spotify:local:x")
+        #expect(try JSONDecoder().decode(SyncTrack.self, from: try JSONEncoder().encode(withId)).localId == "spotify:local:x")
+    }
+
+    @Test func localIdSurvivesRecordToReleaseAndBackToRecord() throws {
+        let record = SyncRecord(
+            id: UUID().uuidString, kind: "single", title: "T", artist: "A",
+            tracks: [SyncTrack(id: UUID().uuidString, title: "T", trackNumber: 1, file: "a.mp3", bytes: 1, localId: "spotify:local:x")],
+            origin: "mac", originDevice: "M", createdAt: Date(), updatedAt: Date(), deleted: false
+        )
+        let release = record.toRelease()
+        #expect(release.tracks[0].localId == "spotify:local:x")
+        #expect(release.toSyncRecord(origin: "ios", originDevice: "P", fileBytes: [:]).tracks[0].localId == "spotify:local:x")
+    }
 }

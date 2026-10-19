@@ -525,7 +525,7 @@ enum Copy {
         static let signedOutTitle = "Your plays live on your Mac"
         static let signedOutBody = "Locally counts the songs you play in Spotify on your Mac. Sign in on both to see them here."
         static let signedOutAction = "Sign in"
-        static let noPlays = "Plays show up here once Locally on your Mac has counted some. Turn on play counting in its Settings."
+        static let noPlays = "Plays show up here once Locally on your Mac has counted some. They count while your Mac is on, or all the time with Count plays when this Mac is off in its Settings."
         static let failed = "Couldn't load your plays. Pull down to try again."
         static let busy = "Couldn't load your plays just now. Try again in a few minutes."
 
