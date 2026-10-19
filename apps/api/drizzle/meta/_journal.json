@@ -64,6 +64,13 @@
       "when": 1792427549877,
       "tag": "0008_tiny_veda",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1792427918628,
+      "tag": "0009_big_shinko_yamashiro",
+      "breakpoints": true
     }
   ]
 }

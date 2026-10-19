@@ -44,6 +44,11 @@ export const emailSchema = z
 
 export const platformSchema = z.enum(["mac", "ios"]);
 export type Platform = z.infer<typeof platformSchema>;
+/**
+ * What the `devices.platform` column can hold. `"cloud"` is the sampler's own device (#303, #306): it is never
+ * accepted from a client (`platformSchema` stays `mac | ios`), only read back in play lists.
+ */
+export type DevicePlatform = Platform | "cloud";
 
 const isoDateSchema = z.string().datetime({ offset: true, message: "Must be an ISO 8601 timestamp" });
 
@@ -54,6 +59,8 @@ const makeTrackRecordSchema = (fileName: z.ZodType<string>) => z.object({
   trackNumber: z.number().int().positive(),
   /** Which disc of a multi-disc release this track is on; absent on a single-disc release. */
   discNumber: z.number().int().min(1).max(99).optional(),
+  /** The `spotify:local:` id the Mac stored when it adopted this file (#303); sent for adopted tracks only. */
+  localId: z.string().max(1000).startsWith("spotify:local:").optional(),
   file: fileName,
   bytes: z.number().int().nonnegative(),
   durationSec: z.number().nonnegative().nullable(),
@@ -144,7 +151,7 @@ export interface UserSummary {
 export interface DeviceSummary {
   id: string;
   name: string;
-  platform: Platform;
+  platform: DevicePlatform;
   createdAt: string;
   lastSeenAt: string;
   revoked: boolean;
@@ -266,7 +273,7 @@ export interface PlayCountsResponse {
 export interface TrackPlaysDevice {
   deviceId: string;
   name: string;
-  platform: Platform;
+  platform: DevicePlatform;
   count: number;
   current: boolean;
 }

@@ -83,6 +83,15 @@ file key; `discNumber` only changes the tags a receiver writes (`spec/metadata.m
 the key, and a client that does not know it strips it when it re-pushes a record; that is accepted because
 only the owner's own devices sync and they update together.
 
+A `tracks[]` entry may carry `localId` (#303): the `spotify:local:` id the Mac stored when it adopted the file,
+a string that starts with `spotify:local:` and is at most 1,000 characters (anything else is a 400). The key is
+omitted when there is none, never written as null, and only the Mac sends it, for adopted tracks. The sync
+service matches a Spotify local-file play to the track by this id, part by part (NFC artist, album and title,
+seconds within 2). **Clients MUST carry it through unchanged** when they re-push a record: the iPhone in #308
+and the Mac in #307. Until they do, a client that drops it makes the server fall back to matching on the
+release title, artist and track title and duration, so an edited title or a "feat." credit can miss. Older
+servers strip the key (zod's default), and older clients ignore it.
+
 A record may carry `source`: `"adopted"` for a release the Mac adopted in place from the owner's own
 audio files (`docs/plans/245-adopt-local-files.md`, decision 6), or absent for Locally's own releases. The
 key is omitted when absent, never written as null. An adopted release syncs details only: `tracks[].file`
@@ -151,7 +160,7 @@ drains `pending_deletes` (blobs of deleted accounts), oldest first.
 
 Behind `SPOTIFY_CLIENT_ID` (#305): when it is unset, all four routes answer 404. The server runs its own
 PKCE grant with scope `user-read-playback-state` only; its tokens never pass through a client. Nothing
-samples yet: the sampler route and the cloud device come in #306. No existing route or record changes, so
+samples these links: see "Spotify sampler" below. No existing route or record changes, so
 `apps/web` and `apps/ios` are unaffected until they adopt these.
 
 | Method and path | Body / query | Returns |
@@ -162,6 +171,26 @@ samples yet: the sampler route and the cloud device come in #306. No existing ro
 | DELETE `/v1/spotify/link` | | 204; deletes the stored tokens; idempotent |
 
 Account deletion removes the link, and the daily cleanup removes expired link requests.
+
+### Spotify sampler (#303, #306)
+
+| Method and path | Body / query | Returns |
+| --- | --- | --- |
+| POST `/v1/internal/spotify-sample` | none; `Authorization: Bearer <SAMPLER_SECRET>` (not a device token, not `CRON_SECRET`) | `{ sampled, counted, skipped }` (numbers and a boolean only; no names or ids). 401 for a missing or wrong bearer (compared in constant time); 404 when `SPOTIFY_CLIENT_ID` is unset. A run takes a 50 s lease; a second call inside it answers 200 `{ sampled: 0, counted: 0, skipped: true }` |
+
+An external scheduler calls it every minute (Hobby crons run once a day). A run reads `GET /v1/me/player` for
+each linked user with no `reconnect` or `notOnTesterList` problem and no back-off (at most 25 at once), resolves
+a playing `spotify:local:` uri to one of the user's live releases and counts it once per play, at 30 s or 90% of
+a short track, using Spotify's `progress_ms` because it sees one sample a minute. The link's `problem` is
+`reconnect` (the refresh token was refused), `notOnTesterList` (Spotify answered 403 "not registered") or
+`rateLimited` (429, with a back-off of at least 60 s, cleared by the next success).
+
+**`platform: "cloud"`.** Plays are stored under one `devices` row per user, named "Spotify (online)", created
+by the first count and reused after an unlink and re-link. Its token can never authenticate. The API never accepts
+`"cloud"` from a client (`origin` and `platform` in verify stay `mac` or `ios`); it appears only as `platform` in
+`GET /v1/releases/:id/plays` (and so in the Mac's and iPhone's per-device lists), and is hidden from
+`GET /v1/me`'s `devices` (and its `devicesHasMore`). Both clients already read `platform` as a plain string, so
+no client change is needed to show it; its plays are in `GET /v1/plays/summary` like any device's.
 
 ## Play counts
 

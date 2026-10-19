@@ -1,10 +1,10 @@
 import crypto from "node:crypto";
-import { and, asc, desc, eq, isNotNull, isNull, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, ne, type SQL } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { authCodes, devices, users } from "../../db/schema";
 import { DEFAULT_STORAGE_LIMIT_BYTES } from "../../db/schema";
 import { NotFoundError, UnauthorizedError } from "../../shared/errors";
-import type { DeviceSummary, Platform } from "../../shared/types";
+import type { DevicePlatform, DeviceSummary, Platform } from "../../shared/types";
 import type { Mailer } from "../mail/Mailer";
 
 const CODE_LENGTH = 6;
@@ -22,7 +22,7 @@ export const LAST_SEEN_REFRESH_MS = DAY_MS;
 
 export interface AuthContext {
   user: { id: string; email: string };
-  device: { id: string; name: string; platform: Platform };
+  device: { id: string; name: string; platform: DevicePlatform };
 }
 
 export interface VerifyInput {
@@ -274,7 +274,8 @@ export class AuthService {
     const tokenHash = this.hashToken(token);
     const [device] = await this.db.select().from(devices).where(eq(devices.tokenHash, tokenHash));
 
-    if (!device || device.revokedAt !== null) {
+    // A cloud device (#306) has a throwaway token hash and can never sign in; refuse it explicitly as well.
+    if (!device || device.revokedAt !== null || device.platform === "cloud") {
       throw new UnauthorizedError("Invalid or revoked device token");
     }
 
@@ -302,7 +303,7 @@ export class AuthService {
     const rows = await this.db
       .select()
       .from(devices)
-      .where(eq(devices.userId, userId))
+      .where(and(eq(devices.userId, userId), ne(devices.platform, "cloud")))
       .orderBy(desc(devices.createdAt))
       .limit(51);
 
