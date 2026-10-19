@@ -143,6 +143,35 @@ export const pendingDeletes = sqliteTable("pending_deletes", {
   attempts: integer("attempts").notNull().default(0),
 });
 
+/**
+ * One Spotify link per user for the sync service's own grant (#305). Both tokens are AES-256-GCM
+ * ciphertexts (`server/crypto/TokenCipher.ts`) bound to the user id. `cloudDeviceId` is unused until #306.
+ */
+export const spotifyLinks = sqliteTable("spotify_links", {
+  userId: text("user_id").primaryKey().references(() => users.id),
+  refreshTokenEnc: text("refresh_token_enc").notNull(),
+  accessTokenEnc: text("access_token_enc").notNull(),
+  /** Epoch ms. */
+  accessExpiresAt: integer("access_expires_at").notNull(),
+  scope: text("scope").notNull(),
+  timeZone: text("time_zone").notNull(),
+  cloudDeviceId: text("cloud_device_id"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+  lastSampleAt: integer("last_sample_at"),
+  problem: text("problem"),
+  backoffUntil: integer("backoff_until"),
+});
+
+/** A pending OAuth link request: single use, 10 minutes, keyed by the sha256 hex of its state. */
+export const spotifyLinkRequests = sqliteTable("spotify_link_requests", {
+  stateHash: text("state_hash").primaryKey(),
+  userId: text("user_id").notNull(),
+  verifier: text("verifier").notNull(),
+  timeZone: text("time_zone").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+});
+
 // Re-exported so callers that only need the `sql` tag for a raw expression
 // (e.g. QuotaService's SUM) don't need a second import from drizzle-orm.
 export { sql };

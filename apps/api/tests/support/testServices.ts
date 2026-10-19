@@ -65,6 +65,7 @@ export async function createTestServices(): Promise<TestServices> {
     quota,
     files: new ReleaseFilesService(db, fileStore, quota),
     cleanup: new CleanupService(db, fileStore),
+    spotify: null,
     cronSecret: undefined,
     storageAlertBytes: 50 * 1024 * 1024 * 1024,
     allowedOrigins: ["http://localhost:*"],
@@ -79,6 +80,7 @@ export async function createTestServices(): Promise<TestServices> {
       resyncRequestByDevice: new InMemoryRateLimiter(6, 60 * 60 * 1000),
       resyncRequestByUser: new InMemoryRateLimiter(24, 60 * 60 * 1000),
       playsSummary: new InMemoryRateLimiter(1000, 60 * 60 * 1000),
+      spotifyLink: new InMemoryRateLimiter(10, 60 * 60 * 1000),
     },
   };
 }

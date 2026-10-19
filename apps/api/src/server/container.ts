@@ -16,6 +16,8 @@ import { VercelBlobFileStore } from "./files/VercelBlobFileStore";
 import { ReleaseFilesService } from "./files/ReleaseFilesService";
 import type { RateLimiter } from "./ratelimit/RateLimiter";
 import { DbRateLimiter } from "./ratelimit/DbRateLimiter";
+import { TokenCipher } from "./crypto/TokenCipher";
+import { SpotifyLinkService } from "./spotify/SpotifyLinkService";
 
 export interface Services {
   db: Db;
@@ -28,6 +30,8 @@ export interface Services {
   quota: QuotaService;
   files: ReleaseFilesService;
   cleanup: CleanupService;
+  /** Null unless `SPOTIFY_CLIENT_ID` is set (#305); the Spotify routes answer 404 then. */
+  spotify: SpotifyLinkService | null;
   cronSecret: string | undefined;
   storageAlertBytes: number;
   allowedOrigins: string[];
@@ -46,6 +50,8 @@ export interface Services {
     resyncRequestByUser: RateLimiter;
     /** `GET /v1/plays/summary`, keyed by user id. */
     playsSummary: RateLimiter;
+    /** `POST /v1/spotify/link`, keyed by user id (#305). */
+    spotifyLink: RateLimiter;
   };
 }
 
@@ -77,6 +83,12 @@ async function buildServices(): Promise<Services> {
     quota,
     files: new ReleaseFilesService(db, fileStore, quota),
     cleanup: new CleanupService(db, fileStore),
+    spotify: env.spotify
+      ? new SpotifyLinkService(db, new TokenCipher(env.spotify.tokenKey), {
+          clientId: env.spotify.clientId,
+          redirectUri: env.spotify.redirectUri,
+        })
+      : null,
     cronSecret: env.cronSecret,
     storageAlertBytes: env.storageAlertBytes,
     allowedOrigins: env.allowedOrigins,
@@ -96,6 +108,8 @@ async function buildServices(): Promise<Services> {
       resyncRequestByUser: new DbRateLimiter(db, 24, 60 * 60 * 1000, "resync-request:user"),
       // 600 plays-summary reads per user, per hour (#267), shared by the Mac (200) and the iPhone (200).
       playsSummary: new DbRateLimiter(db, 600, 60 * 60 * 1000, "plays-summary:user"),
+      // 10 link starts per user, per hour (#305).
+      spotifyLink: new DbRateLimiter(db, 10, 60 * 60 * 1000, "spotify-link:user"),
     },
   };
 }

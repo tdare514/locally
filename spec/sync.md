@@ -147,6 +147,22 @@ device (6 an hour each) and per user (24 an hour each), 429 beyond; JSON request
 bodies are capped at 1 MiB (400 when exceeded). The daily cron (`GET /v1/internal/cleanup`) also
 drains `pending_deletes` (blobs of deleted accounts), oldest first.
 
+## Spotify link (#303)
+
+Behind `SPOTIFY_CLIENT_ID` (#305): when it is unset, all four routes answer 404. The server runs its own
+PKCE grant with scope `user-read-playback-state` only; its tokens never pass through a client. Nothing
+samples yet: the sampler route and the cloud device come in #306. No existing route or record changes, so
+`apps/web` and `apps/ios` are unaffected until they adopt these.
+
+| Method and path | Body / query | Returns |
+| --- | --- | --- |
+| POST `/v1/spotify/link` | `{ timeZone }` (IANA name; 400 if invalid) | `{ authorizeUrl }` for `accounts.spotify.com/authorize` (S256, single-use `state`, valid 10 minutes); 10 an hour per user, 429 beyond |
+| GET `/v1/spotify/callback` | Spotify's `code` or `error`, and `state`; no auth | A fixed HTML page, `no-store`, CSP `default-src 'none'`, `Referrer-Policy: no-referrer`; 200 "Spotify is linked to Locally. You can close this tab." or 400 "Spotify wasn't linked. Close this tab and try again from Locally." It echoes nothing from the request. A state works once |
+| GET `/v1/spotify/link` | | `{ linked: false }` or `{ linked: true, since, lastSampleAt, problem }` (`since` and `lastSampleAt` in epoch ms, `lastSampleAt` and `problem` may be `null`) |
+| DELETE `/v1/spotify/link` | | 204; deletes the stored tokens; idempotent |
+
+Account deletion removes the link, and the daily cleanup removes expired link requests.
+
 ## Play counts
 
 Per-device play counts for a release's tracks, so a client can show how often each track was

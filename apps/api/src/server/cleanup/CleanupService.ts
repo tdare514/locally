@@ -1,6 +1,6 @@
 import { and, asc, eq, gt, inArray, isNull, lt, min, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { authCodes, files, pendingDeletes, playCounts, playDays, rateLimits, releases } from "../../db/schema";
+import { authCodes, files, pendingDeletes, playCounts, playDays, rateLimits, releases, spotifyLinkRequests } from "../../db/schema";
 import { PLAY_DAY_RETENTION_DAYS, utcDay } from "../../shared/days";
 import type { FileStore } from "../files/FileStore";
 import { listUserKeys, userStoragePrefix } from "../files/ReleaseFilesService";
@@ -34,6 +34,8 @@ export interface CleanupResult {
   expiredPlayDays: number;
   deletedAuthCodes: number;
   deletedRateLimits: number;
+  /** `spotify_link_requests` rows past their 10-minute expiry. */
+  deletedSpotifyLinkRequests: number;
   /** Blobs of deleted accounts removed from `pending_deletes` this run (see `AccountService`). */
   drainedPendingDeletes: number;
   /** Total bytes across every remaining `files` row (a cost guardrail, not a deletion count). */
@@ -378,6 +380,11 @@ export class CleanupService {
       .where(lt(rateLimits.windowStart, rateLimitCutoff))
       .returning({ key: rateLimits.key });
 
+    const staleLinkRequests = await this.db
+      .delete(spotifyLinkRequests)
+      .where(lt(spotifyLinkRequests.expiresAt, this.now()))
+      .returning({ stateHash: spotifyLinkRequests.stateHash });
+
     const totalsRow = await this.db.select({ total: sql<number>`coalesce(sum(${files.bytes}), 0)` }).from(files);
 
     return {
@@ -390,6 +397,7 @@ export class CleanupService {
       expiredPlayDays,
       deletedAuthCodes,
       deletedRateLimits: staleRateLimits.length,
+      deletedSpotifyLinkRequests: staleLinkRequests.length,
       drainedPendingDeletes,
       totalStoredBytes: Number(totalsRow[0]?.total ?? 0),
     };

@@ -57,6 +57,13 @@
       "when": 1792186042502,
       "tag": "0007_goofy_shocker",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792427549877,
+      "tag": "0008_tiny_veda",
+      "breakpoints": true
     }
   ]
 }

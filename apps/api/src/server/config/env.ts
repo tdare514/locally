@@ -7,6 +7,10 @@
 const DEV_AUTH_PEPPER = "dev-insecure-auth-pepper-do-not-use-in-production";
 const DEV_TOKEN_PEPPER = "dev-insecure-token-pepper-do-not-use-in-production";
 
+const DEV_SPOTIFY_TOKEN_KEY = Buffer.alloc(32, "dev-insecure-spotify-token-key").toString("base64");
+const DEV_SAMPLER_SECRET = "dev-insecure-sampler-secret-do-not-use-in-production";
+const DEV_SPOTIFY_REDIRECT_URI = "http://127.0.0.1:4000/v1/spotify/callback";
+
 /** 50 GiB — a placeholder budget; set `STORAGE_ALERT_BYTES` to the real one before it matters. */
 const DEFAULT_STORAGE_ALERT_BYTES = 50 * 1024 * 1024 * 1024;
 
@@ -15,6 +19,16 @@ type FileStoreEnv = { fileStore: "local" } | { fileStore: "blob"; blobReadWriteT
 
 /** `MAILER=resend` requires `RESEND_API_KEY`, checked once here — see `resolveMailer`. */
 type MailerEnv = { mailer: "console" } | { mailer: "resend"; resendApiKey: string };
+
+/** Present only when `SPOTIFY_CLIENT_ID` is set (#305); every Spotify route answers 404 otherwise. */
+export type SpotifyEnv = {
+  clientId: string;
+  redirectUri: string;
+  /** Exactly 32 bytes, decoded from `SPOTIFY_TOKEN_KEY` (base64). */
+  tokenKey: Buffer;
+  /** Guards the sampler route (step 2, #306); validated here so the deploy is complete up front. */
+  samplerSecret: string;
+};
 
 export type Env = {
   /** Mirrored by scripts/migrate.mjs (`DATABASE_URL`, else `TURSO_DATABASE_URL`); keep the two in step. */
@@ -36,6 +50,7 @@ export type Env = {
    * overrides it.
    */
   migrateOnStart: boolean;
+  spotify: SpotifyEnv | null;
 } & FileStoreEnv &
   MailerEnv;
 
@@ -78,6 +93,66 @@ function resolveMailer(): MailerEnv {
     return { mailer: "resend", resendApiKey: key };
   }
   return { mailer: "console" };
+}
+
+/** Decodes a base64 string that must be exactly 32 bytes, or returns null. */
+function decodeTokenKey(raw: string): Buffer | null {
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(raw)) return null;
+  const key = Buffer.from(raw, "base64");
+  return key.length === 32 ? key : null;
+}
+
+let warnedInsecureSpotify = false;
+
+/**
+ * Null unless `SPOTIFY_CLIENT_ID` is set. In production every other Spotify value must be set and valid, or
+ * the server refuses to start; in development unset ones fall back to loud insecure defaults. A value that is
+ * set but invalid is refused in both.
+ */
+function resolveSpotify(isProduction: boolean): SpotifyEnv | null {
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
+  if (!clientId) return null;
+
+  const rawKey = process.env.SPOTIFY_TOKEN_KEY;
+  const rawRedirect = process.env.SPOTIFY_REDIRECT_URI;
+  const rawSampler = process.env.SAMPLER_SECRET;
+
+  if (isProduction) {
+    const missing = (["SPOTIFY_REDIRECT_URI", "SPOTIFY_TOKEN_KEY", "SAMPLER_SECRET"] as const).filter(
+      (name) => !process.env[name]
+    );
+    if (missing.length > 0) {
+      throw new Error(
+        `${missing.join(", ")} must be set in production when SPOTIFY_CLIENT_ID is set — refusing to start with an insecure default. See .env.example.`
+      );
+    }
+  }
+
+  const tokenKey = decodeTokenKey(rawKey || DEV_SPOTIFY_TOKEN_KEY);
+  if (!tokenKey) {
+    throw new Error("SPOTIFY_TOKEN_KEY must be base64 of exactly 32 bytes (openssl rand -base64 32). See .env.example.");
+  }
+
+  const redirectUri = rawRedirect || DEV_SPOTIFY_REDIRECT_URI;
+  let redirect: URL;
+  try {
+    redirect = new URL(redirectUri);
+  } catch {
+    throw new Error("SPOTIFY_REDIRECT_URI must be a valid URL. See .env.example.");
+  }
+  if (isProduction && redirect.protocol !== "https:") {
+    throw new Error("SPOTIFY_REDIRECT_URI must be https in production. See .env.example.");
+  }
+
+  if ((!rawKey || !rawSampler || !rawRedirect) && !warnedInsecureSpotify) {
+    warnedInsecureSpotify = true;
+    console.warn(
+      "[sync-api] SPOTIFY_TOKEN_KEY, SAMPLER_SECRET and/or SPOTIFY_REDIRECT_URI are not set. Using insecure " +
+        "development defaults — stored Spotify tokens are NOT safe beyond your own machine. See .env.example."
+    );
+  }
+
+  return { clientId, redirectUri, tokenKey, samplerSecret: rawSampler || DEV_SAMPLER_SECRET };
 }
 
 /** `DB_MIGRATE_ON_START=true|1|false|0`; anything else (or unset) means `fallback`. */
@@ -131,6 +206,7 @@ export function loadEnv(): Env {
     publicBaseUrl: (process.env.PUBLIC_BASE_URL || "http://localhost:4000").replace(/\/+$/, ""),
     storageAlertBytes: parseByteCount(process.env.STORAGE_ALERT_BYTES, DEFAULT_STORAGE_ALERT_BYTES),
     migrateOnStart: parseMigrateOnStart(process.env.DB_MIGRATE_ON_START, !isProduction),
+    spotify: resolveSpotify(isProduction),
     ...resolveFileStore(),
     ...resolveMailer(),
   };
