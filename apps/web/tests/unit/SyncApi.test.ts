@@ -563,12 +563,39 @@ describe("Spotify link calls (#307)", () => {
     const api = new HttpSyncApi("https://sync.example", "tok");
     mockNextResponse(jsonResponse({ linked: false }));
     await expect(api.spotifyLinkStatus()).resolves.toEqual({ linked: false });
-    mockNextResponse(jsonResponse({ linked: true, since: "s", lastSampleAt: "l", problem: null }));
-    await expect(api.spotifyLinkStatus()).resolves.toEqual({ linked: true, since: "s", lastSampleAt: "l", problem: null });
-    mockNextResponse(jsonResponse({ linked: true, since: "s", lastSampleAt: null, problem: "rateLimited" }));
+    mockNextResponse(jsonResponse({ linked: true, since: 1792443351332, lastSampleAt: 1792444086077, problem: null }));
+    await expect(api.spotifyLinkStatus()).resolves.toEqual({
+      linked: true,
+      since: new Date(1792443351332).toISOString(),
+      lastSampleAt: new Date(1792444086077).toISOString(),
+      problem: null,
+    });
+    mockNextResponse(jsonResponse({ linked: true, since: 1792443351332, lastSampleAt: null, problem: "rateLimited" }));
     await expect(api.spotifyLinkStatus()).resolves.toMatchObject({ problem: "rateLimited" });
-    mockNextResponse(jsonResponse({ linked: true, since: "s", lastSampleAt: null, problem: "somethingNew" }));
+    mockNextResponse(jsonResponse({ linked: true, since: 1792443351332, lastSampleAt: null, problem: "somethingNew" }));
     await expect(api.spotifyLinkStatus()).resolves.toMatchObject({ problem: "reconnect" });
+  });
+
+  it("GET /v1/spotify/link parses the exact production reply (#307)", async () => {
+    const api = new HttpSyncApi("https://sync.example", "tok");
+    mockNextResponse(
+      new Response('{"linked":true,"since":1792443351332,"lastSampleAt":1792444086077,"problem":null}', {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    await expect(api.spotifyLinkStatus()).resolves.toMatchObject({ linked: true, problem: null });
+  });
+
+  it("GET /v1/spotify/link accepts ISO strings and turns a non-finite time into null", async () => {
+    const api = new HttpSyncApi("https://sync.example", "tok");
+    mockNextResponse(jsonResponse({ linked: true, since: "2026-10-01T00:00:00Z", lastSampleAt: "junk", problem: null }));
+    await expect(api.spotifyLinkStatus()).resolves.toEqual({
+      linked: true,
+      since: "2026-10-01T00:00:00.000Z",
+      lastSampleAt: null,
+      problem: null,
+    });
   });
 
   it("DELETE /v1/spotify/link accepts a 204", async () => {
