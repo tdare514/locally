@@ -31,6 +31,7 @@ import { PlaylistIndex } from "./spotify/PlaylistIndex";
 import { FilePlaylistCacheStore } from "./spotify/PlaylistCacheStore";
 import { AdoptService } from "./adopt/AdoptService";
 import { FileAdoptProposalStore } from "./adopt/FileAdoptProposalStore";
+import { CloudPlays } from "./spotify/CloudPlays";
 import { isDemo } from "./demo";
 
 export interface Services {
@@ -52,6 +53,7 @@ export interface Services {
   playStore: PlayCountStore;
   playTracker: PlayTracker;
   nowPlaying: SwitchingNowPlaying;
+  cloudPlays: CloudPlays;
   adopt: AdoptService;
 }
 
@@ -99,7 +101,9 @@ function buildServices(): Services {
     appleScript: new OsascriptNowPlaying(),
     settings,
   });
-  const playTracker = new PlayTracker(nowPlaying, settings, library, playStore);
+  // Online counting (#307): while the sync service counts this account's plays, the tracker stands down.
+  const cloudPlays = new CloudPlays({ settings, apiFactory: syncApiFactory });
+  const playTracker = new PlayTracker(nowPlaying, settings, library, playStore, undefined, undefined, undefined, undefined, cloudPlays);
   settings
     .get()
     .then((s) => playTracker.setEnabled(s.trackPlays === true))
@@ -124,6 +128,7 @@ function buildServices(): Services {
     playStore,
     playTracker,
     nowPlaying,
+    cloudPlays,
     adopt: new AdoptService({ settings, library, fs, proposals: new FileAdoptProposalStore() }),
   };
 }

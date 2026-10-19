@@ -135,10 +135,24 @@ export type PlaysStatus = "off" | "on" | "spotify-not-running" | "permission-den
 
 export interface PlaysStatusResponse {
   status: PlaysStatus;
-  /** Where plays are read from: the Spotify account (every device) or this Mac's Spotify app only (#228). */
-  source: "account" | "this-mac";
+  /** Where plays are read from: the Spotify account (every device), this Mac's Spotify app only (#228), or the sync service counting online, which leaves this Mac out (#307). */
+  source: "account" | "this-mac" | "online";
   /** True while the account source failed and this Mac's app is read instead. */
   fallingBack: boolean;
+}
+
+/** Why online play counting is not running right now, as the sync service reports it (#307). */
+export type CloudPlaysProblem = "reconnect" | "notOnTesterList" | "rateLimited";
+
+/** Response shape for GET /api/spotify/cloud: the sync service counting plays while the Mac is off (#307). */
+export interface CloudPlaysStatus {
+  /** Signed in to sync and the service has the feature. False hides the Settings row. */
+  available: boolean;
+  linked: boolean;
+  lastSampleAt: string | null;
+  problem: CloudPlaysProblem | null;
+  /** The owner was sent to the browser and the link has not come back yet. */
+  pending: boolean;
 }
 
 /** One device's count for a track in GET /api/plays. `current` marks this Mac. The release page

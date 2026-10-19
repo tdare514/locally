@@ -9,6 +9,9 @@ const MissingMarkSchema = z.object({ firstSeenMissingAt: z.string(), stillMissin
 const SyncStateFileSchema = z.object({
   // Written by builds from #295 on; the owner's Hide choices, kept per release and server version.
   hiddenFromTray: z.record(z.string(), z.string()).default({}),
+  // Written by builds from #307 on: when a re-push of an adopted release's localIds was last queued.
+  localIdQueuedAt: z.record(z.string(), z.string()).optional(),
+  localIdBackfilled: z.boolean().optional(),
   pushedUpdatedAt: z.record(z.string(), z.string()).default({}),
   uploadedFiles: z.record(z.string(), z.array(z.string())).default({}),
   coverHash: z.record(z.string(), z.string()).default({}),

@@ -434,3 +434,42 @@ describe("parseSyncRecord distinguishes a refused name from a broken record", ()
     expect((err as { issues?: unknown }).issues).toBeDefined();
   });
 });
+
+describe("track localId on the wire (#307)", () => {
+  const release = (adopted: boolean): Release => ({
+    id: "r1",
+    kind: "single",
+    title: "T",
+    artist: "A",
+    year: null,
+    genre: null,
+    coverPath: null,
+    folderPath: "/f",
+    tracks: [
+      { id: "t1", title: "T", trackNumber: 1, filePath: "/f/t.mp3", originalName: "t.mp3", durationSec: 10, localId: "spotify:local:A::T:10" },
+      { id: "t2", title: "U", trackNumber: 2, filePath: "/f/u.mp3", originalName: "u.mp3", durationSec: 10 },
+    ],
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    ...(adopted ? { adopted: true } : {}),
+  });
+
+  it("includes localId on an adopted release's tracks that have one, and no other", () => {
+    const tracks = toSyncRecord(release(true), "mac", "Mac").tracks;
+    expect(tracks[0].localId).toBe("spotify:local:A::T:10");
+    expect("localId" in tracks[1]).toBe(false);
+  });
+
+  it("never sends localId for a release that was not adopted", () => {
+    const tracks = toSyncRecord(release(false), "mac", "Mac").tracks;
+    expect(tracks.some((t) => "localId" in t)).toBe(false);
+  });
+
+  it("a record with a localId still parses, and one without still does", () => {
+    const record = toSyncRecord(release(true), "mac", "Mac");
+    expect(parseSyncRecord(JSON.parse(JSON.stringify(record))).tracks[0].localId).toBe("spotify:local:A::T:10");
+    const bare = { ...record.tracks[0] };
+    delete bare.localId;
+    expect(parseSyncRecord({ ...record, tracks: [bare] }).tracks[0].localId).toBeUndefined();
+  });
+});

@@ -13,6 +13,7 @@ import type {
   SpotifySourceStatus,
   PlaysStatusResponse,
   SpotifyConnectionStatus,
+  CloudPlaysStatus,
   SpotifyPlaylistsResponse,
   PlaysSummaryResponse,
   ReleasePlaysResponse,
@@ -336,6 +337,23 @@ export async function startSpotifyAuth(): Promise<{ authorizeUrl: string }> {
 export async function disconnectSpotify(): Promise<SpotifyConnectionStatus> {
   const res = await fetch("/api/spotify/connection", { method: "DELETE" });
   return handle<SpotifyConnectionStatus>(res);
+}
+
+/** Online play counting (#307). A 404 means the row stays hidden: no service support, or the demo. */
+export async function getCloudPlays(): Promise<CloudPlaysStatus> {
+  const res = await fetch("/api/spotify/cloud", { cache: "no-store" });
+  return handle<CloudPlaysStatus>(res);
+}
+
+/** Start linking, or reconnecting: the caller opens the returned address in the browser. */
+export async function startCloudPlays(): Promise<{ authorizeUrl: string }> {
+  const res = await fetch("/api/spotify/cloud", { method: "POST" });
+  return handle<{ authorizeUrl: string }>(res);
+}
+
+export async function stopCloudPlays(): Promise<CloudPlaysStatus> {
+  const res = await fetch("/api/spotify/cloud", { method: "DELETE" });
+  return handle<CloudPlaysStatus>(res);
 }
 
 export async function dismissSpotifySource(): Promise<SpotifySourceStatus> {

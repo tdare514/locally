@@ -20,7 +20,7 @@ import {
   type SyncApi,
   type SyncFileToUpload,
 } from "./SyncApi";
-import type { MissingMark, SyncStateStore } from "./SyncState";
+import type { MissingMark, SyncState, SyncStateStore } from "./SyncState";
 import { hideKeyFor } from "../../lib/tray-sections";
 
 /** Builds a `SyncApi` for a given base URL/token; a factory (not a singleton) because both can change while the app runs. */
@@ -81,6 +81,15 @@ function pendingSummary(record: SyncRecord, filesState: PendingFilesState | unde
  * `FileSystem` (which already exposes `readFile`) and updating every fake
  * that implements it.
  */
+/** At most one localId re-push per adopted release in this long (#307). */
+export const LOCAL_ID_REPUSH_MS = 24 * 60 * 60 * 1000;
+
+/** True when the Mac holds a localId for a track that the pulled record has without one. */
+function lostLocalId(local: Release, record: SyncRecord): boolean {
+  const remote = new Map(record.tracks.map((t) => [t.id, t]));
+  return local.tracks.some((t) => t.localId && remote.has(t.id) && !remote.get(t.id)?.localId);
+}
+
 async function sha256File(fs: FileSystem, filePath: string): Promise<string> {
   const bytes = await fs.readFile(filePath);
   return crypto.createHash("sha256").update(bytes).digest("hex");
@@ -367,6 +376,8 @@ export class SyncEngine implements ReleaseSyncHooks {
           // Adopted releases are read-only here: a remote edit is not applied (it would re-tag the files).
           delete state.pendingFromPhone[record.id];
           delete state.missingFiles[record.id];
+          // An older client edited it and dropped the track localIds the Mac holds: put them back (#307).
+          if (record.source === "adopted" && lostLocalId(local, record)) this.queueLocalIdPush(state, local.id);
           continue;
         }
         if (!local) {
@@ -472,6 +483,33 @@ export class SyncEngine implements ReleaseSyncHooks {
     throw new Error(`Sync pull did not finish after ${MAX_PULL_PAGES_PER_RECONCILE} pages; stopping this reconcile.`);
   }
 
+  /**
+   * Queues a push of an adopted release so its track localIds reach the server (#307): forgets the
+   * pushed marker, so the back-fill in `reconcile` sends it. At most once a day per release, or a
+   * server that keeps stripping the field would make every reconcile push again. Edits `state` in
+   * place; the caller saves it. Returns whether it queued.
+   */
+  private queueLocalIdPush(state: SyncState, releaseId: string): boolean {
+    const queued = (state.localIdQueuedAt ??= {});
+    const nowMs = this.now().getTime();
+    const last = Date.parse(queued[releaseId] ?? "");
+    if (Number.isFinite(last) && nowMs - last < LOCAL_ID_REPUSH_MS) return false;
+    queued[releaseId] = new Date(nowMs).toISOString();
+    delete state.pushedUpdatedAt[releaseId];
+    return true;
+  }
+
+  /** The one-time back-fill (#307): queues a push of every adopted release that has localIds. */
+  private async queueLocalIdBackfill(): Promise<void> {
+    const state = await this.syncState.get();
+    if (state.localIdBackfilled) return;
+    for (const release of await this.releases.list()) {
+      if (release.adopted && release.tracks.some((t) => t.localId)) this.queueLocalIdPush(state, release.id);
+    }
+    state.localIdBackfilled = true;
+    await this.syncState.set(state);
+  }
+
   private isOwnEcho(record: SyncRecord): boolean {
     return record.origin === "mac" && record.originDevice === this.deviceName();
   }
@@ -510,6 +548,7 @@ export class SyncEngine implements ReleaseSyncHooks {
       const api = this.apiFactory(settings.sync.baseUrl, settings.sync.deviceToken);
 
       await this.pullOnce(api);
+      await this.queueLocalIdBackfill();
 
       // Back-fill: push any local release whose current `updatedAt` hasn't been pushed yet.
       const state = await this.syncState.get();

@@ -10,10 +10,11 @@ export async function GET() {
   if (isDemo()) return NextResponse.json({ status: "off", source: "this-mac", fallingBack: false });
   try {
     const { playTracker, nowPlaying } = getServices();
+    const online = playTracker.standingDown();
     return NextResponse.json({
       status: playTracker.status(),
-      source: nowPlaying.currentSource(),
-      fallingBack: nowPlaying.fallingBack(),
+      source: online ? "online" : nowPlaying.currentSource(),
+      fallingBack: online ? false : nowPlaying.fallingBack(),
     });
   } catch (err) {
     return errorResponse(err);

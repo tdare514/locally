@@ -68,6 +68,14 @@ describe("FileSyncStateStore", () => {
     await expect(store.get()).resolves.toEqual(emptySyncState());
   });
 
+  it("keeps the localId re-push markers and the back-fill flag (#307)", async () => {
+    const store = new FileSyncStateStore();
+    await store.set({ ...emptySyncState(), localIdQueuedAt: { "rel-1": "2026-10-19T12:00:00.000Z" }, localIdBackfilled: true });
+    const back = await store.get();
+    expect(back.localIdQueuedAt).toEqual({ "rel-1": "2026-10-19T12:00:00.000Z" });
+    expect(back.localIdBackfilled).toBe(true);
+  });
+
   it("round-trips set()/get() through the tmp-file-plus-rename write", async () => {
     const store = new FileSyncStateStore();
     const pending = samplePending();
