@@ -32,7 +32,7 @@ export const devices = sqliteTable("devices", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
   name: text("name").notNull(),
-  platform: text("platform", { enum: ["mac", "ios"] }).notNull(),
+  platform: text("platform", { enum: ["mac", "ios", "cloud"] }).notNull(),
   tokenHash: text("token_hash").notNull(),
   createdAt: integer("created_at").notNull(),
   lastSeenAt: integer("last_seen_at").notNull(),
@@ -145,7 +145,7 @@ export const pendingDeletes = sqliteTable("pending_deletes", {
 
 /**
  * One Spotify link per user for the sync service's own grant (#305). Both tokens are AES-256-GCM
- * ciphertexts (`server/crypto/TokenCipher.ts`) bound to the user id. `cloudDeviceId` is unused until #306.
+ * ciphertexts (`server/crypto/TokenCipher.ts`) bound to the user id. `cloudDeviceId` is the user's "cloud" device (#306).
  */
 export const spotifyLinks = sqliteTable("spotify_links", {
   userId: text("user_id").primaryKey().references(() => users.id),
@@ -161,6 +161,20 @@ export const spotifyLinks = sqliteTable("spotify_links", {
   lastSampleAt: integer("last_sample_at"),
   problem: text("problem"),
   backoffUntil: integer("backoff_until"),
+  /** The last sample's Locally track (#306): null when nothing local is playing. Epoch ms for `sessionAt`. */
+  sessionUri: text("session_uri"),
+  sessionReleaseId: text("session_release_id"),
+  sessionTrackId: text("session_track_id"),
+  sessionProgressMs: integer("session_progress_ms"),
+  sessionDurationMs: integer("session_duration_ms"),
+  sessionAt: integer("session_at"),
+  sessionCounted: integer("session_counted", { mode: "boolean" }),
+});
+
+/** Single-row lease so two sampler runs never overlap (#306): a run takes it with a conditional upsert. */
+export const samplerLease = sqliteTable("sampler_lease", {
+  id: text("id").primaryKey(),
+  until: integer("until").notNull(),
 });
 
 /** A pending OAuth link request: single use, 10 minutes, keyed by the sha256 hex of its state. */

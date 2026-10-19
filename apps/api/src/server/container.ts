@@ -18,6 +18,8 @@ import type { RateLimiter } from "./ratelimit/RateLimiter";
 import { DbRateLimiter } from "./ratelimit/DbRateLimiter";
 import { TokenCipher } from "./crypto/TokenCipher";
 import { SpotifyLinkService } from "./spotify/SpotifyLinkService";
+import { SpotifyPlayerClient } from "./spotify/SpotifyPlayerClient";
+import { SpotifySampler } from "./spotify/SpotifySampler";
 
 export interface Services {
   db: Db;
@@ -32,6 +34,10 @@ export interface Services {
   cleanup: CleanupService;
   /** Null unless `SPOTIFY_CLIENT_ID` is set (#305); the Spotify routes answer 404 then. */
   spotify: SpotifyLinkService | null;
+  /** Null unless `SPOTIFY_CLIENT_ID` is set (#306); `POST /v1/internal/spotify-sample` answers 404 then. */
+  sampler: SpotifySampler | null;
+  /** The bearer secret for the sampler route; set whenever `sampler` is. */
+  samplerSecret: string | undefined;
   cronSecret: string | undefined;
   storageAlertBytes: number;
   allowedOrigins: string[];
@@ -71,6 +77,7 @@ async function buildServices(): Promise<Services> {
       : new LocalFileStore(path.join(process.cwd(), "data", "files"), env.publicBaseUrl, env.tokenPepper);
 
   const quota = new QuotaService(db);
+  const cipher = env.spotify ? new TokenCipher(env.spotify.tokenKey) : null;
 
   return {
     db,
@@ -83,12 +90,12 @@ async function buildServices(): Promise<Services> {
     quota,
     files: new ReleaseFilesService(db, fileStore, quota),
     cleanup: new CleanupService(db, fileStore),
-    spotify: env.spotify
-      ? new SpotifyLinkService(db, new TokenCipher(env.spotify.tokenKey), {
-          clientId: env.spotify.clientId,
-          redirectUri: env.spotify.redirectUri,
-        })
-      : null,
+    spotify:
+      env.spotify && cipher
+        ? new SpotifyLinkService(db, cipher, { clientId: env.spotify.clientId, redirectUri: env.spotify.redirectUri })
+        : null,
+    sampler: env.spotify && cipher ? new SpotifySampler(db, new SpotifyPlayerClient(db, cipher, env.spotify.clientId)) : null,
+    samplerSecret: env.spotify?.samplerSecret,
     cronSecret: env.cronSecret,
     storageAlertBytes: env.storageAlertBytes,
     allowedOrigins: env.allowedOrigins,
