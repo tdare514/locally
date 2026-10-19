@@ -229,4 +229,17 @@ struct AdoptedReleaseTests {
         #expect(h.coverStore.load(id) == nil)
         #expect(h.api.downloadFileCalls.count == before)
     }
+
+    @Test func aPulledAdoptedTrackStoresItsLocalId() async throws {
+        let h = makeHarness()
+        var record = adoptedRecord()
+        record.tracks[0].localId = "spotify:local:a:b:c:61"
+        h.api.fileContents["cover.jpg"] = coverBytes
+        h.api.seed(record)
+
+        await h.engine.reconcile()
+
+        let stored = try #require(h.library.all().first { $0.id.uuidString == record.id })
+        #expect(stored.tracks[0].localId == "spotify:local:a:b:c:61")
+    }
 }

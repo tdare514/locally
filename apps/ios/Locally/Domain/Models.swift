@@ -16,6 +16,9 @@ struct Track: Identifiable, Codable, Hashable {
     /// The name the user originally imported (before renaming/layout).
     var originalName: String
     var durationSec: Double?
+    /// `spotify:local:...` id of an adopted file, from the synced record. Never set or changed on the
+    /// iPhone; nil for tracks made here.
+    var localId: String?
 
     init(
         id: UUID = UUID(),
@@ -24,7 +27,8 @@ struct Track: Identifiable, Codable, Hashable {
         discNumber: Int? = nil,
         filePath: String,
         originalName: String,
-        durationSec: Double? = nil
+        durationSec: Double? = nil,
+        localId: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -33,6 +37,7 @@ struct Track: Identifiable, Codable, Hashable {
         self.filePath = filePath
         self.originalName = originalName
         self.durationSec = durationSec
+        self.localId = localId
     }
 }
 

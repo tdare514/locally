@@ -438,6 +438,8 @@ final class ReleaseCoordinator {
                     updatedTracks[index].trackNumber = syncTrack.trackNumber
                     // The record is the source of truth for the disc: absent there means no disc.
                     updatedTracks[index].discNumber = syncTrack.discNumber
+                    // Only ever filled from the record, never dropped by one that lacks it.
+                    if let localId = syncTrack.localId { updatedTracks[index].localId = localId }
                 }
             }
         }
@@ -531,7 +533,8 @@ final class ReleaseCoordinator {
                     discNumber: syncTrack.discNumber,
                     filePath: destinationURL.path,
                     originalName: syncTrack.file,
-                    durationSec: syncTrack.durationSec
+                    durationSec: syncTrack.durationSec,
+                    localId: syncTrack.localId
                 ))
             }
         } catch {
@@ -618,7 +621,8 @@ final class ReleaseCoordinator {
                     discNumber: syncTrack.discNumber,
                     filePath: syncTrack.file,
                     originalName: syncTrack.file,
-                    durationSec: syncTrack.durationSec
+                    durationSec: syncTrack.durationSec,
+                    localId: syncTrack.localId
                 )
             },
             createdAt: existing?.createdAt ?? record.createdAt,
