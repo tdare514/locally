@@ -9,7 +9,7 @@ import {
 } from "../../src/server/spotify/CloudPlays";
 import { PlayTracker } from "../../src/server/plays/PlayTracker";
 import type { NowPlayingResult, SpotifyNowPlaying } from "../../src/server/plays/SpotifyNowPlaying";
-import { SyncAuthError, SyncUnavailableError, type SpotifyLinkStatus, type SyncApi } from "../../src/server/sync/SyncApi";
+import { HttpSyncApi, SyncAuthError, SyncUnavailableError, type SpotifyLinkStatus, type SyncApi } from "../../src/server/sync/SyncApi";
 import { FakePlayCountStore } from "./FakePlayCountStore";
 import { MemorySettings } from "./spotifyFakes";
 
@@ -69,6 +69,39 @@ beforeEach(() => {
 afterEach(() => {
   cloud.stop();
   vi.useRealTimers();
+});
+
+describe("CloudPlays with the real reply shape (#307)", () => {
+  it("a production linked reply makes it active and ends a pending link", async () => {
+    const reply = '{"linked":true,"since":1792443351332,"lastSampleAt":1792444086077,"problem":null}';
+    let body = '{"linked":false}';
+    vi.stubGlobal("fetch", async () => new Response(body, { status: 200, headers: { "content-type": "application/json" } }));
+    try {
+      const real = new CloudPlays({
+        settings,
+        apiFactory: (baseUrl, token) => new HttpSyncApi(baseUrl, token),
+        now: () => clock,
+        timeZone: () => "Europe/London",
+      });
+      await real.view();
+      expect(real.active()).toBe(false);
+      body = '{"authorizeUrl":"' + AUTHORIZE + '"}';
+      await real.start();
+      expect((await real.view()).pending).toBe(true);
+      body = reply;
+      await vi.advanceTimersByTimeAsync(CLOUD_PENDING_POLL_MS);
+      expect(real.active()).toBe(true);
+      expect(await real.view()).toMatchObject({
+        linked: true,
+        problem: null,
+        pending: false,
+        lastSampleAt: new Date(1792444086077).toISOString(),
+      });
+      real.stop();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
 
 describe("isSpotifyAuthorizeUrl", () => {

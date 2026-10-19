@@ -124,12 +124,23 @@ export type SpotifyLinkStatus =
   | { linked: false }
   | { linked: true; since: string | null; lastSampleAt: string | null; problem: SpotifyLinkProblem | null };
 
+/** The spec sends epoch milliseconds; an ISO string is accepted too. Both become an ISO string, anything else null. */
+const LinkTimeSchema = z
+  .union([z.number(), z.string()])
+  .nullable()
+  .default(null)
+  .transform((v): string | null => {
+    if (v === null) return null;
+    const ms = typeof v === "number" ? v : Date.parse(v);
+    return Number.isFinite(ms) && !Number.isNaN(new Date(ms).getTime()) ? new Date(ms).toISOString() : null;
+  });
+
 const SpotifyLinkStatusSchema = z.union([
   z.object({ linked: z.literal(false) }),
   z.object({
     linked: z.literal(true),
-    since: z.string().nullable().default(null),
-    lastSampleAt: z.string().nullable().default(null),
+    since: LinkTimeSchema,
+    lastSampleAt: LinkTimeSchema,
     // An unknown problem word from a newer server reads as the generic "reconnect".
     problem: z
       .string()

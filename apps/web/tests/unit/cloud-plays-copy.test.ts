@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { HttpSyncApi } from "../../src/server/sync/SyncApi";
 import { cloudPlaysAnnouncement, cloudPlaysLines, relativeChecked } from "../../src/lib/cloud-plays-copy";
 import type { CloudPlaysStatus } from "../../src/shared/types";
 
@@ -30,6 +31,20 @@ describe("cloudPlaysLines (#307)", () => {
     expect(out.quiet).toBe("A track skipped in its first minute may not count.");
     expect(out.on).toBe(true);
     expect(out.reconnect).toBe(false);
+  });
+
+  it("renders Last checked from an epoch-ms lastSampleAt read off the wire (#307)", async () => {
+    const wire = { linked: true, since: NOW - 3_600_000, lastSampleAt: NOW - 120_000, problem: null };
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify(wire), { status: 200, headers: { "content-type": "application/json" } }));
+    let status;
+    try {
+      status = await new HttpSyncApi("https://sync.example", "tok").spotifyLinkStatus();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    if (!status.linked) throw new Error("expected linked");
+    const out = cloudPlaysLines({ ...base, linked: true, lastSampleAt: status.lastSampleAt }, NOW);
+    expect(out.line).toBe("Counted online, even when this Mac is off. Last checked 2 min ago.");
   });
 
   it("linked but never sampled", () => {
