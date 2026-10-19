@@ -16,6 +16,8 @@ Plays are counted only while the Mac app runs and the Mac is awake (#106, #228).
 
 ## Decisions for the owner
 
+Approved by the owner on 19 Oct, with option A (the free external scheduler) for decision 1.
+
 1. **What runs it every minute.** Vercel's Hobby plan runs crons at most once a day ("Hobby accounts are limited to daily cron jobs"), so the sync service can't wake itself every minute. Options:
    - **A. A free external scheduler (recommended now).** A cron-job.org job (or a Cloudflare Worker cron) calls `POST /v1/internal/spotify-sample` every minute with its own secret, `SAMPLER_SECRET`. That secret can only start a sample run, never the daily cleanup.
    - **B. Vercel Pro ($20 a month).** The same route becomes a `* * * * *` entry in `apps/api/vercel.ts`, and it also lifts the 100-deployments-a-day limit noted there. Switching from A to B later is one line plus removing the external job.
