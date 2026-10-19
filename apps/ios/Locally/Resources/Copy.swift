@@ -60,13 +60,11 @@ enum Copy {
         /// sheet that shows the whole message.
         static let sendErrorDetails = "Details"
         static let sendErrorTitle = "Why it didn't send"
-        static let albumPlaceholder = "Same as the single name"
         static let singlePlaceholder = "Enter single name"
         static let albumNamePlaceholder = "Enter album name"
         static let artistPlaceholder = "Enter artist name"
         static let yearPlaceholder = "Enter year"
         static let genrePlaceholder = "Enter genre"
-        static let fieldAlbum = "Album"
         /// The title field's placeholder, by the kind of release.
         static func titlePlaceholder(for kind: ReleaseKind) -> String {
             kind == .album ? albumNamePlaceholder : singlePlaceholder

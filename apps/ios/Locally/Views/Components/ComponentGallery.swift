@@ -732,7 +732,6 @@ private struct ImportRecordGallery: View {
         single.pickedName = "Headlights.mp3"
         single.title = "Headlights On The Neon Harbor Overpass"
         single.artist = "Neon Harbor And The Salt Line Orchestra"
-        single.album = "Midnight Drive Along The Neon Harbor Road"
         single.year = "2026"
         single.genre = "Synthwave and late night highway pop"
     }

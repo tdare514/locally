@@ -5,10 +5,10 @@ import Foundation
 /// again. The cover is copied without touching the beat (`ImportBeatDriver` is not involved).
 enum ImportKindSwitch {
     /// The picked file becomes the album's one row, titled with the single's title. The album
-    /// title is the single's album, or its title when the album is empty.
+    /// title is the single's title (a single has no album field of its own, #293).
     static func singleToAlbum(_ single: ImportSingleViewModel, into album: AlbumBuilderViewModel) {
         album.rows = single.pickedURL.map { [AlbumBuilderViewModel.TrackRow(url: $0, title: single.title, featuring: FeaturingNames.commit(single.featuringDraft, to: single.featuring))] } ?? []
-        album.albumTitle = single.album.isEmpty ? single.title : single.album
+        album.albumTitle = single.title
         album.artist = single.artist
         album.year = single.year
         album.genre = single.genre
@@ -16,15 +16,14 @@ enum ImportKindSwitch {
         single.clearDraft()
     }
 
-    /// The first row becomes the picked file (url, name, title) and the album title goes to the
-    /// single's album field. The other rows are dropped.
+    /// The first row becomes the picked file (url, name, title) and the album title is dropped (a single has
+    /// no album field, #293). The other rows are dropped.
     static func albumToSingle(_ album: AlbumBuilderViewModel, into single: ImportSingleViewModel) {
         let first = album.rows.first
         single.pickedURL = first?.url
         single.pickedName = first?.url.lastPathComponent
         single.title = first?.title ?? ""
         single.featuring = first?.featuring ?? []
-        single.album = album.albumTitle
         single.artist = album.artist
         single.year = album.year
         single.genre = album.genre

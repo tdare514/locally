@@ -38,7 +38,6 @@ struct ImportKindSwitchTests {
         single.pickedName = "a.mp3"
         single.title = "Song"
         single.artist = "Artist"
-        single.album = "The Album"
         single.year = "2026"
         single.genre = "Pop"
         single.coverData = cover
@@ -47,7 +46,7 @@ struct ImportKindSwitchTests {
 
         #expect(album.rows.map(\.url) == [fileA])
         #expect(album.rows.map(\.title) == ["Song"])
-        #expect(album.albumTitle == "The Album")
+        #expect(album.albumTitle == "Song")
         #expect(album.artist == "Artist")
         #expect(album.year == "2026")
         #expect(album.genre == "Pop")
@@ -96,7 +95,6 @@ struct ImportKindSwitchTests {
         #expect(single.pickedURL == fileA)
         #expect(single.pickedName == "a.mp3")
         #expect(single.title == "One")
-        #expect(single.album == "The Album")
         #expect(single.artist == "Artist")
         #expect(single.year == "2026")
         #expect(single.genre == "Pop")
@@ -116,7 +114,6 @@ struct ImportKindSwitchTests {
 
         #expect(single.pickedURL == nil)
         #expect(single.title.isEmpty)
-        #expect(single.album == "The Album")
         #expect(single.artist == "Artist")
     }
 
@@ -126,7 +123,6 @@ struct ImportKindSwitchTests {
         ImportKindSwitch.albumToSingle(album, into: single)
 
         #expect(single.pickedURL == nil)
-        #expect(single.album.isEmpty)
         #expect(single.coverData == nil)
     }
 

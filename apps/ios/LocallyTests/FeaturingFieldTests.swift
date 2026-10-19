@@ -349,7 +349,7 @@ struct FeaturingFieldTests {
         #expect(saved.title == imported.title)
     }
 
-    @Test func aDifferentAlbumTypedOnImportIsKept() async throws {
+    @Test func aDifferentAlbumInTheFileIsReplacedByThePlainTitle() async throws {
         let rig = Rig()
         let url = try makeSourceFile()
         rig.importer.tagsByURL[url] = TagSet(title: "Song", artist: "A", album: "Greatest Hits")
@@ -357,6 +357,6 @@ struct FeaturingFieldTests {
         await single.pick(url: url)
         await single.send()
 
-        #expect(try #require(rig.tagWriter.calls.last).tags.album == "Greatest Hits")
+        #expect(try #require(rig.tagWriter.calls.last).tags.album == "Song")
     }
 }
