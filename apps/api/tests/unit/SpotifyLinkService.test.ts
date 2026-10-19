@@ -147,6 +147,22 @@ describe("SpotifyLinkService.callback", () => {
     expect(await services.db.select().from(spotifyLinkRequests)).toHaveLength(0);
   });
 
+  it("fails cleanly when the token fetch is aborted", async () => {
+    const aborting = new SpotifyLinkService(
+      services.db,
+      cipher,
+      CONFIG,
+      (async () => {
+        throw new DOMException("The operation was aborted", "AbortError");
+      }) as unknown as typeof fetch,
+      () => clock
+    );
+    const userId = await newUser("a@example.com");
+    const state = stateOf((await aborting.start(userId, "UTC")).authorizeUrl);
+    await expect(aborting.callback({ code: "c", state })).resolves.toEqual({ ok: false });
+    expect(await services.db.select().from(spotifyLinks)).toHaveLength(0);
+  });
+
   it("a re-link replaces the tokens and clears problem and backoff", async () => {
     const userId = await newUser("a@example.com");
     await spotify.callback({ code: "c", state: stateOf((await spotify.start(userId, "UTC")).authorizeUrl) });
@@ -175,6 +191,15 @@ describe("status, unlink, account deletion and cleanup", () => {
     await spotify.unlink(userId);
     await spotify.unlink(userId);
     expect(await spotify.status(userId)).toEqual({ linked: false });
+  });
+
+  it("unlink drops pending requests, so an open consent tab cannot re-link", async () => {
+    const userId = await newUser("a@example.com");
+    const state = stateOf((await spotify.start(userId, "UTC")).authorizeUrl);
+    await spotify.unlink(userId);
+    expect(await spotify.callback({ code: "c", state })).toEqual({ ok: false });
+    expect(calls).toHaveLength(0);
+    expect(await services.db.select().from(spotifyLinks)).toHaveLength(0);
   });
 
   it("account deletion removes the link and pending requests", async () => {

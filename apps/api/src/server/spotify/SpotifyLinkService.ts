@@ -114,6 +114,7 @@ export class SpotifyLinkService {
   private async exchange(code: string, verifier: string) {
     const response = await this.fetchFn(SPOTIFY_TOKEN_URL, {
       method: "POST",
+      signal: AbortSignal.timeout(10_000),
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         grant_type: "authorization_code",
@@ -146,8 +147,11 @@ export class SpotifyLinkService {
     return { linked: true, since: row.createdAt, lastSampleAt: row.lastSampleAt, problem: row.problem };
   }
 
-  /** Idempotent. */
+  /** Idempotent. Also drops pending requests, so an open consent tab cannot re-link afterwards. */
   async unlink(userId: string): Promise<void> {
-    await this.db.delete(spotifyLinks).where(eq(spotifyLinks.userId, userId));
+    await this.db.batch([
+      this.db.delete(spotifyLinks).where(eq(spotifyLinks.userId, userId)),
+      this.db.delete(spotifyLinkRequests).where(eq(spotifyLinkRequests.userId, userId)),
+    ]);
   }
 }
