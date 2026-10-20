@@ -11,6 +11,7 @@ struct ReleaseDetailView: View {
     @Environment(\.appContainer) private var container
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .headline) private var tracksHeadingSize: CGFloat = 17
 
     let release: Release
     /// DEBUG screenshots open the page already in edit mode.
@@ -300,7 +301,7 @@ struct ReleaseDetailView: View {
         let headings = model.discHeadings
         let last = model.trackRows.count - 1
         Text(Copy.Import.tracks)
-            .font(.system(size: 17, weight: .bold))
+            .font(.system(size: tracksHeadingSize, weight: .bold))
             .foregroundStyle(Theme.primaryText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityAddTraits(.isHeader)
