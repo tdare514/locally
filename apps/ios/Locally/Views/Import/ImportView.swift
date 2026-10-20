@@ -348,7 +348,7 @@ struct ImportView: View {
                     showToast(autoHide: false)
                 } label: {
                     Text(Copy.Inbox.waitingChip(count: inboxFiles.count))
-                        .font(Theme.Font.badge)
+                        .themeFont(.badge)
                         .foregroundStyle(.black)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -376,13 +376,13 @@ struct ImportView: View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(Copy.Inbox.waitingBanner(count: inboxFiles.count))
-                    .font(Theme.Font.body.weight(.semibold))
+                    .themeFont(.body, weight: .semibold)
                     .foregroundStyle(Theme.primaryText)
                 HStack(spacing: 14) {
                     Button(Copy.Inbox.addAsSingles) { startFromInbox(as: .single) }
                     Button(Copy.Inbox.makeAnAlbum) { startFromInbox(as: .album) }
                 }
-                .font(Theme.Font.rowSubtitle.weight(.medium))
+                .themeFont(.rowSubtitle, weight: .medium)
                 .foregroundStyle(Theme.accent)
                 .buttonStyle(.plain)
             }
@@ -391,7 +391,7 @@ struct ImportView: View {
                 dismissedCount = inboxFiles.count
                 toastVisible = false
             } label: {
-                LocallyIcon(.x, size: 20, scaled: false)
+                LocallyIcon(.x, size: 20, relativeTo: .subheadline)
                     .foregroundStyle(Theme.secondaryText)
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())

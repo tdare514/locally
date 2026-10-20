@@ -36,6 +36,7 @@ struct RecordSleeve: View {
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(cover: UIImage?, ceremony: Int = 0, pose: CeremonyPose? = nil, beat: ImportBeat.Frame? = nil, size: CGFloat? = nil, showsAddCaption: Bool = true, onAddCover: @escaping () -> Void) {
         self.cover = cover
@@ -157,17 +158,23 @@ struct RecordSleeve: View {
     }
 
     /// The empty sleeve that can be edited (#296): the double note over **Add cover** and the line under it.
+    /// At the accessibility sizes only **Add cover** stays, so it can grow and wrap inside the sleeve (#226).
     private func addCoverCaption(size: CGFloat) -> some View {
         VStack(spacing: 4) {
-            MusicNoteGlyph()
-                .frame(width: size * NoCoverArt.glyphRatio(forSide: size), height: size * NoCoverArt.glyphRatio(forSide: size))
-                .padding(.bottom, 6)
+            if !dynamicTypeSize.isAccessibilitySize {
+                MusicNoteGlyph()
+                    .frame(width: size * NoCoverArt.glyphRatio(forSide: size), height: size * NoCoverArt.glyphRatio(forSide: size))
+                    .padding(.bottom, 6)
+            }
             Text(Copy.Immersive.addCover)
-                .font(.system(size: 14, weight: .semibold))
+                .themeFont(.body, weight: .semibold)
                 .foregroundStyle(Theme.primaryText)
-            Text(Copy.Immersive.chooseCoverHint)
-                .font(Theme.Font.dropZoneHint)
-                .foregroundStyle(Theme.textDim)
+                .minimumScaleFactor(0.8)
+            if !dynamicTypeSize.isAccessibilitySize {
+                Text(Copy.Immersive.chooseCoverHint)
+                    .themeFont(.dropZoneHint)
+                    .foregroundStyle(Theme.textDim)
+            }
         }
         .multilineTextAlignment(.center)
         .padding(Theme.Immersive.sleeveCaptionPadding)

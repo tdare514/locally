@@ -11,6 +11,8 @@ struct ComponentGallery: View {
         "release-tracks",
         // Kind switch and cover glow buttons, on the studio backdrop.
         "controls",
+        // #226: Dynamic Type checks of screens that need no sample data.
+        "library-empty", "onboarding", "paywall",
         // #204: the real Stats page over sample plays.
         "stats-week", "stats-albums-grid", "stats-artists", "stats-quiet", "stats-signed-out", "stats-large-text", "stats-week-scrolled", "stats-grid-scrolled",
         // #213: the Mac's glyphs on the real tab bar, library and release page, over seeded sample data.
@@ -22,7 +24,9 @@ struct ComponentGallery: View {
         // #287: the Featuring field. The import cases are `import-record-featuring` and `import-record-album-featuring-sheet`.
         "release-featuring-view", "release-featuring-edit", "featuring-fields-ax",
         // #288: the Artists view, artist pages, the sort control and linked names, over seeded sample data.
-        "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links"]
+        "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links",
+        // #226: the library search box with a typed query, and the crop sheet's Square / Original pill.
+        "icons-library-search", "crop-sheet", "devices-header-narrow"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -41,7 +45,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links"].contains(name)
+        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links"].contains(name)
     }
 
     var body: some View {
@@ -98,8 +102,8 @@ struct ComponentGallery: View {
             RecordSleeve(cover: SampleArtwork.sunset, pose: .halfTucked, onAddCover: {})
         case "inline-field":
             VStack(alignment: .leading, spacing: Theme.Spacing.sectionGap) {
-                InlineField("Title", text: $empty, font: Theme.Font.pageTitle)
-                InlineField("Title", text: $title, font: Theme.Font.pageTitle)
+                InlineField("Title", text: $empty, role: .pageTitle)
+                InlineField("Title", text: $title, role: .pageTitle)
             }
             .padding(Theme.Spacing.pagePadding)
         case "cover-sheet":
@@ -148,6 +152,15 @@ struct ComponentGallery: View {
             ReleaseReviewErrorGallery()
         case "controls":
             ControlsGallery()
+        case "library-empty":
+            ZStack {
+                Theme.background.ignoresSafeArea()
+                LibraryEmptyState(onAddSingle: {}, onMakeAlbum: {})
+            }
+        case "onboarding":
+            OnboardingView(onFinished: {}).environment(FolderStatus(isConnected: false))
+        case "paywall":
+            PaywallView()
         case "featuring-fields-ax":
             FeaturingFieldsGallery()
         case "artists-view":
@@ -170,6 +183,10 @@ struct ComponentGallery: View {
             IconsGallery.tabs(selected: .library, layout: .list)
         case "icons-library-grid":
             IconsGallery.tabs(selected: .library, layout: .covers)
+        case "icons-library-search":
+            IconsGallery.tabs(selected: .library, layout: .list, search: "Night drive")
+        case "crop-sheet":
+            CoverCropView(imageData: SampleArtwork.sunset.pngData() ?? Data(), onDone: { _ in }, onCancel: {})
         case "icons-tabs-stats":
             IconsGallery.tabs(selected: .stats, layout: .list)
         case "icons-release":
@@ -182,6 +199,9 @@ struct ComponentGallery: View {
             IconsGallery.devices(pending: 0, open: false)
         case "devices-header-1":
             IconsGallery.devices(pending: 1, open: false)
+        case "devices-header-narrow":
+            // A 320 pt screen (an iPhone SE with Display Zoom), for the header at the largest sizes (#226).
+            IconsGallery.devices(pending: 1, open: false).frame(width: 320)
         case "devices-header-3":
             IconsGallery.devices(pending: 3, open: false)
         case "devices-tray-open":
@@ -455,10 +475,10 @@ enum IconsGallery {
     }
 
     /// The four tabs as `RootView` builds them, with one selected.
-    static func tabs(selected: RootView.Tab, layout: LibraryLayout) -> some View {
+    static func tabs(selected: RootView.Tab, layout: LibraryLayout, search: String? = nil) -> some View {
         UserDefaults.standard.set(layout.rawValue, forKey: LibraryViewPrefs.layoutKey)
         let container = container()
-        return environment(IconsTabs(selected: selected), container)
+        return environment(IconsTabs(selected: selected, search: search), container)
     }
 
     /// The real Library over sample pending records (#269): the first is ready, the second's last
@@ -539,7 +559,12 @@ private struct IconsTabs: View {
     @State private var importKind: ImportKind?
     @State private var search: String?
 
-    init(selected: RootView.Tab) { _selected = State(initialValue: selected) }
+    private let initialSearch: String?
+
+    init(selected: RootView.Tab, search: String? = nil) {
+        _selected = State(initialValue: selected)
+        initialSearch = search
+    }
 
     var body: some View {
         TabView(selection: $selected) {
@@ -559,6 +584,11 @@ private struct IconsTabs: View {
                 .environment(\.isTabSelected, selected == .settings)
                 .tabItem { Label(Copy.Settings.title, systemImage: "gearshape") }
                 .tag(RootView.Tab.settings)
+        }
+        .task {
+            guard let initialSearch else { return }
+            try? await Task.sleep(for: .milliseconds(600))
+            search = initialSearch
         }
     }
 }

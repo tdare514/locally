@@ -16,11 +16,13 @@ struct PrimaryPillButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(Theme.Font.primaryButton)
+            .themeFont(.primaryButton)
             .foregroundStyle(Color.black)
+            .multilineTextAlignment(.center)
             .padding(.horizontal, isFullWidth ? 0 : Theme.Spacing.primaryButtonH)
+            .padding(.vertical, Theme.Spacing.primaryButtonV)
             .frame(maxWidth: isFullWidth ? .infinity : nil)
-            .frame(height: isFullWidth ? 48 : 36)
+            .frame(minHeight: isFullWidth ? Theme.Spacing.primaryButtonMinHeight : Theme.Spacing.primaryButtonCompactMinHeight)
             .background(Theme.accent)
             .clipShape(Capsule())
             .opacity(isEnabled ? 1 : 0.5)
@@ -37,18 +39,16 @@ struct GlowPillButtonStyle: ButtonStyle {
     var pinnedLit: Bool = false
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ScaledMetric(relativeTo: .body) private var fontSize: CGFloat = 15
-    @ScaledMetric(relativeTo: .body) private var minHeight: CGFloat = Theme.Import.glowMinHeight
 
     func makeBody(configuration: Configuration) -> some View {
         let lit = pinnedLit || configuration.isPressed
         configuration.label
-            .font(.system(size: fontSize, weight: .bold))
+            .themeFont(.primaryButton)
             .foregroundStyle(Color.white)
             .multilineTextAlignment(.center)
             .padding(.horizontal, Theme.Spacing.primaryButtonH)
             .padding(.vertical, Theme.Spacing.primaryButtonV)
-            .frame(minHeight: minHeight)
+            .frame(minHeight: Theme.Import.glowMinHeight)
             .background {
                 ZStack {
                     GlowGlass()
@@ -74,9 +74,7 @@ struct CoverGlowButtonStyle: ButtonStyle {
     var pinnedPressed: Bool = false
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ScaledMetric(relativeTo: .body) private var fullMinHeight: CGFloat = 52
-    @ScaledMetric(relativeTo: .body) private var compactMinHeight: CGFloat = 40
-    @ScaledMetric(relativeTo: .body) private var fontSize: CGFloat = 15
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var ease: Animation { .timingCurve(0.16, 1, 0.3, 1, duration: 0.45) }
 
@@ -85,13 +83,13 @@ struct CoverGlowButtonStyle: ButtonStyle {
         let first = colors.first ?? Theme.accent
         let second = colors.count > 1 ? colors[1] : first
         configuration.label
-            .font(.system(size: fontSize, weight: .bold))
+            .themeFont(.primaryButton)
             .foregroundStyle(Color.white)
             .multilineTextAlignment(.center)
             .opacity(isEnabled ? 1 : 0.5)
             .padding(.horizontal, Theme.Spacing.primaryButtonH)
             .padding(.vertical, Theme.Spacing.primaryButtonV)
-            .frame(maxWidth: isFullWidth ? .infinity : nil, minHeight: isFullWidth ? fullMinHeight : compactMinHeight)
+            .frame(maxWidth: isFullWidth ? .infinity : nil, minHeight: isFullWidth ? Theme.Spacing.coverGlowMinHeight : Theme.Spacing.coverGlowCompactMinHeight)
             .background {
                 ZStack {
                     if isEnabled {
@@ -106,7 +104,7 @@ struct CoverGlowButtonStyle: ButtonStyle {
                         Theme.background.opacity(Theme.Import.coverGlowBaseOpacity)
                         GlowGlass()
                         if isEnabled {
-                            CoverGlowClouds(first: first, second: second, bright: pressed)
+                            CoverGlowClouds(first: first, second: second, bright: pressed, restOpacity: dynamicTypeSize.isAccessibilitySize ? Theme.Import.coverGlowRestAccessibility : Theme.Import.coverGlowRest)
                             CoverGlowShimmer(pressed: pressed, pinned: pinnedPressed, enabled: !reduceMotion)
                             GlowLabelPool(lit: true)
                         }
@@ -126,6 +124,7 @@ private struct CoverGlowClouds: View {
     let first: Color
     let second: Color
     let bright: Bool
+    let restOpacity: Double
 
     var body: some View {
         GeometryReader { geo in
@@ -140,7 +139,7 @@ private struct CoverGlowClouds: View {
                     .position(x: w * 0.7, y: h * 1.0)
             }
             .blur(radius: 16)
-            .opacity(bright ? Theme.Import.coverGlowPressed : Theme.Import.coverGlowRest)
+            .opacity(bright ? Theme.Import.coverGlowPressed : restOpacity)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -374,7 +373,7 @@ struct SecondaryPillButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(Theme.Font.body.weight(.medium))
+            .themeFont(.body, weight: .medium)
             .foregroundStyle(isDestructive ? Theme.danger : Theme.primaryText)
             .padding(.horizontal, Theme.Spacing.primaryButtonH)
             .padding(.vertical, Theme.Spacing.primaryButtonV)
@@ -393,7 +392,7 @@ struct TextButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(Theme.Font.body.weight(.semibold))
+            .themeFont(.body, weight: .semibold)
             .foregroundStyle(configuration.isPressed ? Theme.primaryText : color)
             .opacity(isEnabled ? 1 : 0.5)
     }
@@ -410,7 +409,7 @@ private struct FieldStyleModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .focused($isFocused)
-            .font(Theme.Font.input)
+            .themeFont(.input)
             .foregroundStyle(Theme.primaryText)
             .padding(.horizontal, Theme.Spacing.inputPaddingH)
             .frame(minHeight: 48)
@@ -448,7 +447,7 @@ extension View {
     /// The section-eyebrow text style (e.g. "YOUR COLLECTION"): 11 pt bold
     /// uppercase, wide tracking, `accent` colour.
     func eyebrow() -> some View {
-        font(Theme.Font.eyebrow)
+        themeFont(.eyebrow)
             .tracking(11 * 0.18)
             .textCase(.uppercase)
             .foregroundStyle(Theme.accent)
@@ -457,7 +456,7 @@ extension View {
     /// The field-label text style (e.g. "TITLE"): 11 pt bold uppercase, wide
     /// tracking, muted colour.
     func fieldLabelStyle() -> some View {
-        font(Theme.Font.fieldLabel)
+        themeFont(.fieldLabel)
             .tracking(11 * 0.14)
             .textCase(.uppercase)
             .foregroundStyle(Theme.secondaryText)
@@ -541,7 +540,7 @@ struct DiscHeading: View {
 
     var body: some View {
         Text(Copy.Import.disc(number))
-            .font(Theme.Font.meta)
+            .themeFont(.meta)
             .foregroundStyle(Theme.secondaryText)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityAddTraits(.isHeader)
@@ -581,7 +580,7 @@ struct TrackListSilhouette: View {
                 Text(Copy.Import.noTracksYet)
                 Text(Copy.Import.noTracksHint)
             }
-            .font(Theme.Font.body)
+            .themeFont(.body)
             .foregroundStyle(Theme.secondaryText)
             .multilineTextAlignment(.center)
             .padding(.horizontal, 24)
@@ -600,7 +599,7 @@ struct KindBadge: View {
 
     var body: some View {
         Text(text)
-            .font(Theme.Font.badge)
+            .themeFont(.badge)
             .tracking(1.0)
             .textCase(.uppercase)
             .foregroundStyle(Theme.secondaryText)

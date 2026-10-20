@@ -86,7 +86,7 @@ enum Copy {
         static let recentCovers = "Recent covers"
         /// VoiceOver label of one recent cover: the release it came from.
         static func recentCoverLabel(title: String, artist: String) -> String {
-            artist.isEmpty ? title : "\(title), \(artist)"
+            "Use the cover of \(title)"
         }
         /// The hint read after the record sleeve's own label.
         static let sleeveHint = "Choose a cover from Photos or Files"
@@ -159,6 +159,8 @@ enum Copy {
         }
         /// The list / cover toggle and cover size control in the header.
         static let searchPlaceholder = "Search title, artist, genre or track"
+        /// The search prompt at the accessibility text sizes, where the long one can't fit.
+        static let searchPlaceholderShort = "Search"
         static let clearSearch = "Clear search"
         static func noMatches(_ query: String) -> String { "No matches for \u{201C}\(query)\u{201D}" }
         static let layoutList = "List"

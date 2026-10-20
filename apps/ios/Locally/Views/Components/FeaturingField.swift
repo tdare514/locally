@@ -235,7 +235,7 @@ struct FeaturingSheet: View {
             VStack(alignment: .leading, spacing: Theme.Immersive.labeledFieldRowGap) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(Copy.Featuring.sheetTitle)
-                        .font(Theme.Font.sectionTitle)
+                        .themeFont(.sectionTitle)
                         .foregroundStyle(Theme.primaryText)
                         .accessibilityAddTraits(.isHeader)
                     Spacer()

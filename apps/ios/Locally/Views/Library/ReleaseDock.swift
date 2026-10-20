@@ -66,7 +66,7 @@ struct ReleaseDock: View {
 
     private func statusText(_ text: String) -> some View {
         Text(text)
-            .font(Theme.Font.meta)
+            .themeFont(.meta)
             .foregroundStyle(model.hasChanges ? Theme.secondaryText : Theme.primaryText)
             .lineLimit(1)
             .minimumScaleFactor(0.75)

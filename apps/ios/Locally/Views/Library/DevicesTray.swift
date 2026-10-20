@@ -174,11 +174,13 @@ struct DevicesTrayButton: View {
 
     private var badge: some View {
         Text("\(count)")
-            .font(Theme.Font.badge)
+            .themeFont(.badge)
             .foregroundStyle(Theme.onAccent)
             .padding(.horizontal, 5)
             .frame(minWidth: 18, minHeight: 18)
             .background(Theme.accent, in: Capsule())
+            // On the fixed 40 pt cloud, so it stops growing at the largest standard size (#226).
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             .accessibilityHidden(true)
     }
 }
@@ -290,7 +292,7 @@ struct DevicesTrayPanel: View {
             sectionHeader(name: name, count: rows.count, run: run, showsAction: showsAction, actionEnabled: actionEnabled)
             if let note {
                 Text(note)
-                    .font(Theme.Font.dropZoneHint)
+                    .themeFont(.dropZoneHint)
                     .foregroundStyle(Theme.secondaryText)
             }
             VStack(alignment: .leading, spacing: 14) {

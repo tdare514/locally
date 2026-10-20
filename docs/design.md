@@ -67,6 +67,26 @@ script changes.
 
 System font. Sizes are points on iOS, px on web. Tight tracking on titles, wide on eyebrows *(eyebrow tracking replaced 13 Oct 2026, see the note below the table)*.
 
+On iPhone every size below scales with Dynamic Type (16 Oct 2026, #226: an accessibility audit
+found the library, the cover sheet, the record's track count and the Sent card's Close fixed). A
+role keeps its point size at the default text size and grows with the text style named beside it:
+`themeFont(_:)` with `@ScaledMetric(relativeTo:)` (page title 24 → title2, section title 18 →
+title3, eyebrow and field label 11 → caption2, input 16 → body, body and meta 14 → subheadline,
+row title 15 → body, row subtitle 14 → subheadline, drop-zone line 14 → subheadline, drop-zone
+hint 12 → footnote, badge 10 → caption2, primary button 15 → body, chevron 13 → footnote). So
+nothing changes at the default size. Screens built before this keep their layouts up to XX Large
+and stack or wrap at the accessibility sizes; nothing truncates mid-word.
+Controls grow from their content, not by scaling a fixed height: a pill button keeps its 48 pt
+(36 pt compact) minimum and its height comes from the scaled label plus 12 pt above and below; the
+library's search box keeps a 40 pt minimum and grows with its text; segmented pills (the library's
+cover size, the crop sheet's Square / Original) scale their labels, keep 44 pt targets, wrap onto
+two rows when the words don't fit, and mark the chosen option selected for VoiceOver.
+Two things on fixed-size art stop growing instead (20 Oct 2026): the Library cloud's count badge
+stops at XXXL, since the 40 pt cloud doesn't grow and its VoiceOver label carries the count; the
+library's layout toggle and sort buttons stop at 84 pt (icons 35 pt), so the three-way toggle fits
+a 320 pt screen. The empty sleeve's caption keeps scaling: at the accessibility sizes its note and
+hint drop away and **Add cover** wraps.
+
 | Role | Size | Weight | Colour | Tracking |
 | --- | --- | --- | --- | --- |
 | Page title, desktop | 36 | bold | text | -0.02em |
@@ -222,6 +242,23 @@ eyebrows still apply to those labels.
       "Track order changed". Below: **Save** (cover glow button) and **Keep editing** (text).
       Save runs the save (with the sleeve's tuck and spin) and returns to view mode; Keep editing
       closes the sheet and keeps the edits.
+  - *Accessibility pass* (16 Oct 2026, #226, from `performAccessibilityAudit` and a walk through
+    every element on the simulator). Body text on these screens holds 4.5:1, and large text
+    (18 pt, or 14 pt bold) holds 3:1, over any cover colour.
+    - Kind switch: no change. It is the shared `GlowSwitch` (also the Stats page's), its unchosen
+      word measured 7.1:1 over a bright cover, and the chosen option already carries the selected
+      trait, so VoiceOver says "Selected".
+    - Cover glow button: at the accessibility text sizes, where the label wraps over the clouds,
+      the clouds drop to 40 % at rest.
+    - The reorder hint moves from `text-dim` to `text-muted` (4.0:1 to 8.5:1 on the panel). The
+      library row's subtitle was already `text-muted` (8.4:1), and the Sent card's hint lines
+      measure 9:1 once its entrance has settled, so they stay.
+    - A track row the person can't edit (the release page in view mode) reads as one element:
+      "1, Headlights, 3 minutes 24 seconds, 12 plays". In edit mode its title field and replace
+      button stay separate stops.
+    - A recent cover tile reads "Use the cover of <title>".
+    - The cover picker that only hosts the crop sheet, on the release page and on import, draws
+      nothing VoiceOver can reach.
   - *Release dock*: its base is opaque black, so the panel behind it never shows through while
     the keyboard lifts it over the tracks.
 - **Sticky footer CTA (mobile)**: fixed to the bottom, padding 16 horizontal and 12 to 16
