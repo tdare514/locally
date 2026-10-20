@@ -12,6 +12,8 @@ final class AlbumBuilderViewModel {
         let id = UUID()
         var url: URL
         var title: String
+        /// The featured artists (#287). `title` is plain; send joins them into "Song (feat. B)".
+        var featuring: [String] = []
         /// From the file's disc tag, when it has one.
         var discNumber: Int?
         /// From the file's own track tag; only used to order a multi-disc import.
@@ -28,6 +30,8 @@ final class AlbumBuilderViewModel {
     var year: String = ""
     var genre: String = ""
     var coverData: Data?
+    /// The row whose feat. sheet is open, if any.
+    var featuringRowID: TrackRow.ID?
 
     var isLoadingTags = false
     var isSending = false
@@ -59,6 +63,7 @@ final class AlbumBuilderViewModel {
             let inboxFile = index < inboxFiles.count ? inboxFiles[index] : nil
             let shownName = inboxFile?.originalName ?? url.lastPathComponent
             var title = (shownName as NSString).deletingPathExtension
+            var featuring: [String] = []
             var rowURL = url
             var discNumber: Int?
             var tagTrackNumber: Int?
@@ -69,10 +74,12 @@ final class AlbumBuilderViewModel {
                 if let tags = file.existingTags, !tags.title.isEmpty {
                     title = tags.title
                 }
+                featuring = Self.featuring(in: title, artistTag: file.existingTags?.artist ?? "")
+                title = ArtistNames.splitFeaturing(title).title
                 discNumber = file.existingTags?.discNumber
                 tagTrackNumber = file.tagTrackNumber
             }
-            batch.append(TrackRow(url: rowURL, title: title, discNumber: discNumber, tagTrackNumber: tagTrackNumber))
+            batch.append(TrackRow(url: rowURL, title: title, featuring: featuring, discNumber: discNumber, tagTrackNumber: tagTrackNumber))
             if let inboxFile {
                 try? inbox?.remove(inboxFile)
             }
@@ -103,16 +110,39 @@ final class AlbumBuilderViewModel {
         if let tags = file.existingTags, !tags.title.isEmpty {
             title = tags.title
         }
+        let featuring = Self.featuring(in: title, artistTag: file.existingTags?.artist ?? "")
+        title = ArtistNames.splitFeaturing(title).title
         // The list can change while the file stages (a swipe delete, a drag).
         guard let index = rows.firstIndex(where: { $0.id == id }) else { return }
         rows[index].url = file.url
         rows[index].title = title
+        rows[index].featuring = featuring
         rows[index].tagTrackNumber = file.tagTrackNumber
+    }
+
+    /// The names a file brings: those in its title's "(feat. B)" and in its artist tag's "A feat. B".
+    private static func featuring(in title: String, artistTag: String) -> [String] {
+        FeaturingNames.merged(ArtistNames.splitFeaturing(title).featuring, ArtistNames.splitArtistFeaturing(artistTag).featuring)
     }
 
     /// The disc heading to show above each row, or nil for none (see `DiscNumbering.headings`).
     var discHeadings: [Int?] {
         DiscNumbering.headings(for: rows.map(\.discNumber))
+    }
+
+    /// What the disc menu on row `index` offers (#222); none for a lone track.
+    func discActions(at index: Int) -> DiscNumbering.Actions {
+        rows.count >= 2 ? DiscNumbering.actions(for: rows.map(\.discNumber), at: index) : DiscNumbering.Actions()
+    }
+
+    func startDisc(at index: Int) {
+        let discs = DiscNumbering.startDisc(at: index, in: rows.map(\.discNumber))
+        for i in rows.indices { rows[i].discNumber = discs[i] }
+    }
+
+    func joinPreviousDisc(at index: Int) {
+        let discs = DiscNumbering.joinPreviousDisc(at: index, in: rows.map(\.discNumber))
+        for i in rows.indices { rows[i].discNumber = discs[i] }
     }
 
     /// Convenience for `AlbumBuilderView`'s "Make an album" inbox action:
@@ -151,7 +181,7 @@ final class AlbumBuilderViewModel {
         defer { isSending = false }
 
         let files = rows.map { $0.url }
-        let tracks = rows.map { TrackDraft(title: $0.title, discNumber: $0.discNumber) }
+        let tracks = rows.map { TrackDraft(title: ArtistNames.joinFeaturing($0.title, $0.featuring), discNumber: $0.discNumber) }
         let album = AlbumDraft(
             title: albumTitle,
             artist: artist,
@@ -175,6 +205,7 @@ final class AlbumBuilderViewModel {
     /// Resets everything so the view can be reused for another album.
     func reset() {
         rows = []
+        featuringRowID = nil
         albumTitle = ""
         artist = ""
         year = ""
@@ -188,6 +219,6 @@ final class AlbumBuilderViewModel {
 
     /// The track titles in final order, for `DoneView`'s checklist.
     var orderedTrackTitles: [String] {
-        rows.map { $0.title }
+        rows.map { ArtistNames.joinFeaturing($0.title, $0.featuring) }
     }
 }

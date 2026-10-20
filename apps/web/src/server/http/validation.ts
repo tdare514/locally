@@ -2,8 +2,10 @@ import path from "node:path";
 import { z } from "zod";
 import type { ImportMeta, UpdateReleaseMeta } from "../../shared/types";
 import { SUPPORTED_AUDIO_EXT, SUPPORTED_IMAGE_EXT } from "../../shared/types";
+import { isPlainSyncName } from "../sync/SyncRecord";
 import { ValidationError } from "../../shared/errors";
 import { MAX_DISC_NUMBER } from "../../shared/discs";
+import { MAX_ADOPT_ROOTS } from "../../shared/adopt";
 
 /** Input limits shared by the upload routes. */
 export const MAX_COVER_BYTES = 10 * 1024 * 1024;
@@ -140,7 +142,7 @@ const updateMetaSchema = z.object(
             id: text().min(1, "is required"),
             title: text().optional(),
             trackNumber: trackNumberSchema.optional(),
-            discNumber: discNumberSchema.optional(),
+            discNumber: discNumberSchema.nullable().optional(),
           },
           { error: "must be an object" }
         ),
@@ -308,13 +310,30 @@ const putSettingsBodySchema = z.object({
     })
     .optional(),
   trackPlays: z.boolean({ error: "trackPlays must be a boolean" }).optional(),
+  countOtherDevices: z.boolean({ error: "countOtherDevices must be a boolean" }).optional(),
   playsPromptAnswered: z.boolean({ error: "playsPromptAnswered must be a boolean" }).optional(),
+  adoptRoots: z
+    .array(
+      z
+        .string({ error: "adoptRoots must be a list of folder paths" })
+        .trim()
+        .min(1, "adoptRoots must be a list of folder paths")
+        .refine((s) => !hasControlChar(s), "adoptRoots must not contain control characters")
+        .refine((s) => path.isAbsolute(s), "Each Spotify folder must be an absolute path"),
+      { error: "adoptRoots must be a list of folder paths" }
+    )
+    .max(MAX_ADOPT_ROOTS, `You can add at most ${MAX_ADOPT_ROOTS} Spotify folders`)
+    .transform((list) => [...new Set(list.map((p) => path.resolve(p)))])
+    .optional(),
 });
 
 export interface ParsedSettingsPut {
+  /** Absolute, normalised and de-duplicated. The route still checks they exist and sit clear of the library. */
+  adoptRoots?: string[];
   libraryDir?: string;
   sync?: { baseUrl?: string };
   trackPlays?: boolean;
+  countOtherDevices?: boolean;
   playsPromptAnswered?: boolean;
 }
 
@@ -385,4 +404,29 @@ export function parseSyncVerifyBody(body: unknown): { email: string; code: strin
     throw new ValidationError(parsed.error.issues[0].message);
   }
   return parsed.data;
+}
+
+const adoptBodySchema = z
+  .object({
+    keys: z
+      .array(z.string({ error: "keys must be strings" }).min(1, "keys must not be empty").max(64, "key is too long"), {
+        error: "keys must be a list",
+      })
+      .min(1, "Choose at least one release to adopt")
+      .max(5000, "Too many releases at once"),
+  })
+  .strict();
+
+/** Validate the JSON body of `POST /api/adopt`: the keys of the accepted groups in the stored proposal. */
+export function parseAdoptBody(body: unknown): { keys: string[] } {
+  const parsed = adoptBodySchema.safeParse(body);
+  if (!parsed.success) throw new ValidationError(parsed.error.issues[0].message);
+  return parsed.data;
+}
+
+/** Body of POST and DELETE /api/sync/hide: just the release id, checked like a sync record's id. */
+export function parseHideBody(raw: unknown): { id: string } {
+  const id = typeof raw === "object" && raw !== null ? (raw as { id?: unknown }).id : undefined;
+  if (typeof id !== "string" || !isPlainSyncName(id)) throw new ValidationError("A release id is required");
+  return { id };
 }

@@ -1,0 +1,92 @@
+[
+  {
+    "name": "leading the",
+    "a": "The Weeknd",
+    "b": "Weeknd",
+    "expected": true
+  },
+  {
+    "name": "leading the, reversed",
+    "a": "Weeknd",
+    "b": "The Weeknd",
+    "expected": true
+  },
+  {
+    "name": "under 5 characters",
+    "a": "Drake",
+    "b": "Drak",
+    "expected": false
+  },
+  {
+    "name": "5 characters, distance 1",
+    "a": "Adele",
+    "b": "Adelle",
+    "expected": true
+  },
+  {
+    "name": "two typos in long names",
+    "a": "Kendrick Lamar",
+    "b": "Kendrik Lamarr",
+    "expected": true
+  },
+  {
+    "name": "distance 2, short keys",
+    "a": "Radiohead",
+    "b": "Radiohaed",
+    "expected": false
+  },
+  {
+    "name": "equal keys are not look-alikes",
+    "a": "Adele",
+    "b": "Adele",
+    "expected": false
+  },
+  {
+    "name": "equal keys by case and accent",
+    "a": "Beyoncé",
+    "b": "BEYONCE",
+    "expected": false
+  },
+  {
+    "name": "the The vs The The",
+    "a": "The The",
+    "b": "The The",
+    "expected": false
+  },
+  {
+    "name": "different artists",
+    "a": "Drake",
+    "b": "Kanye West",
+    "expected": false
+  },
+  {
+    "name": "featuring part",
+    "a": "Drake",
+    "b": "Drake feat. Rihanna",
+    "expected": true
+  },
+  {
+    "name": "joining part",
+    "a": "Simon",
+    "b": "Simon & Garfunkel",
+    "expected": true
+  },
+  {
+    "name": "shared prefix is not a joining part",
+    "a": "Drake",
+    "b": "Drakeford",
+    "expected": false
+  },
+  {
+    "name": "distance 2 in long keys",
+    "a": "Massive Attack",
+    "b": "Masive Attak",
+    "expected": true
+  },
+  {
+    "name": "non-Latin distance 1",
+    "a": "Мумий Тролль",
+    "b": "Мумий Троль",
+    "expected": true
+  }
+]

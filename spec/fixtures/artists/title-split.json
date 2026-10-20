@@ -1,0 +1,369 @@
+[
+  {
+    "name": "paren feat.",
+    "input": "Song (feat. B)",
+    "title": "Song",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "paren ft.",
+    "input": "Song (ft. B)",
+    "title": "Song",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "paren featuring",
+    "input": "Song (featuring B)",
+    "title": "Song",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "paren feat without dot",
+    "input": "Song (feat B)",
+    "title": "Song",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "paren ft without dot",
+    "input": "Song (ft B)",
+    "title": "Song",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "brackets",
+    "input": "Song [feat. B]",
+    "title": "Song",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "case-insensitive",
+    "input": "Song (FEAT. B)",
+    "title": "Song",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "ampersand names",
+    "input": "Song (feat. B & C)",
+    "title": "Song",
+    "featuring": [
+      "B",
+      "C"
+    ]
+  },
+  {
+    "name": "comma and ampersand names",
+    "input": "Song (feat. B, C & D)",
+    "title": "Song",
+    "featuring": [
+      "B",
+      "C",
+      "D"
+    ]
+  },
+  {
+    "name": "bare feat.",
+    "input": "Song feat. B",
+    "title": "Song",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "bare ft.",
+    "input": "Song ft. B & C",
+    "title": "Song",
+    "featuring": [
+      "B",
+      "C"
+    ]
+  },
+  {
+    "name": "bare, case-insensitive",
+    "input": "Song FT. B",
+    "title": "Song",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "no marker",
+    "input": "Just a Song",
+    "title": "Just a Song",
+    "featuring": []
+  },
+  {
+    "name": "feat mid-word",
+    "input": "Defeat",
+    "title": "Defeat",
+    "featuring": []
+  },
+  {
+    "name": "feat mid-word with brackets",
+    "input": "Defeat (Remix)",
+    "title": "Defeat (Remix)",
+    "featuring": []
+  },
+  {
+    "name": "ft mid-word",
+    "input": "Soft Touch",
+    "title": "Soft Touch",
+    "featuring": []
+  },
+  {
+    "name": "feature is not feat",
+    "input": "Song (feature film)",
+    "title": "Song (feature film)",
+    "featuring": []
+  },
+  {
+    "name": "other bracket kept",
+    "input": "Song (Live) (feat. B)",
+    "title": "Song (Live)",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "marker not at the end",
+    "input": "Song (feat. B) (Live)",
+    "title": "Song (feat. B) (Live)",
+    "featuring": []
+  },
+  {
+    "name": "empty names dropped",
+    "input": "Song (feat. B, , C)",
+    "title": "Song",
+    "featuring": [
+      "B",
+      "C"
+    ]
+  },
+  {
+    "name": "names trimmed",
+    "input": "Song (feat.   B  &  C )",
+    "title": "Song",
+    "featuring": [
+      "B",
+      "C"
+    ]
+  },
+  {
+    "name": "nothing but a marker",
+    "input": "(feat. B)",
+    "title": "(feat. B)",
+    "featuring": []
+  },
+  {
+    "name": "empty feat list",
+    "input": "Song (feat. )",
+    "title": "Song (feat. )",
+    "featuring": []
+  },
+  {
+    "name": "empty title",
+    "input": "",
+    "title": "",
+    "featuring": []
+  },
+  {
+    "name": "brackets inside a featured name",
+    "input": "Song (feat. (G)I-DLE)",
+    "title": "Song",
+    "featuring": [
+      "(G)I-DLE"
+    ]
+  },
+  {
+    "name": "brackets inside one of several names",
+    "input": "Song [feat. B & (G)I-DLE]",
+    "title": "Song",
+    "featuring": [
+      "B",
+      "(G)I-DLE"
+    ]
+  },
+  {
+    "name": "mismatched closer",
+    "input": "Song (feat. B]",
+    "title": "Song (feat. B]",
+    "featuring": []
+  },
+  {
+    "name": "marker followed by an accented letter",
+    "input": "Song (featé B)",
+    "title": "Song (featé B)",
+    "featuring": []
+  },
+  {
+    "name": "marker followed by a CJK letter",
+    "input": "Song (feat日本 B)",
+    "title": "Song (feat日本 B)",
+    "featuring": []
+  },
+  {
+    "name": "marker followed by a combining mark",
+    "input": "Song (feat́ B)",
+    "title": "Song (feat́ B)",
+    "featuring": []
+  },
+  {
+    "name": "ft followed by an accented letter",
+    "input": "Song (fté B)",
+    "title": "Song (fté B)",
+    "featuring": []
+  },
+  {
+    "name": "featuring followed by a letter",
+    "input": "Song (featuringé B)",
+    "title": "Song (featuringé B)",
+    "featuring": []
+  },
+  {
+    "name": "marker then dot then accented name",
+    "input": "Song (feat.é)",
+    "title": "Song",
+    "featuring": [
+      "é"
+    ]
+  },
+  {
+    "name": "accented name after a space",
+    "input": "Song (feat é)",
+    "title": "Song",
+    "featuring": [
+      "é"
+    ]
+  },
+  {
+    "name": "CJK name after a dot",
+    "input": "Song (ft. 日本)",
+    "title": "Song",
+    "featuring": [
+      "日本"
+    ]
+  },
+  {
+    "name": "marker with no names",
+    "input": "Song (ft)",
+    "title": "Song (ft)",
+    "featuring": []
+  },
+  {
+    "name": "unbalanced closers in a name",
+    "input": "Song (feat. Sunn O))))",
+    "title": "Song",
+    "featuring": [
+      "Sunn O)))"
+    ]
+  },
+  {
+    "name": "unbalanced closers in a square-bracket name",
+    "input": "Song [feat. Sunn O]]]",
+    "title": "Song",
+    "featuring": [
+      "Sunn O]]"
+    ]
+  },
+  {
+    "name": "square brackets",
+    "input": "Song [feat. A]",
+    "title": "Song",
+    "featuring": [
+      "A"
+    ]
+  },
+  {
+    "name": "last wrapper wins",
+    "input": "Song (feat. A) (feat. B)",
+    "title": "Song (feat. A)",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "opener must follow whitespace or start",
+    "input": "Song(feat. B)",
+    "title": "Song(feat. B)",
+    "featuring": []
+  },
+  {
+    "name": "trailing tab is trimmed",
+    "input": "Song (feat. B)\t",
+    "title": "Song",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "trailing NEL is not whitespace",
+    "input": "Song (feat. B)",
+    "title": "Song (feat. B)",
+    "featuring": []
+  },
+  {
+    "name": "trailing BOM is not whitespace",
+    "input": "Song (feat. B)﻿",
+    "title": "Song (feat. B)﻿",
+    "featuring": []
+  },
+  {
+    "name": "leading NBSP is not trimmed",
+    "input": " Song (feat. B)",
+    "title": " Song",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "NBSP before the opener is not whitespace",
+    "input": "Song (feat. B)",
+    "title": "Song (feat. B)",
+    "featuring": []
+  },
+  {
+    "name": "NEL inside a name is kept",
+    "input": "Song (feat. B)",
+    "title": "Song",
+    "featuring": [
+      "B"
+    ]
+  },
+  {
+    "name": "NBSP before a bare marker is not whitespace",
+    "input": "Song feat. B",
+    "title": "Song feat. B",
+    "featuring": []
+  },
+  {
+    "name": "feat. group followed by two other groups",
+    "input": "Song (feat. B) [Live] (Remaster)",
+    "title": "Song (feat. B) [Live] (Remaster)",
+    "featuring": []
+  },
+  {
+    "name": "square feat. group followed by a round group",
+    "input": "Song [feat. B] (Live)",
+    "title": "Song [feat. B] (Live)",
+    "featuring": []
+  },
+  {
+    "name": "round feat. group followed by a square group",
+    "input": "Song (feat. B) [Live]",
+    "title": "Song (feat. B) [Live]",
+    "featuring": []
+  }
+]

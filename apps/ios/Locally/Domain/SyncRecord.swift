@@ -96,9 +96,12 @@ struct SyncTrack: Codable, Hashable {
     var file: String
     var bytes: Int
     var durationSec: Double?
+    /// The `spotify:local:...` id of an adopted file (at most 1000 characters), sent by the Mac so the
+    /// server can match Spotify plays. Carried through unchanged; the iPhone never makes or edits one.
+    var localId: String?
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, trackNumber, discNumber, file, bytes, durationSec
+        case id, title, trackNumber, discNumber, file, bytes, durationSec, localId
     }
 
     init(
@@ -108,7 +111,8 @@ struct SyncTrack: Codable, Hashable {
         discNumber: Int? = nil,
         file: String,
         bytes: Int,
-        durationSec: Double? = nil
+        durationSec: Double? = nil,
+        localId: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -117,6 +121,7 @@ struct SyncTrack: Codable, Hashable {
         self.file = file
         self.bytes = bytes
         self.durationSec = durationSec
+        self.localId = localId
     }
 
     /// Refuses a `discNumber` outside 1...99, as the API's `trackRecordSchema` does.
@@ -129,6 +134,7 @@ struct SyncTrack: Codable, Hashable {
         file = try container.decode(String.self, forKey: .file)
         bytes = try container.decode(Int.self, forKey: .bytes)
         durationSec = try container.decodeIfPresent(Double.self, forKey: .durationSec)
+        localId = try container.decodeIfPresent(String.self, forKey: .localId)
         if let discNumber, !DiscNumbering.isValidDisc(discNumber) {
             throw DecodingError.dataCorruptedError(
                 forKey: .discNumber,
@@ -158,6 +164,8 @@ struct SyncTrack: Codable, Hashable {
         try container.encode(file, forKey: .file)
         try container.encode(bytes, forKey: .bytes)
         try container.encode(durationSec, forKey: .durationSec)
+        // Omitted, never null, when absent.
+        try container.encodeIfPresent(localId, forKey: .localId)
     }
 }
 
@@ -189,6 +197,8 @@ struct SyncRecord: Codable, Hashable {
     /// Present on records the server has returned (GET /v1/releases); `nil`
     /// on a record this device is about to `PUT` for the first time.
     var version: Int?
+    /// `.adopted` or absent. A value this build doesn't know decodes as `nil`.
+    var source: ReleaseSource?
 
     init(
         syncVersion: Int = 2,
@@ -206,7 +216,8 @@ struct SyncRecord: Codable, Hashable {
         createdAt: Date,
         updatedAt: Date,
         deleted: Bool = false,
-        version: Int? = nil
+        version: Int? = nil,
+        source: ReleaseSource? = nil
     ) {
         self.syncVersion = syncVersion
         self.id = id
@@ -224,11 +235,12 @@ struct SyncRecord: Codable, Hashable {
         self.updatedAt = updatedAt
         self.deleted = deleted
         self.version = version
+        self.source = source
     }
 
     private enum CodingKeys: String, CodingKey {
         case syncVersion, id, kind, title, artist, year, genre, cover, coverHash, tracks
-        case origin, originDevice, createdAt, updatedAt, deleted, version
+        case origin, originDevice, createdAt, updatedAt, deleted, version, source
     }
 
     init(from decoder: Decoder) throws {
@@ -249,6 +261,8 @@ struct SyncRecord: Codable, Hashable {
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         deleted = try container.decode(Bool.self, forKey: .deleted)
         version = try container.decodeIfPresent(Int.self, forKey: .version)
+        // Unknown values (or a non-string) read as absent, never a failure.
+        source = (try? container.decodeIfPresent(String.self, forKey: .source)).flatMap(ReleaseSource.init(rawValue:))
 
         for (index, track) in tracks.enumerated()
         where !SyncFileName.hasSupportedExtension(track.file) {
@@ -285,6 +299,7 @@ struct SyncRecord: Codable, Hashable {
         try container.encode(updatedAt, forKey: .updatedAt)
         try container.encode(deleted, forKey: .deleted)
         try container.encodeIfPresent(version, forKey: .version)
+        try container.encodeIfPresent(source?.rawValue, forKey: .source)
     }
 }
 
@@ -340,7 +355,8 @@ extension Release {
                     discNumber: track.discNumber,
                     file: (track.filePath as NSString).lastPathComponent,
                     bytes: fileBytes[track.id] ?? 0,
-                    durationSec: track.durationSec
+                    durationSec: track.durationSec,
+                    localId: track.localId
                 )
             },
             origin: origin,
@@ -377,7 +393,8 @@ extension SyncRecord {
                     discNumber: track.discNumber,
                     filePath: fileURLs[track.file]?.path ?? track.file,
                     originalName: track.file,
-                    durationSec: track.durationSec
+                    durationSec: track.durationSec,
+                    localId: track.localId
                 )
             },
             createdAt: createdAt,

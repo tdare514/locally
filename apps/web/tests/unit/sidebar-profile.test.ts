@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 /** Renders the sidebar to a string (effects do not run) with IS_DEMO set as asked. */
-async function render(props: { signedIn?: boolean; email?: string | null; demo?: boolean; pinned?: boolean } = {}) {
+async function render(props: { signedIn?: boolean; email?: string | null; demo?: boolean; pinned?: boolean; stats?: boolean } = {}) {
   vi.resetModules();
   vi.doMock("../../src/lib/demo", () => ({ IS_DEMO: props.demo ?? false }));
   const mod = await import("../../src/components/sidebar/Sidebar");
@@ -16,6 +16,7 @@ async function render(props: { signedIn?: boolean; email?: string | null; demo?:
       onImportClick: () => {},
       onSettingsClick: () => {},
       onProfileClick: () => {},
+      onStatsClick: props.stats ? () => {} : undefined,
       signedIn: props.signedIn ?? false,
       email: props.email ?? null,
       palette: null,
@@ -100,5 +101,25 @@ describe("profile click", () => {
     expect(html.match(/data-page="profile"/g)).toHaveLength(1);
     expect(mod.profileLabel(false, null)).toBe("On this Mac");
     expect(mod.profileInitial(true, "  zed@x.io")).toBe("Z");
+  });
+});
+
+describe("sidebar reveal zone (#264)", () => {
+  it("wraps the menu button and the top rail buttons, not Settings or the profile", async () => {
+    const { rail } = await render({ signedIn: true, email: "owner@example.com", stats: true });
+    const start = rail.indexOf("data-reveal-zone");
+    expect(start).toBeGreaterThan(-1);
+    const settings = rail.indexOf('data-page="settings"');
+    const profile = rail.indexOf('data-page="profile"');
+    // The zone is the first div in the rail; it closes before the mt-auto foot opens.
+    const zone = rail.slice(start, rail.indexOf("mt-auto"));
+    expect(zone).toContain('aria-label="Open sidebar"');
+    expect(zone).toContain('data-page="library"');
+    expect(zone).toContain('data-page="import"');
+    expect(zone).toContain('data-page="stats"');
+    expect(zone).not.toContain('data-page="settings"');
+    expect(zone).not.toContain('data-page="profile"');
+    expect(settings).toBeGreaterThan(start + zone.length - 1);
+    expect(profile).toBeGreaterThan(settings);
   });
 });

@@ -13,6 +13,8 @@ struct ReleaseDetailView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let release: Release
+    /// DEBUG screenshots open the page already in edit mode.
+    var startsEditing = false
 
     @State private var model: ReleaseDetailViewModel?
     @State private var isPresentingFileImporter = false
@@ -49,6 +51,7 @@ struct ReleaseDetailView: View {
                 let made = ReleaseDetailViewModel(release: release, coordinator: container.coordinator, coverStore: container.coverStore, syncApi: container.syncApi, isSignedIn: { container.syncAccount.deviceToken != nil })
                 coverImage = made.coverData.flatMap(UIImage.init(data:))
                 coverImageData = made.coverData
+                if startsEditing { made.beginEditing() }
                 model = made
             }
             await model?.loadPlays()
@@ -66,11 +69,24 @@ struct ReleaseDetailView: View {
             List {
                 Section {
                     hero(model)
-                    fields(model)
+                    if model.isEditing {
+                        fields(model)
+                    } else {
+                        details(model)
+                    }
                     ClearSectionEnd()
                 }
                 .recordListSection()
 
+                if !model.isEditing {
+                    Section {
+                        viewTracks(model)
+                        ClearSectionEnd()
+                    }
+                    .recordListSection()
+                }
+
+                if model.isEditing {
                 Section {
                     tracksHeader(model.trackRows.count).panelRow(.top)
                     if model.isEditing && model.trackRows.count >= 2 {
@@ -78,6 +94,7 @@ struct ReleaseDetailView: View {
                     }
                     trackRows(model)
                     if model.hasPlays { playsFootnote.panelRow(.middle) }
+                    if model.isAdopted { adoptedNote.panelRow(.middle) }
                     if isAlbum { playlistGuide(model).panelRow(.middle) }
                     messages(model)
                     if model.isEditing {
@@ -85,6 +102,7 @@ struct ReleaseDetailView: View {
                     }
                 }
                 .panelListSection()
+                }
             }
             .listStyle(.insetGrouped)
             .listSectionSpacing(.custom(Theme.Spacing.editorSectionGap))
@@ -109,7 +127,7 @@ struct ReleaseDetailView: View {
                     }
                     .disabled(model.isSaving)
                 }
-            } else {
+            } else if !model.isAdopted {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(Copy.Release.edit) { model.beginEditing() }
                 }
@@ -119,11 +137,19 @@ struct ReleaseDetailView: View {
             // Mode changes are instant; only the dock fades (0.25 s, signature easing; none under Reduce Motion).
             ZStack {
                 if model.isEditing {
-                    ReleaseDock(model: model, glowColors: glowColors) { isPresentingReview = true }
+                    ReleaseDock(model: model, glowColors: glowColors) {
+                        model.commitFeaturingDraft()
+                        isPresentingReview = true
+                    }
                         .transition(.opacity)
                 }
             }
             .animation(reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: Theme.Immersive.modeFade), value: model.isEditing)
+        }
+        .sheet(isPresented: Binding(get: { featuringIndex(model) != nil }, set: { if !$0 { model.featuringRowID = nil } })) {
+            if let id = model.featuringRowID, let index = featuringIndex(model) {
+                FeaturingSheet(trackTitle: model.trackRows[index].title, names: featuringBinding(id, in: model)) { model.featuringRowID = nil }
+            }
         }
         .sheet(isPresented: $isPresentingReview) {
             ReleaseReviewSheet(model: model, glowColors: glowColors) { isPresentingReview = false }
@@ -249,10 +275,78 @@ struct ReleaseDetailView: View {
         let gap = Theme.Immersive.labeledFieldRowGap
         LabeledField(Copy.Import.fieldTitle, placeholder: Copy.Import.titlePlaceholder(for: model.kind), text: Binding(get: { model.title }, set: { model.title = $0 }), font: Theme.ScaledFont.fieldTitle, metricsStyle: .title3, wraps: true, isEditable: model.isEditing)
             .clearRow(top: 0, bottom: gap)
-        LabeledField(Copy.Import.fieldArtist, placeholder: Copy.Import.artistPlaceholder, text: Binding(get: { model.artist }, set: { model.artist = $0 }), font: Theme.ScaledFont.input, wraps: true, isEditable: model.isEditing)
+        ArtistField(text: Binding(get: { model.artist }, set: { model.artist = $0 }), isEditable: model.isEditing && !model.isAdopted)
             .clearRow(top: 0, bottom: gap)
+        if model.kind == .single {
+            FeaturingField(names: Binding(get: { model.singleFeaturing }, set: { model.singleFeaturing = $0 }), draft: Binding(get: { model.featuringDraft }, set: { model.featuringDraft = $0 }), isEditable: model.isEditing && !model.isAdopted)
+                .clearRow(top: 0, bottom: model.isEditing || !model.singleFeaturing.isEmpty ? gap : 0)
+        }
         YearGenreRow(year: Binding(get: { model.year }, set: { model.year = $0 }), genre: Binding(get: { model.genre }, set: { model.genre = $0 }), isEditable: model.isEditing)
             .clearRow(top: 0, bottom: 0)
+    }
+
+    // MARK: View mode (#296)
+
+    /// The Mac's details: meta line, title, artist, "Year 2025   Genre Rap".
+    private func details(_ model: ReleaseDetailViewModel) -> some View {
+        ReleaseDetailsView(kind: model.kind, trackCount: model.trackRows.count, title: model.title, artist: model.artist, featuring: model.kind == .single ? model.singleFeaturing : [], year: model.year, genre: model.genre)
+            .clearRow(top: 0, bottom: 0)
+    }
+
+    /// The tracks with no card: a "Tracks" heading, the quiet header row, then a row per track with a
+    /// hairline between rows. Playlists aren't a column on the phone.
+    @ViewBuilder
+    private func viewTracks(_ model: ReleaseDetailViewModel) -> some View {
+        let headings = model.discHeadings
+        let last = model.trackRows.count - 1
+        Text(Copy.Import.tracks)
+            .font(.system(size: 17, weight: .bold))
+            .foregroundStyle(Theme.primaryText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+            .clearRow(top: 0, bottom: 8)
+        ReleaseTrackHeader()
+            .padding(.bottom, 6)
+            .clearRow(top: 0, bottom: 0)
+        ForEach(Array(model.trackRows.enumerated()), id: \.element.id) { index, row in
+            if headings.indices.contains(index), let disc = headings[index] {
+                DiscHeading(number: disc).clearRow(top: 8, bottom: 4)
+            }
+            let seconds = row.durationSec ?? model.readLengths[row.id]
+            ReleaseTrackRow(
+                number: index + 1,
+                title: model.kind == .single ? model.title : row.title,
+                featuring: model.kind == .album ? row.featuring : [],
+                artist: model.artist.isEmpty ? Copy.Detail.unknownArtist : model.artist,
+                plays: model.playTotal(for: row),
+                time: TrackLength.format(seconds),
+                timeSpoken: TrackLength.spoken(seconds)
+            )
+            .overlay(alignment: .bottom) {
+                if index != last { Rectangle().fill(Theme.Track.separatorTint).frame(height: 1) }
+            }
+            .clearRow(top: 0, bottom: 0)
+        }
+        if model.hasPlays { playsFootnote.clearRow(top: 12, bottom: 0) }
+        if model.isAdopted { adoptedNote.clearRow(top: 8, bottom: 0) }
+        if model.kind == .album { playlistGuide(model).clearRow(top: 8, bottom: 0) }
+        viewMessages(model)
+    }
+
+    @ViewBuilder
+    private func viewMessages(_ model: ReleaseDetailViewModel) -> some View {
+        if let statusMessage = model.statusMessage {
+            Text(statusMessage)
+                .font(Theme.Font.meta)
+                .foregroundStyle(Theme.secondaryText)
+                .clearRow(top: 8, bottom: 0)
+        }
+        if let errorMessage = model.errorMessage {
+            Text(errorMessage)
+                .font(Theme.Font.rowSubtitle)
+                .foregroundStyle(Theme.danger)
+                .clearRow(top: 8, bottom: 0)
+        }
     }
 
     // MARK: Panel rows
@@ -292,13 +386,18 @@ struct ReleaseDetailView: View {
             TrackRow(
                 number: index + 1,
                 title: model.kind == .single ? model.title : row.title,
+                featuring: model.kind == .album ? row.featuring : [],
+                onFeat: model.kind == .album && model.isEditing ? { model.featuringRowID = row.id } : nil,
                 titleBinding: model.kind == .album && model.isEditing
                     ? Binding(get: { row.title }, set: { setTitle($0, for: row, in: model) })
                     : nil,
                 plays: model.playTotal(for: row).map(Copy.Detail.playCount),
                 length: TrackLength.format(seconds),
                 lengthSpoken: TrackLength.spoken(seconds),
-                showsGrip: model.isEditing && model.trackRows.count >= 2
+                showsGrip: model.isEditing && model.trackRows.count >= 2,
+                discActions: model.discActions(at: index),
+                onStartDisc: { model.startDisc(at: index) },
+                onJoinDisc: { model.joinPreviousDisc(at: index) }
             )
             .importTrackRow(
                 isFirst: index == 0 || (headings.indices.contains(index) && headings[index] != nil),
@@ -311,6 +410,13 @@ struct ReleaseDetailView: View {
     /// One line under the tracks saying where the play totals come from.
     private var playsFootnote: some View {
         Text(Copy.Detail.playsAcrossDevices)
+            .font(Theme.Font.dropZoneHint)
+            .foregroundStyle(Theme.textDim)
+    }
+
+    /// Says where an adopted release's files are: they never come to this phone.
+    private var adoptedNote: some View {
+        Text(Copy.Detail.adoptedNote)
             .font(Theme.Font.dropZoneHint)
             .foregroundStyle(Theme.textDim)
     }
@@ -356,6 +462,19 @@ struct ReleaseDetailView: View {
     }
 
     private var glowColors: [Color] { glowColorsFor(palette) }
+
+    private func featuringIndex(_ model: ReleaseDetailViewModel) -> Int? {
+        model.featuringRowID.flatMap { id in model.trackRows.firstIndex { $0.id == id } }
+    }
+
+    private func featuringBinding(_ id: UUID, in model: ReleaseDetailViewModel) -> Binding<[String]> {
+        Binding(
+            get: { model.trackRows.first { $0.id == id }?.featuring ?? [] },
+            set: { names in
+                if let index = model.trackRows.firstIndex(where: { $0.id == id }) { model.trackRows[index].featuring = names }
+            }
+        )
+    }
 
     /// Sets a track row's title by its stable `Track.id` (not index), so it
     /// stays correct while `.onMove` changes positions.

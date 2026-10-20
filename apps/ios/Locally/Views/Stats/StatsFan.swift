@@ -377,13 +377,10 @@ private struct StatsFanSleeve: View {
 
     private var art: some View {
         ZStack {
-            Theme.elevated
             if let image {
                 Image(uiImage: image).resizable().scaledToFill()
             } else {
-                Image(systemName: "music.note")
-                    .font(.system(size: size * 0.22))
-                    .foregroundStyle(Theme.secondaryText)
+                NoCoverArt()
             }
             Color.black.opacity(shade)
         }
@@ -508,6 +505,7 @@ private struct StatsRecord: View {
             Circle()
                 .fill(labelFill)
                 .overlay { if let label { Image(uiImage: label).resizable().scaledToFill().clipShape(Circle()) } }
+                .overlay { if label == nil { Circle().strokeBorder(Theme.noCoverLabelRing, lineWidth: 1) } }
                 .overlay(Circle().stroke(Color.black.opacity(0.5), lineWidth: 2))
                 .padding(size * 0.33)
         }
@@ -516,7 +514,7 @@ private struct StatsRecord: View {
         .shadow(color: .black.opacity(0.5), radius: size * 0.05, y: size * 0.04)
     }
 
-    private var labelFill: Color { label == nil ? Theme.accent : .clear }
+    private var labelFill: Color { label == nil ? Theme.noCoverLabel : .clear }
 
     private var grooves: some View {
         Canvas { context, canvas in

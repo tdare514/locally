@@ -56,8 +56,12 @@ final class ReleaseRecord {
     /// JSON-encoded `Release.uploadedFileNames`; `nil` for rows written
     /// before it existed, read back as empty.
     var uploadedFileNamesData: Data?
+    /// `Release.source`'s raw value; `nil` for Locally's own releases and for
+    /// rows written before it existed (an optional attribute, so SwiftData's
+    /// automatic lightweight migration adds it, as for `uploadedFileNamesData`).
+    var sourceRaw: String?
 
-    init(id: UUID, kindRaw: String, title: String, artist: String, year: String?, genre: String?, coverPath: String?, folderPath: String, tracksData: Data, createdAt: Date, updatedAt: Date, syncedUpdatedAt: Date? = nil, uploadedFileNamesData: Data? = nil) {
+    init(id: UUID, kindRaw: String, title: String, artist: String, year: String?, genre: String?, coverPath: String?, folderPath: String, tracksData: Data, createdAt: Date, updatedAt: Date, syncedUpdatedAt: Date? = nil, uploadedFileNamesData: Data? = nil, sourceRaw: String? = nil) {
         self.id = id
         self.kindRaw = kindRaw
         self.title = title
@@ -71,6 +75,7 @@ final class ReleaseRecord {
         self.updatedAt = updatedAt
         self.syncedUpdatedAt = syncedUpdatedAt
         self.uploadedFileNamesData = uploadedFileNamesData
+        self.sourceRaw = sourceRaw
     }
 }
 
@@ -169,6 +174,7 @@ final class SwiftDataLibraryStore: LibraryStore {
             existing.updatedAt = release.updatedAt
             existing.syncedUpdatedAt = release.syncedUpdatedAt
             existing.uploadedFileNamesData = uploadedFileNamesData
+            existing.sourceRaw = release.source?.rawValue
         } else {
             guard insertIfMissing else { return false }
             let record = ReleaseRecord(
@@ -184,7 +190,8 @@ final class SwiftDataLibraryStore: LibraryStore {
                 createdAt: release.createdAt,
                 updatedAt: release.updatedAt,
                 syncedUpdatedAt: release.syncedUpdatedAt,
-                uploadedFileNamesData: uploadedFileNamesData
+                uploadedFileNamesData: uploadedFileNamesData,
+                sourceRaw: release.source?.rawValue
             )
             context.insert(record)
         }
@@ -214,7 +221,8 @@ final class SwiftDataLibraryStore: LibraryStore {
             createdAt: record.createdAt,
             updatedAt: record.updatedAt,
             syncedUpdatedAt: record.syncedUpdatedAt,
-            uploadedFileNames: uploadedFileNames
+            uploadedFileNames: uploadedFileNames,
+            source: record.sourceRaw.flatMap(ReleaseSource.init(rawValue:))
         )
     }
 }

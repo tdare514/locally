@@ -38,14 +38,29 @@ export interface SyncState {
    * means never, so the next reconcile checks. Kept across restarts so the 6 h spacing holds.
    */
   lastMissingFilesCheckAt?: string;
+  /**
+   * releaseId -> the version token (`hideKeyFor`) of the pending record the owner hid from the
+   * tray on this Mac (#295). A newer version has another token, so the release shows again.
+   */
+  hiddenFromTray?: Record<string, string>;
+  /**
+   * releaseId -> ISO time a push of this adopted release was last queued to put its track `localId`s
+   * back on the server (#307). A release is queued at most once a day, so a server that keeps
+   * stripping the field cannot cause a push loop.
+   */
+  localIdQueuedAt?: Record<string, string>;
+  /** True once the one-time back-fill of adopted releases (#307) has been queued under this account. */
+  localIdBackfilled?: boolean;
 }
 
 /** Persists {@link SyncState}. Behind an interface so tests use an in-memory fake. */
 export interface SyncStateStore {
   get(): Promise<SyncState>;
   set(state: SyncState): Promise<SyncState>;
+  /** A read-modify-write under the store's lock; the mutator returns null to change nothing. */
+  update(mutator: (current: SyncState) => SyncState | null): Promise<SyncState>;
 }
 
 export function emptySyncState(): SyncState {
-  return { pushedUpdatedAt: {}, uploadedFiles: {}, coverHash: {}, pendingFromPhone: {}, missingFiles: {} };
+  return { pushedUpdatedAt: {}, uploadedFiles: {}, coverHash: {}, pendingFromPhone: {}, missingFiles: {}, hiddenFromTray: {} };
 }

@@ -37,11 +37,23 @@ function sideFor(presentation: CoverPresentation): number | null {
   return presentation === "thumb" ? 112 : 120;
 }
 
-function frameClass(presentation: CoverPresentation, dragOver: boolean): string {
+function frameClass(
+  presentation: CoverPresentation,
+  dragOver: boolean,
+  empty: boolean,
+  inert: boolean | undefined
+): string {
   if (presentation === "sleeve") {
-    return `record-sleeve size-[200px] rounded-[4px] bg-card sm:size-[248px] ${
-      dragOver ? "ring-2 ring-accent" : ""
-    }`;
+    // An empty sleeve offers the cover with a dashed edge that turns accent on hover or drag (#294);
+    // a filled one keeps the ring while a file is dragged over it.
+    const edge = !empty
+      ? dragOver
+        ? "ring-2 ring-accent"
+        : ""
+      : `border border-dashed ${
+          dragOver ? "border-accent" : inert ? "border-border-dashed" : "border-border-dashed hover:border-accent"
+        }`;
+    return `record-sleeve size-[200px] rounded-[4px] bg-card sm:size-[248px] ${edge}`;
   }
   const radius = presentation === "thumb" ? "rounded-[10px]" : "rounded-lg";
   if (presentation === "thumb") {
@@ -66,7 +78,7 @@ function PencilBadge({ settle }: { settle?: boolean }) {
  * `compact` (import): a dashed 120 square with an image-plus icon and "Click or
  * drop an image", plus a pencil badge once filled. `thumb` (release header): a
  * 112 square with a pencil badge. `sleeve` (release page hero): a printed-sleeve
- * square that cross-fades to a new cover, "Add cover art" when empty. */
+ * square that cross-fades to a new cover, the note over "Add cover" when empty. */
 export default function CoverPicker({
   file,
   existingUrl,
@@ -125,9 +137,9 @@ export default function CoverPicker({
           : "flex flex-col items-center gap-2 px-6"
       }
     >
-      <ImagePlusIcon className={`h-8 w-8 ${dragOver ? "text-accent" : "text-text-muted"}`} />
-      <p className="text-sm font-semibold text-text">Add cover art</p>
-      <p className="text-xs leading-snug text-text-muted">Drop an image or click to choose</p>
+      <MusicNoteIcon className="mb-1 size-16 text-text-dim" />
+      <p className="text-sm font-semibold text-text">Add cover</p>
+      <p className="text-xs leading-snug text-text-dim">Drop an image or click to choose</p>
     </div>
   );
 
@@ -159,7 +171,9 @@ export default function CoverPicker({
         style={side === null ? undefined : { width: side, height: side }}
         className={`relative flex shrink-0 cursor-pointer items-center justify-center overflow-hidden text-center transition-colors ${frameClass(
           presentation,
-          dragOver
+          dragOver,
+          !previewUrl,
+          inert
         )} ${disabled ? "cursor-not-allowed opacity-60" : ""} ${readOnly ? "!cursor-default" : ""}`}
       >
         {/* The first cover of the beat: the empty state fades out under it (an outgoing cover, when

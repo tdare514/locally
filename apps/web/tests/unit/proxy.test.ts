@@ -139,6 +139,19 @@ describe("proxy: demo mode", () => {
     expect(await res.json()).toEqual({ error: "Demo: read-only" });
   });
 
+  it("refuses the Spotify connection's writes with 403 before any handler runs (#239)", async () => {
+    vi.stubEnv("LOCALLY_DEMO", "1");
+    const start = proxy(
+      request({ host: demoHost, method: "POST", path: "/api/spotify/auth/start", origin: `http://${demoHost}` }),
+    );
+    const disconnect = proxy(
+      request({ host: demoHost, method: "DELETE", path: "/api/spotify/connection", origin: `http://${demoHost}` }),
+    );
+    expect(start.status).toBe(403);
+    expect(disconnect.status).toBe(403);
+    expect(await start.json()).toEqual({ error: "Demo: read-only" });
+  });
+
   it("does not block a non-API POST", () => {
     vi.stubEnv("LOCALLY_DEMO", "1");
     const res = proxy(request({ host: demoHost, method: "POST", path: "/", origin: `http://${demoHost}` }));

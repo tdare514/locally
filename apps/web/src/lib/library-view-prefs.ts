@@ -1,7 +1,7 @@
-/** Library home view preferences (#112): list or cover grid, and the cover grid's tile size.
+/** Library home view preferences (#112, #288): list, cover grid or artists, and the cover grid's tile size.
  * Kept in localStorage; every access is guarded so a blocked or full store falls back to defaults. */
 
-export type LibraryLayout = "list" | "covers";
+export type LibraryLayout = "list" | "covers" | "artists";
 /** Cover tile size: 0 compact, 1 medium, 2 large. */
 export type CoverSize = 0 | 1 | 2;
 /** Library width, shared by both layouts: "full" fills the main pane (default), "comfortable" is a centred 920px column. */
@@ -17,7 +17,7 @@ const COVER_SIZE_KEY = "locally.library.coverSize";
 const WIDTH_KEY = "locally.library.width";
 
 export function parseLibraryLayout(raw: string | null): LibraryLayout {
-  return raw === "covers" ? "covers" : "list";
+  return raw === "covers" || raw === "artists" ? raw : "list";
 }
 
 export function parseCoverSize(raw: string | null): CoverSize {
@@ -82,4 +82,46 @@ export function saveLibraryWidth(width: LibraryWidth): void {
   } catch {
     // Not persisted; the choice still applies for this session.
   }
+}
+
+/** Which library section: Singles or Albums (#260). */
+export type LibrarySectionKey = "singles" | "albums";
+export type SectionFolds = Record<LibrarySectionKey, boolean>;
+
+const FOLD_KEYS: Record<LibrarySectionKey, string> = {
+  singles: "locally.library.singlesFolded",
+  albums: "locally.library.albumsFolded",
+};
+
+/** Both sections open: the default. */
+export const NO_FOLDS: SectionFolds = { singles: false, albums: false };
+
+export function parseSectionFolded(raw: string | null): boolean {
+  return raw === "1";
+}
+
+/** The saved fold of each section; open when nothing is saved or storage is blocked. */
+export function loadSectionFolds(): SectionFolds {
+  const folds = { ...NO_FOLDS };
+  for (const key of Object.keys(FOLD_KEYS) as LibrarySectionKey[]) {
+    try {
+      folds[key] = parseSectionFolded(window.localStorage.getItem(FOLD_KEYS[key]));
+    } catch {
+      // Storage unavailable: keep it open.
+    }
+  }
+  return folds;
+}
+
+export function saveSectionFolded(key: LibrarySectionKey, folded: boolean): void {
+  try {
+    window.localStorage.setItem(FOLD_KEYS[key], folded ? "1" : "0");
+  } catch {
+    // Not persisted; the choice still applies for this session.
+  }
+}
+
+/** A section shows its rows unless folded; a typed search opens both without touching the stored fold. */
+export function isSectionOpen(folded: boolean, query: string): boolean {
+  return !folded || query.trim() !== "";
 }

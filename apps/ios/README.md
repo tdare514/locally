@@ -38,6 +38,7 @@ xcodebuild -project Locally.xcodeproj -target Locally -sdk iphonesimulator \
 No signing team is configured (`CODE_SIGN_STYLE` is `Automatic` with no `DEVELOPMENT_TEAM`),
 so simulator builds need no Apple ID. Building for a physical device requires picking a
 team in Xcode's Signing & Capabilities tab first.
+Device builds for the owner's phone use `-configuration Release`; a Debug build on the owner's daily phone breaks their sync (#267).
 
 ## Testing
 

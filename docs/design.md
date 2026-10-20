@@ -97,7 +97,8 @@ eyebrows still apply to those labels.
 - Page padding: mobile 16 (list) to 20 (forms); desktop 40 to 64, content max width 896 (desktop
   form) or 920 (desktop release page). The desktop library has no max width by default: it fills
   the pane with about 24 px each side at `md` and 32 px from `lg` (Full width, #207); the
-  Comfortable setting keeps a centred 920 column.
+  Comfortable setting keeps a centred 920 column. *Since 17 Oct 2026 every Mac page follows this
+  setting: see **Pages at full width** at the end.*
 - Section gap 32 (mobile editor sections 28). Label to input 8. Between fields 16. List rows
   have no gap; a 1 px `border` separates them inside the container.
 - Inputs: padding 16 horizontal, 12 vertical; mobile min height 48. Focus shows a 2 px `accent`
@@ -111,7 +112,7 @@ eyebrows still apply to those labels.
 - **Page header**: eyebrow in `accent` (replaced 13 Oct 2026: sentence case), then the title; on desktop a `text-muted` subtitle under
   it ("Add a song or album to your Spotify library."). Section headers use the same eyebrow +
   title on the left with a `text-muted` meta on the right ("7 tracks", "Tap to edit", "1 file").
-- **Buttons on the Mac (#155, 15 Oct 2026; classes in `apps/web/src/app/globals.css`)**: no
+- **Buttons on the Mac (#155, 15 Oct 2026; classes in `apps/web/src/app/globals.css`)** (*one exception since 17 Oct 2026: the release bar's main action rests lit, see **Pages at full width** at the end*): no
   filled blue. **Main actions** (`.btn-save`: Save to library, Show in Finder, Add to library,
   Sign in, Sync now…) are just their bold white label at rest, no fill or border; on hover or press
   they light up into the phone-tray cloud button's glass (`.glass-fake`, unchanged) with a mild
@@ -196,7 +197,7 @@ eyebrows still apply to those labels.
   - *Release page: view, then edit* (owner, 16 Oct: "so that users don't accidentally just like
     change information"; the import stays the edit page). Mobbin: Copilot's "Preview budget
     changes" sheet for the review.
-    - Opens in **view mode**: each field is its label and the value as plain text, with no
+    - Opens in **view mode** (*details and tracks redrawn in the Mac's look since 17 Oct 2026: see **Pages at full width** at the end*): each field is its label and the value as plain text, with no
       underline or placeholder; an empty value reads "Not set" in `text-dim`. Track titles are
       plain text, rows have no grip and don't drag, the sleeve isn't a button (an empty one shows
       no "Add cover art"), Delete is hidden,
@@ -281,7 +282,7 @@ eyebrows still apply to those labels.
     the disc peeks out, a meta line holds the Single | Album toggle and the track count, then the
     title (placeholder "Same as track title" for a single, "Album title"), artist, Year and Genre
     as inline fields that show a faint underline while empty, then the tracks (rename, remove,
-    reorder as before; "Reading tags…" while the files are read). The dock is the release
+    reorder as before; "Reading tags…" while the files are read). The dock (*replaced 17 Oct 2026 by the release bar, same buttons: see **Pages at full width** at the end*) is the release
     page's: "Add to library" (`.btn-save`, disabled until a file and an artist are in, "Adding…"
     while importing) and "Add a track" (`.btn-ink`).
   - *The cover beat*, whenever a cover is set: the new cover slides in from the right (0 to 420
@@ -332,7 +333,7 @@ eyebrows still apply to those labels.
     field, the artist as a 20 semibold one, then "Year" and "Genre" as small labels each beside
     an inline value. Inline fields look like text until hovered (white 7 % fill) or focused
     (white 10 % fill plus the 2 px `accent` ring). Enter in the title commits it.
-  - *Dock*: Save to library (primary), "Unsaved changes" in `text-muted` while there are any,
+  - *Dock* (*replaced 17 Oct 2026 by the release bar, see **Pages at full width** at the end*): Save to library (primary), "Unsaved changes" in `text-muted` while there are any,
     Show in Finder and Delete (text buttons) in one pill of black at 70 % with blur and a white
     10 % ring. It sits under the details and pins to the top of the pane as you scroll to the
     tracks. The toast for a save reads "Saved to your library".
@@ -512,8 +513,8 @@ eyebrows still apply to those labels.
   order the panel lists them; at its foot sit Settings and, at the very bottom, the profile: a
   32 px circle with the first letter of the signed-in email (white on an `accent` tint), or a
   person glyph when not signed in. *Since 15 Oct 2026 the profile replaces the quiet brand mark
-  that used to sit at the foot, and Settings moved down from under Import.* Hovering the rail
-  blooms a glass panel out of its right edge: the panel controls (**Pin down**, which shows
+  that used to sit at the foot, and Settings moved down from under Import.* Hovering the top of the rail
+  (the menu button through Stats, not Settings, the profile or the empty rail between) blooms a glass panel out of its right edge: the panel controls (**Pin down**, which shows
   "Pinned" while docked, and the Open on hover switch) level with the menu button, rows for
   Library and Import each level with its rail icon, then "Your plays" with Top tracks, Top
   albums, Top artists and an optional record-sleeve shelf (the #1 row larger, with its cover),
@@ -594,7 +595,7 @@ eyebrows still apply to those labels.
   user's locale), then the chevron. Numbers are tabular. An empty genre or year shows nothing.
   Columns drop as the section narrows: Added under 820, Genre under 680, Year and Tracks under
   520. One 1 px divider between rows, as before. The cover grid keeps its own layout.
-- **From your devices tray (desktop, #115, #185, #172)**: a clear faked-glass cloud button at the
+- **From your devices tray (desktop, #115, #185, #172)** (*sections, Hide and closing on an outside click since 17 Oct 2026: see **Pages at full width** at the end*): a clear faked-glass cloud button at the
   top right with an `accent` count badge; open, it becomes a bare red X and the badge hides. The
   frosted tray (about 272 wide, radius 22) drops out diagonally from that corner and closes only
   from the button or Escape. It is the one surface with a real backdrop blur (28, only while open,
@@ -622,3 +623,148 @@ eyebrows still apply to those labels.
     the service asks to wait: "Try again in a few minutes." under the pill.
   - A re-sent release (a newer server version of it) returns to *Still sending*, never straight
     to *Waiting*; the same version pulled again changes nothing.
+- **Your Spotify folders (desktop, #245 step D, #249; designed 16 Oct 2026)**: Locally adds the
+  releases Spotify already plays from the owner's own folders, details only, and never touches the
+  files (plan `docs/plans/245-adopt-local-files.md`). The user-facing verb is **add**, never
+  "adopt": the folders card, the review page and the toast all say "add to your library". Three
+  surfaces, all in the existing look (cards and #155 buttons in Settings, the library colour space
+  behind the review page, the #112 release page). References: Cosmos's "We found 2 boards" and
+  Savee's import review (a found-count title, every item ticked, one button that names the count),
+  Sana's folder list (one row per folder, Remove at its end).
+  - *Settings › Your Spotify folders*: a `card` right after Library folder, titled "Your Spotify
+    folders" (14 bold, like its neighbours), then one 12 `text-dim` line: "Locally reads the music
+    Spotify plays from these folders. It never changes, moves or deletes a file there." Each folder
+    is a row: its name (14 semibold) over its full path (12 `text-dim`, cut in the middle when
+    long), and **Remove** (`.btn-ink`) at the end. Remove only stops Locally checking that folder;
+    releases already added from it stay, and the toast says so: "Stopped checking Masters.
+    Releases added from it stay in your library." With no folders the list is one 13
+    `text-muted` line: "Add the folder Spotify plays your local files from (Spotify › Settings ›
+    Your Library)." When `~/Documents/Spotify Music` exists and is not added,
+    a suggestion row sits first: the path in `text-muted` and **Add** (`.btn-save`). Under the
+    rows: **Add folder…** (`.btn-save`; the native folder picker in the desktop app, an inline
+    path field with Add and Cancel in the browser dev server) and **Check for new files**
+    (`.btn-save`, hidden with no folders), then a 12 `text-dim` line, "Last checked today at
+    14:02", once there has been a check. Check for new files opens the review page.
+  - *Review page* (a main-pane view like Stats, over the library colour space, column as wide as
+    the library's): the page header has the eyebrow "Your Spotify folders" (`accent`, sentence
+    case) and the title as the finding, "Found 214 releases" (one release: "Found 1 release"),
+    then a `text-muted` line, "1,567 tracks in 3 folders. Locally adds their details and leaves the
+    files where they are." and, when files were passed over, a quiet disclosure "3 files skipped"
+    that opens to one line per type ("2 .flac files", "1 .wav file") and "Locally can't add
+    these yet."
+    - Rows are grouped by the first folder under each Spotify folder (the owner's Masters,
+      Unmastered and OG Files stay apart), each group a section header like the library's
+      ("Masters", 14 bold, with "38 releases" in `text-muted` on the right) carrying a group
+      tick that ticks or unticks the whole group. Files straight in the Spotify folder group
+      under its own name.
+    - Each row is the library list row's grid without its columns: the 20 tick (`accent` with a
+      black check when ticked, a 1.5 px white 30 % ring when not, the library selection's
+      checkbox), the 48 cover (radius 4; no art: *since 17 Oct 2026 the double-note square, see **Pages at full width** at the end*; was the house-label sleeve, a neutral square with
+      the `accent` disc label), title (15 semibold) over artist (13 `text-muted`), then "Album,
+      12 tracks" or "Single" and the year (13 `text-muted`, tabular), and the folder below the
+      group as a 12 `text-dim` path ("Summer EP"), cut at the start when long. Every row starts
+      ticked. The whole row toggles its tick (it is the checkbox: role checkbox, Space toggles,
+      the focus ring on the row); an unticked row's cover drops to 40 % and its title to
+      `text-muted`. Nothing on the row is editable: the details are the file's tags, shown as
+      Spotify reads them.
+    - A dock pinned to the bottom of the pane, the release dock's pill (black 70 %, white 10 %
+      ring): "212 of 214 selected" (13 `text-muted`, tabular), **Select all** or **Select none**
+      (`.btn-ink`, whichever changes something), **Cancel** (`.btn-ink`, back to Settings; the
+      findings are kept for next time) and the main action, **Add 212 to your library**
+      (`.btn-save`; one: "Add 1 to your library"; none ticked: disabled at 40 % with
+      `aria-disabled` and the dock's count saying why). Adding sends the ticked groups in batches
+      of 20 (`POST /api/adopt`), one batch after another, so the button reads "Adding 40 of
+      212…" as batches return; while it runs the button is disabled, the rows can't be toggled,
+      and Select all / none and Cancel hide. Leaving the page lets the batch in flight finish on
+      the server but sends no more, and a response that lands after the page has gone changes
+      nothing on screen (no navigation, no focus move). Retrying is safe: a group already in the
+      library comes back in `alreadyAdopted` and counts as added, so a batch whose request failed
+      (no answer, or a network error) is simply part of **Try again**. All added: the library
+      opens with the toast "Added 212 releases to your library". Some not added (the result's
+      `failed`, or a batch with no answer): the page stays, the added rows leave the list, each
+      failed row stays ticked with its message in 12 `danger` under its title ("Couldn't reach
+      Locally." for a batch with no answer), the header line reads "Added 210 of 212. 2 couldn't
+      be added.", and the button becomes **Try again** for what is still ticked.
+    - *Opening the page* always loads the stored findings fresh (`GET /api/adopt/proposal`) and
+      hides any group already in the library (a release whose `adoptKey` matches), so coming
+      back after leaving mid-add shows only what is left, and Add counts only that.
+    - *Reading*: from Check for new files until the findings arrive the title is "Reading your
+      Spotify folders", the line under it counts files when the route reports progress ("412 of
+      1,567 files") and otherwise says "This can take a minute.", a 2 px `accent` line grows
+      across the column under the header (transform only, no track behind it), and six skeleton
+      rows hold the list's shape (tick ring, cover square and two text bars at white 6 %, still).
+      Reduced motion: the line jumps to each new width.
+    - *Reading failed* (the scan request itself fails or times out): title "Couldn't check your
+      Spotify folders", the error's message (or "Locally didn't answer.") in 13 `text-muted`,
+      then **Try again** (`.btn-save`) and **Back to Settings** (`.btn-ink`). Earlier findings,
+      if any, are not shown as if this check had found them; the line under the buttons offers
+      "Review what Locally found on 16 Oct instead" (`.btn-ink`), which opens them with that
+      date in the header line.
+    - *Nothing new*: title "Nothing new in your Spotify folders", line "Everything Locally can
+      add from there is already in your library.", the skipped disclosure if any, and **Back to Settings**
+      (`.btn-ink`). No folders yet (a stale link): "Add a folder in Settings first." with the same
+      button.
+    - *A folder Locally can't read* (the proposal's `unreadable`): above the groups, one 13
+      `danger` line per folder, "Couldn't read ~/Music/Old. Check it's still there and that
+      Locally may open it.", and the rest of the findings still show. When nothing new was found
+      and a folder couldn't be read, the title is "Couldn't read all of your Spotify folders" and
+      the "Everything … is already in your library" line is not shown, since the check was
+      incomplete.
+    - *Accessibility*: each row is a `role="checkbox"` with `aria-checked`, `tabIndex` 0 and the
+      name "Title, Artist, Album, 12 tracks" (the folder as its description); arrow keys move
+      between rows, Space toggles. A group tick is a checkbox named "All of Masters" whose state is
+      `mixed` when some of its rows are ticked: pressing it from mixed or unticked ticks all,
+      from ticked unticks all, and its visual is the `accent` circle with a bar for mixed. One
+      polite live region announces "Reading your Spotify folders", then "Found 214 releases" (or
+      the nothing-new or couldn't-read title), "Adding 40 of 212", and the end result; the
+      skeleton rows are `aria-hidden`. On arrival focus goes to the page title; after adding with
+      failures, to the header line. The list keeps bottom padding equal to the dock's height
+      plus 24, and a focused row scrolls clear of the dock.
+  - *Added releases in the library*: they sit in Singles and Albums with the rest, sorted and
+    searched the same way. A 14 folder glyph (the hand-drawn set, `text-dim`) follows the title
+    in the list and in the grid's caption (never on the cover), labelled "In your Spotify
+    folder" for VoiceOver and as a tooltip: one quiet mark instead of the same line under most
+    of the library's rows (the owner's library will be mostly added releases; this replaces the
+    plan's per-row line, and the plan's UI section says so). In selection mode their tick is
+    hidden and the row can't be selected, since Edit details and Delete don't apply; the
+    selection bar adds one 12 `text-dim` line when the library has any, "Releases from your
+    Spotify folder can't be selected. Remove one from its own page.", and the row's tooltip says
+    the same.
+  - *Their release page* is the #112 page in a view mode: the sleeve without the pencil badge
+    (it doesn't open the cover picker), title, artist, Year and Genre as plain text (no hover
+    fill, no focus ring, "Not set" in `text-dim` when empty), and under the meta line a 13
+    `text-muted` line, "In your Spotify folder · Masters/Summer EP" (the folder after the
+    Spotify folder). Track rows show number, title, length and plays, with no grip or replace;
+    a track whose file has gone is `text-muted` with "File missing" (12 `text-dim`) where its
+    length was. The dock (*moved into the release bar on 17 Oct 2026, same buttons and confirm: see **Pages at full width** at the end*) holds **Show in Finder** (`.btn-save`) and **Remove from Locally**
+    (`.btn-ink`), with no Save and no "Unsaved changes". Remove confirms inline in the dock, in
+    the release page's confirm style but without the red: "Remove from Locally? The files stay in
+    your Spotify folder, and Check for new files can add it back." with **Remove** (`.btn-save`)
+    and **Cancel**. The "Spotify can't see this yet" prompt never shows (Spotify already plays
+    these); "Make it a playlist" stays on albums.
+  - Motion: none of its own. A tick's check scales from 0.6 to 1 with opacity over 160 ms on the
+    house easing; Reduced motion makes it instant. The library and release page keep theirs.
+- **From your devices on the iPhone** (*sections since 17 Oct 2026: see **Pages at full width** at the end*) **(#269, owner 16 Oct: "This notification should be in library… and should match the Mac's design")**: the Mac's tray (the entry above) carried to the phone's Library tab, replacing the toast, chip and list that sat on Import. Import goes back to only making a record.
+  - *Button*: in the Library header, at the top right on the eyebrow's line (the track count stays where it is, on the title's baseline), the Mac's clear faked-glass cloud button, 40 pt visible inside a 44 pt hit area, with the `accent` count badge inside its top-trailing corner so it never crosses the 16 pt gutter, shown only while something is pending; while it shows, the gap between the eyebrow and the title grows from 4 to 26 pt so the track count sits clear below the button (owner 16 Oct: "Notification cloud seems choked"). Open, it becomes a bare red X and the badge hides. VoiceOver: "From your devices, 3 waiting" / "Close".
+  - *Tray* (owner 16 Oct: "Notification shouldn't take up the full screen width"): a slim panel like the Mac's, 300 pt wide (the screen less the 16 pt gutters when that is narrower), its top-right corner under the cloud button, opening out of that corner (scale from 0.92 at the top-trailing anchor with opacity, 240 ms on the house easing; Reduce Motion a 160 ms fade), radius 22, the phone's faked glass (no live blur), at most 60 % of the screen tall and scrolling inside. It opens and closes from the button, and also closes when the library behind it is tapped (a phone has no Escape). Heading "From your devices".
+  - *Rows*, as on the Mac (titles and artists cut short to one line each so the tray stays slim; Dynamic Type at accessibility sizes may wrap to two): a 48 pt record sleeve (the cover, radius 10, the disc peeking out) that is itself the Send to Spotify button (pressed: the cover turns `accent` with a black plus and the disc rolls out), then the title (15 semibold), artist and track count (13 secondary) and the origin label (12 tertiary: "from your Mac", "from the web", "from another device"). A sent row collapses out. The phone has no signal that a pending record's audio is missing from the service (the missing-files check covers this phone's own releases), so it has no "still sending" or "waiting" looks; a failed accept can equally be the network, folder access or a local import error. Two states instead: *sending* (a send is running; it wins over an earlier failure) is the `accent` sleeve with a small spinner in place of the plus, and not a button; *failed* (the last send failed; the sleeve stays the Send button) adds "Couldn't send this yet." (12 `danger`) under the origin label and a secondary **Try again** pill that retries that send. VoiceOver: each sleeve is "Send <title> to Spotify"; a failed row's hint is the sync error text.
+  - *Arrival*: no toast. When the pending count goes up, the badge scales in from 0.6 with opacity over 240 ms on the house easing (`.timingCurve(0.16, 1, 0.3, 1, duration:)`). Reduce Motion: the badge just appears, the tray fades in 160 ms, the disc doesn't roll.
+- **Pages at full width, the release bar, track columns, the tray's sections and no-cover releases (both apps; owner 17 Oct 2026, from screenshots and the mockups at https://claude.ai/artifact/ADeVZeEP1ZEpHjeVfNTtH4)**: the owner's picks, in one entry because they land together. References on Mobbin: Apple Music's album page (cover beside the details, a full-width track table), SoundCloud's vinyl maker (a bottom bar with the main action on the right), Meetup's grouped notifications (a header per group).
+  - *Every Mac page at the library's width* (owner: "we're still not adopting the full page view across all pages"): the release page, Import, Stats, Settings and the Spotify folder review follow the library width setting (#207). Full width (the default) has no max width, with about 24 px each side at `md` and 32 from `lg`; Comfortable keeps a centred 920 column. This replaces the 920 (release page), 896 (forms) and 1180 (Stats) caps. Lines of reading text keep their own measure (a summary sentence stays within about 760, a setting's help line within about 640), and Settings lays its cards out in two columns from `lg`, each card at its natural height, one column below. On the release page the details sit beside the sleeve once the pane is wider than about 900 (sleeve on the left, meta, title, artist, Year and Genre bottom-aligned to it) and under it below that, as now.
+  - *The release bar* (Mac; owner picked option C over actions under the details, a top-bar menu and the title line): the floating dock goes. In its place one bar pinned to the bottom of the pane: inset by the page gutters, 24 above the pane's bottom, at least 68 tall (it wraps to a second line when the pane is narrow or an inline confirm is long, the main action keeping the right end of the last line, and grows to fit), radius 24, the release dock's base (black at 82 % with the faked glass edge and its 10 % white ring; no live blur). The destructive or secondary action sits at its left, the main action at its right, with one quiet status line in `text-muted` just left of the main action when there is one. Inside the bar the main action rests on the glass (the #155 lit state, `--btn-tint` from the cover) so the bar reads as one control strip; secondary actions stay `.btn-ink`. Content keeps bottom padding of the bar's actual height plus 48, and a focused row scrolls clear of it. Tab order follows the bar left to right. An inline confirm moves focus to its safe choice (Keep or Cancel); Escape cancels it and returns focus to the button that opened it.
+    - Locally's own release: left **Delete** (`.btn-ink-danger`, confirm as now); right "Unsaved changes" while there are any, **Show in Finder** (`.btn-ink`), then **Save to library**.
+    - Import (a new record): left **Add a track** (`.btn-ink`); right **Add to library** (disabled until a file and an artist are in, "Adding…" while importing).
+    - From your Spotify folder: left **Remove from Locally** (`.btn-ink`, not red, since the files stay: #249's inline confirm, now in the bar); right **Show in Finder**. No status line.
+    - It never animates in on load; under reduced motion nothing in it moves.
+  - *Track columns* (Mac release page, owner: "title then plays then in playlist then time"): the tracks are a table like the library's: one quiet header row (12, `text-dim`: #, Title, Plays, In playlists, Time), then rows on one grid: the number (`text-dim`, tabular), the title (15 semibold) with the track's artist under it (13 `text-muted`; the release's artist when the track has none, "Unknown artist" when both are empty), plays (14, tabular, right-aligned; nothing when none), the playlists the track is in (13 `text-muted`, one line, "Late night, Ounce and 1 more", cut short when long) and the time (14 `text-muted`, tabular, right-aligned). In playlists drops under 760 and Plays under 560. The import's editing rows keep their grip, rename and remove, and gain the same header and columns. The plays footnote stays under the table.
+  - *iPhone release page, view mode* (owner: "the phone looks so weird… can we adopt the Mac's design for how tracks look"): the details become the Mac's: a meta line ("Album · 5 tracks", 13 secondary), the title (30 bold), the artist (18 semibold, white at 85 %) and one line "Year 2025   Genre Rap" (labels secondary, values white); no label column, and an empty value is left out. The tracks lose their card: a "Tracks" heading (17 bold), one quiet header row (#, Title, Plays, Time; 12 tertiary), then rows with the number, the title (16 semibold) over the artist (13 secondary), plays and time (tabular, right-aligned), a hairline between rows. Playlists aren't a column on the phone. At the accessibility text sizes the details wrap (Year and Genre each take their own line) and each track's plays and time move under its title as one line ("35 plays, 2:22"), so the title keeps the width. Edit mode is unchanged apart from the sleeve below.
+  - *No cover* (owner: "there's no cover, man. It should just be the music symbol… respective of which device it's on"): wherever a release has no art (library rows and grid, release pages, the tray, Stats, the Spotify folder review) the cover is the `card` square with the Mac's double note (`MusicNoteIcon`) centred in `text-dim`, at about a third of the square on large sleeves; the iPhone draws the same glyph (a matching SF Symbol if one exists, else the Mac's path as a shape), not a single note. A record's label with no art is black (#050505 with a 1 px #1E1E1E ring), never `accent`: this replaces the accent house label on the release pages, both import screens' bare disc and the tray, and the house-label sleeve from #249 (`HouseSleeve`) is retired. Where the release can be edited the empty sleeve offers it: on the Mac, Locally's own releases and Import show the note over **Add cover** (14 semibold) and "Drop an image or click to choose" (12 `text-dim`), a dashed `border-dashed` edge turning `accent` on hover or drag; on the iPhone the same sleeve shows **Add cover** and "Choose a photo or a file" in the release page's edit mode and always on Import, which has no view mode. Releases from the Spotify folder show the note and nothing else.
+  - *From your devices, in sections* (both trays; owner: "at the top is all the ones you can add, at the bottom is all the ones that you can't add, the same way we have singles and albums"):
+    - **Ready to add**, then the other section, each under a header line: the name (13 semibold) with its count (`text-dim`), and at the right of that line the section's one action. Both actions are the same control, `.btn-save` on the Mac and a secondary pill on the iPhone, the same size: **Add all** (shown from two ready rows) and **Try all again**. A hairline separates the sections; an empty section isn't shown. The groups never overlap. On the Mac a row is *ready* only when its audio is on the server (no files state, or `ready`); *Still sending* (`arriving`) and *Waiting* rows belong only to the second section. On the iPhone *ready* is pending and neither sending nor failed, and the second section is the failed rows. A row being sent stays in its section with its sending look. **Add all** takes the ready rows as they are when pressed, **Try all again** the failed or waiting rows as they are when pressed; each shows "Adding…" or "Trying…" and is disabled until its own run ends. Every row in a run is reserved the moment the button is pressed: it shows its sending look and its own controls (the sleeve's Send, the row retry, Hide) are disabled until its turn ends, and a send never starts for a release that is already being sent, whichever control asked, so nothing is sent twice. (The iPhone's existing accept-all takes every pending record, so it needs a ready-only version.)
+    - Mac, the second section is **Waiting on your iPhone** when every row came from the iPhone, **Waiting on that device** for one other origin and **Waiting on your devices** for a mix, and holds both *Still sending* and *Waiting* rows. One line under its header replaces the per-row lines: "Their audio hasn't arrived yet. Open Locally on your iPhone to finish sending them." ("…on that device…", or "Open Locally on those devices…" for a mix). **Try all again** (shown while any row is *Waiting*) is the existing resync request, which asks every device on the account; after it: "Asked your iPhone to send them again." ("…your devices…" for a mix) and, when the service asks to wait, "Try again in a few minutes." under the header. Rows in this section are compact (40 sleeve, still at 60 %; title 14 semibold `text-muted`; "kwaylone, 1 track, since 27 Sep" 12 `text-dim`). There is no per-row retry on the Mac: the request asks the devices to resend everything they're missing at once, so one button is the honest control.
+    - The Spotify folder review keeps its own dock (its selection count, Select all, Cancel and Add N), unchanged.
+    - Mac, **Hide**: hovering or focusing a waiting row shows a small icon button at its end, "Hide <title>". It hides that release from this tray on this Mac only (its id and server version are kept locally); nothing is deleted anywhere, and it comes back if a newer version arrives. A toast: "Hidden. It comes back if your iPhone sends it again." with Undo.
+    - iPhone, the second section is **Couldn't send yet**: rows whose last send failed, with one line under the header, "Locally couldn't send these yet." (a failure can be the network, folder access or the import), and **Try all again** retrying every failed send. Each row keeps its own retry as a small icon button at its end ("Try <title> again"), since a send there is one download; the per-row "Couldn't send this yet." line and its Try again pill go.
+    - Closing (owner: "when you have notifications open and you click… outside of it, it should close"): on the Mac a click or tap anywhere outside the tray (other than the cloud button, which toggles it) closes it; focus returns to the cloud button after Escape or a click on empty space, and stays with the control that was clicked otherwise; the iPhone already closes when the library behind is tapped.
+    - Accessibility: each section name is a heading (level 3 under the tray's "From your devices"), and its count is part of the heading's name ("Ready to add, 2"). The lines after Try all again (and the Mac's "Try again in a few minutes.") are announced in one polite live region per tray. Hide and the iPhone's row retry are real buttons, reachable by Tab or the VoiceOver rotor, not only on hover. When a row leaves (sent or hidden) while the tray is open and focus was on that row's own control, focus moves to the next row's control, else the previous row's, else the section's header action, else the tray heading; focus anywhere else is left where it is. Escape closes the Mac tray and returns focus to the cloud button; an outside click that lands on another control closes the tray and lets that control take focus and act.
+    - Motion as before: rows collapse out when sent; sections don't animate; reduced motion as before.

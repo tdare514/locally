@@ -144,4 +144,68 @@ describe("loadEnv", () => {
       expect(loadEnv().migrateOnStart).toBe(true);
     });
   });
+
+  describe("Spotify (#305)", () => {
+    const GOOD_KEY = Buffer.alloc(32, 7).toString("base64");
+
+    function prod(overrides: Record<string, string> = {}) {
+      vi.stubEnv("NODE_ENV", "production");
+      vi.stubEnv("AUTH_PEPPER", "a-real-auth-pepper");
+      vi.stubEnv("TOKEN_PEPPER", "a-real-token-pepper");
+      vi.stubEnv("CRON_SECRET", "a-real-cron-secret");
+      vi.stubEnv("DATABASE_URL", "libsql://example");
+      const all: Record<string, string> = {
+        SPOTIFY_CLIENT_ID: "cid",
+        SPOTIFY_REDIRECT_URI: "https://sync.example.com/v1/spotify/callback",
+        SPOTIFY_TOKEN_KEY: GOOD_KEY,
+        SAMPLER_SECRET: "sampler",
+        ...overrides,
+      };
+      for (const [k, v] of Object.entries(all)) vi.stubEnv(k, v);
+    }
+
+    it("is null unless SPOTIFY_CLIENT_ID is set", () => {
+      vi.stubEnv("NODE_ENV", "development");
+      vi.stubEnv("SPOTIFY_CLIENT_ID", "");
+      expect(loadEnv().spotify).toBeNull();
+    });
+
+    it("loads a complete production config", () => {
+      prod();
+      const spotify = loadEnv().spotify!;
+      expect(spotify.clientId).toBe("cid");
+      expect(spotify.tokenKey).toHaveLength(32);
+      expect(spotify.samplerSecret).toBe("sampler");
+    });
+
+    it.each(["SPOTIFY_REDIRECT_URI", "SPOTIFY_TOKEN_KEY", "SAMPLER_SECRET"])("refuses production without %s", (name) => {
+      prod({ [name]: "" });
+      expect(() => loadEnv()).toThrow(new RegExp(name));
+    });
+
+    it("refuses production with a token key that is not 32 bytes", () => {
+      prod({ SPOTIFY_TOKEN_KEY: Buffer.alloc(16).toString("base64") });
+      expect(() => loadEnv()).toThrow(/SPOTIFY_TOKEN_KEY/);
+      prod({ SPOTIFY_TOKEN_KEY: "not base64 !!!" });
+      expect(() => loadEnv()).toThrow(/SPOTIFY_TOKEN_KEY/);
+    });
+
+    it("refuses production with a non-https or invalid redirect", () => {
+      prod({ SPOTIFY_REDIRECT_URI: "http://sync.example.com/v1/spotify/callback" });
+      expect(() => loadEnv()).toThrow(/SPOTIFY_REDIRECT_URI/);
+      prod({ SPOTIFY_REDIRECT_URI: "not a url" });
+      expect(() => loadEnv()).toThrow(/SPOTIFY_REDIRECT_URI/);
+    });
+
+    it("falls back to loud insecure defaults in development", () => {
+      vi.stubEnv("NODE_ENV", "development");
+      vi.stubEnv("SPOTIFY_CLIENT_ID", "cid");
+      vi.stubEnv("SPOTIFY_REDIRECT_URI", "");
+      vi.stubEnv("SPOTIFY_TOKEN_KEY", "");
+      vi.stubEnv("SAMPLER_SECRET", "");
+      const spotify = loadEnv().spotify!;
+      expect(spotify.redirectUri).toBe("http://127.0.0.1:4000/v1/spotify/callback");
+      expect(spotify.tokenKey).toHaveLength(32);
+    });
+  });
 });

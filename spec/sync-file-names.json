@@ -1,0 +1,10 @@
+{
+  "extensions": [
+    "mp3",
+    "m4a",
+    "jpg",
+    "jpeg",
+    "png"
+  ],
+  "maxNameBytes": 255
+}

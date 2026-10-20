@@ -13,6 +13,10 @@ export interface Track {
   filePath: string;      // absolute path of the tagged .mp3 inside the library folder
   originalName: string;  // filename the user uploaded
   durationSec: number | null;
+  /** Adopted tracks only (#245): the `spotify:local:` id Spotify builds from the file's tags. */
+  localId?: string;
+  /** Adopted tracks only: the file was gone at the last scan. Shown, never deleted. */
+  missing?: boolean;
 }
 
 export interface Release {
@@ -27,6 +31,10 @@ export interface Release {
   tracks: Track[];
   createdAt: string;     // ISO
   updatedAt: string;     // ISO
+  /** True for a release adopted in place (#245): its files stay where they are and are never written. */
+  adopted?: boolean;
+  /** Adopted releases only: the scanner's group key, so adopting the same group again adds nothing. */
+  adoptKey?: string;
 }
 
 export interface Library {
@@ -54,12 +62,51 @@ export interface SyncSettings {
   lastVersion: number;
 }
 
+/**
+ * The Spotify connection (#239). Secrets: like `SyncSettings.deviceToken`, this lives only in
+ * the server-side settings file and is never sent to the browser or the sync API.
+ */
+export interface SpotifySettings {
+  accessToken: string;
+  accessTokenExpiresAt: number;  // epoch ms
+  refreshToken: string;
+  revision: string;  // random id per connect; a refresh only writes to the connection it started from
+  scopes: string[];
+  userId: string;
+  displayName: string;
+  connectedAt: string;  // ISO timestamp
+}
+
+/** Response shape for GET /api/spotify/playlists?releaseId=: the playlists each track is in (#212). */
+export interface SpotifyPlaylistsResponse {
+  connected: boolean;
+  tracks: Record<string, { id: string; name: string }[]>;
+  /** A background refresh is running; the answer is from the cache. */
+  refreshing?: boolean;
+  /** Set while a refresh is held off: seconds until it may start again. */
+  retryAfterSec?: number;
+}
+
+/** Response shape for GET/DELETE /api/spotify/connection: no tokens. */
+export interface SpotifyConnectionStatus {
+  available: boolean;
+  connected: boolean;
+  displayName: string | null;
+  scopes: string[];
+  pending: boolean;
+  error: string | null;
+}
+
 export interface Settings {
   libraryDir: string;    // where tagged files are written; Spotify should be pointed at this folder
   sync: SyncSettings | null;
   spotifySourceDismissed?: boolean;  // user clicked "Done, I added it" on the Spotify source prompt
   trackPlays?: boolean;  // opt-in: count plays of Locally tracks in Spotify on this Mac (#106); default false
+  countOtherDevices?: boolean;  // opt-in: count plays on the user's other devices through the Spotify account (#228); default false
+  spotify?: SpotifySettings;  // the Spotify connection (#239); absent when disconnected
   playsPromptAnswered?: boolean;  // user answered the one-time "Count your Spotify plays?" card, either button (#110)
+  adoptRoots?: string[];  // folders Spotify reads that Locally scans to adopt in place (#245); read as [] when absent
+  installId?: string;  // random UUID made once on this Mac, sent with sync sign-in (#210); never logged, never sent to the browser
 }
 
 /** The `sync` field as returned to the browser by GET/PUT /api/settings: no token. */
@@ -75,7 +122,12 @@ export interface SettingsResponse {
   libraryDir: string;
   sync: SyncStatusSummary;
   trackPlays: boolean;
+  countOtherDevices: boolean;
   playsPromptAnswered: boolean;
+  /** The Spotify folders Locally reads to add releases in place (#249). */
+  adoptRoots: string[];
+  /** `~/Documents/Spotify Music` when it exists and is not already a Spotify folder, else null. */
+  suggestedAdoptRoot: string | null;
 }
 
 /** Response shape for GET /api/plays/status. */
@@ -83,6 +135,24 @@ export type PlaysStatus = "off" | "on" | "spotify-not-running" | "permission-den
 
 export interface PlaysStatusResponse {
   status: PlaysStatus;
+  /** Where plays are read from: the Spotify account (every device), this Mac's Spotify app only (#228), or the sync service counting online, which leaves this Mac out (#307). */
+  source: "account" | "this-mac" | "online";
+  /** True while the account source failed and this Mac's app is read instead. */
+  fallingBack: boolean;
+}
+
+/** Why online play counting is not running right now, as the sync service reports it (#307). */
+export type CloudPlaysProblem = "reconnect" | "notOnTesterList" | "rateLimited";
+
+/** Response shape for GET /api/spotify/cloud: the sync service counting plays while the Mac is off (#307). */
+export interface CloudPlaysStatus {
+  /** Signed in to sync and the service has the feature. False hides the Settings row. */
+  available: boolean;
+  linked: boolean;
+  lastSampleAt: string | null;
+  problem: CloudPlaysProblem | null;
+  /** The owner was sent to the browser and the link has not come back yet. */
+  pending: boolean;
 }
 
 /** One device's count for a track in GET /api/plays. `current` marks this Mac. The release page
@@ -146,6 +216,10 @@ export interface PendingFromPhone {
   trackCount: number;
   /** Set only while the files-missing check lists this release; an older service never sets it. */
   filesState?: PendingFilesState;
+  /** Which server version of the record this is, so a Hide on this Mac holds for it only (#295). */
+  hideKey?: string;
+  /** When the record was last written (ISO), for the "since 27 Sep" on a waiting row. */
+  sentAt?: string;
 }
 
 export interface SyncQuota {
@@ -162,6 +236,8 @@ export interface SyncStatus {
   lastRunAt: string | null;
   lastError: string | null;
   pendingFromPhone: PendingFromPhone[];
+  /** releaseId -> the `hideKey` hidden from the tray on this Mac (#295). */
+  hiddenFromTray?: Record<string, string>;
   quota: SyncQuota | null;
 }
 
@@ -182,7 +258,8 @@ export interface UpdateReleaseMeta {
   artist?: string;
   year?: string | null;
   genre?: string | null;
-  tracks?: { id: string; title?: string; trackNumber?: number; discNumber?: number }[];
+  /** `discNumber: null` clears the disc (back to a release with no discs); absent leaves it as it is. */
+  tracks?: { id: string; title?: string; trackNumber?: number; discNumber?: number | null }[];
 }
 
 /** Response shape for GET /api/spotify/source and POST /api/spotify/source/dismiss. */

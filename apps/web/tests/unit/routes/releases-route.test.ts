@@ -83,6 +83,11 @@ class FakeSettingsStore {
     settingsValue = next;
     return next;
   }
+  async update(mutator: (current: Settings) => Settings | null): Promise<Settings> {
+    const next = mutator(settingsValue);
+    if (next) settingsValue = next;
+    return settingsValue;
+  }
 }
 
 beforeEach(() => {

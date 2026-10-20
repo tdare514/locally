@@ -1,16 +1,8 @@
-import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { getServices } from "../../../../server/container";
 import { withObservability } from "../../../../server/http/observe";
+import { isValidCronBearer } from "../../../../server/http/secretBearer";
 import { UnauthorizedError } from "../../../../shared/errors";
-
-/** Timing-safe compare of the request's bearer header against the expected `Bearer <secret>`. */
-function isValidCronBearer(header: string | null, secret: string): boolean {
-  if (!header) return false;
-  const expected = Buffer.from(`Bearer ${secret}`);
-  const actual = Buffer.from(header);
-  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
-}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

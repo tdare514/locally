@@ -20,6 +20,7 @@ src/server/
     SettingsStore.ts        # interface: get()/set() app settings
     FileSettingsStore.ts    # JSON-file impl (~/.spotify-local-import/settings.json)
     paths.ts                # default library dir, settings file path helpers
+    adoptRoots.ts           # Spotify folders (#249): the suggested ~/Documents/Spotify Music and the exists / clear-of-the-library check, behind an injectable probe
     settingsUpdate.ts       # PUT /api/settings policy: libraryDir rules, dismissed-flag and sync-state resets
     settingsView.ts         # projects server-internal Settings down to safe client response
   storage/
@@ -35,6 +36,10 @@ src/server/
     ReleaseService.ts         # import/update/replaceCover/delete/get/list — the core domain logic
     InspectService.ts         # POST /api/inspect: read tags off uploads without storing them
     ReleaseSyncHooks.ts       # interface: post-mutation callbacks so SyncEngine can push; wired via setSyncHooks()
+  adopt/
+    AdoptScanner.ts          # walks the adopt roots read only and proposes releases (#247)
+    AdoptService.ts          # scan/proposal/adopt in place: releases with adopted:true, covers copied to app data (#248)
+    guards.ts                # assertWritable (adopted = read-only) and the read check for adopt roots (#248)
   fs/
     FileSystem.ts             # interface wrapping disk I/O (save, move, mkdirp, isInside, ...)
     NodeFileSystem.ts         # node:fs implementation
@@ -44,6 +49,11 @@ src/server/
     SyncRecord.ts             # zod schema for the wire record, plain-name + extension guards, to/fromSyncRecord
     SyncState.ts              # SyncState + SyncStateStore interface: pushed/uploaded/pending bookkeeping, per-release firstSeenMissingAt marks (#172)
     FileSyncStateStore.ts     # JSON-file impl (sync-state.json next to settings.json), zod-validated
+  spotify/
+    config.ts                 # client id (bundled, LOCALLY_SPOTIFY_CLIENT_ID overrides), redirect 127.0.0.1:8888/callback, scopes (#239)
+    SpotifyAuth.ts            # PKCE sign-in: one-shot loopback listener, single-use state, code exchange, disconnect
+    SpotifyClient.ts          # token refresh bound to its connection revision, request + error mapping
+    CloudPlays.ts             # online play counting (#307): caches GET /v1/spotify/link, link/unlink, authorize-URL allowlist; PlayTracker stands down while it is active; served at /api/spotify/cloud
   http/
     responses.ts              # errorResponse/badRequest
     validation.ts             # upload limits, mime sniffing, zod schemas: request → validated DTO parsers
@@ -52,6 +62,8 @@ src/app/api/**/route.ts   # thin HTTP handlers: parse via http/validation, call 
 src/app/api/sync/**/route.ts  # sync: code/verify/status/signout, reconcile, accept/[id], resync
 electron/                 # Mac desktop shell (Electron); compiled by tsconfig.electron.json to electron/dist
   main.ts                 # spawns the Next standalone server on a free 127.0.0.1 port, opens one window, locks navigation; keeps running after the window closes, "Open at Login" menu item (#105)
+  preload.ts              # contextBridge: window.locallyDesktop.pickFolder() only, over the "locally:pick-folder" channel (#249)
+  lib/pickFolder.ts       # the main-process handler for it: main window only, folder-only dialog, path or null
   lib/freePort.ts         # findFreePort() on 127.0.0.1
   lib/serverEnv.ts        # pure: env for the server child (HOSTNAME forced to 127.0.0.1, PORT, config dir, ffmpeg, PATH)
   lib/migrateConfig.ts    # pure: first-launch copy of ~/.spotify-local-import config into Application Support
@@ -71,6 +83,7 @@ electron/vendor/          # git-ignored: the built ffmpeg binary, per uname -m a
 src/proxy.ts              # loopback-only + same-origin CSRF guard (Next middleware)
 src/lib/api-client.ts     # client-side typed fetch wrappers (imports src/shared/types)
 src/lib/inbox-copy.ts     # tray title, the origin label under a pending release ("from your iPhone", "from the web", "from another device"; #185), and the "Still sending…" footer / "Waiting on your phone" copy (#172)
+src/lib/adopt-review.ts   # pure: the Spotify folders review page's grouping, ticks, batches of 20 and copy (#249)
 src/lib/crop-geometry.ts  # pure: square/original crop geometry, mirrors iOS ImageCropper.swift
 src/lib/crop-image.ts     # crops and downscales image files, respects EXIF orientation
 src/components/**         # UI, unaffected by this architecture

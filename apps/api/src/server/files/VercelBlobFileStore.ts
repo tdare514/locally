@@ -4,6 +4,9 @@ import type { CreateUploadParams, FileStore, UploadTicket } from "./FileStore";
 
 const TICKET_LIFETIME_MS = 5 * 60 * 1000;
 
+/** The Blob API version `@vercel/blob` 2.x sends as `x-api-version` on its own requests. */
+const BLOB_API_VERSION = "12";
+
 /**
  * The Blob pathname handed to the SDK, derived from the storage key.
  *
@@ -81,11 +84,22 @@ export class VercelBlobFileStore implements FileStore {
       allowedContentTypes: [contentType],
       maximumSizeInBytes: bytes,
       allowOverwrite: true,
+      // Explicit: the Blob service added a random suffix to presigned PUTs (16 Oct 2026, #266), so every
+      // upload landed at "<name>-<random>.<ext>" and every download, list and missing-files check, which
+      // use the exact key, found nothing.
+      addRandomSuffix: false,
     });
     return {
       url: presignedUrl,
       method: "PUT",
-      headers: { "Content-Type": contentType },
+      // The SDK's own put() always sends these two; a raw PUT to the presigned control-plane URL
+      // without them answers 200 yet stores nothing a read or list can find (16 Oct 2026, #266:
+      // every synced file and cover was "missing"). Both clients send the ticket's headers verbatim.
+      headers: {
+        "Content-Type": contentType,
+        "x-api-version": BLOB_API_VERSION,
+        "x-vercel-blob-access": "private",
+      },
     };
   }
 

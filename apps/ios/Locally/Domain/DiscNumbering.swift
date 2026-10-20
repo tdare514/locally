@@ -89,6 +89,73 @@ enum DiscNumbering {
         return out
     }
 
+    /// The row index where each disc range begins: row 0, and every row whose disc differs from the row
+    /// before it (a row with no disc counts as disc 1). Discs are contiguous ranges.
+    private static func rangeStarts(_ discs: [Int?]) -> [Int] {
+        discs.indices.filter { $0 == 0 || (discs[$0] ?? 1) != (discs[$0 - 1] ?? 1) }
+    }
+
+    /// `discs` with the ranges that begin at `starts` numbered from the first row's disc (1 when it has
+    /// none). One range numbered from 1 clears every disc number: the release goes back to no discs.
+    private static func renumber(_ discs: [Int?], starts: [Int]) -> [Int?] {
+        let base = discs.first.flatMap { $0 } ?? 1
+        let clear = starts.count == 1 && base == 1
+        var range = -1
+        return discs.indices.map { index -> Int? in
+            if starts.contains(index) { range += 1 }
+            return clear ? nil : base + range
+        }
+    }
+
+    /// `discs` with a new disc starting at row `index` (#222): that row and the rest of its disc range
+    /// move up to a new disc, and later discs shift up by one. Unchanged for the first row, a row that
+    /// already begins a disc, or an index outside the list. Mirrors `startDiscAt` in `discs.ts`.
+    static func startDisc(at index: Int, in discs: [Int?]) -> [Int?] {
+        let starts = rangeStarts(discs)
+        guard index > 0, index < discs.count, !starts.contains(index) else { return discs }
+        // The highest disc after the split must still be a valid one.
+        guard (discs.first.flatMap { $0 } ?? 1) + starts.count <= maxDisc else { return discs }
+        return renumber(discs, starts: (starts + [index]).sorted())
+    }
+
+    /// `discs` with the disc that begins at row `index` merged into the one before it (#222), later
+    /// discs shifting down by one. Unchanged unless `index` is the first row of a disc after the first.
+    /// Mirrors `joinPreviousDisc` in `discs.ts`.
+    static func joinPreviousDisc(at index: Int, in discs: [Int?]) -> [Int?] {
+        let starts = rangeStarts(discs)
+        guard index > 0, starts.contains(index) else { return discs }
+        return renumber(discs, starts: starts.filter { $0 != index })
+    }
+
+    /// Every disc range in order: its disc number and the 1-based track it starts at, the first range
+    /// included. Empty when no row has a disc. The review sheet words the layout from this (#222).
+    static func ranges(for discs: [Int?]) -> [(disc: Int, track: Int)] {
+        guard discs.contains(where: { $0 != nil }) else { return [] }
+        return rangeStarts(discs).map { (disc: discs[$0] ?? 1, track: $0 + 1) }
+    }
+
+    /// What the disc menu offers on a row, as the disc numbers its labels show.
+    struct Actions: Equatable {
+        /// "Start disc N here": any row but the first, unless it already begins a disc.
+        var start: Int?
+        /// "Join disc N": the first row of a disc after the first; N is the disc before.
+        var join: Int?
+
+        var isEmpty: Bool { start == nil && join == nil }
+    }
+
+    /// The actions the menu offers on row `index`; none means a plain number. Mirrors `discActionsFor`.
+    static func actions(for discs: [Int?], at index: Int) -> Actions {
+        guard index > 0, index < discs.count else { return Actions() }
+        let starts = rangeStarts(discs)
+        let base = discs.first.flatMap { $0 } ?? 1
+        if let position = starts.firstIndex(of: index) { return Actions(join: base + position - 1) }
+        let range = starts.filter { $0 < index }.count - 1
+        // No Start when the highest disc after the split would pass `maxDisc`.
+        guard base + starts.count <= maxDisc else { return Actions() }
+        return Actions(start: base + range + 1)
+    }
+
     /// The items in (disc, the file's own track number) order, for an import whose files carry disc
     /// tags. Items that tie keep the order they came in, and an item with no track tag sorts after
     /// the numbered items of its disc. When no item has a disc tag the order is returned untouched

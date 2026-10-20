@@ -23,7 +23,7 @@ struct AlbumBuilderView: View {
                         .importClearRow(top: 0, bottom: Theme.Immersive.fieldsMetaGap)
                     VStack(alignment: .leading, spacing: Theme.Immersive.labeledFieldRowGap) {
                         LabeledField(Copy.Import.fieldTitle, placeholder: Copy.Import.titlePlaceholder(for: .album), text: Binding(get: { model.albumTitle }, set: { model.albumTitle = $0 }), font: Theme.ScaledFont.fieldTitle, metricsStyle: .title3, wraps: true)
-                        LabeledField(Copy.Import.fieldArtist, placeholder: Copy.Import.artistPlaceholder, text: Binding(get: { model.artist }, set: { model.artist = $0 }), font: Theme.ScaledFont.input, wraps: true)
+                        ArtistField(text: Binding(get: { model.artist }, set: { model.artist = $0 }))
                         YearGenreRow(year: Binding(get: { model.year }, set: { model.year = $0 }), genre: Binding(get: { model.genre }, set: { model.genre = $0 }))
                     }
                     .importFieldsRow()
@@ -54,11 +54,16 @@ struct AlbumBuilderView: View {
                                 TrackRow(
                                     number: index + 1,
                                     title: row.title,
+                                    featuring: row.featuring,
+                                    onFeat: { model.featuringRowID = row.id },
                                     titleBinding: Binding(get: { row.title }, set: { setTitle($0, for: row) }),
                                     length: TrackLength.format(seconds),
                                     lengthSpoken: TrackLength.spoken(seconds),
                                     onReplace: { context.onReplaceTrack(row.id) },
-                                    showsGrip: model.rows.count >= 2
+                                    showsGrip: model.rows.count >= 2,
+                                    discActions: model.discActions(at: index),
+                                    onStartDisc: { model.startDisc(at: index) },
+                                    onJoinDisc: { model.joinPreviousDisc(at: index) }
                                 )
                             }
                             .importTrackRow(
@@ -74,8 +79,13 @@ struct AlbumBuilderView: View {
                 .panelListSection()
             }
             .importRecordList(driver: context.driver)
+            .sheet(isPresented: Binding(get: { featuringIndex != nil }, set: { if !$0 { model.featuringRowID = nil } })) {
+                if let id = model.featuringRowID, let index = featuringIndex {
+                    FeaturingSheet(trackTitle: model.rows[index].title, names: featuringBinding(id)) { model.featuringRowID = nil }
+                }
+            }
             // Typing mid-beat skips it too (a tag prefill from a picked file is not typing).
-            .onChange(of: [model.albumTitle, model.artist, model.year, model.genre] + model.rows.map(\.title)) { _, _ in
+            .onChange(of: [model.albumTitle, model.artist, model.year, model.genre] + model.rows.map(\.title) + model.rows.flatMap(\.featuring)) { _, _ in
                 if !model.isLoadingTags { context.driver.skip() }
             }
             .onChange(of: context.sleeveScrollRequest) {
@@ -109,6 +119,20 @@ struct AlbumBuilderView: View {
                 .disabled(!model.canSend || context.isSendHeld)
             }
         }
+    }
+
+    /// The row the feat. sheet is open for, by id so a move or delete cannot point it at another.
+    private var featuringIndex: Int? {
+        model.featuringRowID.flatMap { id in model.rows.firstIndex { $0.id == id } }
+    }
+
+    private func featuringBinding(_ id: AlbumBuilderViewModel.TrackRow.ID) -> Binding<[String]> {
+        Binding(
+            get: { model.rows.first { $0.id == id }?.featuring ?? [] },
+            set: { names in
+                if let index = model.rows.firstIndex(where: { $0.id == id }) { model.rows[index].featuring = names }
+            }
+        )
     }
 
     private func hasHeading(_ headings: [Int?], at index: Int) -> Bool {

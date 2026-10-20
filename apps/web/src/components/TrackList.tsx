@@ -11,15 +11,27 @@ import {
   stepTarget,
 } from "../lib/track-order";
 import { watchPaneEdges, type PaneEdgesWatch } from "../lib/pane-edges";
-import { playsLabel } from "../lib/plays-copy";
-import { adoptDiscAfterMove, discHeadings } from "../shared/discs";
+import { useElementWidth } from "../lib/use-element-size";
+import { trackArtist, trackColumns, trackGridTemplate } from "../lib/track-columns";
+import { formatLength } from "../lib/adopt-review";
+import { adoptDiscAfterMove, discActionsFor, discHeadings, joinPreviousDisc, startDiscAt } from "../shared/discs";
+import DiscMenu from "./DiscMenu";
 import { XIcon } from "./Icons";
+import TrackPlaylistsLine, { type PlaylistRef } from "./TrackPlaylistsLine";
+import TrackFeaturing from "./TrackFeaturing";
+import type { ArtistEntry } from "../lib/artist-index";
+import { featuringText } from "../lib/featuring-field";
+import { splitFeaturing } from "../lib/artist-names";
+import ArtistLinks from "./ArtistNav";
 
 export interface EditableTrack {
   /** Stable identifier for this row — a release track's `id`, or a locally-generated key
    * for a not-yet-imported file. Travels with the row when the list is reordered. */
   key: string;
   title: string;
+  /** The featured artists, kept apart from the plain `title` (#287); the stored title is
+   * `joinFeaturing(title, featuring)`. Absent means none. */
+  featuring?: string[];
   /** Which disc the track is on, when the release has discs. It sets the "Disc N" headings and
    * travels with the row when the list is reordered; a row moved in among another disc's rows
    * joins that disc (`moveTrack`). */
@@ -35,6 +47,23 @@ interface TrackListProps {
   readOnly?: boolean;
   /** Each track's total plays by `key` (#107). A track with none, or no entry, shows nothing. */
   plays?: Record<string, number>;
+  /** The Spotify playlists each track is in, by `key` (#212). A track with none, or no entry, shows nothing. */
+  playlists?: Record<string, PlaylistRef[]>;
+  /** Open a playlist in Spotify; the playlists line needs it. */
+  onOpenPlaylist?: (id: string) => void;
+  /** View mode (a release added from a Spotify folder, #249): titles are plain text, each row shows its
+   * length (by `key`) where an edit would not fit, and a track whose file is gone says "File missing". */
+  view?: Record<string, { durationSec: number | null; missing?: boolean }>;
+  /** Album rows get a "feat." button after the title that opens the Featuring popover (#287). A
+   * single's names are edited in the Featuring row under its Artist, so it leaves this off. */
+  featuringIndex?: ArtistEntry[];
+  /** Each track's length in seconds by `key`, for the Time column of a release that is not in view mode. */
+  durations?: Record<string, number | null>;
+  /** The release's artist, shown under a track's title when the track has none of its own (#294). */
+  releaseArtist?: string;
+  /** Release page (#288): the artist line under each title is "A, feat. B & C" with every name a link
+   * to that artist's page, so a track's features show there and not again after the title. */
+  linkArtists?: boolean;
 }
 
 /** Pixels the pointer must travel before a press turns into a drag. */
@@ -112,11 +141,29 @@ interface Drag {
  * fields. Reorder by dragging a row (or its grip) or from the keyboard: focus the grip, then
  * Alt+Up/Down, or Space to pick up, the arrows to move, Space or Enter to drop, Escape to
  * cancel. Track numbers are implicit: they always equal the row's position (1-based). */
-export default function TrackList({ tracks, onChange, onRemove, readOnly = false, plays }: TrackListProps) {
+export default function TrackList({
+  tracks,
+  onChange,
+  onRemove,
+  readOnly = false,
+  plays,
+  playlists,
+  onOpenPlaylist,
+  view,
+  durations,
+  releaseArtist,
+  featuringIndex,
+  linkArtists,
+}: TrackListProps) {
   const listRef = useRef<HTMLOListElement>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
+  // The columns follow the table's own width, not the window's: Plays drops under 560, In playlists under 760.
+  const columns = trackColumns(useElementWidth(tableRef, tracks.length > 0));
   const hintId = useId();
   const [announcement, setAnnouncement] = useState("");
   const [grabbedKey, setGrabbedKey] = useState<string | null>(null);
+  /** The key of the row whose disc menu is open (#222). */
+  const [discMenuKey, setDiscMenuKey] = useState<string | null>(null);
 
   // Latest props for handlers that outlive a render (the drop timer, window listeners).
   const tracksRef = useRef(tracks);
@@ -143,6 +190,12 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
     );
     row?.querySelector<HTMLElement>("[data-handle]")?.focus();
   });
+
+  function updateFeaturing(index: number, featuring: string[]) {
+    const next = tracks.slice();
+    next[index] = { ...next[index], featuring };
+    onChange(next);
+  }
 
   function updateTitle(index: number, title: string) {
     const next = tracks.slice();
@@ -392,9 +445,35 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
   }
 
   const headings = discHeadings(tracks.map((t) => t.discNumber));
+  const discs = tracks.map((t) => t.discNumber);
+  const canEditDiscs = !readOnly && !view && tracks.length >= 2;
+
+  /** Applies a disc action through `onChange`, the path a drag-reorder takes, and gives focus back to
+   * the row's grip (the number's button may be gone, once the row no longer has an action). */
+  function applyDiscAction(key: string, next: EditableTrack[]) {
+    setDiscMenuKey(null);
+    focusKey.current = key;
+    onChange(next);
+  }
+
+  const actionsWidth = (readOnly ? 0 : 32) + (onRemove ? 32 : 0);
+  const gridTemplate = trackGridTemplate(columns, actionsWidth);
 
   return (
-    <>
+    <div ref={tableRef} className="min-w-0">
+      {/* The quiet header row: the same grid as the rows. Not a list item, so the drag code skips it. */}
+      <div
+        aria-hidden="true"
+        style={{ gridTemplateColumns: gridTemplate }}
+        className="track-head -mx-2 grid items-end gap-x-5 px-2 pb-2 text-xs text-text-dim"
+      >
+        <span>#</span>
+        <span>Title</span>
+        {columns.plays && <span className="text-right">Plays</span>}
+        {columns.playlists && <span>In playlists</span>}
+        <span className="text-right">Time</span>
+        {actionsWidth > 0 && <span />}
+      </div>
       <ol
         ref={listRef}
         className="track-list relative flex flex-col divide-y"
@@ -407,35 +486,113 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
           const grabbed = grabbedKey === track.key;
           const heading = headings[index];
           const playTotal = plays?.[track.key] ?? 0;
+          const viewInfo = view?.[track.key];
+          const seconds = viewInfo ? viewInfo.durationSec : (durations?.[track.key] ?? null);
+          const trackPlaylists = playlists?.[track.key] ?? [];
+          const discActions = canEditDiscs ? discActionsFor(discs, index) : {};
+          const hasDiscActions = discActions.start !== undefined || discActions.join !== undefined;
           const row = (
             <li
               key={track.key}
               data-key={track.key}
               data-grabbed={grabbed ? "" : undefined}
-              className={`track-row -mx-2 flex h-12 items-center gap-3 px-2 hover:bg-white/[0.03] data-[grabbed]:bg-white/[0.07] ${
+              style={{ gridTemplateColumns: gridTemplate }}
+              className={`track-row group/track -mx-2 grid min-h-14 items-center gap-x-5 px-2 py-1.5 hover:bg-white/[0.03] data-[grabbed]:bg-white/[0.07] ${
                 readOnly ? "" : "cursor-grab"
-              }`}
+              } ${viewInfo?.missing ? "text-text-muted" : ""}`}
+              onContextMenu={(e) => {
+                // The row's disc menu; the title input keeps the system one (copy and paste).
+                if (!hasDiscActions || (e.target as HTMLElement).closest("input, textarea")) return;
+                e.preventDefault();
+                setDiscMenuKey(track.key);
+              }}
             >
               {/* The glass tile: shown only while this row is held. */}
               <span aria-hidden className="track-tile glass-fake glass-frost" />
-              <span data-number className="w-6 shrink-0 text-sm tabular-nums text-white/60">
-                {index + 1}
-              </span>
-              <input
-                type="text"
-                aria-label={`Track ${index + 1} title`}
-                value={track.title}
-                readOnly={readOnly}
-                onChange={(e) => updateTitle(index, e.target.value)}
-                placeholder="Track title"
-                className="field-sizing-content -mx-1.5 min-w-[8ch] cursor-text rounded-md bg-transparent px-1.5 py-0.5 text-[15px] font-semibold tracking-[-0.01em] text-text outline-none placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
-              />
-              <span aria-hidden className="min-w-0 flex-1" />
-              {playTotal > 0 && (
-                <span data-plays className="shrink-0 text-sm tabular-nums text-text-muted">
-                  {playsLabel(playTotal)}
+              {hasDiscActions ? (
+                <DiscMenu
+                  number={index + 1}
+                  actions={discActions}
+                  open={discMenuKey === track.key}
+                  onOpenChange={(open) => setDiscMenuKey(open ? track.key : null)}
+                  onStart={() => applyDiscAction(track.key, startDiscAt(tracks, index))}
+                  onJoin={() => applyDiscAction(track.key, joinPreviousDisc(tracks, index))}
+                />
+              ) : (
+                <span data-number className="w-6 shrink-0 text-sm tabular-nums text-white/60">
+                  {index + 1}
                 </span>
               )}
+              <div className="flex min-w-0 flex-col items-start">
+                {view ? (
+                  <span
+                    className={`max-w-full truncate py-0.5 text-[15px] font-semibold tracking-[-0.01em] ${
+                      viewInfo?.missing ? "text-text-muted" : "text-text"
+                    }`}
+                  >
+                    {track.title || "Untitled"}
+                  </span>
+                ) : (
+                <div className="flex min-w-0 max-w-full items-baseline">
+                <input
+                  type="text"
+                  aria-label={`Track ${index + 1} title`}
+                  value={track.title}
+                  readOnly={readOnly}
+                  onChange={(e) => updateTitle(index, e.target.value)}
+                  placeholder="Track title"
+                  className="field-sizing-content -mx-1.5 min-w-[8ch] max-w-[calc(100%+0.75rem)] cursor-text rounded-md bg-transparent px-1.5 py-0.5 text-[15px] font-semibold tracking-[-0.01em] text-text outline-none placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
+                />
+                {featuringIndex && !readOnly && (
+                  <TrackFeaturing
+                    trackName={track.title.trim() || `track ${index + 1}`}
+                    names={track.featuring ?? []}
+                    onChange={(names) => updateFeaturing(index, names)}
+                    index={featuringIndex}
+                    namesShownElsewhere={linkArtists}
+                  />
+                )}
+                {featuringIndex && readOnly && !linkArtists && (track.featuring?.length ?? 0) > 0 && (
+                  <span className="px-1.5 py-0.5 text-[15px] text-text-muted">{featuringText(track.featuring ?? [])}</span>
+                )}
+                </div>
+                )}
+                <span data-track-artist className="max-w-full truncate text-[13px] text-text-muted">
+                  {linkArtists && releaseArtist?.trim() ? (
+                    <ArtistLinks
+                      artist={releaseArtist}
+                      featuring={view ? splitFeaturing(track.title).featuring : (track.featuring ?? [])}
+                    />
+                  ) : (
+                    trackArtist(undefined, releaseArtist)
+                  )}
+                </span>
+              </div>
+              {columns.plays &&
+                (playTotal > 0 ? (
+                  <span data-plays className="text-right text-sm tabular-nums text-text-muted">
+                    {playTotal}
+                    <span className="sr-only"> {playTotal === 1 ? "play" : "plays"}</span>
+                  </span>
+                ) : (
+                  <span aria-hidden />
+                ))}
+              {columns.playlists && (
+                <div className="min-w-0">
+                  {onOpenPlaylist && trackPlaylists.length > 0 && (
+                    <TrackPlaylistsLine trackTitle={track.title} playlists={trackPlaylists} onOpen={onOpenPlaylist} />
+                  )}
+                </div>
+              )}
+              {viewInfo?.missing ? (
+                <span className="whitespace-nowrap text-right text-xs text-text-dim">File missing</span>
+              ) : seconds !== null ? (
+                <span className="text-right text-sm tabular-nums text-text-muted">{formatLength(seconds)}</span>
+              ) : (
+                <span aria-hidden />
+              )}
+              {actionsWidth > 0 && (
+                <div className="flex justify-end">
               {!readOnly && (
                 <button
                   type="button"
@@ -467,6 +624,8 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
                   <XIcon className="size-4" />
                 </button>
               )}
+                </div>
+              )}
             </li>
           );
           if (heading === null) return row;
@@ -493,6 +652,6 @@ export default function TrackList({ tracks, onChange, onRemove, readOnly = false
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {announcement}
       </div>
-    </>
+    </div>
   );
 }

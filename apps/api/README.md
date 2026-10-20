@@ -77,6 +77,15 @@ without `BLOB_READ_WRITE_TOKEN` or `RESEND_API_KEY` respectively, in any
 environment, instead of silently falling back to local storage or the
 console mailer.
 
+## Every-minute sampler
+
+Counting Spotify plays while the Mac is off (#303) needs `POST /v1/internal/spotify-sample` to run about once
+a minute, and Vercel Hobby crons run once a day. So a free external scheduler (cron-job.org) POSTs the route
+every minute with `Authorization: Bearer <SAMPLER_SECRET>`. The secret starts a sample run and nothing else
+(it cannot run the daily cleanup), and a 50 s lease in the database makes an early or doubled call a no-op
+(`{ "skipped": true }`). The route answers 404 unless `SPOTIFY_CLIENT_ID` is set. On Vercel Pro the same route
+could become a `* * * * *` entry in `vercel.ts` instead.
+
 ## Observability and cost alerts
 
 Every response carries an `x-request-id` header (the proxy generates one per request and

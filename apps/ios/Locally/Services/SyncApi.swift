@@ -138,6 +138,8 @@ enum SyncApiError: LocalizedError, Equatable {
     /// A 429 on a route that rate-limits (`/v1/files/*`, #171; `/v1/plays/summary`, #204). Same scoping as `.notFound`.
     case rateLimited
     case network(String)
+    /// The request got no HTTP response at all (offline, refused, timed out). Distinct from `.network`, which also covers an HTTP error status, so a caller can tell whether the service was reached.
+    case unreachable(String)
 
     var errorDescription: String? {
         switch self {
@@ -151,7 +153,7 @@ enum SyncApiError: LocalizedError, Equatable {
             return "The sync server doesn't have that yet."
         case .rateLimited:
             return "The sync server is busy. Try again soon."
-        case .network(let message):
+        case .network(let message), .unreachable(let message):
             return message
         }
     }
@@ -321,7 +323,7 @@ final class HttpSyncApi: SyncApi {
         }
         let decoded = try decode(Response.self, from: data)
         return try decoded.uploads.map { upload in
-            guard let url = URL(string: upload.url) else {
+            guard let url = Self.serverURL(upload.url) else {
                 throw SyncApiError.network("Malformed upload URL.")
             }
             return SyncUpload(name: upload.name, url: url, method: upload.method, headers: upload.headers)
@@ -348,6 +350,21 @@ final class HttpSyncApi: SyncApi {
         try Self.checkUploadResponse(response)
     }
 
+    /// Parses a URL the server issued. Storage leaves `[` and `]` raw in the
+    /// path, which makes `URL(string:)` re-encode the whole string, `%`
+    /// included, and the file is then fetched from the wrong path (#281).
+    /// Here only characters that aren't valid in a URL are percent-encoded;
+    /// existing `%XX` escapes stay as they are.
+    static func serverURL(_ string: String) -> URL? {
+        if let url = URL(string: string, encodingInvalidCharacters: false) {
+            return url
+        }
+        // ASCII only: `CharacterSet.alphanumerics` would let non-ASCII letters through unencoded.
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/?#@!$&'()*+,;=%")
+        guard let encoded = string.addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
+        return URL(string: encoded, encodingInvalidCharacters: false)
+    }
+
     func downloadURL(releaseId: String, fileName: String) async throws -> URL {
         // Names are plain (see `SyncEngine.downloadFile`) but can still hold
         // characters like `#`, `%` or `&` that would cut or mis-parse the path.
@@ -355,7 +372,7 @@ final class HttpSyncApi: SyncApi {
         let data = try await send(path: "/v1/releases/\(releaseId)/files/\(encodedName)", method: "GET")
         struct Response: Decodable { let url: String; let expiresAt: String }
         let decoded = try decode(Response.self, from: data)
-        guard let url = URL(string: decoded.url) else {
+        guard let url = Self.serverURL(decoded.url) else {
             throw SyncApiError.network("Malformed download URL.")
         }
         return url
@@ -398,6 +415,13 @@ final class HttpSyncApi: SyncApi {
                 }
                 guard let tempURL else {
                     continuation.resume(throwing: SyncApiError.network("No file was downloaded."))
+                    return
+                }
+                // An error page must never be saved as a cover or track file.
+                guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                    let status = (response as? HTTPURLResponse)?.statusCode
+                    let message = status.map { "The file could not be downloaded (\($0))." } ?? "The file could not be downloaded."
+                    continuation.resume(throwing: SyncApiError.network(message))
                     return
                 }
                 do {
@@ -463,11 +487,11 @@ final class HttpSyncApi: SyncApi {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            throw SyncApiError.network(error.localizedDescription)
+            throw SyncApiError.unreachable(error.localizedDescription)
         }
 
         guard let http = response as? HTTPURLResponse else {
-            throw SyncApiError.network("No response from the server.")
+            throw SyncApiError.unreachable("No response from the server.")
         }
         if let typed = statusErrors[http.statusCode] { throw typed }
         try Self.checkStatus(http.statusCode, data: data)

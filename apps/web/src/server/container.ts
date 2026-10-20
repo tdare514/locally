@@ -22,6 +22,16 @@ import type { PlayCountStore } from "./plays/PlayCountStore";
 import { OsascriptNowPlaying } from "./plays/OsascriptNowPlaying";
 import { PlayTracker } from "./plays/PlayTracker";
 import type { ReleaseSyncHooks } from "./releases/ReleaseSyncHooks";
+import { SpotifyAuth } from "./spotify/SpotifyAuth";
+import { SwitchingNowPlaying } from "./plays/SwitchingNowPlaying";
+import { WebApiNowPlaying } from "./plays/WebApiNowPlaying";
+import { SpotifyClient } from "./spotify/SpotifyClient";
+import { SPOTIFY_CLIENT_ID } from "./spotify/config";
+import { PlaylistIndex } from "./spotify/PlaylistIndex";
+import { FilePlaylistCacheStore } from "./spotify/PlaylistCacheStore";
+import { AdoptService } from "./adopt/AdoptService";
+import { FileAdoptProposalStore } from "./adopt/FileAdoptProposalStore";
+import { CloudPlays } from "./spotify/CloudPlays";
 import { isDemo } from "./demo";
 
 export interface Services {
@@ -37,8 +47,14 @@ export interface Services {
   syncApiFactory: SyncApiFactory;
   syncEngine: SyncEngine;
   spotify: SpotifySourceDetector;
+  spotifyAuth: SpotifyAuth;
+  spotifyClient: SpotifyClient;
+  playlistIndex: PlaylistIndex;
   playStore: PlayCountStore;
   playTracker: PlayTracker;
+  nowPlaying: SwitchingNowPlaying;
+  cloudPlays: CloudPlays;
+  adopt: AdoptService;
 }
 
 function buildServices(): Services {
@@ -78,7 +94,16 @@ function buildServices(): Services {
   syncEngine.startPolling();
 
   // Opt-in Spotify play tracker (#106): only polls while Settings > trackPlays is on.
-  const playTracker = new PlayTracker(new OsascriptNowPlaying(), settings, library, playStore);
+  // With "Count plays on my other devices" on, the Spotify account is the one source (#228).
+  const spotifyClient = new SpotifyClient({ settings, clientId: SPOTIFY_CLIENT_ID });
+  const nowPlaying = new SwitchingNowPlaying({
+    web: new WebApiNowPlaying(spotifyClient),
+    appleScript: new OsascriptNowPlaying(),
+    settings,
+  });
+  // Online counting (#307): while the sync service counts this account's plays, the tracker stands down.
+  const cloudPlays = new CloudPlays({ settings, apiFactory: syncApiFactory });
+  const playTracker = new PlayTracker(nowPlaying, settings, library, playStore, undefined, undefined, undefined, undefined, cloudPlays);
   settings
     .get()
     .then((s) => playTracker.setEnabled(s.trackPlays === true))
@@ -97,8 +122,14 @@ function buildServices(): Services {
     syncApiFactory,
     syncEngine,
     spotify: new LocalFilesIndexDetector(),
+    spotifyAuth: new SpotifyAuth({ settings, clientId: SPOTIFY_CLIENT_ID }),
+    spotifyClient,
+    playlistIndex: new PlaylistIndex({ client: spotifyClient, store: new FilePlaylistCacheStore(), settings, library }),
     playStore,
     playTracker,
+    nowPlaying,
+    cloudPlays,
+    adopt: new AdoptService({ settings, library, fs, proposals: new FileAdoptProposalStore() }),
   };
 }
 

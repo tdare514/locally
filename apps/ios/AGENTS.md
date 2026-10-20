@@ -64,9 +64,13 @@ xcodegen generate
 xcodebuild -project Locally.xcodeproj -target Locally -sdk iphonesimulator \
   -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
 xcodebuild test -scheme Locally -destination 'platform=iOS Simulator,name=<device>'
+# UI tests (XCTest, over the component gallery's seeded data) run on demand, not in CI:
+xcodebuild test -scheme LocallyUITests -destination 'platform=iOS Simulator,name=<device>'
 ```
 
 The `.storekit` test configuration only attaches when the app is run from Xcode (Product ▸ Run).
+
+Device builds for the owner's phone use `-configuration Release`: a Debug build on the owner's daily phone breaks their sync (#267).
 
 ## Before pushing
 

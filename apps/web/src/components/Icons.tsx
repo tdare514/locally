@@ -68,6 +68,11 @@ export function ChevronRightIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** ChevronRightIcon mirrored, for the back button (#258). */
+export function ChevronLeftIcon(props: SVGProps<SVGSVGElement>) {
+  return <ChevronRightIcon {...props} style={{ transform: "scaleX(-1)", ...props.style }} />;
+}
+
 /** Library search field affordance. */
 export function SearchIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -158,6 +163,17 @@ export function XIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** Hide from the tray (#295): an eye with a line through it. */
+export function EyeOffIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M4 20 20 4" />
+    </IconBase>
+  );
+}
+
 /** Phone inbox trigger (#115): a cloud with a down arrow. */
 export function CloudDownIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -194,6 +210,15 @@ export function SettingsIcon(props: SVGProps<SVGSVGElement>) {
       <path d="M4 8h9M17 8h3M4 16h3M11 16h9" />
       <circle cx="15" cy="8" r="2" />
       <circle cx="9" cy="16" r="2" />
+    </IconBase>
+  );
+}
+
+/** Folder glyph: a tabbed folder. Marks a release added from a Spotify folder (#249). */
+export function FolderIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2.5h7.5A2.5 2.5 0 0 1 21 10v7.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5Z" />
     </IconBase>
   );
 }

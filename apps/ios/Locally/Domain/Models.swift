@@ -16,6 +16,9 @@ struct Track: Identifiable, Codable, Hashable {
     /// The name the user originally imported (before renaming/layout).
     var originalName: String
     var durationSec: Double?
+    /// `spotify:local:...` id of an adopted file, from the synced record. Never set or changed on the
+    /// iPhone; nil for tracks made here.
+    var localId: String?
 
     init(
         id: UUID = UUID(),
@@ -24,7 +27,8 @@ struct Track: Identifiable, Codable, Hashable {
         discNumber: Int? = nil,
         filePath: String,
         originalName: String,
-        durationSec: Double? = nil
+        durationSec: Double? = nil,
+        localId: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -33,6 +37,7 @@ struct Track: Identifiable, Codable, Hashable {
         self.filePath = filePath
         self.originalName = originalName
         self.durationSec = durationSec
+        self.localId = localId
     }
 }
 
@@ -77,6 +82,13 @@ struct Release: Identifiable, Codable, Hashable {
     /// replaced so the new bytes go up. Empty for releases stored before this
     /// field existed; `SyncEngine.needsPush` re-verifies those once.
     var uploadedFileNames: [String]
+    /// `.adopted` for a release pulled from the Mac's Spotify folder (details
+    /// only: no audio files here, never tagged, sent or pushed by this phone);
+    /// `nil` for Locally's own releases.
+    var source: ReleaseSource?
+
+    /// True for a details-only release this phone does not own.
+    var isAdopted: Bool { source == .adopted }
 
     init(
         id: UUID = UUID(),
@@ -91,7 +103,8 @@ struct Release: Identifiable, Codable, Hashable {
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
         syncedUpdatedAt: Date? = nil,
-        uploadedFileNames: [String] = []
+        uploadedFileNames: [String] = [],
+        source: ReleaseSource? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -106,7 +119,14 @@ struct Release: Identifiable, Codable, Hashable {
         self.updatedAt = updatedAt
         self.syncedUpdatedAt = syncedUpdatedAt
         self.uploadedFileNames = uploadedFileNames
+        self.source = source
     }
+}
+
+/// Where a release came from, when not Locally itself (`spec/sync.md`'s
+/// optional `source`). Any value this build doesn't know reads as absent.
+enum ReleaseSource: String, Codable, Hashable {
+    case adopted
 }
 
 /// One track's user-entered title within an `AlbumDraft`, matched to its
@@ -165,6 +185,8 @@ struct ReleaseChanges {
     var trackTitles: [UUID: String]
     var trackOrder: [UUID]?
     var trackDiscs: [UUID: Int]
+    /// Tracks whose disc is cleared (the discs were joined back into one), so the release has no discs.
+    var clearedDiscs: Set<UUID>
 
     init(
         title: String? = nil,
@@ -174,7 +196,8 @@ struct ReleaseChanges {
         cover: Data? = nil,
         trackTitles: [UUID: String] = [:],
         trackOrder: [UUID]? = nil,
-        trackDiscs: [UUID: Int] = [:]
+        trackDiscs: [UUID: Int] = [:],
+        clearedDiscs: Set<UUID> = []
     ) {
         self.title = title
         self.artist = artist
@@ -184,6 +207,7 @@ struct ReleaseChanges {
         self.trackTitles = trackTitles
         self.trackOrder = trackOrder
         self.trackDiscs = trackDiscs
+        self.clearedDiscs = clearedDiscs
     }
 }
 

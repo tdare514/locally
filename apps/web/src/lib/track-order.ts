@@ -60,9 +60,9 @@ export function moveAnnouncement(title: string, position: number, count: number)
 /** The rows the editor shows, in the order `tracks` gives, each keeping its own file and the
  * title the editor holds. Rows the editor no longer lists are dropped. Import uses this so the
  * files go up in the dragged order and track numbers follow position. */
-export function applyTrackEdits<E extends { key: string; title: string; discNumber?: number }>(
+export function applyTrackEdits<E extends { key: string; title: string; discNumber?: number; featuring?: string[] }>(
   entries: readonly E[],
-  tracks: readonly { key: string; title: string; discNumber?: number }[],
+  tracks: readonly { key: string; title: string; discNumber?: number; featuring?: string[] }[],
 ): E[] {
   const byKey = new Map(entries.map((e) => [e.key, e]));
   const next: E[] = [];
@@ -72,6 +72,7 @@ export function applyTrackEdits<E extends { key: string; title: string; discNumb
     // The editor is the source of truth for the disc: a row dropped in among another disc's rows
     // has joined it, and one put back (Escape after a move) may have none again.
     const edited: E & { discNumber?: number } = { ...original, title: t.title };
+    if (t.featuring !== undefined) edited.featuring = t.featuring;
     if (t.discNumber !== undefined) edited.discNumber = t.discNumber;
     else delete edited.discNumber;
     next.push(edited);

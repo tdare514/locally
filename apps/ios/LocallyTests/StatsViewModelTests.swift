@@ -178,19 +178,19 @@ struct StatsViewModelTests {
 
     // MARK: Opening
 
-    @Test func anArtistAsksForALibrarySearchAndAReleaseOpens() async {
+    @Test func anArtistOpensItsPageAndAReleaseOpens() async {
         let m = make(summary(tracks: [count(1, 11, 5), count(2, 12, 3)], allTime: [count(1, 11, 5), count(2, 12, 3)]))
         await m.model.read()
         m.model.selectTab(.artists)
-        var searched: String?
+        var openedArtist: String?
         var opened: Release?
         let artist = m.model.items[0]
-        m.model.open(artist, openRelease: { opened = $0 }, requestLibrarySearch: { searched = $0 })
-        #expect(searched == "Okoro")
+        m.model.open(artist, openRelease: { opened = $0 }, openArtist: { openedArtist = $0 })
+        #expect(openedArtist == "okoro")
         #expect(opened == nil)
 
         m.model.selectTab(.tracks)
-        m.model.open(m.model.items[1], openRelease: { opened = $0 }, requestLibrarySearch: { searched = $0 })
+        m.model.open(m.model.items[1], openRelease: { opened = $0 }, openArtist: { openedArtist = $0 })
         #expect(opened?.id == u(2))
         #expect(m.model.coverOwner(of: artist) == u(1))
     }

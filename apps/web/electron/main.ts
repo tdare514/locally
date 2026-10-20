@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, Menu, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -6,6 +6,7 @@ import path from "node:path";
 import { shouldStartHidden, startServices } from "./lib/background";
 import { findFreePort } from "./lib/freePort";
 import { migrateLegacyConfig } from "./lib/migrateConfig";
+import { makePickFolderHandler } from "./lib/pickFolder";
 import { buildServerEnv } from "./lib/serverEnv";
 import { initUpdater } from "./lib/updater";
 import { waitForServer } from "./lib/waitForServer";
@@ -138,6 +139,7 @@ function openWindow(url: string): BrowserWindow {
     minWidth: 800,
     minHeight: 560,
     webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
@@ -173,6 +175,12 @@ function openWindow(url: string): BrowserWindow {
   void win.loadURL(url);
   return win;
 }
+
+// The folder picker for "Add folder…" in Settings (#249). Only the main window may ask.
+ipcMain.handle(
+  "locally:pick-folder",
+  makePickFolderHandler({ getWindow: () => mainWindow, showOpenDialog: (win, options) => dialog.showOpenDialog(win, options) })
+);
 
 function showWindow(url: string): void {
   const win = openWindow(url);

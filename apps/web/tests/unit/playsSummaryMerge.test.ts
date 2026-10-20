@@ -327,7 +327,9 @@ describe("readServerSummary state (#202)", () => {
     expect(await readServerSummary(apiOf(endless), "A", "2026-10-01", "2026-10-15", T0)).toBeNull();
     expect(endless).toHaveBeenCalledTimes(MAX_SUMMARY_PAGES);
     // Nothing partial was cached: the next read asks again.
-    await readServerSummary(apiOf(endless), "A", "2026-10-01", "2026-10-15", T0 + 1);
+    for (let i = 1; i < SUMMARY_PAGE_BUDGET / MAX_SUMMARY_PAGES + 1; i++) {
+      await readServerSummary(apiOf(endless), "A", "2026-10-01", "2026-10-15", T0 + i);
+    }
     expect(endless).toHaveBeenCalledTimes(SUMMARY_PAGE_BUDGET); // the hourly page budget stops it
   });
 
@@ -392,17 +394,16 @@ describe("readServerSummary state (#202)", () => {
     expect(calls).toHaveBeenCalledTimes(2);
   });
 
-  it("makes no more than 30 page requests in a rolling hour", async () => {
+  it("makes no more than 200 page requests in a rolling hour", async () => {
     const calls = vi.fn(async () => emptyPage);
     const api = apiOf(calls);
     for (let i = 0; i < SUMMARY_PAGE_BUDGET + 1; i++) {
-      const day = String(1 + (i % 28)).padStart(2, "0");
-      const month = i < 28 ? "09" : "08";
-      await readServerSummary(api, "A", `2026-${month}-${day}`, "2026-10-15", T0);
+      const from = new Date(Date.UTC(2026, 0, 1 + i)).toISOString().slice(0, 10);
+      await readServerSummary(api, "A", from, "2026-12-31", T0);
     }
     expect(calls).toHaveBeenCalledTimes(SUMMARY_PAGE_BUDGET);
     // An hour later the budget is back.
-    await readServerSummary(api, "A", "2026-07-01", "2026-10-15", T0 + 60 * 60_000 + 1);
+    await readServerSummary(api, "A", "2025-07-01", "2026-12-31", T0 + 60 * 60_000 + 1);
     expect(calls).toHaveBeenCalledTimes(SUMMARY_PAGE_BUDGET + 1);
   });
 });

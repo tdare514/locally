@@ -38,11 +38,14 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   }
 }
 
-export async function DELETE(_request: NextRequest, { params }: Params) {
+export async function DELETE(request: NextRequest, { params }: Params) {
   if (isDemo()) return demoReadOnly();
   try {
     const { id } = await params;
-    await getServices().releases.delete(id);
+    const { releases } = getServices();
+    // `?forget=1` removes an adopted release from Locally without touching its files (#245).
+    if (request.nextUrl.searchParams.get("forget") === "1") await releases.forget(id);
+    else await releases.delete(id);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return errorResponse(err);

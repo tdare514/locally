@@ -12,9 +12,14 @@ import type {
   SyncStatus,
   SpotifySourceStatus,
   PlaysStatusResponse,
+  SpotifyConnectionStatus,
+  CloudPlaysStatus,
+  SpotifyPlaylistsResponse,
   PlaysSummaryResponse,
   ReleasePlaysResponse,
 } from "../shared/types";
+import type { AdoptProposal } from "../server/adopt/types";
+import type { AdoptBatchResponse } from "./adopt-review";
 
 /** Response shape for POST /api/inspect (per-file prefill data). Not a persisted entity, so it
  * isn't declared in types.ts, but it mirrors the PLAN.md spec exactly. */
@@ -52,8 +57,8 @@ async function handle<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function getSettings(): Promise<SettingsResponse> {
-  const res = await fetch("/api/settings");
+export async function getSettings(signal?: AbortSignal): Promise<SettingsResponse> {
+  const res = await fetch("/api/settings", { signal });
   return handle<SettingsResponse>(res);
 }
 
@@ -66,11 +71,58 @@ export async function putSettings(libraryDir: string): Promise<SettingsResponse>
   return handle<SettingsResponse>(res);
 }
 
+/** Replaces the list of Spotify folders Locally reads (#249). The server checks each one. */
+export async function putAdoptRoots(adoptRoots: string[]): Promise<SettingsResponse> {
+  const res = await fetch("/api/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ adoptRoots }),
+  });
+  return handle<SettingsResponse>(res);
+}
+
+/** The last check's findings, or null when there has not been one. */
+export async function getAdoptProposal(signal?: AbortSignal): Promise<AdoptProposal | null> {
+  const res = await fetch("/api/adopt/proposal", { signal });
+  return (await handle<{ proposal: AdoptProposal | null }>(res)).proposal;
+}
+
+/** Reads the Spotify folders again (read only) and returns the new findings. Can take a minute. */
+export async function scanAdopt(signal?: AbortSignal): Promise<AdoptProposal> {
+  const res = await fetch("/api/adopt/scan", { method: "POST", signal });
+  return handle<AdoptProposal>(res);
+}
+
+/** Adds the named groups of the stored findings to the library, in place. */
+export async function adoptGroups(keys: string[]): Promise<AdoptBatchResponse> {
+  const res = await fetch("/api/adopt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ keys }),
+  });
+  return handle<AdoptBatchResponse>(res);
+}
+
+/** Removes an added release from Locally; its files are never touched. */
+export async function forgetRelease(id: string): Promise<{ ok: true }> {
+  const res = await fetch(`/api/releases/${encodeURIComponent(id)}?forget=1`, { method: "DELETE" });
+  return handle<{ ok: true }>(res);
+}
+
 export async function putTrackPlays(trackPlays: boolean): Promise<SettingsResponse> {
   const res = await fetch("/api/settings", {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ trackPlays }),
+  });
+  return handle<SettingsResponse>(res);
+}
+
+export async function putCountOtherDevices(countOtherDevices: boolean): Promise<SettingsResponse> {
+  const res = await fetch("/api/settings", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ countOtherDevices }),
   });
   return handle<SettingsResponse>(res);
 }
@@ -157,13 +209,33 @@ export async function resyncFromPhone(): Promise<{ ok: true; asked: boolean }> {
   return handle<{ ok: true; asked: boolean }>(res);
 }
 
+/** Hide (#295): out of this Mac's tray at its current version; nothing is deleted. */
+export async function hideFromTray(id: string): Promise<void> {
+  const res = await fetch("/api/sync/hide", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  await handle<{ ok: true }>(res);
+}
+
+/** Undo for Hide. */
+export async function unhideFromTray(id: string): Promise<void> {
+  const res = await fetch("/api/sync/hide", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  await handle<{ ok: true }>(res);
+}
+
 export async function acceptFromPhone(id: string): Promise<{ ok: true; release: Release }> {
   const res = await fetch(`/api/sync/accept/${encodeURIComponent(id)}`, { method: "POST" });
   return handle<{ ok: true; release: Release }>(res);
 }
 
-export async function getLibrary(): Promise<Library> {
-  const res = await fetch("/api/library");
+export async function getLibrary(signal?: AbortSignal): Promise<Library> {
+  const res = await fetch("/api/library", { signal });
   return handle<Library>(res);
 }
 
@@ -230,6 +302,58 @@ export async function deleteRelease(id: string): Promise<{ ok: true }> {
 export async function getSpotifySource(): Promise<SpotifySourceStatus> {
   const res = await fetch("/api/spotify/source");
   return handle<SpotifySourceStatus>(res);
+}
+
+/** The Spotify connection, or null when this build doesn't offer it (the route answers 404). */
+export async function getSpotifyConnection(): Promise<SpotifyConnectionStatus | null> {
+  const res = await fetch("/api/spotify/connection");
+  if (res.status === 404) return null;
+  return handle<SpotifyConnectionStatus>(res);
+}
+
+/** The playlists each track of a release is in, or null when this build has no Spotify connection (404). */
+export async function getSpotifyPlaylists(releaseId: string): Promise<SpotifyPlaylistsResponse | null> {
+  const res = await fetch(`/api/spotify/playlists?releaseId=${encodeURIComponent(releaseId)}`);
+  if (res.status === 404) return null;
+  return handle<SpotifyPlaylistsResponse>(res);
+}
+
+/** Open one of the user's playlists in the Spotify app. */
+export async function openSpotifyPlaylist(id: string): Promise<{ ok: true }> {
+  const res = await fetch("/api/spotify/open-playlist", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id }),
+  });
+  return handle<{ ok: true }>(res);
+}
+
+export async function startSpotifyAuth(): Promise<{ authorizeUrl: string }> {
+  const res = await fetch("/api/spotify/auth/start", { method: "POST" });
+  return handle<{ authorizeUrl: string }>(res);
+}
+
+/** Disconnect, or cancel a sign-in that is waiting. */
+export async function disconnectSpotify(): Promise<SpotifyConnectionStatus> {
+  const res = await fetch("/api/spotify/connection", { method: "DELETE" });
+  return handle<SpotifyConnectionStatus>(res);
+}
+
+/** Online play counting (#307). A 404 means the row stays hidden: no service support, or the demo. */
+export async function getCloudPlays(): Promise<CloudPlaysStatus> {
+  const res = await fetch("/api/spotify/cloud", { cache: "no-store" });
+  return handle<CloudPlaysStatus>(res);
+}
+
+/** Start linking, or reconnecting: the caller opens the returned address in the browser. */
+export async function startCloudPlays(): Promise<{ authorizeUrl: string }> {
+  const res = await fetch("/api/spotify/cloud", { method: "POST" });
+  return handle<{ authorizeUrl: string }>(res);
+}
+
+export async function stopCloudPlays(): Promise<CloudPlaysStatus> {
+  const res = await fetch("/api/spotify/cloud", { method: "DELETE" });
+  return handle<CloudPlaysStatus>(res);
 }
 
 export async function dismissSpotifySource(): Promise<SpotifySourceStatus> {

@@ -5,12 +5,15 @@ import { DEFAULT_SYNC_BASE_URL, type Settings, type SettingsResponse } from "../
  * token) down to what's safe to send to the browser. Used by every route
  * that returns settings, so the token can never leak by accident.
  */
-export function toSettingsResponse(settings: Settings): SettingsResponse {
+export function toSettingsResponse(settings: Settings, suggestedAdoptRoot: string | null = null): SettingsResponse {
   const sync = settings.sync;
   return {
     libraryDir: settings.libraryDir,
     trackPlays: settings.trackPlays === true,
+    countOtherDevices: settings.countOtherDevices === true,
     playsPromptAnswered: settings.playsPromptAnswered === true,
+    adoptRoots: settings.adoptRoots ?? [],
+    suggestedAdoptRoot,
     sync: {
       baseUrl: sync?.baseUrl ?? DEFAULT_SYNC_BASE_URL,
       email: sync?.email ?? null,

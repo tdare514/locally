@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { FAN_MAX, fanLayout, type FanSlot } from "../../lib/fan-layout";
 import { medalFor, type StatItem } from "../../lib/play-stats";
 import { playsLabel } from "../../lib/plays-copy";
-import { MusicNoteIcon } from "../Icons";
+import NoCover from "../NoCover";
 import { statCoverUrl } from "../sidebar/StatCover";
 
 /**
@@ -214,15 +214,15 @@ function Sleeve({
       >
         {!disc && (
           <span aria-hidden data-medal={medal} className="fan-record">
-            <span className="fan-record-label" style={cover ? { backgroundImage: `url("${cover}")` } : undefined} />
+            <span className={`fan-record-label ${cover ? "" : "record-label-bare"}`} style={cover ? { backgroundImage: `url("${cover}")` } : undefined} />
           </span>
         )}
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element -- local cover route, no optimisation needed
           <img src={cover} alt="" draggable={false} data-medal={medal} className="fan-art" />
         ) : (
-          <span data-medal={medal} className="fan-art text-text-muted">
-            <MusicNoteIcon className="h-6 w-6" />
+          <span data-medal={medal} className="fan-art">
+            <NoCover className="h-full w-full rounded-[inherit]" />
           </span>
         )}
         <span aria-hidden className="fan-rank" data-medal={medal}>

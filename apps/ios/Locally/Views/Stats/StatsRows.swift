@@ -70,42 +70,74 @@ private struct StatsRow: View {
 
     private var stacked: Bool { typeSize.isAccessibilitySize }
 
+    /// A track's title without its "(feat. ...)" (the names move to the artist line); other rows keep theirs.
+    private var plainTitle: String {
+        guard item.trackId != nil else { return item.title }
+        let plain = ArtistNames.splitFeaturing(item.title).title
+        return plain.isEmpty ? item.title : plain
+    }
+
+    /// Tracks and albums carry their artist as the subtitle: it becomes the linked artist line (#288).
+    /// A track's line also holds the features from its title, merged with any in an "A feat. B" artist.
+    private var artistCredit: (artist: String, featuring: [String])? {
+        guard item.releaseId != nil, !item.subtitle.isEmpty else { return nil }
+        let split = ArtistNames.splitArtistFeaturing(item.subtitle)
+        let fromTitle = item.trackId != nil ? ArtistNames.splitFeaturing(item.title).featuring : []
+        return (split.artist, FeaturingNames.merged(fromTitle, split.featuring))
+    }
+
+    /// The row opens the release through a button behind it; the artist links sit on top, so no
+    /// link is nested in a Button. VoiceOver reads the row as one element, then the artist links.
     var body: some View {
-        Button(action: action) {
-            HStack(alignment: stacked ? .top : .center, spacing: 12) {
-                Text("\(item.rank)")
-                    .font(.system(.subheadline, weight: .semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(StatsStyle.rankColor(item.medal))
-                    .frame(width: min(rankWidth, 56))
+        HStack(alignment: stacked ? .top : .center, spacing: 12) {
+            Text("\(item.rank)")
+                .font(.system(.subheadline, weight: .semibold))
+                .monospacedDigit()
+                .foregroundStyle(StatsStyle.rankColor(item.medal))
+                .frame(width: min(rankWidth, 56))
+                .accessibilityHidden(true)
+            StatsCoverView(owner: owner, cache: cache, round: round)
+                .frame(width: Theme.Stats.rowCover, height: Theme.Stats.rowCover)
+                .shadow(color: .black.opacity(0.5), radius: 6, y: 4)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(plainTitle)
+                    .font(.system(.body, weight: .semibold))
+                    .foregroundStyle(StatsStyle.nameColor(item.medal))
+                    .lineLimit(stacked ? 4 : 1)
                     .accessibilityHidden(true)
-                StatsCoverView(owner: owner, cache: cache, round: round)
-                    .frame(width: Theme.Stats.rowCover, height: Theme.Stats.rowCover)
-                    .shadow(color: .black.opacity(0.5), radius: 6, y: 4)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.title)
-                        .font(.system(.body, weight: .semibold))
-                        .foregroundStyle(StatsStyle.nameColor(item.medal))
-                        .lineLimit(stacked ? 4 : 1)
+                if let credit = artistCredit {
+                    ArtistLineText(
+                        main: credit.artist, featuring: credit.featuring, font: .subheadline,
+                        mainColor: Theme.secondaryText, dimColor: Theme.secondaryText, lineLimit: stacked ? nil : 2
+                    )
+                } else {
                     Text(item.subtitle)
                         .font(.subheadline)
                         .foregroundStyle(Theme.secondaryText)
                         .lineLimit(stacked ? 3 : 1)
-                    if stacked { numbers(alignment: .leading).padding(.top, 4) }
+                        .accessibilityHidden(true)
                 }
-                if !stacked {
-                    Spacer(minLength: 8)
-                    numbers(alignment: .trailing)
-                }
+                if stacked { numbers(alignment: .leading).padding(.top, 4).accessibilityHidden(true) }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .frame(minHeight: Theme.Stats.minTarget, alignment: .leading)
-            .contentShape(Rectangle())
+            if !stacked {
+                Spacer(minLength: 8)
+                numbers(alignment: .trailing).accessibilityHidden(true)
+            }
         }
-        .buttonStyle(SoftPressStyle())
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(Copy.Stats.itemLabel(rank: item.rank, title: item.title, plays: item.plays)), \(item.subtitle), \(Copy.Stats.lastPlayedLabel(item.lastPlayedDay, today: today))")
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(minHeight: Theme.Stats.minTarget, alignment: .leading)
+        .background {
+            Button(action: action) { Color.clear.contentShape(Rectangle()) }
+                .buttonStyle(SoftPressStyle())
+                .accessibilityLabel(buttonLabel)
+        }
+    }
+
+    private var buttonLabel: String {
+        let base = Copy.Stats.itemLabel(rank: item.rank, title: plainTitle, plays: item.plays)
+        let played = Copy.Stats.lastPlayedLabel(item.lastPlayedDay, today: today)
+        return artistCredit == nil ? "\(base), \(item.subtitle), \(played)" : "\(base), \(played)"
     }
 
     private func numbers(alignment: HorizontalAlignment) -> some View {
