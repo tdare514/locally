@@ -11,7 +11,7 @@ Plays are counted only while the Mac app runs and the Mac is awake (#106, #228).
 ## What changes for the owner
 
 - Mac Settings › Spotify gains **Count plays when this Mac is off**. Turning it on opens Spotify's consent page in the browser once.
-- From then on the sync service checks what your Spotify account is playing about once a minute, on any device, and counts Locally tracks. The Mac, the iPhone's Stats and the sidebar all show those plays within about two minutes.
+- From then on the sync service checks what your Spotify account is playing every 10 seconds while something is playing (every 30 seconds otherwise), on any device, and counts Locally tracks. The Mac, the iPhone's Stats and the sidebar all show those plays within about two minutes.
 - While it is on, the Mac's own tracker steps back, so a play is never counted twice.
 
 ## Decisions for the owner
@@ -100,7 +100,7 @@ The Mac samples every 5 s and adds up time listened. The server sees one sample 
 - **The threshold** is `min(30 s, 0.9 × duration)`, as on the Mac. A session counts once, at the first sample at or past it.
 - **A new session** that is first seen already past the threshold counts. That covers a run missed by the scheduler, and a track already playing when online counting was turned on.
 - **Known misses**, which Settings will state:
-  - a track skipped within about its first minute
+  - a track skipped within about its first 40 seconds
   - repeat-one of a track shorter than a minute counts less than it played
 
   A whole track always counts.
@@ -230,3 +230,11 @@ Steps 1 → 2 → 3 run in order, and step 4 can run beside step 3.
   - `PlayTracker` stands down and resumes
   - the back-fill marks pushed records
 - **iPhone:** `localId` survives a decode-edit-encode round trip.
+
+## Amendment, 20 Oct 2026: faster sampling
+
+- The owner asked for plays to count at about 30 s, like the Mac, instead of about a minute.
+- A Cloudflare Worker cron (`apps/api/trigger/`) replaces cron-job.org. It is free, and it waits between calls without being billed for the wait, whereas waiting inside a Vercel function bills provisioned memory.
+- The sampler reply gains `nextInMs`: 10 s while any linked user is playing, 30 s otherwise (10 s on a skipped run). The Worker calls again after that gap, up to 55 s into each minute.
+- `SAMPLER_SECRET` was rotated, so the old cron-job.org job must be deleted.
+- Rough cost: about 2,900 calls a day idle, 360 an hour while playing; at most about 260k a month against Hobby's 1M invocations.

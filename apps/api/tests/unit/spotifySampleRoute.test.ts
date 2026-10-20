@@ -73,12 +73,12 @@ describe("POST /v1/internal/spotify-sample", () => {
     kit.spotify.answer(PLAYER_URL, idle);
     const first = await sampleRoute.POST(post(`Bearer ${SECRET}`));
     expect(first.status).toBe(200);
-    expect(await first.json()).toEqual({ sampled: 1, counted: 0, skipped: false });
+    expect(await first.json()).toEqual({ sampled: 1, counted: 0, skipped: false, nextInMs: 30_000 });
     const { samplerLease } = await import("../../src/db/schema");
     await testServices.db.update(samplerLease).set({ until: Date.now() + 30_000 }); // another run holds it
     const second = await sampleRoute.POST(post(`Bearer ${SECRET}`));
     expect(second.status).toBe(200);
-    expect(await second.json()).toEqual({ sampled: 0, counted: 0, skipped: true });
+    expect(await second.json()).toEqual({ sampled: 0, counted: 0, skipped: true, nextInMs: 10_000 });
   });
 
   it("does not let the sampler secret reach the cleanup-style routes, nor a device token reach the sampler", async () => {

@@ -70,7 +70,7 @@ export function cloudPlaysLines(status: CloudPlaysStatus, nowMs: number): CloudP
         state: "linked",
         on: true,
         line: `Counted online, even when this Mac is off. ${relativeChecked(status.lastSampleAt, nowMs)}.`,
-        quiet: "A track skipped in its first minute may not count.",
+        quiet: "A track skipped in its first 40 seconds may not count.",
         reconnect: false,
       };
   }

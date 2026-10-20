@@ -28,7 +28,7 @@ describe("cloudPlaysLines (#307)", () => {
   it("linked with no problem, with the quiet line", () => {
     const out = cloudPlaysLines({ ...base, linked: true, lastSampleAt: new Date(NOW - 60_000).toISOString() }, NOW);
     expect(out.line).toBe("Counted online, even when this Mac is off. Last checked 1 min ago.");
-    expect(out.quiet).toBe("A track skipped in its first minute may not count.");
+    expect(out.quiet).toBe("A track skipped in its first 40 seconds may not count.");
     expect(out.on).toBe(true);
     expect(out.reconnect).toBe(false);
   });

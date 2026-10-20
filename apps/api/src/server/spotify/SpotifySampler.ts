@@ -9,6 +9,9 @@ import { resolveLocalTrack } from "./LocalTrackResolver";
 import type { SpotifyLinkRow, SpotifyPlayerClient } from "./SpotifyPlayerClient";
 
 export const SAMPLER_LEASE_MS = 50_000;
+/** How long the caller should wait before the next run: short while anything plays, longer otherwise. */
+export const ACTIVE_INTERVAL_MS = 10_000;
+export const IDLE_INTERVAL_MS = 30_000;
 export const SAMPLER_CONCURRENCY = 25;
 const LEASE_ID = "spotify-sampler";
 const STOPPING_PROBLEMS = new Set(["reconnect", "notOnTesterList"]);
@@ -17,6 +20,8 @@ export interface SampleRunResult {
   sampled: number;
   counted: number;
   skipped: boolean;
+  /** Milliseconds until the caller should call again. */
+  nextInMs: number;
 }
 
 /** The calendar date, `YYYY-MM-DD`, that `ms` falls on in `timeZone` (as the Mac's `localDay`). */
@@ -48,7 +53,7 @@ function sessionOf(link: SpotifyLinkRow): SessionState | null {
 }
 
 /**
- * One run of the every-minute sampler (#303 §3): takes a 50 s lease, reads each linked user's player,
+ * One run of the sampler (#303 §3), called every 10 s while anything plays and every 30 s otherwise: takes a 50 s lease, reads each linked user's player,
  * applies the counting rule and writes the result. Replies carry numbers only, and nothing about a track
  * (uri, title or id) is ever logged.
  */
@@ -60,7 +65,7 @@ export class SpotifySampler {
   ) {}
 
   async run(): Promise<SampleRunResult> {
-    if (!(await this.takeLease())) return { sampled: 0, counted: 0, skipped: true };
+    if (!(await this.takeLease())) return { sampled: 0, counted: 0, skipped: true, nextInMs: ACTIVE_INTERVAL_MS };
 
     try {
       return await this.sampleAll();
@@ -77,6 +82,7 @@ export class SpotifySampler {
     );
     let sampled = 0;
     let counted = 0;
+    let playing = false;
     let next = 0;
     const worker = async () => {
       while (next < links.length) {
@@ -86,6 +92,7 @@ export class SpotifySampler {
           if (outcome) {
             sampled += 1;
             if (outcome.counted) counted += 1;
+            if (outcome.playing) playing = true;
           }
         } catch (err) {
           // The message is left out on purpose: a failed query can carry its parameters (a track uri).
@@ -94,7 +101,7 @@ export class SpotifySampler {
       }
     };
     await Promise.all(Array.from({ length: Math.min(SAMPLER_CONCURRENCY, links.length) }, worker));
-    return { sampled, counted, skipped: false };
+    return { sampled, counted, skipped: false, nextInMs: playing ? ACTIVE_INTERVAL_MS : IDLE_INTERVAL_MS };
   }
 
   private async releaseLease(): Promise<void> {
@@ -113,7 +120,7 @@ export class SpotifySampler {
   }
 
   /** Null when the user was skipped (a problem, a back-off or a failed read): nothing was changed or counted. */
-  private async sampleUser(link: SpotifyLinkRow): Promise<{ counted: boolean } | null> {
+  private async sampleUser(link: SpotifyLinkRow): Promise<{ counted: boolean; playing: boolean } | null> {
     const result = await this.player.read(link);
     if (result.kind !== "ok") return null;
 
@@ -150,7 +157,7 @@ export class SpotifySampler {
       statements.push(...this.countStatements(link.userId, deviceId, next, localDay(at, link.timeZone), at));
     }
     await this.db.batch(statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
-    return { counted: outcome.counted };
+    return { counted: outcome.counted, playing: sample.kind === "item" && sample.isPlaying };
   }
 
   private async resolve(userId: string, uri: string): Promise<LocalIds | null> {
