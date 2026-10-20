@@ -51,7 +51,8 @@ final class ReleaseDetailViewModel {
 
     var title: String
     var artist: String
-    var year: String
+    /// What is typed in the Release date field (#221); `releaseDateEntry` reads it.
+    var releaseDateText: String
     var genre: String
     var coverData: Data?
     var trackRows: [TrackRow]
@@ -65,7 +66,7 @@ final class ReleaseDetailViewModel {
 
     private var originalTitle: String
     private var originalArtist: String
-    private var originalYear: String
+    private var originalReleaseDateText: String
     private var originalGenre: String
     private var originalCoverData: Data?
     private var originalTrackRows: [TrackRow]
@@ -96,7 +97,7 @@ final class ReleaseDetailViewModel {
         // and "original" properties — never re-read from `self`.
         let title = Self.editorTitle(of: release)
         let artist = release.artist
-        let year = release.date?.isoString ?? release.year ?? ""
+        let releaseDateText = Self.dateText(of: release)
         let genre = release.genre ?? ""
         let cover = release.coverPath != nil ? coverStore.load(release.id) : nil
         let rows = Self.rows(of: release)
@@ -111,14 +112,14 @@ final class ReleaseDetailViewModel {
 
         self.title = title
         self.artist = artist
-        self.year = year
+        self.releaseDateText = releaseDateText
         self.genre = genre
         self.coverData = cover
         self.trackRows = rows
 
         self.originalTitle = title
         self.originalArtist = artist
-        self.originalYear = year
+        self.originalReleaseDateText = releaseDateText
         self.originalGenre = genre
         self.originalCoverData = cover
         self.originalTrackRows = rows
@@ -161,7 +162,7 @@ final class ReleaseDetailViewModel {
         !FeaturingNames.add(featuringDraft, to: []).isEmpty
             || title != originalTitle
             || artist != originalArtist
-            || year != originalYear
+            || releaseDateChanged
             || genre != originalGenre
             || coverData != originalCoverData
             || trackRows != originalTrackRows
@@ -173,12 +174,13 @@ final class ReleaseDetailViewModel {
         let fields: [(String, String, String)] = [
             (Copy.Import.fieldTitle, originalTitle, title),
             (Copy.Import.fieldArtist, originalArtist, artist),
-            (Copy.Import.fieldYear, originalYear, year),
+            (Copy.DateField.label, dateChange == nil ? "" : originalReleaseDateText, dateChange.map { $0?.formatted() ?? "" } ?? ""),
             (Copy.Import.fieldGenre, originalGenre, genre)
         ]
         for (label, old, new) in fields where old != new {
             result.append(.field(label: label, old: old, new: new))
         }
+
         if coverData != originalCoverData {
             result.append(.cover(old: originalCoverData, new: coverData))
         }
@@ -220,7 +222,7 @@ final class ReleaseDetailViewModel {
     func discardChanges() {
         title = originalTitle
         artist = originalArtist
-        year = originalYear
+        releaseDateText = originalReleaseDateText
         genre = originalGenre
         coverData = originalCoverData
         trackRows = originalTrackRows
@@ -231,8 +233,37 @@ final class ReleaseDetailViewModel {
     }
 
     var canSave: Bool {
-        hasChanges && !title.isEmpty && !artist.isEmpty && !isSaving
+        hasChanges && !title.isEmpty && !artist.isEmpty && !isSaving && releaseDateMessage == nil
     }
+
+    /// The text the Release date field starts from: the date formatted, else a legacy year as it was stored.
+    private static func dateText(of release: Release) -> String {
+        release.date?.formatted() ?? release.year ?? ""
+    }
+
+    /// The language the date is typed in; tests set it.
+    var locale: Locale = .current
+
+    var releaseDateEntry: ReleaseDateEntry { ReleaseDateText.parse(releaseDateText, locale: locale) }
+
+    /// The impossible or unreadable line under the date field. Nil while the text is as it was saved,
+    /// so a legacy year like "soon" never blocks saving something else.
+    var releaseDateMessage: String? {
+        releaseDateText == originalReleaseDateText ? nil : releaseDateEntry.message
+    }
+
+    /// The date change to save: nil keeps, `.some(nil)` clears, `.some(date)` sets. Compares dates, not text.
+    private var dateChange: ReleaseDate?? {
+        guard releaseDateText != originalReleaseDateText else { return nil }
+        switch releaseDateEntry {
+        case .date(let date): return date == release.date ? nil : .some(date)
+        case .empty: return originalReleaseDateText.isEmpty ? nil : .some(nil)
+        case .impossible, .unreadable: return nil
+        }
+    }
+
+    /// An edited date to save, or one that can't be saved yet.
+    private var releaseDateChanged: Bool { dateChange != nil || releaseDateMessage != nil }
 
     /// Reads play counts from the sync API (read-only; the phone adds none).
     /// Signed out, no api, or any error leaves the counts empty.
@@ -320,7 +351,7 @@ final class ReleaseDetailViewModel {
         let changes = ReleaseChanges(
             title: title == originalTitle ? release.title : title,
             artist: artist,
-            date: year == originalYear ? nil : .some(ReleaseDate(year.trimmingCharacters(in: .whitespaces))),
+            date: dateChange,
             genre: genre,
             cover: coverData != originalCoverData ? coverData : nil,
             trackTitles: trackTitles,
@@ -379,7 +410,7 @@ final class ReleaseDetailViewModel {
         self.release = release
         title = Self.editorTitle(of: release)
         artist = release.artist
-        year = release.date?.isoString ?? release.year ?? ""
+        releaseDateText = Self.dateText(of: release)
         genre = release.genre ?? ""
         coverData = release.coverPath != nil ? coverStore.load(release.id) : coverData
         trackRows = Self.rows(of: release)
@@ -387,7 +418,7 @@ final class ReleaseDetailViewModel {
 
         originalTitle = title
         originalArtist = artist
-        originalYear = year
+        originalReleaseDateText = releaseDateText
         originalGenre = genre
         originalCoverData = coverData
         originalTrackRows = trackRows

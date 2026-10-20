@@ -177,18 +177,29 @@ eyebrows still apply to those labels.
   fields read as floating text, so nobody could tell what a value was or that it could still be
   edited, and the import and the release page laid the same fields out differently.
   - *Labelled fields* (`LabeledField`, import record and release page): the same order on both
-    screens: Title, Artist, Album (a single being imported only), then Year and Genre sharing one
-    row (owner, 16 Oct: Year on the left in the label column, its value 92 pt scaled; Genre's label
-    right after it at its own width, 20 pt on, its value taking the rest; `YearGenreRow`). The
-    other fields have a row each. Each row has its label at the leading edge in a fixed column (subheadline,
+    screens: Title, Artist, Album (a single being imported only), Release date, then Genre. Each
+    field has a row of its own. Each row has its label at the leading edge in a fixed column (subheadline,
     `text-muted`, sentence case, no colon, 60 pt scaled with the text), then the value. A 1
     device-pixel underline sits under the value at all times: white 12 % at rest, 60 % while
     focused (fade 0.15 s). Values: the title in title3 semibold, the rest body; they wrap rather
     than truncate. Placeholders say what to type, in `text-dim`: "Enter single name" or "Enter
     album name" by kind, "Enter artist name", "Same as the single name" (a single's album),
-    "Enter year", "Enter genre"; a track row's title says "Enter track name". Rows are
-    12 pt apart. At the accessibility text sizes the label sits above its value; from XX Large
-    up Year and Genre take a row each (on one row Genre's value got too narrow and broke words).
+    "Enter release date", "Enter genre"; a track row's title says "Enter track name". Rows are
+    12 pt apart. At the accessibility text sizes the label sits above its value.
+  - *Release date* (#221, `ReleaseDateField`; owner, 20 Oct 2026: chose the field and calendar over
+    three day, month and year boxes). Its own row with the label "Release date" at its own width
+    (not the shared column), then one text field with a `calendar` button at the trailing end (44 pt
+    target) that opens a sheet; Genre follows on its own row (`ReleaseDateGenreRows`). The sheet
+    (medium detent, large at accessibility sizes) has a Year / Month / Day switch over wheels for
+    that precision, Done and Clear date; it opens on the typed value, else today. Typed forms
+    (`ReleaseDateText`): 2024, 2024-05, 2024-05-17, a month and year, the numeric date in the
+    phone's day and month order, and month names in the phone's language ("17 May 2024", "May
+    17, 2024"), any case or accents. Leaving the field rewrites a readable date as the app writes
+    it ("17 May 2024"). Two messages in `danger` under the row while the field is not focused,
+    and Save and Send are blocked: "That date doesn't exist" (31/02/2024) and "Enter a year, or a
+    date like 17 May 2024". A release saved before dates, with a year that is not a date, keeps
+    showing it and never blocks saving other fields. View mode: "Release date 17 May 2024" in the
+    details block, beside Genre when both fit one line, else stacked; "Not set" in the field.
   - *Album notice* (import record, album only): under the Single / Album line, a quiet faked-glass
     card (white 6 % fill, radius 12, 12 pt padding) with `info.circle` and caption text in
     `text-muted`: "Spotify doesn't group your own files into albums. After you send, we'll show

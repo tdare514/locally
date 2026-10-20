@@ -282,15 +282,15 @@ struct ReleaseDetailView: View {
             FeaturingField(names: Binding(get: { model.singleFeaturing }, set: { model.singleFeaturing = $0 }), draft: Binding(get: { model.featuringDraft }, set: { model.featuringDraft = $0 }), isEditable: model.isEditing && !model.isAdopted)
                 .clearRow(top: 0, bottom: model.isEditing || !model.singleFeaturing.isEmpty ? gap : 0)
         }
-        YearGenreRow(year: Binding(get: { model.year }, set: { model.year = $0 }), genre: Binding(get: { model.genre }, set: { model.genre = $0 }), isEditable: model.isEditing)
+        ReleaseDateGenreRows(releaseDate: Binding(get: { model.releaseDateText }, set: { model.releaseDateText = $0 }), genre: Binding(get: { model.genre }, set: { model.genre = $0 }), isEditable: model.isEditing, message: model.releaseDateMessage)
             .clearRow(top: 0, bottom: 0)
     }
 
     // MARK: View mode (#296)
 
-    /// The Mac's details: meta line, title, artist, "Year 2025   Genre Rap".
+    /// The Mac's details: meta line, title, artist, "Release date 17 May 2024   Genre Rap".
     private func details(_ model: ReleaseDetailViewModel) -> some View {
-        ReleaseDetailsView(kind: model.kind, trackCount: model.trackRows.count, title: model.title, artist: model.artist, featuring: model.kind == .single ? model.singleFeaturing : [], year: model.year, genre: model.genre)
+        ReleaseDetailsView(kind: model.kind, trackCount: model.trackRows.count, title: model.title, artist: model.artist, featuring: model.kind == .single ? model.singleFeaturing : [], releaseDate: model.releaseDateText, genre: model.genre)
             .clearRow(top: 0, bottom: 0)
     }
 

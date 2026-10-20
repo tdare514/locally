@@ -27,7 +27,8 @@ final class AlbumBuilderViewModel {
     var rows: [TrackRow] = []
     var albumTitle: String = ""
     var artist: String = ""
-    var year: String = ""
+    /// What is typed in the Release date field (#221); `releaseDateEntry` reads it.
+    var releaseDateText: String = ""
     var genre: String = ""
     var coverData: Data?
     /// The row whose feat. sheet is open, if any.
@@ -166,8 +167,13 @@ final class AlbumBuilderViewModel {
         }
     }
 
+    var releaseDateEntry: ReleaseDateEntry { ReleaseDateText.parse(releaseDateText) }
+
+    /// The impossible or unreadable line under the date field, nil otherwise.
+    var releaseDateMessage: String? { releaseDateEntry.message }
+
     var canSend: Bool {
-        !rows.isEmpty && !albumTitle.isEmpty && !artist.isEmpty && !isSending && !isLoadingTags
+        !rows.isEmpty && !albumTitle.isEmpty && !artist.isEmpty && !isSending && !isLoadingTags && releaseDateMessage == nil
     }
 
     /// Sends every row as one album, in its current order, reporting
@@ -185,7 +191,7 @@ final class AlbumBuilderViewModel {
         let album = AlbumDraft(
             title: albumTitle,
             artist: artist,
-            date: ReleaseDate(year.trimmingCharacters(in: .whitespaces)),
+            date: releaseDateEntry.date,
             genre: genre.isEmpty ? nil : genre,
             tracks: tracks
         )
@@ -208,7 +214,7 @@ final class AlbumBuilderViewModel {
         featuringRowID = nil
         albumTitle = ""
         artist = ""
-        year = ""
+        releaseDateText = ""
         genre = ""
         coverData = nil
         completedRelease = nil

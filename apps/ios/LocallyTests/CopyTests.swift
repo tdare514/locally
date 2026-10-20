@@ -57,7 +57,7 @@ struct FieldCopyTests {
     @Test func fieldCopyHasNoDashes() {
         let strings = [
             Copy.Import.albumNotice, Copy.Import.singlePlaceholder,
-            Copy.Import.albumNamePlaceholder, Copy.Import.artistPlaceholder, Copy.Import.yearPlaceholder,
+            Copy.Import.albumNamePlaceholder, Copy.Import.artistPlaceholder, Copy.DateField.placeholder, Copy.DateField.impossible, Copy.DateField.unreadable,
             Copy.Import.genrePlaceholder, Copy.Import.track
         ]
         for string in strings {

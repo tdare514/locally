@@ -21,7 +21,8 @@ final class ImportSingleViewModel {
     var featuring: [String] = []
     /// What is typed in the Featuring field and not yet added; send adds it.
     var featuringDraft = ""
-    var year: String = ""
+    /// What is typed in the Release date field (#221); `releaseDateEntry` reads it.
+    var releaseDateText: String = ""
     var genre: String = ""
     var coverData: Data?
 
@@ -65,7 +66,7 @@ final class ImportSingleViewModel {
                 title = splitTitle.title
                 artist = splitArtist.artist
                 featuring = FeaturingNames.merged(splitTitle.featuring, splitArtist.featuring)
-                year = tags.date?.isoString ?? ""
+                releaseDateText = tags.date?.formatted() ?? ""
                 genre = tags.genre ?? ""
             } else if title.isEmpty {
                 let split = ArtistNames.splitFeaturing(((pickedName ?? "") as NSString).deletingPathExtension)
@@ -121,7 +122,7 @@ final class ImportSingleViewModel {
             album: title,
             trackNumber: 1,
             totalTracks: 1,
-            date: ReleaseDate(year.trimmingCharacters(in: .whitespaces)),
+            date: releaseDateEntry.date,
             genre: genre.isEmpty ? nil : genre
         )
     }
@@ -135,7 +136,7 @@ final class ImportSingleViewModel {
         artist = ""
         featuring = []
         featuringDraft = ""
-        year = ""
+        releaseDateText = ""
         genre = ""
         coverData = nil
         completedRelease = nil
@@ -154,7 +155,12 @@ final class ImportSingleViewModel {
         Task { await pick(url: next.url, inboxFile: next) }
     }
 
+    var releaseDateEntry: ReleaseDateEntry { ReleaseDateText.parse(releaseDateText) }
+
+    /// The impossible or unreadable line under the date field, nil otherwise.
+    var releaseDateMessage: String? { releaseDateEntry.message }
+
     var canSend: Bool {
-        pickedURL != nil && !title.isEmpty && !artist.isEmpty && !isSending && !isLoadingTags
+        pickedURL != nil && !title.isEmpty && !artist.isEmpty && !isSending && !isLoadingTags && releaseDateMessage == nil
     }
 }

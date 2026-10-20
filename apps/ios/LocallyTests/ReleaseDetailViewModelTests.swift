@@ -147,7 +147,7 @@ struct ReleaseEditModeTests {
         model.beginEditing()
         model.title = "Changed"
         model.artist = "Someone"
-        model.year = "1999"
+        model.releaseDateText = "1999"
         model.coverData = Data([9])
         model.trackRows[1].title = "Z"
         model.moveTracks(from: IndexSet(integer: 1), to: 0)
@@ -156,7 +156,7 @@ struct ReleaseEditModeTests {
 
         #expect(model.title == "Album")
         #expect(model.artist == "Band")
-        #expect(model.year == "2020")
+        #expect(model.releaseDateText == "2020")
         #expect(model.coverData == nil)
         #expect(model.trackRows.map(\.title) == ["A", "B"])
         #expect(!model.hasChanges)
@@ -171,5 +171,126 @@ struct ReleaseEditModeTests {
         #expect(model.saveCount == 1)
         #expect(!model.isEditing)
         #expect(model.changes.isEmpty)
+    }
+
+    // MARK: Release date (#221)
+
+    private func makeDateModel(year: String?, releaseDate: String? = nil) async throws -> (ReleaseDetailViewModel, FakeTagWriter, InMemoryLibraryStore) {
+        let coverStore = FakeCoverStore()
+        let tagWriter = FakeTagWriter()
+        let library = InMemoryLibraryStore()
+        let coordinator = ReleaseCoordinator(
+            importer: FakeFileImporter(),
+            transcoder: FakeTranscoder(),
+            m4aTagWriter: tagWriter,
+            id3TagWriter: tagWriter,
+            folder: FakeSpotifyFolder(directory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)),
+            library: library,
+            coverStore: coverStore,
+            durationReader: FakeDurationReader()
+        )
+        let album = AlbumDraft(title: "Album", artist: "Band", date: ReleaseDate(year: 2020), tracks: [TrackDraft(title: "A")])
+        var release = try await coordinator.importAlbum(files: [try makeFile("a.mp3")], album: album, cover: nil)
+        release.year = year
+        release.releaseDate = releaseDate
+        let model = ReleaseDetailViewModel(release: release, coordinator: coordinator, coverStore: coverStore)
+        model.locale = Locale(identifier: "en_GB")
+        return (model, tagWriter, library)
+    }
+
+    @Test func anUnchangedLegacyYearNeverBlocksSavingOtherFields() async throws {
+        let (model, _, _) = try await makeDateModel(year: "soon")
+        #expect(model.releaseDateText == "soon")
+        model.beginEditing()
+        model.title = "Renamed"
+        #expect(model.releaseDateMessage == nil)
+        #expect(model.canSave)
+        #expect(!model.changes.contains { if case .field(let label, _, _) = $0 { label == Copy.DateField.label } else { false } })
+    }
+
+    @Test func aChangedUnreadableOrImpossibleDateBlocksSaving() async throws {
+        let (model, _, _) = try await makeDateModel(year: "2020")
+        model.beginEditing()
+        model.releaseDateText = "31/02/2024"
+        #expect(model.releaseDateMessage == Copy.DateField.impossible)
+        #expect(model.hasChanges)
+        #expect(!model.canSave)
+        model.releaseDateText = "soon"
+        #expect(model.releaseDateMessage == Copy.DateField.unreadable)
+        #expect(!model.canSave)
+    }
+
+    @Test func typingADateSavesIt() async throws {
+        let (model, tagWriter, library) = try await makeDateModel(year: "2020")
+        model.beginEditing()
+        model.releaseDateText = "17/05/2024"
+        #expect(model.canSave)
+        #expect(model.changes == [.field(label: Copy.DateField.label, old: "2020", new: ReleaseDate(year: 2024, month: 5, day: 17)!.formatted())])
+        await model.save()
+        let expected = ReleaseDate(year: 2024, month: 5, day: 17)
+        #expect(tagWriter.calls.last?.tags.date == expected)
+        #expect(try library.all().first?.date == expected)
+    }
+
+    @Test func clearingTheDateClearsIt() async throws {
+        let (model, tagWriter, library) = try await makeDateModel(year: "2020")
+        model.beginEditing()
+        model.releaseDateText = ""
+        #expect(model.canSave)
+        await model.save()
+        #expect(tagWriter.calls.last?.tags.date == nil)
+        #expect(try library.all().first?.date == nil)
+    }
+
+    @Test func retypingTheSameDateAnotherWayIsNoChange() async throws {
+        let (model, _, _) = try await makeDateModel(year: "2024", releaseDate: "2024-05-17")
+        model.beginEditing()
+        model.releaseDateText = "2024-05-17"
+        #expect(!model.hasChanges)
+    }
+}
+
+@MainActor
+struct ImportReleaseDateTests {
+    @Test func aSingleCannotSendOnAnImpossibleOrUnreadableDate() {
+        let model = ImportSingleViewModel(importer: FakeFileImporter(), coordinator: ImportReleaseDateTests.coordinator())
+        model.pickedURL = URL(fileURLWithPath: "/tmp/a.mp3")
+        model.title = "Song"
+        model.artist = "Artist"
+        #expect(model.canSend)
+        model.releaseDateText = "2023-02-29"
+        #expect(model.releaseDateMessage == Copy.DateField.impossible)
+        #expect(!model.canSend)
+        model.releaseDateText = "soon"
+        #expect(!model.canSend)
+        model.releaseDateText = "2023-02-28"
+        #expect(model.canSend)
+        #expect(model.tagSet().date == ReleaseDate(year: 2023, month: 2, day: 28))
+    }
+
+    @Test func anAlbumCannotSendOnAnImpossibleDate() {
+        let model = AlbumBuilderViewModel(importer: FakeFileImporter(), coordinator: ImportReleaseDateTests.coordinator())
+        model.rows = [AlbumBuilderViewModel.TrackRow(url: URL(fileURLWithPath: "/tmp/a.mp3"), title: "A")]
+        model.albumTitle = "Album"
+        model.artist = "Artist"
+        #expect(model.canSend)
+        model.releaseDateText = "2024-13"
+        #expect(!model.canSend)
+        model.releaseDateText = "2024-12"
+        #expect(model.canSend)
+    }
+
+    private static func coordinator() -> ReleaseCoordinator {
+        let tagWriter = FakeTagWriter()
+        return ReleaseCoordinator(
+            importer: FakeFileImporter(),
+            transcoder: FakeTranscoder(),
+            m4aTagWriter: tagWriter,
+            id3TagWriter: tagWriter,
+            folder: FakeSpotifyFolder(directory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)),
+            library: InMemoryLibraryStore(),
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
+        )
     }
 }

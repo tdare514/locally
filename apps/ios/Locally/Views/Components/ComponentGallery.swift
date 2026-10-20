@@ -26,7 +26,9 @@ struct ComponentGallery: View {
         // #288: the Artists view, artist pages, the sort control and linked names, over seeded sample data.
         "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links",
         // #226: the library search box with a typed query, and the crop sheet's Square / Original pill.
-        "icons-library-search", "crop-sheet", "devices-header-narrow"]
+        "icons-library-search", "crop-sheet", "devices-header-narrow",
+        // #221: the Release date row. The import case is `import-record-date`.
+        "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-save"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -45,7 +47,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links"].contains(name)
+        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-save"].contains(name)
     }
 
     var body: some View {
@@ -175,6 +177,20 @@ struct ComponentGallery: View {
             IconsGallery.artistsLibrary(layout: .list, sort: .title)
         case "release-links":
             IconsGallery.linkedRelease()
+        case "release-date-edit":
+            IconsGallery.dateRelease(editing: true)
+        case "release-date-view":
+            IconsGallery.dateRelease()
+        case "release-date-sheet":
+            ReleaseDateFieldGallery(text: "17 May 2024", opensSheet: true)
+        case "release-date-invalid":
+            ReleaseDateFieldGallery(text: "31/02/2024")
+        case "release-date-xxxl":
+            IconsGallery.dateRelease(editing: true).dynamicTypeSize(.xxxLarge)
+        case "release-date-ax":
+            ReleaseDateFieldGallery(text: "17 May 2024").dynamicTypeSize(.accessibility3)
+        case "release-date-save":
+            IconsGallery.saveableDateRelease()
         case "release-featuring-view":
             IconsGallery.featuringRelease()
         case "release-featuring-edit":
@@ -434,15 +450,15 @@ enum StatsGallery {
 @MainActor
 enum IconsGallery {
     static func container(
-        releases: [Release] = StatsGallery.releases, covers: [UUID: Data] = StatsGallery.covers, playStats: PlayStatsReading? = nil
+        releases: [Release] = StatsGallery.releases, covers: [UUID: Data] = StatsGallery.covers, playStats: PlayStatsReading? = nil,
+        folder: SpotifyFolderAccess = UserDefaultsSpotifyFolder(), tagWriter: TagWriter? = nil
     ) -> AppContainer {
         // swiftlint:disable:next force_try
         let modelContainer = try! ModelStore.open(at: nil)
         let library = SwiftDataLibraryStore(context: modelContainer.mainContext)
         let coverStore = FileCoverStore()
-        let folder = UserDefaultsSpotifyFolder()
         let coordinator = ReleaseCoordinator(
-            importer: LocalFileImporter(), transcoder: AVTranscoder(), m4aTagWriter: M4ATagWriter(), id3TagWriter: ID3TagWriter(),
+            importer: LocalFileImporter(), transcoder: AVTranscoder(), m4aTagWriter: tagWriter ?? M4ATagWriter(), id3TagWriter: tagWriter ?? ID3TagWriter(),
             folder: folder, library: library, coverStore: coverStore, durationReader: TrackLengthLoader.shared
         )
         let account = UserDefaultsSyncAccountStore()
@@ -531,6 +547,29 @@ enum IconsGallery {
         let cover = StatsGallery.covers[StatsGallery.releases[0].id]
         release.coverPath = cover.flatMap { try? container.coverStore.save($0, for: release.id) }
         return environment(NavigationStack { ReleaseDetailView(release: release, startsEditing: editing) }, container)
+    }
+
+    /// A release page whose release carries a day-precision date (#221): year "2024", releaseDate "2024-05-17".
+    static func dateRelease(editing: Bool = false) -> some View {
+        let container = container()
+        var release = StatsGallery.releases[0]
+        release.year = "2024"
+        release.releaseDate = "2024-05-17"
+        return environment(NavigationStack { ReleaseDetailView(release: release, startsEditing: editing) }, container)
+    }
+
+    /// `release-date-save`: the release page in edit mode over a release whose track is a real
+    /// scratch file in a temp folder, with a tag writer that writes nothing, so a UI test can save.
+    static func saveableDateRelease() -> some View {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("gallery-date-save", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("Headlights.mp3")
+        try? Data([0xFF, 0xFB, 1, 2, 3, 4]).write(to: file)
+        let track = Track(title: "Headlights", trackNumber: 1, filePath: file.path, originalName: "Headlights.mp3", durationSec: 214)
+        var release = Release(kind: .single, title: "Headlights", artist: "Neon Harbor", year: "2024", genre: "Synthwave", folderPath: dir.path, tracks: [track])
+        release.releaseDate = "2024-05-17"
+        let container = container(releases: [release], covers: [:], folder: GalleryFolder(directory: dir), tagWriter: GalleryTagWriter())
+        return environment(NavigationStack { ReleaseDetailView(release: release, startsEditing: true) }, container)
     }
 
     /// An album's release page, with its cover (Edit) and the playlist guide (Copy).
@@ -640,7 +679,7 @@ private struct ReleaseReviewErrorGallery: View {
         model.beginEditing()
         model.title = "Midnight Drive Along The Neon Harbor Road"
         model.genre = "Late night synthwave and slow highway pop for the drive home"
-        model.year = "2026"
+        model.releaseDateText = "2026"
         model.errorMessage = "Couldn't save \"Midnight Drive Along The Neon Harbor Road\": Locally doesn't have permission to write to the Spotify folder. Open Settings and choose the folder again."
         _model = State(initialValue: model)
     }
@@ -648,6 +687,42 @@ private struct ReleaseReviewErrorGallery: View {
     var body: some View {
         ReleaseReviewSheet(model: model, glowColors: Theme.coverGlowColors(nil)) {}
             .background(Theme.card)
+    }
+}
+
+/// A connected folder that is a temp directory, for `release-date-save`.
+private struct GalleryFolder: SpotifyFolderAccess {
+    let directory: URL
+    var isConnected: Bool { true }
+    func connect(url: URL) throws {}
+    func withAccess<T>(_ body: (URL) throws -> T) throws -> T { try body(directory) }
+    func withAccess<T>(_ body: (URL) async throws -> T) async throws -> T { try await body(directory) }
+    func disconnect() {}
+}
+
+/// Writes no tags: a gallery save changes the in-memory library and nothing on disk.
+private struct GalleryTagWriter: TagWriter {
+    func write(_ tags: TagSet, cover: Data?, to url: URL) async throws {}
+}
+
+/// `release-date-sheet` and `release-date-invalid`: Title, Artist and the date and Genre rows on their
+/// own, with the sheet open or the message showing (#221).
+private struct ReleaseDateFieldGallery: View {
+    @State var text: String
+    var opensSheet = false
+    @State private var genre = "Synthwave"
+
+    var body: some View {
+        ZStack {
+            StudioBackdrop()
+            VStack(alignment: .leading, spacing: Theme.Immersive.labeledFieldRowGap) {
+                LabeledField(Copy.Import.fieldTitle, placeholder: "", text: .constant("Midnight Drive"), font: Theme.ScaledFont.fieldTitle, metricsStyle: .title3, wraps: true)
+                LabeledField(Copy.Import.fieldArtist, placeholder: "", text: .constant("Neon Harbor"))
+                ReleaseDateGenreRows(releaseDate: $text, genre: $genre, message: ReleaseDateText.parse(text).message, startsWithSheetOpen: opensSheet)
+            }
+            .padding(Theme.Spacing.pagePadding)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
     }
 }
 
@@ -730,7 +805,7 @@ private struct ImportRecordGallery: View {
             // Long values, so wrapping at large text sizes is visible.
             album.albumTitle = "Midnight Drive Along The Neon Harbor Road"
             album.artist = "Neon Harbor And The Salt Line Orchestra"
-            album.year = "2026"
+            album.releaseDateText = "2026"
             album.genre = "Synthwave and late night highway pop"
             album.rows = ["Headlights", "Overpass", "Last Exit"].map {
                 AlbumBuilderViewModel.TrackRow(url: URL(fileURLWithPath: "/gallery/\($0).mp3"), title: $0)
@@ -759,6 +834,10 @@ private struct ImportRecordGallery: View {
                 album.rows[1].featuring = (1...8).map { "Bartholomew Featherstonehaugh \($0)" }
             }
             album.featuringRowID = album.rows[1].id
+        case "import-record-date":
+            // #221: a single with a day-precision date.
+            Self.fill(single)
+            single.releaseDateText = ReleaseDate(year: 2024, month: 5, day: 17)?.formatted() ?? ""
         case "import-record-live":
             Self.fill(single)
         case "import-record-artist-pills", "import-record-artist-typo":
@@ -778,7 +857,7 @@ private struct ImportRecordGallery: View {
         single.pickedName = "Headlights.mp3"
         single.title = "Headlights On The Neon Harbor Overpass"
         single.artist = "Neon Harbor And The Salt Line Orchestra"
-        single.year = "2026"
+        single.releaseDateText = "2026"
         single.genre = "Synthwave and late night highway pop"
     }
 

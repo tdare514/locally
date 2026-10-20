@@ -13,8 +13,8 @@ enum TrackRowLine {
     }
 }
 
-/// The meta line, title, artist and "Year 2025   Genre Rap" (an empty value is left out). At the
-/// accessibility sizes Year and Genre each take their own line.
+/// The meta line, title, artist and "Release date 17 May 2024   Genre Rap" (an empty value is left out).
+/// At the accessibility sizes, or when the two do not fit one line, they each take their own line.
 struct ReleaseDetailsView: View {
     let kind: ReleaseKind
     let trackCount: Int
@@ -22,7 +22,8 @@ struct ReleaseDetailsView: View {
     let artist: String
     /// A single's featured artists (#287): a "Featuring B, C" line, left out when there are none.
     var featuring: [String] = []
-    let year: String
+    /// The typed date text, shown formatted when it reads as a date (a legacy year as stored).
+    let releaseDate: String
     let genre: String
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -33,7 +34,22 @@ struct ReleaseDetailsView: View {
     @ScaledMetric(relativeTo: .subheadline) private var pairSize: CGFloat = 14
 
     private var pairs: [(label: String, value: String)] {
-        [(Copy.Detail.yearLabel, year), (Copy.Detail.genreLabel, genre)].filter { !$0.value.isEmpty }
+        let date = ReleaseDateText.parse(releaseDate).date?.formatted() ?? releaseDate
+        return [(Copy.Detail.releaseDateLabel, date), (Copy.Detail.genreLabel, genre)].filter { !$0.value.isEmpty }
+    }
+
+    private func pairView(_ pair: (label: String, value: String)) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(pair.label).foregroundStyle(Theme.secondaryText)
+            Text(pair.value).foregroundStyle(Theme.primaryText)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var stackedPairs: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(pairs, id: \.label) { pairView($0) }
+        }
     }
 
     var body: some View {
@@ -61,16 +77,17 @@ struct ReleaseDetailsView: View {
                 .accessibilityElement(children: .contain)
             }
             if !pairs.isEmpty {
-                let layout = dynamicTypeSize.isAccessibilitySize
-                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
-                    : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 20))
-                layout {
-                    ForEach(pairs, id: \.label) { pair in
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Text(pair.label).foregroundStyle(Theme.secondaryText)
-                            Text(pair.value).foregroundStyle(Theme.primaryText)
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        stackedPairs
+                    } else {
+                        // Side by side while they fit on one line, else stacked.
+                        ViewThatFits(in: .horizontal) {
+                            HStack(alignment: .firstTextBaseline, spacing: 20) {
+                                ForEach(pairs, id: \.label) { pairView($0).fixedSize(horizontal: true, vertical: false) }
+                            }
+                            stackedPairs
                         }
-                        .accessibilityElement(children: .combine)
                     }
                 }
                 .font(.system(size: pairSize))

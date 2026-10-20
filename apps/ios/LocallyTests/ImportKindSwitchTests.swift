@@ -38,7 +38,7 @@ struct ImportKindSwitchTests {
         single.pickedName = "a.mp3"
         single.title = "Song"
         single.artist = "Artist"
-        single.year = "2026"
+        single.releaseDateText = "2026"
         single.genre = "Pop"
         single.coverData = cover
 
@@ -48,7 +48,7 @@ struct ImportKindSwitchTests {
         #expect(album.rows.map(\.title) == ["Song"])
         #expect(album.albumTitle == "Song")
         #expect(album.artist == "Artist")
-        #expect(album.year == "2026")
+        #expect(album.releaseDateText == "2026")
         #expect(album.genre == "Pop")
         #expect(album.coverData == cover)
         // The single is cleared.
@@ -86,7 +86,7 @@ struct ImportKindSwitchTests {
         ]
         album.albumTitle = "The Album"
         album.artist = "Artist"
-        album.year = "2026"
+        album.releaseDateText = "2026"
         album.genre = "Pop"
         album.coverData = cover
 
@@ -96,7 +96,7 @@ struct ImportKindSwitchTests {
         #expect(single.pickedName == "a.mp3")
         #expect(single.title == "One")
         #expect(single.artist == "Artist")
-        #expect(single.year == "2026")
+        #expect(single.releaseDateText == "2026")
         #expect(single.genre == "Pop")
         #expect(single.coverData == cover)
         // The album is cleared, so the dropped rows are gone from it too.

@@ -242,7 +242,7 @@ struct FeaturingFieldTests {
         #expect(!model.hasChanges)
 
         model.beginEditing()
-        model.year = "2021"
+        model.releaseDateText = "2021"
         await model.save()
 
         let last = try #require(rig.tagWriter.calls.last).tags
@@ -304,7 +304,7 @@ struct FeaturingFieldTests {
         let model = ReleaseDetailViewModel(release: release, coordinator: rig.coordinator, coverStore: rig.coverStore)
 
         model.beginEditing()
-        model.year = "2021"
+        model.releaseDateText = "2021"
         await model.save()
 
         let saved = try #require(rig.library.all().first)
@@ -341,7 +341,7 @@ struct FeaturingFieldTests {
         let release = try #require(rig.library.all().first)
         let model = ReleaseDetailViewModel(release: release, coordinator: rig.coordinator, coverStore: rig.coverStore)
         model.beginEditing()
-        model.year = "2021"
+        model.releaseDateText = "2021"
         await model.save()
 
         let saved = try #require(rig.tagWriter.calls.last).tags

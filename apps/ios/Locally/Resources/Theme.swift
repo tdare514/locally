@@ -302,10 +302,6 @@ enum Theme {
         /// Labelled fields: the label column, the gap between rows, and the always-visible underline.
         static let labeledFieldLabelWidth: CGFloat = 66
         static let labeledFieldRowGap: CGFloat = 12
-        /// Year's value width when it shares its row with Genre: room for "Enter year" at body.
-        static let yearValueWidth: CGFloat = 92
-        /// Space between Year's value and the Genre label on their shared row.
-        static let yearGenreGap: CGFloat = 20
         static let labeledFieldLabelGap: CGFloat = 12
         static let labeledFieldUnderlineRestOpacity: Double = 0.12
         /// The album notice: corner radius, padding, icon gap, and its entrance (fade and rise).
