@@ -24,6 +24,7 @@ enum ReleaseDateText {
     static func parse(_ text: String, locale: Locale = .current) -> ReleaseDateEntry {
         var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty { return .empty }
+        if let date = formattedDate(trimmed, locale: locale) { return .date(date) }
         // "Sept." and "17 May 2024." end in a dot that means nothing.
         if trimmed.hasSuffix(".") { trimmed.removeLast() }
         guard let first = trimmed.first, let last = trimmed.last, isAlphanumeric(first), isAlphanumeric(last),
@@ -132,6 +133,28 @@ enum ReleaseDateText {
     }
 
     // MARK: Locale
+
+    /// What `ReleaseDate.formatted(locale:)` prints reads back in any locale ("2024年5月17日", "17 мая 2024 г."):
+    /// parsed with the same templates, and accepted only when it prints the very same text again, so a lenient
+    /// parse (31 Feb rolling into March) can never get through.
+    private static func formattedDate(_ text: String, locale: Locale) -> ReleaseDate? {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        for (template, hasDay) in [("dMMMMy", true), ("MMMMy", false)] {
+            let formatter = DateFormatter()
+            formatter.locale = locale
+            formatter.calendar = calendar
+            formatter.timeZone = calendar.timeZone
+            formatter.setLocalizedDateFormatFromTemplate(template)
+            guard let date = formatter.date(from: text) else { continue }
+            let parts = calendar.dateComponents([.year, .month, .day], from: date)
+            guard let year = parts.year, let month = parts.month,
+                  let candidate = ReleaseDate(year: year, month: month, day: hasDay ? parts.day : nil),
+                  candidate.formatted(locale: locale) == text else { continue }
+            return candidate
+        }
+        return nil
+    }
 
     /// True when the locale's short numeric date puts the day before the month (en-GB), false for en-US.
     private static func dayFirst(_ locale: Locale) -> Bool {

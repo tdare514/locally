@@ -27,7 +27,7 @@ struct ReleaseDateTextTests {
         #expect(ReleaseDateText.parse("   ", locale: locale) == .empty)
     }
 
-    @Test(arguments: ["en_GB", "en_US"])
+    @Test(arguments: ["en_GB", "en_US", "de_DE", "fr_FR", "ru_RU", "ja_JP", "zh_Hans_CN", "ar_EG", "th_TH"])
     func whatFormattedPrintsRoundTripsAtEveryPrecision(_ id: String) {
         let locale = Locale(identifier: id)
         for original in [ReleaseDate(year: 2024)!, ReleaseDate(year: 2024, month: 5)!, ReleaseDate(year: 2024, month: 5, day: 17)!,
