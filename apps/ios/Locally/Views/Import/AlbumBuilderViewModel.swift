@@ -33,9 +33,18 @@ final class AlbumBuilderViewModel {
     }
     /// True once the person has typed or cleared the date; an empty field then stays empty when
     /// tracks are added. The prefill and `reset()` do not count.
-    private var releaseDateEdited = false
+    private(set) var releaseDateEdited = false
     private var isPrefillingDate = false
     var genre: String = ""
+
+    /// Takes the other form's date text with its edited state, so a Single / Album switch keeps
+    /// "untouched" and "cleared by the person" apart (#221). The text itself is not an edit.
+    func takeReleaseDate(text: String, edited: Bool) {
+        isPrefillingDate = true
+        releaseDateText = text
+        isPrefillingDate = false
+        releaseDateEdited = edited
+    }
     var coverData: Data?
     /// The row whose feat. sheet is open, if any.
     var featuringRowID: TrackRow.ID?

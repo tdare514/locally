@@ -10,7 +10,7 @@ enum ImportKindSwitch {
         album.rows = single.pickedURL.map { [AlbumBuilderViewModel.TrackRow(url: $0, title: single.title, featuring: FeaturingNames.commit(single.featuringDraft, to: single.featuring))] } ?? []
         album.albumTitle = single.title
         album.artist = single.artist
-        album.releaseDateText = single.releaseDateText
+        album.takeReleaseDate(text: single.releaseDateText, edited: single.releaseDateEdited)
         album.genre = single.genre
         album.coverData = single.coverData
         single.clearDraft()
@@ -25,7 +25,7 @@ enum ImportKindSwitch {
         single.title = first?.title ?? ""
         single.featuring = first?.featuring ?? []
         single.artist = album.artist
-        single.releaseDateText = album.releaseDateText
+        single.takeReleaseDate(text: album.releaseDateText, edited: album.releaseDateEdited)
         single.genre = album.genre
         single.coverData = album.coverData
         single.errorMessage = nil

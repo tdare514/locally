@@ -22,7 +22,20 @@ final class ImportSingleViewModel {
     /// What is typed in the Featuring field and not yet added; send adds it.
     var featuringDraft = ""
     /// What is typed in the Release date field (#221); `releaseDateEntry` reads it.
-    var releaseDateText: String = ""
+    var releaseDateText: String = "" {
+        didSet { if !isPrefillingDate { releaseDateEdited = true } }
+    }
+    /// True once the person has typed or cleared the date. The file-tag prefill and `reset()` do not count.
+    private(set) var releaseDateEdited = false
+    private var isPrefillingDate = false
+
+    /// Takes the other form's date text with its edited state (#221); the text itself is not an edit.
+    func takeReleaseDate(text: String, edited: Bool) {
+        isPrefillingDate = true
+        releaseDateText = text
+        isPrefillingDate = false
+        releaseDateEdited = edited
+    }
     var genre: String = ""
     var coverData: Data?
 
@@ -66,7 +79,9 @@ final class ImportSingleViewModel {
                 title = splitTitle.title
                 artist = splitArtist.artist
                 featuring = FeaturingNames.merged(splitTitle.featuring, splitArtist.featuring)
+                isPrefillingDate = true
                 releaseDateText = tags.date?.formatted() ?? ""
+                isPrefillingDate = false
                 genre = tags.genre ?? ""
             } else if title.isEmpty {
                 let split = ArtistNames.splitFeaturing(((pickedName ?? "") as NSString).deletingPathExtension)
@@ -137,6 +152,7 @@ final class ImportSingleViewModel {
         featuring = []
         featuringDraft = ""
         releaseDateText = ""
+        releaseDateEdited = false
         genre = ""
         coverData = nil
         completedRelease = nil

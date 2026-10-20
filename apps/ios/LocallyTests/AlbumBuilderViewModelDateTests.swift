@@ -94,4 +94,82 @@ struct AlbumBuilderViewModelDateTests {
         let release = try #require(model.completedRelease)
         #expect(release.date == nil)
     }
+
+    private func makeSingle() -> ImportSingleViewModel {
+        let importer = FakeFileImporter()
+        let folderDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let coordinator = ReleaseCoordinator(
+            importer: importer,
+            transcoder: FakeTranscoder(),
+            m4aTagWriter: FakeTagWriter(),
+            id3TagWriter: FakeTagWriter(),
+            folder: FakeSpotifyFolder(directory: folderDir),
+            library: InMemoryLibraryStore(),
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
+        )
+        return ImportSingleViewModel(importer: importer, coordinator: coordinator)
+    }
+
+    @Test func anUndatedUntouchedSingleSwitchedToAlbumTakesALaterTracksDate() async throws {
+        let importer = FakeFileImporter()
+        let album = makeModel(importer: importer)
+        let single = makeSingle()
+        let may17 = ReleaseDate(year: 2024, month: 5, day: 17)
+        let dated = try makeAudioFile(named: "two.mp3")
+        importer.tagsByURL[dated] = TagSet(title: "two", artist: "A", album: "Al", date: may17)
+        single.pickedURL = try makeAudioFile(named: "one.mp3")
+        single.title = "One"
+        single.artist = "A"
+
+        ImportKindSwitch.singleToAlbum(single, into: album)
+        #expect(album.releaseDateText.isEmpty)
+        await album.addFiles([dated])
+        #expect(album.releaseDateText == may17?.formatted())
+
+        album.albumTitle = "Al"
+        await album.send()
+        let release = try #require(album.completedRelease)
+        #expect(release.date == may17)
+    }
+
+    @Test func aClearedAlbumDateStaysClearedThroughASingleRoundTrip() async throws {
+        let importer = FakeFileImporter()
+        let album = makeModel(importer: importer)
+        let single = makeSingle()
+        let may17 = ReleaseDate(year: 2024, month: 5, day: 17)
+        let first = try makeAudioFile(named: "one.mp3")
+        let second = try makeAudioFile(named: "two.mp3")
+        importer.tagsByURL[first] = TagSet(title: "one", artist: "A", album: "Al", date: may17)
+        importer.tagsByURL[second] = TagSet(title: "two", artist: "A", album: "Al", date: may17)
+
+        await album.addFiles([first])
+        album.releaseDateText = ""
+        ImportKindSwitch.albumToSingle(album, into: single)
+        ImportKindSwitch.singleToAlbum(single, into: album)
+        await album.addFiles([second])
+        #expect(album.releaseDateText.isEmpty)
+
+        album.albumTitle = "Al"
+        album.artist = "A"
+        await album.send()
+        let release = try #require(album.completedRelease)
+        #expect(release.date == nil)
+    }
+
+    @Test func aTypedSingleDateSurvivesTheSwitchAndALaterDatedAdd() async throws {
+        let importer = FakeFileImporter()
+        let album = makeModel(importer: importer)
+        let single = makeSingle()
+        let dated = try makeAudioFile(named: "two.mp3")
+        importer.tagsByURL[dated] = TagSet(title: "two", artist: "A", album: "Al", date: ReleaseDate(year: 2024, month: 5, day: 17))
+        single.pickedURL = try makeAudioFile(named: "one.mp3")
+        single.title = "One"
+        single.artist = "A"
+        single.releaseDateText = "2019"
+
+        ImportKindSwitch.singleToAlbum(single, into: album)
+        await album.addFiles([dated])
+        #expect(album.releaseDateText == "2019")
+    }
 }
