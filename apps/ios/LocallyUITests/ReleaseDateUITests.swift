@@ -18,7 +18,9 @@ final class ReleaseDateUITests: XCTestCase {
     /// Replaces the field's text.
     private func type(_ text: String) {
         XCTAssertTrue(dateField.waitForExistence(timeout: 15), "no Release date field")
-        dateField.tap()
+        // The field wraps, so a tap puts the caret where it lands: tap its trailing end so the
+        // deletes below reach every character.
+        dateField.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.5)).tap()
         let current = (dateField.value as? String) ?? ""
         dateField.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: current.count) + text)
     }
