@@ -13,6 +13,8 @@ export const SAMPLER_LEASE_MS = 50_000;
 export const ACTIVE_INTERVAL_MS = 10_000;
 export const IDLE_INTERVAL_MS = 30_000;
 export const SAMPLER_CONCURRENCY = 25;
+/** A user is skipped this close to the lease's expiry: too late to write safely. */
+const LEASE_MARGIN_MS = 5_000;
 const LEASE_ID = "spotify-sampler";
 const STOPPING_PROBLEMS = new Set(["reconnect", "notOnTesterList"]);
 
@@ -65,18 +67,19 @@ export class SpotifySampler {
   ) {}
 
   async run(): Promise<SampleRunResult> {
-    if (!(await this.takeLease())) return { sampled: 0, counted: 0, skipped: true, nextInMs: ACTIVE_INTERVAL_MS };
+    const leaseUntil = await this.takeLease();
+    if (leaseUntil === null) return { sampled: 0, counted: 0, skipped: true, nextInMs: ACTIVE_INTERVAL_MS };
 
     try {
-      return await this.sampleAll();
+      return await this.sampleAll(leaseUntil);
     } finally {
       // Release the lease so a trigger that fires a few seconds early is not skipped. The 50 s expiry stays
       // as the safety net for a run that crashes before this line.
-      await this.releaseLease().catch(() => undefined);
+      await this.releaseLease(leaseUntil).catch(() => undefined);
     }
   }
 
-  private async sampleAll(): Promise<SampleRunResult> {
+  private async sampleAll(leaseUntil: number): Promise<SampleRunResult> {
     const links = (await this.db.select().from(spotifyLinks)).filter(
       (link) => !(link.problem && STOPPING_PROBLEMS.has(link.problem)) && (link.backoffUntil === null || link.backoffUntil <= this.now())
     );
@@ -88,7 +91,7 @@ export class SpotifySampler {
       while (next < links.length) {
         const link = links[next++]!;
         try {
-          const outcome = await this.sampleUser(link);
+          const outcome = await this.sampleUser(link, leaseUntil);
           if (outcome) {
             sampled += 1;
             if (outcome.counted) counted += 1;
@@ -104,27 +107,38 @@ export class SpotifySampler {
     return { sampled, counted, skipped: false, nextInMs: playing ? ACTIVE_INTERVAL_MS : IDLE_INTERVAL_MS };
   }
 
-  private async releaseLease(): Promise<void> {
-    await this.db.update(samplerLease).set({ until: this.now() }).where(eq(samplerLease.id, LEASE_ID));
+  /** Clears the lease only while it is still this run's: a newer holder's `until` is never touched. */
+  private async releaseLease(leaseUntil: number): Promise<void> {
+    await this.db
+      .update(samplerLease)
+      .set({ until: this.now() })
+      .where(and(eq(samplerLease.id, LEASE_ID), eq(samplerLease.until, leaseUntil)));
   }
 
-  /** `until` <= now → now + 50 s, in one statement; a row comes back only when this run took the lease. */
-  private async takeLease(): Promise<boolean> {
+  /** `until` <= now → now + 50 s, in one statement. Returns the `until` written (this run's fencing token), or null when another run holds the lease. */
+  private async takeLease(): Promise<number | null> {
     const now = this.now();
+    const until = now + SAMPLER_LEASE_MS;
     const rows = await this.db
       .insert(samplerLease)
-      .values({ id: LEASE_ID, until: now + SAMPLER_LEASE_MS })
-      .onConflictDoUpdate({ target: samplerLease.id, set: { until: now + SAMPLER_LEASE_MS }, setWhere: lte(samplerLease.until, now) })
+      .values({ id: LEASE_ID, until })
+      .onConflictDoUpdate({ target: samplerLease.id, set: { until }, setWhere: lte(samplerLease.until, now) })
       .returning({ id: samplerLease.id });
-    return rows.length > 0;
+    return rows.length > 0 ? until : null;
+  }
+
+  /** True only while the lease row still holds this run's `until`; ANDed into every write so a run whose lease was taken writes nothing. */
+  private holdsLease(leaseUntil: number) {
+    return sql`exists (select 1 from ${samplerLease} where ${samplerLease.id} = ${LEASE_ID} and ${samplerLease.until} = ${leaseUntil})`;
   }
 
   /** Null when the user was skipped (a problem, a back-off or a failed read): nothing was changed or counted. */
-  private async sampleUser(link: SpotifyLinkRow): Promise<{ counted: boolean; playing: boolean } | null> {
+  private async sampleUser(link: SpotifyLinkRow, leaseUntil: number): Promise<{ counted: boolean; playing: boolean } | null> {
     const result = await this.player.read(link);
     if (result.kind !== "ok") return null;
 
     const at = this.now();
+    if (at >= leaseUntil - LEASE_MARGIN_MS) return null;
     const prev = sessionOf(link);
     const sample = result.sample;
     let ids: LocalIds | null = null;
@@ -149,12 +163,12 @@ export class SpotifySampler {
           sessionAt: next?.at ?? null,
           sessionCounted: next ? next.counted : null,
         })
-        .where(eq(spotifyLinks.userId, link.userId)),
+        .where(and(eq(spotifyLinks.userId, link.userId), this.holdsLease(leaseUntil))),
     ];
 
     if (outcome.counted && next) {
       const deviceId = await ensureCloudDevice(this.db, link.userId, link.cloudDeviceId, at);
-      statements.push(...this.countStatements(link.userId, deviceId, next, localDay(at, link.timeZone), at));
+      statements.push(...this.countStatements(link.userId, deviceId, next, localDay(at, link.timeZone), at, leaseUntil));
     }
     await this.db.batch(statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
     return { counted: outcome.counted, playing: sample.kind === "item" && sample.isPlaying };
@@ -170,8 +184,13 @@ export class SpotifySampler {
   }
 
   /** +1 on the cloud device's `play_counts` row and today's `play_days` row, guarded to a live release of the user. */
-  private countStatements(userId: string, deviceId: string, session: SessionState, day: string, now: number) {
-    const liveRelease = and(eq(releases.id, session.releaseId), eq(releases.userId, userId), eq(releases.deleted, false));
+  private countStatements(userId: string, deviceId: string, session: SessionState, day: string, now: number, leaseUntil: number) {
+    const liveRelease = and(
+      eq(releases.id, session.releaseId),
+      eq(releases.userId, userId),
+      eq(releases.deleted, false),
+      this.holdsLease(leaseUntil)
+    );
     const count = this.db
       .insert(playCounts)
       .select(

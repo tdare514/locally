@@ -178,7 +178,7 @@ Account deletion removes the link, and the daily cleanup removes expired link re
 | --- | --- | --- |
 | POST `/v1/internal/spotify-sample` | none; `Authorization: Bearer <SAMPLER_SECRET>` (not a device token, not `CRON_SECRET`) | `{ sampled, counted, skipped, nextInMs }` (numbers and a boolean only; no names or ids; `nextInMs` is 10000 while any linked user is playing and 30000 otherwise). 401 for a missing or wrong bearer (compared in constant time); 404 when `SPOTIFY_CLIENT_ID` is unset. A run takes a 50 s lease; a second call inside it answers 200 `{ sampled: 0, counted: 0, skipped: true, nextInMs: 10000 }` |
 
-A Cloudflare Worker cron (`apps/api/trigger/`; Hobby crons run once a day) calls it every 10 s while any linked user is playing and every 30 s otherwise, as `nextInMs` asks. A run reads `GET /v1/me/player` for
+A run's writes are fenced by its lease (a run whose lease was taken writes nothing), and the route's `maxDuration` is 45 s. A Cloudflare Worker cron (`apps/api/trigger/`; Hobby crons run once a day) calls it every 10 s while any linked user is playing and every 30 s otherwise, as `nextInMs` asks. A run reads `GET /v1/me/player` for
 each linked user with no `reconnect` or `notOnTesterList` problem and no back-off (at most 25 at once), resolves
 a playing `spotify:local:` uri to one of the user's live releases and counts it once per play, at 30 s or 90% of
 a short track, using Spotify's `progress_ms` because it sees a sample every 10 s at best. The link's `problem` is

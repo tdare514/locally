@@ -237,4 +237,5 @@ Steps 1 → 2 → 3 run in order, and step 4 can run beside step 3.
 - A Cloudflare Worker cron (`apps/api/trigger/`) replaces cron-job.org. It is free, and it waits between calls without being billed for the wait, whereas waiting inside a Vercel function bills provisioned memory.
 - The sampler reply gains `nextInMs`: 10 s while any linked user is playing, 30 s otherwise (10 s on a skipped run). The Worker calls again after that gap, up to 55 s into each minute.
 - `SAMPLER_SECRET` was rotated, so the old cron-job.org job must be deleted.
+- A run's writes and its lease release are fenced by the lease's own `until` (a run whose lease was taken writes nothing), and the route's `maxDuration` is 45 s so a run ends before the 50 s lease lapses. The Worker's gaps are measured start to start.
 - Rough cost: about 2,900 calls a day idle, 360 an hour while playing; at most about 260k a month against Hobby's 1M invocations.

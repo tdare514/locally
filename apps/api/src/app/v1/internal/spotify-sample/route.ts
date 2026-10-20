@@ -6,6 +6,8 @@ import { NotFoundError, UnauthorizedError } from "../../../../shared/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Vercel ends the run before the 50 s lease can lapse, so two runs never overlap.
+export const maxDuration = 45;
 
 /**
  * The sampler (#303 §3). The Cloudflare Worker in `apps/api/trigger/` POSTs it with

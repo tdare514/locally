@@ -186,6 +186,36 @@ describe("SpotifySampler lease", () => {
     kit.clock.now += 2_000;
     expect((await kit.sampler.run()).skipped).toBe(false);
   });
+
+  it("writes nothing when its lease was taken by another run, and its release leaves the new lease alone", async () => {
+    const BS_UNTIL = T0 + 10_000 + 50_000; // what a second run would have written
+    kit.spotify.answer(PLAYER_URL, playing(URI_A, 40_000, 61_200));
+    kit.spotify.onCall = async () => {
+      kit.clock.now += 10_000; // still inside A's lease, clear of the 5 s margin
+      await services.db.update(samplerLease).set({ until: BS_UNTIL }); // B took over
+    };
+    expect(await kit.sampler.run()).toEqual({ sampled: 1, counted: 1, skipped: false, nextInMs: 10_000 });
+
+    expect(await services.db.select().from(playCounts)).toHaveLength(0);
+    expect(await services.db.select().from(playDays)).toHaveLength(0);
+    const link = await getLink(services.db, userId);
+    expect(link.sessionUri).toBeNull();
+    expect(link.lastSampleAt).toBeNull();
+    const [lease] = await services.db.select().from(samplerLease);
+    expect(lease!.until).toBe(BS_UNTIL);
+  });
+
+  it("skips the user, writing nothing, once the clock is within 5 s of the lease expiry", async () => {
+    kit.spotify.answer(PLAYER_URL, playing(URI_A, 40_000, 61_200));
+    kit.spotify.onCall = async () => {
+      kit.clock.now += 46_000; // lease runs to T0 + 50 s; the cut-off is T0 + 45 s
+    };
+    expect(await kit.sampler.run()).toEqual({ sampled: 0, counted: 0, skipped: false, nextInMs: 30_000 });
+    expect(await services.db.select().from(playCounts)).toHaveLength(0);
+    const link = await getLink(services.db, userId);
+    expect(link.sessionUri).toBeNull();
+    expect(link.lastSampleAt).toBeNull();
+  });
 });
 
 describe("SpotifyPlayerClient tokens", () => {
@@ -429,36 +459,36 @@ describe("a user without a problem is sampled, one with reconnect is not", () =>
     expect(await kit.sampler.run()).toEqual({ sampled: 2, counted: 0, skipped: false, nextInMs: 30_000 });
     expect(kit.spotify.callsTo(PLAYER_URL)).toHaveLength(2);
   });
+});
 
-  describe("nextInMs", () => {
-    it("is 10 s while a local track plays", async () => {
-      kit.spotify.answer(PLAYER_URL, playing(URI_A, 5_000, 61_200));
-      expect((await kit.sampler.run()).nextInMs).toBe(10_000);
-    });
+describe("nextInMs", () => {
+  it("is 10 s while a local track plays", async () => {
+    kit.spotify.answer(PLAYER_URL, playing(URI_A, 5_000, 61_200));
+    expect((await kit.sampler.run()).nextInMs).toBe(10_000);
+  });
 
-    it("is 10 s while a non-local track plays", async () => {
-      kit.spotify.answer(PLAYER_URL, playing("spotify:track:4uLU6hMCjMI75M1A2tKUQC", 5_000, 200_000));
-      expect((await kit.sampler.run()).nextInMs).toBe(10_000);
-    });
+  it("is 10 s while a non-local track plays", async () => {
+    kit.spotify.answer(PLAYER_URL, playing("spotify:track:4uLU6hMCjMI75M1A2tKUQC", 5_000, 200_000));
+    expect((await kit.sampler.run()).nextInMs).toBe(10_000);
+  });
 
-    it("is 30 s when paused", async () => {
-      kit.spotify.answer(PLAYER_URL, playing(URI_A, 5_000, 61_200, false));
-      expect((await kit.sampler.run()).nextInMs).toBe(30_000);
-    });
+  it("is 30 s when paused", async () => {
+    kit.spotify.answer(PLAYER_URL, playing(URI_A, 5_000, 61_200, false));
+    expect((await kit.sampler.run()).nextInMs).toBe(30_000);
+  });
 
-    it("is 30 s when idle", async () => {
-      kit.spotify.answer(PLAYER_URL, idle);
-      expect((await kit.sampler.run()).nextInMs).toBe(30_000);
-    });
+  it("is 30 s when idle", async () => {
+    kit.spotify.answer(PLAYER_URL, idle);
+    expect((await kit.sampler.run()).nextInMs).toBe(30_000);
+  });
 
-    it("is 30 s with no links", async () => {
-      await services.db.delete(spotifyLinks);
-      expect(await kit.sampler.run()).toEqual({ sampled: 0, counted: 0, skipped: false, nextInMs: 30_000 });
-    });
+  it("is 30 s with no links", async () => {
+    await services.db.delete(spotifyLinks);
+    expect(await kit.sampler.run()).toEqual({ sampled: 0, counted: 0, skipped: false, nextInMs: 30_000 });
+  });
 
-    it("is 10 s on a skipped run", async () => {
-      await services.db.insert(samplerLease).values({ id: "spotify-sampler", until: kit.clock.now + 30_000 });
-      expect(await kit.sampler.run()).toEqual({ sampled: 0, counted: 0, skipped: true, nextInMs: 10_000 });
-    });
+  it("is 10 s on a skipped run", async () => {
+    await services.db.insert(samplerLease).values({ id: "spotify-sampler", until: kit.clock.now + 30_000 });
+    expect(await kit.sampler.run()).toEqual({ sampled: 0, counted: 0, skipped: true, nextInMs: 10_000 });
   });
 });

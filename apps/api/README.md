@@ -83,7 +83,7 @@ Counting Spotify plays while the Mac is off (#303) needs `POST /v1/internal/spot
 seconds, and Vercel Hobby crons run once a day. So a Cloudflare Worker (`apps/api/trigger/`, free plan) runs a
 `* * * * *` cron. Within each minute it POSTs the route with `Authorization: Bearer <SAMPLER_SECRET>` and waits
 the `nextInMs` the reply asks for: 10 s while any linked user is playing, 30 s otherwise. So a track needs about
-30-40 s of play to count. Deploy with `npx wrangler@4 deploy` from `apps/api/trigger`, and set the secret with
+40 s of play at most (a 10 s gap after the 30 s mark, plus a second or two of scheduling) to count. A run is fenced by its lease (the lease's `until` is the token, so a run whose lease was taken writes nothing) and the route's `maxDuration` caps it at 45 s. Deploy with `npx wrangler@4 deploy` from `apps/api/trigger`, and set the secret with
 `npx wrangler@4 secret put SAMPLER_SECRET`; it must equal the Vercel env `SAMPLER_SECRET`. The secret starts a
 sample run and nothing else (it cannot run the daily cleanup), and a 50 s lease in the database makes an early or
 doubled call a no-op (`{ "skipped": true }`). The route answers 404 unless `SPOTIFY_CLIENT_ID` is set.

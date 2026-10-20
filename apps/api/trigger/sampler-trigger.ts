@@ -14,16 +14,17 @@ export interface TriggerDeps {
   now: () => number;
 }
 
-/** One cron minute: call, then sleep the gap the sampler asked for (clamped to 5..60 s, 30 s if missing), until the next call would land past 55 s. Returns how many calls it made. Never more than 12. */
+/** One cron minute: starts a call every gap the sampler asks for, measured start to start (clamped to 5..60 s, 30 s if missing), until the next call would start past 55 s. Returns how many calls it made. Never more than 12. */
 export async function runMinute(deps: TriggerDeps): Promise<number> {
   const start = deps.now();
   let calls = 0;
   while (calls < MAX_CALLS) {
+    const callStart = deps.now();
     const asked = await deps.call();
     calls += 1;
     const gap = Math.min(MAX_GAP_MS, Math.max(MIN_GAP_MS, asked ?? FALLBACK_GAP_MS));
-    if (deps.now() - start + gap > WINDOW_MS) break;
-    await deps.sleep(gap);
+    if (callStart - start + gap > WINDOW_MS) break; // the next call would start past 55 s
+    await deps.sleep(Math.max(0, callStart + gap - deps.now()));
   }
   return calls;
 }
