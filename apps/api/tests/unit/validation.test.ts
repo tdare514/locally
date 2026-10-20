@@ -104,6 +104,40 @@ describe("releaseRecordSchema", () => {
     expect(releaseRecordSchema.parse(record).tracks[0]!.discNumber).toBe(2);
   });
 
+  it("accepts releaseDate as YYYY-MM or YYYY-MM-DD and keeps it exactly", () => {
+    for (const releaseDate of ["2024-05", "2024-05-17"]) {
+      const result = releaseRecordSchema.safeParse(makeReleaseRecord({ year: "2024", releaseDate }));
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.releaseDate).toBe(releaseDate);
+    }
+  });
+
+  it("checks leap years for 29 February", () => {
+    const parse = (year: string, releaseDate: string) =>
+      releaseRecordSchema.safeParse(makeReleaseRecord({ year, releaseDate })).success;
+    expect(parse("2024", "2024-02-29")).toBe(true);
+    expect(parse("2000", "2000-02-29")).toBe(true);
+    expect(parse("2023", "2023-02-29")).toBe(false);
+    expect(parse("1900", "1900-02-29")).toBe(false);
+  });
+
+  it("rejects a releaseDate that is not a real YYYY-MM or YYYY-MM-DD date", () => {
+    const bad = ["2024-13", "2024-00", "2024-04-31", "2024-05-00", "2024", null, "2024-5-17", "2024-05-17T00:00:00Z", "2024/05/17"];
+    for (const releaseDate of bad) {
+      const record = makeReleaseRecord({ year: "2024", releaseDate: releaseDate as never });
+      expect(releaseRecordSchema.safeParse(record).success, String(releaseDate)).toBe(false);
+    }
+  });
+
+  it("rejects a releaseDate that disagrees with year or has no year", () => {
+    expect(releaseRecordSchema.safeParse(makeReleaseRecord({ year: "2024", releaseDate: "2023-05-17" })).success).toBe(false);
+    expect(releaseRecordSchema.safeParse(makeReleaseRecord({ year: null, releaseDate: "2024-05-17" })).success).toBe(false);
+  });
+
+  it("leaves the releaseDate key out when absent", () => {
+    expect("releaseDate" in releaseRecordSchema.parse(makeReleaseRecord())).toBe(false);
+  });
+
   it("accepts exactly 500 tracks and rejects 501", () => {
     const at500 = makeReleaseRecord({ tracks: makeTracks(500) });
     expect(releaseRecordSchema.safeParse(at500).success).toBe(true);

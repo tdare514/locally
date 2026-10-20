@@ -72,6 +72,23 @@ export type TrackRecord = z.infer<typeof trackRecordSchema>;
 /** Lowercase hex sha256 of a cover's bytes; the change signal for `cover.<ext>`, whose name never changes. */
 export const coverHashSchema = z.string().regex(/^[0-9a-f]{64}$/);
 
+const isLeapYear = (year: number): boolean => year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+
+/** Assumes the `YYYY-MM` or `YYYY-MM-DD` shape; checks the day against the month's length. */
+function isRealCalendarDate(value: string): boolean {
+  const year = Number(value.slice(0, 4));
+  const month = Number(value.slice(5, 7));
+  const day = value.length > 7 ? Number(value.slice(8, 10)) : 1;
+  const monthLengths = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= monthLengths[month - 1]!;
+}
+
+/** A release date more precise than its year (#221): `YYYY-MM` or `YYYY-MM-DD`, a real calendar date. A bare year is `year` alone. */
+export const releaseDateSchema = z
+  .string()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?$/, "Must be YYYY-MM or YYYY-MM-DD")
+  .refine(isRealCalendarDate, "Must be a real calendar date");
+
 const makeReleaseRecordSchema = (fileName: z.ZodType<string>) => z.object({
   /** 1: original record. 2: adds `coverHash`. Both are accepted so clients can update in any order. */
   syncVersion: z.union([z.literal(1), z.literal(2)]),
@@ -83,6 +100,8 @@ const makeReleaseRecordSchema = (fileName: z.ZodType<string>) => z.object({
     .string()
     .regex(/^\d{4}$/)
     .nullable(),
+  /** Absent when only the year is known; when present, `year` is its first four characters (#221). */
+  releaseDate: releaseDateSchema.optional(),
   genre: z.string().max(200).nullable(),
   cover: fileName.nullable(),
   /** Absent on `syncVersion` 1 records (no signal); `null` on a v2 record with no cover. */
@@ -95,6 +114,10 @@ const makeReleaseRecordSchema = (fileName: z.ZodType<string>) => z.object({
   createdAt: isoDateSchema,
   updatedAt: isoDateSchema,
   deleted: z.boolean(),
+}).superRefine((record, ctx) => {
+  if (record.releaseDate !== undefined && record.releaseDate.slice(0, 4) !== record.year) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["releaseDate"], message: "Must match year" });
+  }
 });
 export const releaseRecordSchema = makeReleaseRecordSchema(fileNameSchema);
 

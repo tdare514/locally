@@ -12,7 +12,8 @@ identically in Spotify's Local Files.
 | kind | `single` \| `album` | a single has exactly one track |
 | title | string | album title; for a single defaults to the track title |
 | artist | string | album artist and, unless a track overrides, track artist |
-| year | string or null | four digits |
+| year | string or null | four digits; when `releaseDate` is set, always its first four characters |
+| releaseDate | string, optional | the release date when it is more precise than a year (#221): `YYYY-MM` or `YYYY-MM-DD`, a real calendar date. Absent when only the year is known; the key is omitted, never written as null or as a bare year. Both apps set it and `year` together from one value. Lists, sorting and stats use `year` |
 | genre | string or null | free text |
 | coverPath | path or null | `cover.jpg` or `cover.png` beside the tracks |
 | folderPath | path | where the tracks live |
@@ -41,9 +42,18 @@ identically in Spotify's Local Files.
 | album | TALB | ©alb |
 | track | TRCK `N/TOTAL` (per disc when discs are set) | trkn (N, TOTAL) per disc |
 | disc | TPOS `D/DISCS`, only when discs are set | disk (D, DISCS) |
-| year | TDRC and TYER (the iPhone writes both, #234; the Mac's node-id3 writes TYER) | ©day |
+| release date | TYER with the year, and TDRC with the full date (see below) | ©day with the full date |
 | genre | TCON | ©gen |
 | cover | APIC type 3 front cover, jpeg or png | covr |
+
+Release date (#221, `docs/plans/221-release-date.md`). The tags come from `year` and `releaseDate`. mp3 TYER
+always holds the year, the only date Spotify reads; mp3 TDRC and m4a ©day hold the most precise date known:
+`2024`, `2024-05` or `2024-05-17`. A date shortened to a year rewrites TDRC and ©day with the bare year, so no
+stale day is left. TDAT is not written. Import prefills the most precise date the file has (mp3 TDRC, or TYER
+with TDAT; m4a ©day) and keeps a leading `YYYY`, `YYYY-MM` or `YYYY-MM-DD` that is a real date, so
+`2024-05-17T07:00:00Z` gives `2024-05-17`; anything else falls back to the year, or to nothing. Shown at its own
+precision in the device's locale: "17 May 2024", "May 2024", "2024". Until each app's step lands, the Mac's
+node-id3 writes TYER only, and the iPhone writes the year alone in mp3 TDRC and TYER (#234) and m4a ©day.
 
 Per-disc track numbers. `trackNumber` is the release-wide position and never restarts, so the number
 written into a file's track tag is derived: the track's 1-based position among the tracks with the same
@@ -73,7 +83,7 @@ track properties (`sdef Music.app`). Spotify on iPhone: see "On the iPhone" belo
 | album artist | TPE2 | aART | mp3 only (not m4a, not flac) | nowhere | yes | written, = artist | keep, hidden (an editable album artist waits for the artist list, #224) |
 | track number | TRCK | trkn | all formats | nowhere (list order is Spotify's own) | yes | written | keep, show (Locally's row numbers) |
 | disc number | TPOS | disk | mp3 only | nowhere | yes | written when set | keep, show (editing is #222) |
-| year | TYER (see below) | ©day | mp3 TYER only; m4a ©day; not flac | nowhere | year, release date | Mac TYER; iPhone mp3 TDRC and TYER (#234), m4a ©day | keep, show; full dates are #221 |
+| year | TYER (see below) | ©day | mp3 TYER only; m4a ©day; not flac | nowhere | year, release date | Mac TYER; iPhone mp3 TDRC and TYER (#234), m4a ©day | keep, show; the year in TYER, the full release date in TDRC and ©day (#221) |
 | genre | TCON | ©gen | no | nowhere | yes | written | keep, show (Locally's library and search, Apple Music) |
 | cover | APIC type 3 | covr | all formats | list and now playing, 300 to 3000 px all shown | yes | written, 1500 px max | keep, show; 1500 px stays |
 | composer | TCOM | ©wrt | no | no | yes | kept on both apps (iPhone since #235) | keep hidden |

@@ -376,4 +376,29 @@ describe("routes (through the exported handler functions, no server)", () => {
     );
     expect(bad.status).toBe(400);
   });
+
+  it("stores and returns releaseDate, leaves it out when absent, and refuses one that disagrees with year", async () => {
+    const { token } = await signIn("dated@example.com");
+    const put = (record: ReturnType<typeof makeReleaseRecord>) =>
+      releaseRoute.PUT(
+        jsonRequest(`http://localhost/v1/releases/${record.id}`, "PUT", record, token),
+        { params: Promise.resolve({ id: record.id }) }
+      );
+    const dated = makeReleaseRecord({ year: "2024", releaseDate: "2024-05-17" });
+    const plain = makeReleaseRecord({ year: "2024" });
+    expect((await put(dated)).status).toBe(200);
+    expect((await put(plain)).status).toBe(200);
+
+    const list = await releasesListRoute.GET(
+      new Request("http://localhost/v1/releases?sinceVersion=0", { headers: { authorization: `Bearer ${token}` } })
+    );
+    const body = (await list.json()) as { releases: { id: string; year: string | null; releaseDate?: string }[] };
+    const pulledDated = body.releases.find((r) => r.id === dated.id)!;
+    expect(pulledDated.releaseDate).toBe("2024-05-17");
+    expect(pulledDated.year).toBe("2024");
+    expect("releaseDate" in body.releases.find((r) => r.id === plain.id)!).toBe(false);
+
+    const mismatch = makeReleaseRecord({ year: "2024", releaseDate: "2023-05-17" });
+    expect((await put(mismatch)).status).toBe(400);
+  });
 });
