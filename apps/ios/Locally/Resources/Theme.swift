@@ -165,8 +165,10 @@ enum Theme {
         /// Where the layout toggle and sort stop growing, so the three-way toggle fits a 320 pt screen.
         static let toggleIconMaxSize: CGFloat = 35
         static let toggleButtonMaxSize: CGFloat = 84
-        /// The eyebrow keeps clear of the header's cloud: its 44 pt hit area plus a gap.
+        /// The eyebrow keeps clear of the header's cloud: its 44 pt hit area plus a gap beside it,
+        /// or the cloud's row above it when it doesn't fit beside.
         static let cloudClearance: CGFloat = 52
+        static let cloudRowHeight: CGFloat = 44
         /// The empty state's Locally-to-Spotify diagram: the chevron between the tiles, and the Spotify tile's note.
         static let diagramChevronSize: CGFloat = 13
         static let diagramIconSize: CGFloat = 26

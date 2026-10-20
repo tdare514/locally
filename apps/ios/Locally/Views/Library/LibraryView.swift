@@ -248,9 +248,7 @@ struct LibraryView: View {
             // With a cloud pending the row grows so the count (on the title's baseline) sits at
             // least 10 pt below the 40 pt button; with none it is as before #269.
             VStack(alignment: .leading, spacing: pendingCount > 0 ? 26 : 4) {
-                Text(Copy.Library.eyebrow).eyebrow()
-                    // Wraps before it reaches the cloud, at every size.
-                    .padding(.trailing, pendingCount > 0 ? Theme.Library.cloudClearance : 0)
+                headerEyebrow
                 Text(Copy.Library.allMusic)
                     .themeFont(.pageTitle)
                     .foregroundStyle(Theme.primaryText)
@@ -269,6 +267,22 @@ struct LibraryView: View {
         }
         searchField
         controls
+    }
+
+    /// Beside the cloud while it fits there on one line; otherwise under the cloud at full width,
+    /// so it wraps between words on a narrow screen at the largest sizes (#226).
+    @ViewBuilder
+    private var headerEyebrow: some View {
+        if pendingCount > 0 {
+            ViewThatFits(in: .horizontal) {
+                Text(Copy.Library.eyebrow).eyebrow()
+                    .padding(.trailing, Theme.Library.cloudClearance)
+                Text(Copy.Library.eyebrow).eyebrow()
+                    .padding(.top, Theme.Library.cloudRowHeight)
+            }
+        } else {
+            Text(Copy.Library.eyebrow).eyebrow()
+        }
     }
 
     // MARK: From your devices (#269)

@@ -26,7 +26,7 @@ struct ComponentGallery: View {
         // #288: the Artists view, artist pages, the sort control and linked names, over seeded sample data.
         "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links",
         // #226: the library search box with a typed query, and the crop sheet's Square / Original pill.
-        "icons-library-search", "crop-sheet"]
+        "icons-library-search", "crop-sheet", "devices-header-narrow"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -199,6 +199,9 @@ struct ComponentGallery: View {
             IconsGallery.devices(pending: 0, open: false)
         case "devices-header-1":
             IconsGallery.devices(pending: 1, open: false)
+        case "devices-header-narrow":
+            // A 320 pt screen (an iPhone SE with Display Zoom), for the header at the largest sizes (#226).
+            IconsGallery.devices(pending: 1, open: false).frame(width: 320)
         case "devices-header-3":
             IconsGallery.devices(pending: 3, open: false)
         case "devices-tray-open":
