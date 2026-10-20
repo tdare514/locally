@@ -81,6 +81,11 @@ Controls grow from their content, not by scaling a fixed height: a pill button k
 library's search box keeps a 40 pt minimum and grows with its text; segmented pills (the library's
 cover size, the crop sheet's Square / Original) scale their labels, keep 44 pt targets, wrap onto
 two rows when the words don't fit, and mark the chosen option selected for VoiceOver.
+Two things on fixed-size art stop growing instead (20 Oct 2026): the Library cloud's count badge
+stops at XXXL, since the 40 pt cloud doesn't grow and its VoiceOver label carries the count; the
+library's layout toggle and sort buttons stop at 84 pt (icons 35 pt), so the three-way toggle fits
+a 320 pt screen. The empty sleeve's caption keeps scaling: at the accessibility sizes its note and
+hint drop away and **Add cover** wraps.
 
 | Role | Size | Weight | Colour | Tracking |
 | --- | --- | --- | --- | --- |

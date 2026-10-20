@@ -38,9 +38,11 @@ struct LibraryView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Icon and button sizes, scaling with Dynamic Type (#226).
-    @ScaledMetric(relativeTo: .body) private var toggleIconSize = Theme.Library.toggleIconSize
-    @ScaledMetric(relativeTo: .body) private var toggleButtonSize = Theme.Library.toggleButtonSize
+    @ScaledMetric(relativeTo: .body) private var scaledToggleIconSize = Theme.Library.toggleIconSize
+    @ScaledMetric(relativeTo: .body) private var scaledToggleButtonSize = Theme.Library.toggleButtonSize
     @ScaledMetric(relativeTo: .subheadline) private var sectionChevronSize = Theme.Library.sectionChevronSize
+    private var toggleIconSize: CGFloat { min(scaledToggleIconSize, Theme.Library.toggleIconMaxSize) }
+    private var toggleButtonSize: CGFloat { min(scaledToggleButtonSize, Theme.Library.toggleButtonMaxSize) }
     @Environment(SyncStatus.self) private var syncStatus
     /// The "From your devices" tray (#269): open or closed.
     @State private var tray = DevicesTrayModel()
@@ -247,6 +249,8 @@ struct LibraryView: View {
             // least 10 pt below the 40 pt button; with none it is as before #269.
             VStack(alignment: .leading, spacing: pendingCount > 0 ? 26 : 4) {
                 Text(Copy.Library.eyebrow).eyebrow()
+                    // Wraps before it reaches the cloud, at every size.
+                    .padding(.trailing, pendingCount > 0 ? Theme.Library.cloudClearance : 0)
                 Text(Copy.Library.allMusic)
                     .themeFont(.pageTitle)
                     .foregroundStyle(Theme.primaryText)
@@ -404,15 +408,17 @@ struct LibraryView: View {
                 if layout == .covers { sizeControl }
             }
             VStack(alignment: .leading, spacing: Theme.Library.headerControlGap) {
-                HStack(spacing: Theme.Library.headerControlGap) {
-                    layoutToggle
-                    if layout != .artists { sortMenu }
+                // Decided apart from the size control, whose unwrapped width would push the sort down too.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Theme.Library.headerControlGap) {
+                        layoutToggle
+                        if layout != .artists { sortMenu }
+                    }
+                    VStack(alignment: .leading, spacing: Theme.Library.headerControlGap) {
+                        layoutToggle
+                        if layout != .artists { sortMenu }
+                    }
                 }
-                if layout == .covers { sizeControl }
-            }
-            VStack(alignment: .leading, spacing: Theme.Library.headerControlGap) {
-                layoutToggle
-                if layout != .artists { sortMenu }
                 if layout == .covers { sizeControl }
             }
         }

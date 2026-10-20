@@ -162,6 +162,11 @@ enum Theme {
         static let tileTextGap: CGFloat = 8
         static let toggleIconSize: CGFloat = 15
         static let toggleButtonSize: CGFloat = 36
+        /// Where the layout toggle and sort stop growing, so the three-way toggle fits a 320 pt screen.
+        static let toggleIconMaxSize: CGFloat = 35
+        static let toggleButtonMaxSize: CGFloat = 84
+        /// The eyebrow keeps clear of the header's cloud: its 44 pt hit area plus a gap.
+        static let cloudClearance: CGFloat = 52
         /// The empty state's Locally-to-Spotify diagram: the chevron between the tiles, and the Spotify tile's note.
         static let diagramChevronSize: CGFloat = 13
         static let diagramIconSize: CGFloat = 26
