@@ -34,6 +34,11 @@ export interface SyncState {
    */
   missingFiles: Record<string, MissingMark>;
   /**
+   * When the Mac last asked the service which of its own releases lack files (#218), ISO. Absent
+   * means never, so the next reconcile checks. Kept across restarts so the 6 h spacing holds.
+   */
+  lastMissingFilesCheckAt?: string;
+  /**
    * releaseId -> the version token (`hideKeyFor`) of the pending record the owner hid from the
    * tray on this Mac (#295). A newer version has another token, so the release shows again.
    */

@@ -297,7 +297,10 @@ route. Plan: `docs/plans/119-missing-files.md`.
 - Effect on clients: `apps/web` and `apps/ios` keep working unchanged. Neither calls the routes,
   and both ignore the new `/v1/me` field (iOS decodes `/v1/me` into a struct that names only
   `user.email`, `device`, and `quota`; web reads the JSON without a strict schema). The iPhone
-  self-heal and the Mac "Waiting on your phone" state are the plan's steps 2 and 3.
+  self-heal and the Mac "Waiting on your phone" state are the plan's steps 2 and 3. The Mac also
+  self-heals its own library's releases the same way (#218): on reconcile, at most every 6 hours, or
+  at once when `/v1/me` reports a newer `resyncRequestedAt`, it asks `GET /v1/files/missing` and
+  sends the listed files again. The Resync button on the Mac heals at once.
 
 ## Storage and providers
 

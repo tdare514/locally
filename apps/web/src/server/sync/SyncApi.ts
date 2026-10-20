@@ -59,6 +59,8 @@ export interface MeResult {
   quota: SyncQuota;
   devices: SyncDevice[];
   devicesHasMore?: boolean;
+  /** When any device last asked for a resync (#172), ISO; null if never. Absent on an older service. */
+  resyncRequestedAt?: string | null;
 }
 
 export interface ListReleasesResult {

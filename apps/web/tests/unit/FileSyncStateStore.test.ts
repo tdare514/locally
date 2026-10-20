@@ -99,6 +99,15 @@ describe("FileSyncStateStore", () => {
     await expect(store.get()).resolves.toEqual(state);
   });
 
+  it("keeps lastMissingFilesCheckAt (#218) and drops a bad value", async () => {
+    const store = new FileSyncStateStore();
+    await store.set({ ...emptySyncState(), lastMissingFilesCheckAt: "2026-10-15T12:00:00.000Z" });
+    expect((await store.get()).lastMissingFilesCheckAt).toBe("2026-10-15T12:00:00.000Z");
+
+    await writeSyncStateFile({ lastMissingFilesCheckAt: 42 });
+    expect((await store.get()).lastMissingFilesCheckAt).toBeUndefined();
+  });
+
   it("returns empty state when sync-state.json is corrupt JSON", async () => {
     await writeSyncStateFile("{ not valid json");
 
