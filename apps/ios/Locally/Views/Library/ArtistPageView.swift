@@ -156,10 +156,13 @@ struct ArtistPageView: View {
 
     // MARK: Albums and Singles
 
-    /// The library Grid's medium tiles: cover, title, year under it.
+    /// The library Grid's medium tiles: cover, title, year under it. At the accessibility sizes one
+    /// full-width column, so a title has room to wrap without breaking a word.
     private func tiles(_ releases: [Release], covers: ArtistCoverSource) -> some View {
         LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: CoverSize.medium.tileMinWidth), spacing: CoverSize.medium.tileGap)],
+            columns: stacked
+                ? [GridItem(.flexible())]
+                : [GridItem(.adaptive(minimum: CoverSize.medium.tileMinWidth), spacing: CoverSize.medium.tileGap)],
             spacing: CoverSize.medium.tileGap
         ) {
             ForEach(releases) { release in
