@@ -83,6 +83,24 @@ file key; `discNumber` only changes the tags a receiver writes (`spec/metadata.m
 the key, and a client that does not know it strips it when it re-pushes a record; that is accepted because
 only the owner's own devices sync and they update together.
 
+A record may carry `releaseDate` (#221, `docs/plans/221-release-date.md`): the release date when it is more
+precise than a year, `YYYY-MM` or `YYYY-MM-DD`, and a real calendar date (no month 13, no 30 February;
+29 February only in a leap year). The key is omitted when only the year is known, never written as null or as
+a bare year. When it is present, `year` is non-null and equals its first four characters, so a reader that
+knows only `year` still has the right year:
+
+```json
+{ "year": "2024", "releaseDate": "2024-05-17" }
+```
+
+The API answers a 400 for any other shape, an impossible date, a `year` that disagrees, or a `releaseDate`
+beside a null `year`, and stores and returns the key exactly. `syncVersion` stays 2. Effect on clients:
+older clients ignore the key and show the year (and, as with `discNumber`, drop it if they re-push a record;
+the date falls back to its year, accepted because only the owner's own devices sync and they update together).
+The Mac adds it in step 2 of the plan and the iPhone in step 3. On pull, a client that can't parse a
+`releaseDate`, or whose year disagrees with `year`, applies the record with `year` alone: the date is dropped,
+the rest of the record is kept, and it is never a reason to skip a record or fail a page.
+
 A `tracks[]` entry may carry `localId` (#303): the `spotify:local:` id the Mac stored when it adopted the file,
 a string that starts with `spotify:local:` and is at most 1,000 characters (anything else is a 400). The key is
 omitted when there is none, never written as null, and only the Mac sends it, for adopted tracks. The sync
@@ -125,6 +143,8 @@ file name prefix says what every reader must do with it:
   iPhone must accept and the API must still reject with a 400.
 - `invalid-*`: every app rejects it (the API with a 400; clients skip a record with a refused
   name and fail the page on a structurally broken one, without ever using a file name from it).
+  A bad `releaseDate` has no `invalid-*` fixture, because clients apply such a record with its year; the
+  API's refusals are in its own tests.
 
 Any change to the record, or to what a reader accepts, updates the fixtures in the same change,
 so that a record defined differently in one app fails that app's tests instead of failing a

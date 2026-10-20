@@ -1,0 +1,43 @@
+{
+  "syncVersion": 2,
+  "id": "8c9bb0e8-b8ba-4392-b800-b98d3bf859e7",
+  "kind": "album",
+  "title": "Dated Release",
+  "artist": "Chromatics",
+  "year": "2024",
+  "releaseDate": "2024-05-17",
+  "genre": null,
+  "cover": "cover.png",
+  "coverHash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+  "tracks": [
+    {
+      "id": "d2678097-f0c0-4416-a63c-723243e788dc",
+      "title": "Intro",
+      "trackNumber": 1,
+      "file": "01 - Intro.mp3",
+      "bytes": 5120000,
+      "durationSec": 61.2
+    },
+    {
+      "id": "cc372014-3c74-4141-92d9-5abb424d8487",
+      "title": "Night Drive",
+      "trackNumber": 2,
+      "file": "02 - Night Drive.mp3",
+      "bytes": 9437184,
+      "durationSec": 352.0
+    },
+    {
+      "id": "c188ac2e-c3f5-4656-a5e6-663960e4b490",
+      "title": "Tick of the Clock",
+      "trackNumber": 3,
+      "file": "03 - Tick of the Clock.mp3",
+      "bytes": 11534336,
+      "durationSec": 288.75
+    }
+  ],
+  "origin": "mac",
+  "originDevice": "Toby's MacBook",
+  "createdAt": "2026-09-27T20:00:00Z",
+  "updatedAt": "2026-09-27T21:30:00+01:00",
+  "deleted": false
+}
