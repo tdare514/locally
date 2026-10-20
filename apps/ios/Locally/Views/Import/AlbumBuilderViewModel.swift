@@ -28,7 +28,13 @@ final class AlbumBuilderViewModel {
     var albumTitle: String = ""
     var artist: String = ""
     /// What is typed in the Release date field (#221); `releaseDateEntry` reads it.
-    var releaseDateText: String = ""
+    var releaseDateText: String = "" {
+        didSet { if !isPrefillingDate { releaseDateEdited = true } }
+    }
+    /// True once the person has typed or cleared the date; an empty field then stays empty when
+    /// tracks are added. The prefill and `reset()` do not count.
+    private var releaseDateEdited = false
+    private var isPrefillingDate = false
     var genre: String = ""
     var coverData: Data?
     /// The row whose feat. sheet is open, if any.
@@ -91,7 +97,11 @@ final class AlbumBuilderViewModel {
         // in. Only this batch is reordered, so rows the user already arranged stay where they are.
         rows.append(contentsOf: DiscNumbering.ordered(batch, disc: \.discNumber, trackTag: \.tagTrackNumber))
         // The first track with an embedded date fills an empty field; typed text or an earlier date stays.
-        if releaseDateText.isEmpty, let firstDate { releaseDateText = firstDate.formatted() }
+        if !releaseDateEdited, releaseDateText.isEmpty, let firstDate {
+            isPrefillingDate = true
+            releaseDateText = firstDate.formatted()
+            isPrefillingDate = false
+        }
     }
 
     /// Swaps the file behind one row for `url`, from the row's own replace button. The row keeps
@@ -219,6 +229,7 @@ final class AlbumBuilderViewModel {
         albumTitle = ""
         artist = ""
         releaseDateText = ""
+        releaseDateEdited = false
         genre = ""
         coverData = nil
         completedRelease = nil

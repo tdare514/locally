@@ -72,4 +72,26 @@ struct AlbumBuilderViewModelDateTests {
         await model.addFiles([undated, dated])
         #expect(model.releaseDateText == may17?.formatted())
     }
+
+    @Test func aClearedDateStaysClearedWhenMoreDatedTracksAreAdded() async throws {
+        let importer = FakeFileImporter()
+        let model = makeModel(importer: importer)
+        let may17 = ReleaseDate(year: 2024, month: 5, day: 17)
+        let first = try makeAudioFile(named: "one.mp3")
+        let second = try makeAudioFile(named: "two.mp3")
+        importer.tagsByURL[first] = TagSet(title: "one", artist: "A", album: "Al", date: may17)
+        importer.tagsByURL[second] = TagSet(title: "two", artist: "A", album: "Al", date: may17)
+
+        await model.addFiles([first])
+        #expect(model.releaseDateText == may17?.formatted())
+        model.releaseDateText = ""
+        await model.addFiles([second])
+        #expect(model.releaseDateText.isEmpty)
+
+        model.albumTitle = "Al"
+        model.artist = "A"
+        await model.send()
+        let release = try #require(model.completedRelease)
+        #expect(release.date == nil)
+    }
 }
