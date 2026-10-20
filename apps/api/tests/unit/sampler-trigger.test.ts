@@ -67,6 +67,12 @@ describe("runMinute start-to-start gaps", () => {
     expect(c.starts).toEqual([0, 12_000, 24_000, 36_000, 48_000]);
     expect(c.sleeps.every((ms) => ms === 0)).toBe(true);
   });
+
+  it("never starts a call past 55 s, however slow the calls", async () => {
+    const c = clock(() => 10_000, 20_000);
+    await runMinute(c.deps);
+    expect(c.starts).toEqual([0, 20_000, 40_000]);
+  });
 });
 
 describe("callSampler", () => {

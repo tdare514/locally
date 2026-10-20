@@ -23,8 +23,10 @@ export async function runMinute(deps: TriggerDeps): Promise<number> {
     const asked = await deps.call();
     calls += 1;
     const gap = Math.min(MAX_GAP_MS, Math.max(MIN_GAP_MS, asked ?? FALLBACK_GAP_MS));
-    if (callStart - start + gap > WINDOW_MS) break; // the next call would start past 55 s
-    await deps.sleep(Math.max(0, callStart + gap - deps.now()));
+    // A call slower than its gap pushes the next start back to when it returned.
+    const nextStart = Math.max(callStart + gap, deps.now());
+    if (nextStart - start > WINDOW_MS) break; // the next call would start past 55 s
+    await deps.sleep(nextStart - deps.now());
   }
   return calls;
 }
