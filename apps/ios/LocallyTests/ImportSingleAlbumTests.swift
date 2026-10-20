@@ -53,7 +53,7 @@ struct ImportSingleAlbumTests {
         let importedAlbum = try #require(tagWriter.calls.last?.tags.album)
         #expect(importedAlbum == "Song")
 
-        _ = try await coordinator.updateRelease(release.id, changes: ReleaseChanges(year: "2021"))
+        _ = try await coordinator.updateRelease(release.id, changes: ReleaseChanges(date: .some(ReleaseDate(year: 2021))))
         let savedAlbum = try #require(tagWriter.calls.last?.tags.album)
         #expect(tagWriter.calls.count >= 2)
         #expect(savedAlbum == importedAlbum)

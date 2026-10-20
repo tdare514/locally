@@ -61,7 +61,7 @@ struct ReleaseCoordinatorDurationTests {
     @Test func albumImportStoresTheReadDurationOnEveryTrack() async throws {
         let coordinator = makeCoordinator(reader: FakeDurationReader(fixed: 90))
         let files = try [makeSourceFile(named: "one.mp3"), makeSourceFile(named: "two.mp3")]
-        let album = AlbumDraft(title: "B", artist: "A", year: "2026", genre: "Rock", tracks: [TrackDraft(title: "One"), TrackDraft(title: "Two")])
+        let album = AlbumDraft(title: "B", artist: "A", date: ReleaseDate(year: 2026), genre: "Rock", tracks: [TrackDraft(title: "One"), TrackDraft(title: "Two")])
         let release = try await coordinator.importAlbum(files: files, album: album, cover: nil)
         #expect(release.tracks.map(\.durationSec) == [90, 90])
     }
@@ -69,7 +69,7 @@ struct ReleaseCoordinatorDurationTests {
     @Test func albumImportStoresNilWhenTheDurationCannotBeRead() async throws {
         let coordinator = makeCoordinator(reader: FakeDurationReader(fixed: nil))
         let files = try [makeSourceFile(named: "one.mp3")]
-        let album = AlbumDraft(title: "B", artist: "A", year: "2026", genre: "Rock", tracks: [TrackDraft(title: "One")])
+        let album = AlbumDraft(title: "B", artist: "A", date: ReleaseDate(year: 2026), genre: "Rock", tracks: [TrackDraft(title: "One")])
         let release = try await coordinator.importAlbum(files: files, album: album, cover: nil)
         #expect(release.tracks.map(\.durationSec) == [nil])
     }

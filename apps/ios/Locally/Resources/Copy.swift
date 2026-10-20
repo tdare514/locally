@@ -63,13 +63,11 @@ enum Copy {
         static let singlePlaceholder = "Enter single name"
         static let albumNamePlaceholder = "Enter album name"
         static let artistPlaceholder = "Enter artist name"
-        static let yearPlaceholder = "Enter year"
         static let genrePlaceholder = "Enter genre"
         /// The title field's placeholder, by the kind of release.
         static func titlePlaceholder(for kind: ReleaseKind) -> String {
             kind == .album ? albumNamePlaceholder : singlePlaceholder
         }
-        static let fieldYear = "Year"
         static let fieldGenre = "Genre"
         static let cover = "Cover"
         /// The cover picker panel's caption before an image is chosen. Matches
@@ -238,6 +236,24 @@ enum Copy {
         static func rankLabel(_ rank: Int) -> String { "Number \(rank)" }
     }
 
+    /// The release date field and its sheet (#221).
+    enum DateField {
+        static let label = "Release date"
+        static let placeholder = "Enter release date"
+        static let impossible = "That date doesn't exist"
+        /// "Enter a year, or a date like 17 May 2024" (the example follows the phone's language).
+        static var unreadable: String {
+            "Enter a year, or a date like \(ReleaseDate(year: 2024, month: 5, day: 17)!.formatted())"
+        }
+        static let chooseDate = "Choose a date"
+        static let sheetTitle = "Release date"
+        static let year = "Year"
+        static let month = "Month"
+        static let day = "Day"
+        static let done = "Done"
+        static let clear = "Clear date"
+    }
+
     enum Release {
         static let edit = "Edit"
         static let cancel = "Cancel"
@@ -325,7 +341,7 @@ enum Copy {
         static func metaLine(kind: String, tracks: Int) -> String {
             "\(kind) · \(tracks == 1 ? "1 track" : "\(tracks) tracks")"
         }
-        static let yearLabel = "Year"
+        static let releaseDateLabel = "Release date"
         static let genreLabel = "Genre"
         /// The track table's quiet header.
         static let colNumber = "#"

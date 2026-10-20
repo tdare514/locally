@@ -27,8 +27,24 @@ final class AlbumBuilderViewModel {
     var rows: [TrackRow] = []
     var albumTitle: String = ""
     var artist: String = ""
-    var year: String = ""
+    /// What is typed in the Release date field (#221); `releaseDateEntry` reads it.
+    var releaseDateText: String = "" {
+        didSet { if !isPrefillingDate { releaseDateEdited = true } }
+    }
+    /// True once the person has typed or cleared the date; an empty field then stays empty when
+    /// tracks are added. The prefill and `reset()` do not count.
+    private(set) var releaseDateEdited = false
+    private var isPrefillingDate = false
     var genre: String = ""
+
+    /// Takes the other form's date text with its edited state, so a Single / Album switch keeps
+    /// "untouched" and "cleared by the person" apart (#221). The text itself is not an edit.
+    func takeReleaseDate(text: String, edited: Bool) {
+        isPrefillingDate = true
+        releaseDateText = text
+        isPrefillingDate = false
+        releaseDateEdited = edited
+    }
     var coverData: Data?
     /// The row whose feat. sheet is open, if any.
     var featuringRowID: TrackRow.ID?
@@ -59,6 +75,7 @@ final class AlbumBuilderViewModel {
         defer { isLoadingTags = false }
 
         var batch: [TrackRow] = []
+        var firstDate: ReleaseDate?
         for (index, url) in urls.enumerated() {
             let inboxFile = index < inboxFiles.count ? inboxFiles[index] : nil
             let shownName = inboxFile?.originalName ?? url.lastPathComponent
@@ -78,6 +95,7 @@ final class AlbumBuilderViewModel {
                 title = ArtistNames.splitFeaturing(title).title
                 discNumber = file.existingTags?.discNumber
                 tagTrackNumber = file.tagTrackNumber
+                if firstDate == nil { firstDate = file.existingTags?.date }
             }
             batch.append(TrackRow(url: rowURL, title: title, featuring: featuring, discNumber: discNumber, tagTrackNumber: tagTrackNumber))
             if let inboxFile {
@@ -87,6 +105,12 @@ final class AlbumBuilderViewModel {
         // Files tagged with a disc go in (disc, track) order; untagged files keep the order they came
         // in. Only this batch is reordered, so rows the user already arranged stay where they are.
         rows.append(contentsOf: DiscNumbering.ordered(batch, disc: \.discNumber, trackTag: \.tagTrackNumber))
+        // The first track with an embedded date fills an empty field; typed text or an earlier date stays.
+        if !releaseDateEdited, releaseDateText.isEmpty, let firstDate {
+            isPrefillingDate = true
+            releaseDateText = firstDate.formatted()
+            isPrefillingDate = false
+        }
     }
 
     /// Swaps the file behind one row for `url`, from the row's own replace button. The row keeps
@@ -166,8 +190,13 @@ final class AlbumBuilderViewModel {
         }
     }
 
+    var releaseDateEntry: ReleaseDateEntry { ReleaseDateText.parse(releaseDateText) }
+
+    /// The impossible or unreadable line under the date field, nil otherwise.
+    var releaseDateMessage: String? { releaseDateEntry.message }
+
     var canSend: Bool {
-        !rows.isEmpty && !albumTitle.isEmpty && !artist.isEmpty && !isSending && !isLoadingTags
+        !rows.isEmpty && !albumTitle.isEmpty && !artist.isEmpty && !isSending && !isLoadingTags && releaseDateMessage == nil
     }
 
     /// Sends every row as one album, in its current order, reporting
@@ -185,7 +214,7 @@ final class AlbumBuilderViewModel {
         let album = AlbumDraft(
             title: albumTitle,
             artist: artist,
-            year: year.isEmpty ? nil : year,
+            date: releaseDateEntry.date,
             genre: genre.isEmpty ? nil : genre,
             tracks: tracks
         )
@@ -208,7 +237,8 @@ final class AlbumBuilderViewModel {
         featuringRowID = nil
         albumTitle = ""
         artist = ""
-        year = ""
+        releaseDateText = ""
+        releaseDateEdited = false
         genre = ""
         coverData = nil
         completedRelease = nil

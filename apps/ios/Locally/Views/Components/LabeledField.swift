@@ -234,45 +234,6 @@ private struct StaticReading: ViewModifier {
     }
 }
 
-/// Year and Genre share one row (owner, 16 Oct 2026): Year in the label column like the rows
-/// above it, Genre after it taking the rest. From XX Large text up they are two rows, since
-/// Genre's half of the row then got so narrow that words broke ("Synth-").
-struct YearGenreRow: View {
-    @Binding var year: String
-    @Binding var genre: String
-    var isEditable = true
-
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ScaledMetric(relativeTo: .body) private var yearValueWidth = Theme.Immersive.yearValueWidth
-
-    private var stacks: Bool { dynamicTypeSize >= .xxLarge }
-
-    private var yearField: some View {
-        LabeledField(Copy.Import.fieldYear, placeholder: Copy.Import.yearPlaceholder, text: $year, font: Theme.ScaledFont.input,
-                     valueWidth: stacks ? nil : yearValueWidth, isEditable: isEditable)
-            .keyboardType(.numberPad)
-    }
-
-    private func genreField(labelFits: Bool) -> some View {
-        LabeledField(Copy.Import.fieldGenre, placeholder: Copy.Import.genrePlaceholder, text: $genre, font: Theme.ScaledFont.input,
-                     wraps: true, labelFits: labelFits, isEditable: isEditable)
-    }
-
-    var body: some View {
-        if stacks {
-            VStack(alignment: .leading, spacing: Theme.Immersive.labeledFieldRowGap) {
-                yearField
-                genreField(labelFits: false)
-            }
-        } else {
-            HStack(alignment: .firstTextBaseline, spacing: Theme.Immersive.yearGenreGap) {
-                yearField
-                genreField(labelFits: true)
-            }
-        }
-    }
-}
-
 #if DEBUG
 private struct LabeledFieldPreview: View {
     @State private var empty = ""

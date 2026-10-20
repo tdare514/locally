@@ -46,7 +46,7 @@ struct ReleaseCoordinatorUpdateTests {
         let album = AlbumDraft(
             title: "Original Album",
             artist: "Original Artist",
-            year: "2020",
+            date: ReleaseDate(year: 2020),
             genre: "Rock",
             tracks: [TrackDraft(title: "Track One"), TrackDraft(title: "Track Two")]
         )

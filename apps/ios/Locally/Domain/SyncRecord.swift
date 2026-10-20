@@ -182,6 +182,9 @@ struct SyncRecord: Codable, Hashable {
     var title: String
     var artist: String
     var year: String?
+    /// `YYYY-MM` or `YYYY-MM-DD` when more precise than `year` (#221). Omitted from the JSON when `nil`, never
+    /// written as null; a client that doesn't know the key ignores it.
+    var releaseDate: String?
     var genre: String?
     var cover: String?
     /// Lowercase hex sha256 of the cover's bytes (`syncVersion` 2). `nil`
@@ -207,6 +210,7 @@ struct SyncRecord: Codable, Hashable {
         title: String,
         artist: String,
         year: String? = nil,
+        releaseDate: String? = nil,
         genre: String? = nil,
         cover: String? = nil,
         coverHash: String? = nil,
@@ -225,6 +229,7 @@ struct SyncRecord: Codable, Hashable {
         self.title = title
         self.artist = artist
         self.year = year
+        self.releaseDate = releaseDate
         self.genre = genre
         self.cover = cover
         self.coverHash = coverHash
@@ -239,7 +244,7 @@ struct SyncRecord: Codable, Hashable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case syncVersion, id, kind, title, artist, year, genre, cover, coverHash, tracks
+        case syncVersion, id, kind, title, artist, year, releaseDate, genre, cover, coverHash, tracks
         case origin, originDevice, createdAt, updatedAt, deleted, version, source
     }
 
@@ -251,6 +256,8 @@ struct SyncRecord: Codable, Hashable {
         title = try container.decode(String.self, forKey: .title)
         artist = try container.decode(String.self, forKey: .artist)
         year = try container.decodeIfPresent(String.self, forKey: .year)
+        // A non-string reads as absent: a bad date is never a reason to refuse the record.
+        releaseDate = (try? container.decodeIfPresent(String.self, forKey: .releaseDate)) ?? nil
         genre = try container.decodeIfPresent(String.self, forKey: .genre)
         cover = try container.decodeIfPresent(String.self, forKey: .cover)
         coverHash = try container.decodeIfPresent(String.self, forKey: .coverHash)
@@ -289,6 +296,8 @@ struct SyncRecord: Codable, Hashable {
         try container.encode(title, forKey: .title)
         try container.encode(artist, forKey: .artist)
         try container.encode(year, forKey: .year)
+        // Never null: the key is `.optional()` on the server and absent when only the year is known.
+        try container.encodeIfPresent(releaseDate, forKey: .releaseDate)
         try container.encode(genre, forKey: .genre)
         try container.encode(cover, forKey: .cover)
         try container.encode(coverHash, forKey: .coverHash)
@@ -345,6 +354,7 @@ extension Release {
             // on locally-seeded/legacy data — would 400 the whole push.
             // Sent as `nil` defensively rather than failing the release.
             year: year?.isEmpty == true ? nil : year,
+            releaseDate: date?.releaseDateString,
             genre: genre,
             cover: coverPath.map { "cover." + (($0 as NSString).pathExtension.isEmpty ? "jpg" : ($0 as NSString).pathExtension) },
             tracks: tracks.map { track in
@@ -369,6 +379,10 @@ extension Release {
 }
 
 extension SyncRecord {
+    /// The date this record carries: `releaseDate` only when it is a real date that agrees with `year`, else the
+    /// year alone (#221). A bad date never makes a record unusable.
+    var date: ReleaseDate? { ReleaseDate.stored(year: year, releaseDate: releaseDate) }
+
     /// Rebuilds a domain `Release` from this record. `fileURLs` maps each
     /// `SyncTrack.file` name to where its bytes now live locally (e.g. a
     /// temp download directory, before `ReleaseCoordinator.importSynced`
@@ -382,6 +396,8 @@ extension SyncRecord {
             title: title,
             artist: artist,
             year: year,
+            // A bad or disagreeing date is dropped; the rest of the record is kept (#221).
+            releaseDate: date?.releaseDateString,
             genre: genre,
             coverPath: cover.map { fileURLs[$0]?.path ?? $0 },
             folderPath: fileURLs.values.first?.deletingLastPathComponent().path ?? "",

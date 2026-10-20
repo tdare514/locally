@@ -17,7 +17,7 @@ struct ReleaseCoordinatorAlbumTests {
     }
 
     private func makeAlbum(titles: [String], artist: String = "The Band", album: String = "Great Album") -> AlbumDraft {
-        AlbumDraft(title: album, artist: artist, year: "2026", genre: "Rock", tracks: titles.map { TrackDraft(title: $0) })
+        AlbumDraft(title: album, artist: artist, date: ReleaseDate(year: 2026), genre: "Rock", tracks: titles.map { TrackDraft(title: $0) })
     }
 
     @Test func importAlbumNumbersTracksByOrderAndSharesAlbumAndArtistTags() async throws {

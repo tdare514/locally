@@ -21,7 +21,21 @@ final class ImportSingleViewModel {
     var featuring: [String] = []
     /// What is typed in the Featuring field and not yet added; send adds it.
     var featuringDraft = ""
-    var year: String = ""
+    /// What is typed in the Release date field (#221); `releaseDateEntry` reads it.
+    var releaseDateText: String = "" {
+        didSet { if !isPrefillingDate { releaseDateEdited = true } }
+    }
+    /// True once the person has typed or cleared the date. The file-tag prefill and `reset()` do not count.
+    private(set) var releaseDateEdited = false
+    private var isPrefillingDate = false
+
+    /// Takes the other form's date text with its edited state (#221); the text itself is not an edit.
+    func takeReleaseDate(text: String, edited: Bool) {
+        isPrefillingDate = true
+        releaseDateText = text
+        isPrefillingDate = false
+        releaseDateEdited = edited
+    }
     var genre: String = ""
     var coverData: Data?
 
@@ -65,7 +79,9 @@ final class ImportSingleViewModel {
                 title = splitTitle.title
                 artist = splitArtist.artist
                 featuring = FeaturingNames.merged(splitTitle.featuring, splitArtist.featuring)
-                year = tags.year ?? ""
+                isPrefillingDate = true
+                releaseDateText = tags.date?.formatted() ?? ""
+                isPrefillingDate = false
                 genre = tags.genre ?? ""
             } else if title.isEmpty {
                 let split = ArtistNames.splitFeaturing(((pickedName ?? "") as NSString).deletingPathExtension)
@@ -121,7 +137,7 @@ final class ImportSingleViewModel {
             album: title,
             trackNumber: 1,
             totalTracks: 1,
-            year: year.isEmpty ? nil : year,
+            date: releaseDateEntry.date,
             genre: genre.isEmpty ? nil : genre
         )
     }
@@ -135,7 +151,8 @@ final class ImportSingleViewModel {
         artist = ""
         featuring = []
         featuringDraft = ""
-        year = ""
+        releaseDateText = ""
+        releaseDateEdited = false
         genre = ""
         coverData = nil
         completedRelease = nil
@@ -154,7 +171,12 @@ final class ImportSingleViewModel {
         Task { await pick(url: next.url, inboxFile: next) }
     }
 
+    var releaseDateEntry: ReleaseDateEntry { ReleaseDateText.parse(releaseDateText) }
+
+    /// The impossible or unreadable line under the date field, nil otherwise.
+    var releaseDateMessage: String? { releaseDateEntry.message }
+
     var canSend: Bool {
-        pickedURL != nil && !title.isEmpty && !artist.isEmpty && !isSending && !isLoadingTags
+        pickedURL != nil && !title.isEmpty && !artist.isEmpty && !isSending && !isLoadingTags && releaseDateMessage == nil
     }
 }

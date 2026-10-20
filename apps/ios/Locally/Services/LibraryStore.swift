@@ -45,6 +45,9 @@ final class ReleaseRecord {
     var title: String
     var artist: String
     var year: String?
+    /// `Release.releaseDate`; `nil` for rows written before it existed (an optional attribute, so SwiftData's
+    /// automatic lightweight migration adds it, as for `sourceRaw`).
+    var releaseDate: String?
     var genre: String?
     var coverPath: String?
     var folderPath: String
@@ -61,12 +64,13 @@ final class ReleaseRecord {
     /// automatic lightweight migration adds it, as for `uploadedFileNamesData`).
     var sourceRaw: String?
 
-    init(id: UUID, kindRaw: String, title: String, artist: String, year: String?, genre: String?, coverPath: String?, folderPath: String, tracksData: Data, createdAt: Date, updatedAt: Date, syncedUpdatedAt: Date? = nil, uploadedFileNamesData: Data? = nil, sourceRaw: String? = nil) {
+    init(id: UUID, kindRaw: String, title: String, artist: String, year: String?, releaseDate: String? = nil, genre: String?, coverPath: String?, folderPath: String, tracksData: Data, createdAt: Date, updatedAt: Date, syncedUpdatedAt: Date? = nil, uploadedFileNamesData: Data? = nil, sourceRaw: String? = nil) {
         self.id = id
         self.kindRaw = kindRaw
         self.title = title
         self.artist = artist
         self.year = year
+        self.releaseDate = releaseDate
         self.genre = genre
         self.coverPath = coverPath
         self.folderPath = folderPath
@@ -167,6 +171,7 @@ final class SwiftDataLibraryStore: LibraryStore {
             existing.title = release.title
             existing.artist = release.artist
             existing.year = release.year
+            existing.releaseDate = release.releaseDate
             existing.genre = release.genre
             existing.coverPath = release.coverPath
             existing.folderPath = release.folderPath
@@ -183,6 +188,7 @@ final class SwiftDataLibraryStore: LibraryStore {
                 title: release.title,
                 artist: release.artist,
                 year: release.year,
+                releaseDate: release.releaseDate,
                 genre: release.genre,
                 coverPath: release.coverPath,
                 folderPath: release.folderPath,
@@ -214,6 +220,7 @@ final class SwiftDataLibraryStore: LibraryStore {
             title: record.title,
             artist: record.artist,
             year: record.year,
+            releaseDate: record.releaseDate,
             genre: record.genre,
             coverPath: record.coverPath,
             folderPath: record.folderPath,

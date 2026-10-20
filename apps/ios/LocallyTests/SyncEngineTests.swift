@@ -235,7 +235,7 @@ struct SyncEngineTests {
 
     @Test func aPartialUploadFailureThenRetryUploadsOnlyTheMissingFiles() async throws {
         let h = makeHarness()
-        let album = AlbumDraft(title: "Album", artist: "Artist", year: "2026", genre: "Rock", tracks: [
+        let album = AlbumDraft(title: "Album", artist: "Artist", date: ReleaseDate(year: 2026), genre: "Rock", tracks: [
             TrackDraft(title: "First"), TrackDraft(title: "Second")
         ])
         let files = try [makeSourceFile(named: "one.mp3"), makeSourceFile(named: "two.mp3")]
@@ -1425,7 +1425,7 @@ struct SyncEngineTests {
     /// A two-track album with a cover, pushed in full: the fake server has the
     /// record and every marker is set, as on a phone that finished its upload.
     private func pushedAlbum(_ h: Harness, title: String = "Album") async throws -> (release: Release, first: String, second: String) {
-        let album = AlbumDraft(title: title, artist: "Artist", year: "2026", genre: "Rock", tracks: [
+        let album = AlbumDraft(title: title, artist: "Artist", date: ReleaseDate(year: 2026), genre: "Rock", tracks: [
             TrackDraft(title: "First"), TrackDraft(title: "Second")
         ])
         let files = try [makeSourceFile(named: "one.mp3"), makeSourceFile(named: "two.mp3")]

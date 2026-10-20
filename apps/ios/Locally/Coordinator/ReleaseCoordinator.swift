@@ -84,18 +84,18 @@ final class ReleaseCoordinator {
             durationSec: durationSec
         )
 
-        let release = Release(
+        var release = Release(
             id: releaseId,
             kind: .single,
             // The track carries "Song (feat. B)"; the release title stays plain (#287).
             title: ArtistNames.splitFeaturing(tags.title).title,
             artist: tags.artist,
-            year: tags.year,
             genre: tags.genre,
             coverPath: coverPath,
             folderPath: destinationURL.deletingLastPathComponent().path,
             tracks: [track]
         )
+        release.date = tags.date
 
         do {
             try library.upsert(release)
@@ -154,7 +154,7 @@ final class ReleaseCoordinator {
                     album: album.title,
                     trackNumber: tagNumbers[index].trackNumber,
                     totalTracks: tagNumbers[index].totalTracks,
-                    year: album.year,
+                    date: album.date,
                     genre: album.genre,
                     discNumber: tagNumbers[index].discNumber,
                     totalDiscs: tagNumbers[index].totalDiscs
@@ -193,17 +193,17 @@ final class ReleaseCoordinator {
 
         let coverPath = cover.flatMap { try? coverStore.save($0, for: releaseId) }
 
-        let release = Release(
+        var release = Release(
             id: releaseId,
             kind: .album,
             title: album.title,
             artist: album.artist,
-            year: album.year,
             genre: album.genre,
             coverPath: coverPath,
             folderPath: movedURLs.first?.deletingLastPathComponent().path ?? "",
             tracks: tracks
         )
+        release.date = album.date
 
         do {
             try library.upsert(release)
@@ -242,7 +242,8 @@ final class ReleaseCoordinator {
 
         let newTitle = changes.title ?? existing.title
         let newArtist = changes.artist ?? existing.artist
-        let newYear = changes.year.map { $0.isEmpty ? nil : $0 } ?? existing.year
+        // nil keeps the date, .some(nil) clears it, .some(d) sets it.
+        let newDate: ReleaseDate? = changes.date ?? existing.date
         let newGenre = changes.genre.map { $0.isEmpty ? nil : $0 } ?? existing.genre
 
         var newCoverPath = existing.coverPath
@@ -272,7 +273,7 @@ final class ReleaseCoordinator {
                     album: newTitle,
                     trackNumber: tagNumbers[index].trackNumber,
                     totalTracks: tagNumbers[index].totalTracks,
-                    year: newYear,
+                    date: newDate,
                     genre: newGenre,
                     discNumber: tagNumbers[index].discNumber,
                     totalDiscs: tagNumbers[index].totalDiscs
@@ -293,12 +294,13 @@ final class ReleaseCoordinator {
             uploadedFileNames = existing.uploadedFileNames
         }
 
-        let updated = Release(
+        var updated = Release(
             id: existing.id,
             kind: existing.kind,
             title: newTitle,
             artist: newArtist,
-            year: newYear,
+            year: existing.year,
+            releaseDate: existing.releaseDate,
             genre: newGenre,
             coverPath: newCoverPath,
             folderPath: existing.folderPath,
@@ -307,6 +309,8 @@ final class ReleaseCoordinator {
             updatedAt: Date(),
             uploadedFileNames: uploadedFileNames
         )
+        // Only a change touches the stored year, so an untouched legacy year is kept as it was.
+        if let change = changes.date { updated.date = change }
 
         do {
             try library.upsert(updated)
@@ -425,7 +429,7 @@ final class ReleaseCoordinator {
                     album: record.title,
                     trackNumber: tagNumbers[position].trackNumber,
                     totalTracks: tagNumbers[position].totalTracks,
-                    year: record.year,
+                    date: record.date,
                     genre: record.genre,
                     discNumber: tagNumbers[position].discNumber,
                     totalDiscs: tagNumbers[position].totalDiscs
@@ -459,6 +463,7 @@ final class ReleaseCoordinator {
             title: record.title,
             artist: record.artist,
             year: record.year,
+            releaseDate: record.date?.releaseDateString,
             genre: record.genre,
             coverPath: newCoverPath,
             folderPath: existing.folderPath,
@@ -567,6 +572,7 @@ final class ReleaseCoordinator {
             title: record.title,
             artist: record.artist,
             year: record.year,
+            releaseDate: record.date?.releaseDateString,
             genre: record.genre,
             coverPath: coverPath,
             folderPath: movedURLs.first?.deletingLastPathComponent().path ?? "",
@@ -610,6 +616,7 @@ final class ReleaseCoordinator {
             title: record.title,
             artist: record.artist,
             year: record.year,
+            releaseDate: record.date?.releaseDateString,
             genre: record.genre,
             coverPath: coverPath,
             folderPath: "",

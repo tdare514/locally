@@ -225,7 +225,7 @@ struct FeaturingFieldTests {
     /// A single saved before the Featuring field: release title and track title both "Song (feat. B)".
     private func legacySingle(_ rig: Rig) async throws -> Release {
         let url = try makeSourceFile()
-        let release = try await rig.coordinator.importSingle(file: url, tags: TagSet(title: "Song", artist: "A", album: "Song", year: "2020"), cover: nil)
+        let release = try await rig.coordinator.importSingle(file: url, tags: TagSet(title: "Song", artist: "A", album: "Song", date: ReleaseDate(year: 2020)), cover: nil)
         var legacy = release
         legacy.title = "Song (feat. B)"
         legacy.tracks[0].title = "Song (feat. B)"
@@ -242,13 +242,13 @@ struct FeaturingFieldTests {
         #expect(!model.hasChanges)
 
         model.beginEditing()
-        model.year = "2021"
+        model.releaseDateText = "2021"
         await model.save()
 
         let last = try #require(rig.tagWriter.calls.last).tags
         #expect(last.title == "Song (feat. B)")
         #expect(last.album == "Song (feat. B)")
-        #expect(last.year == "2021")
+        #expect(last.date == ReleaseDate(year: 2021))
         let saved = try #require(rig.library.all().first)
         #expect(saved.title == "Song (feat. B)")
         #expect(saved.tracks.first?.title == "Song (feat. B)")
@@ -274,7 +274,7 @@ struct FeaturingFieldTests {
     // MARK: Single whose track title differs from the release title (a record from the Mac)
 
     private func macSingle(_ rig: Rig) async throws -> Release {
-        let release = try await rig.coordinator.importSingle(file: try makeSourceFile(), tags: TagSet(title: "Album", artist: "A", album: "Album", year: "2020"), cover: nil)
+        let release = try await rig.coordinator.importSingle(file: try makeSourceFile(), tags: TagSet(title: "Album", artist: "A", album: "Album", date: ReleaseDate(year: 2020)), cover: nil)
         var mac = release
         mac.tracks[0].title = "Song (feat. B)"
         try rig.library.upsert(mac)
@@ -304,7 +304,7 @@ struct FeaturingFieldTests {
         let model = ReleaseDetailViewModel(release: release, coordinator: rig.coordinator, coverStore: rig.coverStore)
 
         model.beginEditing()
-        model.year = "2021"
+        model.releaseDateText = "2021"
         await model.save()
 
         let saved = try #require(rig.library.all().first)
@@ -341,7 +341,7 @@ struct FeaturingFieldTests {
         let release = try #require(rig.library.all().first)
         let model = ReleaseDetailViewModel(release: release, coordinator: rig.coordinator, coverStore: rig.coverStore)
         model.beginEditing()
-        model.year = "2021"
+        model.releaseDateText = "2021"
         await model.save()
 
         let saved = try #require(rig.tagWriter.calls.last).tags

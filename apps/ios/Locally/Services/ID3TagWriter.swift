@@ -138,12 +138,10 @@ final class ID3TagWriter: TagWriter {
         if let discNumber = tags.discNumber, let totalDiscs = tags.totalDiscs {
             frames.append(textFrame("TPOS", "\(discNumber)/\(totalDiscs)"))
         }
-        if let year = tags.year, !year.isEmpty {
-            frames.append(textFrame("TDRC", year))
-            // Spotify reads an mp3's year only from TYER, so a plain 4-digit year goes there too.
-            if Self.isFourDigitYear(year) {
-                frames.append(latin1TextFrame("TYER", year))
-            }
+        if let date = tags.date {
+            frames.append(textFrame("TDRC", date.isoString))
+            // Spotify reads an mp3's year only from TYER, so the year goes there too.
+            frames.append(latin1TextFrame("TYER", date.yearString))
         }
         if let genre = tags.genre, !genre.isEmpty {
             frames.append(textFrame("TCON", genre))
@@ -192,11 +190,6 @@ final class ID3TagWriter: TagWriter {
     }
 
     // MARK: - Helpers
-
-    static func isFourDigitYear(_ text: String) -> Bool {
-        let bytes = Array(text.utf8)
-        return bytes.count == 4 && bytes.allSatisfy { $0 >= 0x30 && $0 <= 0x39 }
-    }
 
     static func mimeType(for data: Data) -> String {
         if data.count >= 8, data[data.startIndex] == 0x89, data[data.startIndex + 1] == 0x50 {

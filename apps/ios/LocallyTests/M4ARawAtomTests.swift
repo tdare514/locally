@@ -71,7 +71,7 @@ struct M4ARawAtomTests {
             #expect(keys.contains(key), "fixture lacks \(key)")
         }
 
-        let tags = TagSet(title: "New Title", artist: "New Artist", album: "New Album", trackNumber: 1, totalTracks: 1, year: "2026")
+        let tags = TagSet(title: "New Title", artist: "New Artist", album: "New Album", trackNumber: 1, totalTracks: 1, date: ReleaseDate(year: 2026))
         try await M4ATagWriter().write(tags, cover: nil, to: url)
 
         let after = try Self.ilstAtoms(of: url)

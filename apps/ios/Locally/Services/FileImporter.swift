@@ -57,7 +57,11 @@ final class LocalFileImporter: FileImporter {
         var artist = ""
         var album = ""
         var genre: String?
-        var year: String?
+        var creationDate: String?
+        var recordingTime: String?
+        var id3Year: String?
+        var id3Day: String?
+        var releaseDateAtom: String?
         var trackTag: (number: Int, total: Int?)?
         var discTag: (number: Int, total: Int?)?
 
@@ -70,6 +74,13 @@ final class LocalFileImporter: FileImporter {
                         if pair.isDisc { discTag = (pair.number, pair.total) } else { trackTag = (pair.number, pair.total) }
                         continue
                     }
+                    switch item.identifier {
+                    case .id3MetadataRecordingTime: recordingTime = (try? await item.load(.stringValue)) ?? recordingTime
+                    case .id3MetadataYear: id3Year = (try? await item.load(.stringValue)) ?? id3Year
+                    case .id3MetadataDate: id3Day = (try? await item.load(.stringValue)) ?? id3Day
+                    case .iTunesMetadataReleaseDate: releaseDateAtom = (try? await item.load(.stringValue)) ?? releaseDateAtom
+                    default: break
+                    }
                     guard let key = item.commonKey else { continue }
                     let value = try? await item.load(.stringValue)
                     switch key {
@@ -77,7 +88,7 @@ final class LocalFileImporter: FileImporter {
                     case .commonKeyArtist: artist = value ?? artist
                     case .commonKeyAlbumName: album = value ?? album
                     case .commonKeyType: genre = value ?? genre
-                    case .commonKeyCreationDate: year = value ?? year
+                    case .commonKeyCreationDate: creationDate = value ?? creationDate
                     default: break
                     }
                 }
@@ -90,16 +101,31 @@ final class LocalFileImporter: FileImporter {
         // nil when the file has none, so an untagged file sorts last in its disc.
         let disc = discTag.flatMap { DiscNumbering.isValidDisc($0.number) ? $0 : nil }
         let trackNumber = trackTag.flatMap { $0.number >= 1 ? $0.number : nil }
+        // The most precise date the file has: TDRC, then TYER (with TDAT's DDMM), then ©day, then the creation date.
+        let date = recordingTime.flatMap(ReleaseDate.fromTag)
+            ?? Self.id3YearAndDay(year: id3Year, day: id3Day)
+            ?? releaseDateAtom.flatMap(ReleaseDate.fromTag)
+            ?? creationDate.flatMap(ReleaseDate.fromTag)
         let tags = TagSet(
             title: title,
             artist: artist,
             album: album.isEmpty ? title : album,
-            year: year,
+            date: date,
             genre: genre,
             discNumber: disc?.number,
             totalDiscs: disc?.total
         )
         return (tags, trackNumber)
+    }
+
+    /// TYER's year, made a day when TDAT's "DDMM" is present and gives a real date for that year.
+    static func id3YearAndDay(year: String?, day: String?) -> ReleaseDate? {
+        guard let year, let base = ReleaseDate.fromTag(year) else { return nil }
+        let digits = day?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard digits.count == 4, digits.allSatisfy({ $0.isASCII && $0.isNumber }),
+              let dd = Int(digits.prefix(2)), let mm = Int(digits.suffix(2)),
+              let full = ReleaseDate(year: base.year, month: mm, day: dd) else { return base }
+        return full
     }
 
     /// The track or disc number an item carries: TRCK/TPOS as text (`2/3`), trkn/disk as the
