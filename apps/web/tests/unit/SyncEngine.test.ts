@@ -1739,7 +1739,7 @@ describe("SyncEngine", () => {
         await clocked.reconcile();
 
         expect(api.createUploadsCalls).toHaveLength(0);
-        expect(warn).toHaveBeenCalled();
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining("not re-sending release adopted-1: a file is missing on disk"));
       } finally {
         warn.mockRestore();
         if (priorConfigDir === undefined) delete process.env.LOCALLY_CONFIG_DIR;
