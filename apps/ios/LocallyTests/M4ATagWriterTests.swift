@@ -110,10 +110,10 @@ struct M4ATagWriterTests {
         let (dir, url) = try makeTinyM4A()
         defer { try? FileManager.default.removeItem(at: dir) }
 
-        let firstTags = TagSet(title: "First Title", artist: "First Artist", album: "First Album", trackNumber: 1, totalTracks: 2, year: "2020", genre: "Rock")
+        let firstTags = TagSet(title: "First Title", artist: "First Artist", album: "First Album", trackNumber: 1, totalTracks: 2, date: ReleaseDate(year: 2020), genre: "Rock")
         try await writer.write(firstTags, cover: nil, to: url)
 
-        let secondTags = TagSet(title: "Second Title", artist: "Second Artist", album: "Second Album", trackNumber: 2, totalTracks: 2, year: "2021", genre: "Pop")
+        let secondTags = TagSet(title: "Second Title", artist: "Second Artist", album: "Second Album", trackNumber: 2, totalTracks: 2, date: ReleaseDate(year: 2021), genre: "Pop")
         try await writer.write(secondTags, cover: nil, to: url)
 
         let (title, artist) = try await readBackTitleAndArtist(url)
@@ -237,7 +237,7 @@ struct M4ATagWriterTests {
         ])
         let before = try await allItems(url)
 
-        let tags = TagSet(title: "New Title", artist: "New Artist", album: "New Album", trackNumber: 1, totalTracks: 1, year: "2026")
+        let tags = TagSet(title: "New Title", artist: "New Artist", album: "New Album", trackNumber: 1, totalTracks: 1, date: ReleaseDate(year: 2026))
         try await writer.write(tags, cover: nil, to: url)
 
         let after = try await allItems(url)

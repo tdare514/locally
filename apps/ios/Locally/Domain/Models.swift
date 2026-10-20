@@ -61,6 +61,8 @@ struct Release: Identifiable, Codable, Hashable {
     var artist: String
     /// Four-digit year, if known.
     var year: String?
+    /// YYYY-MM or YYYY-MM-DD when more precise than the year (#221); nil when only the year is known.
+    var releaseDate: String?
     var genre: String?
     /// Path to `cover.jpg`/`cover.png` beside the tracks, if a cover was set.
     var coverPath: String?
@@ -90,12 +92,23 @@ struct Release: Identifiable, Codable, Hashable {
     /// True for a details-only release this phone does not own.
     var isAdopted: Bool { source == .adopted }
 
+    /// The release date at its own precision (#221). Every write of a date goes through here, so `year` and
+    /// `releaseDate` are set together and cannot drift.
+    var date: ReleaseDate? {
+        get { ReleaseDate.stored(year: year, releaseDate: releaseDate) }
+        set {
+            year = newValue?.yearString
+            releaseDate = newValue?.releaseDateString
+        }
+    }
+
     init(
         id: UUID = UUID(),
         kind: ReleaseKind,
         title: String,
         artist: String,
         year: String? = nil,
+        releaseDate: String? = nil,
         genre: String? = nil,
         coverPath: String? = nil,
         folderPath: String,
@@ -111,6 +124,7 @@ struct Release: Identifiable, Codable, Hashable {
         self.title = title
         self.artist = artist
         self.year = year
+        self.releaseDate = releaseDate
         self.genre = genre
         self.coverPath = coverPath
         self.folderPath = folderPath
@@ -152,24 +166,24 @@ struct TrackDraft: Identifiable, Hashable {
 struct AlbumDraft {
     var title: String
     var artist: String
-    var year: String?
+    var date: ReleaseDate?
     var genre: String?
     var tracks: [TrackDraft]
 
-    init(title: String, artist: String, year: String? = nil, genre: String? = nil, tracks: [TrackDraft]) {
+    init(title: String, artist: String, date: ReleaseDate? = nil, genre: String? = nil, tracks: [TrackDraft]) {
         self.title = title
         self.artist = artist
-        self.year = year
+        self.date = date
         self.genre = genre
         self.tracks = tracks
     }
 }
 
 /// Partial edits to an existing `Release`, applied in place by
-/// `ReleaseCoordinator.updateRelease`. `nil` on `title`/`artist`/`year`/
-/// `genre`/`cover` means "keep the current value"; for `year`/`genre`, an
-/// empty string clears the field (there is no separate way to distinguish
-/// "leave alone" from "set to empty" other than via `nil` vs `""`).
+/// `ReleaseCoordinator.updateRelease`. `nil` on `title`/`artist`/`date`/
+/// `genre`/`cover` means "keep the current value". For `genre`, an empty
+/// string clears the field. `date` is doubly optional: `nil` keeps the date,
+/// `.some(nil)` clears it and `.some(d)` sets it.
 /// `trackTitles` maps a track's `id` to its new title — tracks whose id is
 /// absent keep their current title. `trackOrder`, if given, is the full new
 /// track order by id; any known track id missing from it is appended after,
@@ -179,7 +193,7 @@ struct AlbumDraft {
 struct ReleaseChanges {
     var title: String?
     var artist: String?
-    var year: String?
+    var date: ReleaseDate??
     var genre: String?
     var cover: Data?
     var trackTitles: [UUID: String]
@@ -191,7 +205,7 @@ struct ReleaseChanges {
     init(
         title: String? = nil,
         artist: String? = nil,
-        year: String? = nil,
+        date: ReleaseDate?? = nil,
         genre: String? = nil,
         cover: Data? = nil,
         trackTitles: [UUID: String] = [:],
@@ -201,7 +215,7 @@ struct ReleaseChanges {
     ) {
         self.title = title
         self.artist = artist
-        self.year = year
+        self.date = date
         self.genre = genre
         self.cover = cover
         self.trackTitles = trackTitles
@@ -223,7 +237,7 @@ struct TagSet: Codable, Hashable {
     /// are set, else the release-wide `trackNumber`. Derive it with `DiscNumbering.tagNumbers`.
     var trackNumber: Int
     var totalTracks: Int
-    var year: String?
+    var date: ReleaseDate?
     var genre: String?
     /// TPOS/disk `discNumber/totalDiscs`. Written only when `discNumber` is set.
     var discNumber: Int?
@@ -236,7 +250,7 @@ struct TagSet: Codable, Hashable {
         album: String,
         trackNumber: Int = 1,
         totalTracks: Int = 1,
-        year: String? = nil,
+        date: ReleaseDate? = nil,
         genre: String? = nil,
         discNumber: Int? = nil,
         totalDiscs: Int? = nil
@@ -247,7 +261,7 @@ struct TagSet: Codable, Hashable {
         self.album = album
         self.trackNumber = trackNumber
         self.totalTracks = totalTracks
-        self.year = year
+        self.date = date
         self.genre = genre
         self.discNumber = discNumber
         self.totalDiscs = totalDiscs

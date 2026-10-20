@@ -127,8 +127,8 @@ final class M4ATagWriter: TagWriter {
         if let genre = tags.genre, !genre.isEmpty {
             items.append(item(.iTunesMetadataUserGenre, value: genre))
         }
-        if let year = tags.year, !year.isEmpty {
-            items.append(item(.iTunesMetadataReleaseDate, value: year))
+        if let date = tags.date {
+            items.append(item(.iTunesMetadataReleaseDate, value: date.isoString))
         }
         items.append(numberPairItem(.iTunesMetadataTrackNumber, number: tags.trackNumber, total: tags.totalTracks))
         if let discNumber = tags.discNumber, let totalDiscs = tags.totalDiscs {

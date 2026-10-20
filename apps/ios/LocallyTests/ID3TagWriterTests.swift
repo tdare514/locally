@@ -35,7 +35,7 @@ struct ID3TagWriterTests {
             album: "My Album",
             trackNumber: 3,
             totalTracks: 10,
-            year: "2026",
+            date: ReleaseDate(year: 2026),
             genre: "Electronic"
         )
     }
@@ -143,19 +143,46 @@ struct ID3TagWriterTests {
         #expect(frames["TYER"]!.first == 0x00, "TYER is ISO-8859-1, the encoding every reader supports")
     }
 
-    @Test func aYearThatIsNotFourDigitsWritesNoTYER() async throws {
-        for year in ["2026-05-01", "26", "20x6", "٢٠٢٦"] {
-            let (dir, url) = try makeFile()
-            defer { try? FileManager.default.removeItem(at: dir) }
-            var set = tags()
-            set.year = year
+    @Test func aDayDateWritesTDRCInFullAndTYERAsTheYear() async throws {
+        let (dir, url) = try makeFile()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var set = tags()
+        set.date = ReleaseDate(year: 2024, month: 5, day: 17)
 
-            try await writer.write(set, cover: nil, to: url)
+        try await writer.write(set, cover: nil, to: url)
 
-            let (frames, _) = parse(try Data(contentsOf: url))
-            #expect(textValue(frames["TDRC"]!) == year)
-            #expect(frames["TYER"] == nil, "year \(year)")
-        }
+        let (frames, _) = parse(try Data(contentsOf: url))
+        #expect(textValue(frames["TDRC"]!) == "2024-05-17")
+        #expect(textValue(frames["TYER"]!) == "2024")
+        #expect(frames["TDAT"] == nil)
+    }
+
+    @Test func noDateWritesNeitherTDRCNorTYER() async throws {
+        let (dir, url) = try makeFile()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var set = tags()
+        set.date = nil
+
+        try await writer.write(set, cover: nil, to: url)
+
+        let (frames, _) = parse(try Data(contentsOf: url))
+        #expect(frames["TDRC"] == nil)
+        #expect(frames["TYER"] == nil)
+    }
+
+    @Test func shorteningADayToAYearLeavesNoStaleDay() async throws {
+        let (dir, url) = try makeFile()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var set = tags()
+        set.date = ReleaseDate(year: 2024, month: 5, day: 17)
+        try await writer.write(set, cover: nil, to: url)
+        set.date = ReleaseDate(year: 2024)
+
+        try await writer.write(set, cover: nil, to: url)
+
+        let (frames, _) = parse(try Data(contentsOf: url))
+        #expect(textValue(frames["TDRC"]!) == "2024")
+        #expect(textValue(frames["TYER"]!) == "2024")
     }
 
     @Test func writesAPICWithMimeAndPictureBytes() async throws {

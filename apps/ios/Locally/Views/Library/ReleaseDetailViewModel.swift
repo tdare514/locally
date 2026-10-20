@@ -96,7 +96,7 @@ final class ReleaseDetailViewModel {
         // and "original" properties — never re-read from `self`.
         let title = Self.editorTitle(of: release)
         let artist = release.artist
-        let year = release.year ?? ""
+        let year = release.date?.isoString ?? release.year ?? ""
         let genre = release.genre ?? ""
         let cover = release.coverPath != nil ? coverStore.load(release.id) : nil
         let rows = Self.rows(of: release)
@@ -320,7 +320,7 @@ final class ReleaseDetailViewModel {
         let changes = ReleaseChanges(
             title: title == originalTitle ? release.title : title,
             artist: artist,
-            year: year,
+            date: year == originalYear ? nil : .some(ReleaseDate(year.trimmingCharacters(in: .whitespaces))),
             genre: genre,
             cover: coverData != originalCoverData ? coverData : nil,
             trackTitles: trackTitles,
@@ -379,7 +379,7 @@ final class ReleaseDetailViewModel {
         self.release = release
         title = Self.editorTitle(of: release)
         artist = release.artist
-        year = release.year ?? ""
+        year = release.date?.isoString ?? release.year ?? ""
         genre = release.genre ?? ""
         coverData = release.coverPath != nil ? coverStore.load(release.id) : coverData
         trackRows = Self.rows(of: release)

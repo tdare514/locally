@@ -65,7 +65,7 @@ final class ImportSingleViewModel {
                 title = splitTitle.title
                 artist = splitArtist.artist
                 featuring = FeaturingNames.merged(splitTitle.featuring, splitArtist.featuring)
-                year = tags.year ?? ""
+                year = tags.date?.isoString ?? ""
                 genre = tags.genre ?? ""
             } else if title.isEmpty {
                 let split = ArtistNames.splitFeaturing(((pickedName ?? "") as NSString).deletingPathExtension)
@@ -121,7 +121,7 @@ final class ImportSingleViewModel {
             album: title,
             trackNumber: 1,
             totalTracks: 1,
-            year: year.isEmpty ? nil : year,
+            date: ReleaseDate(year.trimmingCharacters(in: .whitespaces)),
             genre: genre.isEmpty ? nil : genre
         )
     }

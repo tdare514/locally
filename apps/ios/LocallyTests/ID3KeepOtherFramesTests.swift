@@ -50,9 +50,9 @@ struct ID3KeepOtherFramesTests {
         return (dir, url)
     }
 
-    private func tags(year: String? = "2026") -> TagSet {
+    private func tags(date: ReleaseDate? = ReleaseDate(year: 2026)) -> TagSet {
         TagSet(title: "New Title", artist: "New Artist", albumArtist: "New Artist", album: "New Album",
-               trackNumber: 1, totalTracks: 2, year: year, genre: "Pop")
+               trackNumber: 1, totalTracks: 2, date: date, genre: "Pop")
     }
 
     /// All frames of a v2.4 tag, in order, duplicates included, plus the audio after it.
@@ -73,10 +73,10 @@ struct ID3KeepOtherFramesTests {
         return (frames, data.subdata(in: end..<data.count))
     }
 
-    private func retag(_ source: Data, year: String? = "2026", cover: Data? = nil) async throws -> (frames: [(id: String, payload: [UInt8], flags: [UInt8])], audio: Data) {
+    private func retag(_ source: Data, date: ReleaseDate? = ReleaseDate(year: 2026), cover: Data? = nil) async throws -> (frames: [(id: String, payload: [UInt8], flags: [UInt8])], audio: Data) {
         let (dir, url) = try makeFile(tag: source)
         defer { try? FileManager.default.removeItem(at: dir) }
-        try await writer.write(tags(year: year), cover: cover, to: url)
+        try await writer.write(tags(date: date), cover: cover, to: url)
         return parse(try Data(contentsOf: url))
     }
 
@@ -124,6 +124,19 @@ struct ID3KeepOtherFramesTests {
         #expect(frames.first?.id == "TIT2")
         #expect(frames.firstIndex { $0.id == "TCOM" }! > frames.firstIndex { $0.id == "TCON" }!)
         #expect(frames.allSatisfy { $0.flags == [0, 0] })
+    }
+
+    @Test func aYearOnlyRewriteReplacesAFullTDRCAndKeepsAForeignTDAT() async throws {
+        let source = tag(major: 4, body: [
+            v24Frame("TIT2", text("Old Title")), v24Frame("TDRC", text("2024-05-17")),
+            v24Frame("TDAT", text("1705"))
+        ].reduce(Data(), +))
+
+        let (frames, _) = try await retag(source, date: ReleaseDate(year: 2024))
+
+        #expect(payloads(frames, "TDRC") == [text("2024")])
+        #expect(payloads(frames, "TYER") == [[0x00] + Array("2024".utf8)])
+        #expect(payloads(frames, "TDAT") == [text("1705")], "TDAT is not owned, so it is kept (#235)")
     }
 
     @Test func carriesAV23TagsFramesIntoTheV24Tag() async throws {

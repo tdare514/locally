@@ -185,7 +185,7 @@ final class AlbumBuilderViewModel {
         let album = AlbumDraft(
             title: albumTitle,
             artist: artist,
-            year: year.isEmpty ? nil : year,
+            date: ReleaseDate(year.trimmingCharacters(in: .whitespaces)),
             genre: genre.isEmpty ? nil : genre,
             tracks: tracks
         )

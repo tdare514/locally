@@ -96,7 +96,7 @@ struct ReleaseEditModeTests {
     private func makeAlbumModel() async throws -> ReleaseDetailViewModel {
         let coverStore = FakeCoverStore()
         let coordinator = makeCoordinator(coverStore)
-        let album = AlbumDraft(title: "Album", artist: "Band", year: "2020", tracks: [TrackDraft(title: "A"), TrackDraft(title: "B")])
+        let album = AlbumDraft(title: "Album", artist: "Band", date: ReleaseDate(year: 2020), tracks: [TrackDraft(title: "A"), TrackDraft(title: "B")])
         let release = try await coordinator.importAlbum(files: [try makeFile("a.mp3"), try makeFile("b.mp3")], album: album, cover: nil)
         return ReleaseDetailViewModel(release: release, coordinator: coordinator, coverStore: coverStore)
     }
@@ -131,7 +131,7 @@ struct ReleaseEditModeTests {
     @Test func sameTitledTracksRenamedToTheSameTitleGiveDistinctChanges() async throws {
         let coverStore = FakeCoverStore()
         let coordinator = makeCoordinator(coverStore)
-        let album = AlbumDraft(title: "Album", artist: "Band", year: "2020", tracks: [TrackDraft(title: "Same"), TrackDraft(title: "Same")])
+        let album = AlbumDraft(title: "Album", artist: "Band", date: ReleaseDate(year: 2020), tracks: [TrackDraft(title: "Same"), TrackDraft(title: "Same")])
         let release = try await coordinator.importAlbum(files: [try makeFile("a.mp3"), try makeFile("b.mp3")], album: album, cover: nil)
         let model = ReleaseDetailViewModel(release: release, coordinator: coordinator, coverStore: coverStore)
 
