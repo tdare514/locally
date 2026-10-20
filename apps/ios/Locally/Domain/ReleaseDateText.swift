@@ -135,7 +135,7 @@ enum ReleaseDateText {
     // MARK: Locale
 
     /// What `ReleaseDate.formatted(locale:)` prints reads back in any locale ("2024年5月17日", "17 мая 2024 г."):
-    /// parsed with the same templates, and accepted only when it prints the very same text again, so a lenient
+    /// parsed with the same templates, and accepted only when it prints the very same text again (up to case and accents), so a lenient
     /// parse (31 Feb rolling into March) can never get through.
     private static func formattedDate(_ text: String, locale: Locale) -> ReleaseDate? {
         var calendar = Calendar(identifier: .gregorian)
@@ -146,11 +146,11 @@ enum ReleaseDateText {
             formatter.calendar = calendar
             formatter.timeZone = calendar.timeZone
             formatter.setLocalizedDateFormatFromTemplate(template)
-            guard let date = formatter.date(from: text) else { continue }
+            guard let date = formatter.date(from: text) ?? formatter.date(from: text.lowercased(with: locale)) else { continue }
             let parts = calendar.dateComponents([.year, .month, .day], from: date)
             guard let year = parts.year, let month = parts.month,
                   let candidate = ReleaseDate(year: year, month: month, day: hasDay ? parts.day : nil),
-                  candidate.formatted(locale: locale) == text else { continue }
+                  fold(candidate.formatted(locale: locale), locale: locale) == fold(text, locale: locale) else { continue }
             return candidate
         }
         return nil

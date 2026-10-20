@@ -28,7 +28,7 @@ struct ComponentGallery: View {
         // #226: the library search box with a typed query, and the crop sheet's Square / Original pill.
         "icons-library-search", "crop-sheet", "devices-header-narrow",
         // #221: the Release date row. The import case is `import-record-date`.
-        "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-save"]
+        "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -47,7 +47,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-save"].contains(name)
+        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save"].contains(name)
     }
 
     var body: some View {
@@ -189,6 +189,10 @@ struct ComponentGallery: View {
             IconsGallery.dateRelease(editing: true).dynamicTypeSize(.xxxLarge)
         case "release-date-ax":
             ReleaseDateFieldGallery(text: "17 May 2024").dynamicTypeSize(.accessibility3)
+        case "release-date-ax5":
+            ReleaseDateFieldGallery(text: "17 September 2024").dynamicTypeSize(.accessibility5)
+        case "release-date-narrow":
+            ReleaseDateFieldGallery(text: "17 September 2024").frame(width: 300)
         case "release-date-save":
             IconsGallery.saveableDateRelease()
         case "release-featuring-view":

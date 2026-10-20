@@ -110,3 +110,28 @@ struct ReleaseDateTextTests {
         }
     }
 }
+
+/// A date printed by the locale reads back when its case or accents differ (#221).
+struct ReleaseDateTextCaseTests {
+    @Test(arguments: ["ru_RU", "de_DE", "fr_FR", "en_GB"])
+    func upperCasedFormattedTextStillReads(_ id: String) {
+        let locale = Locale(identifier: id)
+        for original in [ReleaseDate(year: 2024, month: 5)!, ReleaseDate(year: 2024, month: 5, day: 17)!, ReleaseDate(year: 2024, month: 9, day: 3)!] {
+            let shouted = original.formatted(locale: locale).uppercased(with: locale)
+            #expect(ReleaseDateText.parse(shouted, locale: locale) == .date(original), "\(shouted)")
+        }
+    }
+
+    @Test func russianUpperCaseReads() {
+        let ru = Locale(identifier: "ru_RU")
+        #expect(ReleaseDateText.parse("17 МАЯ 2024\u{202F}г.", locale: ru) == .date(ReleaseDate(year: 2024, month: 5, day: 17)!))
+        let month = ReleaseDate(year: 2024, month: 5)!
+        #expect(ReleaseDateText.parse(month.formatted(locale: ru).uppercased(with: ru), locale: ru) == .date(month))
+    }
+
+    @Test func englishUpperCaseAndImpossibleDatesStillBehave() {
+        let gb = Locale(identifier: "en_GB")
+        #expect(ReleaseDateText.parse("17 MAY 2024", locale: gb) == .date(ReleaseDate(year: 2024, month: 5, day: 17)!))
+        #expect(ReleaseDateText.parse("31/02/2024", locale: gb) == .impossible)
+    }
+}

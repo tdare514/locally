@@ -40,7 +40,8 @@ struct ReleaseDateField: View {
 
     private var field: some View {
         HStack(alignment: .firstTextBaseline, spacing: 0) {
-            TextField("", text: $text, prompt: Text(Copy.DateField.placeholder).foregroundColor(Theme.textDim))
+            TextField("", text: Binding(get: { text }, set: { setWrapped($0) }), prompt: Text(Copy.DateField.placeholder).foregroundColor(Theme.textDim), axis: .vertical)
+                .lineLimit(1...3)
                 .font(Theme.ScaledFont.input)
                 .foregroundStyle(Theme.primaryText)
                 .keyboardType(.numbersAndPunctuation)
@@ -81,6 +82,16 @@ struct ReleaseDateField: View {
             .frame(height: 1 / displayScale)
         }
         .animation(reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: Theme.Immersive.inlineFieldFocusFade), value: focused)
+    }
+
+    /// A vertical field inserts a newline on Return: strip it and end editing instead.
+    private func setWrapped(_ newValue: String) {
+        guard newValue.contains(where: \.isNewline) else {
+            text = newValue
+            return
+        }
+        text = String(newValue.filter { !$0.isNewline })
+        focused = false
     }
 
     /// View mode: the date formatted (a legacy year as stored), "Not set" when empty.
