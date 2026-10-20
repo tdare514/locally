@@ -53,7 +53,7 @@ stale day is left. TDAT is not written. Import prefills the most precise date th
 with TDAT; m4a ©day) and keeps a leading `YYYY`, `YYYY-MM` or `YYYY-MM-DD` that is a real date, so
 `2024-05-17T07:00:00Z` gives `2024-05-17`; anything else falls back to the year, or to nothing. Shown at its own
 precision in the device's locale: "17 May 2024", "May 2024", "2024". Until each app's step lands, the Mac's
-node-id3 writes TYER only, and the iPhone writes the year alone in mp3 TDRC and TYER (#234) and m4a ©day.
+node-id3 writes TYER only. The iPhone (step 3) writes the full date in mp3 TDRC and m4a ©day, and the year in TYER.
 
 Per-disc track numbers. `trackNumber` is the release-wide position and never restarts, so the number
 written into a file's track tag is derived: the track's 1-based position among the tracks with the same
@@ -83,7 +83,7 @@ track properties (`sdef Music.app`). Spotify on iPhone: see "On the iPhone" belo
 | album artist | TPE2 | aART | mp3 only (not m4a, not flac) | nowhere | yes | written, = artist | keep, hidden (an editable album artist waits for the artist list, #224) |
 | track number | TRCK | trkn | all formats | nowhere (list order is Spotify's own) | yes | written | keep, show (Locally's row numbers) |
 | disc number | TPOS | disk | mp3 only | nowhere | yes | written when set | keep, show (editing is #222) |
-| year | TYER (see below) | ©day | mp3 TYER only; m4a ©day; not flac | nowhere | year, release date | Mac TYER; iPhone mp3 TDRC and TYER (#234), m4a ©day | keep, show; the year in TYER, the full release date in TDRC and ©day (#221) |
+| year | TYER (see below) | ©day | mp3 TYER only; m4a ©day; not flac | nowhere | year, release date | Mac TYER; iPhone mp3 TDRC (full date) and TYER (#234), m4a ©day (full date) | keep, show; the year in TYER, the full release date in TDRC and ©day (#221) |
 | genre | TCON | ©gen | no | nowhere | yes | written | keep, show (Locally's library and search, Apple Music) |
 | cover | APIC type 3 | covr | all formats | list and now playing, 300 to 3000 px all shown | yes | written, 1500 px max | keep, show; 1500 px stays |
 | composer | TCOM | ©wrt | no | no | yes | kept on both apps (iPhone since #235) | keep hidden |
