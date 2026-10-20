@@ -35,6 +35,9 @@ enum Copy {
     /// The immersive release look's reusable components (not yet on a screen).
     enum Immersive {
         static let addCoverArt = "Add cover art"
+        /// An empty sleeve that can be edited: the title and the line under it (#296).
+        static let addCover = "Add cover"
+        static let chooseCoverHint = "Choose a photo or a file"
         /// Accessibility label of the sleeve once it has a cover.
         static let changeCoverArt = "Change cover art"
         static let savedToLibrary = "Saved to your library"
@@ -57,13 +60,11 @@ enum Copy {
         /// sheet that shows the whole message.
         static let sendErrorDetails = "Details"
         static let sendErrorTitle = "Why it didn't send"
-        static let albumPlaceholder = "Same as the single name"
         static let singlePlaceholder = "Enter single name"
         static let albumNamePlaceholder = "Enter album name"
         static let artistPlaceholder = "Enter artist name"
         static let yearPlaceholder = "Enter year"
         static let genrePlaceholder = "Enter genre"
-        static let fieldAlbum = "Album"
         /// The title field's placeholder, by the kind of release.
         static func titlePlaceholder(for kind: ReleaseKind) -> String {
             kind == .album ? albumNamePlaceholder : singlePlaceholder
@@ -94,6 +95,10 @@ enum Copy {
         static let tracks = "Tracks"
         /// The quiet heading over a disc's tracks, shown only when a release has more than one disc.
         static func disc(_ number: Int) -> String { "Disc \(number)" }
+        /// The disc menu on a track's number (#222): the two actions, and the number button's VoiceOver label.
+        static func startDisc(_ number: Int) -> String { "Start disc \(number) here" }
+        static func joinDisc(_ number: Int) -> String { "Join disc \(number)" }
+        static func discOptions(track number: Int) -> String { "Track \(number), disc options" }
         /// A file row's caption under its title, per `docs/design.md`'s
         /// "Editor / release detail" component.
         static let audioFile = "Audio file"
@@ -160,7 +165,19 @@ enum Copy {
         static func noMatches(_ query: String) -> String { "No matches for \u{201C}\(query)\u{201D}" }
         static let layoutList = "List"
         static let layoutCovers = "Covers"
+        static let layoutArtists = "Artists"
         static let layoutLabel = "Library view"
+        /// The sort menu (#288): the Mac's four options, in the Mac's order.
+        static let sortMenuTitle = "Sort"
+        static func sortLabel(_ current: String) -> String { "Sort, \(current)" }
+        static func sortName(_ option: LibrarySortOption) -> String {
+            switch option {
+            case .newest: return "Recently updated"
+            case .title: return "Title"
+            case .artist: return "Artist"
+            case .year: return "Year"
+            }
+        }
         static let coverSizeLabel = "Cover size"
         static let sizeSmall = "Small"
         static let sizeMedium = "Medium"
@@ -180,6 +197,47 @@ enum Copy {
         static let diagramSpotify = "Spotify"
     }
 
+    /// The Artists view and the artist page (#288).
+    enum Artists {
+        static let title = "Artists"
+        static func noMatches(_ query: String) -> String { "No artists match \u{201C}\(query)\u{201D}." }
+        static func releases(_ n: Int) -> String { n == 1 ? "1 release" : "\(n) releases" }
+        static func tracks(_ n: Int) -> String { n == 1 ? "1 track" : "\(n) tracks" }
+        static func albums(_ n: Int) -> String { n == 1 ? "1 album" : "\(n) albums" }
+        static func singles(_ n: Int) -> String { n == 1 ? "1 single" : "\(n) singles" }
+        /// The Artists view's count line: "2 releases, 9 tracks"; a featured-only artist "Appears on 3 tracks".
+        static func countLine(releases: Int, tracks tracksOnOwn: Int, appearsOn: Int) -> String {
+            releases == 0 ? appearsOnLine(appearsOn) : "\(Self.releases(releases)), \(tracks(tracksOnOwn))"
+        }
+        static func appearsOnLine(_ n: Int) -> String { "Appears on \(tracks(n))" }
+        /// The page header's one dim line from the non-zero parts: "1 album, 2 singles, appears on 3 tracks".
+        static func pageLine(albums: Int, singles: Int, appearsOn: Int) -> String {
+            var parts: [String] = []
+            if albums > 0 { parts.append(Self.albums(albums)) }
+            if singles > 0 { parts.append(Self.singles(singles)) }
+            if appearsOn > 0 { parts.append(appearsOnLine(appearsOn).lowercasedFirst) }
+            let line = parts.joined(separator: ", ")
+            return line.prefix(1).uppercased() + line.dropFirst()
+        }
+        static let albumsSection = "Albums"
+        static let singlesSection = "Singles"
+        static let appearsOnSection = "Appears on"
+        static let mostPlayedSection = "Most played"
+        static func sectionCount(_ n: Int) -> String { "\(n)" }
+        /// An Appears on row's dim line: the release title and its year.
+        static func releaseLine(title: String, year: String?) -> String {
+            guard let year, !year.isEmpty else { return title }
+            return "\(title), \(year)"
+        }
+        static let gone = "This artist isn't in your library any more."
+        static let backToLibrary = "Back to Library"
+        /// VoiceOver for the release page's artist name in view mode.
+        static func openLabel(_ name: String) -> String { "Open \(name)" }
+        /// VoiceOver for an Artists view row: "Okoro, 2 releases, 9 tracks".
+        static func rowLabel(name: String, countLine: String) -> String { "\(name), \(countLine)" }
+        static func rankLabel(_ rank: Int) -> String { "Number \(rank)" }
+    }
+
     enum Release {
         static let edit = "Edit"
         static let cancel = "Cancel"
@@ -188,6 +246,18 @@ enum Copy {
         static let save = "Save"
         static let keepEditing = "Keep editing"
         static let trackOrderChanged = "Track order changed"
+        /// The review sheet's disc row (#222): the layout, not every track.
+        static let discs = "Discs"
+        static let noDiscs = "No discs"
+        /// The disc layout in words, every range listed so no two layouts read alike: "No discs",
+        /// "All tracks on disc 2", or "Disc 1 from track 1, disc 2 from track 4".
+        static func discLayout(_ discs: [Int?]) -> String {
+            let ranges = DiscNumbering.ranges(for: discs)
+            guard let first = ranges.first else { return noDiscs }
+            if ranges.count == 1 { return "All tracks on disc \(first.disc)" }
+            let rest = ranges.dropFirst().map { "disc \($0.disc) from track \($0.track)" }
+            return (["Disc \(first.disc) from track \(first.track)"] + rest).joined(separator: ", ")
+        }
         static let cover = "Cover"
         /// VoiceOver for the review sheet's cover row.
         static let coverChanged = "Cover changed"
@@ -196,6 +266,43 @@ enum Copy {
         static let keepEditingDiscard = "Keep editing"
         /// VoiceOver for a review row's old and new value.
         static func changedFrom(_ old: String, to new: String) -> String { "Was \(old), now \(new)" }
+    }
+
+    /// Artist suggestions and "Did you mean" (#287); the web says the same in `artist-index.ts`.
+    enum ArtistSuggest {
+        static func trackCount(_ count: Int) -> String { "\(count) \(count == 1 ? "track" : "tracks")" }
+        /// A suggestion pill: "The Weeknd · 12".
+        static func pill(artist: String, trackCount: Int) -> String { "\(artist) · \(trackCount)" }
+        /// VoiceOver for a pill.
+        static func pillLabel(artist: String, trackCount: Int) -> String { "\(artist), \(Self.trackCount(trackCount))" }
+        static let pillsLabel = "Artists in your library"
+        static func line(for hint: DidYouMean) -> String {
+            switch hint.kind {
+            case .looksLike: "You have \(trackCount(hint.trackCount)) by \(hint.artist)."
+            case .spelling: "Matches \(hint.artist). Use that spelling?"
+            }
+        }
+        static func useButton(artist: String) -> String { "Use \(artist)" }
+    }
+
+    /// The Featuring field and the album rows' feat. button (#287).
+    enum Featuring {
+        static let field = "Featuring"
+        static let placeholder = "Add a featured artist"
+        static let button = "feat."
+        static let done = "Done"
+        static let sheetTitle = "Featured artists"
+        static let pillsLabel = "Featured artists"
+        /// VoiceOver for a name's pill.
+        static func pillLabel(_ name: String) -> String { "Featured artist \(name)" }
+        /// VoiceOver for a pill's remove button.
+        static func removeLabel(_ name: String) -> String { "Remove \(name)" }
+        /// VoiceOver for a row's feat. button.
+        static func buttonLabel(track title: String) -> String { "Featured artists, \(title)" }
+        /// Dimmed after a track's title: "feat. B & C".
+        static func suffix(_ names: [String]) -> String { "feat. \(FeaturingNames.display(names))" }
+        /// The view-mode row's value: "B, C".
+        static func viewValue(_ names: [String]) -> String { names.joined(separator: ", ") }
     }
 
     enum Detail {
@@ -214,8 +321,22 @@ enum Copy {
         static func playCount(_ count: Int) -> String {
             count == 1 ? "1 play" : "\(count) plays"
         }
+        /// Page and track details (#296): "Album · 5 tracks", "Year 2025", "Genre Rap".
+        static func metaLine(kind: String, tracks: Int) -> String {
+            "\(kind) · \(tracks == 1 ? "1 track" : "\(tracks) tracks")"
+        }
+        static let yearLabel = "Year"
+        static let genreLabel = "Genre"
+        /// The track table's quiet header.
+        static let colNumber = "#"
+        static let colTitle = "Title"
+        static let colPlays = "Plays"
+        static let colTime = "Time"
+        static let unknownArtist = "Unknown artist"
         /// Under the tracks when any has plays: the totals add up every signed-in device.
         static let playsAcrossDevices = "Plays are counted across all your devices."
+        /// Shown on an adopted release's page: its files stay on the Mac.
+        static let adoptedNote = "In your Mac's Spotify folder"
         static let saveChanges = "Save changes"
         static let saving = "Saving…"
         static let replaceCover = "Replace cover"
@@ -281,6 +402,7 @@ enum Copy {
     /// Messages carried by `LocallyError` from the tag writers and transcoder.
     enum FileErrors {
         static let coverTooLargeForMp3 = "That cover is too large to store in an mp3."
+        static let existingTagTooLarge = "This file's tags are too large to edit."
         static let cannotTagFile = "This device can't tag that file."
         static let cannotConvertFile = "This device can't convert that file."
         static let unexpectedExportState = "Unexpected export state."
@@ -364,6 +486,32 @@ enum Copy {
         static let sendAll = "Send all"
         static let downloading = "Downloading…"
 
+        /// The Library's "From your devices" tray (#269), worded as the Mac's tray is.
+        static func trayButtonLabel(count: Int) -> String { "From your devices, \(count) waiting" }
+        static let trayClose = "Close"
+        static func sendTitleToSpotify(_ title: String) -> String { "Send \(title) to Spotify" }
+        static func trackCount(_ count: Int) -> String { count == 1 ? "1 track" : "\(count) tracks" }
+        /// The tray's sections (#296): a name, its count, and the section's one action.
+        static let readyToAdd = "Ready to add"
+        static let couldntSendYet = "Couldn't send yet"
+        static let addAll = "Add all"
+        static let adding = "Adding…"
+        static let tryAllAgain = "Try all again"
+        static let trying = "Trying…"
+        static let couldntSendThese = "Locally couldn't send these yet."
+        /// A section's heading for VoiceOver, with its count: "Ready to add, 2".
+        static func sectionHeading(_ name: String, count: Int) -> String { "\(name), \(count)" }
+        /// A failed row's own retry icon.
+        static func tryTitleAgain(_ title: String) -> String { "Try \(title) again" }
+        /// Announced after a section's action finishes.
+        /// Announced when a run ends, from that run's results.
+        static func runAnnouncement(added: Int, failed: Int) -> String {
+            if failed == 0 { return "Added." }
+            if added == 0 { return "Couldn't send these yet." }
+            return "Added \(added). \(failed) couldn't be sent yet."
+        }
+        static let failedHint = "Sending didn't finish. Try again."
+
         static func queueFailed(_ detail: String) -> String { "Couldn't queue a change to sync: \(detail)" }
         static func libraryUnreadable(_ detail: String) -> String { "Couldn't read your library to sync: \(detail)" }
         static func applyRemoteFailed(_ detail: String) -> String { "Couldn't apply a change from another device: \(detail)" }
@@ -379,7 +527,7 @@ enum Copy {
         static let signedOutTitle = "Your plays live on your Mac"
         static let signedOutBody = "Locally counts the songs you play in Spotify on your Mac. Sign in on both to see them here."
         static let signedOutAction = "Sign in"
-        static let noPlays = "Plays show up here once Locally on your Mac has counted some. Turn on play counting in its Settings."
+        static let noPlays = "Plays show up here once Locally on your Mac has counted some. They count while your Mac is on, or all the time with Count plays when this Mac is off in its Settings."
         static let failed = "Couldn't load your plays. Pull down to try again."
         static let busy = "Couldn't load your plays just now. Try again in a few minutes."
 
@@ -536,4 +684,9 @@ enum Copy {
             return shortDay(day, today: today)
         }
     }
+}
+
+private extension String {
+    /// "Appears on 3 tracks" as "appears on 3 tracks".
+    var lowercasedFirst: String { prefix(1).lowercased() + dropFirst() }
 }

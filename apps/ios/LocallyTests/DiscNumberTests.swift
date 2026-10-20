@@ -696,4 +696,193 @@ struct DiscAlbumBuilderTests {
         #expect(calls.map(\.tags.trackNumber) == [1, 2, 3])
         #expect(calls.map(\.tags.totalDiscs) == [1, 1, 1])
     }
+
+    // MARK: Start and join a disc (#222), the same cases as discs.test.ts
+
+    @Test func startingADiscSplitsANoDiscAlbumAtRow3() {
+        #expect(DiscNumbering.startDisc(at: 3, in: [Int?](repeating: nil, count: 6)) == [1, 1, 1, 2, 2, 2])
+    }
+
+    @Test func startingADiscAgainLaterAddsAThirdAndShiftsLaterDiscsUp() {
+        let once = DiscNumbering.startDisc(at: 2, in: [Int?](repeating: nil, count: 6))
+        #expect(DiscNumbering.startDisc(at: 4, in: once) == [1, 1, 2, 2, 3, 3])
+        #expect(DiscNumbering.startDisc(at: 2, in: [1, 1, 1, 1, 2, 2]) == [1, 1, 2, 2, 3, 3])
+    }
+
+    @Test func joiningBackToOneDiscClearsEveryDiscNumber() {
+        let split = DiscNumbering.startDisc(at: 2, in: [Int?](repeating: nil, count: 4))
+        #expect(DiscNumbering.joinPreviousDisc(at: 2, in: split) == [nil, nil, nil, nil])
+    }
+
+    @Test func joiningInTheMiddleOfThreeDiscsMergesIntoThePreviousOne() {
+        #expect(DiscNumbering.joinPreviousDisc(at: 2, in: [1, 1, 2, 2, 3, 3]) == [1, 1, 1, 1, 2, 2])
+        #expect(DiscNumbering.joinPreviousDisc(at: 4, in: [1, 1, 2, 2, 3, 3]) == [1, 1, 2, 2, 2, 2])
+        #expect(DiscNumbering.joinPreviousDisc(at: 2, in: [2, 2, 3, 3]) == [2, 2, 2, 2])
+    }
+
+    @Test func rowZeroHasNoDiscActions() {
+        #expect(DiscNumbering.actions(for: [nil, nil, nil], at: 0).isEmpty)
+        #expect(DiscNumbering.actions(for: [1, 1, 2], at: 0).isEmpty)
+    }
+
+    @Test func theFirstRowOfDiscTwoOffersOnlyJoinAndOtherRowsOfferStart() {
+        #expect(DiscNumbering.actions(for: [1, 1, 2, 2], at: 2) == DiscNumbering.Actions(start: nil, join: 1))
+        #expect(DiscNumbering.actions(for: [1, 1, 2, 2], at: 1) == DiscNumbering.Actions(start: 2, join: nil))
+        #expect(DiscNumbering.actions(for: [1, 1, 2, 2], at: 3) == DiscNumbering.Actions(start: 3, join: nil))
+        #expect(DiscNumbering.actions(for: [nil, nil, nil], at: 2) == DiscNumbering.Actions(start: 2, join: nil))
+        #expect(DiscNumbering.actions(for: [1, 2, 3], at: 2) == DiscNumbering.Actions(start: nil, join: 2))
+    }
+
+    @Test func anActionThatCannotApplyLeavesTheDiscsAlone() {
+        let discs: [Int?] = [1, 1, 2, 2]
+        #expect(DiscNumbering.startDisc(at: 0, in: discs) == discs)
+        #expect(DiscNumbering.startDisc(at: 2, in: discs) == discs)
+        #expect(DiscNumbering.startDisc(at: 9, in: discs) == discs)
+        #expect(DiscNumbering.joinPreviousDisc(at: 1, in: discs) == discs)
+        #expect(DiscNumbering.joinPreviousDisc(at: 0, in: discs) == discs)
+    }
+
+    @Test func theAlbumBuilderStartsAndJoinsDiscsAndTheHeadingsFollow() {
+        let model = makeModel(importer: FakeFileImporter())
+        model.rows = rows([nil, nil, nil, nil])
+        model.startDisc(at: 2)
+        #expect(model.rows.map(\.discNumber) == [1, 1, 2, 2])
+        #expect(model.discHeadings == [1, nil, 2, nil])
+        model.joinPreviousDisc(at: 2)
+        #expect(model.rows.map(\.discNumber) == [nil, nil, nil, nil])
+        #expect(model.discHeadings == [nil, nil, nil, nil])
+    }
+
+    // MARK: Discs stop at 99 (#222), the same cases as discs.test.ts
+
+    @Test func discsStopAtNinetyNine() {
+        #expect(DiscNumbering.actions(for: [99, 99], at: 1).isEmpty)
+        #expect(DiscNumbering.startDisc(at: 1, in: [99, 99]) == [99, 99])
+
+        let once = DiscNumbering.startDisc(at: 1, in: [98, 98, 98])
+        #expect(once == [98, 99, 99])
+        #expect(DiscNumbering.actions(for: once, at: 2).isEmpty)
+        #expect(DiscNumbering.startDisc(at: 2, in: once) == [98, 99, 99])
+        #expect(DiscNumbering.actions(for: once, at: 1) == DiscNumbering.Actions(start: nil, join: 98))
+    }
+
+    // MARK: The review sheet shows disc changes (#222)
+
+    private func detailModel(discs: [Int?], tagWriter: FakeTagWriter = FakeTagWriter(), library: InMemoryLibraryStore = InMemoryLibraryStore()) -> ReleaseDetailViewModel {
+        let release = Release(
+            kind: .album,
+            title: "T",
+            artist: "A",
+            folderPath: "/tmp/spotify",
+            tracks: discs.enumerated().map { index, disc in
+                Track(title: "T\(index + 1)", trackNumber: index + 1, discNumber: disc, filePath: "/tmp/spotify/\(index).mp3", originalName: "\(index).mp3")
+            }
+        )
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let coordinator = ReleaseCoordinator(
+            importer: FakeFileImporter(),
+            transcoder: FakeTranscoder(),
+            m4aTagWriter: tagWriter,
+            id3TagWriter: tagWriter,
+            folder: FakeSpotifyFolder(directory: dir),
+            library: library,
+            coverStore: FakeCoverStore(),
+            durationReader: FakeDurationReader()
+        )
+        return ReleaseDetailViewModel(release: release, coordinator: coordinator, coverStore: FakeCoverStore())
+    }
+
+    @Test func theDiscLayoutIsWordedForNoneOneAndSeveralRanges() {
+        let none = detailModel(discs: [nil, nil, nil, nil, nil, nil, nil, nil, nil])
+        none.beginEditing()
+        none.startDisc(at: 3)
+        #expect(none.changes == [.discs(old: "No discs", new: "Disc 1 from track 1, disc 2 from track 4")])
+        none.startDisc(at: 8)
+        #expect(none.changes == [.discs(old: "No discs", new: "Disc 1 from track 1, disc 2 from track 4, disc 3 from track 9")])
+
+        let one = detailModel(discs: [2, 2, 2])
+        one.beginEditing()
+        one.startDisc(at: 1)
+        #expect(one.changes == [.discs(old: "All tracks on disc 2", new: "Disc 2 from track 1, disc 3 from track 2")])
+    }
+
+    @Test func splittingThenJoiningImportedDiscOneShowsAllTracksOnDiscOneBecomingNoDiscs() {
+        let model = detailModel(discs: [1, 1, 1])
+        model.beginEditing()
+        #expect(model.changes.isEmpty)
+
+        model.startDisc(at: 1)
+        model.joinPreviousDisc(at: 1)
+        #expect(model.trackRows.map(\.discNumber) == [nil, nil, nil])
+        #expect(model.canSave)
+        #expect(model.changes == [.discs(old: "All tracks on disc 1", new: "No discs")])
+    }
+
+    @Test func joiningDiscsTwoAndThreeShowsTheTwoRangesBecomingAllTracksOnDiscTwo() {
+        let model = detailModel(discs: [2, 2, 3, 3])
+        model.beginEditing()
+        model.joinPreviousDisc(at: 2)
+        #expect(model.trackRows.map(\.discNumber) == [2, 2, 2, 2])
+        #expect(model.changes == [.discs(old: "Disc 2 from track 1, disc 3 from track 3", new: "All tracks on disc 2")])
+    }
+
+    @Test func aDiscOnlyEditShowsADiscChangeOnTheReviewSheet() {
+        let model = detailModel(discs: [nil, nil, nil, nil, nil])
+        model.beginEditing()
+        #expect(model.changes.isEmpty)
+
+        model.startDisc(at: 3)
+        #expect(model.hasChanges)
+        #expect(model.changes == [.discs(old: "No discs", new: "Disc 1 from track 1, disc 2 from track 4")])
+
+        model.joinPreviousDisc(at: 3)
+        #expect(!model.hasChanges)
+        #expect(model.changes.isEmpty)
+
+        let two = detailModel(discs: [1, 1, 2, 2])
+        two.beginEditing()
+        two.joinPreviousDisc(at: 2)
+        #expect(two.changes == [.discs(old: "Disc 1 from track 1, disc 2 from track 3", new: "No discs")])
+    }
+
+    // MARK: A join clears the stored discs and the tags (#222)
+
+    @Test func joiningBackToOneDiscSavesNoDiscsAndWholeReleaseTrackNumbers() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let tagWriter = FakeTagWriter()
+        let library = InMemoryLibraryStore()
+        let coverStore = FakeCoverStore()
+        let coordinator = ReleaseCoordinator(
+            importer: FakeFileImporter(),
+            transcoder: FakeTranscoder(),
+            m4aTagWriter: tagWriter,
+            id3TagWriter: tagWriter,
+            folder: FakeSpotifyFolder(directory: dir),
+            library: library,
+            coverStore: coverStore,
+            durationReader: FakeDurationReader()
+        )
+        let files = try ["a.mp3", "b.mp3", "c.mp3", "d.mp3"].map(makeAudioFile(named:))
+        let album = AlbumDraft(
+            title: "Double",
+            artist: "Band",
+            tracks: [1, 1, 2, 2].enumerated().map { TrackDraft(title: "T\($0.offset + 1)", discNumber: $0.element) }
+        )
+        let release = try await coordinator.importAlbum(files: files, album: album, cover: nil)
+        let model = ReleaseDetailViewModel(release: release, coordinator: coordinator, coverStore: coverStore)
+
+        model.beginEditing()
+        model.joinPreviousDisc(at: 2)
+        #expect(model.canSave)
+        let before = tagWriter.calls.count
+        await model.save()
+
+        let stored = try #require(library.all().first)
+        #expect(stored.tracks.map(\.discNumber) == [nil, nil, nil, nil])
+        let calls = tagWriter.calls.suffix(from: before)
+        #expect(calls.map(\.tags.trackNumber) == [1, 2, 3, 4])
+        #expect(calls.map(\.tags.totalTracks) == [4, 4, 4, 4])
+        #expect(calls.map(\.tags.discNumber) == [nil, nil, nil, nil])
+        #expect(calls.map(\.tags.totalDiscs) == [nil, nil, nil, nil])
+    }
 }

@@ -22,6 +22,19 @@ interface Previous {
   playing: boolean;
 }
 
+/** A remembered session only applies to a continuation seen within this long after it ended. */
+export const CONTINUATION_WINDOW_MS = 10 * 60 * 1000;
+const MAX_REMEMBERED = 8;
+
+/** A session that ended, so a continuation of the same play isn't counted again (#228). */
+interface LastSession {
+  id: string;
+  positionSec: number;
+  at: number;
+  listenedSec: number;
+  counted: boolean;
+}
+
 /**
  * Pure state machine that decides when a Spotify local-file play counts. No I/O, no timers:
  * the caller feeds it samples and gets back the id when a play counts (once per session).
@@ -31,6 +44,8 @@ export class PlayCounter {
   private listenedSec = 0;
   private counted = false;
   private prev: Previous | null = null;
+  /** Recent ended sessions by track id, oldest first (Map keeps insertion order). */
+  private readonly memory = new Map<string, LastSession>();
 
   /** Feed one sample. Returns the Spotify id when this sample makes a play count, else null. */
   push(sample: PlaySample): string | null {
@@ -40,12 +55,26 @@ export class PlayCounter {
       return null;
     }
 
-    const wentBack = this.prev !== null && sample.positionSec < this.prev.positionSec - BACKWARD_SEEK_SEC;
+    const wentBack = this.prev !== null && id === this.sessionId && sample.positionSec < this.prev.positionSec - BACKWARD_SEEK_SEC;
     if (id !== this.sessionId || wentBack) {
+      this.remember();
       this.sessionId = id;
       this.listenedSec = 0;
       this.counted = false;
       this.prev = null;
+      // The same track resuming where the last session left off (the source switched, or Spotify
+      // quit and came back) is the same play, not a new one. A replay from the start is not.
+      const last = this.memory.get(id);
+      if (last && sample.at - last.at > CONTINUATION_WINDOW_MS) this.memory.delete(id);
+      else if (
+        !wentBack &&
+        last &&
+        sample.positionSec >= last.positionSec - BACKWARD_SEEK_SEC &&
+        sample.positionSec <= last.positionSec + (sample.at - last.at) / 1000 + SEEK_SLACK_SEC
+      ) {
+        this.listenedSec = last.listenedSec;
+        this.counted = last.counted;
+      }
     }
 
     const playing = sample.state === "playing";
@@ -66,7 +95,25 @@ export class PlayCounter {
     return null;
   }
 
+  /** Keep the session that is ending under its id, dropping expired entries and the oldest beyond 8. */
+  private remember(): void {
+    if (this.sessionId && this.prev) {
+      const at = this.prev.at;
+      for (const [key, entry] of this.memory) if (at - entry.at > CONTINUATION_WINDOW_MS) this.memory.delete(key);
+      this.memory.delete(this.sessionId);
+      this.memory.set(this.sessionId, {
+        id: this.sessionId,
+        positionSec: this.prev.positionSec,
+        at,
+        listenedSec: this.listenedSec,
+        counted: this.counted,
+      });
+      while (this.memory.size > MAX_REMEMBERED) this.memory.delete(this.memory.keys().next().value as string);
+    }
+  }
+
   private reset(): void {
+    this.remember();
     this.sessionId = null;
     this.listenedSec = 0;
     this.counted = false;

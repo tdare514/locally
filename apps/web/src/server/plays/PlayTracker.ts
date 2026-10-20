@@ -6,10 +6,13 @@ import type { PlayCountStore } from "./PlayCountStore";
 import { PlayCounter } from "./PlayCounter";
 import { localDay } from "./playDays";
 import type { SpotifyNowPlaying } from "./SpotifyNowPlaying";
+import type { CloudPlays } from "../spotify/CloudPlays";
 
 export const DEFAULT_POLL_INTERVAL_MS = 5000;
 /** Poll interval while the last poll found Spotify closed, so an idle app rarely spawns osascript (#162). */
 export const IDLE_POLL_INTERVAL_MS = 30_000;
+/** Once nothing has played this long, poll at the idle interval until something plays again (#228). */
+export const IDLE_AFTER_NOT_PLAYING_MS = 120_000;
 
 /**
  * Polls Spotify while the user has opted in, feeds samples to {@link PlayCounter} and
@@ -24,6 +27,10 @@ export class PlayTracker {
   private lastStatus: Exclude<PlaysStatus, "off"> = "on";
   private warnedAmbiguous = new Set<string>();
   private loggedFailure = false;
+  /** When the run of non-playing samples (paused, stopped, closed, failed) began; null while playing. */
+  private notPlayingSince: number | null = null;
+  /** True while the sync service counts plays online and this Mac stays out of it (#307). */
+  private standDown = false;
 
   constructor(
     private readonly nowPlaying: SpotifyNowPlaying,
@@ -35,6 +42,8 @@ export class PlayTracker {
     private readonly idleIntervalMs: number = IDLE_POLL_INTERVAL_MS,
     /** IANA zone the day bucket is taken in; the system zone when omitted (#200). */
     private readonly timeZone?: string,
+    /** Online counting (#307): while it is active this tracker reads and counts nothing. */
+    private readonly online?: Pick<CloudPlays, "active" | "refreshIfStale">,
   ) {}
 
   setEnabled(enabled: boolean): void {
@@ -42,6 +51,7 @@ export class PlayTracker {
     this.enabled = enabled;
     if (enabled) {
       this.lastStatus = "on";
+      this.notPlayingSince = null;
       void this.run();
     } else {
       this.clearTimer();
@@ -50,6 +60,11 @@ export class PlayTracker {
 
   status(): PlaysStatus {
     return this.enabled ? this.lastStatus : "off";
+  }
+
+  /** True while online counting covers this account, so nothing is polled or counted here. */
+  standingDown(): boolean {
+    return this.enabled && this.standDown;
   }
 
   stop(): void {
@@ -62,7 +77,11 @@ export class PlayTracker {
     await this.poll();
     if (!this.enabled) return;
     this.clearTimer();
-    const delay = this.lastStatus === "spotify-not-running" ? this.idleIntervalMs : this.intervalMs;
+    const idle =
+      this.standDown ||
+      this.lastStatus === "spotify-not-running" ||
+      (this.notPlayingSince !== null && this.now() - this.notPlayingSince >= IDLE_AFTER_NOT_PLAYING_MS);
+    const delay = idle ? this.idleIntervalMs : this.intervalMs;
     this.timer = setTimeout(() => void this.run(), delay);
     this.timer.unref?.();
   }
@@ -72,9 +91,35 @@ export class PlayTracker {
     if (!this.enabled || this.polling) return;
     this.polling = true;
     try {
+      if (this.online) {
+        // Reads the link at most every 5 minutes; a change is picked up on the next poll after that.
+        await this.online.refreshIfStale().catch(() => undefined);
+        if (!this.enabled) return;
+        this.standDown = this.online.active();
+        if (this.standDown) {
+          // End the counter's session so resuming re-anchors instead of crediting the gap.
+          this.lastStatus = "on";
+          this.counter.push({ at: this.now(), running: false, state: "stopped", id: null, positionSec: 0, durationMs: 0 });
+          return;
+        }
+      }
       const result = await this.nowPlaying.read();
       if (!this.enabled) return;
       const at = this.now();
+      if ("hold" in result) {
+        // The account is down and this Mac isn't playing a local file. End the counter's session into
+        // its bounded continuation memory, so recovery re-anchors instead of crediting a jump or
+        // keeping a stale "counted". A long outage still drifts to the idle interval.
+        this.notPlayingSince ??= at;
+        this.lastStatus = "on";
+        this.counter.push({ at, running: false, state: "stopped", id: null, positionSec: 0, durationMs: 0 });
+        return;
+      }
+      if ("error" in result || !result.running || result.state !== "playing") {
+        this.notPlayingSince ??= at;
+      } else {
+        this.notPlayingSince = null;
+      }
       if ("error" in result) {
         this.counter.push({ at, running: false, state: "stopped", id: null, positionSec: 0, durationMs: 0 });
         if (result.error === "permission-denied") {

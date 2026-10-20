@@ -16,6 +16,10 @@ import { VercelBlobFileStore } from "./files/VercelBlobFileStore";
 import { ReleaseFilesService } from "./files/ReleaseFilesService";
 import type { RateLimiter } from "./ratelimit/RateLimiter";
 import { DbRateLimiter } from "./ratelimit/DbRateLimiter";
+import { TokenCipher } from "./crypto/TokenCipher";
+import { SpotifyLinkService } from "./spotify/SpotifyLinkService";
+import { SpotifyPlayerClient } from "./spotify/SpotifyPlayerClient";
+import { SpotifySampler } from "./spotify/SpotifySampler";
 
 export interface Services {
   db: Db;
@@ -28,6 +32,12 @@ export interface Services {
   quota: QuotaService;
   files: ReleaseFilesService;
   cleanup: CleanupService;
+  /** Null unless `SPOTIFY_CLIENT_ID` is set (#305); the Spotify routes answer 404 then. */
+  spotify: SpotifyLinkService | null;
+  /** Null unless `SPOTIFY_CLIENT_ID` is set (#306); `POST /v1/internal/spotify-sample` answers 404 then. */
+  sampler: SpotifySampler | null;
+  /** The bearer secret for the sampler route; set whenever `sampler` is. */
+  samplerSecret: string | undefined;
   cronSecret: string | undefined;
   storageAlertBytes: number;
   allowedOrigins: string[];
@@ -46,6 +56,8 @@ export interface Services {
     resyncRequestByUser: RateLimiter;
     /** `GET /v1/plays/summary`, keyed by user id. */
     playsSummary: RateLimiter;
+    /** `POST /v1/spotify/link`, keyed by user id (#305). */
+    spotifyLink: RateLimiter;
   };
 }
 
@@ -65,6 +77,7 @@ async function buildServices(): Promise<Services> {
       : new LocalFileStore(path.join(process.cwd(), "data", "files"), env.publicBaseUrl, env.tokenPepper);
 
   const quota = new QuotaService(db);
+  const cipher = env.spotify ? new TokenCipher(env.spotify.tokenKey) : null;
 
   return {
     db,
@@ -77,6 +90,12 @@ async function buildServices(): Promise<Services> {
     quota,
     files: new ReleaseFilesService(db, fileStore, quota),
     cleanup: new CleanupService(db, fileStore),
+    spotify:
+      env.spotify && cipher
+        ? new SpotifyLinkService(db, cipher, { clientId: env.spotify.clientId, redirectUri: env.spotify.redirectUri })
+        : null,
+    sampler: env.spotify && cipher ? new SpotifySampler(db, new SpotifyPlayerClient(db, cipher, env.spotify.clientId)) : null,
+    samplerSecret: env.spotify?.samplerSecret,
     cronSecret: env.cronSecret,
     storageAlertBytes: env.storageAlertBytes,
     allowedOrigins: env.allowedOrigins,
@@ -94,8 +113,10 @@ async function buildServices(): Promise<Services> {
       missingFilesByUser: new DbRateLimiter(db, 24, 60 * 60 * 1000, "files-missing:user"),
       resyncRequestByDevice: new DbRateLimiter(db, 6, 60 * 60 * 1000, "resync-request:device"),
       resyncRequestByUser: new DbRateLimiter(db, 24, 60 * 60 * 1000, "resync-request:user"),
-      // 60 plays-summary reads per user, per hour.
-      playsSummary: new DbRateLimiter(db, 60, 60 * 60 * 1000, "plays-summary:user"),
+      // 600 plays-summary reads per user, per hour (#267), shared by the Mac (200) and the iPhone (200).
+      playsSummary: new DbRateLimiter(db, 600, 60 * 60 * 1000, "plays-summary:user"),
+      // 10 link starts per user, per hour (#305).
+      spotifyLink: new DbRateLimiter(db, 10, 60 * 60 * 1000, "spotify-link:user"),
     },
   };
 }

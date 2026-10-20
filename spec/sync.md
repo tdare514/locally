@@ -35,7 +35,12 @@ Identical to the shared metadata model plus sync fields. `tracks[].file` names t
 object; the name never changes after upload (Spotify playlists depend on file names on both
 devices, and both apps re-tag in place). `tracks[].file` and `cover` end in one of `mp3`,
 `m4a`, `jpg`, `jpeg`, `png` (case-insensitive: the name's last `.`-suffix, compared in lower
-case). The API refuses any other name with a 400. Both clients skip such a record when it arrives
+case). A file name (`tracks[].file`, `cover`) is a plain child name of at most 255 UTF-8 bytes (the
+filesystem limit, counted in bytes, not characters). The list and the limit are in
+`spec/sync-file-names.json`, and each app's tests assert its own constants equal it. The API
+refuses any other name with a 400, except that a name over 255 bytes already stored on that release
+is accepted again on a re-push of it (records saved before the byte limit, #87); a new over-long name
+is refused. Both clients skip such a record when it arrives
 in a `GET /v1/releases` page (the rest of the page is still applied and the cursor advances past
 it), and never use any file name in it; a structurally broken record, such as one missing a field,
 still fails the whole page.
@@ -78,6 +83,28 @@ file key; `discNumber` only changes the tags a receiver writes (`spec/metadata.m
 the key, and a client that does not know it strips it when it re-pushes a record; that is accepted because
 only the owner's own devices sync and they update together.
 
+A `tracks[]` entry may carry `localId` (#303): the `spotify:local:` id the Mac stored when it adopted the file,
+a string that starts with `spotify:local:` and is at most 1,000 characters (anything else is a 400). The key is
+omitted when there is none, never written as null, and only the Mac sends it, for adopted tracks. The sync
+service matches a Spotify local-file play to the track by this id, part by part (NFC artist, album and title,
+seconds within 2). **Clients MUST carry it through unchanged** when they re-push a record: the iPhone in #308
+and the Mac in #307. Until they do, a client that drops it makes the server fall back to matching on the
+release title, artist and track title and duration, so an edited title or a "feat." credit can miss. Older
+servers strip the key (zod's default), and older clients ignore it.
+
+A record may carry `source`: `"adopted"` for a release the Mac adopted in place from the owner's own
+audio files (`docs/plans/245-adopt-local-files.md`, decision 6), or absent for Locally's own releases. The
+key is omitted when absent, never written as null. An adopted release syncs details only: `tracks[].file`
+is the file's own name and `bytes` its size, no upload rows are made for tracks, and only the cover is
+uploaded. The API accepts only `"adopted"` for `source` and answers any other value with a 400 (the same
+closed list as `origin` and `platform` today); the value is stored and returned exactly. Effect on
+clients: older clients ignore the key (and, as with `discNumber`, drop it if they re-push a record; accepted,
+because only the owner's own devices sync and they update together). The Mac handles it in #248 and the
+iPhone in #250. A client that reads a `source` it doesn't recognise should treat the record as an ordinary
+one and must not fail a pull page. The API rules: `GET /v1/files/missing` checks only the cover of an
+adopted record, never its tracks; `POST /v1/releases/:id/files` for an adopted release accepts only the
+record's cover name, and a track name (or any other name) is a 400.
+
 `coverHash` is the lowercase hex sha256 of the cover's bytes, or `null` when the release has no
 cover. It is the only change signal for the cover, since `cover.<ext>` keeps its name when the
 image is replaced: a receiver downloads and re-embeds the cover only when the remote `coverHash`
@@ -108,14 +135,14 @@ sync at runtime.
 | Method and path | Body / query | Returns |
 | --- | --- | --- |
 | POST `/v1/auth/code` | `{ email }` | `{ ok: true }`; sends a six-digit code, valid 10 minutes, 5 tries |
-| POST `/v1/auth/verify` | `{ email, code, deviceName, platform: "mac" \| "ios" }` | `{ token, user: { id, email }, device: { id, name } }`; a new device, except that a Mac (`platform: "mac"`) whose account has a revoked (signed-out) Mac of the same `deviceName` gets that device's id back: the row is un-revoked and the new token replaces the old one, which stops working, so a Mac that signs out and back in keeps one device and its play counts are not summed twice (#175). With several such rows the most recently seen is taken; an active Mac of the same name and every iPhone are never reused, and another account's devices are never touched. A code works once, even for two simultaneous requests |
+| POST `/v1/auth/verify` | `{ email, code, deviceName, platform: "mac" \| "ios", installId? }` | `{ token, user: { id, email }, device: { id, name } }`; a new device, except that a Mac (`platform: "mac"`) whose account has a revoked (signed-out) Mac of the same `deviceName` gets that device's id back: the row is un-revoked and the new token replaces the old one, which stops working, so a Mac that signs out and back in keeps one device and its play counts are not summed twice (#175). With several such rows the most recently seen is taken; an active Mac of the same name and every iPhone are never reused, and another account's devices are never touched. A code works once, even for two simultaneous requests. `installId` is an optional UUID that names one Mac install (#210); a malformed one is a 400 and it is ignored unless `platform` is `mac`. A Mac that sends it is matched to a revoked Mac of the same account in this order: the same `installId`; otherwise one with no stored `installId` and the same `deviceName` (rows made before this field); otherwise a new device. A revoked Mac with a different stored `installId` is never reused by name, so two Macs that share a hostname keep separate devices. The revived row keeps or gains the `installId`, gets the new token, and an active device is never taken over. The ID is a hint inside one account: another account's `installId` never matches anything. Effect per client: the Mac sends it from this release on and keeps it across sign-out, sign-in and a change of sync host; the iPhone does not send it and is unchanged; older Mac builds send none and keep the same-name rule |
 | GET `/v1/me` | | `{ user, device, quota: { usedBytes, limitBytes }, devices: [...], devicesHasMore, resyncRequestedAt }`; `devices` holds at most the 50 most recently created devices (newest first); `devicesHasMore` is true when older ones were left out; `resyncRequestedAt` is the ISO time of the account's last `POST /v1/files/resync-request`, or `null` if it never made one |
 | DELETE `/v1/devices/:id` | | revokes that device's token |
 | DELETE `/v1/me` | `{ email }` (must match the account) | `{ ok: true }`; deletes the account, its devices, releases and files; blobs are removed by the cleanup cron within a day; every device token becomes invalid |
 | GET `/v1/releases?sinceVersion=N&limit=N` | `limit` (optional, integer, 1 to 200; above 200 clamps to 200, below 1 or non-integer is a 400 like a bad `sinceVersion`; default 200) | `{ releases: [record + version], nextVersion, hasMore }` (tombstones included). Releases come back in ascending `version` order, at most `limit` of them, and the page stops early once its serialized records reach 2 MiB; a page always holds at least one release when any exist (a single record is at most 1 MiB by the PUT body cap, so one always fits under Vercel's 4.5 MB response limit). `hasMore: true` means more releases exist above the last one returned, and `nextVersion` is then the `version` of the last release in this page; `hasMore: false` means the page reached the end, and `nextVersion` is the user's counter, exactly as today (it can be above the last row's version, because a rewritten release moves to a new version and its old number disappears). In both cases `nextVersion` is the value to send as `sinceVersion` next, and it never runs ahead of a release this response left out (the #28 invariant). |
 | PUT `/v1/releases/:id` | the record (at most 500 tracks) | `{ version }`; 409 if the stored `updatedAt` is newer; stored files the record no longer references are deleted |
 | DELETE `/v1/releases/:id` | | tombstone; `{ version }` |
-| POST `/v1/releases/:id/files` | `{ files: [{ name, bytes, contentType }] }` | `{ uploads: [{ name, url, method, headers }] }`; enforces quota, 200 MB per file, and that `contentType` matches the name's extension |
+| POST `/v1/releases/:id/files` | `{ files: [{ name, bytes, contentType }] }` | `{ uploads: [{ name, url, method, headers }] }`; enforces quota, 200 MB per file, and that `contentType` matches the name's extension; for an adopted release (`source: "adopted"`) only the record's cover name is accepted, any other name is a 400 |
 | GET `/v1/releases/:id/files/:name` | | `{ url, expiresAt }` download URL |
 | GET `/v1/files/missing` | | `{ releases: [{ id, missing: [names], recordUpdatedAt }], checkedAt, truncated? }`; the caller's live releases with files that are not stored; `truncated` is `true` only when a cap cut the check short; see "Missing files" |
 | POST `/v1/files/resync-request` | none | `{ resyncRequestedAt }` (ISO); records that this account asked its devices to re-send files; see "Missing files" |
@@ -128,6 +155,42 @@ tokens are stored hashed; auth endpoints are rate-limited per email and per IP; 
 device (6 an hour each) and per user (24 an hour each), 429 beyond; JSON request
 bodies are capped at 1 MiB (400 when exceeded). The daily cron (`GET /v1/internal/cleanup`) also
 drains `pending_deletes` (blobs of deleted accounts), oldest first.
+
+## Spotify link (#303)
+
+Behind `SPOTIFY_CLIENT_ID` (#305): when it is unset, all four routes answer 404. The server runs its own
+PKCE grant with scope `user-read-playback-state` only; its tokens never pass through a client. Nothing
+samples these links: see "Spotify sampler" below. No existing route or record changes, so
+`apps/web` and `apps/ios` are unaffected until they adopt these.
+
+| Method and path | Body / query | Returns |
+| --- | --- | --- |
+| POST `/v1/spotify/link` | `{ timeZone }` (IANA name; 400 if invalid) | `{ authorizeUrl }` for `accounts.spotify.com/authorize` (S256, single-use `state`, valid 10 minutes); 10 an hour per user, 429 beyond |
+| GET `/v1/spotify/callback` | Spotify's `code` or `error`, and `state`; no auth | A fixed HTML page, `no-store`, CSP `default-src 'none'`, `Referrer-Policy: no-referrer`; 200 "Spotify is linked to Locally. You can close this tab." or 400 "Spotify wasn't linked. Close this tab and try again from Locally." It echoes nothing from the request. A state works once |
+| GET `/v1/spotify/link` | | `{ linked: false }` or `{ linked: true, since, lastSampleAt, problem }` (`since` and `lastSampleAt` in epoch ms, `lastSampleAt` and `problem` may be `null`) |
+| DELETE `/v1/spotify/link` | | 204; deletes the stored tokens; idempotent |
+
+Account deletion removes the link, and the daily cleanup removes expired link requests.
+
+### Spotify sampler (#303, #306)
+
+| Method and path | Body / query | Returns |
+| --- | --- | --- |
+| POST `/v1/internal/spotify-sample` | none; `Authorization: Bearer <SAMPLER_SECRET>` (not a device token, not `CRON_SECRET`) | `{ sampled, counted, skipped }` (numbers and a boolean only; no names or ids). 401 for a missing or wrong bearer (compared in constant time); 404 when `SPOTIFY_CLIENT_ID` is unset. A run takes a 50 s lease; a second call inside it answers 200 `{ sampled: 0, counted: 0, skipped: true }` |
+
+An external scheduler calls it every minute (Hobby crons run once a day). A run reads `GET /v1/me/player` for
+each linked user with no `reconnect` or `notOnTesterList` problem and no back-off (at most 25 at once), resolves
+a playing `spotify:local:` uri to one of the user's live releases and counts it once per play, at 30 s or 90% of
+a short track, using Spotify's `progress_ms` because it sees one sample a minute. The link's `problem` is
+`reconnect` (the refresh token was refused), `notOnTesterList` (Spotify answered 403 "not registered") or
+`rateLimited` (429, with a back-off of at least 60 s, cleared by the next success).
+
+**`platform: "cloud"`.** Plays are stored under one `devices` row per user, named "Spotify (online)", created
+by the first count and reused after an unlink and re-link. Its token can never authenticate. The API never accepts
+`"cloud"` from a client (`origin` and `platform` in verify stay `mac` or `ios`); it appears only as `platform` in
+`GET /v1/releases/:id/plays` (and so in the Mac's and iPhone's per-device lists), and is hidden from
+`GET /v1/me`'s `devices` (and its `devicesHasMore`). Both clients already read `platform` as a plain string, so
+no client change is needed to show it; its plays are in `GET /v1/plays/summary` like any device's.
 
 ## Play counts
 
@@ -205,6 +268,8 @@ route. Plan: `docs/plans/119-missing-files.md`.
 - `GET /v1/files/missing` covers the caller's live releases only; tombstones are never read. For
   each it checks every `tracks[].file`, plus the record's `cover` name when the record has a
   `coverHash` (a `syncVersion` 1 record has none, so its cover is not checked).
+- An adopted record (`source: "adopted"`) is the exception: only its `cover` is checked (under the same
+  `coverHash` rule), never its tracks.
 - A name is stored only when a `files` row exists and the object is in storage. A row is written
   when an upload URL is issued, not when the upload finishes, so a row alone proves nothing. The
   server reads every live release with its file rows in one query, then pages once through the
@@ -245,6 +310,10 @@ Behind interfaces so local development needs no accounts:
 | Email | `Mailer` | prints the code to the API log | Resend through the Vercel Marketplace |
 
 One dialect (libSQL) everywhere keeps the schema and tests identical between laptop and cloud.
+
+- Unfinished uploads are dropped after a day and count against quota until then.
+- Objects with no record are removed.
+- Files you upload are kept while their release exists. An upload that never finished is cleared within two days. A deleted release's files are removed after 30 days. Deleting your account removes everything at once.
 
 ## What each client does
 

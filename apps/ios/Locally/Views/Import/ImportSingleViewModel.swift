@@ -16,7 +16,11 @@ final class ImportSingleViewModel {
     var pickedName: String?
     var title: String = ""
     var artist: String = ""
-    var album: String = ""
+    /// The featured artists (#287). `title` is the plain title; send joins the two into the
+    /// track's "Song (feat. B)" form.
+    var featuring: [String] = []
+    /// What is typed in the Featuring field and not yet added; send adds it.
+    var featuringDraft = ""
     var year: String = ""
     var genre: String = ""
     var coverData: Data?
@@ -55,13 +59,18 @@ final class ImportSingleViewModel {
             let staged = try await importer.stage([url])
             guard let file = staged.first else { return }
             if let tags = file.existingTags {
-                title = tags.title
-                artist = tags.artist
-                album = tags.album
+                // "Song (feat. B)" and "A feat. B" arrive as a plain title, artist and names.
+                let splitTitle = ArtistNames.splitFeaturing(tags.title)
+                let splitArtist = ArtistNames.splitArtistFeaturing(tags.artist)
+                title = splitTitle.title
+                artist = splitArtist.artist
+                featuring = FeaturingNames.merged(splitTitle.featuring, splitArtist.featuring)
                 year = tags.year ?? ""
                 genre = tags.genre ?? ""
             } else if title.isEmpty {
-                title = ((pickedName ?? "") as NSString).deletingPathExtension
+                let split = ArtistNames.splitFeaturing(((pickedName ?? "") as NSString).deletingPathExtension)
+                title = split.title
+                featuring = split.featuring
             }
             if let inboxFile {
                 // The inbox original is deleted below, so Send must read the
@@ -91,21 +100,30 @@ final class ImportSingleViewModel {
         isSending = true
         defer { isSending = false }
 
-        let tags = TagSet(
-            title: title,
-            artist: artist,
-            album: album.isEmpty ? title : album,
-            trackNumber: 1,
-            totalTracks: 1,
-            year: year.isEmpty ? nil : year,
-            genre: genre.isEmpty ? nil : genre
-        )
+        let tags = tagSet()
 
         do {
             completedRelease = try await coordinator.importSingle(file: pickedURL, tags: tags, cover: coverData)
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// The tags for the file: the track's title in the "Song (feat. B)" form, the artist plain,
+    /// and the album the plain title, which is what every later save writes too (#293). A name
+    /// typed in the Featuring field and not yet added is added first.
+    func tagSet() -> TagSet {
+        featuring = FeaturingNames.commit(featuringDraft, to: featuring)
+        featuringDraft = ""
+        return TagSet(
+            title: ArtistNames.joinFeaturing(title, featuring),
+            artist: artist,
+            album: title,
+            trackNumber: 1,
+            totalTracks: 1,
+            year: year.isEmpty ? nil : year,
+            genre: genre.isEmpty ? nil : genre
+        )
     }
 
     /// Empties the draft (file, fields, cover, messages) and leaves the share queue alone. Used by
@@ -115,7 +133,8 @@ final class ImportSingleViewModel {
         pickedName = nil
         title = ""
         artist = ""
-        album = ""
+        featuring = []
+        featuringDraft = ""
         year = ""
         genre = ""
         coverData = nil

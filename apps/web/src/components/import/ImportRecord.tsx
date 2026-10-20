@@ -1,10 +1,17 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useState } from "react";
 import type { ReleaseKind } from "../../shared/types";
 import CoverPicker from "../CoverPicker";
 import RecordSleeve from "../RecordSleeve";
 import TrackList, { type EditableTrack } from "../TrackList";
+import ArtistCombobox from "../ArtistCombobox";
+import ReleaseBar from "../ReleaseBar";
+import { libraryWidthClass } from "../../lib/library-view-prefs";
+import { useLibraryWidth } from "../../lib/use-library-width";
+import { BAR_MIN_HEIGHT, barPadding } from "../../lib/page-layout";
+import type { ArtistEntry } from "../../lib/artist-index";
+import FeaturingRow from "../FeaturingRow";
 
 /** What the page shows of the cover beat: nothing before a cover, "playing" while it runs,
  * "settled" once it has ended or been skipped. */
@@ -30,12 +37,14 @@ interface ImportRecordProps {
   beat: { stage: BeatStage; replay: boolean; discKey: string };
   /** The cover, printed on the disc's centre label. */
   labelUrl: string | null;
-  /** The cover's colour, for the glow of the dock's buttons. */
+  /** The cover's colour, for the glow of the release bar's main action. */
   tint: string | undefined;
   canSubmit: boolean;
   importing: boolean;
   onSubmit: () => void;
   onAddTrack: () => void;
+  /** Every artist in the library, for the Artist field's suggestions (#287). */
+  artistIndex: ArtistEntry[];
 }
 
 /* An empty field is a faint underline, so the page reads as a record waiting to be filled
@@ -74,7 +83,7 @@ function InlineField({
 }
 
 /** The release page (#112) with the record being made: the sleeve and disc, blank inline fields,
- * the tracks and the dock. A cover is the moment: it slides in, the light flashes, the disc tucks
+ * the tracks and the release bar (#294). A cover is the moment: it slides in, the light flashes, the disc tucks
  * away (the beat, driven by `beat` and globals.css `.imp-*`). */
 export default function ImportRecord({
   kind,
@@ -100,15 +109,24 @@ export default function ImportRecord({
   importing,
   onSubmit,
   onAddTrack,
+  artistIndex,
 }: ImportRecordProps) {
+  const [width] = useLibraryWidth();
+  const [barHeight, setBarHeight] = useState(BAR_MIN_HEIGHT);
   const trackCount = `${tracks.length} track${tracks.length === 1 ? "" : "s"}`;
   // The wrapper's class is how the beat reaches the disc inside RecordSleeve.
   const stateClass = beat.stage === "playing" ? "imp-beat" : beat.stage === "settled" ? "imp-rest" : "";
 
   return (
-    <div className="imp-page-in mx-auto flex w-full max-w-[920px] flex-col gap-12 pb-16">
-      <div className="flex flex-col gap-12 lg:grid lg:grid-cols-[minmax(0,1fr)_13rem] lg:items-start lg:gap-x-10">
-        <header className="flex flex-col gap-8 pt-2 lg:col-start-1 lg:row-start-1 lg:pt-4">
+    // The bottom margin cancels the pane's own bottom padding (AppShell's p-6 md:p-10 lg:p-16), so the
+    // bar's anchor sits at the pane's bottom edge. The bar is outside `imp-page-in`: it never fades in.
+    <div className={`flex flex-1 flex-col -mb-6 md:-mb-10 lg:-mb-16 ${libraryWidthClass(width)}`}>
+    <div
+      className="imp-page-in flex flex-1 flex-col gap-12"
+      style={{ paddingBottom: barPadding(barHeight) }}
+    >
+      <div className="flex flex-col gap-12">
+        <header className="flex flex-col gap-8 pt-2 lg:pt-4">
           <div className={stateClass} data-replay={beat.replay ? "true" : undefined}>
             <RecordSleeve labelUrl={labelUrl} spin={0} discKey={beat.discKey}>
               <CoverPicker
@@ -161,13 +179,24 @@ export default function ImportRecord({
               }}
               className={`field-sizing-content -mx-2 max-w-[min(100%,720px)] min-w-[12ch] resize-none self-start rounded-lg bg-transparent px-2 py-1 text-[30px] font-bold leading-[1.1] tracking-[-0.035em] text-text outline-none transition-colors placeholder:text-white/40 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent sm:text-[44px] ${UNDERLINE}`}
             />
-            <input
-              aria-label="Artist"
+            <ArtistCombobox
+              ariaLabel="Artist"
               value={artist}
               placeholder="Artist"
-              onChange={(e) => onArtistChange(e.target.value)}
-              className={`field-sizing-content -mx-2 -mt-1 min-w-[16ch] max-w-full self-start rounded-md bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent ${UNDERLINE}`}
+              onChange={onArtistChange}
+              index={artistIndex}
+              wrapperClassName="-mx-2 -mt-1 max-w-full self-start"
+              hintClassName="self-start"
+              inputClassName={`field-sizing-content min-w-[16ch] max-w-full rounded-md bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent ${UNDERLINE}`}
             />
+            {kind === "single" && tracks.length > 0 && (
+              <FeaturingRow
+                names={tracks[0].featuring ?? []}
+                onChange={(featuring) => onTracksChange(tracks.map((t, i) => (i === 0 ? { ...t, featuring } : t)))}
+                index={artistIndex}
+                inputExtraClassName={UNDERLINE}
+              />
+            )}
             <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-[15px]">
               <InlineField
                 label="Year"
@@ -188,29 +217,37 @@ export default function ImportRecord({
           </div>
         </header>
 
-        {/* The dock, as on the release page, with the import actions. Faked glass, not
-            backdrop-blur: the colour sky drifts behind it before there is a cover. The sticky
-            offset is the release page's (see ReleaseView). */}
-        <div
-          style={tint ? ({ "--btn-tint": tint } as CSSProperties) : undefined}
-          className="sticky top-4 z-10 -my-4 flex w-fit max-w-full flex-wrap items-center gap-2 self-start rounded-[26px] glass-fake glass-dock p-1.5 pr-3 sm:rounded-full lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:my-0 lg:w-auto lg:flex-col lg:items-stretch lg:gap-1 lg:rounded-[26px] lg:p-2"
-        >
-          <button type="button" onClick={onSubmit} disabled={!canSubmit} className="btn-save">
-            {importing ? "Adding…" : "Add to library"}
-          </button>
-          <button type="button" onClick={onAddTrack} disabled={importing} className="btn-ink">
-            <span className="btn-ink-label">Add a track</span>
-          </button>
-        </div>
-
-        <div className="flex flex-col gap-3 lg:col-start-1 lg:row-start-2">
+        <div className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between gap-4">
             <h2 className="text-lg font-bold tracking-[-0.03em] text-text">Tracks</h2>
             {inspecting && <p className="text-xs text-text-muted">Reading tags…</p>}
           </div>
-          <TrackList tracks={tracks} onChange={onTracksChange} onRemove={onRemoveTrack} />
+          <TrackList
+            tracks={tracks}
+            onChange={onTracksChange}
+            onRemove={onRemoveTrack}
+            releaseArtist={artist}
+            featuringIndex={kind === "album" ? artistIndex : undefined}
+          />
         </div>
       </div>
+    </div>
+
+    <ReleaseBar
+      label="Import actions"
+      tint={tint}
+      onHeight={setBarHeight}
+      left={
+        <button type="button" onClick={onAddTrack} disabled={importing} className="btn-ink">
+          <span className="btn-ink-label">Add a track</span>
+        </button>
+      }
+      main={
+        <button type="button" onClick={onSubmit} disabled={!canSubmit} className="btn-save btn-save-lit">
+          {importing ? "Adding…" : "Add to library"}
+        </button>
+      }
+    />
     </div>
   );
 }

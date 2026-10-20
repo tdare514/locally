@@ -68,6 +68,14 @@ describe("FileSyncStateStore", () => {
     await expect(store.get()).resolves.toEqual(emptySyncState());
   });
 
+  it("keeps the localId re-push markers and the back-fill flag (#307)", async () => {
+    const store = new FileSyncStateStore();
+    await store.set({ ...emptySyncState(), localIdQueuedAt: { "rel-1": "2026-10-19T12:00:00.000Z" }, localIdBackfilled: true });
+    const back = await store.get();
+    expect(back.localIdQueuedAt).toEqual({ "rel-1": "2026-10-19T12:00:00.000Z" });
+    expect(back.localIdBackfilled).toBe(true);
+  });
+
   it("round-trips set()/get() through the tmp-file-plus-rename write", async () => {
     const store = new FileSyncStateStore();
     const pending = samplePending();
@@ -79,6 +87,7 @@ describe("FileSyncStateStore", () => {
       },
       pendingFromPhone: { "rel-1": pending },
       missingFiles: { "rel-1": { firstSeenMissingAt: "2026-01-01T00:05:00.000Z", stillMissing: true } },
+      hiddenFromTray: {},
     };
 
     await store.set(state);
@@ -148,6 +157,7 @@ describe("FileSyncStateStore", () => {
       },
       pendingFromPhone: {},
       missingFiles: {},
+      hiddenFromTray: {},
     });
   });
 
@@ -212,6 +222,7 @@ describe("FileSyncStateStore", () => {
         }),
       },
       missingFiles: {},
+      hiddenFromTray: {},
     };
     await store.set(input);
     const loaded = await store.get();
@@ -270,5 +281,21 @@ describe("FileSyncStateStore", () => {
     expect((state.pendingFromPhone.withVersion as SyncRecord & { version?: number }).version).toBe(7);
     expect("version" in state.pendingFromPhone.oldFile).toBe(false);
     expect("version" in state.pendingFromPhone.oddVersion).toBe(false);
+  });
+
+  it("a reset through update() clears the Hide list, as sign-out does", async () => {
+    const store = new FileSyncStateStore();
+    await store.update((s) => ({ ...s, hiddenFromTray: { "rel-1": "v1" } }));
+    await store.update(() => emptySyncState());
+    expect((await store.get()).hiddenFromTray).toEqual({});
+  });
+
+  it("a stale set() after an Undo does not bring the hide back", async () => {
+    const store = new FileSyncStateStore();
+    await store.update((s) => ({ ...s, hiddenFromTray: { "rel-1": "v1" } }));
+    const stale = await store.get();
+    await store.update((s) => ({ ...s, hiddenFromTray: {} }));
+    await store.set(stale);
+    expect((await store.get()).hiddenFromTray).toEqual({});
   });
 });

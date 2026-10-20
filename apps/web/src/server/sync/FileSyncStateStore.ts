@@ -7,6 +7,11 @@ import { z } from "zod";
 const MissingMarkSchema = z.object({ firstSeenMissingAt: z.string(), stillMissing: z.boolean(), resentAt: z.string().optional() });
 
 const SyncStateFileSchema = z.object({
+  // Written by builds from #295 on; the owner's Hide choices, kept per release and server version.
+  hiddenFromTray: z.record(z.string(), z.string()).default({}),
+  // Written by builds from #307 on: when a re-push of an adopted release's localIds was last queued.
+  localIdQueuedAt: z.record(z.string(), z.string()).optional(),
+  localIdBackfilled: z.boolean().optional(),
   pushedUpdatedAt: z.record(z.string(), z.string()).default({}),
   uploadedFiles: z.record(z.string(), z.array(z.string())).default({}),
   coverHash: z.record(z.string(), z.string()).default({}),
@@ -40,6 +45,17 @@ const SyncStateFileSchema = z.object({
     ),
 });
 
+/**
+ * One writer at a time per process, shared by every store instance, so a Hide (#295) can't
+ * interleave with a sync pass's write.
+ */
+let writeChain: Promise<unknown> = Promise.resolve();
+function exclusive<T>(fn: () => Promise<T>): Promise<T> {
+  const run = writeChain.then(fn, fn);
+  writeChain = run.catch(() => undefined);
+  return run;
+}
+
 /** JSON-file backed {@link SyncStateStore}, next to `settings.json`. */
 export class FileSyncStateStore implements SyncStateStore {
   async get(): Promise<SyncState> {
@@ -63,7 +79,26 @@ export class FileSyncStateStore implements SyncStateStore {
     }
   }
 
-  async set(state: SyncState): Promise<SyncState> {
+  /**
+   * Writes everything but the Hide list: a sync pass reads the state, works for a while and writes
+   * it back, and must not undo a Hide made meanwhile. The Hide list changes only through `update`.
+   */
+  set(state: SyncState): Promise<SyncState> {
+    return exclusive(async () => {
+      const current = await this.get();
+      return this.write({ ...state, hiddenFromTray: current.hiddenFromTray });
+    });
+  }
+
+  update(mutator: (current: SyncState) => SyncState | null): Promise<SyncState> {
+    return exclusive(async () => {
+      const current = await this.get();
+      const next = mutator(current);
+      return next ? this.write(next) : current;
+    });
+  }
+
+  private async write(state: SyncState): Promise<SyncState> {
     await fs.mkdir(settingsDir(), { recursive: true });
     const file = syncStateFilePath();
     const tmp = `${file}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;

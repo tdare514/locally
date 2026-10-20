@@ -7,9 +7,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  if (isDemo()) return NextResponse.json({ status: "off" });
+  if (isDemo()) return NextResponse.json({ status: "off", source: "this-mac", fallingBack: false });
   try {
-    return NextResponse.json({ status: getServices().playTracker.status() });
+    const { playTracker, nowPlaying } = getServices();
+    const online = playTracker.standingDown();
+    return NextResponse.json({
+      status: playTracker.status(),
+      source: online ? "online" : nowPlaying.currentSource(),
+      fallingBack: online ? false : nowPlaying.fallingBack(),
+    });
   } catch (err) {
     return errorResponse(err);
   }

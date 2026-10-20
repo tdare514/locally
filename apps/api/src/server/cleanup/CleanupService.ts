@@ -1,15 +1,30 @@
-import { and, eq, inArray, lt, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lt, min, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { authCodes, files, pendingDeletes, playCounts, playDays, rateLimits, releases } from "../../db/schema";
+import { authCodes, files, pendingDeletes, playCounts, playDays, rateLimits, releases, spotifyLinkRequests } from "../../db/schema";
 import { PLAY_DAY_RETENTION_DAYS, utcDay } from "../../shared/days";
 import type { FileStore } from "../files/FileStore";
+import { listUserKeys, userStoragePrefix } from "../files/ReleaseFilesService";
 
 const TOMBSTONE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const RATE_LIMIT_RETENTION_MS = 24 * 60 * 60 * 1000;
 /** Rows per page for every cleanup pass, so no query binds an unbounded `IN (...)` list. */
 const CLEANUP_PAGE_SIZE = 200;
+/** An upload row this old with no object can't be mid-upload: upload URLs expire long before (#89). */
+const UNVERIFIED_GRACE_MS = 24 * 60 * 60 * 1000;
+/** Users whose uploads the verify and orphan passes list per run (one priced listing each). */
+const VERIFY_USERS_PER_RUN = 50;
+/** Keys read from one user's listing; a listing that hits it can't prove absence. */
+const VERIFY_MAX_LISTED_KEYS = 50_000;
+/** Orphan objects deleted per user per run. */
+const ORPHANS_PER_USER_PER_RUN = 1000;
 
 export interface CleanupResult {
+  /** Upload rows whose object was seen in storage and are now marked `verified_at` (#89). */
+  verifiedFiles: number;
+  /** Upload rows older than 24 hours with no object, deleted (this frees their quota). */
+  abandonedFiles: number;
+  /** Stored objects with no `files` row, deleted. */
+  orphanObjects: number;
   deletedFiles: number;
   /** `play_counts` rows of tombstoned releases past the same retention as their files. */
   deletedPlayCounts: number;
@@ -19,6 +34,8 @@ export interface CleanupResult {
   expiredPlayDays: number;
   deletedAuthCodes: number;
   deletedRateLimits: number;
+  /** `spotify_link_requests` rows past their 10-minute expiry. */
+  deletedSpotifyLinkRequests: number;
   /** Blobs of deleted accounts removed from `pending_deletes` this run (see `AccountService`). */
   drainedPendingDeletes: number;
   /** Total bytes across every remaining `files` row (a cost guardrail, not a deletion count). */
@@ -140,8 +157,149 @@ export class CleanupService {
     }
   }
 
+  /**
+   * Pass 1 and 2 (#89), for up to 50 users with unverified upload rows older than 24 hours
+   * (oldest first). One listing per user, capped at 50,000 keys:
+   * - rows whose key is listed get `verified_at`;
+   * - if the listing was complete, old unverified rows whose key is not listed are deleted;
+   * - if it was complete, listed keys with no row of this user (and not queued in
+   *   `pending_deletes`) are orphans and are deleted, at most 1,000 a run.
+   * A capped listing never deletes anything. Logs carry the user id and counts only.
+   */
+  private async verifyUploads(): Promise<{ verified: number; abandoned: number; orphans: number }> {
+    const total = { verified: 0, abandoned: 0, orphans: 0 };
+    const cutoff = this.now() - UNVERIFIED_GRACE_MS;
+    const oldUnverified = and(isNull(files.verifiedAt), lt(files.createdAt, cutoff));
+
+    const candidates = await this.db
+      .select({ userId: files.userId })
+      .from(files)
+      .where(oldUnverified)
+      .groupBy(files.userId)
+      .orderBy(asc(min(files.createdAt)), asc(files.userId))
+      .limit(VERIFY_USERS_PER_RUN);
+
+    for (const { userId } of candidates) {
+      try {
+        const counts = await this.verifyUser(userId, cutoff);
+        total.verified += counts.verified;
+        total.abandoned += counts.abandoned;
+        total.orphans += counts.orphans;
+      } catch (error) {
+        console.warn(
+          JSON.stringify({
+            level: "warn",
+            event: "verify_uploads_failed",
+            userId,
+            error: error instanceof Error ? error.name : "unknown",
+          })
+        );
+      }
+    }
+    return total;
+  }
+
+  private async verifyUser(userId: string, cutoff: number) {
+    const { keys: listed, truncated } = await listUserKeys(this.fileStore, userId, VERIFY_MAX_LISTED_KEYS);
+    const counts = { verified: 0, abandoned: 0, orphans: 0 };
+
+    // Page the user's old unverified rows by id, so a page that keeps rows (capped listing) still advances.
+    let lastId = "";
+    for (;;) {
+      const rows = await this.db
+        .select({ id: files.id, storageKey: files.storageKey })
+        .from(files)
+        .where(
+          and(eq(files.userId, userId), isNull(files.verifiedAt), lt(files.createdAt, cutoff), gt(files.id, lastId))
+        )
+        .orderBy(asc(files.id))
+        .limit(CLEANUP_PAGE_SIZE);
+      if (rows.length === 0) break;
+      lastId = rows[rows.length - 1]!.id;
+
+      // Preconditions repeat in each write: a row re-issued meanwhile (new created_at) is left alone.
+      const stillOld = and(eq(files.userId, userId), isNull(files.verifiedAt), lt(files.createdAt, cutoff));
+      const present = rows.filter((row) => listed.has(row.storageKey)).map((row) => row.id);
+      if (present.length > 0) {
+        const marked = await this.db
+          .update(files)
+          .set({ verifiedAt: this.now() })
+          .where(and(stillOld, inArray(files.id, present)))
+          .returning({ id: files.id });
+        counts.verified += marked.length;
+      }
+      if (!truncated) {
+        const absent = rows.filter((row) => !listed.has(row.storageKey)).map((row) => row.id);
+        if (absent.length > 0) {
+          const dropped = await this.db
+            .delete(files)
+            .where(and(stillOld, inArray(files.id, absent)))
+            .returning({ id: files.id });
+          counts.abandoned += dropped.length;
+        }
+      }
+      if (rows.length < CLEANUP_PAGE_SIZE) break;
+    }
+
+    if (truncated) {
+      console.warn(JSON.stringify({ level: "warn", event: "verify_uploads_truncated", userId, keysListed: listed.size }));
+    } else {
+      counts.orphans = await this.sweepOrphans(userId, listed);
+    }
+
+    if (counts.verified + counts.abandoned + counts.orphans > 0 || truncated) {
+      console.log(JSON.stringify({ level: "info", event: "verify_uploads", userId, ...counts, truncated }));
+    }
+    return counts;
+  }
+
+  /**
+   * Delete listed keys that no `files` row of this user holds (rows of tombstoned releases not yet
+   * pruned included: they are rows) and that are not queued in `pending_deletes`. The row keys are
+   * read AFTER the listing: a row is written before its upload URL exists, so any listed object
+   * has a row unless that row was removed, and a row added since the listing only protects more.
+   * Only call with a complete listing.
+   */
+  private async sweepOrphans(userId: string, listed: Set<string>): Promise<number> {
+    if (listed.size === 0) return 0;
+    const known = new Set<string>();
+    let lastId = "";
+    for (;;) {
+      const rows = await this.db
+        .select({ id: files.id, storageKey: files.storageKey })
+        .from(files)
+        .where(and(eq(files.userId, userId), gt(files.id, lastId)))
+        .orderBy(asc(files.id))
+        .limit(CLEANUP_PAGE_SIZE);
+      for (const row of rows) known.add(row.storageKey);
+      if (rows.length < CLEANUP_PAGE_SIZE) break;
+      lastId = rows[rows.length - 1]!.id;
+    }
+
+    const candidates = [...listed].filter((key) => key.startsWith(userStoragePrefix(userId)) && !known.has(key));
+    const orphans: string[] = [];
+    for (let i = 0; i < candidates.length && orphans.length < ORPHANS_PER_USER_PER_RUN; i += CLEANUP_PAGE_SIZE) {
+      const page = candidates.slice(i, i + CLEANUP_PAGE_SIZE);
+      const queued = await this.db
+        .select({ storageKey: pendingDeletes.storageKey })
+        .from(pendingDeletes)
+        .where(inArray(pendingDeletes.storageKey, page));
+      const queuedKeys = new Set(queued.map((row) => row.storageKey));
+      for (const key of page) {
+        if (!queuedKeys.has(key)) orphans.push(key);
+      }
+    }
+
+    const batch = orphans.slice(0, ORPHANS_PER_USER_PER_RUN);
+    for (let i = 0; i < batch.length; i += CLEANUP_PAGE_SIZE) {
+      await this.fileStore.deleteMany(batch.slice(i, i + CLEANUP_PAGE_SIZE));
+    }
+    return batch.length;
+  }
+
   async run(): Promise<CleanupResult> {
     const drainedPendingDeletes = await this.drainQueue();
+    const uploads = await this.verifyUploads();
 
     const cutoff = this.now() - TOMBSTONE_RETENTION_MS;
 
@@ -222,15 +380,24 @@ export class CleanupService {
       .where(lt(rateLimits.windowStart, rateLimitCutoff))
       .returning({ key: rateLimits.key });
 
+    const staleLinkRequests = await this.db
+      .delete(spotifyLinkRequests)
+      .where(lt(spotifyLinkRequests.expiresAt, this.now()))
+      .returning({ stateHash: spotifyLinkRequests.stateHash });
+
     const totalsRow = await this.db.select({ total: sql<number>`coalesce(sum(${files.bytes}), 0)` }).from(files);
 
     return {
+      verifiedFiles: uploads.verified,
+      abandonedFiles: uploads.abandoned,
+      orphanObjects: uploads.orphans,
       deletedFiles,
       deletedPlayCounts: stalePlayCounts.length,
       deletedPlayDays: staleTombstonePlayDays,
       expiredPlayDays,
       deletedAuthCodes,
       deletedRateLimits: staleRateLimits.length,
+      deletedSpotifyLinkRequests: staleLinkRequests.length,
       drainedPendingDeletes,
       totalStoredBytes: Number(totalsRow[0]?.total ?? 0),
     };

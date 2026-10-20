@@ -42,10 +42,41 @@ function norm(s: string): string {
   return s.normalize("NFC").trim();
 }
 
+function nfc(s: string): string {
+  return s.normalize("NFC");
+}
+
+/**
+ * An adopted track (#245) stores the `spotify:local:` id Spotify builds from its tags. Both ids are decoded
+ * and compared by their parts (artist, album, title, case-sensitive; seconds within the tolerance), not as raw
+ * strings, because Spotify's escaping of characters like `'()!` may differ from `encodeURIComponent`. An empty
+ * album segment matches too. When two adopted copies match, the first in library order wins, so a play
+ * counts once.
+ */
+function resolveAdopted(decoded: DecodedLocalId, releases: Release[]): ResolveResult | null {
+  const artist = nfc(decoded.artist);
+  const album = nfc(decoded.album);
+  const title = nfc(decoded.title);
+  for (const release of releases) {
+    if (!release.adopted) continue;
+    for (const track of release.tracks) {
+      if (!track.localId) continue;
+      const own = decodeLocalId(track.localId);
+      if (!own) continue;
+      if (nfc(own.artist) !== artist || nfc(own.album) !== album || nfc(own.title) !== title) continue;
+      if (Math.abs(own.seconds - decoded.seconds) > DURATION_TOLERANCE_SEC) continue;
+      return { kind: "match", releaseId: release.id, trackId: track.id };
+    }
+  }
+  return null;
+}
+
 /** Find the one Locally track whose tags match a Spotify local-file id. */
 export function resolveLocalTrack(id: string, releases: Release[]): ResolveResult {
   const decoded = decodeLocalId(id);
   if (!decoded) return { kind: "none" };
+  const adopted = resolveAdopted(decoded, releases);
+  if (adopted) return adopted;
   const artist = norm(decoded.artist);
   const album = norm(decoded.album);
   const title = norm(decoded.title);

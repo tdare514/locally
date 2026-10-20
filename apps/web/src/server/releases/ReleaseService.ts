@@ -13,6 +13,7 @@ import { sniffImageMime } from "../http/validation";
 import { deriveTagNumbers } from "../../shared/discs";
 import { NoopReleaseSyncHooks, type ReleaseSyncHooks } from "./ReleaseSyncHooks";
 import type { SyncRecord } from "../sync/SyncRecord";
+import { assertWritable, isAdoptedCoverPath } from "../adopt/guards";
 
 /**
  * Core release lifecycle: import, edit, re-cover, delete, and look up. All
@@ -188,6 +189,7 @@ export class ReleaseService {
     if (!existing) {
       throw new NotFoundError(`Release ${id} not found`);
     }
+    assertWritable(existing);
 
     const newArtist = patch.artist !== undefined ? patch.artist : existing.artist;
     const newTitle = patch.title !== undefined ? patch.title : existing.title;
@@ -198,12 +200,15 @@ export class ReleaseService {
     const updatedTracks: Track[] = existing.tracks.map((t) => {
       const p = patchTrackById.get(t.id);
       if (!p) return { ...t };
-      return {
+      const next: Track = {
         ...t,
         title: p.title !== undefined ? p.title : t.title,
         trackNumber: p.trackNumber !== undefined ? p.trackNumber : t.trackNumber,
-        ...(p.discNumber !== undefined ? { discNumber: p.discNumber } : {}),
       };
+      // A number sets the disc, null clears it (a join back to one disc), absent leaves it.
+      if (typeof p.discNumber === "number") next.discNumber = p.discNumber;
+      else if (p.discNumber === null) delete next.discNumber;
+      return next;
     });
     updatedTracks.sort((a, b) => a.trackNumber - b.trackNumber);
 
@@ -254,6 +259,7 @@ export class ReleaseService {
     if (!existing) {
       throw new NotFoundError(`Release ${id} not found`);
     }
+    assertWritable(existing);
 
     const name = this.layout.coverFileName((await sniffImageMime(file)) ?? file.type);
     const newCoverPath = path.join(existing.folderPath, name);
@@ -331,6 +337,11 @@ export class ReleaseService {
     if (!existing) {
       throw new NotFoundError(`Release ${id} not found`);
     }
+    // An adopted release is only forgotten: its files are not Locally's to delete (#245).
+    if (existing.adopted) {
+      await this.forgetRelease(libraryDir, existing);
+      return;
+    }
     // Never delete anything that is not a release folder inside the library. `folderFor`
     // always produces libraryDir/artist/album (2 segments), so anything shallower (an
     // artist folder) or deeper (something inside a release folder) is rejected too - an
@@ -341,9 +352,31 @@ export class ReleaseService {
     if (!this.fs.isInside(libraryDir, existing.folderPath) || rel === "" || depth !== 2) {
       throw new ValidationError("Refusing to delete a folder outside the library");
     }
+    assertWritable(existing);
     await this.repo.remove(libraryDir, id);
     await this.fs.removeRecursive(existing.folderPath);
     this.syncHooks.onDeleted(existing);
+  }
+
+  /**
+   * Remove an adopted release from Locally (#245): the record goes, its files are untouched. Refuses a
+   * release that was not adopted, so `?forget=1` can never be a way around the delete checks.
+   */
+  async forget(id: string): Promise<void> {
+    const settings = await this.settings.get();
+    const existing = await this.repo.find(settings.libraryDir, id);
+    if (!existing) throw new NotFoundError(`Release ${id} not found`);
+    if (!existing.adopted) throw new ValidationError("Only an adopted release can be forgotten; use delete");
+    await this.forgetRelease(settings.libraryDir, existing);
+  }
+
+  private async forgetRelease(libraryDir: string, release: Release): Promise<void> {
+    await this.repo.remove(libraryDir, release.id);
+    // Only Locally's own copy of the cover (app data) goes; nothing in an adopt root is touched.
+    if (release.coverPath && isAdoptedCoverPath(this.fs, release.coverPath)) {
+      await this.fs.removeRecursive(release.coverPath).catch(() => undefined);
+    }
+    this.syncHooks.onDeleted(release);
   }
 
   async get(id: string): Promise<Release | null> {
@@ -364,12 +397,12 @@ export class ReleaseService {
     if (!release) throw new NotFoundError(`Release ${id} not found`);
     if (!release.coverPath) return null;
     const coverPath = release.coverPath;
-    if (
-      !this.fs.isInside(settings.libraryDir, coverPath) ||
-      path.resolve(coverPath) === path.resolve(settings.libraryDir)
-    ) {
-      return null;
-    }
+    // An adopted release's cover is a copy in app data; every other cover sits in the library.
+    const allowed = release.adopted
+      ? isAdoptedCoverPath(this.fs, coverPath)
+      : this.fs.isInside(settings.libraryDir, coverPath) &&
+        path.resolve(coverPath) !== path.resolve(settings.libraryDir);
+    if (!allowed) return null;
     let bytes: Buffer;
     try {
       bytes = await this.fs.readFile(coverPath);
@@ -399,6 +432,8 @@ export class ReleaseService {
    * (`SyncEngine`) owns that bookkeeping.
    */
   async importSynced(record: SyncRecord, dir: string): Promise<Release> {
+    // A details-only record has no files to write; it is never sent to Spotify from here (#245).
+    assertWritable({ adopted: record.source === "adopted", title: record.title });
     const settings = await this.settings.get();
     const libraryDir = settings.libraryDir;
 
@@ -535,6 +570,7 @@ export class ReleaseService {
     if (!existing) {
       throw new NotFoundError(`Release ${record.id} not found`);
     }
+    assertWritable(existing);
 
     let coverPath = existing.coverPath;
     if (options.newCoverPath && record.cover) {

@@ -108,7 +108,11 @@ struct RecordSleeve: View {
                 // The card is the empty sleeve only. Under a cover it showed as a rim while a new
                 // cover scaled in from 0.96 (#158); with a cover, the wash shows at the edges instead.
                 if cover == nil {
-                    Theme.card.transition(.opacity)
+                    if showsAddCaption {
+                        Theme.card.transition(.opacity)
+                    } else {
+                        NoCoverArt().transition(.opacity)
+                    }
                 }
                 if let cover {
                     Image(uiImage: cover)
@@ -121,11 +125,7 @@ struct RecordSleeve: View {
                         .id(ObjectIdentifier(cover))
                         .transition(coverTransition)
                 } else if showsAddCaption {
-                    Text(Copy.Immersive.addCoverArt)
-                        .themeFont(.rowTitle)
-                        .foregroundStyle(Theme.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .padding(Theme.Immersive.sleeveCaptionPadding)
+                    addCoverCaption(size: size)
                         .transition(.opacity)
                 }
                 shape
@@ -137,6 +137,11 @@ struct RecordSleeve: View {
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ))
+                if cover == nil && showsAddCaption {
+                    // The Mac's dashed edge; a phone has no hover, so it stays `border-dashed`.
+                    shape.inset(by: 0.5)
+                        .stroke(Theme.borderDashed, style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
+                }
             }
             .frame(width: size, height: size)
             .clipShape(shape)
@@ -149,6 +154,27 @@ struct RecordSleeve: View {
                 radius: Theme.Immersive.sleeveShadowNearRadius, y: Theme.Immersive.sleeveShadowNearY)
         .accessibilityLabel(cover == nil ? Copy.Immersive.addCoverArt : Copy.Immersive.changeCoverArt)
         .overlay { flash(shape: shape) }
+    }
+
+    /// The empty sleeve that can be edited (#296): the double note over **Add cover** and the line under it.
+    private func addCoverCaption(size: CGFloat) -> some View {
+        VStack(spacing: 4) {
+            MusicNoteGlyph()
+                .frame(width: size * NoCoverArt.glyphRatio(forSide: size), height: size * NoCoverArt.glyphRatio(forSide: size))
+                .padding(.bottom, 6)
+            Text(Copy.Immersive.addCover)
+                .themeFont(.body, weight: .semibold)
+                .foregroundStyle(Theme.primaryText)
+            Text(Copy.Immersive.chooseCoverHint)
+                .themeFont(.dropZoneHint)
+                .foregroundStyle(Theme.textDim)
+        }
+        .multilineTextAlignment(.center)
+        .padding(Theme.Immersive.sleeveCaptionPadding)
+        // Drawn inside the fixed-size sleeve, so it stops growing at the largest standard size;
+        // the sleeve's label says the same to VoiceOver.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+        .accessibilityHidden(true)
     }
 
     /// The beat's warm-white flash: over the sleeve and clipped to its shape (the fill is the
@@ -185,7 +211,7 @@ struct RecordSleeve: View {
 // MARK: - Disc
 
 /// The vinyl: dark face with grooves, the cover on the centre label, and a fixed sheen.
-/// With no cover the label is the accent house label. Also the invitation's bare disc.
+/// With no cover the label is black with a hairline ring (#296), never `accent`. Also the invitation's bare disc.
 struct RecordDisc: View {
     let cover: UIImage?
     let size: CGFloat
@@ -216,7 +242,10 @@ struct RecordDisc: View {
 
     private func labelView(diameter: CGFloat) -> some View {
         ZStack {
-            Circle().fill(Theme.accent)
+            Circle().fill(Theme.noCoverLabel)
+            if cover == nil {
+                Circle().strokeBorder(Theme.noCoverLabelRing, lineWidth: 1)
+            }
             if let cover {
                 Image(uiImage: cover)
                     .resizable()

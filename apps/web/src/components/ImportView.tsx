@@ -22,10 +22,14 @@ import {
   trimForKind,
 } from "../lib/import-flow";
 import { applyTrackEdits } from "../lib/track-order";
+import type { ArtistEntry } from "../lib/artist-index";
+import { libraryWidthClass } from "../lib/library-view-prefs";
+import { useLibraryWidth } from "../lib/use-library-width";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
 import { useObjectUrl } from "../lib/use-object-url";
 import { usePrefersReducedMotion } from "../lib/use-reduced-motion";
 import { orderByDisc } from "../shared/discs";
+import { fromEditor, fromInspected, releaseTitleShown } from "../lib/featuring-field";
 import type { EditableTrack } from "./TrackList";
 
 interface ImportViewProps {
@@ -33,13 +37,17 @@ interface ImportViewProps {
   initialKind?: ReleaseKind;
   onImported: (release: Release) => void;
   onToast: (kind: "success" | "error", text: string) => void;
+  /** Every artist in the library, for the Artist field's suggestions (#287). */
+  artistIndex: ArtistEntry[];
 }
 
 interface Entry {
   /** Stable local key, assigned once when the file is added — survives reordering. */
   key: string;
   file: File;
+  /** The plain title; the featured names are kept apart in `featuring` (#287). */
   title: string;
+  featuring: string[];
   /** From the file's disc tag, when it has one. */
   discNumber?: number;
   /** From the file's own track tag; only used to order a multi-disc import. */
@@ -55,7 +63,9 @@ export default function ImportView({
   initialKind,
   onImported,
   onToast,
+  artistIndex,
 }: ImportViewProps) {
+  const [width] = useLibraryWidth();
   const [kind, setKind] = useState<ReleaseKind>(initialKind ?? "single");
   const [entries, setEntries] = useState<Entry[]>([]);
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -144,6 +154,7 @@ export default function ImportView({
       key: newKey(),
       file: f,
       title: stripExtension(f.name),
+      featuring: [],
     }));
 
     setStarted(true);
@@ -157,11 +168,12 @@ export default function ImportView({
         res.files.forEach((info, i) => {
           const idx = startIndex + i;
           if (next[idx]) {
+            // "Song (feat. B)" shows split, and an artist tag "A feat. B" adds B to this track.
+            const filled = fromInspected(info, stripExtension(next[idx].file.name));
             next[idx] = {
               ...next[idx],
-              title:
-                (info.title && info.title.trim()) ||
-                stripExtension(next[idx].file.name),
+              title: filled.title,
+              featuring: filled.featuring,
               discNumber: info.discNumber ?? undefined,
               tagTrackNumber: info.trackNumber ?? undefined,
             };
@@ -180,8 +192,8 @@ export default function ImportView({
       if (startIndex === 0) {
         const first = res.files[0];
         if (first) {
-          setArtist((prev) => prev || first.artist || "");
-          setTitle((prev) => prev || first.album || "");
+          setArtist((prev) => prev || fromInspected(first, "").artist);
+          setTitle((prev) => prev || (kind === "single" ? releaseTitleShown(first.album ?? "") : first.album) || "");
           setYear((prev) => prev || first.year || "");
           setGenre((prev) => prev || first.genre || "");
         }
@@ -211,14 +223,17 @@ export default function ImportView({
     if (!canSubmit) return;
     setImporting(true);
     try {
+      // The stored track title is the catalogue form "Song (feat. B)"; the release title stays plain, so
+      // a single with no title of its own gets its track's plain title (the server would copy the joined one).
+      const releaseTitle = title.trim() || (kind === "single" ? entries[0]?.title.trim() || "Track 1" : "");
       const meta: ImportMeta = {
         kind,
-        title: title.trim(),
+        title: releaseTitle,
         artist: artist.trim(),
         year: year.trim() || undefined,
         genre: genre.trim() || undefined,
         tracks: entries.map((e, i) => ({
-          title: e.title.trim() || `Track ${i + 1}`,
+          title: fromEditor(e.title.trim() || `Track ${i + 1}`, e.featuring),
           trackNumber: i + 1,
           ...(e.discNumber !== undefined ? { discNumber: e.discNumber } : {}),
         })),
@@ -248,7 +263,7 @@ export default function ImportView({
 
   if (IS_DEMO) {
     return (
-      <div className="mx-auto flex max-w-4xl flex-col gap-3 pb-16">
+      <div className={`flex flex-col gap-3 pb-16 ${libraryWidthClass(width)}`}>
         <h1 className="text-4xl font-bold tracking-[-0.02em] text-text">Import</h1>
         <p className="text-base text-text-muted">
           Importing isn&apos;t available in the demo. Browse the sample library instead.
@@ -277,6 +292,7 @@ export default function ImportView({
   const tracks: EditableTrack[] = entries.map((e) => ({
     key: e.key,
     title: e.title,
+    featuring: e.featuring,
     discNumber: e.discNumber,
   }));
 
@@ -324,6 +340,7 @@ export default function ImportView({
           importing={importing}
           onSubmit={handleSubmit}
           onAddTrack={() => audioInputRef.current?.click()}
+          artistIndex={artistIndex}
         />
       ) : (
         <>

@@ -1,0 +1,94 @@
+[
+  {
+    "name": "hyphen, space and case",
+    "inputs": [
+      "Jay-Z",
+      "Jay Z",
+      "JAY Z",
+      "  jay   z "
+    ],
+    "key": "jay z"
+  },
+  {
+    "name": "accents folded",
+    "inputs": [
+      "Beyoncé",
+      "Beyonce"
+    ],
+    "key": "beyonce"
+  },
+  {
+    "name": "ampersand, plus and the word and",
+    "inputs": [
+      "A & B",
+      "A and B",
+      "A + B",
+      "A AND B",
+      "A&B"
+    ],
+    "key": "a and b"
+  },
+  {
+    "name": "leading the is kept",
+    "inputs": [
+      "The The",
+      "the  the"
+    ],
+    "key": "the the"
+  },
+  {
+    "name": "accent and diacritic Latin",
+    "inputs": [
+      "Sigur Rós",
+      "Sigur Ros"
+    ],
+    "key": "sigur ros"
+  },
+  {
+    "name": "punctuation becomes a space",
+    "inputs": [
+      "AC/DC",
+      "AC DC",
+      "ac.dc"
+    ],
+    "key": "ac dc"
+  },
+  {
+    "name": "digits are kept",
+    "inputs": [
+      "Blink-182",
+      "blink 182"
+    ],
+    "key": "blink 182"
+  },
+  {
+    "name": "non-Latin letters are kept",
+    "inputs": [
+      "Ёлка",
+      "ёлка"
+    ],
+    "key": "елка"
+  },
+  {
+    "name": "Japanese name kept",
+    "inputs": [
+      "宇多田ヒカル"
+    ],
+    "key": "宇多田ヒカル"
+  },
+  {
+    "name": "only punctuation gives an empty key",
+    "inputs": [
+      "...",
+      "!!"
+    ],
+    "key": ""
+  },
+  {
+    "name": "spaces collapse around a combining mark",
+    "inputs": [
+      "A  ゙ B"
+    ],
+    "key": "a ゙ b"
+  }
+]

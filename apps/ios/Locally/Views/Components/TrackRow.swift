@@ -7,6 +7,10 @@ import SwiftUI
 struct TrackRow: View {
     var number: Int?
     let title: String
+    /// The track's featured artists (#287), shown dimmed after the title as "feat. B & C".
+    var featuring: [String] = []
+    /// Set where the names can be edited (an album's rows): the feat. button opens their sheet.
+    var onFeat: (() -> Void)?
     /// Set for an editable title (an album's); nil shows the title as plain text.
     var titleBinding: Binding<String>?
     var plays: String?
@@ -15,6 +19,10 @@ struct TrackRow: View {
     var lengthSpoken: String?
     var onReplace: (() -> Void)?
     var showsGrip = false
+    /// The disc menu on the number (#222); nil or empty keeps a plain number.
+    var discActions: DiscNumbering.Actions?
+    var onStartDisc: (() -> Void)?
+    var onJoinDisc: (() -> Void)?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric private var numberWidth = Theme.Track.numberWidth
@@ -24,13 +32,15 @@ struct TrackRow: View {
             // The number sits on the title's baseline, as on the Mac, not centred against the field.
             HStack(alignment: .firstTextBaseline, spacing: Theme.Track.spacing) {
                 if let number {
-                    Text("\(number)")
-                        .font(Theme.ScaledFont.trackNumber)
-                        .foregroundStyle(.white.opacity(Theme.Track.numberOpacity))
-                        // A fixed column keeps the titles in line; at the accessibility sizes the
-                        // number takes only its own width, so the title keeps the room.
-                        .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : numberWidth, alignment: .leading)
-                        .fixedSize()
+                    if let discActions, !discActions.isEmpty {
+                        discMenu(number: number, actions: discActions)
+                    } else {
+                        numberText(number)
+                            // A fixed column keeps the titles in line; at the accessibility sizes the
+                            // number takes only its own width, so the title keeps the room.
+                            .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : numberWidth, alignment: .leading)
+                            .fixedSize()
+                    }
                 }
                 if dynamicTypeSize.isAccessibilitySize {
                     // At the accessibility sizes the plays sit under the title, so neither is squeezed.
@@ -44,6 +54,20 @@ struct TrackRow: View {
                 }
             }
             lengthView
+            if let onFeat {
+                Button(action: onFeat) {
+                    Text(Copy.Featuring.button)
+                        .font(Theme.ScaledFont.subheadline)
+                        .foregroundStyle(Theme.Tint.accentText)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Copy.Featuring.buttonLabel(track: title))
+                .accessibilityIdentifier("feat-button")
+            }
             if let onReplace {
                 Button(action: onReplace) {
                     Image(systemName: "arrow.triangle.2.circlepath")
@@ -66,6 +90,52 @@ struct TrackRow: View {
         // View mode (nothing to edit) reads as one element; edit mode keeps its fields as stops.
         .accessibilityElement(children: titleBinding == nil && onReplace == nil && !showsGrip ? .combine : .contain)
         .accessibilityIdentifier(number.map { "track-row-\($0)" } ?? "track-row")
+    }
+
+    private func numberText(_ number: Int) -> some View {
+        Text("\(number)")
+            .font(Theme.ScaledFont.trackNumber)
+            .foregroundStyle(.white.opacity(Theme.Track.numberOpacity))
+    }
+
+    /// The number as a menu button (#222): the number and a small chevron in the same font and colour,
+    /// a 44 pt hit target that reaches into the row's inset and the gap before the title so the
+    /// column keeps its width, and the same two actions for VoiceOver.
+    private func discMenu(number: Int, actions: DiscNumbering.Actions) -> some View {
+        let hit = Theme.Track.discMenuHitSize
+        let reach = (hit - numberWidth) / 2
+        return Menu {
+            if let start = actions.start {
+                Button(Copy.Import.startDisc(start)) { onStartDisc?() }
+            }
+            if let join = actions.join {
+                Button(Copy.Import.joinDisc(join)) { onJoinDisc?() }
+            }
+        } label: {
+            HStack(spacing: 2) {
+                numberText(number)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.white.opacity(Theme.Track.numberOpacity))
+                    .accessibilityHidden(true)
+            }
+            .padding(.leading, reach)
+            .frame(width: hit, height: hit, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, -reach)
+        .padding(.trailing, -reach)
+        .accessibilityLabel(Copy.Import.discOptions(track: number))
+        .accessibilityActions {
+            if let start = actions.start {
+                Button(Copy.Import.startDisc(start)) { onStartDisc?() }
+            }
+            if let join = actions.join {
+                Button(Copy.Import.joinDisc(join)) { onJoinDisc?() }
+            }
+        }
+        .accessibilityIdentifier("disc-menu-\(number)")
     }
 
     @ViewBuilder private var lengthView: some View {
@@ -93,13 +163,22 @@ struct TrackRow: View {
     @ViewBuilder private var titleView: some View {
         if let titleBinding {
             // Wraps at the accessibility sizes rather than cutting the title to a few letters.
-            InlineField(Copy.Import.track, text: titleBinding, font: Theme.ScaledFont.trackTitle, wraps: dynamicTypeSize.isAccessibilitySize)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                InlineField(Copy.Import.track, text: titleBinding, font: Theme.ScaledFont.trackTitle, wraps: dynamicTypeSize.isAccessibilitySize)
+                if !featuring.isEmpty {
+                    Text(Copy.Featuring.suffix(featuring))
+                        .font(Theme.ScaledFont.subheadline)
+                        .foregroundStyle(Theme.textDim)
+                        .lineLimit(2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            Text(title)
+            (featuring.isEmpty
+                ? Text(title).foregroundStyle(Theme.primaryText)
+                : Text(title).foregroundStyle(Theme.primaryText) + Text(" " + Copy.Featuring.suffix(featuring)).foregroundStyle(Theme.textDim))
                 .font(Theme.ScaledFont.trackTitle)
-                .foregroundStyle(Theme.primaryText)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize || !featuring.isEmpty ? 2 : 1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

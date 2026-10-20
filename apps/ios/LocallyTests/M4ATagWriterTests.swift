@@ -65,9 +65,47 @@ struct M4ATagWriterTests {
         #expect(artist == "First Artist")
     }
 
+    /// #287: the same single as the ID3 test: TIT2's counterpart carries the Spotify form.
+    @Test func aSinglesFeaturesGoIntoTheTitleAndTheArtistStaysPlain() async throws {
+        let (dir, url) = try makeTinyM4A()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let tags = TagSet(title: ArtistNames.joinFeaturing("Song", ["B"]), artist: "A", album: "Song", trackNumber: 1, totalTracks: 1)
+
+        try await writer.write(tags, cover: nil, to: url)
+
+        let (title, artist) = try await readBackTitleAndArtist(url)
+        #expect(title == "Song (feat. B)")
+        #expect(artist == "A")
+    }
+
     /// The whole point of re-tagging in place: writing a second, different
     /// set of tags onto a file that already carries metadata must replace
     /// it, not error out or leave the first set behind.
+    @Test func rewritingWithNoDiscRemovesTheDiskAtomAWriteLeft() async throws {
+        let (dir, url) = try makeTinyM4A()
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        func discItems() async throws -> Int {
+            let asset = AVAsset(url: url)
+            var count = 0
+            for format in try await asset.load(.availableMetadataFormats) {
+                for item in try await asset.loadMetadata(for: format) where item.identifier == .iTunesMetadataDiscNumber {
+                    count += 1
+                }
+            }
+            return count
+        }
+
+        var withDisc = TagSet(title: "T", artist: "A", album: "B", trackNumber: 1, totalTracks: 2)
+        withDisc.discNumber = 2
+        withDisc.totalDiscs = 2
+        try await writer.write(withDisc, cover: nil, to: url)
+        #expect(try await discItems() == 1)
+
+        try await writer.write(TagSet(title: "T", artist: "A", album: "B", trackNumber: 3, totalTracks: 4), cover: nil, to: url)
+        #expect(try await discItems() == 0)
+    }
+
     @Test func retagsAFileThatAlreadyHasMetadata() async throws {
         let (dir, url) = try makeTinyM4A()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -139,5 +177,83 @@ struct M4ATagWriterTests {
         }
 
         #expect(try fileNames(in: dir) == ["garbage.m4a"])
+    }
+
+    // MARK: - Tags Locally doesn't own (#235)
+
+    /// Every metadata item in the file, across all formats: identifier raw value to string
+    /// (or "<n bytes>" for binary), one entry per item so duplicates show.
+    private func allItems(_ url: URL) async throws -> [(id: String, text: String)] {
+        let asset = AVAsset(url: url)
+        var out: [(String, String)] = []
+        for format in try await asset.load(.availableMetadataFormats) {
+            for item in try await asset.loadMetadata(for: format) {
+                let id = item.identifier?.rawValue ?? "?"
+                var text = (try? await item.load(.stringValue)) ?? ""
+                if text.isEmpty, let number = try? await item.load(.numberValue) { text = number.stringValue }
+                if text.isEmpty, let data = try? await item.load(.dataValue) { text = "<\(data.count) bytes>" }
+                out.append((id, text))
+            }
+        }
+        return out
+    }
+
+    private func textItem(_ identifier: AVMetadataIdentifier, _ value: String) -> AVMetadataItem {
+        let item = AVMutableMetadataItem()
+        item.identifier = identifier
+        item.value = value as NSString
+        item.dataType = kCMMetadataBaseDataType_UTF8 as String
+        return item
+    }
+
+    /// Re-exports `url` (passthrough) with `items`, standing in for another tool's tags.
+    private func seed(_ url: URL, with items: [AVMetadataItem]) async throws {
+        let out = url.deletingLastPathComponent().appendingPathComponent("seeded.m4a")
+        let session = try #require(AVAssetExportSession(asset: AVAsset(url: url), presetName: AVAssetExportPresetPassthrough))
+        session.outputURL = out
+        session.outputFileType = .m4a
+        session.metadata = items
+        await session.export()
+        try #require(session.status == .completed)
+        _ = try FileManager.default.replaceItemAt(url, withItemAt: out)
+    }
+
+    @Test func retagKeepsAtomsLocallyDoesNotOwnAndNeverDuplicatesOwnedOnes() async throws {
+        let (dir, url) = try makeTinyM4A()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let tempo = AVMutableMetadataItem()
+        tempo.identifier = .iTunesMetadataBeatsPerMin
+        tempo.value = NSNumber(value: 120)
+        tempo.dataType = kCMMetadataBaseDataType_SInt16 as String
+        try await seed(url, with: [
+            textItem(.iTunesMetadataSongName, "Old Title"),
+            textItem(.iTunesMetadataArtist, "Old Artist"),
+            textItem(.iTunesMetadataAlbum, "Old Album"),
+            textItem(.iTunesMetadataReleaseDate, "1999"),
+            textItem(.iTunesMetadataComposer, "The Composer"),
+            textItem(.iTunesMetadataLyrics, "La la la"),
+            textItem(.iTunesMetadataUserComment, "A comment"),
+            tempo
+        ])
+        let before = try await allItems(url)
+
+        let tags = TagSet(title: "New Title", artist: "New Artist", album: "New Album", trackNumber: 1, totalTracks: 1, year: "2026")
+        try await writer.write(tags, cover: nil, to: url)
+
+        let after = try await allItems(url)
+        func values(_ suffix: String) -> [String] { after.filter { $0.id.hasSuffix(suffix) }.map(\.text) }
+        // The seed must really hold the non-owned atoms, or this test proves nothing.
+        for suffix in ["/%A9wrt", "/%A9lyr", "/tmpo", "/%A9cmt"] {
+            #expect(!before.filter { $0.id.hasSuffix(suffix) }.isEmpty, "seed lacks \(suffix)")
+        }
+        #expect(values("/%A9wrt") == ["The Composer"])
+        #expect(values("/%A9lyr") == ["La la la"])
+        #expect(values("/%A9cmt") == ["A comment"])
+        #expect(values("/tmpo").count == 1)
+        #expect(values("/%A9nam") == ["New Title"])
+        #expect(values("/%A9ART") == ["New Artist"])
+        #expect(values("/%A9alb") == ["New Album"])
+        #expect(values("/%A9day") == ["2026"])
+        #expect(values("/trkn").count == 1)
     }
 }

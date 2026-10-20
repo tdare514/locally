@@ -430,6 +430,8 @@ final class FakeSyncApi: SyncApi {
     var releasesOverride: SyncReleasesPage?
     /// 1-based count of `releases(sinceVersion:limit:)` calls made so far.
     private(set) var releasesCallCount = 0
+    /// The `sinceVersion` of every `releases(sinceVersion:limit:)` call, in order.
+    private(set) var releasesSinceVersions: [Int] = []
     /// When set, the call numbered `callNumber` (1-based, per
     /// `releasesCallCount`) throws `error` instead of returning a page —
     /// simulates the network dropping partway through a multi-page pull.
@@ -468,6 +470,7 @@ final class FakeSyncApi: SyncApi {
 
     func releases(sinceVersion: Int, limit: Int) async throws -> SyncReleasesPage {
         releasesCallCount += 1
+        releasesSinceVersions.append(sinceVersion)
         if let releasesGate { await releasesGate() }
         if let releasesFailOnCall, releasesFailOnCall.callNumber == releasesCallCount {
             throw releasesFailOnCall.error
@@ -608,9 +611,13 @@ final class FakeSyncApi: SyncApi {
         URL(string: "https://fake-storage.example.com/\(releaseId)/\(fileName)")!
     }
 
+    /// Awaited at the top of `downloadFile`, so a test can hold an acceptance open mid-download.
+    var downloadGate: (() async -> Void)?
+
     func downloadFile(from url: URL, to destination: URL) async throws {
         let name = url.lastPathComponent
         downloadFileCalls.append(name)
+        await downloadGate?()
         if let remaining = downloadFailCountRemaining[name], remaining > 0 {
             downloadFailCountRemaining[name] = remaining - 1
             throw SyncApiError.network("Not found yet (simulated upload-in-progress).")

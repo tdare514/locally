@@ -33,6 +33,9 @@ enum Theme {
     static let textDim = Color(red: 0x77 / 255, green: 0x77 / 255, blue: 0x77 / 255)
     /// `text-hint`: hint lines under drop zones.
     static let textHint = Color(red: 0x88 / 255, green: 0x88 / 255, blue: 0x88 / 255)
+    /// A record's label with no art (#296): black, with a 1 pt ring, never `accent`.
+    static let noCoverLabel = Color(red: 0x05 / 255, green: 0x05 / 255, blue: 0x05 / 255)
+    static let noCoverLabelRing = Color(red: 0x1E / 255, green: 0x1E / 255, blue: 0x1E / 255)
     static let danger = Color(red: 0xF1 / 255, green: 0x5E / 255, blue: 0x6C / 255)
     /// iOS accent (#1E7DF0) — never Spotify green.
     static let accent = Color(red: 0x1E / 255, green: 0x7D / 255, blue: 0xF0 / 255)
@@ -290,7 +293,7 @@ enum Theme {
         static let inlineFieldUnderlineGap: CGFloat = 4
         static let inlineFieldFocusFade: Double = 0.15
         /// Labelled fields: the label column, the gap between rows, and the always-visible underline.
-        static let labeledFieldLabelWidth: CGFloat = 60
+        static let labeledFieldLabelWidth: CGFloat = 66
         static let labeledFieldRowGap: CGFloat = 12
         /// Year's value width when it shares its row with Genre: room for "Enter year" at body.
         static let yearValueWidth: CGFloat = 92
@@ -541,6 +544,8 @@ enum Theme {
     enum Track {
         static let minHeight: CGFloat = 48
         static let numberWidth: CGFloat = 24
+        /// The tap area of the number when it is a disc menu (#222).
+        static let discMenuHitSize: CGFloat = 44
         static let spacing: CGFloat = 12
         static let numberOpacity: Double = 0.6
         /// The replace button's circling arrows, and its tap area.
@@ -572,6 +577,13 @@ enum Theme {
         nav.shadowColor = .clear
         nav.titleTextAttributes = [.foregroundColor: UIColor.white]
         nav.largeTitleTextAttributes = [.foregroundColor: UIColor.white]
+        // Locally's drawn chevron in place of the system one (#258), the Mac back button's glyph.
+        // Apple's button, the edge swipe and the edit-mode Cancel (#220) stay.
+        if let chevron = UIImage(named: "Icon/ChevronRight")?
+            .withRenderingMode(.alwaysTemplate)
+            .withHorizontallyFlippedOrientation() {
+            nav.setBackIndicatorImage(chevron, transitionMaskImage: chevron)
+        }
         UINavigationBar.appearance().standardAppearance = nav
         UINavigationBar.appearance().scrollEdgeAppearance = nav
         UINavigationBar.appearance().compactAppearance = nav

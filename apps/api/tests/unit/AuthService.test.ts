@@ -370,6 +370,117 @@ describe("AuthService", () => {
     });
   });
 
+  describe("install ID (#210)", () => {
+    const EMAIL = "person@example.com";
+    const ID_A = "11111111-1111-4111-8111-111111111111";
+    const ID_B = "22222222-2222-4222-8222-222222222222";
+
+    async function signIn(email: string, deviceName: string, platform: "mac" | "ios", installId?: string) {
+      const code = await auth.issueCode(email);
+      return auth.verify({ email, code, deviceName, platform, installId });
+    }
+
+    async function deviceRow(id: string) {
+      const [row] = await db.select().from(devices).where(eq(devices.id, id));
+      return row!;
+    }
+
+    it("gives a renamed Mac with the same install ID its old row back and kills the old token", async () => {
+      const first = await signIn(EMAIL, "MacBook-Pro.local", "mac", ID_A);
+      await auth.revokeDevice(first.user.id, first.device.id);
+
+      const second = await signIn(EMAIL, "MacBook-Pro-2.local", "mac", ID_A);
+
+      expect(second.device.id).toBe(first.device.id);
+      await expect(auth.authenticate(first.token)).rejects.toThrow(UnauthorizedError);
+      await expect(auth.authenticate(second.token)).resolves.toBeDefined();
+      expect((await deviceRow(first.device.id)).installId).toBe(ID_A);
+      expect((await auth.listDevices(first.user.id)).devices).toHaveLength(1);
+    });
+
+    it("gives a new row for the same name with a different install ID", async () => {
+      const first = await signIn(EMAIL, "Mac", "mac", ID_A);
+      await auth.revokeDevice(first.user.id, first.device.id);
+
+      const second = await signIn(EMAIL, "Mac", "mac", ID_B);
+
+      expect(second.device.id).not.toBe(first.device.id);
+      const old = await deviceRow(first.device.id);
+      expect(old.revokedAt).not.toBeNull();
+      expect(old.installId).toBe(ID_A);
+      expect((await deviceRow(second.device.id)).installId).toBe(ID_B);
+    });
+
+    it("revives a pre-change row (no install ID, same name) and it gains the ID", async () => {
+      const first = await signIn(EMAIL, "Mac", "mac");
+      expect((await deviceRow(first.device.id)).installId).toBeNull();
+      await auth.revokeDevice(first.user.id, first.device.id);
+
+      const second = await signIn(EMAIL, "Mac", "mac", ID_A);
+
+      expect(second.device.id).toBe(first.device.id);
+      expect((await deviceRow(first.device.id)).installId).toBe(ID_A);
+      await expect(auth.authenticate(first.token)).rejects.toThrow(UnauthorizedError);
+    });
+
+    it("prefers the same install ID over a same-named row without one", async () => {
+      const old = await signIn(EMAIL, "Mac", "mac");
+      await auth.revokeDevice(old.user.id, old.device.id);
+      clock += 1000;
+      const mine = await signIn(EMAIL, "Other name", "mac", ID_A);
+      await auth.revokeDevice(mine.user.id, mine.device.id);
+      clock += 1000;
+
+      const back = await signIn(EMAIL, "Mac", "mac", ID_A);
+
+      expect(back.device.id).toBe(mine.device.id);
+      expect((await deviceRow(old.device.id)).revokedAt).not.toBeNull();
+    });
+
+    it("keeps the name rule for a Mac that sends no install ID", async () => {
+      const first = await signIn(EMAIL, "Mac", "mac", ID_A);
+      await auth.revokeDevice(first.user.id, first.device.id);
+
+      const second = await signIn(EMAIL, "Mac", "mac");
+
+      expect(second.device.id).toBe(first.device.id);
+      expect((await deviceRow(first.device.id)).installId).toBe(ID_A);
+    });
+
+    it("never takes an active row, by install ID or by name", async () => {
+      const first = await signIn(EMAIL, "Mac", "mac", ID_A);
+
+      const second = await signIn(EMAIL, "Renamed", "mac", ID_A);
+      const third = await signIn(EMAIL, "Mac", "mac");
+
+      expect(second.device.id).not.toBe(first.device.id);
+      expect(third.device.id).not.toBe(first.device.id);
+      await expect(auth.authenticate(first.token)).resolves.toBeDefined();
+    });
+
+    it("ignores an install ID sent with another platform", async () => {
+      const phone = await signIn(EMAIL, "iPhone", "ios", ID_A);
+      expect((await deviceRow(phone.device.id)).installId).toBeNull();
+      await auth.revokeDevice(phone.user.id, phone.device.id);
+
+      const mac = await signIn(EMAIL, "iPhone", "mac", ID_A);
+
+      expect(mac.device.id).not.toBe(phone.device.id);
+    });
+
+    it("never matches another user's install ID: a new device, and the other row is untouched", async () => {
+      const alice = await signIn("alice@example.com", "Mac", "mac", ID_A);
+      await auth.revokeDevice(alice.user.id, alice.device.id);
+      const aliceBefore = await deviceRow(alice.device.id);
+
+      const bob = await signIn("bob@example.com", "Mac", "mac", ID_A);
+
+      expect(bob.device.id).not.toBe(alice.device.id);
+      expect(await deviceRow(alice.device.id)).toEqual(aliceBefore);
+      await expect(auth.authenticate(bob.token)).resolves.toMatchObject({ user: { id: bob.user.id } });
+    });
+  });
+
   describe("lastSeenAt refresh throttling", () => {
     it("does not rewrite lastSeenAt within LAST_SEEN_REFRESH_MS, but does after", async () => {
       const code = await auth.issueCode("refresh@example.com");

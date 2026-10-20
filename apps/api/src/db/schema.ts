@@ -32,14 +32,17 @@ export const devices = sqliteTable("devices", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
   name: text("name").notNull(),
-  platform: text("platform", { enum: ["mac", "ios"] }).notNull(),
+  platform: text("platform", { enum: ["mac", "ios", "cloud"] }).notNull(),
   tokenHash: text("token_hash").notNull(),
   createdAt: integer("created_at").notNull(),
   lastSeenAt: integer("last_seen_at").notNull(),
   revokedAt: integer("revoked_at"),
+  /** A Mac's stable install ID (#210); null for phones and for rows made before it. */
+  installId: text("install_id"),
 }, (table) => ({
   tokenHashIdx: uniqueIndex("devices_token_hash_idx").on(table.tokenHash),
   userIdx: index("devices_user_idx").on(table.userId),
+  userInstallIdx: index("devices_user_install_idx").on(table.userId, table.installId),
 }));
 
 /** Per-user monotonic version counter, bumped once per release write (create, update, or tombstone). */
@@ -72,10 +75,13 @@ export const files = sqliteTable("files", {
   contentType: text("content_type").notNull(),
   storageKey: text("storage_key").notNull(),
   createdAt: integer("created_at").notNull(),
+  /** Set (ms) once the daily cleanup has seen the object in storage (#89); null until then. */
+  verifiedAt: integer("verified_at"),
 }, (table) => ({
   storageKeyIdx: uniqueIndex("files_storage_key_idx").on(table.storageKey),
   releaseNameIdx: uniqueIndex("files_release_name_idx").on(table.releaseId, table.name),
   userIdx: index("files_user_idx").on(table.userId),
+  unverifiedIdx: index("files_unverified_idx").on(table.verifiedAt, table.createdAt).where(sql`${table.verifiedAt} IS NULL`),
 }));
 
 /**
@@ -135,6 +141,49 @@ export const pendingDeletes = sqliteTable("pending_deletes", {
   enqueuedAt: integer("enqueued_at").notNull(),
   /** Bumped on a failed delete attempt, for logging only — never gates a retry. */
   attempts: integer("attempts").notNull().default(0),
+});
+
+/**
+ * One Spotify link per user for the sync service's own grant (#305). Both tokens are AES-256-GCM
+ * ciphertexts (`server/crypto/TokenCipher.ts`) bound to the user id. `cloudDeviceId` is the user's "cloud" device (#306).
+ */
+export const spotifyLinks = sqliteTable("spotify_links", {
+  userId: text("user_id").primaryKey().references(() => users.id),
+  refreshTokenEnc: text("refresh_token_enc").notNull(),
+  accessTokenEnc: text("access_token_enc").notNull(),
+  /** Epoch ms. */
+  accessExpiresAt: integer("access_expires_at").notNull(),
+  scope: text("scope").notNull(),
+  timeZone: text("time_zone").notNull(),
+  cloudDeviceId: text("cloud_device_id"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+  lastSampleAt: integer("last_sample_at"),
+  problem: text("problem"),
+  backoffUntil: integer("backoff_until"),
+  /** The last sample's Locally track (#306): null when nothing local is playing. Epoch ms for `sessionAt`. */
+  sessionUri: text("session_uri"),
+  sessionReleaseId: text("session_release_id"),
+  sessionTrackId: text("session_track_id"),
+  sessionProgressMs: integer("session_progress_ms"),
+  sessionDurationMs: integer("session_duration_ms"),
+  sessionAt: integer("session_at"),
+  sessionCounted: integer("session_counted", { mode: "boolean" }),
+});
+
+/** Single-row lease so two sampler runs never overlap (#306): a run takes it with a conditional upsert. */
+export const samplerLease = sqliteTable("sampler_lease", {
+  id: text("id").primaryKey(),
+  until: integer("until").notNull(),
+});
+
+/** A pending OAuth link request: single use, 10 minutes, keyed by the sha256 hex of its state. */
+export const spotifyLinkRequests = sqliteTable("spotify_link_requests", {
+  stateHash: text("state_hash").primaryKey(),
+  userId: text("user_id").notNull(),
+  verifier: text("verifier").notNull(),
+  timeZone: text("time_zone").notNull(),
+  expiresAt: integer("expires_at").notNull(),
 });
 
 // Re-exported so callers that only need the `sql` tag for a raw expression

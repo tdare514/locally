@@ -24,6 +24,11 @@ class FakeSettingsStore {
     settingsValue = next;
     return next;
   }
+  async update(mutator: (current: Settings) => Settings | null): Promise<Settings> {
+    const next = mutator(settingsValue);
+    if (next) settingsValue = next;
+    return settingsValue;
+  }
 }
 
 /** In-memory `SyncStateStore` fake, following `tests/unit/SyncEngine.test.ts`. */
@@ -36,11 +41,17 @@ class FakeSyncStateStore implements SyncStateStore {
       coverHash: { ...this.state.coverHash },
       pendingFromPhone: { ...this.state.pendingFromPhone },
       missingFiles: { ...this.state.missingFiles },
+      hiddenFromTray: { ...this.state.hiddenFromTray },
     };
   }
   async set(state: SyncState): Promise<SyncState> {
-    this.state = state;
+    this.state = { ...state, hiddenFromTray: this.state.hiddenFromTray };
     return state;
+  }
+  async update(mutator: (current: SyncState) => SyncState | null): Promise<SyncState> {
+    const next = mutator(await this.get());
+    if (next) this.state = next;
+    return this.state;
   }
 }
 
@@ -112,6 +123,26 @@ describe("trackPlays setting", () => {
   });
 });
 
+describe("countOtherDevices setting (#228)", () => {
+  it("is exposed by GET, false by default", async () => {
+    const body = (await (await GET()).json()) as { countOtherDevices: boolean };
+    expect(body.countOtherDevices).toBe(false);
+  });
+
+  it("PUT round-trips it", async () => {
+    const res = await PUT(putRequest({ countOtherDevices: true }));
+    expect(res.status).toBe(200);
+    expect(settingsValue.countOtherDevices).toBe(true);
+    expect(((await res.json()) as { countOtherDevices: boolean }).countOtherDevices).toBe(true);
+    expect(((await (await GET()).json()) as { countOtherDevices: boolean }).countOtherDevices).toBe(true);
+  });
+
+  it("PUT rejects a non-boolean", async () => {
+    const res = await PUT(putRequest({ countOtherDevices: "yes" }));
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("playsPromptAnswered setting", () => {
   it("is exposed by GET, false by default", async () => {
     const body = (await (await GET()).json()) as { playsPromptAnswered: boolean };
@@ -176,6 +207,23 @@ describe("PUT /api/settings", () => {
     expect(body.sync.signedIn).toBe(false);
   });
 
+  it("keeps the install ID across a sync host change and never returns it (#210)", async () => {
+    const installId = "33333333-3333-4333-8333-333333333333";
+    settingsValue = {
+      libraryDir: "/tmp/lib",
+      installId,
+      sync: { baseUrl: "http://localhost:4000", deviceToken: "secret-token", email: "a@b.com", lastVersion: 3 },
+    };
+
+    const put = await PUT(putRequest({ sync: { baseUrl: "https://sync.example.com" } }));
+    expect(put.status).toBe(200);
+    expect(settingsValue.installId).toBe(installId);
+    expect(JSON.stringify(await put.json())).not.toContain(installId);
+
+    const get = await GET();
+    expect(JSON.stringify(await get.json())).not.toContain(installId);
+  });
+
   it("changing sync.baseUrl to a different https host clears pre-seeded local sync state", async () => {
     settingsValue = {
       libraryDir: "/tmp/lib",
@@ -215,7 +263,7 @@ describe("PUT /api/settings", () => {
       libraryDir: "/tmp/lib",
       sync: { baseUrl: "http://localhost:4000", deviceToken: "secret-token", email: "a@b.com", lastVersion: 3 },
     };
-    const saved = vi.spyOn(services.settings, "set");
+    const saved = vi.spyOn(services.settings, "update");
     const reset = vi.spyOn(playStore, "resetPushed");
 
     const res = await PUT(putRequest({ sync: { baseUrl: "https://sync.example.com" } }));

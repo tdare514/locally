@@ -33,14 +33,15 @@ export async function DELETE() {
       }
     }
 
-    const updated = await services.settings.set({
-      ...settings,
-      sync: { ...settings.sync, deviceToken: null, email: null, lastVersion: 0 },
-    });
+    const signedIn = settings.sync;
+    const updated = await services.settings.update((current) => ({
+      ...current,
+      sync: { ...(current.sync ?? signedIn), deviceToken: null, email: null, lastVersion: 0 },
+    }));
 
     // Same reasoning as sign-out: this device's push bookkeeping and pending
     // phone releases belong to the now-deleted account.
-    await services.syncState.set(emptySyncState());
+    await services.syncState.update(() => emptySyncState());
     // The deleted account held this Mac's pushed play counts; a new account gets them again (#107).
     await services.playStore.resetPushed();
 

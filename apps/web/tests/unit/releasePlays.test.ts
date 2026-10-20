@@ -306,7 +306,7 @@ describe("loadReleasePlays", () => {
   });
 
   function settingsStore(settings: Settings): SettingsStore {
-    return { get: async () => settings, set: async (s) => s };
+    return { get: async () => settings, set: async (s) => s, update: async (m) => m(settings) ?? settings };
   }
 
   const signedOut: Settings = { libraryDir: "/tmp/lib", sync: null };

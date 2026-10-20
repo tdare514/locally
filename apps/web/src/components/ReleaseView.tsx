@@ -1,13 +1,16 @@
 "use client";
 
-import type { CSSProperties } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Release, UpdateReleaseMeta } from "../shared/types";
 import {
   coverUrl,
   deleteRelease,
+  forgetRelease,
   getRelease,
+  getSettings,
   getReleasePlays,
+  getSpotifyPlaylists,
+  openSpotifyPlaylist,
   replaceCover,
   reveal,
   updateRelease,
@@ -20,8 +23,23 @@ import SpotifySourceBanner from "./SpotifySourceBanner";
 import { ChevronRightIcon, CopyIcon } from "./Icons";
 import { COPIED_LABEL, COPY_LABEL, PLAYLIST_FALLBACK, playlistSteps } from "../lib/playlist-copy";
 import { PLAYS_ACROSS_DEVICES } from "../lib/plays-copy";
+import { startPlaylistsPolling } from "../lib/playlists-poll";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
 import { IS_DEMO } from "../lib/demo";
+import { UNKNOWN_ARTIST } from "../shared/adopt";
+import { folderAfterRoot } from "../lib/adopt-review";
+import NoCover from "./NoCover";
+import ReleaseBar, { BarConfirm, useBarConfirm } from "./ReleaseBar";
+import { libraryWidthClass } from "../lib/library-view-prefs";
+import { useLibraryWidth } from "../lib/use-library-width";
+import { usePaneWidth } from "../lib/use-element-size";
+import { BAR_MIN_HEIGHT, barPadding, detailsBesideSleeve } from "../lib/page-layout";
+import ArtistCombobox from "./ArtistCombobox";
+import type { ArtistEntry } from "../lib/artist-index";
+import FeaturingRow from "./FeaturingRow";
+import ArtistLinks, { ArtistNavProvider, ArtistOpenButton, LOCKED_TIP, useArtistNav } from "./ArtistNav";
+import { splitFeaturing } from "../lib/artist-names";
+import { releaseTitleForSave, releaseTitleShown, titleForSave, toEditor } from "../lib/featuring-field";
 
 interface ReleaseViewProps {
   releaseId: string;
@@ -35,6 +53,8 @@ interface ReleaseViewProps {
   onUpdated: () => void;
   onToast: (kind: "success" | "error", text: string) => void;
   onOpenSettings: () => void;
+  /** Every artist in the library, for the Artist field's suggestions (#287). */
+  artistIndex: ArtistEntry[];
 }
 
 /** Copies `text` from a user gesture: the async Clipboard API first, then the
@@ -73,9 +93,27 @@ interface Draft {
 
 /** The update to send for `draft`, or null when nothing differs from `release`. Track
  * numbers follow list order, so a reorder alone is a change. */
+/** The Title input's text: a single's plain title (names go in Featuring), an album's or adopted title as is. */
+function shownTitle(r: Release): string {
+  return r.kind === "single" && !r.adopted ? releaseTitleShown(r.title) : r.title;
+}
+
+/** A stored track as the editor holds it: the plain title and the featured names apart (#287).
+ * An adopted release is view mode and keeps its titles as they are. */
+export function editableTrack(
+  t: { id: string; title: string; discNumber?: number },
+  adopted: boolean
+): EditableTrack {
+  if (adopted) return { key: t.id, title: t.title, discNumber: t.discNumber };
+  const { title, featuring } = toEditor(t.title);
+  return { key: t.id, title, featuring, discNumber: t.discNumber };
+}
+
 export function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | null {
   const patch: UpdateReleaseMeta = {};
-  if (draft.title !== release.title) patch.title = draft.title;
+  // A single's Title input shows the plain title; the names are in its Featuring row.
+  const releaseTitle = release.kind === "single" && !release.adopted ? releaseTitleForSave(release.title, draft.title) : draft.title;
+  if (releaseTitle !== release.title) patch.title = releaseTitle;
   if (draft.artist !== release.artist) patch.artist = draft.artist;
 
   const yearValue = draft.year.trim() === "" ? null : draft.year.trim();
@@ -88,12 +126,15 @@ export function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | 
   draft.tracks.forEach((t, i) => {
     const original = release.tracks.find((o) => o.id === t.key);
     const trackNumber = i + 1;
-    const change: { id: string; title?: string; trackNumber?: number; discNumber?: number } = {
+    const change: { id: string; title?: string; trackNumber?: number; discNumber?: number | null } = {
       id: t.key,
     };
     let changed = false;
-    if (!original || original.title !== t.title) {
-      change.title = t.title;
+    // The stored title is the plain one joined with the names (Spotify's "Song (feat. B)"); a title the
+    // user did not touch is sent as it was.
+    const storedTitle = titleForSave(original?.title, t.title, t.featuring ?? []);
+    if (!original || original.title !== storedTitle) {
+      change.title = storedTitle;
       changed = true;
     }
     if (!original || original.trackNumber !== trackNumber) {
@@ -103,6 +144,10 @@ export function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | 
     // A track dropped in among another disc's tracks joins that disc.
     if (t.discNumber !== undefined && (!original || original.discNumber !== t.discNumber)) {
       change.discNumber = t.discNumber;
+      changed = true;
+    } else if (t.discNumber === undefined && original?.discNumber !== undefined) {
+      // The discs were joined back into one: clear the stored disc.
+      change.discNumber = null;
       changed = true;
     }
     if (changed) trackPatches.push(change);
@@ -141,6 +186,17 @@ function InlineField({
   );
 }
 
+/** Year and genre in view mode: the same label and value as InlineField, as plain text. */
+function PlainField({ label, value }: { label: string; value: string }) {
+  const set = value.trim() !== "";
+  return (
+    <p className="flex items-baseline gap-1.5">
+      <span className="text-white/70">{label}</span>
+      <span className={set ? "font-semibold text-text" : "text-text-dim"}>{set ? value : "Not set"}</span>
+    </p>
+  );
+}
+
 export default function ReleaseView({
   releaseId,
   initialRelease,
@@ -150,27 +206,51 @@ export default function ReleaseView({
   onUpdated,
   onToast,
   onOpenSettings,
+  artistIndex,
 }: ReleaseViewProps) {
+  const artistNav = useArtistNav();
   const [release, setRelease] = useState<Release | null>(initialRelease ?? null);
   const [loading, setLoading] = useState(!initialRelease);
-  const [title, setTitle] = useState(initialRelease?.title ?? "");
+  const [title, setTitle] = useState(initialRelease ? shownTitle(initialRelease) : "");
   const [artist, setArtist] = useState(initialRelease?.artist ?? "");
   const [year, setYear] = useState(initialRelease?.year ?? "");
   const [genre, setGenre] = useState(initialRelease?.genre ?? "");
   const [tracks, setTracks] = useState<EditableTrack[]>(
-    () => initialRelease?.tracks.map((t) => ({ key: t.id, title: t.title, discNumber: t.discNumber })) ?? []
+    () => initialRelease?.tracks.map((t) => editableTrack(t, initialRelease.adopted === true)) ?? []
   );
   // While a copy is on screen, a load refreshes it quietly instead of flashing "Loading…".
   const shown = useRef<Release | null>(initialRelease ?? null);
   const [saving, setSaving] = useState(false);
   const [replacingCover, setReplacingCover] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const {
+    open: confirmingDelete,
+    ask: askDelete,
+    cancel: cancelDelete,
+    close: closeDeleteConfirm,
+    bindOpener: bindDeleteOpener,
+  } = useBarConfirm();
   const [deleting, setDeleting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [spin, setSpin] = useState(0);
   // Each track's total plays across devices, by track id (#107). Empty until the one fetch lands.
   const [plays, setPlays] = useState<Record<string, number>>({});
+  // The Spotify playlists each track is in, by track id (#212). Empty until connected and read.
+  const [playlists, setPlaylists] = useState<Record<string, { id: string; name: string }[]>>({});
   const copiedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A release added from a Spotify folder (#249) opens in view mode: nothing on it is editable.
+  const {
+    open: confirmingRemove,
+    ask: askRemove,
+    cancel: cancelRemove,
+    bindOpener: bindRemoveOpener,
+  } = useBarConfirm();
+  const [removing, setRemoving] = useState(false);
+  const [adoptRoots, setAdoptRoots] = useState<string[]>([]);
+  const isAdopted = release?.adopted === true;
+  const [width] = useLibraryWidth();
+  const pageRef = useRef<HTMLDivElement>(null);
+  const paneWidth = usePaneWidth(pageRef, !loading && release !== null);
+  const [barHeight, setBarHeight] = useState(BAR_MIN_HEIGHT);
 
   const artworkUrl = release?.coverPath ? coverUrl(release.id, release.updatedAt) : null;
   const palette = useArtworkPalette(artworkUrl);
@@ -195,30 +275,43 @@ export default function ReleaseView({
   const applyRelease = useCallback((r: Release) => {
     shown.current = r;
     setRelease(r);
-    setTitle(r.title);
+    setTitle(shownTitle(r));
     setArtist(r.artist);
     setYear(r.year ?? "");
     setGenre(r.genre ?? "");
-    setTracks(r.tracks.map((t) => ({ key: t.id, title: t.title, discNumber: t.discNumber })));
+    setTracks(r.tracks.map((t) => editableTrack(t, r.adopted === true)));
   }, []);
 
   const load = useCallback(() => {
     if (!shown.current) setLoading(true);
-    setConfirmingDelete(false);
+    closeDeleteConfirm();
     getRelease(releaseId)
       .then(applyRelease)
       .catch((e) =>
         onToast("error", e instanceof Error ? e.message : "Failed to load release")
       )
       .finally(() => setLoading(false));
-  }, [releaseId, applyRelease, onToast]);
+  }, [releaseId, applyRelease, onToast, closeDeleteConfirm]);
 
   useEffect(() => {
     // Fetch-on-mount: load() sets loading state before its async fetch resolves. ReleaseView is
     // remounted (via `key={releaseId}`) whenever the selected release changes.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
+
+  useEffect(() => {
+    // The folder line is relative to the Spotify folder, so a view-mode page needs the list once.
+    if (!isAdopted || IS_DEMO) return;
+    let cancelled = false;
+    getSettings()
+      .then((s) => {
+        if (!cancelled) setAdoptRoots(s.adoptRoots);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdopted]);
 
   useEffect(() => {
     // One request per release page open (ReleaseView is remounted per release), never per row or
@@ -234,6 +327,32 @@ export default function ReleaseView({
       cancelled = true;
     };
   }, [releaseId]);
+
+  useEffect(() => {
+    // The first read can come back empty while the server fills its cache in the background, and
+    // a refresh can be held up by a Retry-After, so keep looking until it is done (see
+    // playlists-poll.ts), and once more when the window regains focus. A failure leaves the lines off.
+    if (IS_DEMO) return;
+    const polling = startPlaylistsPolling(
+      () => getSpotifyPlaylists(releaseId),
+      (res) => setPlaylists(res.connected ? res.tracks : {})
+    );
+    const onFocus = () => polling.poke();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      polling.stop();
+    };
+  }, [releaseId]);
+
+  const handleOpenPlaylist = useCallback(
+    (id: string) => {
+      openSpotifyPlaylist(id).catch((e) =>
+        onToast("error", e instanceof Error ? e.message : "Couldn't open the playlist")
+      );
+    },
+    [onToast]
+  );
 
   const hasRelease = release !== null;
   useEffect(() => {
@@ -308,10 +427,6 @@ export default function ReleaseView({
 
   async function handleDelete() {
     if (!release) return;
-    if (!confirmingDelete) {
-      setConfirmingDelete(true);
-      return;
-    }
     setDeleting(true);
     try {
       await deleteRelease(release.id);
@@ -323,6 +438,19 @@ export default function ReleaseView({
     }
   }
 
+  async function handleRemove() {
+    if (!release) return;
+    setRemoving(true);
+    try {
+      await forgetRelease(release.id);
+      onToast("success", "Removed from Locally");
+      onDeleted();
+    } catch (e) {
+      onToast("error", e instanceof Error ? e.message : "Couldn't remove it from Locally");
+      setRemoving(false);
+    }
+  }
+
   if (loading) {
     return <p className="text-text-muted">Loading…</p>;
   }
@@ -331,38 +459,90 @@ export default function ReleaseView({
     return <p className="text-text-muted">Release not found.</p>;
   }
 
-  const headerTitle = title.trim() || artist.trim() || release.title || release.artist;
+  const artistShown = isAdopted && artist.trim() === "" ? UNKNOWN_ARTIST : artist;
+  const headerTitle = title.trim() || artistShown.trim() || release.title || release.artist;
+  const folderLine = isAdopted ? folderAfterRoot(adoptRoots, release.folderPath) : null;
+  const viewTracks = isAdopted
+    ? Object.fromEntries(release.tracks.map((t) => [t.id, { durationSec: t.durationSec, missing: t.missing }]))
+    : undefined;
   const trackCount = `${tracks.length} track${tracks.length === 1 ? "" : "s"}`;
   const unsaved = buildPatch(release, { title, artist, year, genre, tracks }) !== null;
 
-  return (
-    <div className="mx-auto flex max-w-[920px] flex-col gap-12 pb-16">
-      <AmbientBackdrop palette={palette} />
-      <SpotifySourceBanner onOpenSettings={onOpenSettings} onToast={onToast} />
+  // A name on this page opens that artist's page; leaving drops unsaved edits, so while there are
+  // some the links are disabled (#288).
+  const artistNavHere = { open: artistNav.open, lockedReason: unsaved ? LOCKED_TIP : null };
+  // The names a single features, as links in a read-only header; an album has none of its own.
+  const headerFeaturing =
+    release.kind === "single" && tracks.length > 0
+      ? isAdopted
+        ? splitFeaturing(tracks[0].title).featuring
+        : (tracks[0].featuring ?? [])
+      : [];
+  const linkedArtist = artist.trim() !== "";
+  const beside = detailsBesideSleeve(paneWidth);
+  const durations = Object.fromEntries(release.tracks.map((t) => [t.id, t.durationSec]));
 
-      {/* From lg up the record and the tracks share a left column and the dock gets a column of
-          its own on the right, spanning both so it stays pinned while the tracks scroll. Below lg
-          everything stacks and the dock sits under the details. */}
-      <div className="flex flex-col gap-12 lg:grid lg:grid-cols-[minmax(0,1fr)_13rem] lg:items-start lg:gap-x-10">
-        {/* The record is the hero: the sleeve (cover picker) with the disc peeking out, and the
-            details set directly under it as inline text rather than a form (#112). */}
-        <header className="flex flex-col gap-8 pt-2 lg:col-start-1 lg:row-start-1 lg:pt-4">
+  return (
+    // The bottom margin cancels the pane's own bottom padding (AppShell's p-6 md:p-10 lg:p-16), so the
+    // bar's anchor sits at the pane's bottom edge and the bar stays 24 above it at the end of the scroll.
+    <ArtistNavProvider value={artistNavHere}>
+    <div ref={pageRef} className={`flex min-h-[calc(100%+1.5rem)] flex-col -mb-6 md:min-h-[calc(100%+2.5rem)] md:-mb-10 lg:min-h-[calc(100%+4rem)] lg:-mb-16 ${libraryWidthClass(width)}`}>
+      <div className="flex flex-1 flex-col gap-12" style={{ paddingBottom: barPadding(barHeight) }}>
+      <AmbientBackdrop palette={palette} />
+      {!isAdopted && <SpotifySourceBanner onOpenSettings={onOpenSettings} onToast={onToast} />}
+
+      {/* The record is the hero: the sleeve (cover picker) with the disc peeking out. The details sit
+          beside it once the pane is wider than about 900, bottom-aligned to it, and under it below
+          that. The actions are in the release bar at the bottom of the pane. */}
+      <div className="flex flex-col gap-12">
+        <header className={`flex pt-2 lg:pt-4 ${beside ? "flex-row items-end gap-10" : "flex-col gap-8"}`}>
           <RecordSleeve labelUrl={artworkUrl} spin={spin}>
-            <CoverPicker
-              file={null}
-              existingUrl={artworkUrl}
-              onChange={handleReplaceCover}
-              disabled={replacingCover}
-              readOnly={IS_DEMO}
-              presentation="sleeve"
-            />
+            {isAdopted ? (
+              // View mode: the sleeve is only a picture, with no pencil badge and no picker. With no
+              // cover it is the note and nothing else.
+              <div className="record-sleeve relative size-[200px] overflow-hidden rounded-[4px] bg-card sm:size-[248px]">
+                {artworkUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={artworkUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <NoCover className="h-full w-full" />
+                )}
+              </div>
+            ) : (
+              <CoverPicker
+                file={null}
+                existingUrl={artworkUrl}
+                onChange={handleReplaceCover}
+                disabled={replacingCover}
+                readOnly={IS_DEMO}
+                presentation="sleeve"
+              />
+            )}
           </RecordSleeve>
 
-          <div className="flex min-w-0 flex-col gap-3">
-            <h1 className="sr-only">{headerTitle}</h1>
+          <div className={`flex min-w-0 flex-col gap-3 ${beside ? "flex-1" : ""}`}>
+            {!isAdopted && <h1 className="sr-only">{headerTitle}</h1>}
             <p className="text-sm text-white/70">
               {release.kind === "single" ? "Single" : "Album"} · {trackCount}
             </p>
+            {isAdopted ? (
+              <>
+                <h1 className="max-w-[min(100%,720px)] break-words text-[30px] font-bold leading-[1.1] tracking-[-0.035em] text-text sm:text-[44px]">
+                  {title.trim() || artistShown}
+                </h1>
+                <p className="-mt-1 text-xl font-semibold tracking-[-0.02em] text-white/85">
+                  {linkedArtist ? <ArtistLinks artist={artistShown} featuring={headerFeaturing} /> : artistShown}
+                </p>
+                <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-[15px]">
+                  <PlainField label="Year" value={year} />
+                  <PlainField label="Genre" value={genre} />
+                </div>
+                <p className="text-[13px] text-text-muted">
+                  {folderLine ? `In your Spotify folder · ${folderLine}` : "In your Spotify folder"}
+                </p>
+              </>
+            ) : (
+              <>
             <textarea
               aria-label="Title"
               rows={1}
@@ -378,14 +558,38 @@ export default function ReleaseView({
               }}
               className="field-sizing-content -mx-2 max-w-[min(100%,720px)] resize-none rounded-lg bg-transparent px-2 py-1 text-[30px] font-bold leading-[1.1] tracking-[-0.035em] text-text outline-none transition-colors placeholder:text-white/40 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent sm:text-[44px]"
             />
-            <input
-              aria-label="Artist"
-              value={artist}
-              readOnly={IS_DEMO}
-              placeholder="Add artist"
-              onChange={(e) => setArtist(e.target.value)}
-              className="field-sizing-content -mx-2 -mt-1 min-w-[8ch] max-w-full self-start rounded-md bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
-            />
+            {IS_DEMO && linkedArtist ? (
+              // Read-only (the demo): the plain artist line, every name a link.
+              <p className="-mt-1 text-xl font-semibold tracking-[-0.02em] text-white/85">
+                <ArtistLinks artist={artist} featuring={headerFeaturing} />
+              </p>
+            ) : (
+              <div className="-mt-1 flex min-w-0 max-w-full items-start gap-1 self-start">
+                <ArtistCombobox
+                  ariaLabel="Artist"
+                  value={artist}
+                  readOnly={IS_DEMO}
+                  placeholder="Add artist"
+                  onChange={setArtist}
+                  index={artistIndex}
+                  wrapperClassName="-mx-2 max-w-full self-start"
+                  hintClassName="self-start"
+                  inputClassName="field-sizing-content min-w-[8ch] max-w-full rounded-md bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
+                />
+                <span className="flex h-8 items-center">
+                  <ArtistOpenButton artist={artist} />
+                </span>
+              </div>
+            )}
+            {release.kind === "single" && tracks.length > 0 && !IS_DEMO && (
+              <FeaturingRow
+                names={tracks[0].featuring ?? []}
+                onChange={(featuring) => setTracks((prev) => prev.map((t, i) => (i === 0 ? { ...t, featuring } : t)))}
+                index={artistIndex}
+                readOnly={IS_DEMO}
+                linkNames
+              />
+            )}
             <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-[15px]">
               <InlineField
                 label="Year"
@@ -396,81 +600,32 @@ export default function ReleaseView({
               />
               <InlineField label="Genre" value={genre} onChange={setGenre} placeholder="Add genre" />
             </div>
+              </>
+            )}
           </div>
         </header>
 
-        {/* Dock: under the details below lg; from lg up a column on the right, level with the
-            record. It pins to the top of the pane so the save action stays in reach while you
-            edit the tracks. A sticky offset counts from <main>'s padding edge, so the 4rem of
-            lg:p-16 plus top-4 leaves the dock 5rem below the pane's top: clear of the phone-tray
-            button AppShell pins there (md:top-6 + --tray-size = 4rem, and a rem of air). Keep
-            that sum if the pane's padding changes. */}
-        <div
-          // The Save button's hover glow takes the cover's colour (#155); without a cover it stays the accent.
-          style={palette ? ({ "--btn-tint": palette.primary } as CSSProperties) : undefined}
-          className="sticky top-4 z-10 -my-4 flex w-fit max-w-full flex-wrap items-center gap-2 self-start rounded-[26px] glass-fake glass-dock p-1.5 pr-3 sm:rounded-full lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:my-0 lg:w-auto lg:flex-col lg:items-stretch lg:gap-1 lg:rounded-[26px] lg:p-2">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving || IS_DEMO}
-            title={IS_DEMO ? "Not available in the demo" : undefined}
-            className="btn-save"
-          >
-            {saving ? "Saving…" : "Save to library"}
-          </button>
-          {unsaved && !IS_DEMO && !confirmingDelete && (
-            <span className="px-1 text-xs text-text-muted lg:py-1 lg:text-center">Unsaved changes</span>
-          )}
-          <button
-            type="button"
-            onClick={handleReveal}
-            disabled={IS_DEMO}
-            title={IS_DEMO ? "Not available in the demo" : undefined}
-            className="btn-save"
-          >
-            Show in Finder
-          </button>
-          {confirmingDelete ? (
-            <span className="flex items-center gap-2 text-sm lg:flex-col lg:items-stretch lg:gap-1">
-              <span className="pl-1 text-text-muted lg:py-1 lg:pl-0 lg:text-center">
-                Delete this release?
-              </span>
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="rounded-full bg-danger px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                {deleting ? "Deleting…" : "Confirm delete"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmingDelete(false)}
-                className="btn-ink"
-              >
-                <span className="btn-ink-label">Cancel</span>
-              </button>
-            </span>
-          ) : (
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={IS_DEMO}
-              title={IS_DEMO ? "Not available in the demo" : undefined}
-              className="btn-ink-danger"
-            >
-              <span className="btn-ink-label">Delete</span>
-            </button>
-          )}
-        </div>
-        <div className="flex flex-col gap-3 lg:col-start-1 lg:row-start-2">
+        <div className="flex flex-col gap-3">
           <h2 className="text-lg font-bold tracking-[-0.03em] text-text">Tracks</h2>
-          <TrackList tracks={tracks} onChange={handleTracksChange} readOnly={IS_DEMO} plays={plays} />
+          <TrackList
+            tracks={tracks}
+            onChange={handleTracksChange}
+            readOnly={IS_DEMO || isAdopted}
+            view={viewTracks}
+            featuringIndex={release.kind === "album" && !isAdopted ? artistIndex : undefined}
+            durations={durations}
+            releaseArtist={artistShown}
+            linkArtists={linkedArtist}
+            plays={plays}
+            playlists={playlists}
+            onOpenPlaylist={handleOpenPlaylist}
+          />
           {tracks.some((t) => (plays[t.key] ?? 0) > 0) && (
             <p className="text-xs text-text-muted">{PLAYS_ACROSS_DEVICES}</p>
           )}
         </div>
       </div>
+
 
       {release.kind === "album" && (
         <details
@@ -498,7 +653,87 @@ export default function ReleaseView({
           </div>
         </details>
       )}
+      </div>
 
+      <ReleaseBar
+        label="Release actions"
+        tint={palette?.primary}
+        onHeight={setBarHeight}
+        left={
+          isAdopted ? (
+            confirmingRemove ? (
+              // The release page's confirm style, without the red: the files stay where they are.
+              <BarConfirm
+                message="Remove from Locally? The files stay in your Spotify folder, and Check for new files can add it back."
+                onCancel={cancelRemove}
+                disabled={removing}
+              >
+                <button type="button" onClick={handleRemove} disabled={removing} className="btn-save">
+                  {removing ? "Removing…" : "Remove"}
+                </button>
+              </BarConfirm>
+            ) : (
+              <button ref={bindRemoveOpener} type="button" onClick={askRemove} className="btn-ink">
+                <span className="btn-ink-label">Remove from Locally</span>
+              </button>
+            )
+          ) : confirmingDelete ? (
+            <BarConfirm message="Delete this release?" onCancel={cancelDelete}>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="rounded-full bg-danger px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {deleting ? "Deleting…" : "Confirm delete"}
+              </button>
+            </BarConfirm>
+          ) : (
+            <button
+              ref={bindDeleteOpener}
+              type="button"
+              onClick={askDelete}
+              disabled={IS_DEMO}
+              title={IS_DEMO ? "Not available in the demo" : undefined}
+              className="btn-ink-danger"
+            >
+              <span className="btn-ink-label">Delete</span>
+            </button>
+          )
+        }
+        status={unsaved && !IS_DEMO && !confirmingDelete && !isAdopted ? "Unsaved changes" : undefined}
+        beforeMain={
+          isAdopted ? undefined : (
+            <button
+              type="button"
+              onClick={handleReveal}
+              disabled={IS_DEMO}
+              title={IS_DEMO ? "Not available in the demo" : undefined}
+              className="btn-ink"
+            >
+              <span className="btn-ink-label">Show in Finder</span>
+            </button>
+          )
+        }
+        main={
+          isAdopted ? (
+            <button type="button" onClick={handleReveal} disabled={IS_DEMO} className="btn-save btn-save-lit">
+              Show in Finder
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || IS_DEMO}
+              title={IS_DEMO ? "Not available in the demo" : undefined}
+              className="btn-save btn-save-lit"
+            >
+              {saving ? "Saving…" : "Save to library"}
+            </button>
+          )
+        }
+      />
     </div>
+    </ArtistNavProvider>
   );
 }

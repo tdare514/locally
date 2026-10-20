@@ -67,6 +67,18 @@ describe("FileSettingsStore", () => {
     expect(s.trackPlays).toBe(false);
   });
 
+  it("reads countOtherDevices as false from an old settings.json and round-trips true (#228)", async () => {
+    await fs.mkdir(configDir, { recursive: true });
+    const libraryDir = path.join(path.dirname(configDir), "lib");
+    await fs.writeFile(settingsFilePath(), JSON.stringify({ libraryDir, sync: null, trackPlays: true }));
+    const store = new FileSettingsStore();
+    expect((await store.get()).countOtherDevices).toBe(false);
+    await fs.writeFile(settingsFilePath(), JSON.stringify({ libraryDir, sync: null, countOtherDevices: true }));
+    expect((await new FileSettingsStore().get()).countOtherDevices).toBe(true);
+    await fs.writeFile(settingsFilePath(), JSON.stringify({ libraryDir, sync: null, countOtherDevices: "yes" }));
+    expect((await new FileSettingsStore().get()).countOtherDevices).toBe(false);
+  });
+
   it("reads playsPromptAnswered as false on first run and from an old settings.json without the field", async () => {
     expect((await new FileSettingsStore().get()).playsPromptAnswered).toBe(false);
 
@@ -122,5 +134,25 @@ describe("FileSettingsStore", () => {
     expect(reread.sync).toBeNull();
 
     warn.mockRestore();
+  });
+
+  it("keeps the install ID across reads and updates, and the file stays mode 0600 (#210)", async () => {
+    const store = new FileSettingsStore();
+    const libraryDir = path.join(configDir, "lib");
+    const installId = "44444444-4444-4444-8444-444444444444";
+    await store.set({ libraryDir, sync: null, installId });
+
+    expect((await store.get()).installId).toBe(installId);
+    await store.update((current) => ({ ...current, trackPlays: true }));
+    expect((await store.get()).installId).toBe(installId);
+
+    expect(permBits((await fs.stat(settingsFilePath())).mode)).toBe("600");
+    expect(permBits((await fs.stat(settingsDir())).mode)).toBe("700");
+  });
+
+  it("drops an install ID that is not a UUID", async () => {
+    await fs.mkdir(configDir, { recursive: true });
+    await fs.writeFile(settingsFilePath(), JSON.stringify({ libraryDir: path.join(configDir, "lib"), sync: null, installId: "nope" }));
+    expect((await new FileSettingsStore().get()).installId).toBeUndefined();
   });
 });

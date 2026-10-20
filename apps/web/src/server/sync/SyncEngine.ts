@@ -6,6 +6,7 @@ import { DEFAULT_SYNC_BASE_URL } from "../../shared/types";
 import { NotFoundError, PublicError, ValidationError } from "../../shared/errors";
 import type { SettingsStore } from "../config/SettingsStore";
 import type { FileSystem } from "../fs/FileSystem";
+import { assertReadablePath, assertWritable, isAdoptedCoverPath } from "../adopt/guards";
 import type { ReleaseService } from "../releases/ReleaseService";
 import type { ReleaseSyncHooks } from "../releases/ReleaseSyncHooks";
 import type { PlayCountStore } from "../plays/PlayCountStore";
@@ -19,7 +20,8 @@ import {
   type SyncApi,
   type SyncFileToUpload,
 } from "./SyncApi";
-import type { MissingMark, SyncStateStore } from "./SyncState";
+import type { MissingMark, SyncState, SyncStateStore } from "./SyncState";
+import { hideKeyFor } from "../../lib/tray-sections";
 
 /** Builds a `SyncApi` for a given base URL/token; a factory (not a singleton) because both can change while the app runs. */
 export type SyncApiFactory = (baseUrl: string, token: string | null) => SyncApi;
@@ -68,6 +70,8 @@ function pendingSummary(record: SyncRecord, filesState: PendingFilesState | unde
     kind: meta.kind,
     trackCount: meta.tracks.length,
     ...(filesState ? { filesState } : {}),
+    hideKey: hideKeyFor(record),
+    sentAt: record.updatedAt,
   };
 }
 
@@ -77,6 +81,15 @@ function pendingSummary(record: SyncRecord, filesState: PendingFilesState | unde
  * `FileSystem` (which already exposes `readFile`) and updating every fake
  * that implements it.
  */
+/** At most one localId re-push per adopted release in this long (#307). */
+export const LOCAL_ID_REPUSH_MS = 24 * 60 * 60 * 1000;
+
+/** True when the Mac holds a localId for a track that the pulled record has without one. */
+function lostLocalId(local: Release, record: SyncRecord): boolean {
+  const remote = new Map(record.tracks.map((t) => [t.id, t]));
+  return local.tracks.some((t) => t.localId && remote.has(t.id) && !remote.get(t.id)?.localId);
+}
+
 async function sha256File(fs: FileSystem, filePath: string): Promise<string> {
   const bytes = await fs.readFile(filePath);
   return crypto.createHash("sha256").update(bytes).digest("hex");
@@ -158,6 +171,10 @@ export class SyncEngine implements ReleaseSyncHooks {
       pendingFromPhone: Object.values(state.pendingFromPhone).map((record) =>
         pendingSummary(record, filesStateFor(record, state.missingFiles[record.id], nowMs))
       ),
+      // Only the hidden releases still pending, so a sent or removed one doesn't linger in the payload.
+      hiddenFromTray: Object.fromEntries(
+        Object.entries(state.hiddenFromTray ?? {}).filter(([id]) => Object.hasOwn(state.pendingFromPhone, id))
+      ),
       quota: this.quota,
     };
   }
@@ -211,10 +228,11 @@ export class SyncEngine implements ReleaseSyncHooks {
   }
 
   private async bumpLastVersion(version: number): Promise<void> {
-    const settings = await this.settings.get();
-    if (settings.sync && version > settings.sync.lastVersion) {
-      await this.settings.set({ ...settings, sync: { ...settings.sync, lastVersion: version } });
-    }
+    await this.settings.update((current) =>
+      current.sync && version > current.sync.lastVersion
+        ? { ...current, sync: { ...current.sync, lastVersion: version } }
+        : null,
+    );
   }
 
   private async pushOne(api: SyncApi, release: Release): Promise<void> {
@@ -223,11 +241,16 @@ export class SyncEngine implements ReleaseSyncHooks {
     // library to be statSize'd, hashed, or uploaded to the sync service. Checked before
     // any of that I/O happens.
     const settings = await this.settings.get();
-    this.assertInsideLibrary(settings.libraryDir, release);
+    this.assertInsideLibrary(settings.libraryDir, release, settings.adoptRoots ?? []);
 
     const trackBytes: Record<string, number> = {};
     for (const t of release.tracks) {
-      trackBytes[t.id] = await this.fs.statSize(t.filePath);
+      if (release.adopted) {
+        // Details only: the size is informational, and an adopted file may have gone missing (#245).
+        trackBytes[t.id] = await this.fs.statSize(t.filePath).catch(() => 0);
+      } else {
+        trackBytes[t.id] = await this.fs.statSize(t.filePath);
+      }
     }
     const coverHash = release.coverPath ? await sha256File(this.fs, release.coverPath) : null;
     const record = toSyncRecord(release, "mac", this.deviceName(), trackBytes, coverHash);
@@ -244,6 +267,8 @@ export class SyncEngine implements ReleaseSyncHooks {
     const toUpload: { name: string; bytes: number; filePath: string }[] = [];
 
     for (const t of record.tracks) {
+      // An adopted release uploads only its cover: its audio is already where it is needed (#245).
+      if (release.adopted) break;
       if (already.has(t.file)) continue;
       const local = release.tracks.find((x) => x.id === t.id);
       if (!local) continue;
@@ -344,6 +369,17 @@ export class SyncEngine implements ReleaseSyncHooks {
         }
 
         const local = await this.releases.get(record.id);
+        // An adopted record can't be sent to Spotify from anywhere: never offered in the tray, so it is
+        // never counted as pending or missing (#245).
+        if (!local && record.source === "adopted") continue;
+        if (local?.adopted) {
+          // Adopted releases are read-only here: a remote edit is not applied (it would re-tag the files).
+          delete state.pendingFromPhone[record.id];
+          delete state.missingFiles[record.id];
+          // An older client edited it and dropped the track localIds the Mac holds: put them back (#307).
+          if (record.source === "adopted" && lostLocalId(local, record)) this.queueLocalIdPush(state, local.id);
+          continue;
+        }
         if (!local) {
           // Any origin but "mac" is another device ("ios", "web", or one this build has never
           // heard of): offered in the tray, never mistaken for this Mac's own.
@@ -447,19 +483,53 @@ export class SyncEngine implements ReleaseSyncHooks {
     throw new Error(`Sync pull did not finish after ${MAX_PULL_PAGES_PER_RECONCILE} pages; stopping this reconcile.`);
   }
 
+  /**
+   * Queues a push of an adopted release so its track localIds reach the server (#307): forgets the
+   * pushed marker, so the back-fill in `reconcile` sends it. At most once a day per release, or a
+   * server that keeps stripping the field would make every reconcile push again. Edits `state` in
+   * place; the caller saves it. Returns whether it queued.
+   */
+  private queueLocalIdPush(state: SyncState, releaseId: string): boolean {
+    const queued = (state.localIdQueuedAt ??= {});
+    const nowMs = this.now().getTime();
+    const last = Date.parse(queued[releaseId] ?? "");
+    if (Number.isFinite(last) && nowMs - last < LOCAL_ID_REPUSH_MS) return false;
+    queued[releaseId] = new Date(nowMs).toISOString();
+    delete state.pushedUpdatedAt[releaseId];
+    return true;
+  }
+
+  /** The one-time back-fill (#307): queues a push of every adopted release that has localIds. */
+  private async queueLocalIdBackfill(): Promise<void> {
+    const state = await this.syncState.get();
+    if (state.localIdBackfilled) return;
+    for (const release of await this.releases.list()) {
+      if (release.adopted && release.tracks.some((t) => t.localId)) this.queueLocalIdPush(state, release.id);
+    }
+    state.localIdBackfilled = true;
+    await this.syncState.set(state);
+  }
+
   private isOwnEcho(record: SyncRecord): boolean {
     return record.origin === "mac" && record.originDevice === this.deviceName();
   }
 
-  /** Same shape as `ReleaseService.assertInsideLibrary`: inside the library dir and not the dir itself. */
-  private assertInsideLibrary(libraryDir: string, release: Release): void {
-    const checkPath = (target: string) => {
-      if (!this.fs.isInside(libraryDir, target) || path.resolve(target) === path.resolve(libraryDir)) {
-        throw new ValidationError(`Refusing to sync a file outside the library directory (release ${release.id})`);
-      }
-    };
-    for (const t of release.tracks) checkPath(t.filePath);
-    if (release.coverPath) checkPath(release.coverPath);
+  /**
+   * Same shape as `ReleaseService.assertInsideLibrary`: inside the library dir and not the dir itself.
+   * An adopted release (#245) is read from its tracks' place inside the adopt roots (after realpath) and
+   * its cover from Locally's app data; nothing else outside the library.
+   */
+  private assertInsideLibrary(libraryDir: string, release: Release, adoptRoots: readonly string[] = []): void {
+    const message = `Refusing to sync a file outside the library directory (release ${release.id})`;
+    for (const t of release.tracks) {
+      assertReadablePath(this.fs, libraryDir, release.adopted ? adoptRoots : [], t.filePath, message);
+    }
+    if (!release.coverPath) return;
+    if (release.adopted) {
+      if (!isAdoptedCoverPath(this.fs, release.coverPath)) throw new ValidationError(message);
+    } else {
+      assertReadablePath(this.fs, libraryDir, [], release.coverPath, message);
+    }
   }
 
   /**
@@ -478,6 +548,7 @@ export class SyncEngine implements ReleaseSyncHooks {
       const api = this.apiFactory(settings.sync.baseUrl, settings.sync.deviceToken);
 
       await this.pullOnce(api);
+      await this.queueLocalIdBackfill();
 
       // Back-fill: push any local release whose current `updatedAt` hasn't been pushed yet.
       const state = await this.syncState.get();
@@ -491,6 +562,11 @@ export class SyncEngine implements ReleaseSyncHooks {
             // any other failure (network, server error, ...) still aborts the run as before,
             // and this release is retried on the next reconcile.
             if (err instanceof ValidationError) {
+              console.warn(`SyncEngine: skipping push of release ${release.id}: ${err.message}`);
+              continue;
+            }
+            // Likewise a record the service refuses for good (400/422) must not hold the rest back.
+            if (err instanceof SyncRequestError && (err.status === 400 || err.status === 422)) {
               console.warn(`SyncEngine: skipping push of release ${release.id}: ${err.message}`);
               continue;
             }
@@ -657,6 +733,35 @@ export class SyncEngine implements ReleaseSyncHooks {
 
   // --- Inbox ("From your devices") ----------------------------------------
 
+  /**
+   * Hide (#295): takes a pending release out of this Mac's tray at the version it has now. Nothing
+   * is deleted anywhere; a newer version has another token and shows again.
+   */
+  async hideFromTray(id: string): Promise<void> {
+    let found = false;
+    await this.syncState.update((current) => {
+      const record = Object.hasOwn(current.pendingFromPhone, id) ? current.pendingFromPhone[id] : undefined;
+      if (!record) return null;
+      found = true;
+      const hidden = Object.fromEntries(
+        Object.entries(current.hiddenFromTray ?? {}).filter(([other]) => Object.hasOwn(current.pendingFromPhone, other))
+      );
+      hidden[id] = hideKeyFor(record);
+      return { ...current, hiddenFromTray: hidden };
+    });
+    if (!found) throw new NotFoundError(`No pending release ${id} from your phone`);
+  }
+
+  /** Undo for Hide: the release shows in the tray again. Quietly does nothing when it wasn't hidden. */
+  async unhideFromTray(id: string): Promise<void> {
+    await this.syncState.update((current) => {
+      if (!current.hiddenFromTray || !Object.hasOwn(current.hiddenFromTray, id)) return null;
+      const rest = { ...current.hiddenFromTray };
+      delete rest[id];
+      return { ...current, hiddenFromTray: rest };
+    });
+  }
+
   async acceptFromPhone(id: string): Promise<Release> {
     const settings = await this.settings.get();
     if (!settings.sync?.deviceToken) {
@@ -667,6 +772,8 @@ export class SyncEngine implements ReleaseSyncHooks {
     if (!record) {
       throw new NotFoundError(`No pending release ${id} from your phone`);
     }
+    // Nothing to download or send for a details-only record (#245).
+    assertWritable({ adopted: record.source === "adopted", title: record.title });
     // The tray never offers Send here; this stops a stale tray from walking into the 404 below.
     const filesState = filesStateFor(record, state.missingFiles[id], this.now().getTime());
     if (filesState === "arriving") {

@@ -4,8 +4,9 @@ import { requireAuth } from "../../../../server/http/authContext";
 import { parseJsonBody, parseParam } from "../../../../server/http/validation";
 import { runAfterResponse } from "../../../../server/http/afterResponse";
 import { withObservability } from "../../../../server/http/observe";
-import { releaseRecordSchema, uuidSchema } from "../../../../shared/types";
-import { ValidationError } from "../../../../shared/errors";
+import { storedLongNames as longNamesOf } from "../../../../server/releases/storedLongNames";
+import { releaseRecordSchemaKeeping, uuidSchema } from "../../../../shared/types";
+import { NotFoundError, ValidationError } from "../../../../shared/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +21,16 @@ export const PUT = withObservability("/v1/releases/[id]", async (request, obs, {
   const { id } = await params;
   const releaseId = parseParam(id, uuidSchema);
 
-  const record = await parseJsonBody(request, releaseRecordSchema);
+  // A name over the byte limit is refused unless this release already stores it (#87): a record
+  // saved before the limit must stay re-pushable.
+  let storedLongNames = new Set<string>();
+  try {
+    storedLongNames = longNamesOf(await services.releases.getOwned(user.id, releaseId));
+  } catch (err) {
+    if (!(err instanceof NotFoundError)) throw err;
+  }
+
+  const record = await parseJsonBody(request, releaseRecordSchemaKeeping(storedLongNames));
   if (record.id !== releaseId) {
     throw new ValidationError("Body id must match the release id in the URL");
   }

@@ -1,0 +1,486 @@
+[
+  {
+    "name": "same artist, different spellings: the most used spelling wins, a tie goes A to Z",
+    "releases": [
+      {
+        "artist": "The Weeknd",
+        "tracks": [
+          "Song 1",
+          "Song 2",
+          "Song 3"
+        ]
+      },
+      {
+        "artist": "the weeknd",
+        "tracks": [
+          "Song 1"
+        ]
+      },
+      {
+        "artist": "Beyoncé",
+        "tracks": [
+          "Song 1",
+          "Song 2"
+        ]
+      },
+      {
+        "artist": "Beyonce",
+        "tracks": [
+          "Song 1",
+          "Song 2"
+        ]
+      }
+    ],
+    "index": [
+      {
+        "display": "Beyonce",
+        "key": "beyonce",
+        "trackCount": 4,
+        "releaseCount": 2
+      },
+      {
+        "display": "The Weeknd",
+        "key": "the weeknd",
+        "trackCount": 4,
+        "releaseCount": 2
+      }
+    ]
+  },
+  {
+    "name": "featured names in track titles add to trackCount; an empty artist is left out",
+    "releases": [
+      {
+        "artist": "Drake",
+        "tracks": [
+          "One (feat. Rihanna)",
+          "Two",
+          "Three ft. 21 Savage & Future"
+        ]
+      },
+      {
+        "artist": "Rihanna",
+        "tracks": [
+          "Song 1"
+        ]
+      },
+      {
+        "artist": "",
+        "tracks": [
+          "Song 1"
+        ]
+      },
+      {
+        "artist": "...",
+        "tracks": [
+          "Song 1"
+        ]
+      }
+    ],
+    "index": [
+      {
+        "display": "Drake",
+        "key": "drake",
+        "trackCount": 3,
+        "releaseCount": 1
+      },
+      {
+        "display": "Rihanna",
+        "key": "rihanna",
+        "trackCount": 2,
+        "releaseCount": 1
+      },
+      {
+        "display": "21 Savage",
+        "key": "21 savage",
+        "trackCount": 1,
+        "releaseCount": 0
+      },
+      {
+        "display": "Future",
+        "key": "future",
+        "trackCount": 1,
+        "releaseCount": 0
+      }
+    ]
+  },
+  {
+    "name": "suggestions: start of the key first, then more tracks, then A to Z",
+    "releases": [
+      {
+        "artist": "The Weeknd",
+        "tracks": [
+          "Song 1",
+          "Song 2",
+          "Song 3"
+        ]
+      },
+      {
+        "artist": "Weezer",
+        "tracks": [
+          "Song 1",
+          "Song 2"
+        ]
+      },
+      {
+        "artist": "Bon Iver",
+        "tracks": [
+          "Song 1"
+        ]
+      },
+      {
+        "artist": "Westlife",
+        "tracks": [
+          "Song 1",
+          "Song 2",
+          "Song 3",
+          "Song 4"
+        ]
+      },
+      {
+        "artist": "Kanye West",
+        "tracks": [
+          "Song 1",
+          "Song 2",
+          "Song 3",
+          "Song 4",
+          "Song 5"
+        ]
+      },
+      {
+        "artist": "Wham",
+        "tracks": [
+          "Song 1",
+          "Song 2"
+        ]
+      },
+      {
+        "artist": "Kendrick Lamar",
+        "tracks": [
+          "Song 1",
+          "Song 2",
+          "Song 3"
+        ]
+      },
+      {
+        "artist": "Kendrik Lamar",
+        "tracks": [
+          "Song 1",
+          "Song 2",
+          "Song 3",
+          "Song 4",
+          "Song 5",
+          "Song 6"
+        ]
+      }
+    ],
+    "suggest": [
+      {
+        "query": "we",
+        "limit": 5,
+        "expected": [
+          "Westlife",
+          "Weezer",
+          "Kanye West",
+          "The Weeknd"
+        ]
+      },
+      {
+        "query": "we",
+        "limit": 3,
+        "expected": [
+          "Westlife",
+          "Weezer",
+          "Kanye West"
+        ]
+      },
+      {
+        "query": "WEE",
+        "limit": 5,
+        "expected": [
+          "Weezer",
+          "The Weeknd"
+        ]
+      },
+      {
+        "query": "w",
+        "limit": 5,
+        "expected": [
+          "Westlife",
+          "Weezer",
+          "Wham",
+          "Kanye West",
+          "The Weeknd"
+        ]
+      },
+      {
+        "query": "the w",
+        "limit": 5,
+        "expected": [
+          "The Weeknd"
+        ]
+      },
+      {
+        "query": "  west",
+        "limit": 5,
+        "expected": [
+          "Westlife",
+          "Kanye West"
+        ]
+      },
+      {
+        "query": "",
+        "limit": 5,
+        "expected": []
+      },
+      {
+        "query": "   ",
+        "limit": 5,
+        "expected": []
+      },
+      {
+        "query": "zzz",
+        "limit": 5,
+        "expected": []
+      },
+      {
+        "query": "Weezer",
+        "limit": 5,
+        "expected": []
+      },
+      {
+        "query": "weezer",
+        "limit": 5,
+        "expected": [
+          "Weezer"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "did you mean: a spelling, a look-alike, and nothing",
+    "releases": [
+      {
+        "artist": "The Weeknd",
+        "tracks": [
+          "Song 1",
+          "Song 2",
+          "Song 3"
+        ]
+      },
+      {
+        "artist": "Weezer",
+        "tracks": [
+          "Song 1",
+          "Song 2"
+        ]
+      },
+      {
+        "artist": "Bon Iver",
+        "tracks": [
+          "Song 1"
+        ]
+      },
+      {
+        "artist": "Westlife",
+        "tracks": [
+          "Song 1",
+          "Song 2",
+          "Song 3",
+          "Song 4"
+        ]
+      },
+      {
+        "artist": "Kanye West",
+        "tracks": [
+          "Song 1",
+          "Song 2",
+          "Song 3",
+          "Song 4",
+          "Song 5"
+        ]
+      },
+      {
+        "artist": "Wham",
+        "tracks": [
+          "Song 1",
+          "Song 2"
+        ]
+      },
+      {
+        "artist": "Kendrick Lamar",
+        "tracks": [
+          "Song 1",
+          "Song 2",
+          "Song 3"
+        ]
+      },
+      {
+        "artist": "Kendrik Lamar",
+        "tracks": [
+          "Song 1",
+          "Song 2",
+          "Song 3",
+          "Song 4",
+          "Song 5",
+          "Song 6"
+        ]
+      }
+    ],
+    "didYouMean": [
+      {
+        "typed": "The Weeknd",
+        "expected": null
+      },
+      {
+        "typed": "the weeknd",
+        "expected": {
+          "kind": "spelling",
+          "artist": "The Weeknd",
+          "trackCount": 3
+        }
+      },
+      {
+        "typed": "THE WEEKND  ",
+        "expected": {
+          "kind": "spelling",
+          "artist": "The Weeknd",
+          "trackCount": 3
+        }
+      },
+      {
+        "typed": "Weeknd",
+        "expected": {
+          "kind": "looksLike",
+          "artist": "The Weeknd",
+          "trackCount": 3
+        }
+      },
+      {
+        "typed": "Westlif",
+        "expected": {
+          "kind": "looksLike",
+          "artist": "Westlife",
+          "trackCount": 4
+        }
+      },
+      {
+        "typed": "Kanye Wes",
+        "expected": {
+          "kind": "looksLike",
+          "artist": "Kanye West",
+          "trackCount": 5
+        }
+      },
+      {
+        "typed": "Kendric Lamar",
+        "expected": {
+          "kind": "looksLike",
+          "artist": "Kendrik Lamar",
+          "trackCount": 6
+        }
+      },
+      {
+        "typed": "",
+        "expected": null
+      },
+      {
+        "typed": "   ",
+        "expected": null
+      },
+      {
+        "typed": "Nobody",
+        "expected": null
+      }
+    ]
+  },
+  {
+    "name": "one artist spelled precomposed and decomposed is one entry, shown precomposed",
+    "releases": [
+      {
+        "artist": "Beyoncé",
+        "tracks": [
+          "Song 1",
+          "Song 2"
+        ]
+      },
+      {
+        "artist": "Beyoncé",
+        "tracks": [
+          "Song 1"
+        ]
+      }
+    ],
+    "index": [
+      {
+        "display": "Beyoncé",
+        "key": "beyonce",
+        "trackCount": 3,
+        "releaseCount": 2
+      }
+    ],
+    "suggest": [
+      {
+        "query": "bey",
+        "limit": 5,
+        "expected": [
+          "Beyoncé"
+        ]
+      }
+    ],
+    "didYouMean": [
+      {
+        "typed": "Beyoncé",
+        "expected": null
+      }
+    ]
+  },
+  {
+    "name": "a tie goes by code point, not UTF-16 unit: U+FF21 before U+1D11E",
+    "releases": [
+      {
+        "artist": "𝄞 Band",
+        "tracks": [
+          "Song 1"
+        ]
+      },
+      {
+        "artist": "Ａ Band",
+        "tracks": [
+          "Song 1"
+        ]
+      }
+    ],
+    "index": [
+      {
+        "display": "Ａ Band",
+        "key": "a band",
+        "trackCount": 1,
+        "releaseCount": 1
+      },
+      {
+        "display": "𝄞 Band",
+        "key": "band",
+        "trackCount": 1,
+        "releaseCount": 1
+      }
+    ]
+  },
+  {
+    "name": "an empty library suggests and says nothing",
+    "releases": [],
+    "index": [],
+    "suggest": [
+      {
+        "query": "a",
+        "limit": 5,
+        "expected": []
+      }
+    ],
+    "didYouMean": [
+      {
+        "typed": "Adele",
+        "expected": null
+      }
+    ]
+  }
+]

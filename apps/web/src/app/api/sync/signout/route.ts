@@ -25,14 +25,14 @@ export async function POST() {
       }
     }
 
-    await services.settings.set({
-      ...settings,
-      sync: settings.sync ? { ...settings.sync, deviceToken: null, email: null, lastVersion: 0 } : null,
-    });
+    await services.settings.update((current) => ({
+      ...current,
+      sync: current.sync ? { ...current.sync, deviceToken: null, email: null, lastVersion: 0 } : null,
+    }));
 
     // A different account or host signing in later on this Mac must not
     // inherit this account's push bookkeeping or pending phone releases.
-    await services.syncState.set(emptySyncState());
+    await services.syncState.update(() => emptySyncState());
     // Play counts stay on this Mac; only the record of what was pushed goes, so the next account
     // receives them (#107).
     await services.playStore.resetPushed();

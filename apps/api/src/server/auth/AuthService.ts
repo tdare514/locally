@@ -1,10 +1,10 @@
 import crypto from "node:crypto";
-import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, ne, type SQL } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { authCodes, devices, users } from "../../db/schema";
 import { DEFAULT_STORAGE_LIMIT_BYTES } from "../../db/schema";
 import { NotFoundError, UnauthorizedError } from "../../shared/errors";
-import type { DeviceSummary, Platform } from "../../shared/types";
+import type { DevicePlatform, DeviceSummary, Platform } from "../../shared/types";
 import type { Mailer } from "../mail/Mailer";
 
 const CODE_LENGTH = 6;
@@ -22,7 +22,7 @@ export const LAST_SEEN_REFRESH_MS = DAY_MS;
 
 export interface AuthContext {
   user: { id: string; email: string };
-  device: { id: string; name: string; platform: Platform };
+  device: { id: string; name: string; platform: DevicePlatform };
 }
 
 export interface VerifyInput {
@@ -30,6 +30,8 @@ export interface VerifyInput {
   code: string;
   deviceName: string;
   platform: Platform;
+  /** A Mac's install ID (#210); ignored for other platforms. */
+  installId?: string;
 }
 
 export interface VerifyResult extends AuthContext {
@@ -163,8 +165,11 @@ export class AuthService {
     const tokenHash = this.hashToken(token);
     const now = this.now();
 
+    const installId = input.platform === "mac" ? (input.installId ?? null) : null;
     const revivedId =
-      input.platform === "mac" ? await this.reviveMac(user.id, input.deviceName, tokenHash, now) : null;
+      input.platform === "mac"
+        ? await this.reviveMac(user.id, input.deviceName, installId, tokenHash, now)
+        : null;
     const deviceId = revivedId ?? crypto.randomUUID();
     if (revivedId === null) {
       await this.db.insert(devices).values({
@@ -176,6 +181,7 @@ export class AuthService {
         createdAt: now,
         lastSeenAt: now,
         revokedAt: null,
+        installId,
       });
     }
 
@@ -187,39 +193,66 @@ export class AuthService {
   }
 
   /**
-   * Take back this user's most recently seen revoked Mac with the same name, if there is one,
-   * and return its id; otherwise null (the caller inserts a new device).
+   * Take back one of this user's revoked Macs, if there is one, and return its id; otherwise
+   * null (the caller inserts a new device). In order (#210):
+   *   1. a revoked Mac with the same install ID (only when the Mac sent one);
+   *   2. a revoked Mac with the same name and no install ID (the #175 rule, for rows made before
+   *      install IDs), or, for a Mac that sent no install ID, any revoked Mac of that name;
+   *   3. otherwise null.
+   * A row with a different non-null install ID is never revived by name, so two Macs that share
+   * a hostname don't share a row.
    *
    * Play counts are stored per device and summed over every device, revoked ones included
    * (#104), so a Mac that signs out and back in would otherwise push its counts again under a
    * new id and the total would double (#175). Macs only: two phones of one model share a name,
-   * and phones don't count plays. An active Mac of the same name is never touched (two Macs can
-   * share a hostname).
-   *
+   * and phones don't count plays. An active Mac is never touched.
+   */
+  private async reviveMac(
+    userId: string,
+    name: string,
+    installId: string | null,
+    tokenHash: string,
+    now: number
+  ): Promise<string | null> {
+    if (installId !== null) {
+      const byId = await this.reviveWhere(userId, eq(devices.installId, installId), installId, tokenHash, now);
+      if (byId !== null) return byId;
+    }
+    // A Mac with an install ID only takes rows that have none; an old Mac (no ID) keeps the
+    // plain name rule.
+    const byName = and(eq(devices.name, name), installId === null ? undefined : isNull(devices.installId));
+    return this.reviveWhere(userId, byName, installId, tokenHash, now);
+  }
+
+  /**
    * One UPDATE ... RETURNING is the whole step, so it is atomic: the row is picked and changed
    * in a single statement whose WHERE repeats the preconditions (this user, a Mac, still
    * revoked). Two verifies racing for the same row cannot both revive it, since the loser no
    * longer matches `revoked_at IS NOT NULL`. The new token hash replaces the old one, so the old
-   * token stops working at once.
+   * token stops working at once. The row keeps its install ID, or gains `installId`.
    */
-  private async reviveMac(userId: string, name: string, tokenHash: string, now: number): Promise<string | null> {
+  private async reviveWhere(
+    userId: string,
+    match: SQL | undefined,
+    installId: string | null,
+    tokenHash: string,
+    now: number
+  ): Promise<string | null> {
     const candidate = this.db
       .select({ id: devices.id })
       .from(devices)
-      .where(
-        and(
-          eq(devices.userId, userId),
-          eq(devices.platform, "mac"),
-          eq(devices.name, name),
-          isNotNull(devices.revokedAt)
-        )
-      )
+      .where(and(eq(devices.userId, userId), eq(devices.platform, "mac"), match, isNotNull(devices.revokedAt)))
       .orderBy(desc(devices.lastSeenAt), desc(devices.createdAt), asc(devices.id))
       .limit(1);
 
     const [revived] = await this.db
       .update(devices)
-      .set({ revokedAt: null, tokenHash, lastSeenAt: now })
+      .set({
+        revokedAt: null,
+        tokenHash,
+        lastSeenAt: now,
+        ...(installId !== null ? { installId } : {}),
+      })
       .where(
         and(
           eq(devices.id, candidate),
@@ -241,7 +274,8 @@ export class AuthService {
     const tokenHash = this.hashToken(token);
     const [device] = await this.db.select().from(devices).where(eq(devices.tokenHash, tokenHash));
 
-    if (!device || device.revokedAt !== null) {
+    // A cloud device (#306) has a throwaway token hash and can never sign in; refuse it explicitly as well.
+    if (!device || device.revokedAt !== null || device.platform === "cloud") {
       throw new UnauthorizedError("Invalid or revoked device token");
     }
 
@@ -269,7 +303,7 @@ export class AuthService {
     const rows = await this.db
       .select()
       .from(devices)
-      .where(eq(devices.userId, userId))
+      .where(and(eq(devices.userId, userId), ne(devices.platform, "cloud")))
       .orderBy(desc(devices.createdAt))
       .limit(51);
 

@@ -20,6 +20,8 @@ import { useArtworkPalette } from "../../lib/use-artwork-palette";
 import AmbientBackdrop from "../AmbientBackdrop";
 import { statCoverUrl } from "../sidebar/StatCover";
 import { usePlayStats } from "../sidebar/use-stats";
+import { libraryWidthClass } from "../../lib/library-view-prefs";
+import { useLibraryWidth } from "../../lib/use-library-width";
 import { GlassToggle, PeriodStepper, SelectMenu, Toggle } from "./controls";
 import SleeveFan from "./SleeveFan";
 import { StatsList, StatsSea } from "./StatsRows";
@@ -60,6 +62,9 @@ export default function StatsView({
   releases,
   loadingLibrary,
   prefs,
+  shown,
+  onShownChange,
+  onContentReady,
   onPrefsChange,
   onOpenRelease,
   onOpenArtist,
@@ -68,9 +73,14 @@ export default function StatsView({
   releases: Release[];
   loadingLibrary: boolean;
   prefs: StatsPrefs;
+  /** Rows the ranking shows after "Show more", kept by AppShell so Back lands on the same row (#258). */
+  shown: number;
+  onShownChange: (shown: number) => void;
+  /** Called when the ranking for the current period has finished loading, as success or error (#258). */
+  onContentReady: () => void;
   onPrefsChange: (patch: Partial<StatsPrefs>) => void;
   onOpenRelease: (id: string, trackId?: string) => void;
-  /** Shows the Library filtered to this artist. */
+  /** Opens the artist's page (#288). */
   onOpenArtist: (name: string) => void;
   onOpenSettings: () => void;
 }) {
@@ -101,10 +111,14 @@ export default function StatsView({
         ? emptyPeriodLine(period)
         : " ";
   const busy = state.status === "loading" || loadingLibrary;
+  useEffect(() => {
+    if (!busy) onContentReady();
+  }, [busy, onContentReady]);
   const showControls = state.status !== "empty";
+  const [width] = useLibraryWidth();
 
   return (
-    <div className="st-root mx-auto max-w-[1180px] pb-10" style={palette ? ({ "--btn-tint": palette.primary } as CSSProperties) : undefined}>
+    <div className={`st-root pb-10 ${libraryWidthClass(width)}`} style={palette ? ({ "--btn-tint": palette.primary } as CSSProperties) : undefined}>
       <AmbientBackdrop palette={palette} />
       <div aria-hidden className="st-scrim" />
       <header className="st-rise flex flex-wrap items-center justify-between gap-x-6 gap-y-3" style={{ "--st-i": 0 } as CSSProperties}>
@@ -207,10 +221,14 @@ export default function StatsView({
                   label={`Your ${noun}, ${sort === "plays" ? "most played first" : sort === "name" ? "by name" : "most recent first"}`}
                   round={tab === "artists"}
                   today={today}
+                  linkArtists={tab !== "artists"}
+                  trackRows={tab === "tracks"}
                   onOpen={open}
+                  initialShown={shown}
+                  onShownChange={onShownChange}
                 />
               ) : (
-                <StatsSea items={items} label={`Your ${noun}, in rank order`} round={tab === "artists"} onOpen={open} />
+                <StatsSea items={items} label={`Your ${noun}, in rank order`} round={tab === "artists"} onOpen={open} initialShown={shown} onShownChange={onShownChange} />
               )}
             </div>
           </section>

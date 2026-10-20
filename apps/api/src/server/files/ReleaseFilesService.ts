@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { files, users } from "../../db/schema";
+import { files, releases, users } from "../../db/schema";
 import { NotFoundError, ValidationError } from "../../shared/errors";
 import type { DownloadTicket, MissingFilesResponse, ReleaseRecord, UploadTicket } from "../../shared/types";
 import { expectedContentTypeFor } from "./contentTypes";
@@ -39,12 +39,35 @@ export function userStoragePrefix(userId: string): string {
 }
 
 /**
+ * One paged listing of a user's stored keys under `userStoragePrefix`, stopping at `maxKeys`
+ * without reading further. Reaching the cap exactly counts as `truncated`: the listing may have
+ * had more, so absence from `keys` proves nothing. Shared by `missingFiles` and the cleanup (#89).
+ */
+export async function listUserKeys(
+  fileStore: FileStore,
+  userId: string,
+  maxKeys: number
+): Promise<{ keys: Set<string>; truncated: boolean }> {
+  const keys = new Set<string>();
+  for await (const key of fileStore.listKeys(userStoragePrefix(userId))) {
+    keys.add(key);
+    if (keys.size >= maxKeys) return { keys, truncated: true };
+  }
+  return { keys, truncated: false };
+}
+
+/**
  * The file names a live release's record points at: every track's `file`, plus
  * the cover's name when the record carries a `coverHash` (a `syncVersion` 1
  * record has none, so its cover is not checked; a v2 record with no cover has
- * `null`). Each name once, in record order.
+ * `null`). Each name once, in record order. An adopted record (`source`) lists
+ * only its cover, never its tracks.
  */
 function referencedNames(record: ReleaseRecord): string[] {
+  if (record.source === "adopted") {
+    // Details only (#246): the audio is never uploaded, so only the cover can be missing.
+    return record.coverHash && record.cover ? [record.cover] : [];
+  }
   const names = new Set(record.tracks.map((track) => track.file));
   if (record.coverHash && record.cover) names.add(record.cover);
   return [...names];
@@ -84,8 +107,23 @@ export class ReleaseFilesService {
     }
   }
 
+  /** An adopted release (#246) uploads only its cover; any other name is a 400. */
+  private async assertAdoptedUploads(userId: string, releaseId: string, inputs: RegisterFileInput[]): Promise<void> {
+    const [row] = await this.db
+      .select({ record: releases.record })
+      .from(releases)
+      .where(and(eq(releases.id, releaseId), eq(releases.userId, userId)));
+    if (row?.record.source !== "adopted") return;
+    for (const input of inputs) {
+      if (input.name !== row.record.cover) {
+        throw new ValidationError(`${input.name} cannot be uploaded: an adopted release syncs only its cover`);
+      }
+    }
+  }
+
   /** Issue upload URLs for one or more files, enforcing the per-file cap and the account quota. */
   async createUploads(userId: string, releaseId: string, inputs: RegisterFileInput[]): Promise<UploadTicket[]> {
+    await this.assertAdoptedUploads(userId, releaseId, inputs);
     this.assertContentTypes(inputs);
     this.quota.assertFileSizes(inputs.map((f) => f.bytes));
 
@@ -98,7 +136,7 @@ export class ReleaseFilesService {
     // and the limit are all read inside the statement, never in a prior query.
     // No network work happens before it succeeds: tickets are issued after. If
     // that fails, the rows count bytes for a ticket never issued, the same as
-    // any abandoned upload today; nothing reclaims those yet (#89).
+    // any abandoned upload; the daily cleanup drops it after a day (#89).
     if (prepared.length > 0) {
       const now = this.now();
       const rows = sql.join(
@@ -199,20 +237,12 @@ export class ReleaseFilesService {
 
     // A priced listing is only worth making when some referenced name has a row to confirm.
     const anyRow = checks.some((check) => check.names.some((name) => check.keysByName.has(name)));
-    const stored = new Set<string>();
-    let keysListed = 0;
+    let stored = new Set<string>();
     let listingTruncated = false;
     if (anyRow) {
-      for await (const key of this.fileStore.listKeys(userStoragePrefix(userId))) {
-        stored.add(key);
-        // Stop at the cap without reading further, so no extra page is fetched. Reaching it
-        // exactly counts as truncated: the listing may have had more.
-        if (++keysListed >= maxListedKeys) {
-          listingTruncated = true;
-          break;
-        }
-      }
+      ({ keys: stored, truncated: listingTruncated } = await listUserKeys(this.fileStore, userId, maxListedKeys));
     }
+    const keysListed = stored.size;
 
     const result: MissingFilesResponse["releases"] = [];
     for (const check of checks) {

@@ -20,7 +20,6 @@ struct ImportView: View {
     @Environment(\.appContainer) private var container
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(SyncStatus.self) private var syncStatus
 
     @State private var kind: ImportKind = .single
     @State private var singleModel: ImportSingleViewModel?
@@ -60,11 +59,6 @@ struct ImportView: View {
     /// the "N waiting" chip at the top; tapping the chip brings it back.
     @State private var toastVisible = false
     @State private var hideTask: Task<Void, Never>?
-    /// Mirrors `toastVisible`/`dismissedCount` for the sync source: songs
-    /// waiting on the Mac, offered separately from the share inbox above.
-    @State private var syncToastVisible = false
-    @State private var syncDismissedCount: Int?
-    @State private var syncHideTask: Task<Void, Never>?
 
     init(requestedKind: Binding<ImportKind?>) {
         _requestedKind = requestedKind
@@ -105,17 +99,9 @@ struct ImportView: View {
                         inboxToast
                             .transition(.move(edge: .top).combined(with: .opacity))
                     }
-                    if !syncStatus.pendingFromMac.isEmpty, syncToastVisible {
-                        syncToast
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                    }
                 }
             }
             .animation(.spring(duration: 0.35), value: toastVisible)
-            .animation(.spring(duration: 0.35), value: syncToastVisible)
-            .onChange(of: syncStatus.pendingFromMac.count) { _, count in
-                if count > 0, syncDismissedCount != count { showSyncToast() } else { syncToastVisible = false }
-            }
             .onChange(of: inboxFiles.count) { _, count in
                 if count > 0, dismissedCount != count { showToast() } else { toastVisible = false }
             }
@@ -159,7 +145,6 @@ struct ImportView: View {
             applyRequestedKind()
             refreshInbox()
             if !inboxFiles.isEmpty, dismissedCount != inboxFiles.count { showToast() }
-            if !syncStatus.pendingFromMac.isEmpty, syncDismissedCount != syncStatus.pendingFromMac.count { showSyncToast() }
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active { refreshInbox() }
@@ -353,8 +338,7 @@ struct ImportView: View {
     // MARK: Chips
 
     private var showsInboxChip: Bool { !inboxFiles.isEmpty && !toastVisible }
-    private var showsSyncChip: Bool { !syncStatus.pendingFromMac.isEmpty && !syncToastVisible }
-    private var hasChip: Bool { showsInboxChip || showsSyncChip }
+    private var hasChip: Bool { showsInboxChip }
 
     /// The slim top row: the waiting chips, shown only when there is one.
     private var chips: some View {
@@ -373,24 +357,9 @@ struct ImportView: View {
                 .buttonStyle(.plain)
                 .transition(.scale.combined(with: .opacity))
             }
-            if showsSyncChip {
-                Button {
-                    showSyncToast(autoHide: false)
-                } label: {
-                    Text(Copy.Sync.pendingFromDevices(count: syncStatus.pendingFromMac.count))
-                        .themeFont(.badge)
-                        .foregroundStyle(.black)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Theme.accent, in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .transition(.scale.combined(with: .opacity))
-            }
             Spacer(minLength: 0)
         }
         .animation(.spring(duration: 0.3), value: toastVisible)
-        .animation(.spring(duration: 0.3), value: syncToastVisible)
     }
 
     private func showToast(autoHide: Bool = true) {
@@ -400,16 +369,6 @@ struct ImportView: View {
         hideTask = Task {
             try? await Task.sleep(for: .seconds(6))
             if !Task.isCancelled { toastVisible = false }
-        }
-    }
-
-    private func showSyncToast(autoHide: Bool = true) {
-        syncHideTask?.cancel()
-        syncToastVisible = true
-        guard autoHide else { return }
-        syncHideTask = Task {
-            try? await Task.sleep(for: .seconds(6))
-            if !Task.isCancelled { syncToastVisible = false }
         }
     }
 
@@ -454,96 +413,6 @@ struct ImportView: View {
         .shadow(color: .black.opacity(0.45), radius: 18, y: 8)
         .padding(.horizontal, Theme.Spacing.pagePadding)
         .padding(.top, 6)
-    }
-
-    /// The "From your devices" toast, listing each pending release with its own
-    /// "Send to Spotify" action (a spinner while `SyncStatus.acceptingIds`
-    /// includes it) plus "Send all" when there's more than one.
-    private var syncToast: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 12) {
-                Text(Copy.Sync.fromYourDevices)
-                    .themeFont(.body, weight: .semibold)
-                    .foregroundStyle(Theme.primaryText)
-                Spacer(minLength: 0)
-                if syncStatus.pendingFromMac.count > 1 {
-                    Button(Copy.Sync.sendAll) {
-                        Task { await container?.syncEngine.acceptAllFromMac() }
-                    }
-                    .themeFont(.rowSubtitle, weight: .medium)
-                    .foregroundStyle(Theme.accent)
-                    .buttonStyle(.plain)
-                }
-                Button {
-                    syncDismissedCount = syncStatus.pendingFromMac.count
-                    syncToastVisible = false
-                } label: {
-                    LocallyIcon(.x, size: 20, relativeTo: .subheadline)
-                        .foregroundStyle(Theme.secondaryText)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Copy.Inbox.dismiss)
-            }
-
-            VStack(spacing: 6) {
-                ForEach(syncStatus.pendingFromMac, id: \.id) { record in
-                    syncPendingRow(record)
-                }
-            }
-        }
-        .padding(.leading, 14)
-        .padding(.trailing, 6)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial)
-        .background(Theme.card.opacity(0.85))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Theme.border, lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.45), radius: 18, y: 8)
-        .padding(.horizontal, Theme.Spacing.pagePadding)
-        .padding(.top, 6)
-    }
-
-    private func syncPendingRow(_ record: SyncRecord) -> some View {
-        let isAccepting = syncStatus.acceptingIds.contains(record.id)
-        return HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(record.title)
-                    .themeFont(.rowSubtitle, weight: .medium)
-                    .foregroundStyle(Theme.primaryText)
-                    .lineLimit(1)
-                Text(record.artist)
-                    .themeFont(.rowSubtitle)
-                    .foregroundStyle(Theme.secondaryText)
-                    .lineLimit(1)
-                Text(Copy.Sync.originLabel(record.origin))
-                    .themeFont(.dropZoneHint)
-                    .foregroundStyle(Theme.textDim)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 8)
-            Button {
-                Task { await container?.syncEngine.acceptFromMac(record.id) }
-            } label: {
-                if isAccepting {
-                    HStack(spacing: 6) {
-                        ProgressView().tint(Theme.accent)
-                        Text(Copy.Sync.downloading)
-                    }
-                } else {
-                    Text(Copy.Sync.sendToSpotify)
-                }
-            }
-            .themeFont(.rowSubtitle, weight: .medium)
-            .foregroundStyle(Theme.accent)
-            .buttonStyle(.plain)
-            .disabled(isAccepting)
-        }
     }
 
     private func refreshInbox() {

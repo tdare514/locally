@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Release, ReleaseKind } from "../shared/types";
 import { coverUrl, deleteRelease, updateRelease } from "../lib/api-client";
 import { IS_DEMO } from "../lib/demo";
+import { UNKNOWN_ARTIST } from "../shared/adopt";
 import PlaysPromptCard from "./PlaysPromptCard";
 import {
   bulkDetailsPatch,
@@ -21,32 +22,65 @@ import {
 import {
   COVER_GRID_GAP_PX,
   COVER_TILE_MIN_PX,
+  NO_FOLDS,
+  isSectionOpen,
   loadLibraryViewPrefs,
-  loadLibraryWidth,
+  loadSectionFolds,
   saveCoverSize,
   saveLibraryLayout,
+  saveSectionFolded,
+  type LibrarySectionKey,
+  type SectionFolds,
   type CoverSize,
   type LibraryLayout,
-  type LibraryWidth,
   libraryWidthClass,
 } from "../lib/library-view-prefs";
+import { useLibraryWidth } from "../lib/use-library-width";
 import BulkEditDialog from "./BulkEditDialog";
+import type { ArtistEntry } from "../lib/artist-index";
 import {
   ChevronRightIcon,
   CoverLargeIcon,
   CoverSmallIcon,
+  FolderIcon,
   MusicNoteIcon,
   SearchIcon,
 } from "./Icons";
+import NoCover from "./NoCover";
+import ArtistsGrid from "./ArtistsGrid";
+import { filterArtists, type CatalogEntry } from "../lib/artist-catalog";
+
+const ADOPTED_LABEL = "In your Spotify folder";
+const ADOPTED_NOT_SELECTABLE = "Releases from your Spotify folder can't be selected. Remove one from its own page.";
+
+/** The artist as shown: a release added from a Spotify folder with no artist tag reads "Unknown artist". Never stored. */
+function shownArtist(r: Release): string {
+  return r.adopted && r.artist.trim() === "" ? UNKNOWN_ARTIST : r.artist;
+}
+
+/** The quiet folder glyph after the title of a release added from a Spotify folder (#249). */
+function AdoptedMark() {
+  return (
+    <span role="img" aria-label={ADOPTED_LABEL} title={ADOPTED_LABEL} className="flex shrink-0 text-text-dim">
+      <FolderIcon className="size-3.5" />
+    </span>
+  );
+}
 
 interface LibraryViewProps {
   releases: Release[];
+  /** Every artist in the library, for the bulk edit's Artist field (#287). */
+  artistIndex: ArtistEntry[];
+  /** One entry per artist, A to Z, for the Artists view (#288). */
+  catalog: CatalogEntry[];
   loading: boolean;
   query: string;
   sort: LibrarySort;
   onQueryChange: (query: string) => void;
   onSortChange: (sort: LibrarySort) => void;
   onSelectRelease: (id: string) => void;
+  /** Opens an artist's page (#288). */
+  onSelectArtist: (key: string) => void;
   onImport: (kind?: ReleaseKind) => void;
   /** Refresh the library after a bulk action. */
   onBulkDone: () => Promise<unknown> | void;
@@ -68,10 +102,13 @@ export default function LibraryView({
   onQueryChange,
   onSortChange,
   onSelectRelease,
+  onSelectArtist,
   onImport,
   onBulkDone,
   onToast,
   onAmbientCoverChange,
+  artistIndex,
+  catalog,
 }: LibraryViewProps) {
   const searchRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -82,8 +119,10 @@ export default function LibraryView({
   const [busy, setBusy] = useState(false);
   const [layout, setLayout] = useState<LibraryLayout>("list");
   const [coverSize, setCoverSize] = useState<CoverSize>(1);
-  const [width, setWidth] = useState<LibraryWidth>("full");
+  const [width] = useLibraryWidth();
+  const [folds, setFolds] = useState<SectionFolds>(NO_FOLDS);
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [focusArtistKey, setFocusArtistKey] = useState<string | null>(null);
   const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
 
   // Saved view prefs load after mount so the server and first client render agree.
@@ -92,8 +131,14 @@ export default function LibraryView({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLayout(prefs.layout);
     setCoverSize(prefs.coverSize);
-    setWidth(loadLibraryWidth());
+    setFolds(loadSectionFolds());
   }, []);
+
+  function toggleFold(key: LibrarySectionKey) {
+    const next = !folds[key];
+    setFolds({ ...folds, [key]: next });
+    saveSectionFolded(key, next);
+  }
 
   function changeLayout(next: LibraryLayout) {
     setLayout(next);
@@ -115,15 +160,27 @@ export default function LibraryView({
     coverReleases.find((r) => visibleIds.has(r.id)) ??
     coverReleases[0] ??
     null;
-  const ambientUrl = focusRelease
-    ? coverUrl(focusRelease.id, focusRelease.updatedAt)
-    : null;
+  // The Artists view tints by the hovered artist's front cover, else the first artist's.
+  const visibleArtists = filterArtists(catalog, query);
+  const focusArtist = visibleArtists.find((a) => a.key === focusArtistKey) ?? visibleArtists[0];
+  const artistCover = focusArtist?.covers[0];
+  const ambientUrl =
+    layout === "artists"
+      ? artistCover
+        ? coverUrl(artistCover.releaseId, artistCover.updatedAt)
+        : null
+      : focusRelease
+        ? coverUrl(focusRelease.id, focusRelease.updatedAt)
+        : null;
   useEffect(() => {
     onAmbientCoverChange(ambientUrl);
   }, [ambientUrl, onAmbientCoverChange]);
 
   // Track which rows or tiles are on screen in the scrolling pane, so the colour follows scroll.
   const shownIds = [...singles, ...albums].map((r) => r.id).join(",");
+  // Folding unmounts a section's rows and unfolding mounts new ones, so observation is rebuilt on every fold change.
+  const singlesOpen = isSectionOpen(folds.singles, query);
+  const albumsOpen = isSectionOpen(folds.albums, query);
   useEffect(() => {
     const root = rootRef.current;
     if (!root || typeof IntersectionObserver === "undefined") return;
@@ -144,7 +201,7 @@ export default function LibraryView({
       .querySelectorAll("[data-release-id]")
       .forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [layout, shownIds, loading, coverSize]);
+  }, [layout, shownIds, loading, coverSize, singlesOpen, albumsOpen]);
 
   // Cmd+F / Ctrl+F focuses the library search instead of the browser's find bar.
   useEffect(() => {
@@ -185,8 +242,11 @@ export default function LibraryView({
   const searching = query.trim() !== "";
   const selectedReleases = releases.filter((r) => selected.has(r.id));
   const selectedCount = selectedReleases.length;
+  // Releases from a Spotify folder can't be edited or deleted here, so they are never selectable.
+  const selectableVisible = visible.filter((r) => !r.adopted);
+  const hasAdopted = releases.some((r) => r.adopted);
   const allVisibleSelected =
-    visible.length > 0 && visible.every((r) => selected.has(r.id));
+    selectableVisible.length > 0 && selectableVisible.every((r) => selected.has(r.id));
 
   function exitSelecting() {
     setSelecting(false);
@@ -207,7 +267,7 @@ export default function LibraryView({
   function toggleAllVisible() {
     setSelected((prev) => {
       const next = new Set(prev);
-      for (const r of visible) {
+      for (const r of selectableVisible) {
         if (allVisibleSelected) next.delete(r.id);
         else next.add(r.id);
       }
@@ -256,6 +316,7 @@ export default function LibraryView({
   }
 
   const SectionComponent = layout === "covers" ? CoverSection : LibrarySection;
+  const artistsView = layout === "artists";
 
   return (
     <div
@@ -291,7 +352,7 @@ export default function LibraryView({
               <CoverLargeIcon className="h-4 w-4" />
             </div>
           )}
-          <div role="group" aria-label="Library layout" className="btn-seg">
+          <div role="group" aria-label="Library layout" className="btn-seg btn-seg-3">
             <span aria-hidden className="btn-seg-dot">
               <span />
             </span>
@@ -299,6 +360,7 @@ export default function LibraryView({
               [
                 { value: "list", label: "List" },
                 { value: "covers", label: "Grid" },
+                { value: "artists", label: "Artists" },
               ] as const
             ).map(({ value, label }) => (
               <button
@@ -317,7 +379,7 @@ export default function LibraryView({
 
       <PlaysPromptCard onToast={onToast} />
 
-      {selecting ? (
+      {selecting && !artistsView ? (
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-border bg-card px-4 py-3">
           <div className="flex items-center gap-4">
             {selectedCount === 0 ? (
@@ -330,7 +392,7 @@ export default function LibraryView({
             <button
               type="button"
               onClick={toggleAllVisible}
-              disabled={busy || visible.length === 0}
+              disabled={busy || selectableVisible.length === 0}
               className="text-sm text-text-muted transition-colors hover:text-text disabled:opacity-40"
             >
               {allVisibleSelected ? "Deselect all" : "Select all"}
@@ -388,6 +450,7 @@ export default function LibraryView({
               </button>
             </div>
           )}
+          {hasAdopted && <p className="basis-full text-xs text-text-dim">{ADOPTED_NOT_SELECTABLE}</p>}
         </div>
       ) : (
         <div className="flex items-center gap-3">
@@ -397,7 +460,7 @@ export default function LibraryView({
               ref={searchRef}
               type="search"
               value={query}
-              placeholder="Search titles, artists, genres…"
+              placeholder={artistsView ? "Search artists…" : "Search titles, artists, genres…"}
               aria-label="Search library"
               onChange={(e) => onQueryChange(e.target.value)}
               onKeyDown={(e) => {
@@ -409,6 +472,7 @@ export default function LibraryView({
               className="w-full rounded-md bg-elevated py-3 pl-11 pr-4 text-sm text-text outline-none placeholder:text-text-muted/60 focus:ring-2 focus:ring-accent"
             />
           </div>
+          {!artistsView && (
           <div className="relative shrink-0">
             <select
               aria-label="Sort library"
@@ -424,7 +488,8 @@ export default function LibraryView({
             </select>
             <ChevronRightIcon className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 rotate-90 text-text-muted" />
           </div>
-          {!IS_DEMO && (
+          )}
+          {!IS_DEMO && !artistsView && (
             <button
               type="button"
               onClick={() => setSelecting(true)}
@@ -436,7 +501,22 @@ export default function LibraryView({
         </div>
       )}
 
-      {searching && visible.length === 0 && (
+      {artistsView && visibleArtists.length > 0 && (
+        <ArtistsGrid entries={visibleArtists} onOpenArtist={onSelectArtist} onFocusArtist={setFocusArtistKey} />
+      )}
+
+      {artistsView && visibleArtists.length === 0 && (
+        <div className="flex flex-col items-center gap-2 py-12 text-center">
+          <p className="text-text-muted">{searching ? `No artists match “${query.trim()}”.` : "No artists yet."}</p>
+          {searching && (
+            <button type="button" onClick={() => onQueryChange("")} className="btn-ink mt-2">
+              <span className="btn-ink-label">Clear search</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {!artistsView && searching && visible.length === 0 && (
         <div className="flex flex-col items-center gap-2 py-12 text-center">
           <p className="text-text-muted">No matches for “{query.trim()}”</p>
           <p className="text-xs text-text-dim">
@@ -452,9 +532,12 @@ export default function LibraryView({
         </div>
       )}
 
-      {singles.length > 0 && (
+      {!artistsView && singles.length > 0 && (
         <SectionComponent
           label="Singles"
+          bodyId="library-singles"
+          open={singlesOpen}
+          onToggleOpen={() => toggleFold("singles")}
           count={singles.length}
           releases={singles}
           onSelectRelease={onSelectRelease}
@@ -467,16 +550,19 @@ export default function LibraryView({
         />
       )}
 
-      {singles.length > 0 && albums.length > 0 && (
+      {!artistsView && singles.length > 0 && albums.length > 0 && (
         <div
           className="border-t border-dashed border-border-dashed"
           aria-hidden="true"
         />
       )}
 
-      {albums.length > 0 && (
+      {!artistsView && albums.length > 0 && (
         <SectionComponent
           label="Albums"
+          bodyId="library-albums"
+          open={albumsOpen}
+          onToggleOpen={() => toggleFold("albums")}
           count={albums.length}
           releases={albums}
           onSelectRelease={onSelectRelease}
@@ -509,6 +595,7 @@ export default function LibraryView({
           if (!busy) setEditing(false);
         }}
         onApply={handleBulkEdit}
+        artistIndex={artistIndex}
       />
     </div>
   );
@@ -516,6 +603,10 @@ export default function LibraryView({
 
 interface SectionProps {
   label: string;
+  /** Id of the section body, which the header button controls. */
+  bodyId: string;
+  open: boolean;
+  onToggleOpen: () => void;
   count: number;
   releases: Release[];
   onSelectRelease: (id: string) => void;
@@ -545,8 +636,42 @@ export function formatAddedDate(iso: string, locale?: string): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(d);
 }
 
+/** The Singles or Albums heading as one button: label, count, chevron (#260). The button sits inside
+ * the h2 so the heading stays in the outline. */
+function SectionHeader({
+  label,
+  count,
+  bodyId,
+  open,
+  onToggleOpen,
+}: Pick<SectionProps, "label" | "count" | "bodyId" | "open" | "onToggleOpen">) {
+  return (
+    <h2 className="px-1 text-[22px] font-bold tracking-[-0.03em] text-text">
+      <button
+        type="button"
+        onClick={onToggleOpen}
+        aria-expanded={open}
+        aria-controls={bodyId}
+        className="group flex items-baseline gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-bg"
+      >
+        <span>{label}</span>
+        <span className="text-sm font-normal tracking-normal text-text-dim">{count}</span>
+        <ChevronRightIcon
+          aria-hidden="true"
+          className={`h-3.5 w-3.5 shrink-0 self-center text-text-dim transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:text-text-muted motion-reduce:transition-none ${
+            open ? "rotate-90" : ""
+          }`}
+        />
+      </button>
+    </h2>
+  );
+}
+
 export function LibrarySection({
   label,
+  bodyId,
+  open,
+  onToggleOpen,
   count,
   releases,
   onSelectRelease,
@@ -558,91 +683,110 @@ export function LibrarySection({
 }: SectionProps) {
   return (
     <section className="@container flex flex-col gap-2">
-      <div className="flex items-baseline gap-2 px-1">
-        <h2 className="text-[22px] font-bold tracking-[-0.03em] text-text">
-          {label}
-        </h2>
-        <span className="text-sm text-text-dim">{count}</span>
-      </div>
-      {/* Presentational: each row's button already carries the full accessible name. */}
+      <SectionHeader
+        label={label}
+        count={count}
+        bodyId={bodyId}
+        open={open}
+        onToggleOpen={onToggleOpen}
+      />
       <div
-        aria-hidden="true"
-        className={`${LIST_GRID} -mb-1 px-[13px] text-[12px] text-text-dim`}
+        id={bodyId}
+        hidden={!open}
+        className={open ? "section-fade flex flex-col gap-2" : undefined}
       >
-        <span>Title</span>
-        <span className={COL_GENRE}>Genre</span>
-        <span className={COL_NUMBER}>Year</span>
-        <span className={COL_NUMBER}>Tracks</span>
-        <span className={COL_ADDED}>Added</span>
-        <span />
-      </div>
-      <ul className="overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.04]">
-        {releases.map((r, index) => {
-          const isSelected = selecting && selected.has(r.id);
-          return (
-            <li key={r.id}>
-              {index > 0 && (
-                <div className="h-px bg-white/[0.06]" aria-hidden="true" />
-              )}
-              <button
-                type="button"
-                onClick={() =>
-                  selecting ? onToggle(r.id) : onSelectRelease(r.id)
-                }
-                onMouseEnter={() => onFocusRelease(r.id)}
-                onFocus={() => onFocusRelease(r.id)}
-                data-release-id={r.id}
-                disabled={selecting && disabled}
-                aria-pressed={selecting ? isSelected : undefined}
-                className={`list-row ${LIST_GRID} min-h-[78px] w-full px-3 py-3 text-left transition-colors hover:bg-white/[0.06] focus-visible:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60 ${
-                  isSelected ? "bg-white/[0.06]" : ""
-                }`}
-              >
-                <span className="flex min-w-0 items-center gap-3">
-                  {selecting && <SelectBox checked={isSelected} />}
-                  {r.coverPath ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={coverUrl(r.id, r.updatedAt)}
-                      alt=""
-                      className="list-thumb h-14 w-14 shrink-0 rounded object-cover"
-                    />
-                  ) : (
-                    <span className="list-thumb flex h-14 w-14 shrink-0 items-center justify-center rounded bg-elevated text-text-muted">
-                      <MusicNoteIcon className="h-5 w-5" />
-                    </span>
-                  )}
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-text">
-                      {r.title || r.artist}
-                    </span>
-                    <span className="block truncate text-xs text-text-muted">
-                      {r.artist}
+        {open && (
+        <>
+        {/* Presentational: each row's button already carries the full accessible name. */}
+        <div
+          aria-hidden="true"
+          className={`${LIST_GRID} -mb-1 px-[13px] text-[12px] text-text-dim`}
+        >
+          <span>Title</span>
+          <span className={COL_GENRE}>Genre</span>
+          <span className={COL_NUMBER}>Year</span>
+          <span className={COL_NUMBER}>Tracks</span>
+          <span className={COL_ADDED}>Added</span>
+          <span />
+        </div>
+        <ul className="overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.04]">
+          {releases.map((r, index) => {
+            const locked = selecting && r.adopted === true;
+            const isSelected = selecting && !locked && selected.has(r.id);
+            const artistShown = shownArtist(r);
+            return (
+              <li key={r.id}>
+                {index > 0 && (
+                  <div className="h-px bg-white/[0.06]" aria-hidden="true" />
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (locked) return;
+                    if (selecting) onToggle(r.id);
+                    else onSelectRelease(r.id);
+                  }}
+                  onMouseEnter={() => onFocusRelease(r.id)}
+                  onFocus={() => onFocusRelease(r.id)}
+                  data-release-id={r.id}
+                  disabled={selecting && disabled}
+                  aria-pressed={selecting && !locked ? isSelected : undefined}
+                  aria-disabled={locked || undefined}
+                  title={locked ? ADOPTED_NOT_SELECTABLE : undefined}
+                  className={`list-row ${LIST_GRID} min-h-[78px] w-full px-3 py-3 text-left transition-colors hover:bg-white/[0.06] focus-visible:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60 ${
+                    isSelected ? "bg-white/[0.06]" : ""
+                  } ${locked ? "cursor-not-allowed opacity-60" : ""}`}
+                >
+                  <span className="flex min-w-0 items-center gap-3">
+                    {selecting && !locked && <SelectBox checked={isSelected} />}
+                    {locked && <span aria-hidden="true" className="size-5 shrink-0" />}
+                    {r.coverPath ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={coverUrl(r.id, r.updatedAt)}
+                        alt=""
+                        className="list-thumb h-14 w-14 shrink-0 rounded object-cover"
+                      />
+                    ) : (
+                      <NoCover className="list-thumb h-14 w-14 shrink-0 rounded" />
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-sm font-semibold text-text">
+                          {r.title || artistShown}
+                        </span>
+                        {r.adopted && <AdoptedMark />}
+                      </span>
+                      <span className="block truncate text-xs text-text-muted">
+                        {artistShown}
+                      </span>
                     </span>
                   </span>
-                </span>
-                <span className={`${COL_GENRE} truncate text-xs text-text-muted`}>
-                  {r.genre ?? ""}
-                </span>
-                <span className={`${COL_NUMBER} text-xs text-text-muted`}>
-                  {r.year ?? ""}
-                </span>
-                <span className={`${COL_NUMBER} text-xs text-text-muted`}>
-                  {r.tracks.length}
-                </span>
-                <span className={`${COL_ADDED} text-xs text-text-muted`}>
-                  {formatAddedDate(r.createdAt)}
-                </span>
-                {!selecting ? (
-                  <ChevronRightIcon className="h-4 w-4 shrink-0 text-text-dim" />
-                ) : (
-                  <span />
-                )}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+                  <span className={`${COL_GENRE} truncate text-xs text-text-muted`}>
+                    {r.genre ?? ""}
+                  </span>
+                  <span className={`${COL_NUMBER} text-xs text-text-muted`}>
+                    {r.year ?? ""}
+                  </span>
+                  <span className={`${COL_NUMBER} text-xs text-text-muted`}>
+                    {r.tracks.length}
+                  </span>
+                  <span className={`${COL_ADDED} text-xs text-text-muted`}>
+                    {formatAddedDate(r.createdAt)}
+                  </span>
+                  {!selecting ? (
+                    <ChevronRightIcon className="h-4 w-4 shrink-0 text-text-dim" />
+                  ) : (
+                    <span />
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        </>
+        )}
+      </div>
     </section>
   );
 }
@@ -650,6 +794,9 @@ export function LibrarySection({
 /** Cover view section: a grid of bare covers that pop on hover (#112). */
 function CoverSection({
   label,
+  bodyId,
+  open,
+  onToggleOpen,
   count,
   releases,
   onSelectRelease,
@@ -662,76 +809,96 @@ function CoverSection({
 }: SectionProps) {
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex items-baseline gap-2 px-1">
-        <h2 className="text-[22px] font-bold tracking-[-0.03em] text-text">
-          {label}
-        </h2>
-        <span className="text-sm text-text-dim">{count}</span>
-      </div>
+      <SectionHeader
+        label={label}
+        count={count}
+        bodyId={bodyId}
+        open={open}
+        onToggleOpen={onToggleOpen}
+      />
       <div
-        className="grid"
-        style={{
-          gridTemplateColumns: `repeat(auto-fill, minmax(${COVER_TILE_MIN_PX[coverSize]}px, 1fr))`,
-          gap: COVER_GRID_GAP_PX[coverSize],
-        }}
+        id={bodyId}
+        hidden={!open}
+        className={open ? "section-fade" : undefined}
       >
-        {releases.map((r) => {
-          const isSelected = selecting && selected.has(r.id);
-          const url = r.coverPath ? coverUrl(r.id, r.updatedAt) : null;
-          return (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() =>
-                selecting ? onToggle(r.id) : onSelectRelease(r.id)
-              }
-              onMouseEnter={() => onFocusRelease(r.id)}
-              onFocus={() => onFocusRelease(r.id)}
-              data-release-id={r.id}
-              disabled={selecting && disabled}
-              aria-pressed={selecting ? isSelected : undefined}
-              className="shelf-tile min-w-0 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <div className="relative aspect-square">
-                <div
-                  className={`shelf-cover h-full w-full rounded-lg ${
-                    isSelected
-                      ? "ring-2 ring-accent ring-offset-2 ring-offset-bg"
-                      : ""
-                  }`}
-                >
-                  {url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={url}
-                      alt=""
-                      className="h-full w-full rounded-lg object-cover shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]"
-                    />
-                  ) : (
-                    <span className="flex h-full w-full items-center justify-center rounded-lg bg-elevated text-text-muted shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]">
-                      <MusicNoteIcon className="h-8 w-8" />
-                    </span>
-                  )}
-                  {selecting && (
-                    <span className="absolute left-2 top-2 rounded-md bg-black/50 p-1">
-                      <SelectBox checked={isSelected} />
-                    </span>
-                  )}
-                </div>
-              </div>
-              <span
-                className={`mt-3 block truncate font-semibold text-text ${
-                  coverSize === 0 ? "text-xs" : "text-sm"
+        {open && (
+        <>
+        <div
+          className="grid"
+          style={{
+            gridTemplateColumns: `repeat(auto-fill, minmax(${COVER_TILE_MIN_PX[coverSize]}px, 1fr))`,
+            gap: COVER_GRID_GAP_PX[coverSize],
+          }}
+        >
+          {releases.map((r) => {
+            const locked = selecting && r.adopted === true;
+            const isSelected = selecting && !locked && selected.has(r.id);
+            const artistShown = shownArtist(r);
+            const url = r.coverPath ? coverUrl(r.id, r.updatedAt) : null;
+            return (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => {
+                  if (locked) return;
+                  if (selecting) onToggle(r.id);
+                  else onSelectRelease(r.id);
+                }}
+                onMouseEnter={() => onFocusRelease(r.id)}
+                onFocus={() => onFocusRelease(r.id)}
+                data-release-id={r.id}
+                disabled={selecting && disabled}
+                aria-pressed={selecting && !locked ? isSelected : undefined}
+                aria-disabled={locked || undefined}
+                title={locked ? ADOPTED_NOT_SELECTABLE : undefined}
+                className={`shelf-tile min-w-0 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-60 ${
+                  locked ? "cursor-not-allowed opacity-60" : ""
                 }`}
               >
-                {r.title || r.artist}
-              </span>
-              <span className="block truncate text-xs text-text-muted">
-                {libraryRowSubtitle(r)}
-              </span>
-            </button>
-          );
-        })}
+                <div className="relative aspect-square">
+                  <div
+                    className={`shelf-cover h-full w-full rounded-lg ${
+                      isSelected
+                        ? "ring-2 ring-accent ring-offset-2 ring-offset-bg"
+                        : ""
+                    }`}
+                  >
+                    {url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={url}
+                        alt=""
+                        className="h-full w-full rounded-lg object-cover shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]"
+                      />
+                    ) : (
+                      <NoCover className="h-full w-full rounded-lg shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]" />
+                    )}
+                    {selecting && !locked && (
+                      <span className="absolute left-2 top-2 rounded-md bg-black/50 p-1">
+                        <SelectBox checked={isSelected} />
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span className="mt-3 flex min-w-0 items-center gap-1.5">
+                  <span
+                    className={`truncate font-semibold text-text ${
+                      coverSize === 0 ? "text-xs" : "text-sm"
+                    }`}
+                  >
+                    {r.title || artistShown}
+                  </span>
+                  {r.adopted && <AdoptedMark />}
+                </span>
+                <span className="block truncate text-xs text-text-muted">
+                  {libraryRowSubtitle({ ...r, artist: artistShown })}
+                </span>
+              </button>
+            );
+          })}
+          </div>
+        </>
+        )}
       </div>
     </section>
   );

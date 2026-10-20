@@ -86,4 +86,18 @@ struct ReleaseCoordinatorSyncHookTests {
         #expect(hook.tombstonedIds.isEmpty)
         #expect(hook.pushedReleases.isEmpty)
     }
+
+    @Test func aTitleEditKeepsATracksLocalIdInThePushedRecord() async throws {
+        let (coordinator, _, library, _) = makeCoordinator()
+        let release = try await coordinator.importSingle(file: try makeSourceFile(), tags: TagSet(title: "T", artist: "A", album: "Al"), cover: nil)
+        var seeded = release
+        seeded.tracks[0].localId = "spotify:local:a:b:c:61"
+        try library.upsert(seeded)
+
+        let edited = try await coordinator.updateRelease(release.id, changes: ReleaseChanges(title: "New Title"))
+
+        #expect(edited.tracks[0].localId == "spotify:local:a:b:c:61")
+        let record = edited.toSyncRecord(origin: "ios", originDevice: "P", fileBytes: [:])
+        #expect(record.tracks[0].localId == "spotify:local:a:b:c:61")
+    }
 }

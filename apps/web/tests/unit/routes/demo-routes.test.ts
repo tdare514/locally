@@ -41,14 +41,14 @@ describe("demo GET routes", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.version).toBe(1);
-    expect(body.releases).toHaveLength(6);
+    expect(body.releases).toHaveLength(10);
     expect(body.releases.map((r: { id: string }) => r.id)).toEqual(DEMO_RELEASES.map((r) => r.id));
   });
 
-  it("has three singles and three albums with fake paths", () => {
-    expect(DEMO_RELEASES.filter((r) => r.kind === "single")).toHaveLength(3);
+  it("has five singles and five albums with fake paths", () => {
+    expect(DEMO_RELEASES.filter((r) => r.kind === "single")).toHaveLength(5);
     const albums = DEMO_RELEASES.filter((r) => r.kind === "album");
-    expect(albums).toHaveLength(3);
+    expect(albums).toHaveLength(5);
     for (const a of albums) expect(a.tracks.length).toBeGreaterThanOrEqual(4);
     for (const r of DEMO_RELEASES) expect(r.folderPath.startsWith("/Users/demo/")).toBe(true);
   });

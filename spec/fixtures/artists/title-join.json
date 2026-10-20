@@ -1,0 +1,70 @@
+[
+  {
+    "name": "no names",
+    "title": "Song",
+    "featuring": [],
+    "expected": "Song"
+  },
+  {
+    "name": "one name",
+    "title": "Song",
+    "featuring": [
+      "B"
+    ],
+    "expected": "Song (feat. B)"
+  },
+  {
+    "name": "two names",
+    "title": "Song",
+    "featuring": [
+      "B",
+      "C"
+    ],
+    "expected": "Song (feat. B & C)"
+  },
+  {
+    "name": "three names",
+    "title": "Song",
+    "featuring": [
+      "B",
+      "C",
+      "D"
+    ],
+    "expected": "Song (feat. B, C & D)"
+  },
+  {
+    "name": "four names",
+    "title": "Song",
+    "featuring": [
+      "B",
+      "C",
+      "D",
+      "E"
+    ],
+    "expected": "Song (feat. B, C, D & E)"
+  },
+  {
+    "name": "other bracket kept",
+    "title": "Song (Live)",
+    "featuring": [
+      "B"
+    ],
+    "expected": "Song (Live) (feat. B)"
+  },
+  {
+    "name": "brackets inside a name",
+    "title": "Song",
+    "featuring": [
+      "(G)I-DLE"
+    ],
+    "expected": "Song (feat. (G)I-DLE)"
+  },
+  {
+    "name": "unbalanced closers in a name",
+    "title": "Song",
+    "featuring": [
+      "Sunn O)))"
+    ],
+    "expected": "Song (feat. Sunn O))))"
+  }
+]

@@ -347,6 +347,35 @@ describe("ReleaseFilesService", () => {
       });
     });
 
+    describe("an adopted record (#246)", () => {
+      it("checks only the cover, never the tracks", async () => {
+        const record = await pushRelease(userId, { syncVersion: 2, source: "adopted", cover: "cover.jpg", coverHash });
+        expect((await checker.missingFiles(userId)).releases).toEqual([
+          { id: record.id, missing: ["cover.jpg"], recordUpdatedAt: record.updatedAt },
+        ]);
+        await issueTickets(userId, record, ["cover.jpg"]);
+        land(userId, record, ["cover.jpg"]);
+        expect((await checker.missingFiles(userId)).releases).toEqual([]);
+      });
+
+      it("is never listed when it has no cover", async () => {
+        await pushRelease(userId, { syncVersion: 2, source: "adopted", cover: null, coverHash: null });
+        expect((await checker.missingFiles(userId)).releases).toEqual([]);
+      });
+
+      it("refuses a track name but accepts the cover", async () => {
+        const record = await pushRelease(userId, { syncVersion: 2, source: "adopted", cover: "cover.jpg", coverHash });
+        await expect(issueTickets(userId, record, [record.tracks[0]!.file])).rejects.toThrow(ValidationError);
+        await expect(issueTickets(userId, record, ["cover.jpg"])).resolves.toBeUndefined();
+      });
+
+      it("leaves a non-adopted release's uploads and missing check as before", async () => {
+        const record = await pushRelease(userId, { syncVersion: 2, cover: "cover.jpg", coverHash });
+        await expect(issueTickets(userId, record, [record.tracks[0]!.file])).resolves.toBeUndefined();
+        expect((await checker.missingFiles(userId)).releases[0]?.missing).toEqual([record.tracks[0]!.file, "cover.jpg"]);
+      });
+    });
+
     describe("caps (#170)", () => {
       let warn: ReturnType<typeof vi.spyOn>;
 

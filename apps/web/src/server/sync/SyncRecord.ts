@@ -1,7 +1,8 @@
 import path from "node:path";
 import { z } from "zod";
-import type { Release, ReleaseKind } from "../../shared/types";
+import type { Release, ReleaseKind, Track } from "../../shared/types";
 import { MAX_DISC_NUMBER } from "../../shared/discs";
+import { UNKNOWN_ARTIST } from "../../shared/adopt";
 
 /**
  * Which platform wrote a given version of a release record. "mac" and "ios" are the clients that
@@ -15,19 +16,22 @@ export type SyncOrigin = "mac" | "ios" | (string & {});
  * never heard of is read as "another device" instead of failing the whole pull page. */
 const SYNC_ORIGIN_PATTERN = /^[a-z][a-z0-9-]{0,15}$/;
 
-/** Longest name accepted for a record's file names and ids: the filename limit on every common filesystem. */
-export const MAX_SYNC_NAME_LENGTH = 255;
+/** Longest name accepted for a record's file names and ids, in UTF-8 bytes: the filename limit on every common filesystem. Mirrors `spec/sync-file-names.json`. */
+export const MAX_SYNC_NAME_BYTES = 255;
+
+/** What an adopted release with no artist tag is sent as: the service refuses an empty `artist`. Lives in shared/ so the UI shows the same word. */
+export { UNKNOWN_ARTIST };
 
 /**
  * True only for a name that, joined to any directory, can point at nothing but
  * a direct child of it: no separators, not `.`/`..` or any other leading-dot
- * name, no control characters, and within the filesystem length limit.
+ * name, no control characters, and within the filesystem length limit (in UTF-8 bytes).
  * Record file names and ids are used as path components (`SyncEngine`
  * downloads to `dir/<file>`, `ReleaseService.importSynced` reads them back),
  * and they arrive from the network, so anything else is refused at the wire.
  */
 export function isPlainSyncName(name: string): boolean {
-  if (name.length === 0 || name.length > MAX_SYNC_NAME_LENGTH) return false;
+  if (name.length === 0 || new TextEncoder().encode(name).length > MAX_SYNC_NAME_BYTES) return false;
   if (name.startsWith(".")) return false;
   if (name !== path.basename(name) || /[/\\]/.test(name)) return false;
   for (let i = 0; i < name.length; i++) {
@@ -39,7 +43,7 @@ export function isPlainSyncName(name: string): boolean {
 
 const plainName = (what: string) => z.string().refine(isPlainSyncName, `${what} must be a plain file name`);
 
-/** The extensions the API accepts for `tracks[].file` and `cover` (`SUPPORTED_FILE_EXT` in apps/api). */
+/** The extensions the API accepts for `tracks[].file` and `cover` (`SUPPORTED_FILE_EXT` in apps/api; mirrors `spec/sync-file-names.json`). */
 export const SYNC_FILE_EXTENSIONS = ["mp3", "m4a", "jpg", "jpeg", "png"] as const;
 
 const SYNC_FILE_EXTENSION_RE = new RegExp(`\\.(${SYNC_FILE_EXTENSIONS.join("|")})$`, "i");
@@ -61,6 +65,8 @@ export const SyncTrackSchema = z.object({
   file: syncFileName("track file"),
   bytes: z.number().int().nonnegative(),
   durationSec: z.number().nullable(),
+  /** Adopted tracks only (#307): the `spotify:local:` id, so the sync service can match a cloud play to the track. Omitted otherwise. */
+  localId: z.string().optional(),
 });
 
 /**
@@ -90,6 +96,8 @@ export const SyncRecordSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   deleted: z.boolean(),
+  /** `"adopted"`: details only, the audio stays on the Mac (#245). Omitted, never null, otherwise. */
+  source: z.literal("adopted").optional(),
 });
 
 export type SyncTrack = z.infer<typeof SyncTrackSchema>;
@@ -155,9 +163,10 @@ export function toSyncRecord(
       title: t.title,
       trackNumber: t.trackNumber,
       ...(t.discNumber !== undefined ? { discNumber: t.discNumber } : {}),
-      file: path.basename(t.filePath),
+      file: syncTrackFileName(release, t),
       bytes: trackBytesById[t.id] ?? 0,
       durationSec: t.durationSec,
+      ...(release.adopted && t.localId ? { localId: t.localId } : {}),
     }));
 
   return {
@@ -165,7 +174,7 @@ export function toSyncRecord(
     id: release.id,
     kind: release.kind,
     title: release.title,
-    artist: release.artist,
+    artist: release.adopted && release.artist.trim() === "" ? UNKNOWN_ARTIST : release.artist,
     year: release.year,
     genre: release.genre,
     cover: release.coverPath ? path.basename(release.coverPath) : null,
@@ -176,7 +185,18 @@ export function toSyncRecord(
     createdAt: release.createdAt,
     updatedAt: release.updatedAt,
     deleted: false,
+    ...(release.adopted ? { source: "adopted" as const } : {}),
   };
+}
+
+/**
+ * The record's `tracks[].file`: the file's own name. An adopted file (#245) can be named something the
+ * record refuses (an .mp4, a control character); nothing is uploaded for it, so it gets a plain stand-in.
+ */
+function syncTrackFileName(release: Release, t: Track): string {
+  const name = path.basename(t.filePath);
+  if (!release.adopted || (isPlainSyncName(name) && hasSyncFileExtension(name))) return name;
+  return `${t.id}.${path.extname(name).toLowerCase() === ".mp3" ? "mp3" : "m4a"}`;
 }
 
 /**

@@ -9,9 +9,10 @@ import Security
 /// can substitute an in-memory fake.
 protocol SyncAccountStore: AnyObject {
     /// Where the sync service lives. Defaults to `http://localhost:4000` in
-    /// DEBUG builds (the API's own dev default — see
+    /// DEBUG builds on the simulator (the API's own dev default — see
     /// `apps/api/src/server/config/env.ts`) and to
-    /// `UserDefaultsSyncAccountStore.productionBaseURL` in release builds. A
+    /// `UserDefaultsSyncAccountStore.productionBaseURL` in release builds and
+    /// on a physical device, where `localhost` is the phone itself (#267). A
     /// Settings field (development builds only) lets the owner point this at
     /// the Mac's LAN address instead, since a physical phone can't reach the
     /// Mac's `localhost`. Changing it signs the device out: the device token
@@ -50,7 +51,7 @@ protocol SyncAccountStore: AnyObject {
 /// (`KeychainTokenStore`); everything else — none of it a secret — lives in
 /// `UserDefaults`, same pattern as `UserDefaultsSpotifyFolder`.
 final class UserDefaultsSyncAccountStore: SyncAccountStore {
-    #if DEBUG
+    #if DEBUG && targetEnvironment(simulator)
     static let defaultBaseURL = URL(string: "http://localhost:4000")!
     #else
     static let defaultBaseURL = UserDefaultsSyncAccountStore.productionBaseURL

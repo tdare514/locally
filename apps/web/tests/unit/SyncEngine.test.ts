@@ -19,6 +19,7 @@ import {
   SyncConflictError,
   SyncRequestError,
   type MeResult,
+  type SpotifyLinkStatus,
   type SyncApi,
   type SyncFileToUpload,
   type SyncUploadTarget,
@@ -37,6 +38,11 @@ class FakeSettingsStore implements SettingsStore {
   async set(settings: Settings): Promise<Settings> {
     this.settings = settings;
     return settings;
+  }
+  async update(mutator: (current: Settings) => Settings | null): Promise<Settings> {
+    const next = mutator(this.settings);
+    if (next) this.settings = next;
+    return this.settings;
   }
 }
 
@@ -95,11 +101,19 @@ class FakeSyncStateStore implements SyncStateStore {
       coverHash: { ...this.state.coverHash },
       pendingFromPhone: { ...this.state.pendingFromPhone },
       missingFiles: { ...this.state.missingFiles },
+      hiddenFromTray: { ...this.state.hiddenFromTray },
+      localIdQueuedAt: { ...this.state.localIdQueuedAt },
+      localIdBackfilled: this.state.localIdBackfilled,
     };
   }
   async set(state: SyncState): Promise<SyncState> {
-    this.state = state;
+    this.state = { ...state, hiddenFromTray: this.state.hiddenFromTray };
     return state;
+  }
+  async update(mutator: (current: SyncState) => SyncState | null): Promise<SyncState> {
+    const next = mutator(await this.get());
+    if (next) this.state = next;
+    return this.state;
   }
 }
 
@@ -179,8 +193,13 @@ class FakeSyncApi implements SyncApi {
     return { releases: page, nextVersion, hasMore };
   }
 
+  /** Release ids whose PUT is answered with this error. */
+  failPutFor = new Map<string, Error>();
+
   async putRelease(record: SyncRecord): Promise<{ version: number }> {
     this.putAttempts++;
+    const putError = this.failPutFor.get(record.id);
+    if (putError) throw putError;
     if (this.conflictOnce.has(record.id)) {
       this.conflictOnce.delete(record.id);
       throw new SyncConflictError("conflict");
@@ -274,6 +293,16 @@ class FakeSyncApi implements SyncApi {
     if (this.filesRouteOutcome() === "old") return null;
     return { resyncRequestedAt: new Date().toISOString() };
   }
+
+  async spotifyLinkStart(): Promise<{ authorizeUrl: string }> {
+    return { authorizeUrl: "https://accounts.spotify.com/authorize?x=1" };
+  }
+
+  async spotifyLinkStatus(): Promise<SpotifyLinkStatus> {
+    return { linked: false };
+  }
+
+  async spotifyUnlink(): Promise<void> {}
 
   async uploadFile(upload: SyncUploadTarget, filePath: string): Promise<void> {
     this.uploadCalls.push({ name: upload.name, filePath });
@@ -386,6 +415,189 @@ describe("SyncEngine", () => {
       [audioFile("in.mp3")]
     );
   }
+
+  describe("back-fill when the service refuses a record", () => {
+    async function threeReleases(): Promise<Release[]> {
+      return [await importOne("A", "One"), await importOne("B", "Two"), await importOne("C", "Three")];
+    }
+
+    it.each([400, 422])("skips a release refused with %i and still pushes the others", async (status) => {
+      const [a, b, c] = await threeReleases();
+      api.failPutFor.set(b.id, new SyncRequestError("refused", status));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      await engine.reconcile();
+      warn.mockRestore();
+
+      expect(api.putCalls.map((r) => r.id).sort()).toEqual([a.id, c.id].sort());
+      expect((await engine.status()).lastError).toBeNull();
+    });
+
+    it("still aborts the run on a 500", async () => {
+      const [a, b, c] = await threeReleases();
+      void a;
+      void c;
+      api.failPutFor.set(b.id, new SyncRequestError("Sync request failed (500)", 500));
+
+      await engine.reconcile();
+
+      expect((await engine.status()).lastError).toBe("Sync request failed (500)");
+    });
+  });
+
+  describe("track localIds on adopted releases (#307)", () => {
+    let adoptRoot: string;
+    let clock: number;
+
+    beforeEach(async () => {
+      adoptRoot = await fs.mkdtemp(path.join(os.tmpdir(), "sli-sync-adopt-"));
+      await settingsStore.set({
+        libraryDir,
+        adoptRoots: [adoptRoot],
+        sync: { baseUrl: "http://fake", deviceToken: "tok", email: "a@b.com", lastVersion: 0 },
+      });
+      clock = Date.UTC(2026, 9, 19, 12, 0, 0);
+      engine = new SyncEngine(
+        settingsStore,
+        syncState,
+        releaseService,
+        fsSvc,
+        () => api,
+        () => "Toby's MacBook",
+        null,
+        () => new Date(clock),
+      );
+    });
+
+    afterEach(async () => {
+      await fs.rm(adoptRoot, { recursive: true, force: true });
+    });
+
+    async function adopted(id: string, localId: string | undefined = `spotify:local:A:B:${id}:100`): Promise<Release> {
+      const filePath = path.join(adoptRoot, `${id}.mp3`);
+      await fs.writeFile(filePath, "x");
+      const release: Release = {
+        id,
+        kind: "single",
+        title: id,
+        artist: "A",
+        year: null,
+        genre: null,
+        coverPath: null,
+        folderPath: adoptRoot,
+        tracks: [
+          { id: `${id}-t`, title: id, trackNumber: 1, filePath, originalName: `${id}.mp3`, durationSec: 100, ...(localId ? { localId } : {}) },
+        ],
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        adopted: true,
+      };
+      await repo.upsert(libraryDir, release);
+      return release;
+    }
+
+    /** What an older server or iPhone hands back: the release without its localIds. */
+    function strippedRemote(release: Release, updatedAt = release.updatedAt): SyncRecord {
+      const record = toSyncRecord(release, "mac", "Toby's MacBook");
+      const tracks = record.tracks.map((t) => {
+        const bare = { ...t };
+        delete bare.localId;
+        return bare;
+      });
+      return { ...record, updatedAt, tracks };
+    }
+
+    it("sends localId on an adopted release's tracks", async () => {
+      const r = await adopted("a1");
+      await engine.reconcile();
+      expect(api.putCalls.find((p) => p.id === r.id)?.tracks[0].localId).toBe("spotify:local:A:B:a1:100");
+    });
+
+    it("back-fills every adopted release once, and not again on the next reconcile", async () => {
+      const a = await adopted("a1");
+      const b = await adopted("a2");
+      // Both were pushed before localIds existed.
+      await syncState.set({
+        ...emptySyncState(),
+        pushedUpdatedAt: { [a.id]: a.updatedAt, [b.id]: b.updatedAt },
+      });
+      await engine.reconcile();
+      expect(api.putCalls.map((p) => p.id).sort()).toEqual([a.id, b.id]);
+      expect((await syncState.get()).localIdBackfilled).toBe(true);
+
+      api.putCalls.length = 0;
+      await engine.reconcile();
+      expect(api.putCalls).toEqual([]);
+    });
+
+    it("the back-fill skips a refused record and still pushes the others", async () => {
+      const a = await adopted("a1");
+      const b = await adopted("a2");
+      await syncState.set({
+        ...emptySyncState(),
+        pushedUpdatedAt: { [a.id]: a.updatedAt, [b.id]: b.updatedAt },
+      });
+      api.failPutFor.set(a.id, new SyncRequestError("refused", 422));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      await engine.reconcile();
+      warn.mockRestore();
+      expect(api.putCalls.map((p) => p.id)).toEqual([b.id]);
+      expect((await engine.status()).lastError).toBeNull();
+    });
+
+    it("re-pushes once when a pulled adopted record lost the localId, then waits a day", async () => {
+      const r = await adopted("a1");
+      await engine.reconcile(); // pushed with its localId; the back-fill used this release's one push for the day
+      api.putCalls.length = 0;
+
+      // Stripped by the server straight away: still inside that day, so nothing is pushed.
+      api.seedRemoteRecord(strippedRemote(r));
+      await settingsStore.update((cur) => (cur.sync ? { ...cur, sync: { ...cur.sync, lastVersion: 0 } } : null));
+      await engine.reconcile();
+      expect(api.putCalls).toEqual([]);
+      clock += 24 * 60 * 60 * 1000 + 1000;
+
+      // A server that strips the field: every pull brings the record back without it.
+      api.seedRemoteRecord(strippedRemote(r));
+      await settingsStore.update((cur) => (cur.sync ? { ...cur, sync: { ...cur.sync, lastVersion: 0 } } : null));
+      await engine.reconcile();
+      expect(api.putCalls.map((p) => p.id)).toEqual([r.id]);
+
+      // Pulled stripped again within the day: no second push.
+      api.putCalls.length = 0;
+      api.seedRemoteRecord(strippedRemote(r));
+      await settingsStore.update((cur) => (cur.sync ? { ...cur, sync: { ...cur.sync, lastVersion: 0 } } : null));
+      await engine.reconcile();
+      expect(api.putCalls).toEqual([]);
+
+      // A day later it may go once more.
+      clock += 24 * 60 * 60 * 1000 + 1000;
+      api.seedRemoteRecord(strippedRemote(r));
+      await settingsStore.update((cur) => (cur.sync ? { ...cur, sync: { ...cur.sync, lastVersion: 0 } } : null));
+      await engine.reconcile();
+      expect(api.putCalls.map((p) => p.id)).toEqual([r.id]);
+    });
+
+    it("keeps the Mac's localId when a pull brings a stripped record", async () => {
+      const r = await adopted("a1");
+      await engine.reconcile();
+      api.seedRemoteRecord(strippedRemote(r, "2026-06-01T00:00:00.000Z"));
+      await settingsStore.update((cur) => (cur.sync ? { ...cur, sync: { ...cur.sync, lastVersion: 0 } } : null));
+      await engine.reconcile();
+      const after = await repo.find(libraryDir, r.id);
+      expect(after?.tracks[0].localId).toBe("spotify:local:A:B:a1:100");
+    });
+
+    it("does not queue a push when the pulled record still has the localId", async () => {
+      const r = await adopted("a1");
+      await engine.reconcile();
+      api.putCalls.length = 0;
+      await settingsStore.update((cur) => (cur.sync ? { ...cur, sync: { ...cur.sync, lastVersion: 0 } } : null));
+      await engine.reconcile();
+      expect(api.putCalls).toEqual([]);
+      expect(r.id).toBeTruthy();
+    });
+  });
 
   it("push uploads missing files then puts the record", async () => {
     const release = await importOne();
@@ -503,7 +715,7 @@ describe("SyncEngine", () => {
 
     const statusAfterReconcile = await engine.status();
     expect(statusAfterReconcile.pendingFromPhone).toEqual([
-      { id: "ios-release-1", origin: "ios", title: "Phone Song", artist: "Phone Artist", kind: "single", trackCount: 1 },
+      expect.objectContaining({ id: "ios-release-1", origin: "ios", title: "Phone Song", artist: "Phone Artist", kind: "single", trackCount: 1 }),
     ]);
 
     const imported = await engine.acceptFromPhone("ios-release-1");

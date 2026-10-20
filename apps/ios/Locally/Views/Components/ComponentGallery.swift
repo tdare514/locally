@@ -17,6 +17,14 @@ struct ComponentGallery: View {
         "stats-week", "stats-albums-grid", "stats-artists", "stats-quiet", "stats-signed-out", "stats-large-text", "stats-week-scrolled", "stats-grid-scrolled",
         // #213: the Mac's glyphs on the real tab bar, library and release page, over seeded sample data.
         "icons-tabs-library", "icons-tabs-stats", "icons-library-list", "icons-library-grid", "icons-release", "icons-release-bottom", "icons-cover-edit", "icons-playlist-guide",
+        // #269: the Library's "From your devices" button and tray, over sample pending records.
+        "devices-header-0", "devices-header-1", "devices-header-3", "devices-tray-open", "devices-tray-large-text", "devices-tray-failed",
+        // #296: view mode in the Mac's look, no cover, the empty sleeve in edit mode, the tray's sections.
+        "release-view-nocover", "release-edit-nocover", "release-view-large-text", "release-view-large-text-bottom", "devices-tray-sections", "devices-tray-sections-large-text",
+        // #287: the Featuring field. The import cases are `import-record-featuring` and `import-record-album-featuring-sheet`.
+        "release-featuring-view", "release-featuring-edit", "featuring-fields-ax",
+        // #288: the Artists view, artist pages, the sort control and linked names, over seeded sample data.
+        "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links",
         // #226: the library search box with a typed query, and the crop sheet's Square / Original pill.
         "icons-library-search", "crop-sheet"]
 
@@ -37,7 +45,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("stats-") || name.hasPrefix("icons-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet"].contains(name)
+        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links"].contains(name)
     }
 
     var body: some View {
@@ -153,6 +161,24 @@ struct ComponentGallery: View {
             OnboardingView(onFinished: {}).environment(FolderStatus(isConnected: false))
         case "paywall":
             PaywallView()
+        case "featuring-fields-ax":
+            FeaturingFieldsGallery()
+        case "artists-view":
+            IconsGallery.artistsLibrary(layout: .artists)
+        case "artist-page":
+            IconsGallery.artistPage(name: "Mira Valdane")
+        case "artist-page-featured":
+            IconsGallery.artistPage(name: "Jonah Reyes")
+        case "artist-page-bottom":
+            IconsGallery.artistPage(name: "Mira Valdane").defaultScrollAnchor(.bottom)
+        case "library-sort-menu":
+            IconsGallery.artistsLibrary(layout: .list, sort: .title)
+        case "release-links":
+            IconsGallery.linkedRelease()
+        case "release-featuring-view":
+            IconsGallery.featuringRelease()
+        case "release-featuring-edit":
+            IconsGallery.featuringRelease(editing: true)
         case "icons-tabs-library", "icons-library-list":
             IconsGallery.tabs(selected: .library, layout: .list)
         case "icons-library-grid":
@@ -169,8 +195,32 @@ struct ComponentGallery: View {
             IconsGallery.coverEdit()
         case "icons-playlist-guide":
             ZStack { StudioBackdrop(); PlaylistGuide(albumTitle: "Night Bus to Nowhere").padding(24) }
+        case "devices-header-0":
+            IconsGallery.devices(pending: 0, open: false)
+        case "devices-header-1":
+            IconsGallery.devices(pending: 1, open: false)
+        case "devices-header-3":
+            IconsGallery.devices(pending: 3, open: false)
+        case "devices-tray-open":
+            IconsGallery.devices(pending: 3, open: true)
+        case "devices-tray-failed":
+            IconsGallery.devices(pending: 1, open: true, failedOnly: true)
+        case "devices-tray-large-text":
+            IconsGallery.devices(pending: 3, open: true).dynamicTypeSize(.accessibility3)
         case "icons-release-bottom":
             IconsGallery.release().defaultScrollAnchor(.bottom)
+        case "release-view-nocover":
+            IconsGallery.release(noCover: true)
+        case "release-edit-nocover":
+            IconsGallery.release(noCover: true, editing: true)
+        case "release-view-large-text":
+            IconsGallery.release().dynamicTypeSize(.accessibility3)
+        case "release-view-large-text-bottom":
+            IconsGallery.release().dynamicTypeSize(.accessibility3).defaultScrollAnchor(.bottom)
+        case "devices-tray-sections":
+            IconsGallery.devices(pending: 5, open: true, sections: true)
+        case "devices-tray-sections-large-text":
+            IconsGallery.devices(pending: 5, open: true, sections: true).dynamicTypeSize(.accessibility2)
         default:
             EmptyView()
         }
@@ -296,7 +346,7 @@ enum StatsGallery {
 
     private static let seeds: [Seed] = [
         Seed(n: 1, artist: "Mira Valdane", title: "Night Bus to Nowhere", genre: "Indie pop", colors: [.systemIndigo, .systemPurple, .systemPink],
-             tracks: [("Night Bus to Nowhere", 48, 0), ("Orange Streetlight", 31, 1), ("Paper Moon", 12, 4)]),
+             tracks: [("Night Bus to Nowhere", 48, 0), ("Orange Streetlight", 31, 1), ("Paper Moon (feat. Okoro)", 12, 4)]),
         Seed(n: 2, artist: "The Salt Line", title: "Low Tide", genre: "Folk", colors: [.systemTeal, .systemBlue, .systemIndigo],
              tracks: [("Low Tide", 36, 0), ("Harbour Lights", 22, 2)]),
         Seed(n: 3, artist: "Okoro", title: "Saltwater Hymns", genre: "Ambient", colors: [UIColor(red: 0.95, green: 0.75, blue: 0.30, alpha: 1), .systemOrange, .systemRed],
@@ -380,7 +430,9 @@ enum StatsGallery {
 /// The services are the production ones over an in-memory index, and nothing here signs in or syncs.
 @MainActor
 enum IconsGallery {
-    private static func container() -> AppContainer {
+    static func container(
+        releases: [Release] = StatsGallery.releases, covers: [UUID: Data] = StatsGallery.covers, playStats: PlayStatsReading? = nil
+    ) -> AppContainer {
         // swiftlint:disable:next force_try
         let modelContainer = try! ModelStore.open(at: nil)
         let library = SwiftDataLibraryStore(context: modelContainer.mainContext)
@@ -399,11 +451,11 @@ enum IconsGallery {
         let container = AppContainer(
             folder: folder, library: library, importer: LocalFileImporter(), coordinator: coordinator, coverStore: coverStore,
             inbox: AppGroupInboxStore(), purchase: StoreKitPurchaseService(), syncAccount: account, syncApi: api, syncEngine: engine,
-            playStats: SyncPlayStatsService(api: api, account: account), modelContainer: modelContainer
+            playStats: playStats ?? SyncPlayStatsService(api: api, account: account), modelContainer: modelContainer
         )
-        for release in StatsGallery.releases {
+        for release in releases {
             var release = release
-            if let data = StatsGallery.covers[release.id] { release.coverPath = (try? coverStore.save(data, for: release.id)) ?? release.coverPath }
+            if let data = covers[release.id] { release.coverPath = (try? coverStore.save(data, for: release.id)) ?? release.coverPath }
             try? library.upsert(release)
         }
         return container
@@ -426,6 +478,39 @@ enum IconsGallery {
         return environment(IconsTabs(selected: selected, search: search), container)
     }
 
+    /// The real Library over sample pending records (#269): the first is ready, the second's last
+    /// send failed, the third is sending now. `failedOnly` shows just the failed one.
+    static func devices(pending: Int, open: Bool, failedOnly: Bool = false, sections: Bool = false) -> some View {
+        UserDefaults.standard.set(LibraryLayout.list.rawValue, forKey: LibraryViewPrefs.layoutKey)
+        let container = container()
+        let now = Date()
+        let samples: [(String, String, String, String, Int)] = [
+            ("Night Bus to Nowhere", "Neon Harbor", "mac", "ready", 11),
+            ("Low Tide", "The Salt Line", "mac", "failed", 1),
+            ("Paper Lanterns Over the Long Way Home", "Amelia Rowe", "web", "sending", 9),
+        ]
+        // #296: two ready, one being sent (still in Ready to add), two that couldn't send.
+        let sectionSamples: [(String, String, String, String, Int)] = [
+            ("Night Bus to Nowhere", "Neon Harbor", "mac", "ready", 11),
+            ("Slow Fires", "Juniper Hale", "mac", "ready", 1),
+            ("Paper Lanterns Over the Long Way Home", "Amelia Rowe", "web", "sending", 9),
+            ("Low Tide", "The Salt Line", "mac", "failed", 1),
+            ("Kitchen Radio", "Mira Valdane", "web", "failed", 4),
+        ]
+        let shown = sections ? sectionSamples : failedOnly ? [samples[1]] : Array(samples.prefix(pending))
+        let status = container.syncStatus
+        status.pendingFromMac = shown.enumerated().map { index, sample in
+            SyncRecord(
+                id: "gallery-\(index)", kind: sample.4 > 1 ? "album" : "single", title: sample.0, artist: sample.1,
+                tracks: (0..<sample.4).map { SyncTrack(id: "t\($0)", title: "Track \($0 + 1)", trackNumber: $0 + 1, file: "t\($0).m4a", bytes: 0, durationSec: nil) },
+                origin: sample.2, originDevice: "Gallery", createdAt: now, updatedAt: now)
+        }
+        status.failedAcceptIds = Set(shown.enumerated().filter { $0.element.3 == "failed" }.map { "gallery-\($0.offset)" })
+        status.acceptingIds = Set(shown.enumerated().filter { $0.element.3 == "sending" }.map { "gallery-\($0.offset)" })
+        status.lastError = "The network connection was lost."
+        return environment(IconsLibrary(openTray: open), container)
+    }
+
     /// The cover picker's hero style: the cover with its Edit pill (the pencil).
     static func coverEdit() -> some View {
         ZStack {
@@ -435,11 +520,34 @@ enum IconsGallery {
         }
     }
 
-    /// An album's release page, with its cover (Edit) and the playlist guide (Copy).
-    static func release() -> some View {
+    /// A single's release page in view mode, with two featured artists (#287).
+    static func featuringRelease(editing: Bool = false) -> some View {
         let container = container()
-        let release = StatsGallery.releases[0]
-        return environment(NavigationStack { ReleaseDetailView(release: release) }, container)
+        let track = Track(title: "Headlights (feat. Mira Vale & Jonah Reyes)", trackNumber: 1, filePath: "/gallery/Headlights.mp3", originalName: "Headlights.mp3", durationSec: 214)
+        var release = Release(kind: .single, title: "Headlights", artist: "Neon Harbor", year: "2026", genre: "Synthwave", folderPath: "/gallery", tracks: [track])
+        let cover = StatsGallery.covers[StatsGallery.releases[0].id]
+        release.coverPath = cover.flatMap { try? container.coverStore.save($0, for: release.id) }
+        return environment(NavigationStack { ReleaseDetailView(release: release, startsEditing: editing) }, container)
+    }
+
+    /// An album's release page, with its cover (Edit) and the playlist guide (Copy).
+    static func release(noCover: Bool = false, editing: Bool = false) -> some View {
+        let container = container()
+        var release = StatsGallery.releases[0]
+        release.year = "2025"
+        if noCover { release.coverPath = nil }
+        return environment(NavigationStack { ReleaseDetailView(release: release, startsEditing: editing) }, container)
+    }
+}
+
+private struct IconsLibrary: View {
+    let openTray: Bool
+    @State private var tab = RootView.Tab.library
+    @State private var importKind: ImportKind?
+    @State private var search: String?
+
+    var body: some View {
+        LibraryView(selectedTab: $tab, requestedImportKind: $importKind, librarySearchRequest: $search, openTrayOnAppear: openTray)
     }
 }
 
@@ -540,14 +648,41 @@ private struct ReleaseReviewErrorGallery: View {
     }
 }
 
+/// `featuring-fields-ax`: Title, Artist and the Featuring row (edit and view) at an accessibility
+/// size, where the label sits above its value. The import record scrolls past these at that size.
+private struct FeaturingFieldsGallery: View {
+    @State private var names = ["Mira Vale", "Jonah Reyes"]
+    @State private var draft = ""
+    @State private var title = "Headlights"
+    @State private var artist = "Neon Harbor"
+
+    var body: some View {
+        ZStack {
+            StudioBackdrop()
+            VStack(alignment: .leading, spacing: Theme.Immersive.labeledFieldRowGap) {
+                LabeledField(Copy.Import.fieldTitle, placeholder: "", text: $title, font: Theme.ScaledFont.fieldTitle, metricsStyle: .title3, wraps: true)
+                LabeledField(Copy.Import.fieldArtist, placeholder: "", text: $artist, wraps: true)
+                FeaturingField(names: $names, draft: $draft)
+                FeaturingField(names: $names, draft: $draft, isEditable: false)
+            }
+            .padding(Theme.Spacing.pagePadding)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .dynamicTypeSize(.accessibility2)
+        }
+    }
+}
+
 private struct ImportRecordGallery: View {
     let name: String
 
     @State private var preset: ImportViewPreset
+    /// Only the artist cases (#287) get a library to suggest from.
+    @State private var container: AppContainer?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(name: String) {
         self.name = name
+        _container = State(initialValue: name.contains("artist") || name.contains("featuring") ? IconsGallery.container() : nil)
         let container = try! ModelStore.open(at: nil)
         let coordinator = ReleaseCoordinator(
             importer: LocalFileImporter(),
@@ -602,8 +737,32 @@ private struct ImportRecordGallery: View {
                 album.coverData = cover
                 driver.showAtRest(cover: cover)
             }
+        case "import-record-featuring":
+            // #287: two pills and the field, under Artist.
+            Self.fill(single)
+            single.featuring = ["Mira Vale", "Jonah Reyes"]
+        case "import-record-album-featuring-sheet", "import-record-album-featuring-sheet-many":
+            // #287: the feat. sheet open on the second track.
+            kind = .album
+            album.albumTitle = "Midnight Drive"
+            album.artist = "Neon Harbor"
+            album.rows = ["Headlights", "Overpass", "Last Exit"].map {
+                AlbumBuilderViewModel.TrackRow(url: URL(fileURLWithPath: "/gallery/\($0).mp3"), title: $0)
+            }
+            album.rows[0].featuring = ["Mira Vale"]
+            album.rows[1].featuring = ["Jonah Reyes", "Mira Vale"]
+            if name.hasSuffix("-many") {
+                // Eight long names: the sheet must scroll (use with a large text size).
+                album.rows[1].featuring = (1...8).map { "Bartholomew Featherstonehaugh \($0)" }
+            }
+            album.featuringRowID = album.rows[1].id
         case "import-record-live":
             Self.fill(single)
+        case "import-record-artist-pills", "import-record-artist-typo":
+            // #287: the library's artists (the seeded Stats releases) behind the Artist field. Tap the
+            // field to see the keyboard pills; for the typo, tap the field, then tap away.
+            Self.fill(single)
+            single.artist = name == "import-record-artist-pills" ? "ne" : "Neon Harbour"
         default:
             // import-record-single: a file, the fields, no cover.
             Self.fill(single)
@@ -616,7 +775,6 @@ private struct ImportRecordGallery: View {
         single.pickedName = "Headlights.mp3"
         single.title = "Headlights On The Neon Harbor Overpass"
         single.artist = "Neon Harbor And The Salt Line Orchestra"
-        single.album = "Midnight Drive Along The Neon Harbor Road"
         single.year = "2026"
         single.genre = "Synthwave and late night highway pop"
     }
@@ -628,6 +786,7 @@ private struct ImportRecordGallery: View {
         }
         .tint(Theme.accent)
         .environment(SyncStatus())
+        .environment(\.appContainer, container)
         .onAppear {
             // The live case sets its cover as the screen appears, so the beat plays in the record.
             guard name == "import-record-live" || name == "import-record-album-live", let cover = SampleArtwork.sunset.pngData() else { return }
@@ -693,3 +852,89 @@ private struct ControlsGallery: View {
     }
 }
 #endif
+
+// MARK: - Artists sample data (#288)
+
+/// Sample artists for the Artists view and artist pages: the Stats sample releases with years, plus
+/// releases that feature other artists (one, Jonah Reyes, only features), and all-time plays.
+@MainActor
+extension IconsGallery {
+    private static func artistsID(_ n: Int) -> UUID { UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", 9000 + n))! }
+
+    private static func sample(
+        _ n: Int, _ kind: ReleaseKind, _ title: String, by artist: String, year: String, tracks: [String], colors: [UIColor]
+    ) -> (release: Release, cover: Data) {
+        let id = artistsID(n)
+        let release = Release(
+            id: id, kind: kind, title: title, artist: artist, year: year, genre: "Indie", coverPath: "/cover/x\(n).png", folderPath: "/lib/x\(n)",
+            tracks: tracks.enumerated().map { i, t in
+                Track(id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", 90000 + n * 10 + i))!, title: t, trackNumber: i + 1, filePath: "x\(n)-\(i).mp3", originalName: "x\(n)-\(i).mp3", durationSec: 200)
+            },
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000 + Double(n) * 86_400), updatedAt: Date(timeIntervalSince1970: 1_700_000_000 + Double(n) * 86_400)
+        )
+        return (release, SampleArtwork.cover(colors, size: 360).pngData() ?? Data())
+    }
+
+    private static let extras: [(release: Release, cover: Data)] = [
+        sample(1, .single, "Headlights", by: "Neon Harbor", year: "2026", tracks: ["Headlights (feat. Mira Valdane & Okoro)"], colors: [.systemPink, .systemOrange, .systemPurple]),
+        sample(2, .album, "Tidelines", by: "Okoro", year: "2024", tracks: ["Slow Water", "Glass Harbor (feat. Mira Valdane)", "Low Light"], colors: [.systemTeal, .systemCyan, .systemBlue]),
+        sample(3, .single, "Late Trains", by: "Mira Valdane", year: "2023", tracks: ["Late Trains"], colors: [.systemYellow, .systemOrange, .systemRed]),
+        sample(4, .album, "Salt and Sparrow", by: "The Salt Line", year: "2022", tracks: ["Sparrow", "Harbour Lights (feat. Jonah Reyes)", "Salt"], colors: [.systemBlue, .systemIndigo, .systemMint]),
+        sample(5, .single, "Static", by: "5 Seconds of Static", year: "2021", tracks: ["Static"], colors: [.systemGray, .systemGray2, .systemGray4]),
+    ]
+
+    private static let years = [1: "2025", 2: "2021", 3: "2020", 4: "2023", 5: "2024", 6: "2022", 7: "2019", 8: "2023"]
+
+    /// The Stats sample releases (with years) and the extras, and their covers.
+    private static var artistsLibrarySeed: (releases: [Release], covers: [UUID: Data]) {
+        var releases = StatsGallery.releases
+        for index in releases.indices {
+            let n = Int(releases[index].folderPath.split(separator: "/").last ?? "") ?? 0
+            releases[index].year = years[n]
+            releases[index].createdAt = Date(timeIntervalSince1970: 1_600_000_000 + Double(n) * 86_400)
+        }
+        var covers = StatsGallery.covers
+        for extra in extras { covers[extra.release.id] = extra.cover }
+        return (releases + extras.map(\.release), covers)
+    }
+
+    /// All-time plays: most tracks have some, a few have none.
+    private static func artistsPlays(_ releases: [Release]) -> PlayStatsRead {
+        let byTitle: [String: Int] = [
+            "Night Bus to Nowhere": 192, "Orange Streetlight": 124, "Paper Moon (feat. Okoro)": 48, "Kitchen Radio": 28, "Tide": 108, "Hymn": 36,
+            "Night Bus": 16, "Late Trains": 61, "Glass Harbor (feat. Mira Valdane)": 71, "Slow Water": 0, "Low Light": 9,
+            "Headlights (feat. Mira Valdane & Okoro)": 90, "Harbour Lights (feat. Jonah Reyes)": 22, "Sparrow": 14,
+        ]
+        let counts = releases.flatMap { release in
+            release.tracks.compactMap { track -> PlayCount? in
+                guard let plays = byTitle[track.title], plays > 0 else { return nil }
+                return PlayCount(trackId: track.id.uuidString.lowercased(), releaseId: release.id.uuidString.lowercased(), plays: plays, lastPlayedDay: nil)
+            }
+        }
+        return .ok(PlaysSummary(tracks: [], allTime: counts))
+    }
+
+    private static func artistsContainer() -> AppContainer {
+        let seed = artistsLibrarySeed
+        return container(releases: seed.releases, covers: seed.covers, playStats: GalleryPlayStats(artistsPlays(seed.releases)))
+    }
+
+    /// The real Library over the artists sample, in the given layout and sort.
+    static func artistsLibrary(layout: LibraryLayout, sort: LibrarySortOption = .newest) -> some View {
+        UserDefaults.standard.set(layout.rawValue, forKey: LibraryViewPrefs.layoutKey)
+        UserDefaults.standard.set(sort.rawValue, forKey: LibraryViewPrefs.sortKey)
+        return environment(IconsLibrary(openTray: false), artistsContainer())
+    }
+
+    /// An artist's page, as pushed from the library.
+    static func artistPage(name: String) -> some View {
+        environment(NavigationStack { ArtistPageView(route: ArtistRoute(key: ArtistNames.artistKey(name))) }, artistsContainer())
+    }
+
+    /// The album Tidelines in view mode: a track featuring Mira Valdane, linked.
+    static func linkedRelease() -> some View {
+        let container = artistsContainer()
+        let release = artistsLibrarySeed.releases.first { $0.title == "Tidelines" } ?? StatsGallery.releases[0]
+        return environment(NavigationStack { ReleaseDetailView(release: release) }, container)
+    }
+}

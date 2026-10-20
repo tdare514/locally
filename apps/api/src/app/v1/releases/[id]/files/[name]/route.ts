@@ -3,7 +3,8 @@ import { getServices } from "../../../../../../server/container";
 import { requireAuth } from "../../../../../../server/http/authContext";
 import { parseParam } from "../../../../../../server/http/validation";
 import { withObservability } from "../../../../../../server/http/observe";
-import { fileNameSchema, uuidSchema } from "../../../../../../shared/types";
+import { storedLongNames } from "../../../../../../server/releases/storedLongNames";
+import { makeFileNameSchema, uuidSchema } from "../../../../../../shared/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,9 +18,9 @@ export const GET = withObservability("/v1/releases/[id]/files/[name]", async (re
   const { user } = await requireAuth(request, services.auth, obs);
   const { id, name } = await params;
   const releaseId = parseParam(id, uuidSchema);
-  const fileName = parseParam(name, fileNameSchema);
 
-  await services.releases.getOwned(user.id, releaseId);
+  const release = await services.releases.getOwned(user.id, releaseId);
+  const fileName = parseParam(name, makeFileNameSchema(storedLongNames(release)));
   const ticket = await services.files.createDownload(user.id, releaseId, fileName);
   return NextResponse.json(ticket);
 });

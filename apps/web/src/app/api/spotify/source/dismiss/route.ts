@@ -11,8 +11,7 @@ export async function POST() {
   if (isDemo()) return demoReadOnly();
   try {
     const services = getServices();
-    const current = await services.settings.get();
-    await services.settings.set({ ...current, spotifySourceDismissed: true });
+    await services.settings.update((current) => ({ ...current, spotifySourceDismissed: true }));
     const status = await spotifySourceStatus(services);
     return NextResponse.json(status);
   } catch (err) {

@@ -39,10 +39,15 @@ class FakeSettingsStore {
     settingsValue = next;
     return next;
   }
+  async update(mutator: (current: Settings) => Settings | null): Promise<Settings> {
+    const next = mutator(settingsValue);
+    if (next) settingsValue = next;
+    return settingsValue;
+  }
 }
 
 let requestCodeCalls: string[];
-let verifyCodeCalls: { email: string; code: string }[];
+let verifyCodeCalls: { email: string; code: string; installId?: string }[];
 let revokeDeviceCalls: string[];
 let deleteAccountCalls: string[];
 let deleteAccountBehavior: "ok" | "authError" | "networkError";
@@ -51,8 +56,8 @@ class FakeSyncApi implements Partial<SyncApi> {
   async requestCode(email: string): Promise<void> {
     requestCodeCalls.push(email);
   }
-  async verifyCode(email: string, code: string): Promise<VerifyCodeResult> {
-    verifyCodeCalls.push({ email, code });
+  async verifyCode(email: string, code: string, _name?: string, _platform?: string, installId?: string): Promise<VerifyCodeResult> {
+    verifyCodeCalls.push({ email, code, installId });
     return { token: "tok-123", user: { id: "u1", email }, device: { id: "dev-1", name: "Toby's MacBook" } };
   }
   async me(): Promise<MeResult> {
@@ -89,11 +94,17 @@ class FakeSyncStateStore implements SyncStateStore {
       coverHash: { ...this.state.coverHash },
       pendingFromPhone: { ...this.state.pendingFromPhone },
       missingFiles: { ...this.state.missingFiles },
+      hiddenFromTray: { ...this.state.hiddenFromTray },
     };
   }
   async set(state: SyncState): Promise<SyncState> {
-    this.state = state;
+    this.state = { ...state, hiddenFromTray: this.state.hiddenFromTray };
     return state;
+  }
+  async update(mutator: (current: SyncState) => SyncState | null): Promise<SyncState> {
+    const next = mutator(await this.get());
+    if (next) this.state = next;
+    return this.state;
   }
 }
 
@@ -175,9 +186,29 @@ describe("POST /api/sync/verify", () => {
     expect(body.sync.email).toBe("a@b.com");
     expect((body as Record<string, unknown>).deviceToken).toBeUndefined();
 
-    expect(verifyCodeCalls).toEqual([{ email: "a@b.com", code: "123456" }]);
+    expect(verifyCodeCalls).toEqual([{ email: "a@b.com", code: "123456", installId: settingsValue.installId }]);
+    expect(settingsValue.installId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     expect(settingsValue.sync?.deviceToken).toBe("tok-123");
     expect(syncEngine.reconcile).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps one install ID across sign-out and the next sign-in, and sends it each time (#210)", async () => {
+    const verify = () => verifyPOST(jsonRequest("http://localhost/api/sync/verify", { email: "a@b.com", code: "123456" }));
+    await verify();
+    const made = settingsValue.installId;
+    expect(made).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+
+    await signoutPOST();
+    expect(settingsValue.installId).toBe(made);
+
+    await verify();
+    expect(settingsValue.installId).toBe(made);
+    expect(verifyCodeCalls.map((c) => c.installId)).toEqual([made, made]);
+  });
+
+  it("does not return the install ID to the browser (#210)", async () => {
+    const res = await verifyPOST(jsonRequest("http://localhost/api/sync/verify", { email: "a@b.com", code: "123456" }));
+    expect(JSON.stringify(await res.json())).not.toContain(settingsValue.installId as string);
   });
 
   it("rejects a missing code", async () => {
