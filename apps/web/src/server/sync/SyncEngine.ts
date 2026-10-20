@@ -746,7 +746,9 @@ export class SyncEngine implements ReleaseSyncHooks {
           console.info(`SyncEngine: not re-sending release ${release.id}: the service holds a newer version`);
           continue;
         }
-        const paths = [...release.tracks.map((t) => t.filePath), ...(release.coverPath ? [release.coverPath] : [])];
+        // An adopted release re-sends only its cover (#245): its audio may be gone from disk.
+        const cover = release.coverPath ? [release.coverPath] : [];
+        const paths = release.adopted ? cover : [...release.tracks.map((t) => t.filePath), ...cover];
         let onDisk = true;
         for (const p of paths) if (!(await this.fs.exists(p))) onDisk = false;
         if (!onDisk) {

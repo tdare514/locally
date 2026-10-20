@@ -1685,6 +1685,70 @@ describe("SyncEngine", () => {
       warn.mockRestore();
     });
 
+    it("re-sends an adopted release's cover although its audio is gone from disk, but not when the cover is gone", async () => {
+      const adoptRoot = await fs.mkdtemp(path.join(os.tmpdir(), "sli-sync-adopt-"));
+      const configDir = await fs.mkdtemp(path.join(os.tmpdir(), "sli-sync-config-"));
+      const priorConfigDir = process.env.LOCALLY_CONFIG_DIR;
+      process.env.LOCALLY_CONFIG_DIR = configDir;
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      try {
+        await settingsStore.set({
+          libraryDir,
+          adoptRoots: [adoptRoot],
+          sync: { baseUrl: "http://fake", deviceToken: "tok", email: "a@b.com", lastVersion: 0 },
+        });
+        const filePath = path.join(adoptRoot, "song.mp3");
+        const coverPath = path.join(configDir, "adopted-covers", "song.jpg");
+        await fs.mkdir(path.dirname(coverPath), { recursive: true });
+        await fs.writeFile(filePath, "x");
+        await fs.writeFile(coverPath, new Uint8Array([...JPEG_HEADER, 1]));
+        const release: Release = {
+          id: "adopted-1",
+          kind: "single",
+          title: "Song",
+          artist: "A",
+          year: null,
+          genre: null,
+          coverPath,
+          folderPath: adoptRoot,
+          tracks: [{ id: "adopted-1-t", title: "Song", trackNumber: 1, filePath, originalName: "song.mp3", durationSec: 100 }],
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          adopted: true,
+        };
+        await repo.upsert(libraryDir, release);
+        await clocked.reconcile();
+        expect((await clocked.status()).lastError).toBeNull();
+        api.createUploadsCalls.length = 0;
+        api.uploadCalls.length = 0;
+        api.missingNames.set(release.id, ["song.jpg"]);
+        api.missingIds.add(release.id);
+        await fs.rm(filePath);
+        nowMs += 6 * HOUR;
+
+        await clocked.reconcile();
+
+        expect((await clocked.status()).lastError).toBeNull();
+        expect(api.createUploadsCalls[0].files.map((f) => f.name)).toEqual(["song.jpg"]);
+        expect(api.uploadCalls.map((u) => u.filePath)).toEqual([coverPath]);
+
+        api.createUploadsCalls.length = 0;
+        await fs.rm(coverPath);
+        nowMs += 6 * HOUR;
+
+        await clocked.reconcile();
+
+        expect(api.createUploadsCalls).toHaveLength(0);
+        expect(warn).toHaveBeenCalled();
+      } finally {
+        warn.mockRestore();
+        if (priorConfigDir === undefined) delete process.env.LOCALLY_CONFIG_DIR;
+        else process.env.LOCALLY_CONFIG_DIR = priorConfigDir;
+        await fs.rm(adoptRoot, { recursive: true, force: true });
+        await fs.rm(configDir, { recursive: true, force: true });
+      }
+    });
+
     it("checks at most every 6 hours", async () => {
       await clocked.reconcile();
       expect(api.missingCalls).toBe(1);
