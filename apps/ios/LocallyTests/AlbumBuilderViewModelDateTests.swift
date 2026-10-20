@@ -59,4 +59,17 @@ struct AlbumBuilderViewModelDateTests {
 
         #expect(model.releaseDateText == "2019")
     }
+
+    @Test func theFirstTrackWithADateFillsTheField() async throws {
+        let importer = FakeFileImporter()
+        let model = makeModel(importer: importer)
+        let may17 = ReleaseDate(year: 2024, month: 5, day: 17)
+        let undated = try makeAudioFile(named: "one.mp3")
+        let dated = try makeAudioFile(named: "two.mp3")
+        importer.tagsByURL[undated] = TagSet(title: "one", artist: "A", album: "Al")
+        importer.tagsByURL[dated] = TagSet(title: "two", artist: "A", album: "Al", date: may17)
+
+        await model.addFiles([undated, dated])
+        #expect(model.releaseDateText == may17?.formatted())
+    }
 }

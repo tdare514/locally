@@ -129,6 +129,18 @@ struct ReleaseDateTextCaseTests {
         #expect(ReleaseDateText.parse(month.formatted(locale: ru).uppercased(with: ru), locale: ru) == .date(month))
     }
 
+    @Test func russianTypedWithPlainSpacesReads() {
+        let ru = Locale(identifier: "ru_RU")
+        #expect(ReleaseDateText.parse("17 мая 2024 г.", locale: ru) == .date(ReleaseDate(year: 2024, month: 5, day: 17)!))
+    }
+
+    @Test func lenientParsingNeverRollsAnImpossibleDateOver() {
+        let gb = Locale(identifier: "en_GB")
+        #expect(ReleaseDateText.parse("31 February 2024", locale: gb) == .impossible)
+        #expect(ReleaseDateText.parse("31/02/2024", locale: gb) == .impossible)
+        #expect(ReleaseDateText.parse("30 Feb 2024", locale: gb).date == nil)
+    }
+
     @Test func englishUpperCaseAndImpossibleDatesStillBehave() {
         let gb = Locale(identifier: "en_GB")
         #expect(ReleaseDateText.parse("17 MAY 2024", locale: gb) == .date(ReleaseDate(year: 2024, month: 5, day: 17)!))

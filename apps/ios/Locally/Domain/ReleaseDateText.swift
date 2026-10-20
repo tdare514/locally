@@ -145,12 +145,14 @@ enum ReleaseDateText {
             formatter.locale = locale
             formatter.calendar = calendar
             formatter.timeZone = calendar.timeZone
+            // Lenient only so a plain space reads where the locale prints U+202F; the round trip below is the gate.
+            formatter.isLenient = true
             formatter.setLocalizedDateFormatFromTemplate(template)
-            guard let date = formatter.date(from: text) ?? formatter.date(from: text.lowercased(with: locale)) else { continue }
+            guard let date = spaceVariants(of: text).lazy.compactMap({ formatter.date(from: $0) ?? formatter.date(from: $0.lowercased(with: locale)) }).first else { continue }
             let parts = calendar.dateComponents([.year, .month, .day], from: date)
             guard let year = parts.year, let month = parts.month,
                   let candidate = ReleaseDate(year: year, month: month, day: hasDay ? parts.day : nil),
-                  fold(candidate.formatted(locale: locale), locale: locale) == fold(text, locale: locale) else { continue }
+                  normalized(candidate.formatted(locale: locale), locale: locale) == normalized(text, locale: locale) else { continue }
             return candidate
         }
         return nil
@@ -161,6 +163,27 @@ enum ReleaseDateText {
         let pattern = DateFormatter.dateFormat(fromTemplate: "ddMMyyyy", options: 0, locale: locale) ?? "dd/MM/yyyy"
         guard let day = pattern.firstIndex(of: "d"), let month = pattern.firstIndex(of: "M") else { return true }
         return day < month
+    }
+
+    /// The text as typed, then with one plain space at a time made a narrow no-break or no-break space: even a lenient
+    /// `DateFormatter` won't read "2024 г." for ru_RU's "2024\u{202F}г.". Only a way into the parse; `normalized` still gates the result.
+    private static func spaceVariants(of text: String) -> [String] {
+        var variants = [text]
+        for index in text.indices where text[index] == " " {
+            for space in ["\u{202F}", "\u{A0}"] {
+                var copy = text
+                copy.replaceSubrange(index...index, with: space)
+                variants.append(copy)
+            }
+        }
+        return variants
+    }
+
+    /// Every Unicode whitespace character becomes one plain space, runs collapse, ends are trimmed, then `fold`.
+    private static func normalized(_ text: String, locale: Locale) -> String {
+        let spaced = String(text.map { $0.isWhitespace ? " " : $0 })
+        let words = spaced.split(separator: " ", omittingEmptySubsequences: true).joined(separator: " ")
+        return fold(words, locale: locale)
     }
 
     private static func fold(_ text: String, locale: Locale) -> String {

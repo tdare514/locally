@@ -80,7 +80,7 @@ final class AlbumBuilderViewModel {
                 title = ArtistNames.splitFeaturing(title).title
                 discNumber = file.existingTags?.discNumber
                 tagTrackNumber = file.tagTrackNumber
-                if index == 0 { firstDate = file.existingTags?.date }
+                if firstDate == nil { firstDate = file.existingTags?.date }
             }
             batch.append(TrackRow(url: rowURL, title: title, featuring: featuring, discNumber: discNumber, tagTrackNumber: tagTrackNumber))
             if let inboxFile {
@@ -90,7 +90,7 @@ final class AlbumBuilderViewModel {
         // Files tagged with a disc go in (disc, track) order; untagged files keep the order they came
         // in. Only this batch is reordered, so rows the user already arranged stay where they are.
         rows.append(contentsOf: DiscNumbering.ordered(batch, disc: \.discNumber, trackTag: \.tagTrackNumber))
-        // The first track's embedded date fills an empty field; typed text or an earlier date stays.
+        // The first track with an embedded date fills an empty field; typed text or an earlier date stays.
         if releaseDateText.isEmpty, let firstDate { releaseDateText = firstDate.formatted() }
     }
 

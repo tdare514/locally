@@ -39,7 +39,7 @@ struct ReleaseDateField: View {
     }
 
     private var field: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 0) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             TextField("", text: Binding(get: { text }, set: { setWrapped($0) }), prompt: Text(Copy.DateField.placeholder).foregroundColor(Theme.textDim), axis: .vertical)
                 .lineLimit(1...3)
                 .font(Theme.ScaledFont.input)
@@ -60,8 +60,10 @@ struct ReleaseDateField: View {
             } label: {
                 Image(systemName: "calendar")
                     .font(Theme.ScaledFont.input)
+                    // Only the glyph stops growing; the field's text keeps scaling.
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                     .foregroundStyle(Theme.secondaryText)
-                    .frame(width: 44, height: 44)
+                    .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
                     // A 44 pt target without a 44 pt line.
                     .padding(.vertical, -11)
