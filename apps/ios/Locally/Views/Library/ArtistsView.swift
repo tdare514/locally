@@ -104,23 +104,27 @@ struct ArtistsListView: View {
 
     private func row(_ entry: ArtistCatalogEntry) -> some View {
         let count = Copy.Artists.countLine(releases: entry.releaseCount, tracks: entry.trackCount, appearsOn: entry.appearsOn.count)
+        let layout = wraps ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 12))
         return HStack(spacing: 12) {
-            ArtistCoverStack(releases: entry.covers, source: source, size: min(stackSize, 76))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.name)
-                    .font(Font.system(.subheadline, weight: .semibold))
-                    .foregroundStyle(Theme.primaryText)
-                    .lineLimit(wraps ? 3 : 1)
-                Text(count)
-                    .font(Font.subheadline)
-                    .foregroundStyle(Theme.secondaryText)
-                    .lineLimit(wraps ? 3 : 1)
+            layout {
+                ArtistCoverStack(releases: entry.covers, source: source, size: min(stackSize, 76))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.name)
+                        .font(Font.system(.subheadline, weight: .semibold))
+                        .foregroundStyle(Theme.primaryText)
+                        .lineLimit(wraps ? nil : 1)
+                    Text(count)
+                        .font(Font.subheadline)
+                        .foregroundStyle(Theme.secondaryText)
+                        .lineLimit(wraps ? nil : 1)
+                }
             }
             Spacer()
             LocallyIcon(.chevronRight, size: 20, scaled: false)
                 .foregroundStyle(Theme.textDim)
         }
         .padding(.horizontal, 12)
+        .padding(.vertical, wraps ? 8 : 0)
         .frame(minHeight: 72)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)

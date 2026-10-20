@@ -350,8 +350,13 @@ struct DevicesTraySectionAction: View {
     let isEnabled: Bool
     let action: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .caption) private var labelSize: CGFloat = 12
     @ScaledMetric(relativeTo: .caption) private var width: CGFloat = 96
+
+    /// At the accessibility sizes the scaled minimum would be wider than the 300 pt tray, so the
+    /// label sizes the pill and wraps instead.
+    private var wraps: Bool { dynamicTypeSize.isAccessibilitySize }
 
     private var title: String {
         switch (run, isRunning) {
@@ -367,9 +372,10 @@ struct DevicesTraySectionAction: View {
             Text(title)
                 .font(.system(size: labelSize, weight: .semibold))
                 .foregroundStyle(Theme.primaryText)
-                .lineLimit(1)
+                .lineLimit(wraps ? nil : 1)
+                .multilineTextAlignment(.center)
                 .minimumScaleFactor(0.8)
-                .frame(minWidth: width)
+                .frame(minWidth: wraps ? nil : width)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(Capsule().fill(Theme.Immersive.panelFill))
@@ -454,9 +460,9 @@ struct DevicesTrayRowView: View {
     @ViewBuilder private var retryButton: some View {
         let button = Button(action: onRetry) {
             Image(systemName: "arrow.clockwise")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: detailSize, weight: .semibold))
                 .foregroundStyle(Theme.primaryText)
-                .frame(width: 44, height: 44)
+                .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

@@ -26,6 +26,7 @@ struct TrackRow: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric private var numberWidth = Theme.Track.numberWidth
+    @ScaledMetric(relativeTo: .subheadline) private var discChevronSize: CGFloat = 8
 
     var body: some View {
         HStack(spacing: Theme.Track.spacing) {
@@ -103,7 +104,8 @@ struct TrackRow: View {
     /// column keeps its width, and the same two actions for VoiceOver.
     private func discMenu(number: Int, actions: DiscNumbering.Actions) -> some View {
         let hit = Theme.Track.discMenuHitSize
-        let reach = (hit - numberWidth) / 2
+        let ax = dynamicTypeSize.isAccessibilitySize
+        let reach = ax ? 0 : (hit - numberWidth) / 2
         return Menu {
             if let start = actions.start {
                 Button(Copy.Import.startDisc(start)) { onStartDisc?() }
@@ -115,12 +117,13 @@ struct TrackRow: View {
             HStack(spacing: 2) {
                 numberText(number)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8, weight: .semibold))
+                    .font(.system(size: discChevronSize, weight: .semibold))
                     .foregroundStyle(.white.opacity(Theme.Track.numberOpacity))
                     .accessibilityHidden(true)
             }
             .padding(.leading, reach)
-            .frame(width: hit, height: hit, alignment: .leading)
+            .frame(minWidth: hit, maxWidth: ax ? nil : hit, minHeight: hit, alignment: .leading)
+            .fixedSize()
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

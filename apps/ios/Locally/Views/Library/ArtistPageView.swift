@@ -175,12 +175,12 @@ struct ArtistPageView: View {
                             Text(release.title)
                                 .font(Self.rowTitleFont)
                                 .foregroundStyle(Theme.primaryText)
-                                .lineLimit(stacked ? 3 : 1)
+                                .lineLimit(stacked ? nil : 1)
                             if let year = release.year, !year.isEmpty {
                                 Text(year)
                                     .font(Self.metaFont)
                                     .foregroundStyle(Theme.secondaryText)
-                                    .lineLimit(1)
+                                    .lineLimit(stacked ? nil : 1)
                             }
                         }
                     }
@@ -230,14 +230,14 @@ struct ArtistPageView: View {
                 Text(title)
                     .font(Self.rowTitleFont)
                     .foregroundStyle(Theme.primaryText)
-                    .lineLimit(stacked ? 4 : 2)
+                    .lineLimit(stacked ? nil : 2)
                     .accessibilityHidden(true)
                 ArtistLineText(main: credit.main, featuring: credit.featuring, font: .footnote, lineLimit: stacked ? nil : 2)
                 if let detail {
                     Text(detail)
                         .font(.caption)
                         .foregroundStyle(Theme.textHint)
-                        .lineLimit(stacked ? 3 : 1)
+                        .lineLimit(stacked ? nil : 1)
                         .accessibilityHidden(true)
                 }
                 if stacked, let plays { playsText(plays) }
