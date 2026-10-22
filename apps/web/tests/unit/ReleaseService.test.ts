@@ -270,6 +270,68 @@ describe("ReleaseService", () => {
     for (const t of release.tracks) expect(t).not.toHaveProperty("discNumber");
   });
 
+  it("imports a release date: stores it and passes it to the tags with the year", async () => {
+    const release = await service.import(
+      {
+        kind: "single",
+        artist: "A",
+        year: "2024",
+        releaseDate: "2024-05-17",
+        tracks: [{ title: "T", trackNumber: 1 }],
+      } as never,
+      null,
+      [audioFile("a.mp3")]
+    );
+
+    expect(release.year).toBe("2024");
+    expect(release.releaseDate).toBe("2024-05-17");
+    expect(tags.writes[0].input.year).toBe("2024");
+    expect(tags.writes[0].input.releaseDate).toBe("2024-05-17");
+  });
+
+  it("an import with only a year stores no releaseDate key", async () => {
+    const release = await service.import(
+      { kind: "single", artist: "A", year: "2024", tracks: [{ title: "T", trackNumber: 1 }] } as never,
+      null,
+      [audioFile("a.mp3")]
+    );
+
+    expect(release).not.toHaveProperty("releaseDate");
+    expect(tags.writes[0].input.releaseDate ?? null).toBeNull();
+  });
+
+  it("update with a year and no releaseDate clears the date; without a year it keeps it", async () => {
+    const release = await service.import(
+      {
+        kind: "single",
+        artist: "A",
+        year: "2024",
+        releaseDate: "2024-05-17",
+        tracks: [{ title: "T", trackNumber: 1 }],
+      } as never,
+      null,
+      [audioFile("a.mp3")]
+    );
+
+    const kept = await service.update(release.id, { title: "Renamed" });
+    expect(kept.releaseDate).toBe("2024-05-17");
+    expect(tags.writes.at(-1)?.input.releaseDate).toBe("2024-05-17");
+
+    const changed = await service.update(release.id, { year: "2024", releaseDate: "2024-06" });
+    expect(changed.releaseDate).toBe("2024-06");
+    expect(tags.writes.at(-1)?.input.releaseDate).toBe("2024-06");
+
+    const cleared = await service.update(release.id, { year: "2024" });
+    expect(cleared).not.toHaveProperty("releaseDate");
+    expect(cleared.year).toBe("2024");
+    expect(tags.writes.at(-1)?.input.releaseDate ?? null).toBeNull();
+    expect((await service.get(release.id))).not.toHaveProperty("releaseDate");
+
+    const gone = await service.update(release.id, { year: null });
+    expect(gone.year).toBeNull();
+    expect(gone).not.toHaveProperty("releaseDate");
+  });
+
   it("update sets a track's discNumber and keeps the others", async () => {
     const release = await service.import(
       {
@@ -799,6 +861,32 @@ describe("ReleaseService.applyRemote", () => {
       [1, 2, undefined],
       [2, 2, undefined],
     ]);
+  });
+
+  it("applies a record's releaseDate, and drops a bad or disagreeing one keeping the year", async () => {
+    const release = await service.import(
+      { kind: "single", artist: "A", title: "T", year: "2024", tracks: [{ title: "One", trackNumber: 1 }] } as never,
+      null,
+      [audioFile("a.mp3")]
+    );
+
+    tags.writes = [];
+    const dated = await service.applyRemote(recordFor(release, { releaseDate: "2024-05-17" }));
+    expect(dated.releaseDate).toBe("2024-05-17");
+    expect(tags.writes[0].input.releaseDate).toBe("2024-05-17");
+
+    for (const bad of ["2023-05-17", "2024-13", "2024"]) {
+      tags.writes = [];
+      const undated = await service.applyRemote(recordFor(dated, { releaseDate: bad }));
+      expect(undated.year).toBe("2024");
+      expect(undated).not.toHaveProperty("releaseDate");
+      expect(tags.writes[0].input.releaseDate ?? null).toBeNull();
+    }
+
+    const redated = await service.applyRemote(recordFor(dated, { releaseDate: "2024-05" }));
+    const yearOnly = await service.applyRemote(recordFor(redated));
+    expect(redated.releaseDate).toBe("2024-05");
+    expect(yearOnly).not.toHaveProperty("releaseDate");
   });
 
   it("without newCoverPath, leaves the cover untouched", async () => {

@@ -3,6 +3,7 @@ import path from "node:path";
 import NodeID3 from "node-id3";
 import { parseFile } from "music-metadata";
 import { isDiscNumber } from "../../shared/discs";
+import { releaseDateFromTag, releaseDateIso, releaseDateValue, releaseYear, storedReleaseDate } from "../../shared/releaseDate";
 import type { ReadTagsResult, TagService, WriteTagsInput } from "./TagService";
 
 function mimeForCover(coverPath: string): string {
@@ -27,7 +28,21 @@ export class Id3TagService implements TagService {
     // nothing, so a release with no discs ends up with no TPOS.
     tags.partOfSet =
       input.discNumber != null && input.discTotal != null ? `${input.discNumber}/${input.discTotal}` : undefined;
-    if (input.year) tags.year = input.year;
+    // Spotify reads an mp3's year from TYER only (#234), so TYER always holds the year; TDRC holds the full date
+    // when there is one. TDAT is not written. With no year both frames are named `undefined`, so an earlier
+    // write's date does not survive.
+    const date = storedReleaseDate(input.year, input.releaseDate);
+    if (date) {
+      tags.year = releaseYear(date);
+      tags.recordingTime = releaseDateIso(date);
+    } else if (input.year) {
+      // An old synced year that is not four digits: TYER as before, but never in TDRC, which is a timestamp.
+      tags.year = input.year;
+      tags.recordingTime = undefined;
+    } else {
+      tags.year = undefined;
+      tags.recordingTime = undefined;
+    }
     if (input.genre) tags.genre = input.genre;
 
     if (input.coverPath) {
@@ -50,11 +65,13 @@ export class Id3TagService implements TagService {
     const meta = await parseFile(filePath);
     const common = meta.common;
     const discNo = common.disk?.no;
+    const date = common.date != null ? releaseDateFromTag(String(common.date)) : null;
     return {
       title: common.title ?? null,
       artist: common.artist ?? null,
       album: common.album ?? null,
-      year: common.year != null ? String(common.year) : null,
+      year: date ? releaseYear(date) : common.year != null ? String(common.year) : null,
+      releaseDate: date ? (releaseDateValue(date) ?? null) : null,
       genre: common.genre && common.genre.length > 0 ? common.genre[0] : null,
       durationSec: meta.format.duration ?? null,
       hasCover: Array.isArray(common.picture) && common.picture.length > 0,

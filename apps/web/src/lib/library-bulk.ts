@@ -4,15 +4,19 @@
  * first failure, and word the resulting toast.
  */
 import type { Release, UpdateReleaseMeta } from "../shared/types";
+import { parseReleaseDateText, releaseDateFields } from "../shared/releaseDate";
 
 /** Raw field text from the bulk edit dialog; "" means leave unchanged. */
 export interface BulkDetails {
   artist: string;
+  /** The Release date field's text: a year, a month or a day (#221). */
   year: string;
   genre: string;
 }
 
-/** Trimmed non-empty fields become the patch; returns null when nothing would change. */
+/** Trimmed non-empty fields become the patch; returns null when nothing would change. A date is set as a whole
+ * (`year`, plus `releaseDate` when it is more precise). Text that is not a date makes the whole patch null,
+ * so nothing is half applied (the dialog shows the message and holds Apply). */
 export function bulkDetailsPatch(
   details: BulkDetails,
 ): UpdateReleaseMeta | null {
@@ -21,7 +25,13 @@ export function bulkDetailsPatch(
   const year = details.year.trim();
   const genre = details.genre.trim();
   if (artist !== "") patch.artist = artist;
-  if (year !== "") patch.year = year;
+  if (year !== "") {
+    const entry = parseReleaseDateText(year);
+    if (entry.kind !== "date") return null;
+    const fields = releaseDateFields(entry.date);
+    patch.year = fields.year;
+    if (fields.releaseDate !== undefined) patch.releaseDate = fields.releaseDate;
+  }
   if (genre !== "") patch.genre = genre;
   return Object.keys(patch).length === 0 ? null : patch;
 }

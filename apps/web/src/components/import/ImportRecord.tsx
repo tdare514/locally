@@ -12,6 +12,7 @@ import { useLibraryWidth } from "../../lib/use-library-width";
 import { BAR_MIN_HEIGHT, barPadding } from "../../lib/page-layout";
 import type { ArtistEntry } from "../../lib/artist-index";
 import FeaturingRow from "../FeaturingRow";
+import ReleaseDateField from "../ReleaseDateField";
 
 /** What the page shows of the cover beat: nothing before a cover, "playing" while it runs,
  * "settled" once it has ended or been skipped. */
@@ -24,8 +25,8 @@ interface ImportRecordProps {
   onTitleChange: (value: string) => void;
   artist: string;
   onArtistChange: (value: string) => void;
-  year: string;
-  onYearChange: (value: string) => void;
+  releaseDate: string;
+  onReleaseDateChange: (value: string) => void;
   genre: string;
   onGenreChange: (value: string) => void;
   tracks: EditableTrack[];
@@ -92,8 +93,8 @@ export default function ImportRecord({
   onTitleChange,
   artist,
   onArtistChange,
-  year,
-  onYearChange,
+  releaseDate,
+  onReleaseDateChange,
   genre,
   onGenreChange,
   tracks,
@@ -198,13 +199,12 @@ export default function ImportRecord({
               />
             )}
             <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-[15px]">
-              <InlineField
-                label="Year"
-                value={year}
-                onChange={onYearChange}
-                placeholder="Add year"
-                inputMode="numeric"
-                minWidth="min-w-[8ch]"
+              <ReleaseDateField
+                value={releaseDate}
+                onChange={onReleaseDateChange}
+                placeholder="Add release date"
+                minWidth="min-w-[16ch]"
+                inputExtraClassName={UNDERLINE}
               />
               <InlineField
                 label="Genre"

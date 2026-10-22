@@ -29,6 +29,8 @@ export interface InspectedFile {
   artist: string | null;
   album: string | null;
   year: string | null;
+  /** "2024-05" or "2024-05-17" when the tag is more precise than the year (#221). */
+  releaseDate?: string | null;
   genre: string | null;
   durationSec: number | null;
   hasCover: boolean;
