@@ -937,7 +937,6 @@ private struct ControlsGallery: View {
         }
     }
 }
-#endif
 
 // MARK: - Artists sample data (#288)
 
@@ -1024,3 +1023,4 @@ extension IconsGallery {
         return environment(NavigationStack { ReleaseDetailView(release: release) }, container)
     }
 }
+#endif
