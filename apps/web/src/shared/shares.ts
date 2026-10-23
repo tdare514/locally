@@ -82,6 +82,12 @@ export interface CreateShareRequest {
   expiresInDays: 7 | 30 | null;
 }
 
+/** Body of `POST /v1/shares/:id/reshare`. */
+export type ReshareRequest = Omit<CreateShareRequest, "releaseId" | "trackIds">;
+
+/** What a refused reshare, or a release whose share was not allowed to go on, says. */
+export const RESHARE_REFUSED = "They didn't allow sharing this on";
+
 export const MAX_SHARE_RECIPIENTS = 50;
 
 /** A saved group of recipient emails, kept in this Mac's settings only (the plan: client-side). */
@@ -157,3 +163,17 @@ export const CreateShareBodySchema = z.object({
   allowReshare: z.boolean(),
   expiresInDays: z.union([z.literal(7), z.literal(30), z.null()]),
 });
+
+/** Where an imported release came from (#328): the received share's id and whether it may be shared on. Omitted, never null. */
+export interface SharedFrom {
+  shareId: string;
+  allowReshare: boolean;
+}
+
+export const SharedFromSchema = z.object({ shareId: z.string().uuid(), allowReshare: z.boolean() });
+
+/** A `sharedFrom` read from the wire or the index: a well-formed one, else undefined (a bad shape is dropped, never fatal). */
+export function parseSharedFrom(raw: unknown): SharedFrom | undefined {
+  const parsed = SharedFromSchema.safeParse(raw);
+  return parsed.success ? { shareId: parsed.data.shareId, allowReshare: parsed.data.allowReshare } : undefined;
+}

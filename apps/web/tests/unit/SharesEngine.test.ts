@@ -119,6 +119,8 @@ describe("shares on the Mac", () => {
   let me: { publicSharesEnabled?: boolean };
   let failDownload: boolean;
   let failClaim: boolean;
+  let settingsStore: Settings1;
+  let listGate: Promise<void> | null;
   let cacheDir: string;
 
   beforeEach(async () => {
@@ -128,6 +130,7 @@ describe("shares on the Mac", () => {
     me = { publicSharesEnabled: false };
     failDownload = false;
     failClaim = false;
+    listGate = null;
     cacheDir = path.join(libraryDir, "..", `sli-share-covers-${path.basename(libraryDir)}`);
     repo = new Repo();
     const settings = new Settings1({
@@ -141,7 +144,17 @@ describe("shares on the Mac", () => {
         return { releases: [], nextVersion: 0, hasMore: false };
       },
       async listReceivedShares() {
-        return { shares: received, nextCursor: null };
+        const snapshot = received;
+        if (listGate) await listGate;
+        return { shares: snapshot, nextCursor: null };
+      },
+      async reshareShare(id: string, body: unknown) {
+        calls.push(`reshare ${id} ${JSON.stringify(body)}`);
+        return { share: null, notOnLocally: [], link: null };
+      },
+      async createShare() {
+        calls.push("create");
+        return { share: null, notOnLocally: [], link: null };
       },
       async me() {
         return { user: { id: "u", email: "me@example.com" }, device: { id: "d", name: "n" }, quota: { usedBytes: 0, limitBytes: 1 }, devices: [], ...me };
@@ -177,6 +190,7 @@ describe("shares on the Mac", () => {
         calls.push(`revoke ${id}`);
       },
     } as unknown as SyncApi;
+    settingsStore = settings;
     state = new MemState();
     engine = new SyncEngine(settings, state, releases, nodeFs, () => api, () => "Test Mac", null, undefined, () => cacheDir);
   });
@@ -258,6 +272,8 @@ describe("shares on the Mac", () => {
     await engine.reconcile();
     expect(calls).toContain(`claim ${S1}`);
     expect((await state.get()).importedShares).toEqual({});
+    // The cached unclaimed row must not come back once the marker is cleared.
+    expect((await engine.status()).fromFriends).toEqual([]);
     expect(repo.items).toHaveLength(1);
   });
 
@@ -310,6 +326,61 @@ describe("shares on the Mac", () => {
     const release = await engine.acceptFriendShare(S1);
     expect(release.tracks.map((x) => [x.trackNumber, x.discNumber])).toEqual([[1, 1], [2, 2]]);
     expect((await parseFile(release.tracks[1].filePath)).common.disk).toMatchObject({ no: 2, of: 2 });
+  });
+
+  it("sets sharedFrom on the imported release from the share's id and canReshare", async () => {
+    received = [share({ canReshare: true })];
+    await engine.reconcile();
+    const release = await engine.acceptFriendShare(S1);
+    expect(release.sharedFrom).toEqual({ shareId: S1, allowReshare: true });
+    expect((await repo.find("", release.id))?.sharedFrom).toEqual({ shareId: S1, allowReshare: true });
+  });
+
+  it("shares an imported release through the reshare route when it may be shared on", async () => {
+    received = [share({ canReshare: true })];
+    await engine.reconcile();
+    const release = await engine.acceptFriendShare(S1);
+    const body = { releaseId: release.id, recipients: ["a@b.co"], visibility: "private" as const, allowReshare: false, expiresInDays: 7 as const };
+    await engine.createShare(body);
+    expect(calls.filter((c) => c === "create")).toEqual([]);
+    expect(calls.find((c) => c.startsWith("reshare"))).toBe(
+      `reshare ${S1} ${JSON.stringify({ recipients: ["a@b.co"], visibility: "private", allowReshare: false, expiresInDays: 7 })}`
+    );
+  });
+
+  it("refuses to share on a release that was not allowed to go on, and calls nothing", async () => {
+    received = [share({ canReshare: false })];
+    await engine.reconcile();
+    const release = await engine.acceptFriendShare(S1);
+    expect(release.sharedFrom?.allowReshare).toBe(false);
+    const before = calls.length;
+    await expect(
+      engine.createShare({ releaseId: release.id, recipients: ["a@b.co"], visibility: "private", allowReshare: false, expiresInDays: null })
+    ).rejects.toThrow("They didn't allow sharing this on");
+    expect(calls.length).toBe(before);
+  });
+
+  it("empties the friends list and the cover cache on sign-out", async () => {
+    await engine.reconcile();
+    expect((await engine.status()).fromFriends).toHaveLength(1);
+    expect(await fs.readdir(cacheDir)).toHaveLength(1);
+    await settingsStore.update((c) => ({ ...c, sync: c.sync ? { ...c.sync, deviceToken: null } : null }));
+    expect((await engine.status()).fromFriends).toEqual([]);
+    expect(await fs.readdir(cacheDir)).toEqual([]);
+    await expect(engine.friendCover(S1)).rejects.toThrow();
+  });
+
+  it("drops a refresh that finishes after the account changed", async () => {
+    let release!: () => void;
+    listGate = new Promise<void>((resolve) => (release = resolve));
+    const running = engine.reconcile();
+    await new Promise((r) => setTimeout(r, 50));
+    await settingsStore.update((c) => ({ ...c, sync: c.sync ? { ...c.sync, deviceToken: null } : null }));
+    release();
+    await running;
+    expect((await engine.status()).fromFriends).toEqual([]);
+    expect(await fs.readdir(cacheDir).catch(() => [])).toEqual([]);
+    expect(calls).toEqual([]);
   });
 
   it("refuses a share that names a file outside its folder", async () => {

@@ -342,7 +342,7 @@ export default function PhoneInbox({
           className="phone-tray glass-fake glass-frost absolute right-full top-full z-30 isolate w-[300px] max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain rounded-[22px] p-2 outline-none"
         >
           <h2 id={headingId} tabIndex={-1} className="sr-only">
-            {INBOX_TITLE}
+            {friends.length > 0 ? `${INBOX_TITLE} and friends` : INBOX_TITLE}
           </h2>
           {/* One polite live region for the whole tray: the lines after Try all again. */}
           <div aria-live="polite" role="status" className="sr-only">
@@ -351,10 +351,18 @@ export default function PhoneInbox({
           {count === 0 && (
             <p className="px-3 py-3 text-sm text-text-muted">Nothing waiting from your devices.</p>
           )}
+          {pending.length > 0 && (
+            // The first section heading: the device groups below are its status subheadings.
+            <h3 id={`${panelId}-devices`} className="px-3 pb-0.5 pt-1.5 text-[13px] font-semibold leading-snug text-text">
+              {INBOX_TITLE}
+              <span className="sr-only">,</span> <span className="font-normal text-text-muted">{pending.length}</span>
+            </h3>
+          )}
           {ready.length > 0 && (
             <section data-section="ready" aria-labelledby={`${panelId}-ready`}>
               <SectionHeader
                 id={`${panelId}-ready`}
+                sub
                 name="Ready to add"
                 count={ready.length}
                 action={
@@ -375,6 +383,7 @@ export default function PhoneInbox({
             <section data-section="other" aria-labelledby={`${panelId}-other`}>
               <SectionHeader
                 id={`${panelId}-other`}
+                sub
                 name={copy.name}
                 count={other.length}
                 action={
@@ -456,18 +465,28 @@ export function SectionHeader({
   name,
   count,
   action,
+  sub = false,
 }: {
   id: string;
   name: string;
   count: number;
+  /** A status subheading under "From your devices": a level down and quieter. */
+  sub?: boolean;
   action?: { label: string; busy: boolean; onClick: () => void };
 }) {
   return (
     <div className="flex items-center justify-between gap-2 px-3 pb-1 pt-1.5">
-      <h3 id={id} className="min-w-0 whitespace-nowrap text-[13px] font-semibold leading-snug text-text">
-        {name}
-        <span className="sr-only">,</span> <span className="font-normal text-text-dim">{count}</span>
-      </h3>
+      {sub ? (
+        <h4 id={id} className="min-w-0 whitespace-nowrap text-[12px] font-medium leading-snug text-text-muted">
+          {name}
+          <span className="sr-only">,</span> <span className="font-normal text-text-muted">{count}</span>
+        </h4>
+      ) : (
+        <h3 id={id} className="min-w-0 whitespace-nowrap text-[13px] font-semibold leading-snug text-text">
+          {name}
+          <span className="sr-only">,</span> <span className="font-normal text-text-muted">{count}</span>
+        </h3>
+      )}
       {action && (
         <button type="button" data-header-action disabled={action.busy} onClick={action.onClick} className="btn-save btn-save-compact">
           {action.label}
@@ -679,7 +698,7 @@ export function FriendRow({
               {item.trackCount} track{item.trackCount === 1 ? "" : "s"}
             </span>
           </span>
-          <span title={item.fromEmail} className="block truncate text-[12px] text-text-dim">{fromLabel(item.fromEmail)}</span>
+          <span title={item.fromEmail} className="block truncate text-[12px] text-text-muted">{fromLabel(item.fromEmail)}</span>
         </span>
         <button
           type="button"

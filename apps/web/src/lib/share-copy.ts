@@ -10,6 +10,8 @@ export const NOT_ON_LOCALLY = "Not on Locally yet";
 export const LINK_ON_COPY = "Anyone with the link can download this";
 export const LINK_SHOWN_ONCE = "Copy it now. Locally can't show this link again.";
 export const RESHARE_OFF_COPY = "They can't share it on from Locally";
+/** Revoking or deleting cannot take back what a person already added to their library. */
+export const COPIES_STAY = "Copies already added stay.";
 export const SIGN_IN_TO_SHARE = "Sign in to share";
 
 /** "Shared with 3 people", "Shared with 1 person". */
@@ -19,8 +21,8 @@ export function sharedWithLabel(people: number): string {
 
 /** The sentence the delete confirm adds when a release is still shared (`people` > 0). */
 export function deleteSharedLine(people: number, link: boolean): string | null {
-  if (people > 0) return `It's shared with ${people} ${people === 1 ? "person" : "people"}. They'll lose access.`;
-  if (link) return "It has a share link. The link will stop working.";
+  if (people > 0) return `It's shared with ${people} ${people === 1 ? "person" : "people"}. They'll lose access. ${COPIES_STAY}`;
+  if (link) return `It has a share link. The link will stop working. ${COPIES_STAY}`;
   return null;
 }
 

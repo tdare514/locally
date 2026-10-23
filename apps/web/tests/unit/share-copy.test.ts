@@ -34,8 +34,8 @@ describe("share copy", () => {
   });
 
   it("adds the shared-people line to the delete confirm", () => {
-    expect(deleteSharedLine(3, false)).toBe("It's shared with 3 people. They'll lose access.");
-    expect(deleteSharedLine(1, false)).toBe("It's shared with 1 person. They'll lose access.");
+    expect(deleteSharedLine(3, false)).toBe("It's shared with 3 people. They'll lose access. Copies already added stay.");
+    expect(deleteSharedLine(1, false)).toBe("It's shared with 1 person. They'll lose access. Copies already added stay.");
     expect(deleteSharedLine(0, false)).toBeNull();
   });
 

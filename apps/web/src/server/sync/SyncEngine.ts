@@ -22,6 +22,7 @@ import {
   toSyncRecord,
   type SyncRecord,
 } from "./SyncRecord";
+import { RESHARE_REFUSED } from "../../shared/shares";
 import type {
   CreateShareRequest,
   CreateShareResponse,
@@ -150,6 +151,8 @@ export class SyncEngine implements ReleaseSyncHooks {
   private nextHealAttemptMs: number | null = null;
   /** Live shares sent to this account (#182), from the last reconcile. In memory: the next reconcile refills it. */
   private received: ReceivedShare[] = [];
+  /** The account and host the received-shares cache and cover cache belong to; null when signed out. */
+  private sessionKey: string | null = null;
   /** `publicSharesEnabled` from the last `GET /v1/me`; false until it has said true. */
   private publicShares = false;
 
@@ -189,6 +192,7 @@ export class SyncEngine implements ReleaseSyncHooks {
   // --- Status -----------------------------------------------------------
 
   async status(): Promise<SyncStatus> {
+    await this.enterSession();
     const settings = await this.settings.get();
     const state = await this.syncState.get();
     const signedIn = !!settings.sync?.deviceToken;
@@ -597,7 +601,7 @@ export class SyncEngine implements ReleaseSyncHooks {
       const api = this.apiFactory(settings.sync.baseUrl, settings.sync.deviceToken);
 
       await this.pullOnce(api);
-      await this.pullReceivedShares(api);
+      await this.pullReceivedShares(api, await this.enterSession());
       await this.queueLocalIdBackfill();
 
       await this.backFill(api, null);
@@ -979,7 +983,7 @@ export class SyncEngine implements ReleaseSyncHooks {
    * fails the reconcile: a service from before sharing (404) empties the list; any other failure keeps
    * what was there.
    */
-  private async pullReceivedShares(api: SyncApi): Promise<void> {
+  private async pullReceivedShares(api: SyncApi, key: string | null): Promise<void> {
     let all: ReceivedShare[];
     try {
       all = [];
@@ -991,15 +995,17 @@ export class SyncEngine implements ReleaseSyncHooks {
         cursor = result.nextCursor;
       }
     } catch (err) {
-      if (err instanceof SyncRequestError && err.status === 404) {
+      if (err instanceof SyncRequestError && err.status === 404 && (await this.enterSession()) === key) {
         this.received = [];
         await this.pruneCoverCache(new Set());
       }
       return;
     }
+    // A reply that belongs to an account or host this Mac has since left is dropped.
+    if ((await this.enterSession()) !== key) return;
     this.received = all;
     await this.settleImportedShares(api, all);
-    await this.refreshCoverCache(api, all);
+    await this.refreshCoverCache(api, all, key);
   }
 
   /**
@@ -1019,6 +1025,8 @@ export class SyncEngine implements ReleaseSyncHooks {
       try {
         await api.claimShare(id);
         await api.hideShare(id).catch(() => undefined);
+        // The cached row is the unclaimed snapshot: drop it so it can't come back before the next refresh.
+        this.received = this.received.filter((r) => r.id !== id);
         done.push(id);
       } catch {
         // Tried again on the next reconcile.
@@ -1041,6 +1049,26 @@ export class SyncEngine implements ReleaseSyncHooks {
     });
   }
 
+  private async enterSession(): Promise<string | null> {
+    const sync = (await this.settings.get()).sync;
+    const key = sync?.deviceToken ? `${sync.baseUrl}\n${sync.email ?? ""}\n${sync.deviceToken}` : null;
+    if (key !== this.sessionKey) {
+      this.sessionKey = key;
+      this.received = [];
+      this.publicShares = false;
+      await this.pruneCoverCache(new Set());
+    }
+    return key;
+  }
+
+  /** Sign-out, account deletion or a host change: the friends list and their covers go at once. */
+  async forgetFriends(): Promise<void> {
+    this.sessionKey = null;
+    this.received = [];
+    this.publicShares = false;
+    await this.pruneCoverCache(new Set());
+  }
+
   // --- Received shares' covers --------------------------------------------
 
   /** The cached cover file for a share, or null when the id is not a UUID or the name has no image extension. */
@@ -1058,7 +1086,7 @@ export class SyncEngine implements ReleaseSyncHooks {
    * file, and never asks the service, which would count as a download for the sender), and deletes
    * cached covers of shares that are no longer listed. A failed download is skipped quietly.
    */
-  private async refreshCoverCache(api: SyncApi, listed: ReceivedShare[]): Promise<void> {
+  private async refreshCoverCache(api: SyncApi, listed: ReceivedShare[], key: string | null): Promise<void> {
     const wanted = listed.filter((r) => r.claimedAt === null);
     // The directory must exist for the inside-check (it compares real paths).
     if (wanted.some((r) => r.snapshot.cover !== null)) await this.fs.mkdirp(this.coverCacheDir());
@@ -1070,6 +1098,7 @@ export class SyncEngine implements ReleaseSyncHooks {
         const tmp = `${target}.part`;
         try {
           await api.downloadFile(url, tmp);
+          if ((await this.enterSession()) !== key) return;
           await this.fs.safeMove(tmp, target);
         } finally {
           await this.fs.removeRecursive(tmp).catch(() => undefined);
@@ -1078,6 +1107,7 @@ export class SyncEngine implements ReleaseSyncHooks {
         // No picture this time; the tray shows the note square.
       }
     }
+    if ((await this.enterSession()) !== key) return;
     await this.pruneCoverCache(new Set(wanted.map((r) => r.id.toLowerCase())));
   }
 
@@ -1101,6 +1131,7 @@ export class SyncEngine implements ReleaseSyncHooks {
 
   /** A received share's cached cover, for `GET /api/shares/:id/cover`. */
   async friendCover(id: string): Promise<{ bytes: Buffer; contentType: string }> {
+    await this.enterSession();
     const share = this.received.find((r) => r.id === id);
     const target = share ? this.coverCachePath(share.id, share.snapshot.cover) : null;
     if (!target || !(await this.fs.exists(target))) throw new NotFoundError("No cover for that share");
@@ -1126,6 +1157,19 @@ export class SyncEngine implements ReleaseSyncHooks {
     const release = await this.releases.get(body.releaseId);
     if (!release) throw new NotFoundError(`No release ${body.releaseId}`);
     assertWritable({ adopted: release.adopted === true, title: release.title });
+    if (release.sharedFrom) {
+      // Imported from a friend's share (#328): it can only go on as a reshare of that share, whole.
+      if (!release.sharedFrom.allowReshare) throw new PublicError(RESHARE_REFUSED);
+      if (body.visibility === "public" && !(await this.shareOptions()).publicSharesEnabled) {
+        throw new ValidationError("Share links are not switched on yet");
+      }
+      return api.reshareShare(release.sharedFrom.shareId, {
+        recipients: body.recipients,
+        visibility: body.visibility,
+        allowReshare: body.allowReshare,
+        expiresInDays: body.expiresInDays,
+      });
+    }
     if (body.trackIds && body.trackIds.some((id) => !release.tracks.some((t) => t.id === id))) {
       throw new ValidationError("Some of those tracks are not on this release");
     }
@@ -1191,6 +1235,7 @@ export class SyncEngine implements ReleaseSyncHooks {
    */
   async acceptFriendShare(id: string): Promise<Release> {
     const api = await this.signedInApi();
+    await this.enterSession();
     const share = this.received.find((r) => r.id === id);
     if (!share) throw new NotFoundError("No share from a friend with that id");
     const snap = share.snapshot;
@@ -1229,6 +1274,8 @@ export class SyncEngine implements ReleaseSyncHooks {
         deleted: false,
         // The service checks the date against the year; a bad one is dropped by `releaseDateOf` on import.
         ...(snap.releaseDate ? { releaseDate: snap.releaseDate } : {}),
+        // Where it came from, so Share on it goes through the reshare route (#328).
+        sharedFrom: { shareId: share.id, allowReshare: share.canReshare },
       });
     } catch (err) {
       if (err instanceof SyncRecordRejectedError) {

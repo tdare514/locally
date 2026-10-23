@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HttpSyncApi } from "../../src/server/sync/SyncApi";
-import { ReceivedShareSchema, SentShareSchema } from "../../src/shared/shares";
+import { RESHARE_REFUSED, ReceivedShareSchema, SentShareSchema, parseSharedFrom } from "../../src/shared/shares";
+import { parseSyncRecord, toSyncRecord } from "../../src/server/sync/SyncRecord";
+import type { Release } from "../../src/shared/types";
 
 // Literal JSON in the shapes of spec/sync.md "Shares (#146)".
 const snapshot = {
@@ -125,5 +127,58 @@ describe("share wire shapes", () => {
         expiresInDays: null,
       })
     ).rejects.toThrow(/can't share it/);
+  });
+
+  it("maps a 403 use_reshare or reshare_not_allowed to the plain sentence", async () => {
+    for (const error of ["use_reshare", "reshare_not_allowed"]) {
+      stubFetch({ error }, 403);
+      const api = new HttpSyncApi("http://api.test", "tok");
+      const body = { recipients: ["a@b.co"], visibility: "private" as const, allowReshare: false, expiresInDays: null };
+      await expect(api.reshareShare("s2", body)).rejects.toThrow(RESHARE_REFUSED);
+      await expect(api.createShare({ releaseId: "r1", ...body })).rejects.toThrow(RESHARE_REFUSED);
+    }
+    expect(RESHARE_REFUSED).toBe("They didn't allow sharing this on");
+  });
+
+  it("posts a reshare to /v1/shares/:id/reshare", async () => {
+    const calls = stubFetch({ share: sent, notOnLocally: [], link: null }, 201);
+    await new HttpSyncApi("http://api.test", "tok").reshareShare("s2", {
+      recipients: ["a@b.co"],
+      visibility: "private",
+      allowReshare: false,
+      expiresInDays: 7,
+    });
+    expect(calls[0].url).toBe("http://api.test/v1/shares/s2/reshare");
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({
+      recipients: ["a@b.co"],
+      visibility: "private",
+      allowReshare: false,
+      expiresInDays: 7,
+    });
+  });
+
+  it("round-trips sharedFrom through the sync record and drops a bad shape", () => {
+    const sharedFrom = { shareId: "11111111-1111-4111-8111-111111111111", allowReshare: true };
+    const release: Release = {
+      id: "r1",
+      kind: "single",
+      title: "T",
+      artist: "A",
+      year: null,
+      genre: null,
+      coverPath: null,
+      folderPath: "/x",
+      tracks: [],
+      createdAt: "2026-10-23T10:00:00.000Z",
+      updatedAt: "2026-10-23T10:00:00.000Z",
+      sharedFrom,
+    };
+    const record = toSyncRecord(release, "mac", "Mac", {}, null);
+    expect(record.sharedFrom).toEqual(sharedFrom);
+    expect(parseSyncRecord(JSON.parse(JSON.stringify(record))).sharedFrom).toEqual(sharedFrom);
+    expect("sharedFrom" in toSyncRecord({ ...release, sharedFrom: undefined }, "mac", "Mac", {}, null)).toBe(false);
+    const bad = parseSyncRecord({ ...JSON.parse(JSON.stringify(record)), sharedFrom: { shareId: 5, allowReshare: "yes" } });
+    expect(bad.sharedFrom).toBeUndefined();
+    expect(parseSharedFrom(null)).toBeUndefined();
   });
 });

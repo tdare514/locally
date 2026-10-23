@@ -32,6 +32,7 @@ import { folderAfterRoot } from "../lib/adopt-review";
 import NoCover from "./NoCover";
 import ShareControl from "./ShareControl";
 import { deleteSharedLine } from "../lib/share-copy";
+import { RESHARE_REFUSED } from "../shared/shares";
 import ReleaseBar, { BarConfirm, useBarConfirm } from "./ReleaseBar";
 import { libraryWidthClass } from "../lib/library-view-prefs";
 import { useLibraryWidth } from "../lib/use-library-width";
@@ -661,7 +662,7 @@ export default function ReleaseView({
             playlists={playlists}
             onOpenPlaylist={handleOpenPlaylist}
             renderShare={
-              isAdopted || IS_DEMO
+              isAdopted || IS_DEMO || release.sharedFrom
                 ? undefined
                 : (key, trackName) => (
                     <ShareControl
@@ -760,7 +761,11 @@ export default function ReleaseView({
         beforeMain={
           isAdopted ? undefined : (
             <>
-              {!IS_DEMO && (
+              {!IS_DEMO && release.sharedFrom?.allowReshare === false && (
+                // Imported from a friend's share that was not allowed to go on (#328): quiet text, no button.
+                <span className="text-sm text-text-muted">{RESHARE_REFUSED}</span>
+              )}
+              {!IS_DEMO && release.sharedFrom?.allowReshare !== false && (
                 <ShareControl
                   releaseId={release.id}
                   name={release.title}

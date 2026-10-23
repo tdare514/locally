@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Release, ReleaseKind, Track } from "../../shared/types";
 import { MAX_DISC_NUMBER } from "../../shared/discs";
 import { UNKNOWN_ARTIST } from "../../shared/adopt";
+import { SharedFromSchema } from "../../shared/shares";
 import { releaseDateValue, storedReleaseDate } from "../../shared/releaseDate";
 
 /**
@@ -93,6 +94,8 @@ export const SyncRecordSchema = z.object({
    * `fromSyncRecord` also drops one that disagrees with `year`. Never `.refine` here: a `custom` issue means a refused name.
    */
   releaseDate: z.string().optional().catch(undefined),
+  /** Imported from a friend's share (#328); omitted, never null. A bad shape parses as absent, never a refused record. */
+  sharedFrom: SharedFromSchema.optional().catch(undefined),
   genre: z.string().nullable(),
   cover: syncFileName("cover").nullable(),
   /** Absent on a `syncVersion` 1 record (no signal, leave the cover alone); `null` on a v2 record with no cover. */
@@ -185,6 +188,7 @@ export function toSyncRecord(
     artist: release.adopted && release.artist.trim() === "" ? UNKNOWN_ARTIST : release.artist,
     year: release.year,
     ...(releaseDate !== undefined ? { releaseDate } : {}),
+    ...(release.sharedFrom ? { sharedFrom: release.sharedFrom } : {}),
     genre: release.genre,
     cover: release.coverPath ? path.basename(release.coverPath) : null,
     coverHash,

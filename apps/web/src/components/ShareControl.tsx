@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createShare, getShareGroups, getShareOptions, putShareGroups } from "../lib/api-client";
 import { copyToClipboard } from "../lib/clipboard";
 import {
@@ -62,17 +62,62 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
   const [note, setNote] = useState("");
   // Opens upward from the bar, and from a row with more room above than below.
   const [up, setUp] = useState(variant === "bar");
+  // The room on the chosen side of the anchor: the popover never grows past it, its body scrolls instead.
+  const [maxHeight, setMaxHeight] = useState<number | undefined>(undefined);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const footRef = useRef<HTMLDivElement>(null);
 
   const close = useCallback((returnFocus: boolean) => {
     setOpen(false);
     if (returnFocus) buttonRef.current?.focus();
   }, []);
 
+  /** Picks the side of the anchor with room for the content (the preferred side when it fits) and bounds the height to it. */
+  const place = useCallback(() => {
+    const button = buttonRef.current;
+    const pop = popRef.current;
+    const body = bodyRef.current;
+    if (!button || !pop || !body) return;
+    const margin = 16;
+    const gap = 12;
+    const rect = button.getBoundingClientRect();
+    const above = Math.max(120, rect.top - margin - gap);
+    const below = Math.max(120, window.innerHeight - rect.bottom - margin - gap);
+    const chrome = pop.offsetHeight - body.offsetHeight; // heading, footer and padding
+    const natural = chrome + body.scrollHeight;
+    const prefersUp = variant === "bar" || above > below;
+    const fitsPreferred = natural <= (prefersUp ? above : below);
+    const goUp = fitsPreferred ? prefersUp : above > below;
+    setUp(goUp);
+    setMaxHeight(Math.floor(goUp ? above : below));
+  }, [variant]);
+
+  // Re-placed whenever what is inside changes size, and when the window or the pane scrolls or resizes.
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+    const body = bodyRef.current;
+    const observer = body ? new ResizeObserver(place) : null;
+    if (body && observer) observer.observe(body);
+    window.addEventListener("resize", place);
+    document.addEventListener("scroll", place, true);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", place);
+      document.removeEventListener("scroll", place, true);
+    };
+  }, [open, place, result, emails.length, groups.length, error, emailError, namingGroup, publicEnabled, link, reshare]);
+
+  // After a successful share the result heading takes focus (the Share button it came from is gone).
+  useEffect(() => {
+    if (result) headingRef.current?.focus({ preventScroll: true });
+  }, [result]);
+
   /** Opening starts a fresh form. */
   function toggle() {
     if (!open) {
-      const rect = buttonRef.current?.getBoundingClientRect();
-      setUp(variant === "bar" || (rect ? rect.top > window.innerHeight - rect.bottom : false));
+      setMaxHeight(undefined);
       setEmails([]);
       setDraft("");
       setEmailError(null);
@@ -278,20 +323,26 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
           aria-labelledby={headingId}
           // The track list starts a drag from a bare press; a press in here is not one.
           onPointerDown={(e) => e.stopPropagation()}
-          style={{ transformOrigin: up ? "bottom right" : "top right" }}
-          className={`share-pop playlist-pop glass-fake glass-frost absolute right-0 z-40 isolate w-[360px] max-w-[calc(100vw-2rem)] cursor-default rounded-[22px] p-4 text-left ${
+          style={{ transformOrigin: up ? "bottom right" : "top right", maxHeight }}
+          className={`share-pop playlist-pop glass-fake glass-frost absolute right-0 z-40 isolate flex w-[360px] max-w-[calc(100vw-2rem)] cursor-default flex-col rounded-[22px] p-4 text-left ${
             up ? "bottom-full mb-3" : "top-full mt-1"
           }`}
         >
-          <h2 id={headingId} className="mb-3 truncate text-[15px] font-semibold text-text">
+          <h2
+            ref={headingRef}
+            id={headingId}
+            tabIndex={-1}
+            className="mb-3 shrink-0 truncate text-[15px] font-semibold text-text outline-none"
+          >
             {result ? sharedHeading(result) : `Share ${name}`}
           </h2>
           <div role="status" className="sr-only">
             {note}
           </div>
 
+          <div ref={bodyRef} className="-mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-0.5">
           {result ? (
-            <ShareResult result={result} copied={copied} onCopy={copyLink} onDone={() => close(true)} />
+            <ShareResult result={result} copied={copied} onCopy={copyLink} />
           ) : (
             <div className="flex flex-col gap-4">
               <section aria-labelledby={`${dialogId}-people`} className="flex flex-col gap-2">
@@ -458,13 +509,20 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
                   {error}
                 </p>
               )}
-              <div className="flex justify-end">
-                <button type="button" onClick={submit} disabled={busy} className="btn-save btn-save-lit">
-                  {busy ? "Sharing…" : "Share"}
-                </button>
-              </div>
             </div>
           )}
+          </div>
+          <div ref={footRef} className="mt-3 flex shrink-0 justify-end">
+            {result ? (
+              <button type="button" onClick={() => close(true)} className="btn-save btn-save-lit">
+                Done
+              </button>
+            ) : (
+              <button type="button" onClick={submit} disabled={busy} className="btn-save btn-save-lit">
+                {busy ? "Sharing…" : "Share"}
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -519,12 +577,10 @@ function ShareResult({
   result,
   copied,
   onCopy,
-  onDone,
 }: {
   result: CreateShareResponse;
   copied: boolean;
   onCopy: () => void;
-  onDone: () => void;
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -569,11 +625,6 @@ function ShareResult({
           <p className="text-[13px] leading-snug text-text-muted">{LINK_SHOWN_ONCE}</p>
         </div>
       )}
-      <div className="flex justify-end">
-        <button type="button" onClick={onDone} className="btn-save btn-save-lit">
-          Done
-        </button>
-      </div>
     </div>
   );
 }

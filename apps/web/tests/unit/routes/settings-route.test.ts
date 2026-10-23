@@ -72,7 +72,13 @@ beforeEach(() => {
   syncState = new FakeSyncStateStore();
   playTracker = { setEnabled: vi.fn() };
   playStore = new FakePlayCountStore();
-  services = { settings: new FakeSettingsStore(), syncState, playTracker, playStore } as unknown as Services;
+  services = {
+    settings: new FakeSettingsStore(),
+    syncState,
+    playTracker,
+    playStore,
+    syncEngine: { forgetFriends: vi.fn().mockResolvedValue(undefined) },
+  } as unknown as Services;
 });
 
 describe("GET /api/settings", () => {

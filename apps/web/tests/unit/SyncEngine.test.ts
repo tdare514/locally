@@ -323,6 +323,9 @@ class FakeSyncApi implements SyncApi {
   async listReceivedShares() {
     return { shares: [], nextCursor: null };
   }
+  async reshareShare(): Promise<never> {
+    throw new Error("not used here");
+  }
   async revokeShare(): Promise<void> {}
   async shareFileUrl(): Promise<never> {
     throw new Error("not used here");

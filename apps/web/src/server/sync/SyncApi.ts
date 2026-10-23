@@ -17,10 +17,12 @@ import {
 } from "../plays/playsWire";
 import {
   CreateShareResponseSchema,
+  RESHARE_REFUSED,
   ReceivedSharesPageSchema,
   SentSharesPageSchema,
   type CreateShareRequest,
   type CreateShareResponse,
+  type ReshareRequest,
   type ReceivedSharesPage,
   type SentSharesPage,
 } from "../../shared/shares";
@@ -220,6 +222,9 @@ export interface SyncApi {
   /** `POST /v1/shares`. A release added in place (`source: "adopted"`, a 409) throws a `PublicError` saying so;
    * a private share where no recipient resolves is `share: null`. */
   createShare(body: CreateShareRequest): Promise<CreateShareResponse>;
+  /** `POST /v1/shares/:id/reshare` (#328): a child share of a received share, same reply as create. A 403
+   * `reshare_not_allowed` or `use_reshare` throws a `PublicError` with `RESHARE_REFUSED`. */
+  reshareShare(id: string, body: ReshareRequest): Promise<CreateShareResponse>;
   /** `GET /v1/shares?role=sent`, one page, newest first. */
   listSentShares(cursor?: string | null, limit?: number): Promise<SentSharesPage>;
   /** `GET /v1/shares?role=received`, one page: live shares only. */
@@ -489,9 +494,33 @@ export class HttpSyncApi implements SyncApi {
     if (res.status === 409) {
       throw new PublicError("This release was added in place from a Spotify folder, so Locally can't share it.");
     }
+    await this.refuseReshare(res);
     const parsed = CreateShareResponseSchema.safeParse(await this.handle<unknown>(res));
     if (!parsed.success) throw new PublicError("Sync service sent an unexpected reply to a share");
     return parsed.data;
+  }
+
+  async reshareShare(id: string, body: ReshareRequest): Promise<CreateShareResponse> {
+    const res = await fetch(this.url(`/v1/shares/${encodeURIComponent(id)}/reshare`), {
+      method: "POST",
+      headers: this.headers(true),
+      body: JSON.stringify(body),
+    });
+    await this.refuseReshare(res);
+    const parsed = CreateShareResponseSchema.safeParse(await this.handle<unknown>(res));
+    if (!parsed.success) throw new PublicError("Sync service sent an unexpected reply to a share");
+    return parsed.data;
+  }
+
+  /** A 403 saying this release may not be shared on becomes the one plain sentence. */
+  private async refuseReshare(res: Response): Promise<void> {
+    if (res.status !== 403) return;
+    try {
+      const body = (await res.clone().json()) as { error?: string };
+      if (body.error === "use_reshare" || body.error === "reshare_not_allowed") throw new PublicError(RESHARE_REFUSED);
+    } catch (err) {
+      if (err instanceof PublicError) throw err;
+    }
   }
 
   private sharesQuery(role: "sent" | "received", cursor: string | null | undefined, limit: number): string {
