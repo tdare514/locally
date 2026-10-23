@@ -30,6 +30,7 @@ export const GET = withObservability("/v1/me", async (request, obs) => {
     devices: deviceList.devices,
     devicesHasMore: deviceList.hasMore,
     resyncRequestedAt,
+    publicSharesEnabled: services.shares.publicSharesEnabled,
   };
   return NextResponse.json(response);
 });

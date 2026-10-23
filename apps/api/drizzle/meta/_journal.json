@@ -71,6 +71,13 @@
       "when": 1792427918628,
       "tag": "0009_big_shinko_yamashiro",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1792785421806,
+      "tag": "0010_nice_lord_hawal",
+      "breakpoints": true
     }
   ]
 }

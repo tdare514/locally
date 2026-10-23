@@ -14,6 +14,9 @@ const DEV_SPOTIFY_REDIRECT_URI = "http://127.0.0.1:4000/v1/spotify/callback";
 /** 50 GiB — a placeholder budget; set `STORAGE_ALERT_BYTES` to the real one before it matters. */
 const DEFAULT_STORAGE_ALERT_BYTES = 50 * 1024 * 1024 * 1024;
 
+/** 20 GiB of share egress in 24 hours: a placeholder; set `SHARE_EGRESS_ALERT_BYTES` to the real budget. */
+const DEFAULT_SHARE_EGRESS_ALERT_BYTES = 20 * 1024 * 1024 * 1024;
+
 /** `FILE_STORE=blob` requires `BLOB_READ_WRITE_TOKEN`, checked once here — see `resolveFileStore`. */
 type FileStoreEnv = { fileStore: "local" } | { fileStore: "blob"; blobReadWriteToken: string };
 
@@ -43,6 +46,10 @@ export type Env = {
   publicBaseUrl: string;
   /** Cost guardrail: the cleanup cron logs a warning once total stored bytes reach this. */
   storageAlertBytes: number;
+  /** Kill switch for public share links (#146): only the exact string `"true"` turns them on; off by default. */
+  publicSharesEnabled: boolean;
+  /** Cost guardrail: the cleanup cron warns when share downloads in the last 24 hours reach this many bytes. */
+  shareEgressAlertBytes: number;
   /**
    * Apply migrations on the first request (true) or only verify the schema is
    * current (false). Defaults to true outside production, where the Vercel
@@ -205,6 +212,8 @@ export function loadEnv(): Env {
     allowedOrigins: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
     publicBaseUrl: (process.env.PUBLIC_BASE_URL || "http://localhost:4000").replace(/\/+$/, ""),
     storageAlertBytes: parseByteCount(process.env.STORAGE_ALERT_BYTES, DEFAULT_STORAGE_ALERT_BYTES),
+    publicSharesEnabled: process.env.PUBLIC_SHARES_ENABLED === "true",
+    shareEgressAlertBytes: parseByteCount(process.env.SHARE_EGRESS_ALERT_BYTES, DEFAULT_SHARE_EGRESS_ALERT_BYTES),
     migrateOnStart: parseMigrateOnStart(process.env.DB_MIGRATE_ON_START, !isProduction),
     spotify: resolveSpotify(isProduction),
     ...resolveFileStore(),

@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { sqliteTable, text, integer, uniqueIndex, index, primaryKey } from "drizzle-orm/sqlite-core";
-import type { ReleaseRecord } from "../shared/types";
+import type { ReleaseRecord, ShareSnapshot } from "../shared/types";
 
 /** 1 GiB, the default free-tier storage limit for a new account. */
 export const DEFAULT_STORAGE_LIMIT_BYTES = 1024 * 1024 * 1024;
@@ -185,6 +185,70 @@ export const spotifyLinkRequests = sqliteTable("spotify_link_requests", {
   timeZone: text("time_zone").notNull(),
   expiresAt: integer("expires_at").notNull(),
 });
+
+/**
+ * A share of a release (or some of its tracks) to named people and/or a public link (#146, #181). The files are
+ * never copied: a share points at the root owner's stored files by `releaseId` and `fileOwnerUserId`. A reshare
+ * is a child (`parentShareId`, `depth` 1 to 3) owned by the recipient that points at the same files.
+ * Times are epoch ms.
+ */
+export const shares = sqliteTable("shares", {
+  id: text("id").primaryKey(),
+  ownerUserId: text("owner_user_id").notNull(),
+  releaseId: text("release_id").notNull(),
+  /** The root owner of the stored files; equal to `ownerUserId` on an original share, inherited by every child. */
+  fileOwnerUserId: text("file_owner_user_id").notNull(),
+  parentShareId: text("parent_share_id"),
+  /** 0 for an original share, parent's + 1 for a reshare. */
+  depth: integer("depth").notNull().default(0),
+  /** The shared track ids, or null for the whole release. */
+  trackIdsJson: text("track_ids_json", { mode: "json" }).$type<string[] | null>(),
+  visibility: text("visibility", { enum: ["private", "public"] }).notNull(),
+  allowReshare: integer("allow_reshare", { mode: "boolean" }).notNull(),
+  expiresAt: integer("expires_at"),
+  revokedAt: integer("revoked_at"),
+  createdAt: integer("created_at").notNull(),
+  /** The release's own fields at share time (see `ShareSnapshot`), with `tracks` filtered to the shared ones. */
+  snapshotJson: text("snapshot_json", { mode: "json" }).notNull().$type<ShareSnapshot>(),
+}, (table) => ({
+  ownerIdx: index("shares_owner_idx").on(table.ownerUserId, table.createdAt),
+  releaseIdx: index("shares_release_idx").on(table.fileOwnerUserId, table.releaseId),
+  parentIdx: index("shares_parent_idx").on(table.parentShareId),
+}));
+
+/** A named recipient of a share (an existing account). `claimedAt` and `hiddenAt` are the recipient's own state, epoch ms. */
+export const shareRecipients = sqliteTable("share_recipients", {
+  shareId: text("share_id").notNull(),
+  userId: text("user_id").notNull(),
+  claimedAt: integer("claimed_at"),
+  hiddenAt: integer("hidden_at"),
+  createdAt: integer("created_at").notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.shareId, table.userId] }),
+  userIdx: index("share_recipients_user_idx").on(table.userId, table.createdAt),
+}));
+
+/** The public link of a public share; only `sha256(token)` is stored, the token itself never is. */
+export const shareLinks = sqliteTable("share_links", {
+  shareId: text("share_id").primaryKey(),
+  tokenHash: text("token_hash").notNull(),
+  createdAt: integer("created_at").notNull(),
+}, (table) => ({
+  tokenHashIdx: uniqueIndex("share_links_token_hash_idx").on(table.tokenHash),
+}));
+
+/** One download served for a share, for monitoring egress (no caps in the beta). `at` is epoch ms. */
+export const shareDownloads = sqliteTable("share_downloads", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  shareId: text("share_id").notNull(),
+  name: text("name").notNull(),
+  at: integer("at").notNull(),
+  via: text("via", { enum: ["recipient", "link"] }).notNull(),
+  bytes: integer("bytes").notNull(),
+}, (table) => ({
+  shareIdx: index("share_downloads_share_idx").on(table.shareId),
+  atIdx: index("share_downloads_at_idx").on(table.at),
+}));
 
 // Re-exported so callers that only need the `sql` tag for a raw expression
 // (e.g. QuotaService's SUM) don't need a second import from drizzle-orm.

@@ -6,6 +6,7 @@ import { AuthService } from "./auth/AuthService";
 import { ReleaseSyncService } from "./releases/ReleaseSyncService";
 import { PlaysService } from "./plays/PlaysService";
 import { QuotaService } from "./quota/QuotaService";
+import { ShareService } from "./shares/ShareService";
 import { CleanupService } from "./cleanup/CleanupService";
 import type { Mailer } from "./mail/Mailer";
 import { ConsoleMailer } from "./mail/ConsoleMailer";
@@ -32,6 +33,7 @@ export interface Services {
   quota: QuotaService;
   files: ReleaseFilesService;
   cleanup: CleanupService;
+  shares: ShareService;
   /** Null unless `SPOTIFY_CLIENT_ID` is set (#305); the Spotify routes answer 404 then. */
   spotify: SpotifyLinkService | null;
   /** Null unless `SPOTIFY_CLIENT_ID` is set (#306); `POST /v1/internal/spotify-sample` answers 404 then. */
@@ -40,6 +42,8 @@ export interface Services {
   samplerSecret: string | undefined;
   cronSecret: string | undefined;
   storageAlertBytes: number;
+  /** The cleanup cron warns when share downloads in the last 24 hours reach this many bytes (#181). */
+  shareEgressAlertBytes: number;
   allowedOrigins: string[];
   /**
    * Rate limiters: the two unauthenticated auth routes, keyed separately by email and by IP, and the
@@ -58,6 +62,14 @@ export interface Services {
     playsSummary: RateLimiter;
     /** `POST /v1/spotify/link`, keyed by user id (#305). */
     spotifyLink: RateLimiter;
+    /** `POST /v1/shares` and `POST /v1/shares/:id/reshare`, keyed by user id (#181). */
+    shareCreate: RateLimiter;
+    /** `POST /v1/links/claim`, keyed by user id (#181). */
+    linkClaim: RateLimiter;
+    /** Every `/s/*` request, keyed by client IP (#181). */
+    publicShareByIp: RateLimiter;
+    /** Every `/s/:token*` request, keyed by the sha256 of the token (#181). */
+    publicShareByLink: RateLimiter;
   };
 }
 
@@ -90,6 +102,7 @@ async function buildServices(): Promise<Services> {
     quota,
     files: new ReleaseFilesService(db, fileStore, quota),
     cleanup: new CleanupService(db, fileStore),
+    shares: new ShareService(db, fileStore, { publicSharesEnabled: env.publicSharesEnabled }),
     spotify:
       env.spotify && cipher
         ? new SpotifyLinkService(db, cipher, { clientId: env.spotify.clientId, redirectUri: env.spotify.redirectUri })
@@ -98,6 +111,7 @@ async function buildServices(): Promise<Services> {
     samplerSecret: env.spotify?.samplerSecret,
     cronSecret: env.cronSecret,
     storageAlertBytes: env.storageAlertBytes,
+    shareEgressAlertBytes: env.shareEgressAlertBytes,
     allowedOrigins: env.allowedOrigins,
     rateLimiters: {
       // 5 code requests per email / 20 per IP, per 15 minutes.
@@ -117,6 +131,12 @@ async function buildServices(): Promise<Services> {
       playsSummary: new DbRateLimiter(db, 600, 60 * 60 * 1000, "plays-summary:user"),
       // 10 link starts per user, per hour (#305).
       spotifyLink: new DbRateLimiter(db, 10, 60 * 60 * 1000, "spotify-link:user"),
+      // Sharing (#181): 60 creates or reshares and 30 link claims per user, per hour; public pages 60 per IP
+      // and 300 per link, per hour.
+      shareCreate: new DbRateLimiter(db, 60, 60 * 60 * 1000, "share-create:user"),
+      linkClaim: new DbRateLimiter(db, 30, 60 * 60 * 1000, "link-claim:user"),
+      publicShareByIp: new DbRateLimiter(db, 60, 60 * 60 * 1000, "public-share:ip"),
+      publicShareByLink: new DbRateLimiter(db, 300, 60 * 60 * 1000, "public-share:link"),
     },
   };
 }

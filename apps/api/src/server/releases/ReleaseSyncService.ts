@@ -1,6 +1,6 @@
-import { and, eq, gt, lte, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, lte, sql } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { releases, userCounters } from "../../db/schema";
+import { releases, shares, userCounters } from "../../db/schema";
 import { ConflictError, NotFoundError } from "../../shared/errors";
 import type { ReleaseRecord, ReleaseRecordWithVersion } from "../../shared/types";
 
@@ -51,6 +51,25 @@ export class ReleaseSyncService {
   /** The counter value just written by `bumpVersion`, as a SQL subquery. */
   private currentVersion(userId: string) {
     return sql<number>`(select ${userCounters.version} from ${userCounters} where ${userCounters.userId} = ${userId})`;
+  }
+
+  /**
+   * Revoke every share of a release (and so every reshare of it: they carry the same release and file owner) once
+   * the release is tombstoned (#181). Runs in the same batch, after the release write, and only revokes if that
+   * write left the release deleted, so a tombstone that lost the last-writer-wins race revokes nothing.
+   */
+  private revokeSharesOf(userId: string, releaseId: string, at: number) {
+    return this.db
+      .update(shares)
+      .set({ revokedAt: at })
+      .where(
+        and(
+          eq(shares.fileOwnerUserId, userId),
+          eq(shares.releaseId, releaseId),
+          isNull(shares.revokedAt),
+          sql`EXISTS (SELECT 1 FROM releases WHERE id = ${releaseId} AND user_id = ${userId} AND deleted = 1)`
+        )
+      );
   }
 
   private toRecordWithVersion(row: ReleaseRow): ReleaseRecordWithVersion {
@@ -158,6 +177,7 @@ export class ReleaseSyncService {
           setWhere: and(eq(releases.userId, userId), lte(releases.updatedAt, updatedAtMs)),
         })
         .returning({ version: releases.version }),
+      ...(record.deleted ? [this.revokeSharesOf(userId, releaseId, now)] : []),
     ]);
 
     if (!written[0]) {
@@ -188,6 +208,7 @@ export class ReleaseSyncService {
         .set({ record: tombstoned, updatedAt: now, deleted: true, serverUpdatedAt: now, version: this.currentVersion(userId) })
         .where(and(eq(releases.id, releaseId), eq(releases.userId, userId)))
         .returning({ version: releases.version }),
+      this.revokeSharesOf(userId, releaseId, now),
     ]);
 
     if (!written[0]) {
