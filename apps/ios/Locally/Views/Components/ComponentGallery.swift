@@ -1162,7 +1162,7 @@ private struct PlayerGallery: View {
     @State private var container = IconsGallery.container()
     @State private var playback = PlaybackService(
         engine: GalleryEngine(), access: GalleryAccess(), session: GallerySession(),
-        nowPlaying: GalleryNowPlaying(), remote: GalleryRemote()
+        nowPlaying: GalleryNowPlaying(), remote: GalleryRemote(), coverData: { FileCoverStore().load($0.id) }
     )
     @State private var selected = RootView.Tab.library
     @State private var importKind: ImportKind?
@@ -1191,6 +1191,7 @@ private struct PlayerGallery: View {
                     .tabItem { Label(Copy.Stats.tabLabel, image: "Icon/Stats") }
                     .tag(RootView.Tab.stats)
             }
+            .miniPlayerAccessory(playback)
             .environment(\.playback, playback),
             container
         )

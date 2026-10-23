@@ -81,6 +81,7 @@ struct RootView: View {
                         .tag(Tab.settings)
                 }
                 .tint(Theme.accent)
+                .miniPlayerAccessory(playback)
                 .environment(\.openSettingsTab, { selectedTab = .settings })
                 // The mini player's bar opens its release in the Library.
                 .onChange(of: playback?.openReleaseRequest) { _, id in
