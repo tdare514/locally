@@ -26,6 +26,9 @@ export interface Release {
   title: string;         // album title (for singles this equals the track title unless user overrides)
   artist: string;        // album artist / primary artist
   year: string | null;   // "2024"
+  /** "2024-05" or "2024-05-17" when the date is more precise than `year` (#221); `year` is then its first four
+   * characters. Absent for a year-only date. Read and written through `src/shared/releaseDate.ts`. */
+  releaseDate?: string;
   genre: string | null;
   coverPath: string | null; // absolute path to cover.jpg/png stored next to the tracks
   folderPath: string;    // absolute folder holding this release's files
@@ -251,6 +254,8 @@ export interface ImportMeta {
   title: string;         // album title; for singles the client may leave it empty and server uses track title
   artist: string;
   year?: string;
+  /** "2024-05" or "2024-05-17", only with `year` and equal to it in its first four characters (#221). */
+  releaseDate?: string;
   genre?: string;
   /** One entry per uploaded audio file, in the same order as the `audio` form files. */
   tracks: { title: string; trackNumber: number; discNumber?: number }[];
@@ -261,6 +266,9 @@ export interface UpdateReleaseMeta {
   title?: string;
   artist?: string;
   year?: string | null;
+  /** Sent only with `year`: whenever `year` is in the patch the date is set as a whole, so a `year` without
+   * `releaseDate` makes the release year-only (#221). */
+  releaseDate?: string;
   genre?: string | null;
   /** `discNumber: null` clears the disc (back to a release with no discs); absent leaves it as it is. */
   tracks?: { id: string; title?: string; trackNumber?: number; discNumber?: number | null }[];

@@ -231,7 +231,7 @@ describe("saving featured artists writes the catalogue title and leaves the arti
     const tracks = imported.tracks.map((t) => editableTrack(t, false));
     expect(tracks[0]).toMatchObject({ title: "Song", featuring: [] });
     const draftTracks = [{ ...tracks[0], featuring: ["B"] }];
-    const patch = buildPatch(imported, { title: "Song", artist: "A", year: "", genre: "", tracks: draftTracks });
+    const patch = buildPatch(imported, { title: "Song", artist: "A", releaseDate: "", genre: "", tracks: draftTracks });
     expect(patch?.title).toBeUndefined();
     expect(patch?.tracks?.[0].title).toBe("Song (feat. B)");
     const saved = await service.update(imported.id, parseUpdateMeta(patch));
@@ -242,7 +242,7 @@ describe("saving featured artists writes the catalogue title and leaves the arti
     // Reopened, it shows split and is not an unsaved change.
     const reopened = saved.tracks.map((t) => editableTrack(t, false));
     expect(reopened[0]).toMatchObject({ title: "Song", featuring: ["B"] });
-    expect(buildPatch(saved, { title: saved.title, artist: "A", year: "", genre: "", tracks: reopened })).toBeNull();
+    expect(buildPatch(saved, { title: saved.title, artist: "A", releaseDate: "", genre: "", tracks: reopened })).toBeNull();
   });
 
   it("an album track gets the joined title; its neighbour and the album title stay plain", async () => {
@@ -262,7 +262,7 @@ describe("saving featured artists writes the catalogue title and leaves the arti
     const editable = imported.tracks.map((t) => editableTrack(t, false));
     // The row edits go through the same applyTrackEdits the import page uses.
     const edited = applyTrackEdits(editable, [editable[0], { ...editable[1], featuring: ["B", "C"] }]);
-    const patch = buildPatch(imported, { title: "Album", artist: "A", year: "", genre: "", tracks: edited });
+    const patch = buildPatch(imported, { title: "Album", artist: "A", releaseDate: "", genre: "", tracks: edited });
     expect(patch?.tracks).toHaveLength(1);
     const saved = await service.update(imported.id, parseUpdateMeta(patch));
     const [one, two] = saved.tracks.map((t) => NodeID3.read(t.filePath));
@@ -288,7 +288,7 @@ describe("saving featured artists writes the catalogue title and leaves the arti
       updatedAt: "x",
     } as Release;
     const tracks = release.tracks.map((t) => editableTrack(t, false));
-    expect(buildPatch(release, { title: "Album", artist: "A", year: "", genre: "", tracks })).toBeNull();
+    expect(buildPatch(release, { title: "Album", artist: "A", releaseDate: "", genre: "", tracks })).toBeNull();
   });
 
   it("an adopted release keeps its titles whole", () => {

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { bulkDetailsPatch, type BulkDetails } from "../lib/library-bulk";
 import Field from "./Field";
+import ReleaseDateField from "./ReleaseDateField";
+import { releaseDateTextBlocks } from "../lib/release-date-input";
 import ArtistCombobox from "./ArtistCombobox";
 import type { ArtistEntry } from "../lib/artist-index";
 
@@ -17,7 +19,7 @@ interface BulkEditDialogProps {
 }
 
 /**
- * Modal for editing Artist, Year and Genre on several releases at once
+ * Modal for editing Artist, Release date and Genre on several releases at once
  * (issue #7). Blank fields are left unchanged. Native <dialog>, same pattern
  * as CoverCropDialog.
  */
@@ -84,10 +86,12 @@ function BulkEditForm({
   const [year, setYear] = useState("");
   const [genre, setGenre] = useState("");
   const [showError, setShowError] = useState(false);
+  // Text that is not a date holds Apply; the field says why.
+  const dateBlocked = releaseDateTextBlocks(year);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (busy) return;
+    if (busy || dateBlocked) return;
     const details = { artist, year, genre };
     if (bulkDetailsPatch(details) === null) {
       setShowError(true);
@@ -122,8 +126,8 @@ function BulkEditForm({
         />
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <Field
-          label="Year"
+        <ReleaseDateField
+          variant="form"
           value={year}
           onChange={setYear}
           placeholder="Leave unchanged"
@@ -153,7 +157,7 @@ function BulkEditForm({
         </button>
         <button
           type="submit"
-          disabled={busy}
+          disabled={busy || dateBlocked}
           className="btn-save"
         >
           {busy ? "Applying…" : `Apply to ${count}`}

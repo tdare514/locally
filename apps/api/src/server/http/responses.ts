@@ -5,6 +5,7 @@ import {
   UnauthorizedError,
   NotFoundError,
   ConflictError,
+  ForbiddenError,
   RateLimitError,
   UploadTooLargeError,
 } from "../../shared/errors";
@@ -22,6 +23,7 @@ function json(status: number, error: string): NextResponse<ApiError> {
 export function errorResponse(err: unknown): NextResponse<ApiError> {
   if (err instanceof ValidationError) return json(400, err.message);
   if (err instanceof UnauthorizedError) return json(401, err.message);
+  if (err instanceof ForbiddenError) return json(403, err.message);
   if (err instanceof NotFoundError) return json(404, err.message);
   if (err instanceof ConflictError) return json(409, err.message);
   if (err instanceof RateLimitError) return json(429, err.message);

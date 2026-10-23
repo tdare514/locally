@@ -63,6 +63,27 @@ describe("bulkDetailsPatch", () => {
     });
   });
 
+  it("sends a year alone as year only", () => {
+    expect(bulkDetailsPatch({ artist: "", year: "2024", genre: "" })).toEqual({ year: "2024" });
+  });
+
+  it("sends a full date as year and releaseDate", () => {
+    expect(bulkDetailsPatch({ artist: "", year: "17 May 2024", genre: "" })).toEqual({
+      year: "2024",
+      releaseDate: "2024-05-17",
+    });
+    expect(bulkDetailsPatch({ artist: "A", year: "May 2024", genre: "" })).toEqual({
+      artist: "A",
+      year: "2024",
+      releaseDate: "2024-05",
+    });
+  });
+
+  it("applies nothing when the date text is impossible or unreadable", () => {
+    expect(bulkDetailsPatch({ artist: "A", year: "31/02/2024", genre: "Pop" })).toBeNull();
+    expect(bulkDetailsPatch({ artist: "A", year: "soon", genre: "Pop" })).toBeNull();
+  });
+
   it("returns null when nothing would change", () => {
     expect(bulkDetailsPatch({ artist: "", year: "  ", genre: "" })).toBeNull();
   });

@@ -4,7 +4,7 @@ export interface WriteTagsInput {
   albumArtist: string;
   album: string;
   year?: string | null;
-  /** `YYYY-MM` or `YYYY-MM-DD` when the release date is more exact than the year (#221); written as TDRC beside TYER. */
+  /** "YYYY-MM" or "YYYY-MM-DD", used only when it is a real date in `year` (#221). Written to TDRC; TYER always holds the year. */
   releaseDate?: string | null;
   genre?: string | null;
   /** The number for the file's track tag (TRCK): the position within its disc when discs are set,
@@ -22,6 +22,8 @@ export interface ReadTagsResult {
   artist: string | null;
   album: string | null;
   year: string | null;
+  /** "YYYY-MM" or "YYYY-MM-DD" from the file's date tag; null when it holds only a year or nothing (#221). */
+  releaseDate?: string | null;
   genre: string | null;
   durationSec: number | null;
   hasCover: boolean;

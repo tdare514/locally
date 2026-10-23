@@ -233,3 +233,14 @@ export function ShareIcon(props: SVGProps<SVGSVGElement>) {
     </IconBase>
   );
 }
+
+/** Calendar glyph: a month page with two rings and a header rule. Opens the Release date picker (#221). */
+export function CalendarIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+      <path d="M3.5 10h17" />
+      <path d="M8 3v4M16 3v4" />
+    </IconBase>
+  );
+}

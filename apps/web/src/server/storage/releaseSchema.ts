@@ -25,6 +25,8 @@ export const ReleaseSchema = z.looseObject({
   title: z.string(),
   artist: z.string(),
   year: z.string().nullable(),
+  /** "YYYY-MM" or "YYYY-MM-DD" when known beyond the year (#221); omitted otherwise. */
+  releaseDate: z.string().optional(),
   genre: z.string().nullable(),
   coverPath: z.string().nullable(),
   folderPath: z.string(),

@@ -8,6 +8,8 @@ export interface InspectedFile {
   artist: string | null;
   album: string | null;
   year: string | null;
+  /** "YYYY-MM" or "YYYY-MM-DD" when the file's date tag is that precise (#221). */
+  releaseDate?: string | null;
   genre: string | null;
   durationSec: number | null;
   hasCover: boolean;
@@ -47,6 +49,7 @@ export class InspectService {
             artist: null,
             album: null,
             year: null,
+            releaseDate: null,
             genre: null,
             durationSec: null,
             hasCover: false,

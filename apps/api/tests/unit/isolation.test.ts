@@ -26,6 +26,12 @@ import * as fileDownloadRoute from "../../src/app/v1/releases/[id]/files/[name]/
 import * as localUploadRoute from "../../src/app/v1/internal/local-upload/[...key]/route";
 import * as missingRoute from "../../src/app/v1/files/missing/route";
 import * as resyncRoute from "../../src/app/v1/files/resync-request/route";
+import * as sharesRoute from "../../src/app/v1/shares/route";
+import * as shareRoute from "../../src/app/v1/shares/[id]/route";
+import * as shareFileRoute from "../../src/app/v1/shares/[id]/files/[name]/route";
+import * as shareClaimRoute from "../../src/app/v1/shares/[id]/claim/route";
+import * as shareHideRoute from "../../src/app/v1/shares/[id]/hide/route";
+import * as shareReshareRoute from "../../src/app/v1/shares/[id]/reshare/route";
 
 function jsonRequest(url: string, method: string, body?: unknown, token?: string): Request {
   const headers: Record<string, string> = { "content-type": "application/json" };
@@ -139,6 +145,51 @@ describe("cross-user isolation", () => {
       },
     ];
 
+    // Alice shares the release with nobody (a public share with no recipients): Bob is a stranger to it (#181).
+    const aliceShare = await sharesRoute.POST(
+      jsonRequest("http://localhost/v1/shares", "POST", {
+        releaseId: record.id,
+        recipients: [],
+        visibility: "public",
+        allowReshare: true,
+        expiresInDays: null,
+      }, alice.token)
+    );
+    expect(aliceShare.status).toBe(201);
+    const shareId = ((await aliceShare.json()) as { share: { id: string } }).share.id;
+    const shareParams = { params: Promise.resolve({ id: shareId }) };
+    const bobReq = (method: string, body?: unknown) => jsonRequest(`http://localhost/v1/shares/${shareId}`, method, body, bob.token);
+    cases.push(
+      {
+        name: "POST shares (Alice's release)",
+        run: () =>
+          sharesRoute.POST(
+            jsonRequest("http://localhost/v1/shares", "POST", {
+              releaseId: record.id,
+              recipients: ["alice-iso@example.com"],
+              visibility: "private",
+              allowReshare: false,
+              expiresInDays: null,
+            }, bob.token)
+          ),
+      },
+      { name: "DELETE shares/:id", run: () => shareRoute.DELETE(bobReq("DELETE"), shareParams) },
+      {
+        name: "GET shares/:id/files/:name",
+        run: () => shareFileRoute.GET(bobReq("GET"), { params: Promise.resolve({ id: shareId, name: track.file }) }),
+      },
+      { name: "POST shares/:id/claim", run: () => shareClaimRoute.POST(bobReq("POST"), shareParams) },
+      { name: "POST shares/:id/hide", run: () => shareHideRoute.POST(bobReq("POST"), shareParams) },
+      {
+        name: "POST shares/:id/reshare",
+        run: () =>
+          shareReshareRoute.POST(
+            bobReq("POST", { recipients: [], visibility: "private", allowReshare: false, expiresInDays: null }),
+            shareParams
+          ),
+      }
+    );
+
     // Alice's device reports plays for her release.
     const alicePlays = await playsRoute.PUT(
       jsonRequest("http://localhost/v1/plays", "PUT", { counts: [{ releaseId: record.id, trackId: track.id, count: 5 }] }, alice.token)
@@ -199,6 +250,21 @@ describe("cross-user isolation", () => {
       nextCursor: null,
     });
     expect((await playsSummaryRoute.GET(new Request(summaryUrl))).status).toBe(401);
+
+    // GET /v1/shares: Bob sees nothing of Alice's share in either list; Alice's own share is unrevoked.
+    for (const role of ["sent", "received"]) {
+      const bobShares = await sharesRoute.GET(
+        new Request(`http://localhost/v1/shares?role=${role}`, { headers: { authorization: `Bearer ${bob.token}` } })
+      );
+      expect(bobShares.status).toBe(200);
+      expect(await bobShares.json()).toEqual({ shares: [], nextCursor: null });
+    }
+    const aliceSent = await sharesRoute.GET(
+      new Request("http://localhost/v1/shares?role=sent", { headers: { authorization: `Bearer ${alice.token}` } })
+    );
+    const aliceSentBody = await aliceSent.json();
+    expect(aliceSentBody.shares).toHaveLength(1);
+    expect(aliceSentBody.shares[0].revokedAt).toBeNull();
 
     // GET /v1/releases (list) never includes Alice's release for Bob.
     const bobList = await releasesListRoute.GET(

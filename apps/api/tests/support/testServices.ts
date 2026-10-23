@@ -11,8 +11,23 @@ import { ReleaseFilesService } from "../../src/server/files/ReleaseFilesService"
 import type { Mailer } from "../../src/server/mail/Mailer";
 import { PlaysService } from "../../src/server/plays/PlaysService";
 import { QuotaService } from "../../src/server/quota/QuotaService";
+import { ShareService } from "../../src/server/shares/ShareService";
 import { InMemoryRateLimiter } from "../../src/server/ratelimit/InMemoryRateLimiter";
 import { ReleaseSyncService } from "../../src/server/releases/ReleaseSyncService";
+
+/**
+ * Stands in for `fetch` against a `LocalFileStore` signed URL: verifies the signature and reads the file from
+ * disk, so the zip tests stream real stored bytes with no network.
+ */
+async function fetchLocalFile(fileStore: LocalFileStore, url: string): Promise<Response> {
+  const parsed = new URL(url);
+  const key = decodeURIComponent(parsed.pathname.replace("/v1/internal/local-download/", ""));
+  if (!fileStore.verifyDownloadSignature(key, parsed.searchParams.get("exp"), parsed.searchParams.get("sig"))) {
+    return new Response("forbidden", { status: 403 });
+  }
+  const data = await fileStore.readFile(key);
+  return data ? new Response(new Uint8Array(data)) : new Response("missing", { status: 404 });
+}
 
 /** Records every code it "sends" instead of emailing it, so tests can read it straight back. */
 export class FakeMailer implements Mailer {
@@ -65,11 +80,13 @@ export async function createTestServices(): Promise<TestServices> {
     quota,
     files: new ReleaseFilesService(db, fileStore, quota),
     cleanup: new CleanupService(db, fileStore),
+    shares: new ShareService(db, fileStore, { publicSharesEnabled: true, fetchFile: (url) => fetchLocalFile(fileStore, url) }),
     spotify: null,
     sampler: null,
     samplerSecret: undefined,
     cronSecret: undefined,
     storageAlertBytes: 50 * 1024 * 1024 * 1024,
+    shareEgressAlertBytes: 20 * 1024 * 1024 * 1024,
     allowedOrigins: ["http://localhost:*"],
     rateLimiters: {
       codeByEmail: new InMemoryRateLimiter(1000, 15 * 60 * 1000),
@@ -83,6 +100,11 @@ export async function createTestServices(): Promise<TestServices> {
       resyncRequestByUser: new InMemoryRateLimiter(24, 60 * 60 * 1000),
       playsSummary: new InMemoryRateLimiter(1000, 60 * 60 * 1000),
       spotifyLink: new InMemoryRateLimiter(10, 60 * 60 * 1000),
+      // Generous here; the share rate-limit tests swap in the real limits (60, 30, 60, 300).
+      shareCreate: new InMemoryRateLimiter(1000, 60 * 60 * 1000),
+      linkClaim: new InMemoryRateLimiter(1000, 60 * 60 * 1000),
+      publicShareByIp: new InMemoryRateLimiter(10_000, 60 * 60 * 1000),
+      publicShareByLink: new InMemoryRateLimiter(10_000, 60 * 60 * 1000),
     },
   };
 }

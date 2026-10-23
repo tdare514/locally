@@ -40,6 +40,9 @@ import { BAR_MIN_HEIGHT, barPadding, detailsBesideSleeve } from "../lib/page-lay
 import ArtistCombobox from "./ArtistCombobox";
 import type { ArtistEntry } from "../lib/artist-index";
 import FeaturingRow from "./FeaturingRow";
+import ReleaseDateField from "./ReleaseDateField";
+import { initialReleaseDateText, releaseDateTextBlocks } from "../lib/release-date-input";
+import { parseReleaseDateText, releaseDateFields, storedReleaseDate } from "../shared/releaseDate";
 import ArtistLinks, { ArtistNavProvider, ArtistOpenButton, LOCKED_TIP, useArtistNav } from "./ArtistNav";
 import { splitFeaturing } from "../lib/artist-names";
 import { releaseTitleForSave, releaseTitleShown, titleForSave, toEditor } from "../lib/featuring-field";
@@ -93,7 +96,8 @@ async function copyText(text: string): Promise<boolean> {
 interface Draft {
   title: string;
   artist: string;
-  year: string;
+  /** The Release date field's text (#221). */
+  releaseDate: string;
   genre: string;
   tracks: EditableTrack[];
 }
@@ -123,8 +127,22 @@ export function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | 
   if (releaseTitle !== release.title) patch.title = releaseTitle;
   if (draft.artist !== release.artist) patch.artist = draft.artist;
 
-  const yearValue = draft.year.trim() === "" ? null : draft.year.trim();
-  if (yearValue !== (release.year ?? null)) patch.year = yearValue;
+  // The date is set as a whole: `year` with `releaseDate` when it is more precise. Text that is the one the
+  // release already shows (an odd old year included) changes nothing; text that is not a date is left out
+  // here and blocks Save instead (`releaseDateBlocked`).
+  if (draft.releaseDate.trim() !== initialReleaseDateText(release.year, release.releaseDate).trim()) {
+    const entry = parseReleaseDateText(draft.releaseDate);
+    if (entry.kind === "empty") {
+      patch.year = null;
+    } else if (entry.kind === "date") {
+      const now = releaseDateFields(entry.date);
+      const stored = releaseDateFields(storedReleaseDate(release.year, release.releaseDate));
+      if (now.year !== stored.year || now.releaseDate !== stored.releaseDate) {
+        patch.year = now.year;
+        if (now.releaseDate !== undefined) patch.releaseDate = now.releaseDate;
+      }
+    }
+  }
 
   const genreValue = draft.genre.trim() === "" ? null : draft.genre.trim();
   if (genreValue !== (release.genre ?? null)) patch.genre = genreValue;
@@ -164,19 +182,24 @@ export function buildPatch(release: Release, draft: Draft): UpdateReleaseMeta | 
   return Object.keys(patch).length === 0 ? null : patch;
 }
 
-/** Year and genre: a quiet label and an inline value that reads as text until hovered. */
+/** True when the Release date text is something that is not a date: Save waits (#221). Text that is the one the
+ * release already shows never blocks. */
+export function releaseDateBlocked(release: Release, text: string): boolean {
+  if (text.trim() === initialReleaseDateText(release.year, release.releaseDate).trim()) return false;
+  return releaseDateTextBlocks(text);
+}
+
+/** Genre: a quiet label and an inline value that reads as text until hovered. */
 function InlineField({
   label,
   value,
   onChange,
   placeholder,
-  inputMode,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
-  inputMode?: "numeric";
 }) {
   return (
     <label className="flex items-baseline gap-1.5">
@@ -184,7 +207,6 @@ function InlineField({
       <input
         value={value}
         placeholder={placeholder}
-        inputMode={inputMode}
         readOnly={IS_DEMO}
         onChange={(e) => onChange(e.target.value)}
         className="field-sizing-content min-w-[4ch] rounded-md bg-transparent px-1.5 py-0.5 font-semibold text-text outline-none transition-colors placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
@@ -193,7 +215,7 @@ function InlineField({
   );
 }
 
-/** Year and genre in view mode: the same label and value as InlineField, as plain text. */
+/** Release date and genre in view mode: the same label and value as InlineField, as plain text. */
 function PlainField({ label, value }: { label: string; value: string }) {
   const set = value.trim() !== "";
   return (
@@ -222,7 +244,9 @@ export default function ReleaseView({
   const [loading, setLoading] = useState(!initialRelease);
   const [title, setTitle] = useState(initialRelease ? shownTitle(initialRelease) : "");
   const [artist, setArtist] = useState(initialRelease?.artist ?? "");
-  const [year, setYear] = useState(initialRelease?.year ?? "");
+  const [releaseDate, setReleaseDate] = useState(
+    initialRelease ? initialReleaseDateText(initialRelease.year, initialRelease.releaseDate) : ""
+  );
   const [genre, setGenre] = useState(initialRelease?.genre ?? "");
   const [tracks, setTracks] = useState<EditableTrack[]>(
     () => initialRelease?.tracks.map((t) => editableTrack(t, initialRelease.adopted === true)) ?? []
@@ -298,7 +322,7 @@ export default function ReleaseView({
     setRelease(r);
     setTitle(shownTitle(r));
     setArtist(r.artist);
-    setYear(r.year ?? "");
+    setReleaseDate(initialReleaseDateText(r.year, r.releaseDate));
     setGenre(r.genre ?? "");
     setTracks(r.tracks.map((t) => editableTrack(t, r.adopted === true)));
   }, []);
@@ -401,7 +425,8 @@ export default function ReleaseView({
   async function handleSave() {
     if (!release) return;
 
-    const patch = buildPatch(release, { title, artist, year, genre, tracks });
+    if (releaseDateBlocked(release, releaseDate)) return;
+    const patch = buildPatch(release, { title, artist, releaseDate, genre, tracks });
     if (!patch) {
       onToast("success", "Nothing to save");
       return;
@@ -487,7 +512,8 @@ export default function ReleaseView({
     ? Object.fromEntries(release.tracks.map((t) => [t.id, { durationSec: t.durationSec, missing: t.missing }]))
     : undefined;
   const trackCount = `${tracks.length} track${tracks.length === 1 ? "" : "s"}`;
-  const unsaved = buildPatch(release, { title, artist, year, genre, tracks }) !== null;
+  const dateBlocked = releaseDateBlocked(release, releaseDate);
+  const unsaved = dateBlocked || buildPatch(release, { title, artist, releaseDate, genre, tracks }) !== null;
 
   // A name on this page opens that artist's page; leaving drops unsaved edits, so while there are
   // some the links are disabled (#288).
@@ -555,7 +581,7 @@ export default function ReleaseView({
                   {linkedArtist ? <ArtistLinks artist={artistShown} featuring={headerFeaturing} /> : artistShown}
                 </p>
                 <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-[15px]">
-                  <PlainField label="Year" value={year} />
+                  <PlainField label="Release date" value={releaseDate} />
                   <PlainField label="Genre" value={genre} />
                 </div>
                 <p className="text-[13px] text-text-muted">
@@ -612,13 +638,7 @@ export default function ReleaseView({
               />
             )}
             <div className="mt-1 flex flex-wrap items-baseline gap-x-6 gap-y-2 text-[15px]">
-              <InlineField
-                label="Year"
-                value={year}
-                onChange={setYear}
-                placeholder="Add year"
-                inputMode="numeric"
-              />
+              <ReleaseDateField value={releaseDate} onChange={setReleaseDate} placeholder="Add release date" />
               <InlineField label="Genre" value={genre} onChange={setGenre} placeholder="Add genre" />
             </div>
               </>
@@ -770,8 +790,8 @@ export default function ReleaseView({
             <button
               type="button"
               onClick={handleSave}
-              disabled={saving || IS_DEMO}
-              title={IS_DEMO ? "Not available in the demo" : undefined}
+              disabled={saving || IS_DEMO || dateBlocked}
+              title={IS_DEMO ? "Not available in the demo" : dateBlocked ? "Fix the release date first" : undefined}
               className="btn-save btn-save-lit"
             >
               {saving ? "Saving…" : "Save to library"}

@@ -295,7 +295,7 @@ eyebrows still apply to those labels.
   ("{n} selected", Select all / Deselect all, "Edit details…", "Delete…" in `danger`, Done;
   Escape also leaves). Rows show a 20 checkbox (`accent` when ticked) in place of the chevron and
   toggle on click. Delete confirms inline in the bar, in the release page's confirm style. Edit
-  details opens a `card` dialog with Artist, Year and Genre; blank fields stay unchanged and
+  details opens a `card` dialog with Artist, Release date and Genre; blank fields stay unchanged and
   tracks are re-tagged in place. Both run per release through the existing endpoints and report
   "Deleted 2 of 3 releases; failed: …" in a toast.
 - **Cover drop zone** (import; the Mac import now uses the record sleeve, see **Desktop import**
@@ -378,9 +378,20 @@ eyebrows still apply to those labels.
     An empty sleeve reads "Add cover art" / "Drop an image or click to choose".
   - *Details*, directly under the sleeve and left-aligned, with no field boxes: a quiet meta
     line ("Album · 5 tracks", white at 70 %), the title as a 44 bold (30 below `sm`) inline
-    field, the artist as a 20 semibold one, then "Year" and "Genre" as small labels each beside
-    an inline value. Inline fields look like text until hovered (white 7 % fill) or focused
+    field, the artist as a 20 semibold one, then "Release date" and "Genre" as small labels each
+    beside an inline value. Inline fields look like text until hovered (white 7 % fill) or focused
     (white 10 % fill plus the 2 px `accent` ring). Enter in the title commits it.
+  - *Release date on the Mac* (#221, `ReleaseDateField`, the iPhone's field and calendar idea): on
+    the release page, the import record and bulk edit, "Release date" is one inline text field
+    ("Add release date") with a small calendar button after it ("Choose a date"). The button opens
+    a glass popover like the Featuring one: a Year / Month / Day `.btn-seg` toggle over the
+    matching native input (a four-digit year, a month picker, a date picker), Done and Clear date;
+    it opens on the typed date, else today. Typing reads the same forms as the iPhone
+    (`parseReleaseDateText` in `src/shared/releaseDate.ts`), leaving the field rewrites a readable
+    date as "17 May 2024" in the browser's language, and the two messages ("That date doesn't
+    exist", "Enter a year, or a date like 17 May 2024") show in `danger` under the field while it
+    is not focused and block Save, Add to library and Apply. View mode reads "Release date 17 May
+    2024". Lists, sorting and Stats keep the year.
   - *Dock* (*replaced 17 Oct 2026 by the release bar, see **Pages at full width** at the end*): Save to library (primary), "Unsaved changes" in `text-muted` while there are any,
     Show in Finder and Delete (text buttons) in one pill of black at 70 % with blur and a white
     10 % ring. It sits under the details and pins to the top of the pane as you scroll to the

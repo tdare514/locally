@@ -324,3 +324,50 @@ describe("parseUpdateMeta", () => {
     expect(() => parseUpdateMeta({ artist: "x".repeat(201) })).toThrow(/artist must be at most 200 characters/);
   });
 });
+
+describe("releaseDate in parseImportMeta and parseUpdateMeta (#221)", () => {
+  const track = { title: "T", trackNumber: 1 };
+  const importWith = (extra: Record<string, unknown>) => {
+    const form = new FormData();
+    form.set("meta", JSON.stringify({ kind: "single", artist: "A", tracks: [track], ...extra }));
+    form.append("audio", audioFile());
+    return parseImportMeta(form);
+  };
+
+  it("import accepts a year with a matching full date or month, and carries it in the DTO", async () => {
+    expect((await importWith({ year: "2024", releaseDate: "2024-05-17" })).meta.releaseDate).toBe("2024-05-17");
+    expect((await importWith({ year: "2024", releaseDate: "2024-05" })).meta.releaseDate).toBe("2024-05");
+    expect((await importWith({ year: "2024" })).meta.releaseDate).toBeUndefined();
+  });
+
+  it("import rejects a releaseDate without a year, with another year, impossible, or a bare year", async () => {
+    await expect(importWith({ releaseDate: "2024-05-17" })).rejects.toThrow(/meta\.releaseDate needs a year/);
+    await expect(importWith({ year: "2023", releaseDate: "2024-05-17" })).rejects.toThrow(
+      /meta\.releaseDate must start with the year/
+    );
+    await expect(importWith({ year: "2023", releaseDate: "2023-02-29" })).rejects.toThrow(
+      /meta\.releaseDate must be a real date as YYYY-MM or YYYY-MM-DD/
+    );
+    await expect(importWith({ year: "2024", releaseDate: "2024" })).rejects.toThrow(
+      /meta\.releaseDate must be a real date as YYYY-MM or YYYY-MM-DD/
+    );
+    await expect(importWith({ year: "2024", releaseDate: 20240517 })).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("update accepts year with releaseDate, and keeps both in the patch", () => {
+    expect(parseUpdateMeta({ year: "2024", releaseDate: "2024-05-17" })).toEqual({ year: "2024", releaseDate: "2024-05-17" });
+    expect(parseUpdateMeta({ year: "2024" })).toEqual({ year: "2024" });
+  });
+
+  it("update rejects a releaseDate without a year, a null year, another year, impossible, or a bare year", () => {
+    expect(() => parseUpdateMeta({ releaseDate: "2024-05-17" })).toThrow(/releaseDate needs a year/);
+    expect(() => parseUpdateMeta({ year: null, releaseDate: "2024-05-17" })).toThrow(/releaseDate needs a year/);
+    expect(() => parseUpdateMeta({ year: "2023", releaseDate: "2024-05-17" })).toThrow(/releaseDate must start with the year/);
+    expect(() => parseUpdateMeta({ year: "2024", releaseDate: "2024-02-30" })).toThrow(
+      /releaseDate must be a real date as YYYY-MM or YYYY-MM-DD/
+    );
+    expect(() => parseUpdateMeta({ year: "2024", releaseDate: "2024" })).toThrow(
+      /releaseDate must be a real date as YYYY-MM or YYYY-MM-DD/
+    );
+  });
+});

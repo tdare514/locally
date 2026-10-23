@@ -108,6 +108,7 @@ describe("InspectService.inspect", () => {
       artist: null,
       album: null,
       year: null,
+      releaseDate: null,
       genre: null,
       durationSec: null,
       hasCover: false,

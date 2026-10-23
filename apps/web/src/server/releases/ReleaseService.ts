@@ -12,7 +12,7 @@ import { ReleaseLayout } from "./ReleaseLayout";
 import { sniffImageMime } from "../http/validation";
 import { deriveTagNumbers } from "../../shared/discs";
 import { NoopReleaseSyncHooks, type ReleaseSyncHooks } from "./ReleaseSyncHooks";
-import type { SyncRecord } from "../sync/SyncRecord";
+import { releaseDateOf, type SyncRecord } from "../sync/SyncRecord";
 import { assertWritable, isAdoptedCoverPath } from "../adopt/guards";
 
 /**
@@ -73,6 +73,7 @@ export class ReleaseService {
     const destFileNames = trackNumbers.map((n, i) => this.layout.trackFileName(n, titles[i]));
     this.assertNoDuplicateFileNames(destFileNames);
     const discNumbers = meta.tracks.map((t) => t.discNumber);
+    const importReleaseDate = releaseDateOf(meta.year ?? null, meta.releaseDate);
     const tagNumbers = deriveTagNumbers(trackNumbers.map((trackNumber, i) => ({ trackNumber, discNumber: discNumbers[i] })));
 
     await this.fs.mkdirp(folderPath);
@@ -115,6 +116,7 @@ export class ReleaseService {
           albumArtist: meta.artist,
           album: albumTitle,
           year: meta.year ?? null,
+          releaseDate: importReleaseDate ?? null,
           genre: meta.genre ?? null,
           ...tagNumbers[i],
           coverPath,
@@ -148,6 +150,7 @@ export class ReleaseService {
         title: albumTitle,
         artist: meta.artist,
         year: meta.year ?? null,
+        ...(importReleaseDate !== undefined ? { releaseDate: importReleaseDate } : {}),
         genre: meta.genre ?? null,
         coverPath,
         folderPath,
@@ -194,6 +197,11 @@ export class ReleaseService {
     const newArtist = patch.artist !== undefined ? patch.artist : existing.artist;
     const newTitle = patch.title !== undefined ? patch.title : existing.title;
     const newYear = patch.year !== undefined ? patch.year : existing.year;
+    // A patch with `year` sets the date as a whole: no `releaseDate` beside it makes the release year-only.
+    const newReleaseDate = releaseDateOf(
+      newYear ?? null,
+      patch.year !== undefined ? patch.releaseDate : existing.releaseDate
+    );
     const newGenre = patch.genre !== undefined ? patch.genre : existing.genre;
 
     const patchTrackById = new Map((patch.tracks ?? []).map((t) => [t.id, t]));
@@ -227,6 +235,7 @@ export class ReleaseService {
         albumArtist: newArtist,
         album: newTitle,
         year: newYear ?? null,
+        releaseDate: newReleaseDate ?? null,
         genre: newGenre ?? null,
         ...tagNumbers[i],
         coverPath,
@@ -244,6 +253,8 @@ export class ReleaseService {
       tracks: updatedTracks,
       updatedAt: new Date().toISOString(),
     };
+    if (newReleaseDate !== undefined) updated.releaseDate = newReleaseDate;
+    else delete updated.releaseDate;
 
     await this.repo.upsert(libraryDir, updated);
     this.syncHooks.onUpdated(updated);
@@ -284,6 +295,7 @@ export class ReleaseService {
         albumArtist: existing.artist,
         album: existing.title,
         year: existing.year,
+        releaseDate: releaseDateOf(existing.year, existing.releaseDate) ?? null,
         genre: existing.genre,
         ...tagNumbers[i],
         coverPath: newCoverPath,
@@ -431,7 +443,7 @@ export class ReleaseService {
    * Never pushed back to sync by this method itself - the caller
    * (`SyncEngine`) owns that bookkeeping.
    */
-  async importSynced(record: SyncRecord, dir: string, extra: { releaseDate?: string } = {}): Promise<Release> {
+  async importSynced(record: SyncRecord, dir: string): Promise<Release> {
     // A details-only record has no files to write; it is never sent to Spotify from here (#245).
     assertWritable({ adopted: record.source === "adopted", title: record.title });
     const settings = await this.settings.get();
@@ -440,6 +452,8 @@ export class ReleaseService {
     // Resolve every source first, so a hostile record fails before anything is created.
     const srcCover = record.cover ? this.syncedSource(dir, record.cover) : null;
     const sortedTracks = [...record.tracks].sort((a, b) => a.trackNumber - b.trackNumber);
+    // A bad or disagreeing date on the record is dropped here; the year is applied as it is (#221).
+    const remoteReleaseDate = releaseDateOf(record.year, record.releaseDate);
     const sources = sortedTracks.map((t) => this.syncedSource(dir, t.file));
 
     const desiredFolder = this.layout.folderFor(libraryDir, record.artist, record.title);
@@ -485,7 +499,7 @@ export class ReleaseService {
           albumArtist: record.artist,
           album: record.title,
           year: record.year,
-          ...(extra.releaseDate ? { releaseDate: extra.releaseDate } : {}),
+          releaseDate: remoteReleaseDate ?? null,
           genre: record.genre,
           ...tagNumbers[i],
           coverPath,
@@ -517,6 +531,7 @@ export class ReleaseService {
         title: record.title,
         artist: record.artist,
         year: record.year,
+        ...(remoteReleaseDate !== undefined ? { releaseDate: remoteReleaseDate } : {}),
         genre: record.genre,
         coverPath,
         folderPath,
@@ -572,6 +587,7 @@ export class ReleaseService {
       throw new NotFoundError(`Release ${record.id} not found`);
     }
     assertWritable(existing);
+    const remoteReleaseDate = releaseDateOf(record.year, record.releaseDate);
 
     let coverPath = existing.coverPath;
     if (options.newCoverPath && record.cover) {
@@ -612,6 +628,7 @@ export class ReleaseService {
         albumArtist: record.artist,
         album: record.title,
         year: record.year,
+        releaseDate: remoteReleaseDate ?? null,
         genre: record.genre,
         ...tagNumbers[i],
         coverPath,
@@ -628,6 +645,8 @@ export class ReleaseService {
       tracks: updatedTracks,
       updatedAt: record.updatedAt,
     };
+    if (remoteReleaseDate !== undefined) updated.releaseDate = remoteReleaseDate;
+    else delete updated.releaseDate;
 
     await this.repo.upsert(libraryDir, updated);
     return updated;

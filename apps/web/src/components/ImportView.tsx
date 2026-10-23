@@ -31,6 +31,8 @@ import { usePrefersReducedMotion } from "../lib/use-reduced-motion";
 import { orderByDisc } from "../shared/discs";
 import { fromEditor, fromInspected, releaseTitleShown } from "../lib/featuring-field";
 import type { EditableTrack } from "./TrackList";
+import { fieldsFromText, releaseDateTextBlocks } from "../lib/release-date-input";
+import { releaseDateText } from "../shared/releaseDate";
 
 interface ImportViewProps {
   /** Prefill Single | Album when opened from the library empty-state CTAs. */
@@ -71,7 +73,7 @@ export default function ImportView({
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
-  const [year, setYear] = useState("");
+  const [releaseDate, setReleaseDate] = useState("");
   const [genre, setGenre] = useState("");
   const [inspecting, setInspecting] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -194,7 +196,7 @@ export default function ImportView({
         if (first) {
           setArtist((prev) => prev || fromInspected(first, "").artist);
           setTitle((prev) => prev || (kind === "single" ? releaseTitleShown(first.album ?? "") : first.album) || "");
-          setYear((prev) => prev || first.year || "");
+          setReleaseDate((prev) => prev || releaseDateText(first.year, first.releaseDate));
           setGenre((prev) => prev || first.genre || "");
         }
       }
@@ -217,7 +219,8 @@ export default function ImportView({
   }
 
   const hasArtist = artist.trim().length > 0;
-  const canSubmit = entries.length > 0 && hasArtist && !importing;
+  const dateBlocked = releaseDateTextBlocks(releaseDate);
+  const canSubmit = entries.length > 0 && hasArtist && !dateBlocked && !importing;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -230,7 +233,7 @@ export default function ImportView({
         kind,
         title: releaseTitle,
         artist: artist.trim(),
-        year: year.trim() || undefined,
+        ...(fieldsFromText(releaseDate) ?? {}),
         genre: genre.trim() || undefined,
         tracks: entries.map((e, i) => ({
           title: fromEditor(e.title.trim() || `Track ${i + 1}`, e.featuring),
@@ -251,7 +254,7 @@ export default function ImportView({
       setStarted(false);
       setTitle("");
       setArtist("");
-      setYear("");
+      setReleaseDate("");
       setGenre("");
       setKind("single");
     } catch (e) {
@@ -323,8 +326,8 @@ export default function ImportView({
           onTitleChange={setTitle}
           artist={artist}
           onArtistChange={setArtist}
-          year={year}
-          onYearChange={setYear}
+          releaseDate={releaseDate}
+          onReleaseDateChange={setReleaseDate}
           genre={genre}
           onGenreChange={setGenre}
           tracks={tracks}

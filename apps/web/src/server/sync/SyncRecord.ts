@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Release, ReleaseKind, Track } from "../../shared/types";
 import { MAX_DISC_NUMBER } from "../../shared/discs";
 import { UNKNOWN_ARTIST } from "../../shared/adopt";
+import { releaseDateValue, storedReleaseDate } from "../../shared/releaseDate";
 
 /**
  * Which platform wrote a given version of a release record. "mac" and "ios" are the clients that
@@ -86,6 +87,12 @@ export const SyncRecordSchema = z.object({
   title: z.string(),
   artist: z.string(),
   year: z.string().nullable(),
+  /**
+   * `YYYY-MM` or `YYYY-MM-DD` when the date is known beyond the year (#221); omitted, never null, otherwise.
+   * Lenient on read: a bad or non-string value parses as absent (the record keeps its year), and
+   * `fromSyncRecord` also drops one that disagrees with `year`. Never `.refine` here: a `custom` issue means a refused name.
+   */
+  releaseDate: z.string().optional().catch(undefined),
   genre: z.string().nullable(),
   cover: syncFileName("cover").nullable(),
   /** Absent on a `syncVersion` 1 record (no signal, leave the cover alone); `null` on a v2 record with no cover. */
@@ -169,6 +176,7 @@ export function toSyncRecord(
       ...(release.adopted && t.localId ? { localId: t.localId } : {}),
     }));
 
+  const releaseDate = releaseDateOf(release.year, release.releaseDate);
   return {
     syncVersion: 2,
     id: release.id,
@@ -176,6 +184,7 @@ export function toSyncRecord(
     title: release.title,
     artist: release.adopted && release.artist.trim() === "" ? UNKNOWN_ARTIST : release.artist,
     year: release.year,
+    ...(releaseDate !== undefined ? { releaseDate } : {}),
     genre: release.genre,
     cover: release.coverPath ? path.basename(release.coverPath) : null,
     coverHash,
@@ -187,6 +196,12 @@ export function toSyncRecord(
     deleted: false,
     ...(release.adopted ? { source: "adopted" as const } : {}),
   };
+}
+
+/** The `releaseDate` a release or record carries: month or day precision that agrees with `year`, else undefined. */
+export function releaseDateOf(year: string | null, releaseDate: unknown): string | undefined {
+  const date = storedReleaseDate(year, releaseDate);
+  return date ? releaseDateValue(date) : undefined;
 }
 
 /**
@@ -211,6 +226,8 @@ export interface SyncRecordMeta {
   title: string;
   artist: string;
   year: string | null;
+  /** `YYYY-MM` or `YYYY-MM-DD`, set only when the record's date is that precise and agrees with `year` (#221). */
+  releaseDate?: string;
   genre: string | null;
   cover: string | null;
   /** `null` for no cover, or for a `syncVersion` 1 record that carried no `coverHash` at all. */
@@ -229,12 +246,14 @@ export interface SyncRecordMeta {
 
 /** Pure conversion from the wire `SyncRecord` shape to locally-usable metadata. */
 export function fromSyncRecord(record: SyncRecord): SyncRecordMeta {
+  const releaseDate = releaseDateOf(record.year, record.releaseDate);
   return {
     id: record.id,
     kind: record.kind,
     title: record.title,
     artist: record.artist,
     year: record.year,
+    ...(releaseDate !== undefined ? { releaseDate } : {}),
     genre: record.genre,
     cover: record.cover,
     coverHash: record.coverHash ?? null,

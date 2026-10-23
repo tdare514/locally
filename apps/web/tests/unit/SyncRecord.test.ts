@@ -473,3 +473,45 @@ describe("track localId on the wire (#307)", () => {
     expect(parseSyncRecord({ ...record, tracks: [bare] }).tracks[0].localId).toBeUndefined();
   });
 });
+
+describe("releaseDate on the wire (#221)", () => {
+  it("round-trips a full date and a month through toSyncRecord, parseSyncRecord and fromSyncRecord", () => {
+    for (const releaseDate of ["2024-05-17", "2024-05"]) {
+      const record = toSyncRecord(release({ releaseDate }), "mac", "Mac");
+      expect(record.releaseDate).toBe(releaseDate);
+      const parsed = parseSyncRecord(JSON.parse(JSON.stringify(record)));
+      expect(parsed.releaseDate).toBe(releaseDate);
+      const meta = fromSyncRecord(parsed);
+      expect(meta.year).toBe("2024");
+      expect(meta.releaseDate).toBe(releaseDate);
+    }
+  });
+
+  it("omits the key for a year-only release, and for a stored date that disagrees with the year", () => {
+    expect("releaseDate" in toSyncRecord(release(), "mac", "Mac")).toBe(false);
+    expect("releaseDate" in toSyncRecord(release({ releaseDate: "2023-05-01" }), "mac", "Mac")).toBe(false);
+    expect("releaseDate" in toSyncRecord(release({ year: null, releaseDate: "2024-05-01" }), "mac", "Mac")).toBe(false);
+  });
+
+  it("a record without a releaseDate parses and applies as year-only", () => {
+    const parsed = parseSyncRecord(validRecord());
+    expect(parsed.releaseDate).toBeUndefined();
+    const meta = fromSyncRecord(parsed);
+    expect(meta.year).toBe("2024");
+    expect("releaseDate" in meta).toBe(false);
+  });
+
+  it.each([
+    ["an impossible month", "2024-13", "2024"],
+    ["a number", 42, "2024"],
+    ["a bare year", "2024", "2024"],
+    ["a different year", "2023-05-01", "2024"],
+    ["a null", null, "2024"],
+  ])("keeps the record with its year when releaseDate is %s", (_label, releaseDate, year) => {
+    const parsed = parseSyncRecord({ ...validRecord(), year, releaseDate });
+    expect(parsed.year).toBe(year);
+    const meta = fromSyncRecord(parsed);
+    expect(meta.year).toBe(year);
+    expect("releaseDate" in meta).toBe(false);
+  });
+});
