@@ -208,4 +208,16 @@ describe("loadEnv", () => {
       expect(spotify.tokenKey).toHaveLength(32);
     });
   });
+
+  it("public shares are off unless PUBLIC_SHARES_ENABLED is exactly \"true\"", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    for (const [value, expected] of [["", false], ["false", false], ["1", false], ["TRUE", false], ["true", true]] as const) {
+      vi.stubEnv("PUBLIC_SHARES_ENABLED", value);
+      expect(loadEnv().publicSharesEnabled, value).toBe(expected);
+    }
+    vi.stubEnv("SHARE_EGRESS_ALERT_BYTES", "12345");
+    expect(loadEnv().shareEgressAlertBytes).toBe(12345);
+    vi.stubEnv("SHARE_EGRESS_ALERT_BYTES", "nope");
+    expect(loadEnv().shareEgressAlertBytes).toBe(20 * 1024 * 1024 * 1024);
+  });
 });

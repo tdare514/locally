@@ -20,8 +20,10 @@ src/app/v1/
   releases/[id]/files                 # request upload URLs
   releases/[id]/files/[name]          # request a download URL
   files/missing, files/resync-request # releases whose files never landed; ask the phone to re-send (#119)
-  internal/cleanup                    # daily cron: expired codes, tombstoned files
+  shares, shares/[id], .../files/[name], claim, hide, reshare, links/claim   # sharing (#181)
+  internal/cleanup                    # daily cron: expired codes, tombstoned files, share egress log
   internal/local-upload|download/[...key]  # dev-only stand-in for signed object storage
+src/app/s/[token]{,/files/[name],/zip}  # public share page, signed-URL redirect, streamed zip (no auth)
 src/proxy.ts                          # CORS for the Mac web app
 src/server/
   account/       AccountService: delete a user and queue its blobs
@@ -29,6 +31,7 @@ src/server/
   releases/      ReleaseSyncService: scoped list/upsert/tombstone, last-writer-wins
   files/         FileStore interface (incl. listKeys), Local/VercelBlob impls, ReleaseFilesService
   quota/         QuotaService: usage vs per-account limit
+  shares/        ShareService (shares, reshares, links, public routes' logic), store-only zip writer, HTML page
   plays/         PlaysService: per-device play counts, live releases of the user only
   mail/          Mailer interface, Console/Resend impls
   ratelimit/     RateLimiter interface; DbRateLimiter (libSQL-backed, shared across instances)
