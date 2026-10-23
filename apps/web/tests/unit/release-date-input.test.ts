@@ -5,6 +5,7 @@ import {
   fieldsFromText,
   initialReleaseDateText,
   pickerValue,
+  placePopover,
   releaseDateTextBlocks,
   today,
 } from "../../src/lib/release-date-input";
@@ -52,5 +53,26 @@ describe("date picker values", () => {
 
   it("today is a full local date", () => {
     expect(today(new Date(2026, 9, 22))).toEqual({ year: 2026, month: 10, day: 22 });
+  });
+});
+
+describe("placePopover", () => {
+  const size = { width: 256, height: 200 };
+  const dialog = { left: 100, top: 50, right: 520, bottom: 650 };
+
+  it("keeps the left edge on the field when it fits", () => {
+    const anchor = { left: 120, top: 400, right: 300, bottom: 440 };
+    expect(placePopover(anchor, size, dialog, true)).toEqual({ dx: 0, up: true });
+  });
+
+  it("shifts left to stay inside the dialog", () => {
+    const anchor = { left: 330, top: 400, right: 500, bottom: 440 };
+    const { dx } = placePopover(anchor, size, dialog, true);
+    expect(anchor.left + dx + size.width).toBe(dialog.right - 8);
+  });
+
+  it("flips below when there is no room above, and above when there is none below", () => {
+    expect(placePopover({ left: 120, top: 100, right: 300, bottom: 140 }, size, dialog, true).up).toBe(false);
+    expect(placePopover({ left: 120, top: 560, right: 300, bottom: 600 }, size, dialog, false).up).toBe(true);
   });
 });

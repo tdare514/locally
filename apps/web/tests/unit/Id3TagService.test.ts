@@ -340,4 +340,27 @@ describe("Id3TagService release date (#221)", () => {
     expect(yearOnly.year).toBe("1999");
     expect(yearOnly.releaseDate).toBeNull();
   });
+
+  it("reads TYER with TDAT (DDMM) as a full date", async () => {
+    const mp3Path = await newMp3();
+    NodeID3.write({ year: "2019", date: "0803" }, mp3Path);
+    const result = await new Id3TagService().read(mp3Path);
+    expect(result.year).toBe("2019");
+    expect(result.releaseDate).toBe("2019-03-08");
+  });
+
+  it("falls back to the year when TDAT is not a real day, or is missing", async () => {
+    const mp3Path = await newMp3();
+    NodeID3.write({ year: "2024", date: "3102" }, mp3Path);
+    const impossible = await new Id3TagService().read(mp3Path);
+    expect(impossible.year).toBe("2024");
+    expect(impossible.releaseDate).toBeNull();
+
+    const yearOnlyPath = path.join(tmpDir, "no-tdat.mp3");
+    await fs.writeFile(yearOnlyPath, silentMp3());
+    NodeID3.write({ year: "2024" }, yearOnlyPath);
+    const missing = await new Id3TagService().read(yearOnlyPath);
+    expect(missing.year).toBe("2024");
+    expect(missing.releaseDate).toBeNull();
+  });
 });

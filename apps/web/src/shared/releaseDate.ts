@@ -150,9 +150,22 @@ export function releaseDateMessage(entry: ReleaseDateEntry, locale?: string): st
   return null;
 }
 
+/** The first code point of each 0-9 block that locales print digits in: Arabic-Indic, Extended Arabic-Indic,
+ * Devanagari, Bengali, Thai, Myanmar, Fullwidth. */
+const DIGIT_BLOCKS = [0x0660, 0x06f0, 0x0966, 0x09e6, 0x0e50, 0x1040, 0xff10];
+
+/** The text with those digits as ASCII 0-9 and the bidi marks (U+200E, U+200F, U+061C) that ar locales insert removed. */
+function asciiDigits(text: string): string {
+  return text.replace(/[\u200e\u200f\u061c]/gu, "").replace(/[\u0660-\u0669\u06f0-\u06f9\u0966-\u096f\u09e6-\u09ef\u0e50-\u0e59\u1040-\u1049\uff10-\uff19]/gu, (ch) => {
+    const code = ch.codePointAt(0)!;
+    const base = DIGIT_BLOCKS.find((b) => code >= b && code <= b + 9)!;
+    return String(code - base);
+  });
+}
+
 /** Every whitespace run becomes one plain space, ends trimmed, then case and accents folded. */
 function normalized(text: string): string {
-  return text
+  return asciiDigits(text)
     .replace(/\s+/gu, " ")
     .trim()
     .normalize("NFD")
@@ -231,7 +244,7 @@ function entry(year: string, month?: string, day?: string): ReleaseDateEntry {
  * hand against `makeReleaseDate`, never through a lenient `Date` parse (which rolls 31 Feb into March).
  */
 export function parseReleaseDateText(text: string, locale?: string): ReleaseDateEntry {
-  let trimmed = text.trim();
+  let trimmed = asciiDigits(text).trim();
   if (trimmed === "") return { kind: "empty" };
   const formatted = formattedDate(trimmed, locale);
   if (formatted) return { kind: "date", date: formatted };

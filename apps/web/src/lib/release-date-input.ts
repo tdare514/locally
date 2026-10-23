@@ -80,3 +80,35 @@ export function today(now: Date = new Date()): ReleaseDate {
 export function textFromDate(date: ReleaseDate, locale?: string): string {
   return formatReleaseDate(date, locale);
 }
+
+export interface PopoverBox {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * Where the date popover sits: its left edge on the field's left edge, shifted sideways (`dx`, px) to stay inside
+ * `bounds` (the dialog and viewport), and above (`up`) or below the field, flipped when the preferred side has no room.
+ */
+export function placePopover(
+  anchor: PopoverBox,
+  size: { width: number; height: number },
+  bounds: PopoverBox,
+  preferUp: boolean,
+  gap = 4,
+  margin = 8,
+): { dx: number; up: boolean } {
+  const maxLeft = bounds.right - margin - size.width;
+  const minLeft = bounds.left + margin;
+  const left = maxLeft < minLeft ? minLeft : Math.min(Math.max(anchor.left, minLeft), maxLeft);
+  const need = size.height + gap + margin;
+  const fitsAbove = anchor.top - bounds.top >= need;
+  const fitsBelow = bounds.bottom - anchor.bottom >= need;
+  let up = preferUp;
+  if (preferUp && !fitsAbove && fitsBelow) up = false;
+  else if (!preferUp && !fitsBelow && fitsAbove) up = true;
+  else if (!fitsAbove && !fitsBelow) up = anchor.top - bounds.top > bounds.bottom - anchor.bottom;
+  return { dx: left - anchor.left, up };
+}

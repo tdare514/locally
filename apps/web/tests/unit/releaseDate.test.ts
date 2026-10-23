@@ -154,4 +154,20 @@ describe("parseReleaseDateText", () => {
       }
     }
   });
+
+  it("reads back what a non-Latin-digit locale prints, at every precision", () => {
+    for (const locale of ["ar-EG", "hi-IN-u-nu-deva", "fa-IR"]) {
+      for (const d of [{ year: 2024 }, { year: 2024, month: 5 }, { year: 2024, month: 5, day: 17 }]) {
+        const printed = formatReleaseDate(d, locale);
+        const read = parseReleaseDateText(printed, locale);
+        expect(read.kind, `${locale}: ${printed}`).toBe("date");
+        if (read.kind === "date") expect(releaseDateIso(read.date), `${locale}: ${printed}`).toBe(releaseDateIso(d));
+      }
+    }
+  });
+
+  it("reads typed non-Latin digits and ignores bidi marks", () => {
+    const read = parseReleaseDateText("\u200f\u0662\u0660\u0662\u0664-\u0660\u0665-\u0661\u0667");
+    expect(read.kind === "date" && releaseDateIso(read.date)).toBe("2024-05-17");
+  });
 });

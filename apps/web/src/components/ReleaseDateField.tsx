@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { IS_DEMO } from "../lib/demo";
 import {
   atPrecision,
   dateFromPickerValue,
   dateFromText,
   pickerValue,
+  placePopover,
   precisionOf,
   textFromDate,
   today,
@@ -104,8 +105,8 @@ export default function ReleaseDateField({
       placeholder={placeholder}
       disabled={disabled}
       readOnly={readOnly}
-      aria-invalid={showMessage || undefined}
-      aria-describedby={showMessage ? messageId : undefined}
+      aria-invalid={message !== null || undefined}
+      aria-describedby={message !== null ? messageId : undefined}
       onFocus={() => setFocused(true)}
       onBlur={handleBlur}
       onChange={(e) => onChange(e.target.value)}
@@ -133,7 +134,15 @@ export default function ReleaseDateField({
   );
 
   return (
-    <div ref={wrapRef} className={`relative flex min-w-0 flex-col ${variant === "form" ? "gap-2 text-sm" : "gap-1"}`}>
+    <div
+      ref={wrapRef}
+      className={`relative flex min-w-0 flex-col ${variant === "form" ? "gap-2 text-sm" : "gap-1"}`}
+      onBlur={(e) => {
+        // Focus moving out of the whole field closes the popover; where focus went is left alone.
+        const next = e.relatedTarget as Node | null;
+        if (open && next && !e.currentTarget.contains(next)) setOpen(false);
+      }}
+    >
       {variant === "inline" ? (
         <div className="flex items-baseline gap-1.5">
           <label htmlFor={inputId} className="text-white/70">
@@ -153,11 +162,16 @@ export default function ReleaseDateField({
           </div>
         </>
       )}
-      {showMessage && (
-        <p id={messageId} className="text-xs text-danger">
-          {message}
-        </p>
-      )}
+      {message !== null &&
+        (showMessage ? (
+          <p key="visible" id={messageId} role="alert" className="text-xs text-danger">
+            {message}
+          </p>
+        ) : (
+          <p key="hidden" id={messageId} className="sr-only">
+            {message}
+          </p>
+        ))}
       {open && (
         <DatePopover
           id={dialogId}
@@ -188,7 +202,7 @@ function DatePopover({
 }: {
   id: string;
   start: ReleaseDate | null;
-  /** Bulk edit's dialog: above the field and flush right, so the popover stays inside the dialog. */
+  /** Bulk edit's dialog: above the field if there is room (else below), kept inside the dialog. */
   openUp: boolean;
   onDone: (date: ReleaseDate) => void;
   onClear: () => void;
@@ -200,6 +214,27 @@ function DatePopover({
   const [base, setBase] = useState<ReleaseDate>(() => start ?? today());
   const [raw, setRaw] = useState(() => pickerValue(start ?? today(), start ? precisionOf(start) : "day"));
   const chosen = dateFromPickerValue(raw, precision);
+  const popRef = useRef<HTMLDivElement>(null);
+  const [place, setPlace] = useState({ dx: 0, up: openUp });
+
+  // Measured once it is open: left on the field's left edge, clamped to the dialog (or viewport), flipped if cramped.
+  useLayoutEffect(() => {
+    const pop = popRef.current;
+    const wrap = pop?.parentElement;
+    if (!pop || !wrap) return;
+    const dialog = wrap.closest("dialog")?.getBoundingClientRect();
+    const view = { left: 0, top: 0, right: document.documentElement.clientWidth, bottom: window.innerHeight };
+    const bounds = dialog
+      ? {
+          left: Math.max(dialog.left, view.left),
+          top: Math.max(dialog.top, view.top),
+          right: Math.min(dialog.right, view.right),
+          bottom: Math.min(dialog.bottom, view.bottom),
+        }
+      : view;
+    const next = placePopover(wrap.getBoundingClientRect(), { width: pop.offsetWidth, height: pop.offsetHeight }, bounds, openUp);
+    setPlace((prev) => (prev.dx === next.dx && prev.up === next.up ? prev : next));
+  }, [openUp]);
 
   function choose(next: PickerPrecision) {
     setPrecision(next);
@@ -221,7 +256,9 @@ function DatePopover({
 
   return (
     <div
+      ref={popRef}
       id={id}
+      style={place.dx ? { translate: `${place.dx}px` } : undefined}
       data-date-popover
       role="dialog"
       aria-label="Choose a release date"
@@ -237,7 +274,7 @@ function DatePopover({
         }
       }}
       className={`playlist-pop glass-fake glass-frost absolute z-30 isolate flex w-64 max-w-[80vw] flex-col gap-3 rounded-2xl p-3 ${
-        openUp ? "bottom-full right-0 mb-1" : "left-0 top-full mt-1"
+        place.up ? "bottom-full left-0 mb-1" : "left-0 top-full mt-1"
       }`}
     >
       <div role="group" aria-label="Precision" className="btn-seg btn-seg-3 self-start">

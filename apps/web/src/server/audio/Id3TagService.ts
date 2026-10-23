@@ -3,13 +3,28 @@ import path from "node:path";
 import NodeID3 from "node-id3";
 import { parseFile } from "music-metadata";
 import { isDiscNumber } from "../../shared/discs";
-import { releaseDateFromTag, releaseDateIso, releaseDateValue, releaseYear, storedReleaseDate } from "../../shared/releaseDate";
+import { makeReleaseDate, releaseDateFromTag, releaseDateIso, releaseDateValue, releaseYear, storedReleaseDate, type ReleaseDate } from "../../shared/releaseDate";
 import type { ReadTagsResult, TagService, WriteTagsInput } from "./TagService";
 
 function mimeForCover(coverPath: string): string {
   const ext = path.extname(coverPath).toLowerCase();
   if (ext === ".png") return "image/png";
   return "image/jpeg";
+}
+
+/** An ID3v2.3 file's TYER (YYYY) with its TDAT (DDMM) as a date; null when either is missing or the pair is not a real date. */
+function dateFromTyerTdat(native: Record<string, { id: string; value: unknown }[]>): ReleaseDate | null {
+  const frames = native["ID3v2.3"];
+  if (!frames) return null;
+  const text = (id: string) => {
+    const value = frames.find((f) => f.id === id)?.value;
+    return typeof value === "string" ? value.trim() : null;
+  };
+  const tyer = text("TYER");
+  const tdat = text("TDAT");
+  if (!tyer || !tdat || !/^\d{4}$/.test(tyer) || !/^\d{4}$/.test(tdat)) return null;
+  const date = makeReleaseDate(Number(tyer), Number(tdat.slice(2)), Number(tdat.slice(0, 2)));
+  return date ?? null;
 }
 
 /** `TagService` implemented with `node-id3` (write) and `music-metadata` (read). */
@@ -65,7 +80,8 @@ export class Id3TagService implements TagService {
     const meta = await parseFile(filePath);
     const common = meta.common;
     const discNo = common.disk?.no;
-    const date = common.date != null ? releaseDateFromTag(String(common.date)) : null;
+    let date = common.date != null ? releaseDateFromTag(String(common.date)) : null;
+    if (!date || date.month === undefined) date = dateFromTyerTdat(meta.native) ?? date;
     return {
       title: common.title ?? null,
       artist: common.artist ?? null,
