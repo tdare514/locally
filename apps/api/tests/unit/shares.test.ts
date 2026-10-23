@@ -186,6 +186,19 @@ describe("POST /v1/shares", () => {
     expect((await sharesRoute.POST(req("/v1/shares", "POST", null, {}))).status).toBe(401);
   });
 
+  it("refuses a release imported from a share with 403 use_reshare and inserts nothing", async () => {
+    const sharedFrom = { shareId: crypto.randomUUID(), allowReshare: true };
+    const { record } = await seedRelease(alice, { sharedFrom });
+    const { res, body } = await createShare(alice, { releaseId: record.id, recipients: ["bob@example.com"] });
+    expect(res.status).toBe(403);
+    expect(body).toEqual({ error: "use_reshare" });
+    expect(await services.db.select().from(shares)).toEqual([]);
+    expect(await services.db.select().from(shareRecipients)).toEqual([]);
+
+    const ordinary = await seedRelease(alice);
+    expect((await createShare(alice, { releaseId: ordinary.record.id, recipients: ["bob@example.com"] })).res.status).toBe(201);
+  });
+
   it("refuses public shares with 403 public_links_disabled while the switch is off", async () => {
     const { record } = await seedRelease(alice);
     const off = new (services.shares.constructor as new (...a: unknown[]) => typeof services.shares)(services.db, services.fileStore, { publicSharesEnabled: false });
