@@ -121,6 +121,7 @@ describe("shares on the Mac", () => {
   let failClaim: boolean;
   let settingsStore: Settings1;
   let listGate: Promise<void> | null;
+  let releasesGate: Promise<void> | null;
   let cacheDir: string;
 
   beforeEach(async () => {
@@ -131,6 +132,7 @@ describe("shares on the Mac", () => {
     failDownload = false;
     failClaim = false;
     listGate = null;
+    releasesGate = null;
     cacheDir = path.join(libraryDir, "..", `sli-share-covers-${path.basename(libraryDir)}`);
     repo = new Repo();
     const settings = new Settings1({
@@ -141,6 +143,7 @@ describe("shares on the Mac", () => {
     const releases = new ReleaseService(settings, repo, noConvert, new Id3TagService(), nodeFs, new ReleaseLayout());
     const api = {
       async listReleases() {
+        if (releasesGate) await releasesGate;
         return { releases: [], nextVersion: 0, hasMore: false };
       },
       async listReceivedShares() {
@@ -381,6 +384,28 @@ describe("shares on the Mac", () => {
     expect((await engine.status()).fromFriends).toEqual([]);
     expect(await fs.readdir(cacheDir).catch(() => [])).toEqual([]);
     expect(calls).toEqual([]);
+  });
+
+  it("drops the old host's shares and /me when the host changes during a pull", async () => {
+    let resume!: () => void;
+    releasesGate = new Promise<void>((resolve) => (resume = resolve));
+    const running = engine.reconcile();
+    await new Promise((r) => setTimeout(r, 50));
+    await settingsStore.update((c) => ({ ...c, sync: c.sync ? { ...c.sync, baseUrl: "http://other-host", deviceToken: "tok2" } : null }));
+    resume();
+    await running;
+    const status = await engine.status();
+    expect(status.fromFriends).toEqual([]);
+    expect(status.quota).toBeNull();
+    expect(await fs.readdir(cacheDir).catch(() => [])).toEqual([]);
+  });
+
+  it("keeps friends and cached covers across a settings change that is not a sign-out", async () => {
+    await engine.reconcile();
+    await settingsStore.update((c) => ({ ...c, libraryDir: c.libraryDir, trackPlays: true }));
+    expect((await engine.status()).fromFriends).toHaveLength(1);
+    expect(await fs.readdir(cacheDir)).toHaveLength(1);
+    await expect(engine.friendCover(S1)).resolves.toBeTruthy();
   });
 
   it("refuses a share that names a file outside its folder", async () => {

@@ -627,9 +627,17 @@ body {
 /* The playlists popover under a track (#212): opacity and scale only, 160ms, nothing under reduced
    motion. The open row rises above the rows after it so the list isn't painted over. */
 .track-row:has(.playlist-pop),
-.track-row:has(.disc-pop),
-.track-row:has(.share-pop) {
+.track-row:has(.disc-pop) {
   z-index: 20;
+}
+/* An open Share popover rises above the pane's chrome (the back button and the phone tray button sit at 20):
+   the pane is its own stacking context, so the pane itself has to rise while the popover is open. */
+.track-row:has(.share-pop),
+.release-bar:has(.share-pop) {
+  z-index: 40;
+}
+.app-pane:has(.share-pop) {
+  z-index: 30;
 }
 .playlist-pop {
   transform-origin: top left;

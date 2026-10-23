@@ -7,6 +7,7 @@ import type { SyncRecord } from "../../../src/server/sync/SyncRecord";
 import { FakePlayCountStore } from "../FakePlayCountStore";
 
 let services: Services;
+let forgetFriends = vi.fn();
 
 vi.mock("../../../src/server/container", () => ({
   getServices: () => services,
@@ -72,12 +73,13 @@ beforeEach(() => {
   syncState = new FakeSyncStateStore();
   playTracker = { setEnabled: vi.fn() };
   playStore = new FakePlayCountStore();
+  forgetFriends = vi.fn().mockResolvedValue(undefined);
   services = {
     settings: new FakeSettingsStore(),
     syncState,
     playTracker,
     playStore,
-    syncEngine: { forgetFriends: vi.fn().mockResolvedValue(undefined) },
+    syncEngine: { forgetFriends },
   } as unknown as Services;
 });
 
@@ -184,6 +186,18 @@ describe("PUT /api/settings", () => {
     const res = await PUT(putRequest({ libraryDir: "/tmp/new-lib" }));
     expect(res.status).toBe(200);
     expect(settingsValue.libraryDir).toBe("/tmp/new-lib");
+  });
+
+  it("keeps the friends list on an unrelated save, and forgets it only when the sync state resets", async () => {
+    settingsValue = {
+      libraryDir: "/tmp/lib",
+      sync: { baseUrl: "http://localhost:4000", deviceToken: "t", email: "a@b.com", lastVersion: 1 },
+    };
+    await PUT(putRequest({ libraryDir: "/tmp/other-lib" }));
+    await PUT(putRequest({ trackPlays: true }));
+    expect(forgetFriends).not.toHaveBeenCalled();
+    await PUT(putRequest({ sync: { baseUrl: "http://localhost:5000" } }));
+    expect(forgetFriends).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a relative libraryDir", async () => {

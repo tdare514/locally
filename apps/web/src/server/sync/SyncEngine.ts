@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import os from "node:os";
 import path from "node:path";
-import type { PendingFilesState, PendingFromPhone, Release, SyncStatus } from "../../shared/types";
+import type { PendingFilesState, PendingFromPhone, Release, Settings, SyncStatus } from "../../shared/types";
 import { DEFAULT_SYNC_BASE_URL } from "../../shared/types";
 import { NotFoundError, PublicError, ValidationError } from "../../shared/errors";
 import type { SettingsStore } from "../config/SettingsStore";
@@ -599,9 +599,14 @@ export class SyncEngine implements ReleaseSyncHooks {
       if (!settings.sync?.deviceToken) return;
 
       const api = this.apiFactory(settings.sync.baseUrl, settings.sync.deviceToken);
+      // The session this run belongs to, from the same settings that built `api`: work for a host or
+      // account left behind meanwhile is dropped, never published.
+      const key = this.sessionKeyOf(settings.sync);
+      await this.enterSession();
 
       await this.pullOnce(api);
-      await this.pullReceivedShares(api, await this.enterSession());
+      if ((await this.enterSession()) !== key) return;
+      await this.pullReceivedShares(api, key);
       await this.queueLocalIdBackfill();
 
       await this.backFill(api, null);
@@ -609,8 +614,10 @@ export class SyncEngine implements ReleaseSyncHooks {
       let me: MeResult | null = null;
       try {
         me = await api.me();
-        this.quota = me.quota;
-        this.publicShares = me.publicSharesEnabled === true;
+        if ((await this.enterSession()) === key) {
+          this.quota = me.quota;
+          this.publicShares = me.publicSharesEnabled === true;
+        }
       } catch {
         // Quota is a nice-to-have on the status card; don't fail the whole run for it.
       }
@@ -985,6 +992,7 @@ export class SyncEngine implements ReleaseSyncHooks {
    */
   private async pullReceivedShares(api: SyncApi, key: string | null): Promise<void> {
     let all: ReceivedShare[];
+    if ((await this.enterSession()) !== key) return;
     try {
       all = [];
       let cursor: string | null = null;
@@ -1049,9 +1057,12 @@ export class SyncEngine implements ReleaseSyncHooks {
     });
   }
 
+  private sessionKeyOf(sync: Settings["sync"]): string | null {
+    return sync?.deviceToken ? `${sync.baseUrl}\n${sync.email ?? ""}\n${sync.deviceToken}` : null;
+  }
+
   private async enterSession(): Promise<string | null> {
-    const sync = (await this.settings.get()).sync;
-    const key = sync?.deviceToken ? `${sync.baseUrl}\n${sync.email ?? ""}\n${sync.deviceToken}` : null;
+    const key = this.sessionKeyOf((await this.settings.get()).sync);
     if (key !== this.sessionKey) {
       this.sessionKey = key;
       this.received = [];

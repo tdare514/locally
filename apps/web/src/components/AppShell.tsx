@@ -391,7 +391,7 @@ export default function AppShell() {
         <ArtistNavProvider value={{ open: (key) => pushTo({ type: "artist", key }), lockedReason: null }}>
         <main
           ref={mainRef}
-          className={`relative isolate h-full overflow-y-auto p-6 md:p-10 lg:p-16 ${
+          className={`app-pane relative isolate h-full overflow-y-auto p-6 md:p-10 lg:p-16 ${
             // Room under the back button where the page's own padding would run into it; at lg
             // the padding already clears it.
             backStack.length > 0 ? "pt-[4.5rem] md:pt-20 lg:pt-16" : ""
