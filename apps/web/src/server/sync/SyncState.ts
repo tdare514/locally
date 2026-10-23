@@ -49,6 +49,13 @@ export interface SyncState {
    * stripping the field cannot cause a push loop.
    */
   localIdQueuedAt?: Record<string, string>;
+  /**
+   * accountKey -> (shareId -> ISO time this Mac imported a share from a friend, #182). The tray hides
+   * these even while the claim has not gone through; the next reconcile claims them. Kept per account
+   * and host, so signing in as someone else neither prunes nor loses another account's owed claims, and
+   * kept across an ordinary sign-out. Changed only through `update`.
+   */
+  importedShares?: Record<string, Record<string, string>>;
   /** True once the one-time back-fill of adopted releases (#307) has been queued under this account. */
   localIdBackfilled?: boolean;
 }
@@ -63,4 +70,14 @@ export interface SyncStateStore {
 
 export function emptySyncState(): SyncState {
   return { pushedUpdatedAt: {}, uploadedFiles: {}, coverHash: {}, pendingFromPhone: {}, missingFiles: {}, hiddenFromTray: {} };
+}
+
+/** A fresh state for a sign-out or host change that still remembers which shares this Mac imported (#182). */
+export function resetKeepingImports(current: SyncState): SyncState {
+  return { ...emptySyncState(), ...(current.importedShares ? { importedShares: current.importedShares } : {}) };
+}
+
+/** The account and host a shares record belongs to; null when signed out or the email is unknown. */
+export function accountKeyOf(sync: { baseUrl: string; email: string | null } | null | undefined): string | null {
+  return sync?.email ? `${sync.baseUrl}\n${sync.email}` : null;
 }

@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { parseShareGroups } from "../../shared/shares";
 import type { Settings, SpotifySettings, SyncSettings } from "../../shared/types";
 import { defaultLibraryDir, settingsDir, settingsFilePath } from "./paths";
 import type { SettingsStore } from "./SettingsStore";
@@ -128,6 +129,7 @@ export class FileSettingsStore implements SettingsStore {
     const adoptRoots = Array.isArray(parsed.adoptRoots)
       ? parsed.adoptRoots.filter((r): r is string => typeof r === "string" && r.trim().length > 0)
       : [];
+    const shareGroups = parseShareGroups(parsed.shareGroups);
     const installId = typeof parsed.installId === "string" && UUID_RE.test(parsed.installId) ? parsed.installId : undefined;
     return {
       libraryDir,
@@ -138,6 +140,7 @@ export class FileSettingsStore implements SettingsStore {
       playsPromptAnswered,
       adoptRoots,
       ...(spotify ? { spotify } : {}),
+      ...(shareGroups.length > 0 ? { shareGroups } : {}),
       ...(installId ? { installId } : {}),
     };
   }

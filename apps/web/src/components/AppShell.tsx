@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Library, Release, ReleaseKind, SyncStatus } from "../shared/types";
-import { acceptFromPhone, getLibrary, getSyncStatus, hideFromTray, resyncFromPhone, unhideFromTray } from "../lib/api-client";
+import { acceptFriendShare, hideFriendShare, acceptFromPhone, getLibrary, getSyncStatus, hideFromTray, resyncFromPhone, unhideFromTray } from "../lib/api-client";
 import Sidebar, { type SidebarPage } from "./sidebar/Sidebar";
 import LibraryView from "./LibraryView";
 import { buildArtistIndex } from "../lib/artist-index";
@@ -300,6 +300,31 @@ export default function AppShell() {
     }
   }
 
+  /** "Send to Spotify" on a friend's share (#182). Resolves true once it is in the library. */
+  async function handleAcceptFriend(id: string): Promise<boolean> {
+    try {
+      await acceptFriendShare(id);
+      showToast("success", "Added to your library");
+      await Promise.all([refreshLibrary(), refreshSyncStatus()]);
+      return true;
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "Couldn't add that share");
+      await refreshSyncStatus();
+      return false;
+    }
+  }
+
+  async function handleDismissFriend(id: string): Promise<boolean> {
+    try {
+      await hideFriendShare(id);
+      await refreshSyncStatus();
+      return true;
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "Couldn't dismiss it");
+      return false;
+    }
+  }
+
   /** Hide (#295): out of this tray on this Mac, with an Undo. Resolves true once hidden. */
   async function handleHide(id: string): Promise<boolean> {
     try {
@@ -410,6 +435,8 @@ export default function AppShell() {
               onUpdated={refreshLibrary}
               onToast={showToast}
               onOpenSettings={() => goTo({ type: "settings" })}
+              syncSignedIn={syncStatus?.signedIn ?? false}
+              onOpenAccount={() => goTo({ type: "settings", section: "account" })}
               artistIndex={artistIndex}
             />
           )}
@@ -477,6 +504,9 @@ export default function AppShell() {
             />
           </div>
         )}
+        {/* One overlay layer above the pane's chrome (Back, the tray button) for floating panels that must
+            not be clipped by or stacked inside the pane, such as the Share popover. The sidebar stays above. */}
+        <div id="overlay-root" className="pointer-events-none fixed inset-0 z-30" />
         {!IS_DEMO && (
           <div className="absolute right-4 top-4 z-20 md:right-6 md:top-6">
             <PhoneInbox
@@ -485,6 +515,9 @@ export default function AppShell() {
               onAccept={handleAcceptFromPhone}
               onHide={handleHide}
               onResync={handleResync}
+              friends={syncStatus?.fromFriends ?? []}
+              onAcceptFriend={handleAcceptFriend}
+              onDismissFriend={handleDismissFriend}
             />
           </div>
         )}

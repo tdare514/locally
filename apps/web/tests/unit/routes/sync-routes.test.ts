@@ -124,6 +124,7 @@ let syncEngine: {
   reconcile: ReturnType<typeof vi.fn>;
   acceptFromPhone: ReturnType<typeof vi.fn>;
   resync: ReturnType<typeof vi.fn>;
+  forgetFriends: ReturnType<typeof vi.fn>;
 };
 let syncState: FakeSyncStateStore;
 let playStore: FakePlayCountStore;
@@ -148,6 +149,7 @@ beforeEach(() => {
     reconcile: vi.fn().mockResolvedValue(undefined),
     acceptFromPhone: vi.fn(),
     resync: vi.fn(),
+    forgetFriends: vi.fn().mockResolvedValue(undefined),
   };
   syncState = new FakeSyncStateStore();
   playStore = new FakePlayCountStore();

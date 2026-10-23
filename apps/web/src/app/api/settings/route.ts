@@ -6,7 +6,7 @@ import { planSettingsUpdate } from "../../../server/config/settingsUpdate";
 import { toSettingsResponse } from "../../../server/config/settingsView";
 import { badRequest, errorResponse } from "../../../server/http/responses";
 import { parseSettingsPutBody } from "../../../server/http/validation";
-import { emptySyncState } from "../../../server/sync/SyncState";
+import { resetKeepingImports } from "../../../server/sync/SyncState";
 import { demoReadOnly, isDemo } from "../../../server/demo";
 import { DEMO_SETTINGS_RESPONSE } from "../../../server/demo/library";
 
@@ -45,7 +45,10 @@ export async function PUT(request: NextRequest) {
       return plan.settings;
     });
     if (rejection !== null) return badRequest(rejection);
-    if (resetSyncState) await services.syncState.update(() => emptySyncState());
+    if (resetSyncState) {
+      await services.syncState.update(resetKeepingImports);
+      await services.syncEngine.forgetFriends();
+    }
     // After the settings are saved, as sign-out does it: a new host is a new account, and its play
     // counts were never pushed there (#107).
     if (resetSyncState) await services.playStore.resetPushed();
