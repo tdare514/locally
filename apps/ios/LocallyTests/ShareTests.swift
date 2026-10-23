@@ -661,12 +661,12 @@ struct ShareAccountTests {
         let dir: URL
     }
 
-    private func makeHarness(userId: String? = "user-a", api: FakeSyncApi = FakeSyncApi(), defaults: UserDefaults = UserDefaults(suiteName: UUID().uuidString)!, dir: URL? = nil) -> Harness {
+    private func makeHarness(userId: String? = "user-a", api: FakeSyncApi = FakeSyncApi(), defaults: UserDefaults = UserDefaults(suiteName: UUID().uuidString)!, dir: URL? = nil, id3Writer: TagWriter = FakeTagWriter()) -> Harness {
         let dir = dir ?? FileManager.default.temporaryDirectory.appendingPathComponent("ShareAccount-\(UUID().uuidString)", isDirectory: true)
         let library = InMemoryLibraryStore()
         let covers = FakeCoverStore()
         let coordinator = ReleaseCoordinator(
-            importer: FakeFileImporter(), transcoder: FakeTranscoder(), m4aTagWriter: FakeTagWriter(), id3TagWriter: FakeTagWriter(),
+            importer: FakeFileImporter(), transcoder: FakeTranscoder(), m4aTagWriter: FakeTagWriter(), id3TagWriter: id3Writer,
             folder: FakeSpotifyFolder(directory: dir.appendingPathComponent("spotify")), library: library, coverStore: covers, durationReader: FakeDurationReader())
         let account = InMemorySyncAccountStore()
         account.save(email: "a@example.com", deviceToken: "t", deviceId: "d")
@@ -734,6 +734,37 @@ struct ShareAccountTests {
         let count = try h.library.all().count
         #expect(count == 1, "no second import")
         #expect(h.defaults.stringArray(forKey: unclaimedKey("user-a")) == [])
+    }
+
+    @Test func anImportThatFinishesAfterASignOutIsStillRememberedSoItIsNotImportedTwice() async throws {
+        let tagger = PausableTagWriter()
+        let api = FakeSyncApi()
+        let h = makeHarness(api: api, id3Writer: tagger)
+        defer { try? FileManager.default.removeItem(at: h.dir) }
+        let share = incoming(cover: false)
+        api.receivedSharesResult = .success([share])
+        await h.engine.refreshReceivedShares()
+
+        let send = Task { await h.engine.sendShareToSpotify(share.id) }
+        await tagger.waitUntilPaused()
+        await h.engine.signOut()        // the account changes while the file is being tagged
+        tagger.resume()
+        await send.value
+
+        #expect(api.claimedShareIds.isEmpty, "no claim for a session that ended")
+        #expect(h.engine.status.receivedShares.isEmpty)
+        let afterImport = try h.library.all().count
+        #expect(afterImport == 1, "the release was committed")
+        #expect(h.defaults.stringArray(forKey: importedKey("user-a")) == [share.id])
+        #expect(h.defaults.stringArray(forKey: unclaimedKey("user-a")) == [share.id])
+
+        api.verifyResult = .success(SyncVerifyResult(token: "t2", userId: "user-a", email: "a@example.com", deviceId: "d2", deviceName: "Phone"))
+        try await h.engine.verify(email: "a@example.com", code: "123456")
+
+        #expect(!h.engine.status.receivedShares.contains { $0.id == share.id }, "not offered again")
+        #expect(api.claimedShareIds == [share.id], "the owed claim is retried")
+        let total = try h.library.all().count
+        #expect(total == 1, "exactly one release")
     }
 
     @Test func deletingTheAccountClearsThemToo() async throws {
@@ -941,5 +972,28 @@ struct FriendTrayAccessibilityTests {
         let shown = ShareEmail.breakable(email)
         #expect(shown.replacingOccurrences(of: "\u{200B}", with: "") == email)
         #expect(shown.contains("@\u{200B}sub.\u{200B}example.\u{200B}org"))
+    }
+}
+
+/// A tag writer that stops inside `write` until the test lets it go.
+final class PausableTagWriter: TagWriter, @unchecked Sendable {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var paused = false
+
+    func write(_ tags: TagSet, cover: Data?, to url: URL) async throws {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            self.paused = true
+        }
+    }
+
+    func waitUntilPaused() async {
+        while !paused { await Task.yield() }
+    }
+
+    func resume() {
+        paused = false
+        continuation?.resume()
+        continuation = nil
     }
 }

@@ -1250,6 +1250,14 @@ final class SyncEngine: ReleaseSyncHook {
         return Set(defaults.stringArray(forKey: key) ?? [])
     }
 
+    /// Edits the persisted set under an explicit scope (the one captured when a request began).
+    private func updateIdSet(_ base: String, scope: String, _ change: (inout Set<String>) -> Void) {
+        guard let key = scopedKey(base, scope: scope) else { return }
+        var set = Set(defaults.stringArray(forKey: key) ?? [])
+        change(&set)
+        defaults.set(set.sorted(), forKey: key)
+    }
+
     private func setIdSet(_ base: String, _ value: Set<String>) {
         guard let key = scopedKey(base, scope: shareScope) else { return }
         defaults.set(value.sorted(), forKey: key)
@@ -1372,7 +1380,7 @@ final class SyncEngine: ReleaseSyncHook {
     /// records nothing for the new account.
     func sendShareToSpotify(_ id: String) async {
         guard let share = status.receivedShares.first(where: { $0.id == id }), !reservedShareIds.contains(id),
-              let session = shareSession else { return }
+              let session = shareSession, let scope = shareScope else { return }
         reservedShareIds.insert(id)
         status.acceptingShareIds.insert(id)
         defer {
@@ -1403,14 +1411,17 @@ final class SyncEngine: ReleaseSyncHook {
             status.lastError = error.localizedDescription
             return
         }
+        // The release is in the library now. Remember it under the account and host this import started
+        // for, even if the session has changed since, so signing back in does not offer the share again.
+        updateIdSet(Self.importedSharesKey, scope: scope) { $0.insert(id) }
+        updateIdSet(Self.unclaimedImportedSharesKey, scope: scope) { $0.insert(id) }
+        // A changed session gets no UI update and no claim; the owed claim is retried at the next sign-in.
         guard shareSession == session else { return }
-        importedShareIds.insert(id)
-        unclaimedImportedShareIds.insert(id)
         status.receivedShares.removeAll { $0.id == id }
         status.failedShareIds.remove(id)
         do {
             _ = try await api.claimShare(id)
-            if shareSession == session { unclaimedImportedShareIds.remove(id) }
+            if shareSession == session { updateIdSet(Self.unclaimedImportedSharesKey, scope: scope) { $0.remove(id) } }
         } catch {
             // Imported, so the row stays hidden; the next reconcile claims it.
         }
