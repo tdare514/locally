@@ -49,6 +49,7 @@ enum DevicesTrayRun: Hashable { case addAll, tryAllAgain }
 enum DevicesTrayFocus: Hashable {
     case send(String)
     case retry(String)
+    case dismiss(String)
     case sectionAction(DevicesTrayRun)
     case heading
 }
@@ -58,10 +59,13 @@ enum DevicesTrayFocus: Hashable {
 struct DevicesTraySections: Equatable {
     let ready: [DevicesTrayRow]
     let failed: [DevicesTrayRow]
+    /// "From your friends" rows (#183), after the two sections above.
+    let friends: [DevicesTrayRow]
 
-    init(rows: [DevicesTrayRow]) {
+    init(rows: [DevicesTrayRow], friends: [DevicesTrayRow] = []) {
         ready = rows.filter { !$0.inFailedSection }
         failed = rows.filter(\.inFailedSection)
+        self.friends = friends
     }
 
     /// The rows "Add all" would take now: ready and not being sent.
@@ -74,14 +78,14 @@ struct DevicesTraySections: Equatable {
     /// "Try all again" shows whenever the second section does.
     var showsTryAllAgain: Bool { !failed.isEmpty }
 
-    var orderedIDs: [String] { (ready + failed).map(\.id) }
+    var orderedIDs: [String] { (ready + failed + friends).map(\.id) }
 
     /// Where focus goes when the row `id` leaves while focus was on its own control: the next row's
     /// control, else the previous row's, else a section's action, else the tray heading. Only
     /// enabled controls count: a row being sent (or reserved) and a disabled action are skipped.
     static func focusAfterLeaving(_ id: String, before: DevicesTraySections, after: DevicesTraySections, runs: Set<DevicesTrayRun>) -> DevicesTrayFocus {
         let order = before.orderedIDs
-        let enabled = Set((after.ready + after.failed).filter { $0.state != .sending }.map(\.id))
+        let enabled = Set((after.ready + after.failed + after.friends).filter { $0.state != .sending }.map(\.id))
         if let index = order.firstIndex(of: id) {
             if let next = order[(index + 1)...].first(where: { enabled.contains($0) }) { return .send(next) }
             if let previous = order[..<index].last(where: { enabled.contains($0) }) { return .send(previous) }
@@ -235,6 +239,8 @@ struct DevicesTrayPanel: View {
     let onSend: (String) -> Void
     var onSendFriend: (String) -> Void = { _ in }
     var onDismissFriend: (String) -> Void = { _ in }
+    /// The downloaded covers of friends' shares, by share id.
+    var friendCovers: [String: UIImage] = [:]
     var onAddAll: () -> Void = {}
     var onTryAllAgain: () -> Void = {}
 
@@ -251,7 +257,7 @@ struct DevicesTrayPanel: View {
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
-        let sections = DevicesTraySections(rows: rows)
+        let sections = DevicesTraySections(rows: rows, friends: friendRows)
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 // An empty section hides, with its heading.
@@ -309,8 +315,8 @@ struct DevicesTrayPanel: View {
         .animation(reduceMotion ? nil : DevicesTrayMotion.collapse, value: rows.map(\.id) + friendRows.map(\.id))
         .accessibilityElement(children: .contain)
         .onAppear { previousSections = sections }
-        .onChange(of: rows.map(\.id)) { _, _ in
-            let after = DevicesTraySections(rows: rows)
+        .onChange(of: rows.map(\.id) + friendRows.map(\.id)) { _, _ in
+            let after = DevicesTraySections(rows: rows, friends: friendRows)
             defer { previousSections = after }
             // Focus moves only when it was on the leaving row's own control (design: #296).
             guard let leaving = focusedRowWhenUsed, let before = previousSections,
@@ -321,7 +327,7 @@ struct DevicesTrayPanel: View {
         }
         .onChange(of: focus) { _, new in
             // Focus went somewhere else: a later departure is not ours to follow.
-            guard let used = focusedRowWhenUsed, new != .send(used), new != .retry(used) else { return }
+            guard let used = focusedRowWhenUsed, new != .send(used), new != .retry(used), new != .dismiss(used) else { return }
             if new != nil { focusedRowWhenUsed = nil }
         }
     }
@@ -361,9 +367,10 @@ struct DevicesTrayPanel: View {
             ForEach(friendRows) { row in
                 DevicesTrayRowView(
                     row: row,
-                    onSend: { onSendFriend(row.id) },
-                    onRetry: { onSendFriend(row.id) },
-                    onDismiss: { onDismissFriend(row.id) },
+                    cover: friendCovers[row.id],
+                    onSend: { used(row.id, retry: false); onSendFriend(row.id) },
+                    onRetry: { used(row.id, retry: true); onSendFriend(row.id) },
+                    onDismiss: { used(row.id, dismiss: true); onDismissFriend(row.id) },
                     focus: $focus
                 )
                 .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.94, anchor: .top)))
@@ -371,8 +378,8 @@ struct DevicesTrayPanel: View {
         }
     }
 
-    private func used(_ id: String, retry: Bool) {
-        focusedRowWhenUsed = (focus == .send(id) || focus == .retry(id)) ? id : nil
+    private func used(_ id: String, retry: Bool = false, dismiss: Bool = false) {
+        focusedRowWhenUsed = (focus == .send(id) || focus == .retry(id) || focus == .dismiss(id)) ? id : nil
     }
 
     @ViewBuilder
@@ -491,38 +498,60 @@ struct DevicesTrayRowView: View {
         self.focus = focus
     }
 
+    private var hasControls: Bool { row.showsRetry || onDismiss != nil }
+    /// At the accessibility sizes the controls go under the text, so the text has the row's width.
+    private var stacksControls: Bool { dynamicTypeSize.isAccessibilitySize && hasControls }
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             sleeve
-            VStack(alignment: .leading, spacing: 2) {
-                Text(row.title)
-                    .font(.system(size: titleSize, weight: .semibold))
-                    .foregroundStyle(Theme.primaryText)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                    .truncationMode(.tail)
-                Text("\(row.artist) · \(Copy.Sync.trackCount(row.trackCount))")
-                    .font(.system(size: detailSize))
-                    .foregroundStyle(Theme.secondaryText)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                    .truncationMode(.tail)
-                Text(row.originLine)
-                    .font(.system(size: labelSize))
-                    .foregroundStyle(Theme.textDim)
-                    // One line, the middle cut; VoiceOver still reads the whole address.
-                    .lineLimit(row.isFriend ? 1 : nil)
-                    .truncationMode(.middle)
-                    .accessibilityLabel(row.originLine)
+            if stacksControls {
+                VStack(alignment: .leading, spacing: 4) {
+                    texts
+                    HStack(spacing: 4) {
+                        if row.showsRetry { retryButton }
+                        if let onDismiss { dismissButton(onDismiss) }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                texts
+                if row.showsRetry { retryButton }
+                if let onDismiss { dismissButton(onDismiss) }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .combine)
-            .accessibilityHint(row.showsRetry ? Copy.Sync.failedHint : "")
-            if row.showsRetry { retryButton }
-            if let onDismiss { dismissButton(onDismiss) }
         }
     }
 
+    private var texts: some View {
+        let full = dynamicTypeSize.isAccessibilitySize
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(row.title)
+                .font(.system(size: titleSize, weight: .semibold))
+                .foregroundStyle(Theme.primaryText)
+                // At the accessibility sizes the title wraps in full.
+                .lineLimit(full ? nil : 1)
+                .truncationMode(.tail)
+            Text("\(row.artist) · \(Copy.Sync.trackCount(row.trackCount))")
+                .font(.system(size: detailSize))
+                .foregroundStyle(Theme.secondaryText)
+                .lineLimit(full ? nil : 1)
+                .truncationMode(.tail)
+            // A friend's address: one line with the middle cut at default sizes; in full at the
+            // accessibility sizes, breaking only after "@" and "." (display only).
+            Text(row.isFriend && full ? ShareEmail.breakable(row.originLine) : row.originLine)
+                .font(.system(size: labelSize))
+                .foregroundStyle(Theme.textDim)
+                .lineLimit(row.isFriend && !full ? 1 : nil)
+                .truncationMode(.middle)
+                .accessibilityLabel(row.originLine)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(row.showsRetry ? Copy.Sync.failedHint : "")
+    }
+
     @ViewBuilder private var sleeve: some View {
-        let sleeve = DevicesSleeve(state: row.state, cover: cover, title: row.title, onSend: onSend)
+        let sleeve = DevicesSleeve(state: row.state, cover: cover, title: row.title, accessibilityName: row.friendOrigin.map { Copy.Share.sendFromFriend(title: row.title, email: $0) }, onSend: onSend)
         if let focus { sleeve.accessibilityFocused(focus, equals: .send(row.id)) } else { sleeve }
     }
 
@@ -537,9 +566,9 @@ struct DevicesTrayRowView: View {
         .buttonStyle(.plain)
         .disabled(row.state == .sending)
         .opacity(row.state == .sending ? 0.4 : 1)
-        .accessibilityLabel(Copy.Share.dismissTitle(row.title))
-        .padding(.top, -4)
-        .padding(.trailing, -8)
+        .accessibilityLabel(Copy.Share.dismissFromFriend(title: row.title, email: row.friendOrigin ?? ""))
+        .modifier(EndInset(applies: !stacksControls))
+        .modifier(DismissFocus(focus: focus, id: row.id))
     }
 
     /// A failed row's own retry: a small icon button at its end (a send there is one download).
@@ -554,10 +583,9 @@ struct DevicesTrayRowView: View {
         .buttonStyle(.plain)
         .disabled(row.state == .sending)
         .opacity(row.state == .sending ? 0.4 : 1)
-        .accessibilityLabel(Copy.Sync.tryTitleAgain(row.title))
+        .accessibilityLabel(row.friendOrigin.map { Copy.Share.tryAgainFromFriend(title: row.title, email: $0) } ?? Copy.Sync.tryTitleAgain(row.title))
         // 44 pt target, but it sits flush with the row's top and trailing edge.
-        .padding(.top, -4)
-        .padding(.trailing, -8)
+        .modifier(EndInset(applies: !stacksControls))
         if let focus { button.accessibilityFocused(focus, equals: .retry(row.id)) } else { button }
     }
 }
@@ -572,6 +600,8 @@ struct DevicesSleeve: View {
     let state: DevicesTrayRowState
     let cover: UIImage?
     let title: String
+    /// The VoiceOver label when it is not just "Send <title> to Spotify" (a friend's row names the sender).
+    var accessibilityName: String?
     let onSend: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -587,7 +617,7 @@ struct DevicesSleeve: View {
                 art(pressed: pressed, plus: state != .sending, spinner: state == .sending)
             }, reduceMotion: reduceMotion))
             .disabled(state == .sending)
-            .accessibilityLabel(Copy.Sync.sendTitleToSpotify(title))
+            .accessibilityLabel(accessibilityName ?? Copy.Sync.sendTitleToSpotify(title))
             .frame(width: width, height: Self.size, alignment: .leading)
     }
 
@@ -630,5 +660,22 @@ struct DevicesSleeve: View {
                 .animation(reduceMotion ? nil : DevicesTrayMotion.open, value: configuration.isPressed)
                 .contentShape(Rectangle())
         }
+    }
+}
+
+/// The tight inset a trailing control has when it sits at the end of the row's first line.
+private struct EndInset: ViewModifier {
+    let applies: Bool
+    func body(content: Content) -> some View {
+        if applies { content.padding(.top, -4).padding(.trailing, -8) } else { content }
+    }
+}
+
+/// Binds a friend row's Dismiss to the tray's VoiceOver focus, when the panel supplies one.
+private struct DismissFocus: ViewModifier {
+    let focus: AccessibilityFocusState<DevicesTrayFocus?>.Binding?
+    let id: String
+    func body(content: Content) -> some View {
+        if let focus { content.accessibilityFocused(focus, equals: .dismiss(id)) } else { content }
     }
 }

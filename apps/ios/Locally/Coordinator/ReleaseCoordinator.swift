@@ -307,7 +307,8 @@ final class ReleaseCoordinator {
             tracks: tracks,
             createdAt: existing.createdAt,
             updatedAt: Date(),
-            uploadedFileNames: uploadedFileNames
+            uploadedFileNames: uploadedFileNames,
+            sharedFrom: existing.sharedFrom
         )
         // Only a change touches the stored year, so an untouched legacy year is kept as it was.
         if let change = changes.date { updated.date = change }
@@ -471,7 +472,8 @@ final class ReleaseCoordinator {
             createdAt: existing.createdAt,
             updatedAt: record.updatedAt,
             syncedUpdatedAt: record.updatedAt,
-            uploadedFileNames: uploadedFileNames
+            uploadedFileNames: uploadedFileNames,
+            sharedFrom: record.sharedFrom ?? existing.sharedFrom
         )
 
         do {
@@ -580,7 +582,8 @@ final class ReleaseCoordinator {
             createdAt: record.createdAt,
             updatedAt: record.updatedAt,
             syncedUpdatedAt: record.updatedAt,
-            uploadedFileNames: uploadedFileNames
+            uploadedFileNames: uploadedFileNames,
+            sharedFrom: record.sharedFrom
         )
 
         do {
@@ -599,7 +602,7 @@ final class ReleaseCoordinator {
     /// syncs like any release. A partial share (`isPartial`, the sender chose some tracks) becomes a
     /// release of just those tracks, numbered 1...n in snapshot order, with a disc kept only if the
     /// tracks left still span more than one; title and kind stay as the snapshot says.
-    func importShared(_ snapshot: ShareSnapshot, dir: URL, isPartial: Bool = false) async throws -> Release {
+    func importShared(_ snapshot: ShareSnapshot, dir: URL, isPartial: Bool = false, sharedFrom: SharedFrom? = nil) async throws -> Release {
         guard let kind = ReleaseKind(rawValue: snapshot.kind) else {
             throw LocallyError.libraryFailed("That release's kind wasn't recognised.")
         }
@@ -685,7 +688,8 @@ final class ReleaseCoordinator {
             genre: snapshot.genre,
             coverPath: coverPath,
             folderPath: movedURLs.first?.deletingLastPathComponent().path ?? "",
-            tracks: tracks
+            tracks: tracks,
+            sharedFrom: sharedFrom
         )
         release.date = date
         do {

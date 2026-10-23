@@ -131,7 +131,9 @@ struct ReleaseDetailView: View {
                 }
             } else if !model.isAdopted {
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button(Copy.Share.share) { shareTarget = ShareTarget(trackId: nil, subject: model.title) }
+                    if model.canShare {
+                        Button(Copy.Share.share) { shareTarget = ShareTarget(trackId: nil, subject: model.title) }
+                    }
                     Button(Copy.Release.edit) { model.beginEditing() }
                 }
             }
@@ -159,7 +161,8 @@ struct ReleaseDetailView: View {
                 ShareSheet(
                     model: ShareSheetModel(
                         releaseId: model.releaseId, subject: target.subject, trackIds: target.trackId.map { [$0] },
-                        isSignedIn: model.isSignedInForSharing, api: container.syncApi, groupStore: UserDefaultsShareGroupStore()),
+                        isSignedIn: model.isSignedInForSharing, api: container.syncApi, groupStore: UserDefaultsShareGroupStore(),
+                        reshareShareId: model.sharedFrom?.shareId),
                     coverImage: coverImage
                 ) { shareTarget = nil }
             }
@@ -314,6 +317,13 @@ struct ReleaseDetailView: View {
     private func viewTracks(_ model: ReleaseDetailViewModel) -> some View {
         let headings = model.discHeadings
         let last = model.trackRows.count - 1
+        if model.isShareBlocked {
+            Text(Copy.Share.reshareNotAllowed)
+                .themeFont(.rowSubtitle)
+                .foregroundStyle(Theme.secondaryText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .clearRow(top: 0, bottom: 12)
+        }
         Text(Copy.Import.tracks)
             .font(.system(size: tracksHeadingSize, weight: .bold))
             .foregroundStyle(Theme.primaryText)
@@ -341,14 +351,14 @@ struct ReleaseDetailView: View {
                 if index != last { Rectangle().fill(Theme.Track.separatorTint).frame(height: 1) }
             }
             .contextMenu {
-                if model.canShare {
+                if model.canShareTracks {
                     Button(Copy.Share.shareThisSong, systemImage: "square.and.arrow.up") {
                         shareTarget = ShareTarget(trackId: row.id, subject: model.kind == .single ? model.title : row.title)
                     }
                 }
             }
             .accessibilityActions {
-                if model.canShare {
+                if model.canShareTracks {
                     Button(Copy.Share.shareThisSong) {
                         shareTarget = ShareTarget(trackId: row.id, subject: model.kind == .single ? model.title : row.title)
                     }

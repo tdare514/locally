@@ -76,6 +76,32 @@ struct ShareSnapshot: Codable, Hashable {
     var date: ReleaseDate? { ReleaseDate.stored(year: year, releaseDate: releaseDate) }
 }
 
+/// Where a release came from when it was imported from a received share (#328): the share and whether
+/// that share allows resharing. On a synced record the key is omitted when absent, never null.
+struct SharedFrom: Codable, Hashable {
+    /// A lowercase UUID.
+    var shareId: String
+    var allowReshare: Bool
+
+    init(shareId: String, allowReshare: Bool) {
+        self.shareId = shareId.lowercased()
+        self.allowReshare = allowReshare
+    }
+
+    /// Refuses any other shape (a missing key, a non-UUID or upper-case `shareId`, a non-boolean).
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let id = try container.decode(String.self, forKey: .shareId)
+        guard UUID(uuidString: id) != nil, id == id.lowercased() else {
+            throw DecodingError.dataCorruptedError(forKey: .shareId, in: container, debugDescription: "shareId must be a lowercase UUID")
+        }
+        shareId = id
+        allowReshare = try container.decode(Bool.self, forKey: .allowReshare)
+    }
+
+    private enum CodingKeys: String, CodingKey { case shareId, allowReshare }
+}
+
 enum ShareVisibility: String, Codable, Hashable {
     case `private`
     case `public`

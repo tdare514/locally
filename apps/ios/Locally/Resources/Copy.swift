@@ -595,6 +595,10 @@ enum Copy {
         // Errors
         static let errorLinksOff = "Public links are switched off right now."
         static let errorNotSynced = "Locally hasn't synced this release yet. Try again in a moment."
+        static let errorShareGone = "This share isn't available any more."
+        /// Shown in place of Share on a release whose sender didn't allow sharing it on (#328), and for a
+        /// 403 `use_reshare` or `reshare_not_allowed`.
+        static let reshareNotAllowed = "They didn't allow sharing this on"
         static let errorAdopted = "Releases added from your Mac's Spotify folder can't be shared."
 
         // From your friends (the Library tray)
@@ -603,7 +607,9 @@ enum Copy {
         static func trayButtonLabel(count: Int) -> String { "From your friends, \(count) waiting" }
         static func trayButtonLabelBoth(count: Int) -> String { "From your devices and friends, \(count) waiting" }
         static let dismiss = "Dismiss"
-        static func dismissTitle(_ title: String) -> String { "Dismiss \(title)" }
+        static func sendFromFriend(title: String, email: String) -> String { "Send \(title) from \(email) to Spotify" }
+        static func dismissFromFriend(title: String, email: String) -> String { "Dismiss \(title) from \(email)" }
+        static func tryAgainFromFriend(title: String, email: String) -> String { "Try \(title) from \(email) again" }
 
         // Shared by you (Settings)
         static let sharedByYou = "Shared by you"

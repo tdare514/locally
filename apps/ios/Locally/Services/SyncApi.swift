@@ -210,6 +210,9 @@ protocol SyncApi {
 
     /// `POST /v1/shares`. `share` is nil when a private share reached nobody.
     func createShare(_ request: ShareCreateRequest) async throws -> ShareCreateResult
+    /// `POST /v1/shares/:id/reshare`: shares a release that came from share `id` (#328). A 403 means the
+    /// sender didn't allow it.
+    func reshareShare(_ id: String, _ request: ShareCreateRequest) async throws -> ShareCreateResult
     /// `GET /v1/shares?role=sent`, every page.
     func sentShares() async throws -> [SentShare]
     /// `GET /v1/shares?role=received`, every page (live shares, claimed ones included).
@@ -463,18 +466,40 @@ final class HttpSyncApi: SyncApi {
     // MARK: - Shares
 
     func createShare(_ request: ShareCreateRequest) async throws -> ShareCreateResult {
-        let data = try await send(
-            path: "/v1/shares",
-            method: "POST",
-            body: request.json,
-            statusErrors: [
-                403: .network(Copy.Share.errorLinksOff),
-                404: .network(Copy.Share.errorNotSynced),
-                409: .network(Copy.Share.errorAdopted),
-                429: .rateLimited,
-            ]
-        )
-        return try decode(ShareCreateResult.self, from: data)
+        do {
+            let data = try await send(
+                path: "/v1/shares", method: "POST", body: request.json,
+                statusErrors: [404: .network(Copy.Share.errorNotSynced), 409: .network(Copy.Share.errorAdopted), 429: .rateLimited]
+            )
+            return try decode(ShareCreateResult.self, from: data)
+        } catch SyncApiError.network(let message) {
+            throw SyncApiError.network(Self.shareErrorText(message))
+        }
+    }
+
+    func reshareShare(_ id: String, _ request: ShareCreateRequest) async throws -> ShareCreateResult {
+        var body = request.json
+        body["releaseId"] = nil
+        body["trackIds"] = nil
+        do {
+            let data = try await send(
+                path: "/v1/shares/\(id)/reshare", method: "POST", body: body,
+                statusErrors: [404: .network(Copy.Share.errorShareGone), 429: .rateLimited]
+            )
+            return try decode(ShareCreateResult.self, from: data)
+        } catch SyncApiError.network(let message) {
+            throw SyncApiError.network(Self.shareErrorText(message))
+        }
+    }
+
+    /// The server's 403 codes in words: `use_reshare` and `reshare_not_allowed` both mean the sender didn't
+    /// allow sharing this on; `public_links_disabled` means links are off.
+    static func shareErrorText(_ message: String) -> String {
+        switch message {
+        case "use_reshare", "reshare_not_allowed": Copy.Share.reshareNotAllowed
+        case "public_links_disabled": Copy.Share.errorLinksOff
+        default: message
+        }
     }
 
     func sentShares() async throws -> [SentShare] { try await sharePages(role: "sent") }

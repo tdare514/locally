@@ -109,6 +109,9 @@ final class ShareSheetModel {
     let subject: String
     let trackIds: [UUID]?
     let isSignedIn: Bool
+    /// Set for a release imported from a share that allows resharing (#328): Share then goes through
+    /// `POST /v1/shares/:id/reshare`, which shares the whole release.
+    let reshareShareId: String?
 
     private let api: SyncApi
     private let groupStore: ShareGroupStore
@@ -132,7 +135,8 @@ final class ShareSheetModel {
     var outcome: ShareOutcome?
 
     init(releaseId: UUID, subject: String, trackIds: [UUID]? = nil, isSignedIn: Bool, api: SyncApi, groupStore: ShareGroupStore,
-         publicSharesEnabled: Bool = false, loadsOptions: Bool = true) {
+         publicSharesEnabled: Bool = false, loadsOptions: Bool = true, reshareShareId: String? = nil) {
+        self.reshareShareId = reshareShareId
         self.releaseId = releaseId
         self.subject = subject
         self.trackIds = trackIds
@@ -246,7 +250,11 @@ final class ShareSheetModel {
             expiresInDays: expiry.days
         )
         do {
-            outcome = ShareOutcome(try await api.createShare(request))
+            if let reshareShareId {
+                outcome = ShareOutcome(try await api.reshareShare(reshareShareId, request))
+            } else {
+                outcome = ShareOutcome(try await api.createShare(request))
+            }
         } catch {
             errorMessage = error.localizedDescription
         }

@@ -318,6 +318,7 @@ final class InMemorySyncAccountStore: SyncAccountStore {
     private(set) var deviceId: String?
     var lastVersion: Int = 0
     var deviceName: String?
+    var userId: String?
     var lastMissingFilesCheckAt: Date?
 
     func save(email: String, deviceToken: String, deviceId: String) {
@@ -332,6 +333,7 @@ final class InMemorySyncAccountStore: SyncAccountStore {
         deviceId = nil
         lastVersion = 0
         deviceName = nil
+        userId = nil
         lastMissingFilesCheckAt = nil
     }
 }
@@ -643,8 +645,23 @@ final class FakeSyncApi: SyncApi {
         return try createShareResult.get()
     }
 
-    func sentShares() async throws -> [SentShare] { try sentSharesResult.get() }
-    func receivedShares() async throws -> [ReceivedShare] { try receivedSharesResult.get() }
+    private(set) var reshareCalls: [(shareId: String, request: ShareCreateRequest)] = []
+    func reshareShare(_ id: String, _ request: ShareCreateRequest) async throws -> ShareCreateResult {
+        reshareCalls.append((id, request))
+        return try createShareResult.get()
+    }
+
+    /// Awaited inside the two list calls before they answer, so a test can change the account mid-request.
+    var sentSharesGate: (() async -> Void)?
+    var receivedSharesGate: (() async -> Void)?
+    func sentShares() async throws -> [SentShare] {
+        await sentSharesGate?()
+        return try sentSharesResult.get()
+    }
+    func receivedShares() async throws -> [ReceivedShare] {
+        await receivedSharesGate?()
+        return try receivedSharesResult.get()
+    }
 
     func revokeShare(_ id: String) async throws { revokedShareIds.append(id) }
 

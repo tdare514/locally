@@ -288,8 +288,16 @@ final class ReleaseDetailViewModel {
     private(set) var liveSharePeople = 0
     private(set) var hasLiveLinkShare = false
 
-    /// Sharing needs an account, and an adopted release's audio is not on the server.
-    var canShare: Bool { !isAdopted }
+    /// Where this release was imported from, when it came from a received share (#328).
+    var sharedFrom: SharedFrom? { release.sharedFrom }
+
+    /// Share is offered for a release of the user's own, and for one imported from a share that allows
+    /// sharing it on (whole release only). An adopted release's audio is not on the server.
+    var canShare: Bool { !isAdopted && sharedFrom?.allowReshare != false }
+    /// One song can be shared only from a release that is the user's own.
+    var canShareTracks: Bool { !isAdopted && sharedFrom == nil }
+    /// A release whose sender didn't allow sharing it on: Share is replaced by a quiet line.
+    var isShareBlocked: Bool { !isAdopted && sharedFrom?.allowReshare == false }
     var isSignedInForSharing: Bool { isSignedIn() }
 
     func loadShareImpact(now: Date = Date()) async {

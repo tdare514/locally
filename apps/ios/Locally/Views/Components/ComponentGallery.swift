@@ -31,7 +31,7 @@ struct ComponentGallery: View {
         "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save",
         // #183: sharing. The share sheet, its Link option and result, the friends tray, "Shared by you".
         "share-sheet", "share-sheet-link", "share-sheet-result", "share-sheet-signed-out", "share-sheet-large-text",
-        "devices-tray-friends", "devices-tray-friends-large-text", "shared-by-you", "shared-by-you-large-text"]
+        "devices-tray-friends", "devices-tray-friends-large-text", "shared-by-you", "shared-by-you-large-text", "release-share-blocked"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -50,7 +50,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || name.hasPrefix("share") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save"].contains(name)
+        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || name.hasPrefix("share") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save", "release-share-blocked"].contains(name)
     }
 
     var body: some View {
@@ -256,7 +256,9 @@ struct ComponentGallery: View {
         case "devices-tray-friends":
             IconsGallery.devices(pending: 2, open: true, friends: 3)
         case "devices-tray-friends-large-text":
-            IconsGallery.devices(pending: 1, open: true, friends: 2).dynamicTypeSize(.accessibility3)
+            IconsGallery.devices(pending: 0, open: true, friends: 3).dynamicTypeSize(.accessibility3)
+        case "release-share-blocked":
+            IconsGallery.release(sharedFrom: SharedFrom(shareId: UUID().uuidString.lowercased(), allowReshare: false))
         case "shared-by-you":
             ShareGallery.sharedByYou()
         case "shared-by-you-large-text":
@@ -553,6 +555,11 @@ enum IconsGallery {
         status.acceptingIds = Set(shown.enumerated().filter { $0.element.3 == "sending" }.map { "gallery-\($0.offset)" })
         status.lastError = "The network connection was lost."
         status.receivedShares = Array(ShareGallery.received.prefix(friends))
+        // Covers as the engine would have downloaded them (once each).
+        let sampleCovers = StatsGallery.releases.compactMap { StatsGallery.covers[$0.id] }
+        for (index, share) in status.receivedShares.enumerated() where !sampleCovers.isEmpty {
+            status.shareCoverData[share.id] = sampleCovers[index % sampleCovers.count]
+        }
         status.failedShareIds = friends > 2 ? [ShareGallery.received[2].id] : []
         return environment(IconsLibrary(openTray: open), container)
     }
@@ -600,10 +607,11 @@ enum IconsGallery {
     }
 
     /// An album's release page, with its cover (Edit) and the playlist guide (Copy).
-    static func release(noCover: Bool = false, editing: Bool = false) -> some View {
+    static func release(noCover: Bool = false, editing: Bool = false, sharedFrom: SharedFrom? = nil) -> some View {
         let container = container()
         var release = StatsGallery.releases[0]
         release.year = "2025"
+        release.sharedFrom = sharedFrom
         if noCover { release.coverPath = nil }
         return environment(NavigationStack { ReleaseDetailView(release: release, startsEditing: editing) }, container)
     }

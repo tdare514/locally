@@ -202,6 +202,9 @@ struct SyncRecord: Codable, Hashable {
     var version: Int?
     /// `.adopted` or absent. A value this build doesn't know decodes as `nil`.
     var source: ReleaseSource?
+    /// Set when the release was imported from a received share (#328). Omitted from the JSON when `nil`,
+    /// never written as null; a value of any other shape reads as absent.
+    var sharedFrom: SharedFrom?
 
     init(
         syncVersion: Int = 2,
@@ -221,7 +224,8 @@ struct SyncRecord: Codable, Hashable {
         updatedAt: Date,
         deleted: Bool = false,
         version: Int? = nil,
-        source: ReleaseSource? = nil
+        source: ReleaseSource? = nil,
+        sharedFrom: SharedFrom? = nil
     ) {
         self.syncVersion = syncVersion
         self.id = id
@@ -241,11 +245,12 @@ struct SyncRecord: Codable, Hashable {
         self.deleted = deleted
         self.version = version
         self.source = source
+        self.sharedFrom = sharedFrom
     }
 
     private enum CodingKeys: String, CodingKey {
         case syncVersion, id, kind, title, artist, year, releaseDate, genre, cover, coverHash, tracks
-        case origin, originDevice, createdAt, updatedAt, deleted, version, source
+        case origin, originDevice, createdAt, updatedAt, deleted, version, source, sharedFrom
     }
 
     init(from decoder: Decoder) throws {
@@ -270,6 +275,8 @@ struct SyncRecord: Codable, Hashable {
         version = try container.decodeIfPresent(Int.self, forKey: .version)
         // Unknown values (or a non-string) read as absent, never a failure.
         source = (try? container.decodeIfPresent(String.self, forKey: .source)).flatMap(ReleaseSource.init(rawValue:))
+        // A bad shape is dropped; the rest of the record is kept.
+        sharedFrom = (try? container.decodeIfPresent(SharedFrom.self, forKey: .sharedFrom)) ?? nil
 
         for (index, track) in tracks.enumerated()
         where !SyncFileName.hasSupportedExtension(track.file) {
@@ -309,6 +316,7 @@ struct SyncRecord: Codable, Hashable {
         try container.encode(deleted, forKey: .deleted)
         try container.encodeIfPresent(version, forKey: .version)
         try container.encodeIfPresent(source?.rawValue, forKey: .source)
+        try container.encodeIfPresent(sharedFrom, forKey: .sharedFrom)
     }
 }
 
@@ -373,7 +381,8 @@ extension Release {
             originDevice: originDevice,
             createdAt: createdAt,
             updatedAt: updatedAt,
-            deleted: false
+            deleted: false,
+            sharedFrom: sharedFrom
         )
     }
 }
@@ -415,7 +424,8 @@ extension SyncRecord {
             },
             createdAt: createdAt,
             updatedAt: updatedAt,
-            syncedUpdatedAt: updatedAt
+            syncedUpdatedAt: updatedAt,
+            sharedFrom: sharedFrom
         )
     }
 }

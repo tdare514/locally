@@ -25,21 +25,32 @@ enum SentShareStatus: Equatable {
 final class SharedByYouModel {
     private let api: SyncApi
     private let now: () -> Date
+    /// Who the list belongs to; a completion that finds this changed is dropped.
+    private let scope: () -> String?
 
     private(set) var shares: [SentShare] = []
     private(set) var revoking: Set<String> = []
     private(set) var errorMessage: String?
 
-    init(api: SyncApi, shares: [SentShare] = [], now: @escaping () -> Date = { Date() }) {
+    init(api: SyncApi, shares: [SentShare] = [], scope: @escaping () -> String? = { nil }, now: @escaping () -> Date = { Date() }) {
         self.api = api
         self.shares = shares
+        self.scope = scope
         self.now = now
     }
 
     /// Replaces the list; a failed read keeps what was shown and says nothing (older API, offline).
     func load() async {
-        guard let sent = try? await api.sentShares() else { return }
+        let started = scope()
+        guard let sent = try? await api.sentShares(), scope() == started else { return }
         shares = sent
+    }
+
+    /// The account changed: nothing of the old one stays.
+    func reset() {
+        shares = []
+        revoking = []
+        errorMessage = nil
     }
 
     func status(of share: SentShare) -> SentShareStatus { SentShareStatus(share, now: now()) }
@@ -49,10 +60,13 @@ final class SharedByYouModel {
         revoking.insert(id)
         defer { revoking.remove(id) }
         errorMessage = nil
+        let started = scope()
         do {
             try await api.revokeShare(id)
+            guard scope() == started else { return }
             await load()
         } catch {
+            guard scope() == started else { return }
             errorMessage = error.localizedDescription
         }
     }
@@ -64,6 +78,7 @@ struct SharedByYouSection: View {
     @Environment(SyncStatus.self) private var syncStatus
     @State private var model: SharedByYouModel?
     @State private var pendingRevoke: SentShare?
+    @State private var modelScope: String?
 
     var body: some View {
         Group {
@@ -71,9 +86,20 @@ struct SharedByYouSection: View {
                 SharedByYouList(model: model, onRevoke: { pendingRevoke = $0 }, coverFor: coverImage)
             }
         }
-        .task(id: syncStatus.lastRunAt) {
-            guard syncStatus.signedIn, let container else { return }
-            if model == nil { model = SharedByYouModel(api: container.syncApi) }
+        .task(id: "\(syncStatus.signedIn)|\(syncStatus.email ?? "")|\(syncStatus.lastRunAt?.timeIntervalSince1970 ?? 0)") {
+            guard let container else { return }
+            let scope = container.syncEngine.currentShareScope
+            // A different account (or none): start from nothing.
+            if !syncStatus.signedIn || modelScope != scope {
+                model?.reset()
+                model = nil
+                pendingRevoke = nil
+            }
+            guard syncStatus.signedIn else { return }
+            if model == nil {
+                modelScope = scope
+                model = SharedByYouModel(api: container.syncApi, scope: { [weak container] in container?.syncEngine.currentShareScope })
+            }
             await model?.load()
         }
         .confirmationDialog(
@@ -161,6 +187,8 @@ struct SentShareRow: View {
                 }
                 .frame(width: 48, height: 48)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                // Revoked and expired shares dim only the artwork; the words stay readable.
+                .opacity(status.isLive ? 1 : 0.4)
                 .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(share.snapshot.title)
@@ -171,13 +199,13 @@ struct SentShareRow: View {
                         .font(Theme.ScaledFont.subheadline)
                         .foregroundStyle(Theme.secondaryText)
                     if share.hasLink && status.isLive {
-                        Text(Copy.Share.linkOnBadge)
+                        Label(Copy.Share.linkOnBadge, systemImage: "link")
                             .font(Theme.ScaledFont.subheadline)
-                            .foregroundStyle(Theme.Tint.accentText)
+                            .foregroundStyle(Theme.secondaryText)
                     }
                     Text(expiryText)
                         .font(Theme.ScaledFont.caption)
-                        .foregroundStyle(Theme.textHint)
+                        .foregroundStyle(Theme.secondaryText)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -198,15 +226,13 @@ struct SentShareRow: View {
             }
         }
         .padding(16)
-        // Revoked and expired shares are greyed.
-        .opacity(status.isLive ? 1 : 0.5)
     }
 
     private func recipientLine(_ recipient: ShareRecipient) -> some View {
         let added = recipient.claimedAt != nil
         let state = added ? Copy.Share.recipientAdded : Copy.Share.recipientNotYet
         let email = Text(recipient.email).foregroundStyle(Theme.primaryText)
-        let stateText = Text(state).foregroundStyle(added ? Theme.Tint.accentText : Theme.secondaryText)
+        let stateText = Text(Image(systemName: added ? "checkmark" : "clock")) + Text(" \(state)")
         return ViewThatFits(in: .horizontal) {
             HStack {
                 email.addressLineLimit()
@@ -219,6 +245,7 @@ struct SentShareRow: View {
             }
         }
         .font(Theme.ScaledFont.caption)
+        .foregroundStyle(Theme.secondaryText)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(recipient.email), \(state)")
     }

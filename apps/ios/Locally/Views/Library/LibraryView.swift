@@ -288,6 +288,9 @@ struct LibraryView: View {
     // MARK: From your devices (#269)
 
     /// One badge counts both sections: records from the owner's devices and friends' shares (#183).
+    /// The covers of friends' shares, decoded from the bytes the engine downloaded once.
+    private var friendCovers: [String: UIImage] { syncStatus.shareCoverData.compactMapValues { UIImage(data: $0) } }
+
     private var pendingCount: Int { syncStatus.pendingFromMac.count + syncStatus.receivedShares.count }
 
     /// The header's cloud; while the tray is open it is hidden (the layer draws the X) but still
@@ -373,6 +376,7 @@ struct LibraryView: View {
                         onDismissFriend: { id in
                             Task { await container?.syncEngine.dismissShare(id) }
                         },
+                        friendCovers: friendCovers,
                         onAddAll: { runTray(.addAll) },
                         onTryAllAgain: { runTray(.tryAllAgain) }
                     )
