@@ -89,6 +89,14 @@ export const releaseDateSchema = z
   .regex(/^\d{4}-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?$/, "Must be YYYY-MM or YYYY-MM-DD")
   .refine(isRealCalendarDate, "Must be a real calendar date");
 
+/** A release imported from a received share (#328): the share's id (lowercase UUID) and whether the sender allowed resharing. Exactly these two keys. */
+export const sharedFromSchema = z
+  .object({
+    shareId: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/, "Must be a lowercase UUID"),
+    allowReshare: z.boolean(),
+  })
+  .strict();
+
 const makeReleaseRecordSchema = (fileName: z.ZodType<string>) => z.object({
   /** 1: original record. 2: adds `coverHash`. Both are accepted so clients can update in any order. */
   syncVersion: z.union([z.literal(1), z.literal(2)]),
@@ -102,6 +110,8 @@ const makeReleaseRecordSchema = (fileName: z.ZodType<string>) => z.object({
     .nullable(),
   /** Absent when only the year is known; when present, `year` is its first four characters (#221). */
   releaseDate: releaseDateSchema.optional(),
+  /** Present when this release was imported from a received share (#328); absent otherwise, never null. */
+  sharedFrom: sharedFromSchema.optional(),
   genre: z.string().max(200).nullable(),
   cover: fileName.nullable(),
   /** Absent on `syncVersion` 1 records (no signal); `null` on a v2 record with no cover. */

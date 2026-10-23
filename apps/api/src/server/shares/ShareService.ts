@@ -145,6 +145,7 @@ export class ShareService {
     const [release] = await this.db.select().from(releases).where(eq(releases.id, input.releaseId));
     if (!release || release.userId !== owner.id || release.deleted) throw new NotFoundError("Release not found");
     if (release.record.source === "adopted") throw new ConflictError("adopted");
+    if (release.record.sharedFrom !== undefined) throw new ForbiddenError("use_reshare");
 
     let trackIds: string[] | null = null;
     if (input.trackIds) {
