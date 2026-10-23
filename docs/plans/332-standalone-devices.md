@@ -35,8 +35,9 @@
   - A device holding only some tracks reports them as partial.
 - **Where a device keeps the audio:**
   - **Mac:** the library folder (Locally's releases), or the adopted file paths (read-only).
-  - **iPhone:** the Spotify folder. Locally's releases sit at its top level as today. Adopted files stay where the user put them.
-    Files delivered by "Put it on this iPhone" go in `Spotify/From your Mac/<Artist>/<Album>/`, a folder Locally owns.
+  - **iPhone:** the Spotify folder. Everything Locally writes lives in its own folder, `Spotify/Locally/` (#335; the name
+    comes from one brand constant and may change). Its releases sit there. Files delivered by "Put it on this iPhone" go in
+    `Spotify/Locally/From your Mac/<Artist>/<Album>/`. Adopted files stay where the user put them.
 
 ## Contract (spec/sync.md, apps/api)
 
@@ -91,7 +92,7 @@
   whole seconds). Both apps run shared fixtures in `spec/fixtures/local-id/`.
 - **Scan:**
   - Inside `SpotifyFolder.withAccess`, enumerate the folder recursively.
-  - Skip files Locally already tracks (its own releases' paths) and Locally's `From your Mac/` folder (those are delivered copies, linked on arrival).
+  - Skip files Locally already tracks (its own releases' paths) and the whole `Locally/` folder: it holds Locally's own releases and delivered copies, which are linked on arrival.
   - Read tags with the existing ID3 and M4A readers.
   - Group exactly as the Mac does (#245 decision 4), one folder at a time.
   - Compute `localId`.
@@ -165,5 +166,5 @@
 - **API:** holdings replace and read-back, ignored foreign or tombstoned ids, the cross-user 404s, the transfer state
   machine with its sender and receiver checks, quota while stored, deletion after delivery, and the 7-day clean-up.
 - **iPhone:** the scan skips Locally's own paths, grouping matches the Mac's fixtures, adoption is read-only, a second-device
-  match links instead of duplicating, holdings are computed, and a delivered file lands in `From your Mac/` inside the folder.
+  match links instead of duplicating, holdings are computed, and a delivered file lands in `Locally/From your Mac/` inside the folder.
 - **Mac:** link-on-adopt, holdings, and a transfer upload read from adopted paths without writing to them.
