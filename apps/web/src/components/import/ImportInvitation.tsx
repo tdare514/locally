@@ -18,13 +18,13 @@ export default function ImportInvitation({
     >
       <h1 className="sr-only">Import</h1>
       <div className="imp-invite flex flex-col items-center gap-9">
-        {/* The default record: the disc on its own, black label, nothing printed yet. */}
+        {/* The default record: the disc on its own, accent label, nothing printed yet. */}
         <div
           aria-hidden
           className={`relative size-44 transition-opacity duration-300 ${over ? "opacity-100" : "opacity-70"}`}
         >
           <div className="record-face">
-            <div className="record-label record-label-bare" />
+            <div className="record-label record-label-bare record-label-invite" />
           </div>
           <div className="record-sheen" />
         </div>

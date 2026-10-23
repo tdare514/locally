@@ -394,6 +394,9 @@ enum Theme {
 
         /// `.imp-invite`: the bare disc, button and hint fade in and rise after the band.
         static let inviteDiscSize: CGFloat = 176
+        /// #330: the bare disc's accent label; `.record-label-invite` radial sheen (white 28 % at 35 % 30 %) and a dark edge.
+        static let inviteLabelSheen = 0.28
+        static let inviteLabelEdge = 0.35
         static let inviteRise: CGFloat = 6
         static let inviteFadeDuration: Double = 0.48
         static let inviteFadeDelay: Double = 0.28

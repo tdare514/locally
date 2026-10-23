@@ -222,6 +222,13 @@ body {
 .record-label-bare {
   box-shadow: 0 0 0 1px #1e1e1e;
 }
+/* #330: the Import invitation's bare record prints the accent blue, with a soft radial sheen.
+   The Stats fan's coverless records keep .record-label-bare alone and stay black. */
+.record-label-invite {
+  background-color: var(--accent);
+  background-image: radial-gradient(circle at 35% 30%, rgb(255 255 255 / 0.28), transparent 70%);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35);
+}
 .record-label::after {
   content: "";
   position: absolute;
