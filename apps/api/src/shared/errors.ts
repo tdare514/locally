@@ -23,3 +23,6 @@ export class RateLimitError extends Error {}
 
 /** An upload exceeded the size declared when its signed URL was issued (maps to HTTP 413). */
 export class UploadTooLargeError extends Error {}
+
+/** The caller is known but the action is refused; the message is a stable error code (maps to HTTP 403). */
+export class ForbiddenError extends Error {}
