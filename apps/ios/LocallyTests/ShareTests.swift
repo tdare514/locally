@@ -684,7 +684,9 @@ struct ShareAccountTests {
                         ShareSnapshotTrack(id: UUID().uuidString, title: "Solo", trackNumber: 1, file: "solo.mp3", bytes: 1)]))
     }
 
-    private func importedKey(_ user: String) -> String { SyncEngine.importedSharesKey + "." + user }
+    /// The persisted key: the account and the host it signed in to (the fake account store's default host).
+    private func importedKey(_ user: String) -> String { SyncEngine.importedSharesKey + "." + user + "@http://localhost:4000" }
+    private func unclaimedKey(_ user: String) -> String { SyncEngine.unclaimedImportedSharesKey + "." + user + "@http://localhost:4000" }
 
     /// Imports one share and leaves its claim owed, so every kind of state is populated.
     private func populate(_ h: Harness) async -> ReceivedShare {
@@ -697,10 +699,10 @@ struct ShareAccountTests {
         return shares[0]
     }
 
-    @Test func signOutClearsTheSharesTheIdSetsAndTheCovers() async throws {
+    @Test func signOutClearsTheVisibleSharesAndCoversButKeepsTheClaimBookkeeping() async throws {
         let h = makeHarness()
         defer { try? FileManager.default.removeItem(at: h.dir) }
-        _ = await populate(h)
+        let imported = await populate(h)
         #expect(!h.engine.status.receivedShares.isEmpty && !h.engine.status.shareCoverData.isEmpty)
         #expect(h.defaults.stringArray(forKey: importedKey("user-a")) != nil)
         #expect(!((try? FileManager.default.contentsOfDirectory(atPath: h.cache.directory.path)) ?? []).isEmpty)
@@ -708,9 +710,30 @@ struct ShareAccountTests {
         await h.engine.signOut()
 
         #expect(h.engine.status.receivedShares.isEmpty && h.engine.status.shareCoverData.isEmpty)
-        #expect(h.defaults.stringArray(forKey: importedKey("user-a")) == nil)
-        #expect(h.defaults.stringArray(forKey: SyncEngine.unclaimedImportedSharesKey + ".user-a") == nil)
         #expect(((try? FileManager.default.contentsOfDirectory(atPath: h.cache.directory.path)) ?? []).isEmpty)
+        // The imported release is still here, so its share stays remembered for this account and host.
+        #expect(h.defaults.stringArray(forKey: importedKey("user-a")) == [imported.id])
+        #expect(h.defaults.stringArray(forKey: unclaimedKey("user-a")) == [imported.id])
+    }
+
+    @Test func signingBackIntoTheSameAccountRetriesTheClaimAndDoesNotOfferTheShareAgain() async throws {
+        let h = makeHarness()
+        defer { try? FileManager.default.removeItem(at: h.dir) }
+        let imported = await populate(h) // imported, claim failed
+        let other = h.engine.status.receivedShares.first { $0.id != imported.id }
+        #expect(h.api.claimedShareIds.isEmpty)
+
+        await h.engine.signOut()
+        h.api.claimShareError = nil
+        h.api.verifyResult = .success(SyncVerifyResult(token: "t2", userId: "user-a", email: "a@example.com", deviceId: "d2", deviceName: "Phone"))
+        try await h.engine.verify(email: "a@example.com", code: "123456") // reconciles
+
+        #expect(h.api.claimedShareIds == [imported.id], "the owed claim is retried")
+        #expect(!h.engine.status.receivedShares.contains { $0.id == imported.id }, "not offered again")
+        #expect(h.engine.status.receivedShares.contains { $0.id == other?.id })
+        let count = try h.library.all().count
+        #expect(count == 1, "no second import")
+        #expect(h.defaults.stringArray(forKey: unclaimedKey("user-a")) == [])
     }
 
     @Test func deletingTheAccountClearsThemToo() async throws {

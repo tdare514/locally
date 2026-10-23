@@ -285,13 +285,13 @@ final class SyncEngine: ReleaseSyncHook {
         do {
             try await api.deleteAccount(email: email)
         } catch SyncApiError.unauthorized {
-            clearLocalAccountState()
+            clearLocalAccountState(forgetShares: true)
             return true
         } catch {
             status.lastError = error.localizedDescription
             return false
         }
-        clearLocalAccountState()
+        clearLocalAccountState(forgetShares: true)
         return true
     }
 
@@ -299,8 +299,11 @@ final class SyncEngine: ReleaseSyncHook {
     /// the persisted device name), the outbox, `status`, and every release's
     /// sync markers (`signOut` and `deleteAccount` both end here). Never
     /// talks to the server.
-    private func clearLocalAccountState() {
-        resetShareState()
+    private func clearLocalAccountState(forgetShares: Bool = false) {
+        // An ordinary sign-out keeps the imported and owed-claim ids (under the account-and-host key), so
+        // signing back in does not offer a share again whose release is still here; deleting the account
+        // forgets them.
+        resetShareState(persisted: forgetShares)
         account.clear()
         // A failure here would let queued work go out under the next account,
         // or leave markers that stop a new account re-pushing everything, so
@@ -1229,7 +1232,9 @@ final class SyncEngine: ReleaseSyncHook {
     /// The account the share state belongs to: its user id, or (for a sign-in made before the id was stored)
     /// its email. `nil` when signed out.
     private var shareScope: String? {
-        account.userId ?? account.email.map { "email:" + $0.lowercased() }
+        let who = account.userId ?? account.email.map { "email:" + $0.lowercased() }
+        // The same account on another host is another account.
+        return who.map { $0 + "@" + account.baseURL.absoluteString }
     }
 
     /// Who a share request belongs to, captured when it starts and compared when it completes, so an answer
