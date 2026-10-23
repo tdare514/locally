@@ -809,9 +809,18 @@ final class ReleaseCoordinator {
         do {
             try await folder.withAccess { folderURL in
                 let top = folderURL.resolvingSymlinksInPath().path
+                // Every path any release (adopted too) already points at: a delete removes tracked
+                // files, so one file must never be claimed by two releases.
+                var claimed = Set(releases.flatMap { $0.tracks.map { URL(fileURLWithPath: $0.filePath).resolvingSymlinksInPath().path } })
                 for release in releases where !release.isAdopted && !release.tracks.isEmpty {
                     var updated = release
-                    var changed = false
+                    // Saves the index right away, so a cut-short run never leaves a moved file unknown to it.
+                    func save() -> Bool {
+                        if let first = updated.tracks.first {
+                            updated.folderPath = URL(fileURLWithPath: first.filePath).deletingLastPathComponent().path
+                        }
+                        do { try library.upsert(updated); return true } catch { return false }
+                    }
                     for index in updated.tracks.indices {
                         let track = updated.tracks[index]
                         let name = (track.filePath as NSString).lastPathComponent
@@ -825,9 +834,11 @@ final class ReleaseCoordinator {
                             guard parent.resolvingSymlinksInPath().path == top else { continue }
                             source = URL(fileURLWithPath: track.filePath)
                         } else if fm.fileExists(atPath: brandURL.path) {
+                            let key = brandURL.resolvingSymlinksInPath().path
+                            guard !claimed.contains(key) else { continue }
+                            claimed.insert(key)
                             updated.tracks[index].filePath = brandURL.path
-                            changed = true
-                            movedThisRun += 1
+                            if save() { movedThisRun += 1 } else { allDone = false }
                             continue
                         } else if fm.fileExists(atPath: topURL.path) {
                             source = topURL
@@ -837,18 +848,12 @@ final class ReleaseCoordinator {
                         do {
                             let dest = Self.uniqueDestination(in: try Self.brandFolder(in: folderURL), fileName: name)
                             try fm.moveItem(at: source, to: dest)
+                            claimed.insert(dest.resolvingSymlinksInPath().path)
                             updated.tracks[index].filePath = dest.path
-                            changed = true
-                            movedThisRun += 1
+                            if save() { movedThisRun += 1 } else { allDone = false }
                         } catch {
                             allDone = false
                         }
-                    }
-                    if changed {
-                        if let first = updated.tracks.first {
-                            updated.folderPath = URL(fileURLWithPath: first.filePath).deletingLastPathComponent().path
-                        }
-                        do { try library.upsert(updated) } catch { allDone = false }
                     }
                 }
             }

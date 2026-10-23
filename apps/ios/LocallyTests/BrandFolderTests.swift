@@ -173,4 +173,28 @@ struct BrandFolderTests {
         #expect(await coordinator.migrateIntoBrandFolder(defaults: defaults) == 1)
         #expect(defaults.bool(forKey: ReleaseCoordinator.brandFolderMigrationKey))
     }
+
+    @Test func resumeDoesNotClaimAFileAnotherReleaseOwns() async throws {
+        let folder = makeFolder()
+        let library = InMemoryLibraryStore()
+        let defaults = makeDefaults()
+        try FileManager.default.createDirectory(at: brandDir(folder), withIntermediateDirectories: true)
+        let owned = brandDir(folder).appendingPathComponent("same.mp3")
+        try Data([5]).write(to: owned)
+        // A: its file was deleted by the user (stored path gone). B owns Locally/same.mp3.
+        let a = Release(kind: .single, title: "A", artist: "A", folderPath: folder.directory.path,
+                        tracks: [Track(title: "A", trackNumber: 1, filePath: folder.directory.appendingPathComponent("same.mp3").path, originalName: "same.mp3")])
+        let b = Release(kind: .single, title: "B", artist: "B", folderPath: brandDir(folder).path,
+                        tracks: [Track(title: "B", trackNumber: 1, filePath: owned.path, originalName: "same.mp3")])
+        try library.upsert(a)
+        try library.upsert(b)
+        let coordinator = makeCoordinator(folder: folder, library: library)
+        let moved = await coordinator.migrateIntoBrandFolder(defaults: defaults)
+        #expect(moved == 0)
+        let storedA = try #require(try library.all().first { $0.id == a.id })
+        let storedB = try #require(try library.all().first { $0.id == b.id })
+        #expect(storedA.tracks[0].filePath == a.tracks[0].filePath)
+        #expect(storedB.tracks[0].filePath == owned.path)
+        #expect(defaults.bool(forKey: ReleaseCoordinator.brandFolderMigrationKey))
+    }
 }

@@ -80,6 +80,7 @@ struct RootView: View {
                 .buttonStyle(.plain)
                 .padding(.horizontal, Theme.Spacing.pagePadding)
                 .accessibilityLabel(migrationNotice)
+                .accessibilityHint(Copy.Settings.dismissHint)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
@@ -87,7 +88,12 @@ struct RootView: View {
         .task(id: folderStatus.isConnected) {
             guard folderStatus.isConnected, let container else { return }
             if let moved = await container.coordinator.migrateIntoBrandFolder(), moved > 0 {
-                migrationNotice = Copy.Settings.songsMoved(count: moved)
+                let text = Copy.Settings.songsMoved(count: moved)
+                migrationNotice = text
+                // Left up for VoiceOver users, who need time to hear and act on it.
+                guard !UIAccessibility.isVoiceOverRunning else { return }
+                try? await Task.sleep(for: .seconds(8))
+                if !Task.isCancelled, migrationNotice == text { migrationNotice = nil }
             }
         }
         .onAppear {
