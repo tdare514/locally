@@ -87,10 +87,11 @@ struct ReleaseCoordinatorAlbumTests {
         let firstName = layout.fileName(artist: "Artist", album: "Album", trackNumber: 1, title: "Alpha", ext: "mp3")
         let secondName = layout.fileName(artist: "Artist", album: "Album", trackNumber: 2, title: "Beta", ext: "mp3")
 
-        #expect(FileManager.default.fileExists(atPath: folder.directory.appendingPathComponent(firstName).path))
-        #expect(FileManager.default.fileExists(atPath: folder.directory.appendingPathComponent(secondName).path))
+        let brandDir = folder.directory.appendingPathComponent(Brand.folderName, isDirectory: true)
+        #expect(FileManager.default.fileExists(atPath: brandDir.appendingPathComponent(firstName).path))
+        #expect(FileManager.default.fileExists(atPath: brandDir.appendingPathComponent(secondName).path))
 
-        let contents = try FileManager.default.contentsOfDirectory(atPath: folder.directory.path)
+        let contents = try FileManager.default.contentsOfDirectory(atPath: brandDir.path)
         #expect(contents.count == 2)
     }
 
@@ -123,7 +124,9 @@ struct ReleaseCoordinatorAlbumTests {
             _ = try await coordinator.importAlbum(files: files, album: album, cover: nil)
         }
 
-        let contents = try FileManager.default.contentsOfDirectory(atPath: folder.directory.path)
+        // The brand folder may exist (created before the failure); it must hold no files.
+        let brandDir = folder.directory.appendingPathComponent(Brand.folderName, isDirectory: true)
+        let contents = (try? FileManager.default.contentsOfDirectory(atPath: brandDir.path)) ?? []
         #expect(contents.isEmpty)
         #expect(try library.all().isEmpty)
         // The first track's write succeeded and was recorded before the second failed.

@@ -682,6 +682,7 @@ eyebrows still apply to those labels.
     the service asks to wait: "Try again in a few minutes." under the pill.
   - A re-sent release (a newer server version of it) returns to *Still sending*, never straight
     to *Waiting*; the same version pulled again changes nothing.
+- **Where Locally writes (iPhone, #335)**: everything the iPhone writes into Spotify's folder goes into one subfolder named by `Brand.folderName` ("Locally"); Settings' Spotify folder group says so, and a one-time move on launch brings older files in with a one-time line "Locally moved N songs into its own Locally folder in Spotify."
 - **Your Spotify folders (desktop, #245 step D, #249; designed 16 Oct 2026)**: Locally adds the
   releases Spotify already plays from the owner's own folders, details only, and never touches the
   files (plan `docs/plans/245-adopt-local-files.md`). The user-facing verb is **add**, never

@@ -528,7 +528,7 @@ final class ReleaseCoordinator {
                     throw LocallyError.importFailed("\"\(syncTrack.file)\" didn't download.")
                 }
                 let destinationURL = try folder.withAccess { folderURL -> URL in
-                    let dest = Self.uniqueDestination(in: folderURL, fileName: syncTrack.file)
+                    let dest = Self.uniqueDestination(in: try Self.brandFolder(in: folderURL), fileName: syncTrack.file)
                     try FileManager.default.copyItem(at: sourceURL, to: dest)
                     return dest
                 }
@@ -777,7 +777,92 @@ final class ReleaseCoordinator {
             return URL(fileURLWithPath: track.filePath)
         }
         let name = (track.filePath as NSString).lastPathComponent
+        let inBrand = folderURL.appendingPathComponent(Brand.folderName, isDirectory: true).appendingPathComponent(name)
+        if FileManager.default.fileExists(atPath: inBrand.path) { return inBrand }
+        // Not migrated yet: still at the Spotify folder's top level.
         return folderURL.appendingPathComponent(name)
+    }
+
+    /// `<Spotify folder>/<Brand.folderName>`, created if missing. Everything Locally writes into
+    /// Spotify's folder goes here (#335); call it inside `withAccess`.
+    static func brandFolder(in folderURL: URL) throws -> URL {
+        let dir = folderURL.appendingPathComponent(Brand.folderName, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    static let brandFolderMigrationKey = "locally.migration.brandFolder.v1"
+    static let brandFolderMigrationCountKey = "locally.migration.brandFolder.v1.moved"
+
+    /// One-time move (#335) of Locally's own tracks from the Spotify folder's top level into
+    /// `<Brand.folderName>/`. Returns the number of songs moved over all runs when this run finished
+    /// the whole migration for the first time (0 if nothing needed moving), else `nil`: already
+    /// done, folder unreachable, or a release failed (the next launch resumes). Touches only files
+    /// the index tracks. A track whose stored path is gone but whose file is already under
+    /// `<Brand.folderName>/` (a run cut short before the index was saved) just gets its index fixed.
+    func migrateIntoBrandFolder(defaults: UserDefaults = .standard) async -> Int? {
+        guard !defaults.bool(forKey: Self.brandFolderMigrationKey) else { return nil }
+        guard let releases = try? library.all() else { return nil }
+        let fm = FileManager.default
+        var movedThisRun = 0
+        var allDone = true
+        do {
+            try await folder.withAccess { folderURL in
+                let top = folderURL.resolvingSymlinksInPath().path
+                for release in releases where !release.isAdopted && !release.tracks.isEmpty {
+                    var updated = release
+                    var changed = false
+                    for index in updated.tracks.indices {
+                        let track = updated.tracks[index]
+                        let name = (track.filePath as NSString).lastPathComponent
+                        guard ReleaseLayout.isPlainFileName(name) else { continue }
+                        let topURL = folderURL.appendingPathComponent(name)
+                        let brandURL = folderURL.appendingPathComponent(Brand.folderName, isDirectory: true)
+                            .appendingPathComponent(name)
+                        let source: URL
+                        if fm.fileExists(atPath: track.filePath) {
+                            let parent = URL(fileURLWithPath: track.filePath).deletingLastPathComponent()
+                            guard parent.resolvingSymlinksInPath().path == top else { continue }
+                            source = URL(fileURLWithPath: track.filePath)
+                        } else if fm.fileExists(atPath: brandURL.path) {
+                            updated.tracks[index].filePath = brandURL.path
+                            changed = true
+                            movedThisRun += 1
+                            continue
+                        } else if fm.fileExists(atPath: topURL.path) {
+                            source = topURL
+                        } else {
+                            continue
+                        }
+                        do {
+                            let dest = Self.uniqueDestination(in: try Self.brandFolder(in: folderURL), fileName: name)
+                            try fm.moveItem(at: source, to: dest)
+                            updated.tracks[index].filePath = dest.path
+                            changed = true
+                            movedThisRun += 1
+                        } catch {
+                            allDone = false
+                        }
+                    }
+                    if changed {
+                        if let first = updated.tracks.first {
+                            updated.folderPath = URL(fileURLWithPath: first.filePath).deletingLastPathComponent().path
+                        }
+                        do { try library.upsert(updated) } catch { allDone = false }
+                    }
+                }
+            }
+        } catch {
+            return nil
+        }
+        let total = defaults.integer(forKey: Self.brandFolderMigrationCountKey) + movedThisRun
+        guard allDone else {
+            defaults.set(total, forKey: Self.brandFolderMigrationCountKey)
+            return nil
+        }
+        defaults.set(true, forKey: Self.brandFolderMigrationKey)
+        defaults.removeObject(forKey: Self.brandFolderMigrationCountKey)
+        return total
     }
 
     /// `name.ext`, or `name (2).ext`, `name (3).ext`, ... if taken; mirrors the
@@ -805,7 +890,7 @@ final class ReleaseCoordinator {
         do {
             return try folder.withAccess { folderURL -> URL in
                 // Never overwrite: a user's unrelated song may share the name.
-                let dest = Self.uniqueDestination(in: folderURL, fileName: fileName)
+                let dest = Self.uniqueDestination(in: try Self.brandFolder(in: folderURL), fileName: fileName)
                 try FileManager.default.moveItem(at: sourceURL, to: dest)
                 return dest
             }

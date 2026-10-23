@@ -105,6 +105,12 @@ struct SettingsView: View {
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
             }
+            Text(Copy.Settings.folderKeeps)
+                .font(Theme.ScaledFont.caption)
+                .foregroundStyle(Theme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
             GlassDivider()
             Button {
                 isPresentingFolderPicker = true

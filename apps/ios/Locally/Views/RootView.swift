@@ -26,6 +26,9 @@ struct RootView: View {
     /// `LibraryView` puts it in its search box and clears it.
     @State private var librarySearchRequest: String?
 
+    /// The one-time line after the move into the brand folder (#335); nil once dismissed.
+    @State private var migrationNotice: String?
+
     enum Tab: Int {
         case library = 0, importSong = 1, settings = 2, stats = 3
     }
@@ -61,6 +64,32 @@ struct RootView: View {
             }
         }
         .background(Theme.background)
+        .overlay(alignment: .top) {
+            if let migrationNotice {
+                Button {
+                    self.migrationNotice = nil
+                } label: {
+                    Text(migrationNotice)
+                        .themeFont(.body, weight: .semibold)
+                        .foregroundStyle(Theme.primaryText)
+                        .multilineTextAlignment(.leading)
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Theme.Immersive.panelFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, Theme.Spacing.pagePadding)
+                .accessibilityLabel(migrationNotice)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(duration: 0.35), value: migrationNotice)
+        .task(id: folderStatus.isConnected) {
+            guard folderStatus.isConnected, let container else { return }
+            if let moved = await container.coordinator.migrateIntoBrandFolder(), moved > 0 {
+                migrationNotice = Copy.Settings.songsMoved(count: moved)
+            }
+        }
         .onAppear {
             // A returning user with a stored bookmark skips onboarding entirely.
             if folderStatus.isConnected { hasFinishedOnboarding = true }
