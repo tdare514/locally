@@ -11,6 +11,7 @@ import { buildLocalId } from "../../src/server/adopt/localId";
 import { FileSettingsStore } from "../../src/server/config/FileSettingsStore";
 import { JsonLibraryRepository } from "../../src/server/storage/JsonLibraryRepository";
 import { decodeLocalId } from "../../src/server/plays/LocalTrackResolver";
+import { BRAND_FOLDER_NAME } from "../../src/shared/brand";
 import type { Release } from "../../src/shared/types";
 
 const run = promisify(execFile);
@@ -250,6 +251,14 @@ describe("AdoptScanner skipping and safety", () => {
     const q = await new AdoptScanner({ library: repo, libraryDir: inner }).scan([inner]);
     expect(q.groups).toEqual([]);
     expect(q.roots).toEqual([]);
+  });
+
+  it("adopts nothing from the brand-named library folder nested inside a root (#335)", async () => {
+    const inner = path.join(root, BRAND_FOLDER_NAME);
+    await writeMp3(path.join(inner, "Artist", "Album", "t1.mp3"), { title: "T1", artist: "A", album: "Mine" });
+    await writeMp3(path.join(root, "Other", "o.mp3"), { title: "O", artist: "B", album: "Theirs" });
+    const p = await new AdoptScanner({ library: repo, libraryDir: inner }).scan([root]);
+    expect(p.groups.map((g) => g.title)).toEqual(["Theirs"]);
   });
 
   it("does not read a file reached by a ../ path or a symlink that leaves the root", async () => {

@@ -5,6 +5,11 @@ import type { Settings, SpotifySettings, SyncSettings } from "../../shared/types
 import { defaultLibraryDir, settingsDir, settingsFilePath } from "./paths";
 import type { SettingsStore } from "./SettingsStore";
 
+/** The saved Spotify folders as strings, for the default library folder of a setup that has none saved. */
+function adoptRootsOf(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.filter((r): r is string => typeof r === "string" && r.trim().length > 0) : [];
+}
+
 async function ensureDirExists(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true });
 }
@@ -118,7 +123,7 @@ export class FileSettingsStore implements SettingsStore {
     const libraryDir =
       typeof parsed.libraryDir === "string" && parsed.libraryDir.trim().length > 0
         ? parsed.libraryDir
-        : defaultLibraryDir();
+        : defaultLibraryDir(adoptRootsOf(parsed.adoptRoots));
     const spotifySourceDismissed =
       typeof parsed.spotifySourceDismissed === "boolean" ? parsed.spotifySourceDismissed : false;
     const trackPlays = typeof parsed.trackPlays === "boolean" ? parsed.trackPlays : false;

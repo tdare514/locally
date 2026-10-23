@@ -1,14 +1,24 @@
 import os from "node:os";
 import path from "node:path";
+import { BRAND_FOLDER_NAME } from "../../shared/brand";
 
 /** The user's home directory; the one place the server layer resolves it. */
 export function homeDir(): string {
   return os.homedir();
 }
 
+/**
+ * Where a new setup proposes the library folder (#335): inside the first Spotify folder when there is
+ * one, else under ~/Music. Never applied to settings that already exist.
+ */
+export function defaultLibraryDirFor(home: string, adoptRoots: readonly string[] = []): string {
+  const first = adoptRoots.find((r) => r.trim().length > 0);
+  return first ? path.join(path.resolve(first), BRAND_FOLDER_NAME) : path.join(home, "Music", BRAND_FOLDER_NAME);
+}
+
 /** Default library directory where tagged music files are written. */
-export function defaultLibraryDir(): string {
-  return path.join(homeDir(), "Music", "Spotify Local Import");
+export function defaultLibraryDir(adoptRoots: readonly string[] = []): string {
+  return defaultLibraryDirFor(homeDir(), adoptRoots);
 }
 
 /**

@@ -682,6 +682,13 @@ eyebrows still apply to those labels.
     the service asks to wait: "Try again in a few minutes." under the pill.
   - A re-sent release (a newer server version of it) returns to *Still sending*, never straight
     to *Waiting*; the same version pulled again changes nothing.
+- **Where Locally keeps your music (desktop, #335)**: the library folder is named for the brand (one constant,
+  `BRAND_FOLDER_NAME`), proposed inside the first Spotify folder when there is one, else under `~/Music`. A
+  library that already exists is never renamed or moved on its own. *Settings › Library folder* shows a
+  `btn-save` "Move into a Locally folder" only when the folder's name differs; it opens an inset panel with the
+  destination prefilled and "This moves 21 songs in 3 releases to the folder above. Nothing is changed until you
+  confirm." (Move library / Cancel). After a move: "In Spotify, remove the old folder from Local Files sources."
+  with the old path and a Copy path button. Hidden in the demo.
 - **Where Locally writes (iPhone, #335)**: everything the iPhone writes into Spotify's folder goes into one subfolder named by `Brand.folderName` ("Locally"); Settings' Spotify folder group says so, and a one-time move on launch brings older files in with a one-time line "Locally moved N songs into its own Locally folder in Spotify."
 - **Your Spotify folders (desktop, #245 step D, #249; designed 16 Oct 2026)**: Locally adds the
   releases Spotify already plays from the owner's own folders, details only, and never touches the
