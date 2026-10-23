@@ -193,6 +193,8 @@ export interface MeResponse {
   devicesHasMore: boolean;
   /** ISO time of the last `POST /v1/files/resync-request`, or `null` when none was made. */
   resyncRequestedAt: string | null;
+  /** Whether public share links are switched on (`PUBLIC_SHARES_ENABLED`, #146); clients hide the Link option when false. */
+  publicSharesEnabled: boolean;
 }
 
 /** One live release with files that are not stored, from `GET /v1/files/missing`. */
@@ -324,4 +326,104 @@ export interface PlaysSummaryResponse {
   tracks: Array<{ trackId: string; releaseId: string; plays: number; devicePlays: number; lastPlayedDay: string }>;
   allTime: Array<{ trackId: string; releaseId: string; plays: number; devicePlays: number }>;
   nextCursor: string | null;
+}
+
+// --- Shares (#146, #181; spec/sync.md "Shares") ---
+
+/** Most reshare levels: an original share is depth 0, its reshare 1, and so on up to this. */
+export const MAX_SHARE_DEPTH = 3;
+/** A share's track ids and a create body's recipients are capped at these. */
+export const MAX_SHARE_TRACKS = 500;
+export const MAX_SHARE_RECIPIENTS = 50;
+
+/** The release record's own fields at share time; `tracks` is filtered to the shared ones. */
+export interface ShareSnapshot {
+  kind: "single" | "album";
+  title: string;
+  artist: string;
+  year: string | null;
+  /** Omitted when the record has none. */
+  releaseDate?: string;
+  genre: string | null;
+  cover: string | null;
+  coverHash: string | null;
+  tracks: Array<{
+    id: string;
+    title: string;
+    trackNumber: number;
+    /** Omitted when absent. */
+    discNumber?: number;
+    file: string;
+    bytes: number;
+    /** Omitted when the record has none. */
+    durationSec?: number;
+  }>;
+}
+
+export interface SentShare {
+  id: string;
+  releaseId: string;
+  trackIds: string[] | null;
+  visibility: "private" | "public";
+  allowReshare: boolean;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  snapshot: ShareSnapshot;
+  recipients: Array<{ email: string; claimedAt: string | null }>;
+  hasLink: boolean;
+  parentShareId: string | null;
+  downloads: number;
+}
+
+export interface ReceivedShare {
+  id: string;
+  from: { email: string };
+  trackIds: string[] | null;
+  allowReshare: boolean;
+  /** `allowReshare` and the share's depth is below `MAX_SHARE_DEPTH`. */
+  canReshare: boolean;
+  expiresAt: string | null;
+  createdAt: string;
+  claimedAt: string | null;
+  snapshot: ShareSnapshot;
+}
+
+const expiresInDaysSchema = z.union([z.literal(7), z.literal(30), z.null()]).default(null);
+
+/** Body of `POST /v1/shares`. */
+export const createShareRequestSchema = z.object({
+  releaseId: uuidSchema,
+  trackIds: z.array(uuidSchema).min(1).max(MAX_SHARE_TRACKS).nullable().optional(),
+  recipients: z.array(emailSchema).max(MAX_SHARE_RECIPIENTS),
+  visibility: z.enum(["private", "public"]),
+  allowReshare: z.boolean(),
+  expiresInDays: expiresInDaysSchema,
+});
+export type CreateShareRequest = z.infer<typeof createShareRequestSchema>;
+
+/** Body of `POST /v1/shares/:id/reshare`. */
+export const reshareRequestSchema = z.object({
+  recipients: z.array(emailSchema).max(MAX_SHARE_RECIPIENTS),
+  visibility: z.enum(["private", "public"]),
+  allowReshare: z.boolean(),
+  expiresInDays: expiresInDaysSchema,
+});
+export type ReshareRequest = z.infer<typeof reshareRequestSchema>;
+
+/** Query of `GET /v1/shares`. */
+export const listSharesQuerySchema = z.object({
+  role: z.enum(["sent", "received"]),
+  cursor: z.string().min(1).max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+export type ListSharesQuery = z.infer<typeof listSharesQuerySchema>;
+
+/** Body of `POST /v1/links/claim`. */
+export const claimLinkRequestSchema = z.object({ token: z.string().min(1).max(200) });
+
+export interface CreateShareResponse {
+  share: SentShare | null;
+  notOnLocally: string[];
+  link: string | null;
 }

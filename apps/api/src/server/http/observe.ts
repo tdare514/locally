@@ -5,6 +5,7 @@ import {
   UnauthorizedError,
   NotFoundError,
   ConflictError,
+  ForbiddenError,
   RateLimitError,
   UploadTooLargeError,
 } from "../../shared/errors";
@@ -51,6 +52,7 @@ function errorNameFor(err: unknown): string | undefined {
     err instanceof UnauthorizedError ||
     err instanceof NotFoundError ||
     err instanceof ConflictError ||
+    err instanceof ForbiddenError ||
     err instanceof RateLimitError ||
     err instanceof UploadTooLargeError
   ) {

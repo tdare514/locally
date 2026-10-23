@@ -27,6 +27,7 @@ function release(
   genre: string,
   list: [string, number][],
   createdAt: string,
+  releaseDate?: string,
 ): Release {
   const folder = `${artist}/${title}`;
   return {
@@ -35,6 +36,7 @@ function release(
     title,
     artist,
     year,
+    ...(releaseDate !== undefined ? { releaseDate } : {}),
     genre,
     coverPath: `${DEMO_DIR}/${folder}/cover.jpg`,
     folderPath: `${DEMO_DIR}/${folder}`,
@@ -46,7 +48,7 @@ function release(
 
 export const DEMO_RELEASES: Release[] = [
   release("demo-glasshouse-summer", "single", "Glasshouse Summer", "Mira Valdane", "2024", "Dream pop",
-    [["Glasshouse Summer", 214]], "2024-06-14T09:30:00.000Z"),
+    [["Glasshouse Summer", 214]], "2024-06-14T09:30:00.000Z", "2024-05-17"),
   release("demo-paper-lanterns", "album", "Paper Lanterns", "The Quiet Orchard", "2022", "Indie folk",
     [["Low Tide Morning", 231], ["Paper Lanterns", 198], ["Orchard Gate", 256], ["Slow Letters", 207], ["Hollow Branch", 289], ["Lantern Out", 176]],
     "2023-02-03T18:12:00.000Z"),

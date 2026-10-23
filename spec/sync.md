@@ -156,9 +156,9 @@ sync at runtime.
 | --- | --- | --- |
 | POST `/v1/auth/code` | `{ email }` | `{ ok: true }`; sends a six-digit code, valid 10 minutes, 5 tries |
 | POST `/v1/auth/verify` | `{ email, code, deviceName, platform: "mac" \| "ios", installId? }` | `{ token, user: { id, email }, device: { id, name } }`; a new device, except that a Mac (`platform: "mac"`) whose account has a revoked (signed-out) Mac of the same `deviceName` gets that device's id back: the row is un-revoked and the new token replaces the old one, which stops working, so a Mac that signs out and back in keeps one device and its play counts are not summed twice (#175). With several such rows the most recently seen is taken; an active Mac of the same name and every iPhone are never reused, and another account's devices are never touched. A code works once, even for two simultaneous requests. `installId` is an optional UUID that names one Mac install (#210); a malformed one is a 400 and it is ignored unless `platform` is `mac`. A Mac that sends it is matched to a revoked Mac of the same account in this order: the same `installId`; otherwise one with no stored `installId` and the same `deviceName` (rows made before this field); otherwise a new device. A revoked Mac with a different stored `installId` is never reused by name, so two Macs that share a hostname keep separate devices. The revived row keeps or gains the `installId`, gets the new token, and an active device is never taken over. The ID is a hint inside one account: another account's `installId` never matches anything. Effect per client: the Mac sends it from this release on and keeps it across sign-out, sign-in and a change of sync host; the iPhone does not send it and is unchanged; older Mac builds send none and keep the same-name rule |
-| GET `/v1/me` | | `{ user, device, quota: { usedBytes, limitBytes }, devices: [...], devicesHasMore, resyncRequestedAt }`; `devices` holds at most the 50 most recently created devices (newest first); `devicesHasMore` is true when older ones were left out; `resyncRequestedAt` is the ISO time of the account's last `POST /v1/files/resync-request`, or `null` if it never made one |
+| GET `/v1/me` | | `{ user, device, quota: { usedBytes, limitBytes }, devices: [...], devicesHasMore, resyncRequestedAt }`; `devices` holds at most the 50 most recently created devices (newest first); `devicesHasMore` is true when older ones were left out; `resyncRequestedAt` is the ISO time of the account's last `POST /v1/files/resync-request`, or `null` if it never made one; `publicSharesEnabled` is `false` unless the server's `PUBLIC_SHARES_ENABLED` is `true` (#181, clients hide the Link option when false) |
 | DELETE `/v1/devices/:id` | | revokes that device's token |
-| DELETE `/v1/me` | `{ email }` (must match the account) | `{ ok: true }`; deletes the account, its devices, releases and files; blobs are removed by the cleanup cron within a day; every device token becomes invalid |
+| DELETE `/v1/me` | `{ email }` (must match the account) | `{ ok: true }`; deletes the account, its devices, releases, files and shares; blobs are removed by the cleanup cron within a day; every device token becomes invalid |
 | GET `/v1/releases?sinceVersion=N&limit=N` | `limit` (optional, integer, 1 to 200; above 200 clamps to 200, below 1 or non-integer is a 400 like a bad `sinceVersion`; default 200) | `{ releases: [record + version], nextVersion, hasMore }` (tombstones included). Releases come back in ascending `version` order, at most `limit` of them, and the page stops early once its serialized records reach 2 MiB; a page always holds at least one release when any exist (a single record is at most 1 MiB by the PUT body cap, so one always fits under Vercel's 4.5 MB response limit). `hasMore: true` means more releases exist above the last one returned, and `nextVersion` is then the `version` of the last release in this page; `hasMore: false` means the page reached the end, and `nextVersion` is the user's counter, exactly as today (it can be above the last row's version, because a rewritten release moves to a new version and its old number disappears). In both cases `nextVersion` is the value to send as `sinceVersion` next, and it never runs ahead of a release this response left out (the #28 invariant). |
 | PUT `/v1/releases/:id` | the record (at most 500 tracks) | `{ version }`; 409 if the stored `updatedAt` is newer; stored files the record no longer references are deleted |
 | DELETE `/v1/releases/:id` | | tombstone; `{ version }` |
@@ -168,6 +168,15 @@ sync at runtime.
 | POST `/v1/files/resync-request` | none | `{ resyncRequestedAt }` (ISO); records that this account asked its devices to re-send files; see "Missing files" |
 | PUT `/v1/plays` | `{ counts: [{ releaseId, trackId, count, days?: [{ day, count }] }] }`, 1 to 500 entries | `{ accepted, ignored }`; see "Play counts" |
 | GET `/v1/releases/:id/plays` | | `{ tracks: [{ trackId, total, devices: [{ deviceId, name, platform, count, current }] }] }`; 404 for a release that isn't the user's or is tombstoned |
+| POST `/v1/shares` | `{ releaseId, trackIds?, recipients, visibility, allowReshare, expiresInDays }` | 201 `{ share, notOnLocally, link }`; see "Shares" |
+| GET `/v1/shares?role=sent\|received&cursor&limit` | `limit` 1 to 100 (default 50) | `{ shares: [SentShare \| ReceivedShare], nextCursor }` |
+| DELETE `/v1/shares/:id` | | `{ ok: true }`; revokes the share and every reshare below it |
+| GET `/v1/shares/:id/files/:name` | | `{ url, expiresAt }`, a 5-minute signed URL (recipient) |
+| POST `/v1/shares/:id/claim` | | `{ claimedAt }` (recipient, idempotent) |
+| POST `/v1/shares/:id/hide` | | `{ ok: true }` (recipient; dismisses it from the tray) |
+| POST `/v1/shares/:id/reshare` | `{ recipients, visibility, allowReshare, expiresInDays }` | as create (recipient) |
+| POST `/v1/links/claim` | `{ token }` | `{ share: ReceivedShare }` |
+| GET `/s/:token`, `/s/:token/files/:name`, `/s/:token/zip` | none, no auth | the public page (HTML), a 302 to a signed URL, a streamed zip |
 
 Rules: every path is scoped to the token's user; a release id belongs to the user that first
 wrote it; tombstones keep their files for 30 days then a cron deletes the objects; codes and
@@ -175,6 +184,91 @@ tokens are stored hashed; auth endpoints are rate-limited per email and per IP; 
 device (6 an hour each) and per user (24 an hour each), 429 beyond; JSON request
 bodies are capped at 1 MiB (400 when exceeded). The daily cron (`GET /v1/internal/cleanup`) also
 drains `pending_deletes` (blobs of deleted accounts), oldest first.
+
+## Shares (#146)
+
+Send a release, or some of its tracks, to named people and optionally to anyone with a link
+(`docs/plans/146-sharing.md`). Built in `apps/api` in #181; the Mac and iPhone clients come in #182 and #183.
+A share points at the **root owner's stored files** (no copy, no storage cost). JSON is camelCase and times are
+ISO 8601 UTC strings, as for records.
+
+**Types**
+
+```json
+Snapshot = { "kind": "single"|"album", "title", "artist", "year": string|null, "releaseDate"?: "YYYY-MM[-DD]",
+             "genre": string|null, "cover": string|null, "coverHash": string|null,
+             "tracks": [{ "id", "title", "trackNumber", "discNumber"?, "file", "bytes", "durationSec"? }] }
+SentShare = { "id", "releaseId", "trackIds": [id]|null, "visibility": "private"|"public", "allowReshare": bool,
+              "expiresAt": ISO|null, "revokedAt": ISO|null, "createdAt": ISO, "snapshot": Snapshot,
+              "recipients": [{ "email", "claimedAt": ISO|null }], "hasLink": bool, "parentShareId": id|null, "downloads": int }
+ReceivedShare = { "id", "from": { "email" }, "trackIds": [id]|null, "allowReshare": bool, "canReshare": bool,
+                  "expiresAt": ISO|null, "createdAt": ISO, "claimedAt": ISO|null, "snapshot": Snapshot }
+```
+
+`Snapshot` is the release record's own fields at share time, with the names and types of "Record" above (`releaseDate`,
+`discNumber` and `durationSec` are omitted when absent, never null; `coverHash` is `null` for a record without one), and
+`tracks` filtered to the shared track ids when the share is of some tracks. A recipient imports from the snapshot, not
+from the live release, so a later edit does not change what was shared. `canReshare` is `allowReshare` and depth below 3.
+`downloads` counts the files served for the share, through the recipient route, the public routes and the zip.
+
+**Routes** (device-token auth except `/s/*`; the table above has the one-line forms)
+
+- `POST /v1/shares`, body `{ releaseId, trackIds?, recipients, visibility, allowReshare, expiresInDays }`: `trackIds` is
+  1 to 500 ids of that release's tracks (omitted or `null` is the whole release; an id that is not the release's is a
+  400); `recipients` is 0 to 50 emails; `expiresInDays` is `null`, `7` or `30` (omitted is `null`). Emails are
+  trimmed, lower-cased and de-duplicated, and the caller's own is ignored. Existing accounts become recipients; unknown
+  ones are returned in `notOnLocally` (not an error, and nothing is held for them). Reply 201
+  `{ share, notOnLocally, link }`. A **private share where no recipient resolves is not created**: 200 with `share: null`.
+  `link` is the full public URL `<origin>/s/<token>`, returned **only here** and only for a public share. Errors: 404 for a
+  release that is not the caller's live release; 409 `{ "error": "adopted" }` for a release with `source: "adopted"` (its
+  audio is not on the server); 403 `{ "error": "public_links_disabled" }` for `visibility: "public"` while the server's
+  `PUBLIC_SHARES_ENABLED` is not `true`; 400 for anything malformed.
+- `GET /v1/shares?role=sent|received&cursor=<opaque>&limit=1..100`: `{ shares, nextCursor }`, newest first, `nextCursor`
+  `null` on the last page. `sent` holds the caller's own shares (`SentShare`), revoked and expired ones included.
+  `received` holds `ReceivedShare`s that are **live**: not revoked, not expired, not hidden, and no revoked or expired
+  ancestor. A claimed share stays listed with `claimedAt` until the recipient hides it.
+- `DELETE /v1/shares/:id` (owner): `{ ok: true }`; revokes it and every reshare below it.
+- `GET /v1/shares/:id/files/:name` (recipient): `{ url, expiresAt }`, a signed URL valid 5 minutes for that one blob.
+  `name` must be the snapshot's `cover` or one of its tracks' `file`; anything else is a 404. Records a download.
+- `POST /v1/shares/:id/claim` (recipient): `{ claimedAt }`, idempotent (a repeat returns the first time).
+  The client then imports the share into its library (tagged from the snapshot).
+- `POST /v1/shares/:id/hide` (recipient): `{ ok: true }`; dismisses it from the tray. The share still works for the
+  file and claim routes.
+- `POST /v1/shares/:id/reshare` (recipient), body `{ recipients, visibility, allowReshare, expiresInDays }`, reply as
+  create. Makes a child share owned by the caller, with the same release, tracks, snapshot and stored files. 403
+  `{ "error": "reshare_not_allowed" }` unless the parent has `allowReshare` and the child's depth stays at most 3.
+  A child's expiry never outlives its parent's (a longer or missing request is cut to the parent's).
+  Create and reshare share one allowance per user.
+- `POST /v1/links/claim`, body `{ token }`: `{ share: ReceivedShare }`. Adds the caller as a recipient of that public
+  share (or un-hides it). 404, identical, for an unknown, revoked, expired or disabled link, and for the share's own
+  sender. `token` is the part after `/s/` of a link.
+- Public, no auth: `GET /s/:token` (HTML page), `GET /s/:token/files/:name` (302 to a 5-minute signed URL; `name` as above),
+  `GET /s/:token/zip` (one store-only zip of the shared track files, streamed and never stored; 413 if the files total over
+  4 GB). Every `/s/*` answer for an unknown, revoked, expired or disabled link, or for a name not in the share, is the same
+  404 page, byte for byte.
+
+**Rules**
+
+- Every recipient route checks the recipient row **and** the share's state (revoked, expired, any revoked or expired
+  ancestor); owner routes check the owner. Another user gets 404 on every route (the cross-user matrix covers them).
+- Deleting a release (`DELETE` or a `PUT` with `deleted: true`) revokes its shares and their reshares. Deleting an account
+  removes its shares and the reshares below them, with their recipients, links and download rows, and its own recipient
+  rows, in the account-deletion transaction. Blobs follow the normal prune.
+- **Tokens** are 256-bit random, base64url. Only `sha256(token)` is stored and looked up. A token is never logged: the
+  request logger records `/s/[token]` as the route pattern, and the rate limiter keys on the hash.
+- **Rate limits** (429 beyond, per hour): create and reshare 60 per user; `/v1/links/claim` 30 per user; `/s/*` 60 per
+  client IP and 300 per link. An unknown token is charged to its own hash like a real one.
+- **The page** is server-rendered by `apps/api` with `Content-Security-Policy: default-src 'none'; img-src 'self'
+  <signed-URL origin>; style-src 'self'` (no script, no inline style; one stylesheet at `/share-assets/share.css`),
+  `X-Robots-Tag: noindex`, `<meta name="robots" content="noindex">`, `Referrer-Policy: no-referrer` and no Open Graph audio.
+  Every snapshot field is HTML-escaped. It shows the cover, title, artist, tracks, a Download link (the zip) and a "Claim in
+  Locally" section.
+- **Kill switch:** `PUBLIC_SHARES_ENABLED` (default off; only the exact value `true` turns it on). Off, every `/s/*` and
+  `/v1/links/claim` answer is the 404 above and a public create is the 403 above.
+- **Monitoring:** every served file is a `share_downloads` row (share, name, time, `via` of `recipient` or `link`, bytes).
+  The daily cron logs one `share_egress` JSON line with the last 24 hours' total bytes and downloads and the top 10 shares
+  by downloads and by bytes, at warn level from `SHARE_EGRESS_ALERT_BYTES`. Monitoring only, no caps in the beta.
+- Effect on clients: none until #182 and #183 use these routes. Older clients ignore the new `/v1/me` field.
 
 ## Spotify link (#303)
 
