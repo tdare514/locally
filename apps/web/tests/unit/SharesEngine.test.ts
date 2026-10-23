@@ -208,6 +208,7 @@ describe("shares on the Mac", () => {
     expect(calls).toContain(`file ${S1} cover.jpg`);
     expect(calls).toContain(`hide ${S1}`);
     expect(release.id).not.toBe(S1);
+    expect(release.releaseDate).toBe("2024-05-17");
     expect(release.tracks.map((t) => t.id)).not.toContain("t1");
     expect(release).toMatchObject({ title: "Night Drive", artist: "Okoro", year: "2024", genre: "Electronic", kind: "album" });
     expect(release.coverPath && release.coverPath.startsWith(libraryDir)).toBe(true);
