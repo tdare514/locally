@@ -45,6 +45,8 @@ final class AppContainer {
     let folderStatus: FolderStatus
     let purchaseStatus: PurchaseStatus
     let modelContainer: ModelContainer
+    /// The app-wide player (#336); its audio pieces are created on first play.
+    let playback: PlaybackService
 
     /// What Settings and the Import tab bind to for sync — same object as
     /// `syncEngine.status`, exposed here so views don't need to reach
@@ -77,6 +79,7 @@ final class AppContainer {
         self.syncEngine = syncEngine
         self.playStats = playStats
         self.modelContainer = modelContainer
+        self.playback = PlaybackService.production(folder: folder, coverStore: coverStore)
         self.folderStatus = FolderStatus(isConnected: folder.isConnected)
         self.purchaseStatus = PurchaseStatus(isFullUnlocked: purchase.isFullUnlocked)
         coordinator.syncHook = syncEngine

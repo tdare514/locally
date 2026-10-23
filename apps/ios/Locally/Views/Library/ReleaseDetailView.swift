@@ -9,6 +9,7 @@ import UniformTypeIdentifiers
 /// `navigationDestination(for: Release.self)`.
 struct ReleaseDetailView: View {
     @Environment(\.appContainer) private var container
+    @Environment(\.playback) private var playback
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .headline) private var tracksHeadingSize: CGFloat = 17
@@ -345,7 +346,8 @@ struct ReleaseDetailView: View {
                 artist: model.artist.isEmpty ? Copy.Detail.unknownArtist : model.artist,
                 plays: model.playTotal(for: row),
                 time: TrackLength.format(seconds),
-                timeSpoken: TrackLength.spoken(seconds)
+                timeSpoken: TrackLength.spoken(seconds),
+                play: playControl(for: row.id, in: model.savedRelease)
             )
             .overlay(alignment: .bottom) {
                 if index != last { Rectangle().fill(Theme.Track.separatorTint).frame(height: 1) }
@@ -370,6 +372,15 @@ struct ReleaseDetailView: View {
         if model.isAdopted { adoptedNote.clearRow(top: 8, bottom: 0) }
         if model.kind == .album { playlistGuide(model).clearRow(top: 8, bottom: 0) }
         viewMessages(model)
+    }
+
+    /// The row's play button (#336), or nil when the release can't play here (an adopted one).
+    private func playControl(for trackID: UUID, in release: Release) -> TrackPlayControl? {
+        guard let playback, let action = playback.playAction(release: release, trackID: trackID) else { return nil }
+        return TrackPlayControl(
+            isCurrent: playback.isCurrent(trackID, in: release), isPlaying: playback.isPlaying,
+            isMissing: playback.missingTrackIDs.contains(trackID), action: action
+        )
     }
 
     @ViewBuilder

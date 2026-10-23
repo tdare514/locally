@@ -321,6 +321,20 @@ enum Copy {
         static func viewValue(_ names: [String]) -> String { names.joined(separator: ", ") }
     }
 
+    /// Playing a track inside Locally (#336).
+    enum Playback {
+        static func play(_ title: String) -> String { "Play \(title)" }
+        static func pause(_ title: String) -> String { "Pause \(title)" }
+        static let fileMissing = "File missing"
+        static let miniPlayerLabel = "Now playing"
+        static let playButton = "Play"
+        static let pauseButton = "Pause"
+        static let nextButton = "Next track"
+        /// The mini player's hint: tapping the bar opens the release.
+        static let openRelease = "Opens the release"
+        static func miniPlayerValue(title: String, artist: String) -> String { "\(title), \(artist)" }
+    }
+
     enum Detail {
         /// The eyebrow over the release detail's metadata section.
         static let detailsEyebrow = "Details"

@@ -25,6 +25,7 @@ struct LocallyApp: App {
                 case .ready(let container):
                     RootView()
                         .environment(\.appContainer, container)
+                        .environment(\.playback, container.playback)
                         .environment(container.folderStatus)
                         .environment(container.purchaseStatus)
                         .environment(container.syncStatus)

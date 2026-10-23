@@ -7,6 +7,7 @@ struct RootView: View {
     @Environment(\.appContainer) private var container
     @Environment(FolderStatus.self) private var folderStatus
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.playback) private var playback
 
     /// Onboarding ends on "Get started", not the moment the bookmark is
     /// stored, so the user actually sees the "Connected" confirmation.
@@ -56,27 +57,35 @@ struct RootView: View {
             } else {
                 TabView(selection: $selectedTab) {
                     LibraryView(selectedTab: $selectedTab, requestedImportKind: $requestedImportKind, librarySearchRequest: $librarySearchRequest)
+                        .miniPlayerInset()
                         .environment(\.isTabSelected, selectedTab == .library)
                         .tabItem { Label(Copy.Library.title, image: "Icon/Library") }
                         .tag(Tab.library)
 
                     ImportView(requestedKind: $requestedImportKind)
+                        .miniPlayerInset()
                         .environment(\.isTabSelected, selectedTab == .importSong)
                         .tabItem { Label(Copy.Import.title, image: "Icon/Plus") }
                         .tag(Tab.importSong)
 
                     StatsTab(selectedTab: $selectedTab, librarySearchRequest: $librarySearchRequest)
+                        .miniPlayerInset()
                         .environment(\.isTabSelected, selectedTab == .stats)
                         .tabItem { Label(Copy.Stats.tabLabel, image: "Icon/Stats") }
                         .tag(Tab.stats)
 
                     SettingsView()
+                        .miniPlayerInset()
                         .environment(\.isTabSelected, selectedTab == .settings)
                         .tabItem { Label(Copy.Settings.title, systemImage: "gearshape") }
                         .tag(Tab.settings)
                 }
                 .tint(Theme.accent)
                 .environment(\.openSettingsTab, { selectedTab = .settings })
+                // The mini player's bar opens its release in the Library.
+                .onChange(of: playback?.openReleaseRequest) { _, id in
+                    if id != nil { selectedTab = .library }
+                }
             }
         }
         .background(Theme.background)

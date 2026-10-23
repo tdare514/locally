@@ -12,6 +12,7 @@ import SwiftUI
 /// Spotify and the two first-import actions.
 struct LibraryView: View {
     @Environment(\.appContainer) private var container
+    @Environment(\.playback) private var playback
     /// The search prompt's size: the body role, scaled like typed text.
     @ScaledMetric(relativeTo: ThemeFontRole.body.style) private var searchTextSize = ThemeFontRole.body.size
 
@@ -111,6 +112,12 @@ struct LibraryView: View {
         skyKey.flatMap { palettes[$0] } ?? .neutral
     }
 
+    private func openRequestedRelease() {
+        guard let id = playback?.openReleaseRequest, let release = releases.first(where: { $0.id == id }) else { return }
+        path = NavigationPath([release])
+        playback?.openReleaseRequest = nil
+    }
+
     var body: some View {
         NavigationStack(path: $path) {
             ZStack {
@@ -192,8 +199,11 @@ struct LibraryView: View {
             // after a save/delete re-reads the store and reflects it here.
             .onAppear {
                 load()
+                openRequestedRelease()
                 if openTrayOnAppear { tray.isOpen = true }
             }
+            // The mini player's bar (#336): show that release's page, replacing whatever is pushed.
+            .onChange(of: playback?.openReleaseRequest) { _, _ in openRequestedRelease() }
             .onChange(of: librarySearchRequest) { _, name in
                 guard let name else { return }
                 query = name

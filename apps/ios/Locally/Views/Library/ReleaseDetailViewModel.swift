@@ -81,6 +81,8 @@ final class ReleaseDetailViewModel {
     /// Lengths read from the track files for tracks that carry none, by track id.
     private(set) var readLengths: [UUID: Double] = [:]
     private var release: Release
+    /// The release as last saved, for the player's queue (#336).
+    var savedRelease: Release { release }
     /// Bumped after each successful save; the view plays the record ceremony on it.
     private(set) var saveCount = 0
 
