@@ -137,6 +137,8 @@ function CloudPlaysRow({
   );
 }
 
+import SharedByYou from "./SharedByYou";
+
 export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, section, onCheckSpotifyFolders }: SettingsViewProps) {
   const [libraryDir, setLibraryDir] = useState("");
   const [loading, setLoading] = useState(true);
@@ -955,6 +957,8 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
         </p>
         </fieldset>
       </section>
+
+      {signedIn && !IS_DEMO && <SharedByYou onToast={onToast} />}
 
       <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
         <p className="text-sm font-semibold text-text">Connect to Spotify</p>

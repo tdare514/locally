@@ -222,3 +222,14 @@ export function FolderIcon(props: SVGProps<SVGSVGElement>) {
     </IconBase>
   );
 }
+
+/** Share: an arrow leaving a tray. */
+export function ShareIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M12 15V3" />
+      <path d="m7.5 7.5 4.5-4.5 4.5 4.5" />
+      <path d="M5 12v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
+    </IconBase>
+  );
+}

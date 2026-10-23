@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type SVGProps } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type SVGProps } from "react";
 import { flushSync } from "react-dom";
 import {
   moveAnnouncement,
@@ -64,6 +64,8 @@ interface TrackListProps {
   /** Release page (#288): the artist line under each title is "A, feat. B & C" with every name a link
    * to that artist's page, so a track's features show there and not again after the title. */
   linkArtists?: boolean;
+  /** Release page (#182): a Share control for one track, at the end of its row (hover, focus or right-click). */
+  renderShare?: (key: string, title: string) => ReactNode;
 }
 
 /** Pixels the pointer must travel before a press turns into a drag. */
@@ -154,6 +156,7 @@ export default function TrackList({
   releaseArtist,
   featuringIndex,
   linkArtists,
+  renderShare,
 }: TrackListProps) {
   const listRef = useRef<HTMLOListElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -456,7 +459,7 @@ export default function TrackList({
     onChange(next);
   }
 
-  const actionsWidth = (readOnly ? 0 : 32) + (onRemove ? 32 : 0);
+  const actionsWidth = (readOnly ? 0 : 32) + (onRemove ? 32 : 0) + (renderShare ? 32 : 0);
   const gridTemplate = trackGridTemplate(columns, actionsWidth);
 
   return (
@@ -501,8 +504,16 @@ export default function TrackList({
                 readOnly ? "" : "cursor-grab"
               } ${viewInfo?.missing ? "text-text-muted" : ""}`}
               onContextMenu={(e) => {
-                // The row's disc menu; the title input keeps the system one (copy and paste).
-                if (!hasDiscActions || (e.target as HTMLElement).closest("input, textarea")) return;
+                // The row's disc menu; the title input keeps the system one (copy and paste). A row with
+                // no disc actions opens its Share popover instead (#182).
+                if ((e.target as HTMLElement).closest("input, textarea")) return;
+                if (!hasDiscActions) {
+                  const share = e.currentTarget.querySelector<HTMLButtonElement>("[data-share-button]");
+                  if (!share) return;
+                  e.preventDefault();
+                  share.click();
+                  return;
+                }
                 e.preventDefault();
                 setDiscMenuKey(track.key);
               }}
@@ -593,6 +604,7 @@ export default function TrackList({
               )}
               {actionsWidth > 0 && (
                 <div className="flex justify-end">
+              {renderShare?.(track.key, track.title.trim() || `track ${index + 1}`)}
               {!readOnly && (
                 <button
                   type="button"
