@@ -301,6 +301,41 @@ describe("Id3TagService release date (#221)", () => {
     expect(raw(mp3Path)).toEqual({ year: "2024", recordingTime: "2024", date: undefined });
   });
 
+  it("writing a year drops a stale TDAT and TIME, so the old day does not come back", async () => {
+    const mp3Path = await newMp3();
+    NodeID3.write({ year: "2019", date: "0803", time: "1200" }, mp3Path);
+    const service = new Id3TagService();
+    await service.write(mp3Path, { ...base, year: "2024" });
+
+    const tags = NodeID3.read(mp3Path);
+    expect(tags.date).toBeUndefined();
+    expect(tags.time).toBeUndefined();
+    expect(tags.year).toBe("2024");
+    const result = await service.read(mp3Path);
+    expect(result.year).toBe("2024");
+    expect(result.releaseDate).toBeNull();
+  });
+
+  it("writing a full date drops a stale TDAT", async () => {
+    const mp3Path = await newMp3();
+    NodeID3.write({ year: "2019", date: "0803" }, mp3Path);
+    const service = new Id3TagService();
+    await service.write(mp3Path, { ...base, year: "2024", releaseDate: "2024-05-17" });
+
+    expect(raw(mp3Path)).toEqual({ year: "2024", recordingTime: "2024-05-17", date: undefined });
+    const result = await service.read(mp3Path);
+    expect(result.releaseDate).toBe("2024-05-17");
+  });
+
+  it("clearing the year removes a stale TDAT too", async () => {
+    const mp3Path = await newMp3();
+    NodeID3.write({ year: "2019", date: "0803" }, mp3Path);
+    const service = new Id3TagService();
+    await service.write(mp3Path, { ...base, year: null });
+
+    expect(raw(mp3Path)).toEqual({ year: undefined, recordingTime: undefined, date: undefined });
+  });
+
   it("clearing the year removes both TYER and TDRC", async () => {
     const mp3Path = await newMp3();
     const service = new Id3TagService();

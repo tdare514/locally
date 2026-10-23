@@ -150,17 +150,35 @@ export function releaseDateMessage(entry: ReleaseDateEntry, locale?: string): st
   return null;
 }
 
-/** The first code point of each 0-9 block that locales print digits in: Arabic-Indic, Extended Arabic-Indic,
- * Devanagari, Bengali, Thai, Myanmar, Fullwidth. */
-const DIGIT_BLOCKS = [0x0660, 0x06f0, 0x0966, 0x09e6, 0x0e50, 0x1040, 0xff10];
+let digitMap: Map<string, string> | null = null;
+
+/** Every non-ASCII digit any numbering system of this runtime prints, mapped to its ASCII value. Built once. */
+function nonAsciiDigits(): Map<string, string> {
+  if (digitMap) return digitMap;
+  const map = new Map<string, string>();
+  for (const ns of Intl.supportedValuesOf("numberingSystem")) {
+    let formatter: Intl.NumberFormat;
+    try {
+      formatter = new Intl.NumberFormat("en", { numberingSystem: ns, useGrouping: false });
+    } catch {
+      continue;
+    }
+    for (let n = 0; n <= 9; n++) {
+      const ch = formatter.format(n);
+      // Algorithmic systems print more than one character, and ASCII needs no mapping.
+      if ([...ch].length === 1 && ch.charCodeAt(0) > 0x7f) map.set(ch, String(n));
+    }
+  }
+  digitMap = map;
+  return map;
+}
 
 /** The text with those digits as ASCII 0-9 and the bidi marks (U+200E, U+200F, U+061C) that ar locales insert removed. */
 function asciiDigits(text: string): string {
-  return text.replace(/[\u200e\u200f\u061c]/gu, "").replace(/[\u0660-\u0669\u06f0-\u06f9\u0966-\u096f\u09e6-\u09ef\u0e50-\u0e59\u1040-\u1049\uff10-\uff19]/gu, (ch) => {
-    const code = ch.codePointAt(0)!;
-    const base = DIGIT_BLOCKS.find((b) => code >= b && code <= b + 9)!;
-    return String(code - base);
-  });
+  const map = nonAsciiDigits();
+  let out = "";
+  for (const ch of text.replace(/[\u200e\u200f\u061c]/gu, "")) out += map.get(ch) ?? ch;
+  return out;
 }
 
 /** Every whitespace run becomes one plain space, ends trimmed, then case and accents folded. */

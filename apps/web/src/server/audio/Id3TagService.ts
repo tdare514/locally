@@ -46,6 +46,10 @@ export class Id3TagService implements TagService {
     // Spotify reads an mp3's year from TYER only (#234), so TYER always holds the year; TDRC holds the full date
     // when there is one. TDAT is not written. With no year both frames are named `undefined`, so an earlier
     // write's date does not survive.
+    // `update` also keeps an old TDAT/TIME, which the TYER+TDAT fallback would read as a day, so both are
+    // removed whenever Locally writes its own date.
+    tags.date = undefined;
+    tags.time = undefined;
     const date = storedReleaseDate(input.year, input.releaseDate);
     if (date) {
       tags.year = releaseYear(date);
