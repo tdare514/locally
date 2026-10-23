@@ -130,7 +130,8 @@ export function lastPlayedLabel(day: string | null, today: string): string {
  * earliest day. Otherwise it says "on this Mac" and since when. */
 export function countingLine(counting: boolean, countingSince: string | null, today: string, allDevices = false): string {
   if (!counting) return allDevices ? "Play counting is off on this Mac." : "Play counting is off.";
-  if (allDevices) return "Collected across all your devices.";
-  if (!countingSince) return "Counting plays on this Mac.";
-  return `Counted on this Mac since ${shortDay(countingSince, today)}.`;
+  // Plays in Locally's own player count with Spotify's (#338), so the line says both.
+  if (allDevices) return "Plays in Spotify and in Locally, collected across all your devices.";
+  if (!countingSince) return "Plays in Spotify and in Locally, counted on this Mac.";
+  return `Plays in Spotify and in Locally, counted on this Mac since ${shortDay(countingSince, today)}.`;
 }

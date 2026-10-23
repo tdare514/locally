@@ -32,6 +32,12 @@ import {
   type BackStack,
 } from "../lib/back-stack";
 import Toast, { type ToastMessage } from "./Toast";
+import Player from "./Player";
+import { usePlayerSelector } from "../lib/play-queue";
+
+/** Bottom padding of the pane while the mini player shows on a page with no release bar: its 64 px, the 24 px
+ * under it and some air. */
+const MINI_PLAYER_PANE_PADDING = 120;
 
 export type View =
   | { type: "library" }
@@ -79,6 +85,8 @@ export default function AppShell() {
   const contentReady = useRef(true);
   const [statsShown, setStatsShown] = useState(STATS_PAGE_SIZE);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  // The mini player (#338) floats over the pane's bottom edge; pages without a release bar keep their last content clear of it.
+  const hasQueue = usePlayerSelector((s) => s.queue !== null);
   const nextToastId = useRef(0);
   // The library sky follows the scroll through --pane-progress and --pane-swirl on the sky
   // element (which fills the whole window, under the sidebar too), eased each frame so it twists while scrolling and settles after. Written
@@ -391,6 +399,8 @@ export default function AppShell() {
         <ArtistNavProvider value={{ open: (key) => pushTo({ type: "artist", key }), lockedReason: null }}>
         <main
           ref={mainRef}
+          // The release and import pages pad their own bottom (their bar sticks to the pane's padding edge).
+          style={hasQueue && view.type !== "release" && view.type !== "import" ? { paddingBottom: MINI_PLAYER_PANE_PADDING } : undefined}
           className={`relative isolate h-full overflow-y-auto p-6 md:p-10 lg:p-16 ${
             // Room under the back button where the page's own padding would run into it; at lg
             // the padding already clears it.
@@ -507,6 +517,9 @@ export default function AppShell() {
         {/* One overlay layer above the pane's chrome (Back, the tray button) for floating panels that must
             not be clipped by or stacked inside the pane, such as the Share popover. The sidebar stays above. */}
         <div id="overlay-root" className="pointer-events-none fixed inset-0 z-30" />
+        {/* The player (#338): its one <audio> lives here so playback survives page changes, and its mini bar
+            floats above the release bar on every page while a queue exists. The demo has no files to play. */}
+        {!IS_DEMO && <Player releases={library?.releases ?? []} onOpenRelease={(id) => pushTo({ type: "release", id })} />}
         {!IS_DEMO && (
           <div className="absolute right-4 top-4 z-20 md:right-6 md:top-6">
             <PhoneInbox

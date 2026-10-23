@@ -18,3 +18,7 @@ export function barPadding(barHeight: number): number {
 
 /** The bar's height before it is measured: its minimum. */
 export const BAR_MIN_HEIGHT = 68;
+
+/** Extra room a page keeps at the bottom while the mini player floats above its bar (#338): the player's
+ * 64 px plus the 12 px gap. */
+export const MINI_PLAYER_CLEARANCE = 76;

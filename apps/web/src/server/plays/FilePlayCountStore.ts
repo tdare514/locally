@@ -1,10 +1,30 @@
 import fs from "node:fs/promises";
 import { z } from "zod";
 import { playsFilePath, settingsDir } from "../config/paths";
-import { emptyPlayCounts, type PlayCounts, type PlayCountStore } from "./PlayCountStore";
+import { emptyPlayCounts, type PlayCounts, type PlayCountStore, type PlaySource, type SourceCounts } from "./PlayCountStore";
 import { cleanStoredDays, localDay, pruneDays } from "./playDays";
 
 const FILE_MODE = 0o600;
+
+const SourceCountsSchema = z.object({
+  count: z.number().int().min(0),
+  pushed: z.number().int().min(0),
+  days: z.unknown().optional(),
+  pushedDays: z.unknown().optional(),
+});
+
+function readSource(raw: unknown): SourceCounts | undefined {
+  const parsed = SourceCountsSchema.safeParse(raw);
+  if (!parsed.success) return undefined;
+  const days = cleanStoredDays(parsed.data.days);
+  const pushedDays = cleanStoredDays(parsed.data.pushedDays);
+  return {
+    count: parsed.data.count,
+    pushed: parsed.data.pushed,
+    ...(days ? { days } : {}),
+    ...(pushedDays ? { pushedDays } : {}),
+  };
+}
 
 const PlayCountsSchema = z.object({
   version: z.literal(1),
@@ -17,6 +37,8 @@ const PlayCountsSchema = z.object({
       // Read loosely, then cleaned by `cleanStoredDays`: a bad `days` must never cost the totals (#200).
       days: z.unknown().optional(),
       pushedDays: z.unknown().optional(),
+      // Locally's own source (#338), read loosely like `days`: a bad one is dropped, never the Spotify totals.
+      locally: z.unknown().optional(),
     }),
   ),
   daysInSync: z.boolean().optional(),
@@ -59,20 +81,30 @@ export class FilePlayCountStore implements PlayCountStore {
     for (const [trackId, entry] of Object.entries(parsed.data.tracks)) {
       const days = cleanStoredDays(entry.days);
       const pushedDays = cleanStoredDays(entry.pushedDays);
+      const locally = readSource(entry.locally);
       tracks[trackId] = {
         releaseId: entry.releaseId,
         count: entry.count,
         pushed: entry.pushed,
         ...(days ? { days } : {}),
         ...(pushedDays ? { pushedDays } : {}),
+        ...(locally ? { locally } : {}),
       };
     }
     return parsed.data.daysInSync ? { version: 1, tracks, daysInSync: true } : { version: 1, tracks };
   }
 
-  increment(trackId: string, releaseId: string, day: string): Promise<void> {
+  increment(trackId: string, releaseId: string, day: string, source: PlaySource = "spotify"): Promise<void> {
     return this.mutate((counts) => {
       const entry = counts.tracks[trackId];
+      if (source === "locally") {
+        const own = entry?.locally;
+        const days = { ...own?.days };
+        days[day] = (days[day] ?? 0) + 1;
+        const locally: SourceCounts = { ...own, count: (own?.count ?? 0) + 1, pushed: own?.pushed ?? 0, days };
+        counts.tracks[trackId] = entry ? { ...entry, releaseId, locally } : { releaseId, count: 0, pushed: 0, locally };
+        return;
+      }
       const days = { ...entry?.days };
       days[day] = (days[day] ?? 0) + 1;
       counts.tracks[trackId] = entry
@@ -93,20 +125,25 @@ export class FilePlayCountStore implements PlayCountStore {
     return this.epoch;
   }
 
-  markPushed(sent: Record<string, number>, epoch: number, sentDays?: Record<string, Record<string, number>>): Promise<void> {
+  markPushed(
+    sent: Record<string, number>,
+    epoch: number,
+    sentDays?: Record<string, Record<string, number>>,
+    source: PlaySource = "spotify",
+  ): Promise<void> {
     if (epoch !== this.epoch) return Promise.resolve();
     return this.mutate((counts) => {
       // Checked again when this runs: a reset can land while the write waits its turn.
       if (epoch !== this.epoch) return;
       for (const [trackId, count] of Object.entries(sent)) {
-        const entry = counts.tracks[trackId];
-        if (entry && count > entry.pushed) entry.pushed = count;
+        const target = counts.tracks[trackId] && (source === "locally" ? counts.tracks[trackId].locally : counts.tracks[trackId]);
+        if (target && count > target.pushed) target.pushed = count;
       }
       for (const [trackId, days] of Object.entries(sentDays ?? {})) {
-        const entry = counts.tracks[trackId];
-        if (!entry) continue;
+        const target = counts.tracks[trackId] && (source === "locally" ? counts.tracks[trackId].locally : counts.tracks[trackId]);
+        if (!target) continue;
         for (const [day, count] of Object.entries(days)) {
-          if (count > (entry.pushedDays?.[day] ?? 0)) entry.pushedDays = { ...entry.pushedDays, [day]: count };
+          if (count > (target.pushedDays?.[day] ?? 0)) target.pushedDays = { ...target.pushedDays, [day]: count };
         }
       }
     });
@@ -126,6 +163,10 @@ export class FilePlayCountStore implements PlayCountStore {
       for (const entry of Object.values(counts.tracks)) {
         entry.pushed = 0;
         delete entry.pushedDays;
+        if (entry.locally) {
+          entry.locally.pushed = 0;
+          delete entry.locally.pushedDays;
+        }
       }
       delete counts.daysInSync;
     });
@@ -161,6 +202,14 @@ export class FilePlayCountStore implements PlayCountStore {
       const pushedDays = pruneDays(entry.pushedDays, today);
       if (pushedDays) entry.pushedDays = pushedDays;
       else delete entry.pushedDays;
+      if (entry.locally) {
+        const ownDays = pruneDays(entry.locally.days, today);
+        if (ownDays) entry.locally.days = ownDays;
+        else delete entry.locally.days;
+        const ownPushed = pruneDays(entry.locally.pushedDays, today);
+        if (ownPushed) entry.locally.pushedDays = ownPushed;
+        else delete entry.locally.pushedDays;
+      }
     }
   }
 }

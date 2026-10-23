@@ -612,6 +612,74 @@ body {
   opacity: 1;
 }
 
+/* Row play button (#338): the track number turns into a play button on hover and on keyboard focus of the
+   button. The playing row keeps a static now-playing glyph (hover or focus shows its pause or play mark). Opacity
+   only, no looping animation; reduced motion drops the fade. */
+.track-play {
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.track-row:hover .track-play,
+.track-play:focus-visible,
+.track-play[data-current] {
+  opacity: 1;
+}
+.track-row:hover [data-play-cell] [data-number],
+[data-play-cell]:has(.track-play:focus-visible) [data-number],
+[data-play-cell]:has(.track-play[data-current]) [data-number] {
+  opacity: 0;
+}
+.track-play .track-play-action {
+  display: none;
+}
+.track-row:hover .track-play .track-play-action,
+.track-play:focus-visible .track-play-action {
+  display: block;
+}
+.track-row:hover .track-play .track-play-glyph,
+.track-play:focus-visible .track-play-glyph {
+  display: none;
+}
+
+/* Mini player (#338): the glass bar above the release bar. It appears with a short rise on the signature
+   easing (transform and opacity only); under reduced motion it just appears. The main button carries a
+   soft glow of the playing cover's colour (--btn-tint), like the release bar's main action. */
+.mini-player {
+  animation: mini-player-in 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes mini-player-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mini-player {
+    animation: none;
+  }
+}
+/* Denser than the dock's body: this bar floats over the page's text, which must not read through it. */
+.glass-fake.glass-dock.mini-player {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.03) 55%),
+    rgb(14 14 18 / 0.96);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass-fake.glass-dock.mini-player {
+    background: rgb(30 30 34);
+  }
+}
+.mini-player-main {
+  background: radial-gradient(120% 120% at 50% 0%, var(--btn-tint, var(--btn-tint-default, rgb(176 212 255 / 0.32))), rgb(255 255 255 / 0.06));
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.22),
+    0 0 18px -4px var(--btn-tint, var(--btn-tint-default, rgb(176 212 255 / 0.32)));
+}
+.mini-player-main:hover {
+  filter: brightness(1.15);
+}
+
 /* Phone inbox tray (#115): panel enter/exit (out of the button's bottom-left corner, on a diagonal), accepted-row collapse, trigger icon morph. */
 .phone-tray {
   transform-origin: top right;
@@ -1458,6 +1526,13 @@ body {
 .sb[data-pinned="true"] ~ .sb-stage {
   padding-left: 368px;
 }
+/* The player's overlay (#338) fills the pane and keeps the same left room, so its bar lines up with the page. */
+.sb-stage-overlay {
+  padding-left: 64px;
+}
+.sb[data-pinned="true"] ~ .sb-stage > .sb-stage-overlay {
+  padding-left: 368px;
+}
 .sb[data-shift="in"] ~ .sb-stage > main {
   animation: sb-shift-in 320ms cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1682,6 +1757,8 @@ body {
   .track-tile,
   .track-affordance,
   .share-row-button,
+  .track-play,
+  .mini-player,
   .track-list[data-sorting] .track-row,
   .track-list[data-sorting] .track-row[data-lifted],
   .track-list[data-sorting] .track-row[data-settling] {

@@ -55,10 +55,13 @@ export default function ReleaseBar({ tint, left, status, beforeMain, main, onHei
     if (!bar) return;
     const pane = scrollingAncestor(bar);
     const before = pane?.style.scrollPaddingBottom ?? "";
+    // The mini player (#338) floats above this bar: publish the bar's height plus a 12 px gap on the pane's parent.
+    const stage = pane?.parentElement ?? null;
     const measure = () => {
       const height = bar.getBoundingClientRect().height;
       onHeightRef.current(height);
       if (pane) pane.style.scrollPaddingBottom = `${Math.ceil(height) + BAR_CLEARANCE}px`;
+      stage?.style.setProperty("--release-bar-h", `${Math.ceil(height) + 12}px`);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -66,6 +69,7 @@ export default function ReleaseBar({ tint, left, status, beforeMain, main, onHei
     return () => {
       observer.disconnect();
       if (pane) pane.style.scrollPaddingBottom = before;
+      stage?.style.removeProperty("--release-bar-h");
     };
   }, []);
 

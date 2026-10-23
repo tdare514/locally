@@ -7,6 +7,7 @@ import { PlayCounter } from "./PlayCounter";
 import { localDay } from "./playDays";
 import type { SpotifyNowPlaying } from "./SpotifyNowPlaying";
 import type { CloudPlays } from "../spotify/CloudPlays";
+import type { LocallyNowPlaying } from "./LocallyNowPlaying";
 
 export const DEFAULT_POLL_INTERVAL_MS = 5000;
 /** Poll interval while the last poll found Spotify closed, so an idle app rarely spawns osascript (#162). */
@@ -44,6 +45,8 @@ export class PlayTracker {
     private readonly timeZone?: string,
     /** Online counting (#307): while it is active this tracker reads and counts nothing. */
     private readonly online?: Pick<CloudPlays, "active" | "refreshIfStale">,
+    /** Locally's own player (#338): a Spotify read of the track it is playing is ignored, so a play never counts twice. */
+    private readonly locally?: Pick<LocallyNowPlaying, "trackId">,
   ) {}
 
   setEnabled(enabled: boolean): void {
@@ -140,6 +143,11 @@ export class PlayTracker {
         return;
       }
       this.lastStatus = "on";
+      if (result.id && (await this.isLocallyPlaying(result.id))) {
+        // Locally is playing this very track: its own player counts it. End Spotify's session.
+        this.counter.push({ at, running: false, state: "stopped", id: null, positionSec: 0, durationMs: 0 });
+        return;
+      }
       const counted = this.counter.push({ at, ...result });
       if (counted) await this.record(counted, at);
     } catch (err) {
@@ -147,6 +155,15 @@ export class PlayTracker {
     } finally {
       this.polling = false;
     }
+  }
+
+  /** True when Locally's player is playing the Locally track this Spotify id points at. */
+  private async isLocallyPlaying(spotifyId: string): Promise<boolean> {
+    const playing = this.locally?.trackId();
+    if (!playing) return false;
+    const settings: Settings = await this.settings.get();
+    const resolved = resolveLocalTrack(spotifyId, await this.library.list(settings.libraryDir));
+    return resolved.kind === "match" && resolved.trackId === playing;
   }
 
   private async record(spotifyId: string, at: number): Promise<void> {

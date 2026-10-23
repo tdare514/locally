@@ -24,6 +24,7 @@ import type { SpotifySourceDetector } from "./spotify/SpotifySourceDetector";
 import { FilePlayCountStore } from "./plays/FilePlayCountStore";
 import type { PlayCountStore } from "./plays/PlayCountStore";
 import { OsascriptNowPlaying } from "./plays/OsascriptNowPlaying";
+import { LocallyNowPlaying } from "./plays/LocallyNowPlaying";
 import { PlayTracker } from "./plays/PlayTracker";
 import type { ReleaseSyncHooks } from "./releases/ReleaseSyncHooks";
 import { SpotifyAuth } from "./spotify/SpotifyAuth";
@@ -56,6 +57,7 @@ export interface Services {
   playlistIndex: PlaylistIndex;
   playStore: PlayCountStore;
   playTracker: PlayTracker;
+  locallyPlaying: LocallyNowPlaying;
   nowPlaying: SwitchingNowPlaying;
   cloudPlays: CloudPlays;
   adopt: AdoptService;
@@ -129,7 +131,8 @@ function buildServices(): Services {
   });
   // Online counting (#307): while the sync service counts this account's plays, the tracker stands down.
   const cloudPlays = new CloudPlays({ settings, apiFactory: syncApiFactory });
-  const playTracker = new PlayTracker(nowPlaying, settings, library, playStore, undefined, undefined, undefined, undefined, cloudPlays);
+  const locallyPlaying = new LocallyNowPlaying();
+  const playTracker = new PlayTracker(nowPlaying, settings, library, playStore, undefined, undefined, undefined, undefined, cloudPlays, locallyPlaying);
   settings
     .get()
     .then((s) => playTracker.setEnabled(s.trackPlays === true))
@@ -153,6 +156,7 @@ function buildServices(): Services {
     playlistIndex: new PlaylistIndex({ client: spotifyClient, store: new FilePlaylistCacheStore(), settings, library }),
     playStore,
     playTracker,
+    locallyPlaying,
     nowPlaying,
     cloudPlays,
     adopt: new AdoptService({ settings, library, fs, proposals: new FileAdoptProposalStore() }),

@@ -1,4 +1,4 @@
-import { emptyPlayCounts, type PlayCounts, type PlayCountStore } from "../../src/server/plays/PlayCountStore";
+import { emptyPlayCounts, type PlayCounts, type PlayCountStore, type PlaySource } from "../../src/server/plays/PlayCountStore";
 
 /** In-memory {@link PlayCountStore} fake, following the other fakes in tests/unit. */
 export class FakePlayCountStore implements PlayCountStore {
@@ -8,8 +8,16 @@ export class FakePlayCountStore implements PlayCountStore {
     return structuredClone(this.counts);
   }
 
-  async increment(trackId: string, releaseId: string, day: string): Promise<void> {
+  async increment(trackId: string, releaseId: string, day: string, source: PlaySource = "spotify"): Promise<void> {
     const entry = this.counts.tracks[trackId];
+    if (source === "locally") {
+      const own = entry?.locally;
+      const ownDays = { ...own?.days };
+      ownDays[day] = (ownDays[day] ?? 0) + 1;
+      const locally = { count: (own?.count ?? 0) + 1, pushed: own?.pushed ?? 0, days: ownDays };
+      this.counts.tracks[trackId] = entry ? { ...entry, releaseId, locally } : { releaseId, count: 0, pushed: 0, locally };
+      return;
+    }
     const days = { ...entry?.days };
     days[day] = (days[day] ?? 0) + 1;
     this.counts.tracks[trackId] = entry
@@ -29,14 +37,20 @@ export class FakePlayCountStore implements PlayCountStore {
     return this.epoch;
   }
 
-  async markPushed(sent: Record<string, number>, epoch: number, sentDays?: Record<string, Record<string, number>>): Promise<void> {
+  async markPushed(
+    sent: Record<string, number>,
+    epoch: number,
+    sentDays?: Record<string, Record<string, number>>,
+    source: PlaySource = "spotify",
+  ): Promise<void> {
     if (epoch !== this.epoch) return;
+    const pick = (trackId: string) => (source === "locally" ? this.counts.tracks[trackId]?.locally : this.counts.tracks[trackId]);
     for (const [trackId, count] of Object.entries(sent)) {
-      const entry = this.counts.tracks[trackId];
+      const entry = pick(trackId);
       if (entry && count > entry.pushed) entry.pushed = count;
     }
     for (const [trackId, days] of Object.entries(sentDays ?? {})) {
-      const entry = this.counts.tracks[trackId];
+      const entry = pick(trackId);
       if (!entry) continue;
       for (const [day, count] of Object.entries(days)) {
         if (count > (entry.pushedDays?.[day] ?? 0)) entry.pushedDays = { ...entry.pushedDays, [day]: count };

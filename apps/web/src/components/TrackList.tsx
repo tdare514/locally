@@ -16,7 +16,7 @@ import { trackArtist, trackColumns, trackGridTemplate } from "../lib/track-colum
 import { formatLength } from "../lib/adopt-review";
 import { adoptDiscAfterMove, discActionsFor, discHeadings, joinPreviousDisc, startDiscAt } from "../shared/discs";
 import DiscMenu from "./DiscMenu";
-import { XIcon } from "./Icons";
+import { NowPlayingIcon, PauseIcon, PlayIcon, XIcon } from "./Icons";
 import TrackPlaylistsLine, { type PlaylistRef } from "./TrackPlaylistsLine";
 import TrackFeaturing from "./TrackFeaturing";
 import type { ArtistEntry } from "../lib/artist-index";
@@ -66,6 +66,16 @@ interface TrackListProps {
   linkArtists?: boolean;
   /** Release page (#182): a Share control for one track, at the end of its row (hover, focus or right-click). */
   renderShare?: (key: string, title: string) => ReactNode;
+  /** Release page (#338): play from the rows. Each row's number turns into a play button on hover and keyboard
+   * focus. `playableKeys` are the rows that can play (a row with a missing file is left out). */
+  player?: {
+    playableKeys: ReadonlySet<string>;
+    /** The row whose track is the player's current item, and whether it is playing now. */
+    currentKey: string | null;
+    playing: boolean;
+    /** Enter or Space on a row's play button: play it, or pause it when it is the one playing. */
+    onToggle: (key: string) => void;
+  };
 }
 
 /** Pixels the pointer must travel before a press turns into a drag. */
@@ -139,6 +149,43 @@ interface Drag {
   raf: number;
 }
 
+/**
+ * The row's play button (#338), laid over the track number. Hidden until the row is hovered or the button has
+ * keyboard focus; the current row keeps it showing as a static now-playing glyph (a pause mark on hover or
+ * focus while it plays). Enter or Space presses it, as for any button. Nothing loops or moves.
+ */
+function PlayButton({
+  title,
+  current,
+  playing,
+  onToggle,
+}: {
+  title: string;
+  current: boolean;
+  playing: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-play-button
+      data-current={current ? "" : undefined}
+      aria-label={`${playing ? "Pause" : "Play"} ${title}`}
+      onClick={onToggle}
+      className="track-play absolute left-0 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-white outline-none focus-visible:ring-2 focus-visible:ring-accent"
+    >
+      {current ? (
+        <>
+          <NowPlayingIcon className="track-play-glyph size-4 text-accent" />
+          {playing ? <PauseIcon className="track-play-action size-4" /> : <PlayIcon className="track-play-action size-4" />}
+        </>
+      ) : (
+        <PlayIcon className="size-4" />
+      )}
+    </button>
+  );
+}
+
 /** A list of editable track titles that sit directly on the page, like the release page's inline
  * fields. Reorder by dragging a row (or its grip) or from the keyboard: focus the grip, then
  * Alt+Up/Down, or Space to pick up, the arrows to move, Space or Enter to drop, Escape to
@@ -157,6 +204,7 @@ export default function TrackList({
   featuringIndex,
   linkArtists,
   renderShare,
+  player,
 }: TrackListProps) {
   const listRef = useRef<HTMLOListElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -520,6 +568,7 @@ export default function TrackList({
             >
               {/* The glass tile: shown only while this row is held. */}
               <span aria-hidden className="track-tile glass-fake glass-frost" />
+              <div data-play-cell={player?.playableKeys.has(track.key) ? "" : undefined} className="relative shrink-0">
               {hasDiscActions ? (
                 <DiscMenu
                   number={index + 1}
@@ -534,6 +583,15 @@ export default function TrackList({
                   {index + 1}
                 </span>
               )}
+              {player?.playableKeys.has(track.key) && (
+                <PlayButton
+                  title={track.title.trim() || `track ${index + 1}`}
+                  current={player.currentKey === track.key}
+                  playing={player.currentKey === track.key && player.playing}
+                  onToggle={() => player.onToggle(track.key)}
+                />
+              )}
+              </div>
               <div className="flex min-w-0 flex-col items-start">
                 {view ? (
                   <span
