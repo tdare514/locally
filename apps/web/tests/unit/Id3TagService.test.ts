@@ -233,3 +233,169 @@ describe("Id3TagService", () => {
     await expect(service.read(path.join(tmpDir, "missing.mp3"))).rejects.toBeTruthy();
   });
 });
+
+describe("Id3TagService release date (#221)", () => {
+  const base = { title: "T", artist: "A", albumArtist: "A", album: "Al", trackNumber: 1, trackTotal: 1 };
+
+  async function newMp3(): Promise<string> {
+    const mp3Path = path.join(tmpDir, "date.mp3");
+    await fs.writeFile(mp3Path, silentMp3());
+    return mp3Path;
+  }
+
+  function raw(filePath: string) {
+    const tags = NodeID3.read(filePath);
+    return { year: tags.year, recordingTime: tags.recordingTime, date: tags.date };
+  }
+
+  it("a year alone writes TYER and TDRC as the year, and no TDAT", async () => {
+    const mp3Path = await newMp3();
+    const service = new Id3TagService();
+    await service.write(mp3Path, { ...base, year: "2024" });
+
+    expect(raw(mp3Path)).toEqual({ year: "2024", recordingTime: "2024", date: undefined });
+    const result = await service.read(mp3Path);
+    expect(result.year).toBe("2024");
+    expect(result.releaseDate).toBeNull();
+  });
+
+  it("a full date writes TYER as the year and TDRC as the date, and reads back", async () => {
+    const mp3Path = await newMp3();
+    const service = new Id3TagService();
+    await service.write(mp3Path, { ...base, year: "2024", releaseDate: "2024-05-17" });
+
+    expect(raw(mp3Path)).toEqual({ year: "2024", recordingTime: "2024-05-17", date: undefined });
+    const result = await service.read(mp3Path);
+    expect(result.year).toBe("2024");
+    expect(result.releaseDate).toBe("2024-05-17");
+  });
+
+  it("a month writes TDRC as YYYY-MM and reads back at month precision", async () => {
+    const mp3Path = await newMp3();
+    const service = new Id3TagService();
+    await service.write(mp3Path, { ...base, year: "2024", releaseDate: "2024-05" });
+
+    expect(raw(mp3Path).recordingTime).toBe("2024-05");
+    const result = await service.read(mp3Path);
+    expect(result.year).toBe("2024");
+    expect(result.releaseDate).toBe("2024-05");
+  });
+
+  it("shortening a full date to a year leaves TDRC as the year, with no day", async () => {
+    const mp3Path = await newMp3();
+    const service = new Id3TagService();
+    await service.write(mp3Path, { ...base, year: "2024", releaseDate: "2024-05-17" });
+    await service.write(mp3Path, { ...base, year: "2024" });
+
+    expect(raw(mp3Path)).toEqual({ year: "2024", recordingTime: "2024", date: undefined });
+    const result = await service.read(mp3Path);
+    expect(result.year).toBe("2024");
+    expect(result.releaseDate).toBeNull();
+  });
+
+  it("ignores a releaseDate that disagrees with the year", async () => {
+    const mp3Path = await newMp3();
+    const service = new Id3TagService();
+    await service.write(mp3Path, { ...base, year: "2024", releaseDate: "2023-05-17" });
+
+    expect(raw(mp3Path)).toEqual({ year: "2024", recordingTime: "2024", date: undefined });
+  });
+
+  it("writing a year drops a stale TDAT and TIME, so the old day does not come back", async () => {
+    const mp3Path = await newMp3();
+    NodeID3.write({ year: "2019", date: "0803", time: "1200" }, mp3Path);
+    const service = new Id3TagService();
+    await service.write(mp3Path, { ...base, year: "2024" });
+
+    const tags = NodeID3.read(mp3Path);
+    expect(tags.date).toBeUndefined();
+    expect(tags.time).toBeUndefined();
+    expect(tags.year).toBe("2024");
+    const result = await service.read(mp3Path);
+    expect(result.year).toBe("2024");
+    expect(result.releaseDate).toBeNull();
+  });
+
+  it("writing a full date drops a stale TDAT", async () => {
+    const mp3Path = await newMp3();
+    NodeID3.write({ year: "2019", date: "0803" }, mp3Path);
+    const service = new Id3TagService();
+    await service.write(mp3Path, { ...base, year: "2024", releaseDate: "2024-05-17" });
+
+    expect(raw(mp3Path)).toEqual({ year: "2024", recordingTime: "2024-05-17", date: undefined });
+    const result = await service.read(mp3Path);
+    expect(result.releaseDate).toBe("2024-05-17");
+  });
+
+  it("clearing the year removes a stale TDAT too", async () => {
+    const mp3Path = await newMp3();
+    NodeID3.write({ year: "2019", date: "0803" }, mp3Path);
+    const service = new Id3TagService();
+    await service.write(mp3Path, { ...base, year: null });
+
+    expect(raw(mp3Path)).toEqual({ year: undefined, recordingTime: undefined, date: undefined });
+  });
+
+  it("clearing the year removes both TYER and TDRC", async () => {
+    const mp3Path = await newMp3();
+    const service = new Id3TagService();
+    await service.write(mp3Path, { ...base, year: "2024", releaseDate: "2024-05-17" });
+    await service.write(mp3Path, { ...base, year: null });
+
+    expect(raw(mp3Path)).toEqual({ year: undefined, recordingTime: undefined, date: undefined });
+    const result = await service.read(mp3Path);
+    expect(result.year).toBeNull();
+    expect(result.releaseDate).toBeNull();
+  });
+
+  it("keeps a tag Locally does not own through a date change", async () => {
+    const mp3Path = await newMp3();
+    NodeID3.write({ composer: "Someone", comment: { language: "eng", text: "keep me" } }, mp3Path);
+    const service = new Id3TagService();
+    await service.write(mp3Path, { ...base, year: "2024", releaseDate: "2024-05-17" });
+    await service.write(mp3Path, { ...base, year: null });
+
+    const tags = NodeID3.read(mp3Path);
+    expect(tags.composer).toBe("Someone");
+    expect(tags.comment?.text).toBe("keep me");
+  });
+
+  it("reads a TDRC with a time part as its date, and a file with only TYER as a year", async () => {
+    const mp3Path = await newMp3();
+    NodeID3.write({ recordingTime: "2024-05-17T07:00:00Z" }, mp3Path);
+    const service = new Id3TagService();
+    const timed = await service.read(mp3Path);
+    expect(timed.year).toBe("2024");
+    expect(timed.releaseDate).toBe("2024-05-17");
+
+    const yearOnlyPath = path.join(tmpDir, "year-only.mp3");
+    await fs.writeFile(yearOnlyPath, silentMp3());
+    NodeID3.write({ year: "1999" }, yearOnlyPath);
+    const yearOnly = await service.read(yearOnlyPath);
+    expect(yearOnly.year).toBe("1999");
+    expect(yearOnly.releaseDate).toBeNull();
+  });
+
+  it("reads TYER with TDAT (DDMM) as a full date", async () => {
+    const mp3Path = await newMp3();
+    NodeID3.write({ year: "2019", date: "0803" }, mp3Path);
+    const result = await new Id3TagService().read(mp3Path);
+    expect(result.year).toBe("2019");
+    expect(result.releaseDate).toBe("2019-03-08");
+  });
+
+  it("falls back to the year when TDAT is not a real day, or is missing", async () => {
+    const mp3Path = await newMp3();
+    NodeID3.write({ year: "2024", date: "3102" }, mp3Path);
+    const impossible = await new Id3TagService().read(mp3Path);
+    expect(impossible.year).toBe("2024");
+    expect(impossible.releaseDate).toBeNull();
+
+    const yearOnlyPath = path.join(tmpDir, "no-tdat.mp3");
+    await fs.writeFile(yearOnlyPath, silentMp3());
+    NodeID3.write({ year: "2024" }, yearOnlyPath);
+    const missing = await new Id3TagService().read(yearOnlyPath);
+    expect(missing.year).toBe("2024");
+    expect(missing.releaseDate).toBeNull();
+  });
+});

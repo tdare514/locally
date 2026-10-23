@@ -5,6 +5,7 @@ import { SUPPORTED_AUDIO_EXT, SUPPORTED_IMAGE_EXT } from "../../shared/types";
 import { isPlainSyncName } from "../sync/SyncRecord";
 import { ValidationError } from "../../shared/errors";
 import { MAX_DISC_NUMBER } from "../../shared/discs";
+import { isReleaseDateValue } from "../../shared/releaseDate";
 import { MAX_ADOPT_ROOTS } from "../../shared/adopt";
 
 /** Input limits shared by the upload routes. */
@@ -66,6 +67,25 @@ const kindSchema = z.enum(["single", "album"], { error: "must be 'single' or 'al
 // `Release.year` is a string ("2024"), so a 4-digit string it is; a number is rejected.
 const yearSchema = z.string({ error: "must be a 4-digit year" }).trim().regex(/^\d{4}$/, "must be a 4-digit year");
 
+// `Release.releaseDate` (#221): "YYYY-MM" or "YYYY-MM-DD", a real date; only valid next to the same `year`.
+const RELEASE_DATE_MSG = "must be a real date as YYYY-MM or YYYY-MM-DD";
+const releaseDateSchema = z
+  .string({ error: RELEASE_DATE_MSG })
+  .refine((s) => isReleaseDateValue(s), RELEASE_DATE_MSG);
+
+/** A `releaseDate` needs a `year`, and the year must be the date's first four characters. */
+function requireMatchingYear(
+  value: { year?: string | null; releaseDate?: string },
+  ctx: z.RefinementCtx
+): void {
+  if (value.releaseDate === undefined || !isReleaseDateValue(value.releaseDate)) return;
+  if (value.year == null) {
+    ctx.addIssue({ code: "custom", message: "needs a year", path: ["releaseDate"] });
+  } else if (value.year !== value.releaseDate.slice(0, 4)) {
+    ctx.addIssue({ code: "custom", message: "must start with the year", path: ["releaseDate"] });
+  }
+}
+
 // Anything but a small positive integer would stringify into a track file name that
 // isn't a plain number (see `ReleaseLayout.trackFileName`).
 const TRACK_NUMBER_MSG = "must be an integer between 1 and 999";
@@ -107,13 +127,15 @@ function rejectDuplicateTrackNumbers(
   }
 }
 
-const importMetaSchema = z.object(
+const importMetaSchema = z
+  .object(
   {
     kind: kindSchema,
     // Optional for singles: the server falls back to the first track's title.
     title: text().default(""),
     artist: text().min(1, "is required"),
     year: yearSchema.optional(),
+    releaseDate: releaseDateSchema.optional(),
     genre: text().optional(),
     tracks: z
       .array(z.object(
@@ -127,13 +149,16 @@ const importMetaSchema = z.object(
       .superRefine(rejectDuplicateTrackNumbers),
   },
   { error: "must be a JSON object" }
-);
+  )
+  .superRefine(requireMatchingYear);
 
-const updateMetaSchema = z.object(
+const updateMetaSchema = z
+  .object(
   {
     title: text().optional(),
     artist: text().optional(),
     year: yearSchema.nullable().optional(),
+    releaseDate: releaseDateSchema.optional(),
     genre: text().nullable().optional(),
     tracks: z
       .array(
@@ -153,7 +178,8 @@ const updateMetaSchema = z.object(
       .optional(),
   },
   { error: "Request body must be a JSON object" }
-);
+  )
+  .superRefine(requireMatchingYear);
 
 /** "meta.tracks[2].trackNumber must be ..." from a zod issue, so the client sees which field failed. */
 function describeIssue(root: string, issue: z.ZodIssue): string {

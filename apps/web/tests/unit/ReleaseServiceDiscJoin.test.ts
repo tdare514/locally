@@ -124,7 +124,7 @@ describe("joining the discs back into one (#222)", () => {
 
     // The Mac's save path: the draft with the discs cleared makes the patch, the patch is validated and applied.
     const draftTracks = imported.tracks.map((t) => ({ key: t.id, title: t.title }));
-    const patch = buildPatch(imported, { title: "Album", artist: "Artist", year: "", genre: "", tracks: draftTracks });
+    const patch = buildPatch(imported, { title: "Album", artist: "Artist", releaseDate: "", genre: "", tracks: draftTracks });
     expect(patch?.tracks?.map((t) => t.discNumber)).toEqual([null, null, null, null]);
     const parsed = parseUpdateMeta(JSON.parse(JSON.stringify(patch)));
     const updated = await service.update(imported.id, parsed);
