@@ -60,6 +60,8 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
   const [result, setResult] = useState<CreateShareResponse | null>(null);
   const [copied, setCopied] = useState(false);
   const [note, setNote] = useState("");
+  // Opens upward from the bar, and from a row with more room above than below.
+  const [up, setUp] = useState(variant === "bar");
 
   const close = useCallback((returnFocus: boolean) => {
     setOpen(false);
@@ -69,6 +71,8 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
   /** Opening starts a fresh form. */
   function toggle() {
     if (!open) {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      setUp(variant === "bar" || (rect ? rect.top > window.innerHeight - rect.bottom : false));
       setEmails([]);
       setDraft("");
       setEmailError(null);
@@ -234,8 +238,6 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
       </button>
     );
   }
-
-  const up = variant === "bar";
 
   return (
     <div ref={wrapRef} className="relative shrink-0" onBlur={onFocusOut}>

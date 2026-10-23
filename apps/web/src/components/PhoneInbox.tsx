@@ -679,7 +679,7 @@ export function FriendRow({
               {item.trackCount} track{item.trackCount === 1 ? "" : "s"}
             </span>
           </span>
-          <span className="block truncate text-[12px] text-text-dim">{fromLabel(item.fromEmail)}</span>
+          <span className="block text-[12px] text-text-dim [overflow-wrap:anywhere]">{fromLabel(item.fromEmail)}</span>
         </span>
         <button
           type="button"
