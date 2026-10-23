@@ -1,6 +1,7 @@
-import { eq } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { authCodes, devices, files, pendingDeletes, playCounts, playDays, releases, spotifyLinkRequests, spotifyLinks, userCounters, users } from "../../db/schema";
+import { eq, inArray } from "drizzle-orm";
+import { authCodes, devices, files, pendingDeletes, playCounts, playDays, releases, shareDownloads, shareLinks, shareRecipients, shares, spotifyLinkRequests, spotifyLinks, userCounters, users } from "../../db/schema";
+import { shareTreeIds } from "../shares/tree";
 import { NotFoundError, ValidationError } from "../../shared/errors";
 import { emailSchema } from "../../shared/types";
 
@@ -14,7 +15,7 @@ export interface DeleteAccountResult {
 
 /**
  * Deletes a sync account: every row scoped to it (`devices`, `user_counters`,
- * `releases`, `files`, `play_counts`, `play_days`, `spotify_links`, `spotify_link_requests`, `auth_codes`), plus the `users` row itself, in one
+ * `releases`, `files`, `shares` (its own and every reshare below them) with their recipients, links and download rows, its `share_recipients` rows, `play_counts`, `play_days`, `spotify_links`, `spotify_link_requests`, `auth_codes`), plus the `users` row itself, in one
  * transaction — then queues each removed file's storage key in
  * `pending_deletes` so its blob is removed afterward (see
  * `CleanupService.drainPendingDeletes`/`run`). Never deletes a blob inline;
@@ -43,6 +44,24 @@ export class AccountService {
   }
 
   /**
+   * Share rows (#181), fresh statements for the same batch: `shareIds` is the user's own shares and every reshare below them
+   * (their recipients, link, download rows and the shares themselves), and the user's recipient rows on other people's shares.
+   */
+  private shareDeleteStatements(userId: string, shareIds: string[]) {
+    return [
+      ...(shareIds.length > 0
+        ? [
+            this.db.delete(shareDownloads).where(inArray(shareDownloads.shareId, shareIds)),
+            this.db.delete(shareLinks).where(inArray(shareLinks.shareId, shareIds)),
+            this.db.delete(shareRecipients).where(inArray(shareRecipients.shareId, shareIds)),
+            this.db.delete(shares).where(inArray(shares.id, shareIds)),
+          ]
+        : []),
+      this.db.delete(shareRecipients).where(eq(shareRecipients.userId, userId)),
+    ];
+  }
+
+  /**
    * `email` must equal the account's stored email after the same
    * normalisation the auth routes apply (`emailSchema`: trim, lower-case).
    * Throws `NotFoundError` if `userId` doesn't resolve to a user (can't
@@ -63,6 +82,9 @@ export class AccountService {
 
     const userFiles = await this.db.select({ storageKey: files.storageKey }).from(files).where(eq(files.userId, userId));
     const now = this.now();
+    const ownShares = await this.db.select({ id: shares.id }).from(shares).where(eq(shares.ownerUserId, userId));
+    const shareIds = await shareTreeIds(this.db, ownShares.map((r) => r.id));
+    const shareStatements = this.shareDeleteStatements(userId, shareIds);
 
     let deletedDevices: { id: string }[];
     let deletedReleases: { id: string }[];
@@ -71,13 +93,14 @@ export class AccountService {
     if (userFiles.length > 0) {
       [deletedDevices, , deletedReleases, deletedFiles] = await this.db.batch([
         ...this.rowDeleteStatements(userId, user.email),
+        ...shareStatements,
         this.db
           .insert(pendingDeletes)
           .values(userFiles.map((f) => ({ storageKey: f.storageKey, enqueuedAt: now, attempts: 0 })))
           .onConflictDoNothing(),
       ]);
     } else {
-      [deletedDevices, , deletedReleases, deletedFiles] = await this.db.batch(this.rowDeleteStatements(userId, user.email));
+      [deletedDevices, , deletedReleases, deletedFiles] = await this.db.batch([...this.rowDeleteStatements(userId, user.email), ...shareStatements]);
     }
 
     return {

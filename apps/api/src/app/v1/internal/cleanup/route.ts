@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic";
  * open so `npm run dev` + curl can exercise it without extra setup.
  *
  * Also a cost guardrail (#29): logs the total bytes stored across every
- * file, at "warn" once it reaches `STORAGE_ALERT_BYTES` (see README.md).
+ * file, at "warn" once it reaches `STORAGE_ALERT_BYTES` (see README.md). Likewise logs the last 24 hours of
+ * share downloads (#181): total bytes and the top 10 shares, at "warn" from `SHARE_EGRESS_ALERT_BYTES`.
  */
 export const GET = withObservability("/v1/internal/cleanup", async (request) => {
   const services = await getServices();
@@ -41,6 +42,18 @@ export const GET = withObservability("/v1/internal/cleanup", async (request) => 
   });
   if (overAlert) console.warn(line);
   else console.log(line);
+
+  // Share egress (#181): monitoring only, no caps. One JSON line; a warning past SHARE_EGRESS_ALERT_BYTES.
+  const egress = await services.shares.egressReport();
+  const overEgress = egress.totalBytes >= services.shareEgressAlertBytes;
+  const egressLine = JSON.stringify({
+    level: overEgress ? "warn" : "info",
+    event: "share_egress",
+    ...egress,
+    alertBytes: services.shareEgressAlertBytes,
+  });
+  if (overEgress) console.warn(egressLine);
+  else console.log(egressLine);
 
   return NextResponse.json(result);
 });
