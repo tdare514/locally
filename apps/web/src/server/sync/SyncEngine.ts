@@ -5,6 +5,8 @@ import type { PendingFilesState, PendingFromPhone, Release, SyncStatus } from ".
 import { DEFAULT_SYNC_BASE_URL } from "../../shared/types";
 import { NotFoundError, PublicError, ValidationError } from "../../shared/errors";
 import type { SettingsStore } from "../config/SettingsStore";
+import { settingsDir } from "../config/paths";
+import nodeFs from "node:fs/promises";
 import type { FileSystem } from "../fs/FileSystem";
 import { assertReadablePath, assertWritable, isAdoptedCoverPath } from "../adopt/guards";
 import type { ReleaseService } from "../releases/ReleaseService";
@@ -37,6 +39,8 @@ import {
 } from "./SyncApi";
 import type { MissingMark, SyncState, SyncStateStore } from "./SyncState";
 import { hideKeyFor } from "../../lib/tray-sections";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Builds a `SyncApi` for a given base URL/token; a factory (not a singleton) because both can change while the app runs. */
 export type SyncApiFactory = (baseUrl: string, token: string | null) => SyncApi;
@@ -146,8 +150,6 @@ export class SyncEngine implements ReleaseSyncHooks {
   private nextHealAttemptMs: number | null = null;
   /** Live shares sent to this account (#182), from the last reconcile. In memory: the next reconcile refills it. */
   private received: ReceivedShare[] = [];
-  /** Shares claimed here whose import then failed: they stay in the tray so the owner can try again. */
-  private stuckClaims = new Set<string>();
   /** `publicSharesEnabled` from the last `GET /v1/me`; false until it has said true. */
   private publicShares = false;
 
@@ -161,7 +163,9 @@ export class SyncEngine implements ReleaseSyncHooks {
     /** This Mac's play counts (#107); null in tests that don't care, which skips the play push. */
     private readonly playStore: PlayCountStore | null = null,
     /** The clock; tests pass a fake one to step through the "arriving" and "waiting" states. */
-    private readonly now: () => Date = () => new Date()
+    private readonly now: () => Date = () => new Date(),
+    /** Where received shares' covers are kept so the tray's pictures are downloaded once (#182). */
+    private readonly coverCacheDir: () => string = () => path.join(settingsDir(), "share-covers")
   ) {}
 
   // --- ReleaseSyncHooks -----------------------------------------------------
@@ -203,15 +207,15 @@ export class SyncEngine implements ReleaseSyncHooks {
       hiddenFromTray: Object.fromEntries(
         Object.entries(state.hiddenFromTray ?? {}).filter(([id]) => Object.hasOwn(state.pendingFromPhone, id))
       ),
-      fromFriends: this.friendShares(),
+      fromFriends: this.friendShares(state.importedShares ?? {}),
       quota: this.quota,
     };
   }
 
-  /** The tray's "From your friends" rows: shares not claimed yet, plus any claimed here whose import failed. */
-  private friendShares(): FriendShare[] {
+  /** The tray's "From your friends" rows: shares not claimed yet, minus the ones this Mac already imported. */
+  private friendShares(imported: Record<string, string>): FriendShare[] {
     return this.received
-      .filter((r) => r.claimedAt === null || this.stuckClaims.has(r.id))
+      .filter((r) => r.claimedAt === null && !Object.hasOwn(imported, r.id))
       .map((r) => ({
         id: r.id,
         fromEmail: r.from.email,
@@ -970,12 +974,15 @@ export class SyncEngine implements ReleaseSyncHooks {
   }
 
   /**
-   * Refills the received list from `GET /v1/shares?role=received`. Never fails the reconcile: a service
-   * from before sharing (404) empties the list; any other failure keeps what was there.
+   * Refills the received list from `GET /v1/shares?role=received`, then settles shares this Mac already
+   * imported (claims the ones the service still shows unclaimed) and refreshes the cover cache. Never
+   * fails the reconcile: a service from before sharing (404) empties the list; any other failure keeps
+   * what was there.
    */
   private async pullReceivedShares(api: SyncApi): Promise<void> {
+    let all: ReceivedShare[];
     try {
-      const all: ReceivedShare[] = [];
+      all = [];
       let cursor: string | null = null;
       for (let page = 0; page < 10; page++) {
         const result = await api.listReceivedShares(cursor, 100);
@@ -983,12 +990,121 @@ export class SyncEngine implements ReleaseSyncHooks {
         if (!result.nextCursor) break;
         cursor = result.nextCursor;
       }
-      this.received = all;
-      const ids = new Set(all.map((r) => r.id));
-      for (const id of this.stuckClaims) if (!ids.has(id)) this.stuckClaims.delete(id);
     } catch (err) {
-      if (err instanceof SyncRequestError && err.status === 404) this.received = [];
+      if (err instanceof SyncRequestError && err.status === 404) {
+        this.received = [];
+        await this.pruneCoverCache(new Set());
+      }
+      return;
     }
+    this.received = all;
+    await this.settleImportedShares(api, all);
+    await this.refreshCoverCache(api, all);
+  }
+
+  /**
+   * Shares this Mac imported: one the service still lists unclaimed is claimed now (a claim that failed
+   * after the import); one it lists as claimed, or no longer lists, is forgotten. A failed claim stays
+   * recorded and is tried again on the next reconcile.
+   */
+  private async settleImportedShares(api: SyncApi, listed: ReceivedShare[]): Promise<void> {
+    const imported = (await this.syncState.get()).importedShares ?? {};
+    const done: string[] = [];
+    for (const id of Object.keys(imported)) {
+      const share = listed.find((r) => r.id === id);
+      if (!share || share.claimedAt !== null) {
+        done.push(id);
+        continue;
+      }
+      try {
+        await api.claimShare(id);
+        await api.hideShare(id).catch(() => undefined);
+        done.push(id);
+      } catch {
+        // Tried again on the next reconcile.
+      }
+    }
+    if (done.length > 0) await this.forgetImportedShares(done);
+  }
+
+  private async forgetImportedShares(ids: string[]): Promise<void> {
+    await this.syncState.update((current) => {
+      const rest = { ...(current.importedShares ?? {}) };
+      let changed = false;
+      for (const id of ids) {
+        if (Object.hasOwn(rest, id)) {
+          delete rest[id];
+          changed = true;
+        }
+      }
+      return changed ? { ...current, importedShares: rest } : null;
+    });
+  }
+
+  // --- Received shares' covers --------------------------------------------
+
+  /** The cached cover file for a share, or null when the id is not a UUID or the name has no image extension. */
+  private coverCachePath(shareId: string, coverName: string | null): string | null {
+    if (!coverName || !UUID_RE.test(shareId)) return null;
+    const ext = path.extname(coverName).toLowerCase();
+    if (ext !== ".jpg" && ext !== ".jpeg" && ext !== ".png") return null;
+    const dir = this.coverCacheDir();
+    const target = path.join(dir, `${shareId.toLowerCase()}${ext}`);
+    return this.fs.isInside(dir, target) && path.resolve(target) !== path.resolve(dir) ? target : null;
+  }
+
+  /**
+   * Downloads each listed, unclaimed share's cover once into the cache (a tray paint then reads the
+   * file, and never asks the service, which would count as a download for the sender), and deletes
+   * cached covers of shares that are no longer listed. A failed download is skipped quietly.
+   */
+  private async refreshCoverCache(api: SyncApi, listed: ReceivedShare[]): Promise<void> {
+    const wanted = listed.filter((r) => r.claimedAt === null);
+    // The directory must exist for the inside-check (it compares real paths).
+    if (wanted.some((r) => r.snapshot.cover !== null)) await this.fs.mkdirp(this.coverCacheDir());
+    for (const share of wanted) {
+      const target = this.coverCachePath(share.id, share.snapshot.cover);
+      if (!target || share.snapshot.cover === null || (await this.fs.exists(target))) continue;
+      try {
+        const { url } = await api.shareFileUrl(share.id, share.snapshot.cover);
+        const tmp = `${target}.part`;
+        try {
+          await api.downloadFile(url, tmp);
+          await this.fs.safeMove(tmp, target);
+        } finally {
+          await this.fs.removeRecursive(tmp).catch(() => undefined);
+        }
+      } catch {
+        // No picture this time; the tray shows the note square.
+      }
+    }
+    await this.pruneCoverCache(new Set(wanted.map((r) => r.id.toLowerCase())));
+  }
+
+  private async pruneCoverCache(keep: Set<string>): Promise<void> {
+    const dir = this.coverCacheDir();
+    let names: string[];
+    try {
+      names = await nodeFs.readdir(dir);
+    } catch {
+      return;
+    }
+    for (const name of names) {
+      const id = name.replace(/\.(jpe?g|png)(\.part)?$/i, "");
+      if (keep.has(id) && !name.endsWith(".part")) continue;
+      const target = path.join(dir, name);
+      if (this.fs.isInside(dir, target) && path.resolve(target) !== path.resolve(dir)) {
+        await this.fs.removeRecursive(target).catch(() => undefined);
+      }
+    }
+  }
+
+  /** A received share's cached cover, for `GET /api/shares/:id/cover`. */
+  async friendCover(id: string): Promise<{ bytes: Buffer; contentType: string }> {
+    const share = this.received.find((r) => r.id === id);
+    const target = share ? this.coverCachePath(share.id, share.snapshot.cover) : null;
+    if (!target || !(await this.fs.exists(target))) throw new NotFoundError("No cover for that share");
+    return { bytes: await this.fs.readFile(target), contentType: target.endsWith(".png") ? "image/png" : "image/jpeg" };
   }
 
   /** Whether the Link option may show: asks the service now, false on any failure or when signed out. */
@@ -1056,30 +1172,22 @@ export class SyncEngine implements ReleaseSyncHooks {
     return { people: people.size, link };
   }
 
-  /** A short-lived address for a received share's cover, for the tray's sleeve. */
-  async friendCoverUrl(id: string): Promise<string> {
-    const share = this.received.find((r) => r.id === id);
-    const cover = share?.snapshot.cover;
-    if (!share || !cover) throw new NotFoundError("No cover for that share");
-    const api = await this.signedInApi();
-    return (await api.shareFileUrl(id, cover)).url;
-  }
-
   /** Dismisses a received share from the tray; it still works if claimed later from elsewhere. */
   async hideFriendShare(id: string): Promise<void> {
     const api = await this.signedInApi();
     if (!this.received.some((r) => r.id === id)) throw new NotFoundError("No share from a friend with that id");
     await api.hideShare(id);
     this.received = this.received.filter((r) => r.id !== id);
-    this.stuckClaims.delete(id);
+    await this.pruneCoverCache(new Set(this.received.filter((r) => r.claimedAt === null).map((r) => r.id.toLowerCase())));
   }
 
   /**
-   * "Send to Spotify" on a share from a friend: claims it, downloads its files, and writes a NEW
-   * release (a fresh id, origin this Mac) tagged exactly as the snapshot says, through the same
-   * `ReleaseService` path as a release from the phone (so `ReleaseLayout` and the inside-checks
-   * apply). It syncs like any other release afterwards. A failure after the claim leaves the row in
-   * the tray (`stuckClaims`) so it can be tried again.
+   * "Send to Spotify" on a share from a friend: downloads its files and writes a NEW release (a
+   * fresh id, origin this Mac) tagged exactly as the snapshot says, through the same `ReleaseService`
+   * path as a release from the phone (so `ReleaseLayout` and the inside-checks apply), and only then
+   * claims it. A failed download or import claims nothing and leaves the row in the tray. The id is
+   * recorded as imported first, so the row is gone even if the claim fails; the next reconcile retries
+   * the claim. It syncs like any other release afterwards.
    */
   async acceptFriendShare(id: string): Promise<Release> {
     const api = await this.signedInApi();
@@ -1088,6 +1196,11 @@ export class SyncEngine implements ReleaseSyncHooks {
     const snap = share.snapshot;
     const nowIso = this.now().toISOString();
     const coverHash = CoverHashSchema.safeParse(snap.coverHash);
+    // One song (or a few) shared from a release: only those tracks, numbered 1..n in snapshot order, so a
+    // song shared from an album tags as track 1 of 1. A disc number stays only when the rest still span discs.
+    const picked = share.trackIds === null ? snap.tracks : snap.tracks.filter((t) => share.trackIds?.includes(t.id));
+    if (picked.length === 0) throw new PublicError("This share has no tracks, so it can't be added.");
+    const keepDiscs = share.trackIds === null || new Set(picked.map((t) => t.discNumber ?? 1)).size > 1;
     let record: SyncRecord;
     try {
       record = parseSyncRecord({
@@ -1100,11 +1213,11 @@ export class SyncEngine implements ReleaseSyncHooks {
         genre: snap.genre,
         cover: snap.cover,
         coverHash: coverHash.success ? coverHash.data : null,
-        tracks: snap.tracks.map((t) => ({
+        tracks: picked.map((t, i) => ({
           id: crypto.randomUUID(),
           title: t.title,
-          trackNumber: t.trackNumber,
-          ...(t.discNumber !== undefined ? { discNumber: t.discNumber } : {}),
+          trackNumber: share.trackIds === null ? t.trackNumber : i + 1,
+          ...(t.discNumber !== undefined && keepDiscs ? { discNumber: t.discNumber } : {}),
           file: t.file,
           bytes: t.bytes,
           durationSec: t.durationSec ?? null,
@@ -1114,6 +1227,8 @@ export class SyncEngine implements ReleaseSyncHooks {
         createdAt: nowIso,
         updatedAt: nowIso,
         deleted: false,
+        // The service checks the date against the year; a bad one is dropped by `releaseDateOf` on import.
+        ...(snap.releaseDate ? { releaseDate: snap.releaseDate } : {}),
       });
     } catch (err) {
       if (err instanceof SyncRecordRejectedError) {
@@ -1124,8 +1239,6 @@ export class SyncEngine implements ReleaseSyncHooks {
     const names = [...record.tracks.map((t) => t.file), ...(record.cover ? [record.cover] : [])];
     if (new Set(names).size !== names.length) throw new PublicError("This share lists the same file twice, so it can't be added.");
 
-    await api.claimShare(id);
-    this.stuckClaims.add(id);
     const dir = await this.fs.makeTempDir("sli-share-accept-");
     try {
       // `names` passed `isPlainSyncName` in `parseSyncRecord`, and `importSynced` checks each again.
@@ -1133,14 +1246,21 @@ export class SyncEngine implements ReleaseSyncHooks {
         const { url } = await api.shareFileUrl(id, name);
         await api.downloadFile(url, path.join(dir, name));
       }
-      const release = await this.releases.importSynced(record, dir, {
-        ...(snap.releaseDate ? { releaseDate: snap.releaseDate } : {}),
-      });
-      this.stuckClaims.delete(id);
+      const release = await this.releases.importSynced(record, dir);
+      await this.syncState.update((current) => ({
+        ...current,
+        importedShares: { ...(current.importedShares ?? {}), [id]: nowIso },
+      }));
       this.received = this.received.filter((r) => r.id !== id);
-      // Best effort: the claim already took it off other devices' trays.
-      await api.hideShare(id).catch(() => undefined);
       void this.push(release);
+      try {
+        await api.claimShare(id);
+        await api.hideShare(id).catch(() => undefined);
+        await this.forgetImportedShares([id]);
+      } catch (err) {
+        // Imported but not claimed: hidden from the tray, claimed again on the next reconcile.
+        console.warn(`SyncEngine: could not claim share ${id} after importing it: ${err instanceof Error ? err.message : err}`);
+      }
       return release;
     } finally {
       await this.fs.removeRecursive(dir);

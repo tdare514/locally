@@ -80,8 +80,11 @@ const noConvert: AudioConverter = {
   },
 };
 
+const S1 = "11111111-1111-4111-8111-111111111111";
+const S2 = "22222222-2222-4222-8222-222222222222";
+
 const share = (over: Partial<ReceivedShare> = {}): ReceivedShare => ({
-  id: "share-1",
+  id: S1,
   from: { email: "sam@example.com" },
   trackIds: null,
   allowReshare: false,
@@ -110,10 +113,13 @@ describe("shares on the Mac", () => {
   let libraryDir: string;
   let repo: Repo;
   let engine: SyncEngine;
+  let state: MemState;
   let calls: string[];
   let received: ReceivedShare[];
   let me: { publicSharesEnabled?: boolean };
   let failDownload: boolean;
+  let failClaim: boolean;
+  let cacheDir: string;
 
   beforeEach(async () => {
     libraryDir = await fs.mkdtemp(path.join(os.tmpdir(), "sli-shares-"));
@@ -121,6 +127,8 @@ describe("shares on the Mac", () => {
     received = [share()];
     me = { publicSharesEnabled: false };
     failDownload = false;
+    failClaim = false;
+    cacheDir = path.join(libraryDir, "..", `sli-share-covers-${path.basename(libraryDir)}`);
     repo = new Repo();
     const settings = new Settings1({
       libraryDir,
@@ -142,6 +150,7 @@ describe("shares on the Mac", () => {
         return null;
       },
       async claimShare(id: string) {
+        if (failClaim) throw new Error("claim failed");
         calls.push(`claim ${id}`);
         return { claimedAt: "2026-10-23T11:00:00.000Z" };
       },
@@ -153,7 +162,8 @@ describe("shares on the Mac", () => {
         return { url: `fake://${name}`, expiresAt: "x" };
       },
       async downloadFile(url: string, dest: string) {
-        if (failDownload) throw new Error("Download failed (500)");
+        if (failDownload && !dest.includes(cacheDir)) throw new Error("Download failed (500)");
+        await fs.mkdir(path.dirname(dest), { recursive: true });
         const name = url.replace("fake://", "");
         await fs.writeFile(dest, name.endsWith(".jpg") ? JPEG : silentMp3());
       },
@@ -167,35 +177,37 @@ describe("shares on the Mac", () => {
         calls.push(`revoke ${id}`);
       },
     } as unknown as SyncApi;
-    engine = new SyncEngine(settings, new MemState(), releases, nodeFs, () => api, () => "Test Mac");
+    state = new MemState();
+    engine = new SyncEngine(settings, state, releases, nodeFs, () => api, () => "Test Mac", null, undefined, () => cacheDir);
   });
 
   afterEach(async () => {
     await fs.rm(libraryDir, { recursive: true, force: true });
+    await fs.rm(cacheDir, { recursive: true, force: true });
   });
 
   it("lists received shares in the tray after a reconcile, with the sender's email", async () => {
     await engine.reconcile();
     const friends = (await engine.status()).fromFriends ?? [];
     expect(friends).toEqual([
-      expect.objectContaining({ id: "share-1", fromEmail: "sam@example.com", title: "Night Drive", trackCount: 2, hasCover: true }),
+      expect.objectContaining({ id: S1, fromEmail: "sam@example.com", title: "Night Drive", trackCount: 2, hasCover: true }),
     ]);
   });
 
   it("hides a claimed share from the tray", async () => {
-    received = [share({ claimedAt: "2026-10-23T09:00:00.000Z" }), share({ id: "share-2" })];
+    received = [share({ claimedAt: "2026-10-23T09:00:00.000Z" }), share({ id: S2 })];
     await engine.reconcile();
-    expect((await engine.status()).fromFriends?.map((f) => f.id)).toEqual(["share-2"]);
+    expect((await engine.status()).fromFriends?.map((f) => f.id)).toEqual([S2]);
   });
 
-  it("claims, then imports a new release tagged exactly as the snapshot", async () => {
+  it("imports a new release tagged exactly as the snapshot, then claims it", async () => {
     await engine.reconcile();
-    const release = await engine.acceptFriendShare("share-1");
+    const release = await engine.acceptFriendShare(S1);
 
-    expect(calls.slice(0, 1)).toEqual(["claim share-1"]);
-    expect(calls).toContain("file share-1 cover.jpg");
-    expect(calls).toContain("hide share-1");
-    expect(release.id).not.toBe("share-1");
+    expect(calls.indexOf(`claim ${S1}`)).toBeGreaterThan(calls.indexOf(`file ${S1} song.mp3`));
+    expect(calls).toContain(`file ${S1} cover.jpg`);
+    expect(calls).toContain(`hide ${S1}`);
+    expect(release.id).not.toBe(S1);
     expect(release.tracks.map((t) => t.id)).not.toContain("t1");
     expect(release).toMatchObject({ title: "Night Drive", artist: "Okoro", year: "2024", genre: "Electronic", kind: "album" });
     expect(release.coverPath && release.coverPath.startsWith(libraryDir)).toBe(true);
@@ -216,27 +228,100 @@ describe("shares on the Mac", () => {
     expect((await engine.status()).fromFriends).toEqual([]);
   });
 
-  it("keeps the row in the tray when the import fails after the claim", async () => {
+  it("claims nothing and keeps the row when the download or import fails", async () => {
     await engine.reconcile();
     failDownload = true;
-    await expect(engine.acceptFriendShare("share-1")).rejects.toThrow(/Download failed/);
-    received = [share({ claimedAt: "2026-10-23T11:00:00.000Z" })]; // the service now says claimed
+    await expect(engine.acceptFriendShare(S1)).rejects.toThrow(/Download failed/);
+    expect(calls.some((c) => c.startsWith("claim"))).toBe(false);
+    expect((await engine.status()).fromFriends?.map((f) => f.id)).toEqual([S1]);
     await engine.reconcile();
-    expect((await engine.status()).fromFriends?.map((f) => f.id)).toEqual(["share-1"]);
+    expect((await engine.status()).fromFriends?.map((f) => f.id)).toEqual([S1]);
     expect(repo.items).toHaveLength(0);
+  });
+
+  it("hides an imported share even when the claim fails, and claims it on the next reconcile", async () => {
+    await engine.reconcile();
+    failClaim = true;
+    const release = await engine.acceptFriendShare(S1);
+    expect(release.title).toBe("Night Drive");
+    expect(repo.items).toHaveLength(1);
+    expect((await engine.status()).fromFriends).toEqual([]);
+    expect((await state.get()).importedShares).toHaveProperty(S1);
+
+    // A restart: a fresh reconcile still lists it unclaimed, and the tray keeps it hidden.
+    await engine.reconcile();
+    expect((await engine.status()).fromFriends).toEqual([]);
+    expect(calls).not.toContain(`claim ${S1}`);
+
+    failClaim = false;
+    await engine.reconcile();
+    expect(calls).toContain(`claim ${S1}`);
+    expect((await state.get()).importedShares).toEqual({});
+    expect(repo.items).toHaveLength(1);
+  });
+
+  it("downloads a cover once, serves it from the cache, and prunes covers no longer listed", async () => {
+    await engine.reconcile();
+    await engine.reconcile();
+    await engine.reconcile();
+    expect(calls.filter((c) => c === `file ${S1} cover.jpg`)).toHaveLength(1);
+    const first = await engine.friendCover(S1);
+    const again = await engine.friendCover(S1);
+    expect(first.contentType).toBe("image/jpeg");
+    expect(again.bytes.equals(first.bytes)).toBe(true);
+    expect(calls.filter((c) => c === `file ${S1} cover.jpg`)).toHaveLength(1);
+    expect(await fs.readdir(cacheDir)).toEqual([`${S1}.jpg`]);
+
+    received = [share({ id: S2 })];
+    await engine.reconcile();
+    expect((await fs.readdir(cacheDir)).sort()).toEqual([`${S2}.jpg`]);
+    received = [];
+    await engine.reconcile();
+    expect(await fs.readdir(cacheDir)).toEqual([]);
+  });
+
+  it("never caches a cover for a share id that is not a UUID", async () => {
+    received = [share({ id: "../../x" })];
+    await engine.reconcile();
+    expect(await fs.readdir(cacheDir)).toEqual([]);
+    expect(calls).toEqual([]);
+  });
+
+  it("imports only the shared track of an album as track 1 of 1, with no disc tag", async () => {
+    received = [share({ trackIds: ["t2"], snapshot: { ...share().snapshot, tracks: [share().snapshot.tracks[1]] } })];
+    await engine.reconcile();
+    const release = await engine.acceptFriendShare(S1);
+    expect(release.tracks).toHaveLength(1);
+    expect(release.tracks[0]).toMatchObject({ title: "Song (feat. Bo)", trackNumber: 1 });
+    expect(release.tracks[0].discNumber).toBeUndefined();
+    expect(release).toMatchObject({ title: "Night Drive", kind: "album" });
+    const tags = await parseFile(release.tracks[0].filePath);
+    expect(tags.common.album).toBe("Night Drive");
+    expect(tags.common.track).toMatchObject({ no: 1, of: 1 });
+    expect(tags.common.disk.no).toBeNull();
+    expect(calls).not.toContain(`file ${S1} intro.mp3`);
+  });
+
+  it("keeps disc numbers when the shared tracks still span several discs, renumbered in order", async () => {
+    const t = share().snapshot.tracks;
+    received = [share({ trackIds: ["t1", "t2"], snapshot: { ...share().snapshot, tracks: [{ ...t[0], trackNumber: 3 }, { ...t[1], trackNumber: 7 }] } })];
+    await engine.reconcile();
+    const release = await engine.acceptFriendShare(S1);
+    expect(release.tracks.map((x) => [x.trackNumber, x.discNumber])).toEqual([[1, 1], [2, 2]]);
+    expect((await parseFile(release.tracks[1].filePath)).common.disk).toMatchObject({ no: 2, of: 2 });
   });
 
   it("refuses a share that names a file outside its folder", async () => {
     received = [share({ snapshot: { ...share().snapshot, tracks: [{ id: "t", title: "x", trackNumber: 1, file: "../evil.mp3", bytes: 1 }] } })];
     await engine.reconcile();
-    await expect(engine.acceptFriendShare("share-1")).rejects.toThrow(/won't use/);
-    expect(calls).toEqual([]);
+    await expect(engine.acceptFriendShare(S1)).rejects.toThrow(/won't use/);
+    expect(calls.some((c) => c.startsWith("claim"))).toBe(false);
   });
 
   it("dismisses with hide and drops the row", async () => {
     await engine.reconcile();
-    await engine.hideFriendShare("share-1");
-    expect(calls).toEqual(["hide share-1"]);
+    await engine.hideFriendShare(S1);
+    expect(calls.filter((c) => c.startsWith("hide"))).toEqual([`hide ${S1}`]);
     expect((await engine.status()).fromFriends).toEqual([]);
   });
 
@@ -254,14 +339,15 @@ describe("shares on the Mac", () => {
   it("renders a row with the title, artist, track count and 'from' line", () => {
     const html = renderToStaticMarkup(
       createElement(FriendRow, {
-        item: { id: "share-1", fromEmail: "sam@example.com", title: "Night Drive", artist: "Okoro", kind: "album", trackCount: 2, hasCover: false, createdAt: "x" },
+        item: { id: S1, fromEmail: "sam@example.com", title: "Night Drive", artist: "Okoro", kind: "album", trackCount: 2, hasCover: false, createdAt: "x" },
         leaving: false,
         onSend: () => {},
         onDismiss: () => {},
       })
     );
     expect(html).toContain("from sam@example.com");
-    expect(html).toContain('aria-label="Send Night Drive to Spotify"');
-    expect(html).toContain('aria-label="Dismiss Night Drive"');
+    expect(html).toContain('aria-label="Send Night Drive from sam@example.com to Spotify"');
+    expect(html).toContain('aria-label="Dismiss Night Drive from sam@example.com"');
+    expect(html).toContain('title="sam@example.com"');
   });
 });

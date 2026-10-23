@@ -12,6 +12,8 @@ const SyncStateFileSchema = z.object({
   // Written by builds from #307 on: when a re-push of an adopted release's localIds was last queued.
   localIdQueuedAt: z.record(z.string(), z.string()).optional(),
   localIdBackfilled: z.boolean().optional(),
+  // Written by builds from #182 on: shares from friends imported here, until their claim is confirmed.
+  importedShares: z.record(z.string(), z.string()).optional().catch(undefined),
   pushedUpdatedAt: z.record(z.string(), z.string()).default({}),
   uploadedFiles: z.record(z.string(), z.array(z.string())).default({}),
   coverHash: z.record(z.string(), z.string()).default({}),
@@ -82,13 +84,14 @@ export class FileSyncStateStore implements SyncStateStore {
   }
 
   /**
-   * Writes everything but the Hide list: a sync pass reads the state, works for a while and writes
+   * Writes everything but the Hide list and the imported shares (#182): a sync pass reads the state, works for a while and writes
    * it back, and must not undo a Hide made meanwhile. The Hide list changes only through `update`.
    */
   set(state: SyncState): Promise<SyncState> {
     return exclusive(async () => {
       const current = await this.get();
-      return this.write({ ...state, hiddenFromTray: current.hiddenFromTray });
+      const { importedShares } = current;
+      return this.write({ ...state, hiddenFromTray: current.hiddenFromTray, ...(importedShares ? { importedShares } : {}) });
     });
   }
 

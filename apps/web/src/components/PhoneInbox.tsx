@@ -634,7 +634,7 @@ export function FriendRow({
           data-row-control
           disabled={leaving || busy}
           onClick={onSend}
-          aria-label={`Send ${title} to Spotify`}
+          aria-label={`Send ${title} from ${item.fromEmail} to Spotify`}
           title="Send to Spotify"
           className="group/send relative h-12 w-[4.25rem] shrink-0 rounded-[10px] active:scale-95 disabled:opacity-60"
         >
@@ -679,14 +679,14 @@ export function FriendRow({
               {item.trackCount} track{item.trackCount === 1 ? "" : "s"}
             </span>
           </span>
-          <span className="block text-[12px] text-text-dim [overflow-wrap:anywhere]">{fromLabel(item.fromEmail)}</span>
+          <span title={item.fromEmail} className="block truncate text-[12px] text-text-dim">{fromLabel(item.fromEmail)}</span>
         </span>
         <button
           type="button"
           data-row-control
           disabled={leaving || busy}
           onClick={onDismiss}
-          aria-label={`Dismiss ${title}`}
+          aria-label={`Dismiss ${title} from ${item.fromEmail}`}
           title="Dismiss"
           className="btn-icon text-text-muted opacity-0 transition-opacity motion-reduce:transition-none group-hover/row:opacity-100 group-focus-within/row:opacity-100 disabled:cursor-not-allowed"
         >

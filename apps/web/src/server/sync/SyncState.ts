@@ -49,6 +49,11 @@ export interface SyncState {
    * stripping the field cannot cause a push loop.
    */
   localIdQueuedAt?: Record<string, string>;
+  /**
+   * shareId -> ISO time this Mac imported a share from a friend (#182). The tray hides these even
+   * while the claim has not gone through; the next reconcile claims them. Changed only through `update`.
+   */
+  importedShares?: Record<string, string>;
   /** True once the one-time back-fill of adopted releases (#307) has been queued under this account. */
   localIdBackfilled?: boolean;
 }
