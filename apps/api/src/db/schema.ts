@@ -95,10 +95,12 @@ export const playCounts = sqliteTable("play_counts", {
   deviceId: text("device_id").notNull(),
   releaseId: text("release_id").notNull(),
   trackId: text("track_id").notNull(),
+  /** `spotify` or `locally` (#340); rows from before the column are `spotify`. */
+  source: text("source").notNull().default("spotify"),
   count: integer("count").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => ({
-  pk: primaryKey({ columns: [table.deviceId, table.trackId] }),
+  pk: primaryKey({ columns: [table.deviceId, table.trackId, table.source] }),
   userReleaseIdx: index("play_counts_user_release_idx").on(table.userId, table.releaseId),
 }));
 
@@ -114,10 +116,12 @@ export const playDays = sqliteTable("play_days", {
   releaseId: text("release_id").notNull(),
   trackId: text("track_id").notNull(),
   day: text("day").notNull(),
+  /** `spotify` or `locally` (#340). */
+  source: text("source").notNull().default("spotify"),
   count: integer("count").notNull(),
   updatedAt: integer("updated_at").notNull(),
 }, (table) => ({
-  pk: primaryKey({ columns: [table.deviceId, table.trackId, table.day] }),
+  pk: primaryKey({ columns: [table.deviceId, table.trackId, table.source, table.day] }),
   userDayIdx: index("play_days_user_day_idx").on(table.userId, table.day),
 }));
 

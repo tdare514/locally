@@ -64,7 +64,9 @@ describe("SpotifySampler counting", () => {
     expect(link.cloudDeviceId).toBe(cloud!.id);
     const counts = await services.db.select().from(playCounts);
     expect(counts).toHaveLength(1);
-    expect(counts[0]).toMatchObject({ userId, deviceId: cloud!.id, releaseId: release.id, trackId: release.tracks[0]!.id, count: 1 });
+    expect(counts[0]).toMatchObject({ userId, deviceId: cloud!.id, releaseId: release.id, trackId: release.tracks[0]!.id, count: 1, source: "spotify" });
+    const days = await services.db.select().from(playDays);
+    expect(days.map((d) => d.source)).toEqual(["spotify"]);
     expect(link.lastSampleAt).toBe(kit.clock.now);
     expect(link.sessionUri).toBe(URI_A);
     expect(link.sessionCounted).toBe(true);

@@ -173,11 +173,11 @@ describe("play days", () => {
     it("sums across devices for the range, with lastPlayedDay, leaving out days and tracks outside it", async () => {
       await seedTwoDevices();
       const res = await testServices.plays.summary(alice.userId, alice.deviceId, "2026-10-05", "2026-10-15");
-      expect(res.tracks).toEqual([{ trackId: trackA, releaseId, plays: 10, devicePlays: 5, lastPlayedDay: "2026-10-14" }]);
+      expect(res.tracks).toEqual([{ trackId: trackA, releaseId, plays: 10, devicePlays: 5, lastPlayedDay: "2026-10-14", bySource: { spotify: 10, locally: 0 } }]);
       expect(res.allTime).toEqual(
         [
-          { trackId: trackA, releaseId, plays: 15, devicePlays: 10 },
-          { trackId: trackB, releaseId, plays: 4, devicePlays: 4 },
+          { trackId: trackA, releaseId, plays: 15, devicePlays: 10, bySource: { spotify: 15, locally: 0 } },
+          { trackId: trackB, releaseId, plays: 4, devicePlays: 4, bySource: { spotify: 4, locally: 0 } },
         ].sort((x, y) => (x.trackId < y.trackId ? -1 : 1))
       );
       expect(res.nextCursor).toBeNull();
@@ -202,7 +202,7 @@ describe("play days", () => {
       await testServices.auth.revokeDevice(alice.userId, aliceIos.deviceId);
       const res = await testServices.plays.summary(alice.userId, alice.deviceId, "2026-10-05", "2026-10-15");
       expect(res.tracks.map((r) => [r.plays, r.devicePlays])).toEqual([[10, 5]]);
-      expect(res.allTime.find((r) => r.trackId === trackA)).toMatchObject({ plays: 15, devicePlays: 10 });
+      expect(res.allTime.find((r) => r.trackId === trackA)).toMatchObject({ plays: 15, devicePlays: 10, bySource: { spotify: 15, locally: 0 } });
     });
 
     it("shows another user's caller no devicePlays of this user's tracks", async () => {
@@ -285,7 +285,7 @@ describe("play days", () => {
       await testServices.db.update(releases).set({ deleted: true }).where(eq(releases.id, recordB.id));
 
       expect(await testServices.plays.summary(alice.userId, alice.deviceId, "2026-10-14", "2026-10-14")).toEqual({
-        tracks: [{ trackId: trackA, releaseId, plays: 3, devicePlays: 3, lastPlayedDay: "2026-10-14" }],
+        tracks: [{ trackId: trackA, releaseId, plays: 3, devicePlays: 3, lastPlayedDay: "2026-10-14", bySource: { spotify: 3, locally: 0 } }],
         allTime: [],
         nextCursor: null,
       });
@@ -313,8 +313,8 @@ describe("play days", () => {
       const res = await get("?from=2026-10-14&to=2026-10-14");
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({
-        tracks: [{ trackId: trackA, releaseId, plays: 2, devicePlays: 2, lastPlayedDay: "2026-10-14" }],
-        allTime: [{ trackId: trackA, releaseId, plays: 2, devicePlays: 2 }],
+        tracks: [{ trackId: trackA, releaseId, plays: 2, devicePlays: 2, lastPlayedDay: "2026-10-14", bySource: { spotify: 2, locally: 0 } }],
+        allTime: [{ trackId: trackA, releaseId, plays: 2, devicePlays: 2, bySource: { spotify: 2, locally: 0 } }],
         nextCursor: null,
       });
     });

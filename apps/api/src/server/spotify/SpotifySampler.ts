@@ -200,6 +200,7 @@ export class SpotifySampler {
             deviceId: sql<string>`${deviceId}`.as("device_id"),
             releaseId: sql<string>`${releases.id}`.as("release_id"),
             trackId: sql<string>`${session.trackId}`.as("track_id"),
+            source: sql<string>`${"spotify"}`.as("source"),
             count: sql<number>`1`.as("count"),
             updatedAt: sql<number>`${now}`.as("updated_at"),
           })
@@ -207,7 +208,7 @@ export class SpotifySampler {
           .where(liveRelease)
       )
       .onConflictDoUpdate({
-        target: [playCounts.deviceId, playCounts.trackId],
+        target: [playCounts.deviceId, playCounts.trackId, playCounts.source],
         set: {
           count: sql`${playCounts.count} + 1`,
           releaseId: sql`excluded.release_id`,
@@ -225,6 +226,7 @@ export class SpotifySampler {
             releaseId: sql<string>`${releases.id}`.as("release_id"),
             trackId: sql<string>`${session.trackId}`.as("track_id"),
             day: sql<string>`${day}`.as("day"),
+            source: sql<string>`${"spotify"}`.as("source"),
             count: sql<number>`1`.as("count"),
             updatedAt: sql<number>`${now}`.as("updated_at"),
           })
@@ -232,7 +234,7 @@ export class SpotifySampler {
           .where(liveRelease)
       )
       .onConflictDoUpdate({
-        target: [playDays.deviceId, playDays.trackId, playDays.day],
+        target: [playDays.deviceId, playDays.trackId, playDays.source, playDays.day],
         set: {
           count: sql`${playDays.count} + 1`,
           releaseId: sql`excluded.release_id`,

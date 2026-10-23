@@ -245,8 +245,8 @@ describe("cross-user isolation", () => {
     const aliceSummary = await summaryAs(alice.token);
     expect(aliceSummary.status).toBe(200);
     expect(await aliceSummary.json()).toEqual({
-      tracks: [{ trackId: track.id, releaseId: record.id, plays: 2, devicePlays: 2, lastPlayedDay: today }],
-      allTime: [{ trackId: track.id, releaseId: record.id, plays: 5, devicePlays: 5 }],
+      tracks: [{ trackId: track.id, releaseId: record.id, plays: 2, devicePlays: 2, lastPlayedDay: today, bySource: { spotify: 2, locally: 0 } }],
+      allTime: [{ trackId: track.id, releaseId: record.id, plays: 5, devicePlays: 5, bySource: { spotify: 5, locally: 0 } }],
       nextCursor: null,
     });
     expect((await playsSummaryRoute.GET(new Request(summaryUrl))).status).toBe(401);

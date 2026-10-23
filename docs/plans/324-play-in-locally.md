@@ -66,26 +66,29 @@ A row that can't play shows no play button and gives no reason, except when the 
 - **The rule is the Mac's existing one** (`PlayCounter`): a play counts once it has played `min(30 s, 90% of the track)`, once
   per play session. Pausing doesn't restart the session. Replaying from the start after it counted is a new play.
 - **Mac:**
-  - A Locally play goes through the same `FilePlayCountStore.increment()` as a Spotify play: the all-time count and the day bucket.
-  - The existing `pushPlays` sends it as this Mac's device.
+  - A Locally play goes through the same `FilePlayCountStore.increment()` as a Spotify play: the all-time count and the day bucket, now with a source.
+  - `plays.json` keeps counts per source; every count stored before this change is `spotify`.
+  - The existing `pushPlays` sends it as this Mac's device, with `source: "locally"` on the entries for Locally plays.
   - The Spotify tracker standing down for online counting (#303) doesn't stop Locally plays from counting, because the sampler only sees Spotify.
 - **iPhone:**
-  - A new `PlayCountStore` holds absolute per-track counts and per-day buckets. Days are the phone's local date, kept 400 days, mirroring
+  - A new `PlayCountStore` holds absolute per-track counts and per-day buckets, per source (it only ever holds `locally`). Days are the phone's local date, kept 400 days, mirroring
     `plays.json`. It's written atomically in Application Support, keyed by release and track.
-  - On reconcile, counts ahead of what was pushed go to `PUT /v1/plays`, at most 500 entries per request. Failures stay pending.
+  - On reconcile, counts ahead of what was pushed go to `PUT /v1/plays` with `source: "locally"`, at most 500 entries per request. Failures stay pending.
   - Sign-out and account deletion clear only the pushed markers, as the Mac does.
-  - The service already accepts any device's counts (`max(stored, sent)` per device and track), so **no API change** is needed.
+  - The API stores counts per source (`spotify` or `locally`), with `max(stored, sent)` per device, track and source. That is an API change, built in #340; see "Contract and docs".
 - **No double count:** a Locally play and a Spotify play of the same file at the same moment would need both apps playing at once.
   - **Mac:** Locally doesn't pause Spotify (owner, 23 Oct). Both can play, and each counts its own.
   - **iPhone:** iOS gives audio to one app at a time. Locally's `.playback` session interrupts Spotify, the way any music app does,
     so the two can't both be counting. Locally doesn't try to resume Spotify afterwards.
   - On the Mac, while Locally is playing, the Spotify tracker ignores a now-playing read whose track matches the Locally one.
-- **What Stats shows:** the counts include Locally plays, with no split by source. The Stats footnote changes from Spotify-only wording to
+- **What Stats shows:** the counts include Locally plays, with one total and no split shown. The owner decided on 14 Oct: show one total, but store
+  per source, so a breakdown can come later (#340). The Stats footnote changes from Spotify-only wording to
   "Plays in Spotify and in Locally".
 
 ## Contract and docs
 
-- `spec/sync.md` "Play counts": the iPhone now pushes counts too, and counts include plays in Locally. The wire format is unchanged.
+- `spec/sync.md` "Play counts": the iPhone now pushes counts too, and counts include plays in Locally. The wire format gains an optional `source` per entry
+  (`spotify` default, or `locally`) and the summary gains `bySource`; shipped clients are unaffected. Built in #340 (replaces the earlier "no API change").
 - `docs/design.md`: the row play button, the now-playing glyph and the mini player, for both apps.
 - `STATUS.md`: one line per app when each step lands.
 
