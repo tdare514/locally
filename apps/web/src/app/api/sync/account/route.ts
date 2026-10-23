@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServices } from "../../../../server/container";
 import { badRequest, errorResponse } from "../../../../server/http/responses";
 import { toSettingsResponse } from "../../../../server/config/settingsView";
-import { emptySyncState } from "../../../../server/sync/SyncState";
+import { accountKeyOf, resetKeepingImports } from "../../../../server/sync/SyncState";
 import { SyncAuthError } from "../../../../server/sync/SyncApi";
 import { demoReadOnly, isDemo } from "../../../../server/demo";
 
@@ -41,7 +41,17 @@ export async function DELETE() {
 
     // Same reasoning as sign-out: this device's push bookkeeping and pending
     // phone releases belong to the now-deleted account.
-    await services.syncState.update(() => emptySyncState());
+    // The deleted account's owed claims go with it; other accounts' stay.
+    const deletedKey = accountKeyOf(signedIn);
+    await services.syncState.update((current) => {
+      const next = resetKeepingImports(current);
+      if (deletedKey && next.importedShares) {
+        const { [deletedKey]: _gone, ...rest } = next.importedShares;
+        void _gone;
+        next.importedShares = rest;
+      }
+      return next;
+    });
     await services.syncEngine.forgetFriends();
     // The deleted account held this Mac's pushed play counts; a new account gets them again (#107).
     await services.playStore.resetPushed();

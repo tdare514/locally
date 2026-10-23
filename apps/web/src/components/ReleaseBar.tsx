@@ -70,7 +70,7 @@ export default function ReleaseBar({ tint, left, status, beforeMain, main, onHei
   }, []);
 
   return (
-    <div className="release-bar pointer-events-none sticky bottom-0 z-20 h-0 md:-bottom-4 lg:-bottom-10">
+    <div className="pointer-events-none sticky bottom-0 z-20 h-0 md:-bottom-4 lg:-bottom-10">
       <div
         ref={barRef}
         role="region"

@@ -15,7 +15,7 @@ import { ReleaseService } from "../../src/server/releases/ReleaseService";
 import type { LibraryRepository } from "../../src/server/storage/LibraryRepository";
 import type { SyncApi } from "../../src/server/sync/SyncApi";
 import { SyncEngine } from "../../src/server/sync/SyncEngine";
-import { emptySyncState, type SyncState, type SyncStateStore } from "../../src/server/sync/SyncState";
+import { emptySyncState, resetKeepingImports, type SyncState, type SyncStateStore } from "../../src/server/sync/SyncState";
 import type { ReceivedShare } from "../../src/shared/shares";
 import type { Release, Settings } from "../../src/shared/types";
 
@@ -80,6 +80,7 @@ const noConvert: AudioConverter = {
   },
 };
 
+const ACCOUNT_A = "http://fake\nme@example.com";
 const S1 = "11111111-1111-4111-8111-111111111111";
 const S2 = "22222222-2222-4222-8222-222222222222";
 
@@ -122,6 +123,7 @@ describe("shares on the Mac", () => {
   let settingsStore: Settings1;
   let listGate: Promise<void> | null;
   let releasesGate: Promise<void> | null;
+  let meGate: Promise<void> | null;
   let cacheDir: string;
 
   beforeEach(async () => {
@@ -133,6 +135,7 @@ describe("shares on the Mac", () => {
     failClaim = false;
     listGate = null;
     releasesGate = null;
+    meGate = null;
     cacheDir = path.join(libraryDir, "..", `sli-share-covers-${path.basename(libraryDir)}`);
     repo = new Repo();
     const settings = new Settings1({
@@ -160,7 +163,10 @@ describe("shares on the Mac", () => {
         return { share: null, notOnLocally: [], link: null };
       },
       async me() {
-        return { user: { id: "u", email: "me@example.com" }, device: { id: "d", name: "n" }, quota: { usedBytes: 0, limitBytes: 1 }, devices: [], ...me };
+        const reply = { ...me };
+        if (meGate) await meGate;
+        void reply;
+        return { user: { id: "u", email: "me@example.com" }, device: { id: "d", name: "n" }, quota: { usedBytes: 0, limitBytes: 1 }, devices: [], ...reply };
       },
       async missingFiles() {
         return null;
@@ -264,7 +270,7 @@ describe("shares on the Mac", () => {
     expect(release.title).toBe("Night Drive");
     expect(repo.items).toHaveLength(1);
     expect((await engine.status()).fromFriends).toEqual([]);
-    expect((await state.get()).importedShares).toHaveProperty(S1);
+    expect((await state.get()).importedShares?.[ACCOUNT_A]).toHaveProperty(S1);
 
     // A restart: a fresh reconcile still lists it unclaimed, and the tray keeps it hidden.
     await engine.reconcile();
@@ -274,7 +280,7 @@ describe("shares on the Mac", () => {
     failClaim = false;
     await engine.reconcile();
     expect(calls).toContain(`claim ${S1}`);
-    expect((await state.get()).importedShares).toEqual({});
+    expect((await state.get()).importedShares?.[ACCOUNT_A]).toEqual({});
     // The cached unclaimed row must not come back once the marker is cleared.
     expect((await engine.status()).fromFriends).toEqual([]);
     expect(repo.items).toHaveLength(1);
@@ -406,6 +412,48 @@ describe("shares on the Mac", () => {
     expect((await engine.status()).fromFriends).toHaveLength(1);
     expect(await fs.readdir(cacheDir)).toHaveLength(1);
     await expect(engine.friendCover(S1)).resolves.toBeTruthy();
+  });
+
+  it("does not let a /me reply from the old session overwrite the new session's flag", async () => {
+    me = { publicSharesEnabled: true };
+    let resume!: () => void;
+    meGate = new Promise<void>((resolve) => (resume = resolve));
+    const asking = engine.shareOptions();
+    await new Promise((r) => setTimeout(r, 50));
+    await settingsStore.update((c) => ({ ...c, sync: c.sync ? { ...c.sync, baseUrl: "http://other-host", deviceToken: "tok2" } : null }));
+    resume();
+    const reply = await asking;
+    expect(reply.publicSharesEnabled).toBe(false);
+    meGate = null;
+    me = { publicSharesEnabled: false };
+    expect((await engine.shareOptions()).publicSharesEnabled).toBe(false);
+  });
+
+  it("keeps an owed claim across sign-out and another account, and does not offer the share again", async () => {
+    await engine.reconcile();
+    failClaim = true;
+    await engine.acceptFriendShare(S1);
+    expect(repo.items).toHaveLength(1);
+
+    // Sign out (the route resets the state but keeps the imports), then sign in as B.
+    await settingsStore.update((c) => ({ ...c, sync: c.sync ? { ...c.sync, deviceToken: null, email: null } : null }));
+    await state.update(resetKeepingImports);
+    received = [];
+    await settingsStore.update((c) => ({ ...c, sync: { baseUrl: "http://fake", deviceToken: "tokB", email: "b@example.com", lastVersion: 0 } }));
+    await engine.reconcile();
+    expect((await engine.status()).fromFriends).toEqual([]);
+    expect((await state.get()).importedShares?.[ACCOUNT_A]).toHaveProperty(S1);
+
+    // Back to A: the service still lists it unclaimed. It stays hidden and the claim is retried.
+    await settingsStore.update((c) => ({ ...c, sync: { baseUrl: "http://fake", deviceToken: "tokA", email: "me@example.com", lastVersion: 0 } }));
+    received = [share()];
+    expect((await engine.status()).fromFriends).toEqual([]);
+    failClaim = false;
+    await engine.reconcile();
+    expect(calls).toContain(`claim ${S1}`);
+    expect((await engine.status()).fromFriends).toEqual([]);
+    expect(repo.items).toHaveLength(1);
+    expect((await state.get()).importedShares?.[ACCOUNT_A]).toEqual({});
   });
 
   it("refuses a share that names a file outside its folder", async () => {

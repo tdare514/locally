@@ -630,15 +630,6 @@ body {
 .track-row:has(.disc-pop) {
   z-index: 20;
 }
-/* An open Share popover rises above the pane's chrome (the back button and the phone tray button sit at 20):
-   the pane is its own stacking context, so the pane itself has to rise while the popover is open. */
-.track-row:has(.share-pop),
-.release-bar:has(.share-pop) {
-  z-index: 40;
-}
-.app-pane:has(.share-pop) {
-  z-index: 30;
-}
 .playlist-pop {
   transform-origin: top left;
 }

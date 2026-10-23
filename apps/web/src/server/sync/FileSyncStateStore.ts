@@ -13,7 +13,8 @@ const SyncStateFileSchema = z.object({
   localIdQueuedAt: z.record(z.string(), z.string()).optional(),
   localIdBackfilled: z.boolean().optional(),
   // Written by builds from #182 on: shares from friends imported here, until their claim is confirmed.
-  importedShares: z.record(z.string(), z.string()).optional().catch(undefined),
+  // The first builds kept one flat list; that shape fails here and is dropped, the one case it can re-offer a share.
+  importedShares: z.record(z.string(), z.record(z.string(), z.string())).optional().catch(undefined),
   pushedUpdatedAt: z.record(z.string(), z.string()).default({}),
   uploadedFiles: z.record(z.string(), z.array(z.string())).default({}),
   coverHash: z.record(z.string(), z.string()).default({}),

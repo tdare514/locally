@@ -391,7 +391,7 @@ export default function AppShell() {
         <ArtistNavProvider value={{ open: (key) => pushTo({ type: "artist", key }), lockedReason: null }}>
         <main
           ref={mainRef}
-          className={`app-pane relative isolate h-full overflow-y-auto p-6 md:p-10 lg:p-16 ${
+          className={`relative isolate h-full overflow-y-auto p-6 md:p-10 lg:p-16 ${
             // Room under the back button where the page's own padding would run into it; at lg
             // the padding already clears it.
             backStack.length > 0 ? "pt-[4.5rem] md:pt-20 lg:pt-16" : ""
@@ -504,6 +504,9 @@ export default function AppShell() {
             />
           </div>
         )}
+        {/* One overlay layer above the pane's chrome (Back, the tray button) for floating panels that must
+            not be clipped by or stacked inside the pane, such as the Share popover. The sidebar stays above. */}
+        <div id="overlay-root" className="pointer-events-none fixed inset-0 z-30" />
         {!IS_DEMO && (
           <div className="absolute right-4 top-4 z-20 md:right-6 md:top-6">
             <PhoneInbox

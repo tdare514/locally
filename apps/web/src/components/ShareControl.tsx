@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createShare, getShareGroups, getShareOptions, putShareGroups } from "../lib/api-client";
 import { copyToClipboard } from "../lib/clipboard";
@@ -64,6 +65,9 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
   const [up, setUp] = useState(variant === "bar");
   // The room on the chosen side of the anchor: the popover never grows past it, its body scrolls instead.
   const [maxHeight, setMaxHeight] = useState<number | undefined>(undefined);
+  // Where the fixed popover sits: its distance from the right edge of the window, and from the top or
+  // bottom edge, taken from the anchor's rectangle.
+  const [pos, setPos] = useState<{ right: number; edge: number } | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const footRef = useRef<HTMLDivElement>(null);
@@ -82,6 +86,12 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
     const margin = 16;
     const gap = 12;
     const rect = button.getBoundingClientRect();
+    // An anchor that has scrolled out of the pane takes the popover with it.
+    const pane = button.closest("main")?.getBoundingClientRect();
+    if (pane && (rect.bottom < pane.top || rect.top > pane.bottom)) {
+      setOpen(false);
+      return;
+    }
     const above = Math.max(120, rect.top - margin - gap);
     const below = Math.max(120, window.innerHeight - rect.bottom - margin - gap);
     const chrome = pop.offsetHeight - body.offsetHeight; // heading, footer and padding
@@ -91,6 +101,10 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
     const goUp = fitsPreferred ? prefersUp : above > below;
     setUp(goUp);
     setMaxHeight(Math.floor(goUp ? above : below));
+    setPos({
+      right: Math.max(margin, window.innerWidth - rect.right),
+      edge: Math.round(goUp ? window.innerHeight - rect.top + gap : rect.bottom + gap),
+    });
   }, [variant]);
 
   // Re-placed whenever what is inside changes size, and when the window or the pane scrolls or resizes.
@@ -118,6 +132,7 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
   function toggle() {
     if (!open) {
       setMaxHeight(undefined);
+      setPos(null);
       setEmails([]);
       setDraft("");
       setEmailError(null);
@@ -159,7 +174,7 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
     }
     function onPointerDown(e: PointerEvent) {
       const target = e.target as Node | null;
-      if (!target || wrapRef.current?.contains(target)) return;
+      if (!target || wrapRef.current?.contains(target) || popRef.current?.contains(target)) return;
       setOpen(false);
     }
     document.addEventListener("keydown", onKeyDown, true);
@@ -173,7 +188,7 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
   // Tab out of the popover (either end) closes it; focus goes where the browser sends it.
   function onFocusOut(e: React.FocusEvent<HTMLDivElement>) {
     const next = e.relatedTarget as Node | null;
-    if (next && !wrapRef.current?.contains(next)) setOpen(false);
+    if (next && !wrapRef.current?.contains(next) && !popRef.current?.contains(next)) setOpen(false);
   }
 
   /** Turns the typed text into pills. False (with a message) when a token is not an email. */
@@ -284,6 +299,10 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
     );
   }
 
+  // The popover is drawn in the app's overlay layer, above the pane's chrome; without one (a test) it stays inline.
+  const overlay = open ? document.getElementById("overlay-root") : null;
+  const inOverlay = (node: React.ReactElement) => (overlay ? createPortal(node, overlay) : node);
+
   return (
     <div ref={wrapRef} className="relative shrink-0" onBlur={onFocusOut}>
       {variant === "bar" ? (
@@ -315,7 +334,7 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
           <ShareIcon className="h-4 w-4" />
         </button>
       )}
-      {open && (
+      {open && inOverlay(
         <div
           ref={popRef}
           id={dialogId}
@@ -323,9 +342,15 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
           aria-labelledby={headingId}
           // The track list starts a drag from a bare press; a press in here is not one.
           onPointerDown={(e) => e.stopPropagation()}
-          style={{ transformOrigin: up ? "bottom right" : "top right", maxHeight }}
-          className={`share-pop playlist-pop glass-fake glass-frost absolute right-0 z-40 isolate flex w-[360px] max-w-[calc(100vw-2rem)] cursor-default flex-col rounded-[22px] p-4 text-left ${
-            up ? "bottom-full mb-3" : "top-full mt-1"
+          style={{
+            transformOrigin: up ? "bottom right" : "top right",
+            maxHeight,
+            ...(overlay
+              ? { position: "fixed", right: pos?.right ?? 16, ...(up ? { bottom: pos?.edge ?? 0 } : { top: pos?.edge ?? 0 }), visibility: pos ? "visible" : "hidden" }
+              : {}),
+          }}
+          className={`share-pop playlist-pop glass-fake glass-frost isolate flex w-[360px] max-w-[calc(100vw-2rem)] cursor-default flex-col rounded-[22px] p-4 text-left ${
+            overlay ? "pointer-events-auto" : `absolute right-0 z-40 ${up ? "bottom-full mb-3" : "top-full mt-1"}`
           }`}
         >
           <h2

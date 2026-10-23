@@ -38,10 +38,15 @@ import {
   type SyncApi,
   type SyncFileToUpload,
 } from "./SyncApi";
-import type { MissingMark, SyncState, SyncStateStore } from "./SyncState";
+import { accountKeyOf, type MissingMark, type SyncState, type SyncStateStore } from "./SyncState";
 import { hideKeyFor } from "../../lib/tray-sections";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The shares this account has imported but not yet had confirmed as claimed (#182). */
+function importedFor(state: SyncState, key: string | null): Record<string, string> {
+  return key ? (state.importedShares?.[key] ?? {}) : {};
+}
 
 /** Builds a `SyncApi` for a given base URL/token; a factory (not a singleton) because both can change while the app runs. */
 export type SyncApiFactory = (baseUrl: string, token: string | null) => SyncApi;
@@ -211,7 +216,7 @@ export class SyncEngine implements ReleaseSyncHooks {
       hiddenFromTray: Object.fromEntries(
         Object.entries(state.hiddenFromTray ?? {}).filter(([id]) => Object.hasOwn(state.pendingFromPhone, id))
       ),
-      fromFriends: this.friendShares(state.importedShares ?? {}),
+      fromFriends: this.friendShares(importedFor(state, accountKeyOf(settings.sync))),
       quota: this.quota,
     };
   }
@@ -1022,7 +1027,8 @@ export class SyncEngine implements ReleaseSyncHooks {
    * recorded and is tried again on the next reconcile.
    */
   private async settleImportedShares(api: SyncApi, listed: ReceivedShare[]): Promise<void> {
-    const imported = (await this.syncState.get()).importedShares ?? {};
+    const key = accountKeyOf((await this.settings.get()).sync);
+    const imported = importedFor(await this.syncState.get(), key);
     const done: string[] = [];
     for (const id of Object.keys(imported)) {
       const share = listed.find((r) => r.id === id);
@@ -1040,20 +1046,21 @@ export class SyncEngine implements ReleaseSyncHooks {
         // Tried again on the next reconcile.
       }
     }
-    if (done.length > 0) await this.forgetImportedShares(done);
+    if (done.length > 0) await this.forgetImportedShares(done, key);
   }
 
-  private async forgetImportedShares(ids: string[]): Promise<void> {
+  private async forgetImportedShares(ids: string[], key: string | null): Promise<void> {
+    if (!key) return;
     await this.syncState.update((current) => {
-      const rest = { ...(current.importedShares ?? {}) };
+      const mine = { ...importedFor(current, key) };
       let changed = false;
       for (const id of ids) {
-        if (Object.hasOwn(rest, id)) {
-          delete rest[id];
+        if (Object.hasOwn(mine, id)) {
+          delete mine[id];
           changed = true;
         }
       }
-      return changed ? { ...current, importedShares: rest } : null;
+      return changed ? { ...current, importedShares: { ...current.importedShares, [key]: mine } } : null;
     });
   }
 
@@ -1153,13 +1160,16 @@ export class SyncEngine implements ReleaseSyncHooks {
   async shareOptions(): Promise<{ signedIn: boolean; publicSharesEnabled: boolean }> {
     const ctx = await this.currentApi();
     if (!ctx) return { signedIn: false, publicSharesEnabled: false };
+    // The session this request belongs to; a reply that comes back after the account or host changed is dropped.
+    const key = await this.enterSession();
     try {
       const me = await ctx.api.me();
-      this.publicShares = me.publicSharesEnabled === true;
+      if ((await this.enterSession()) === key) this.publicShares = me.publicSharesEnabled === true;
     } catch {
       // Keep the last answer from a reconcile.
     }
-    return { signedIn: true, publicSharesEnabled: this.publicShares };
+    const current = await this.enterSession();
+    return { signedIn: current !== null, publicSharesEnabled: current === key ? this.publicShares : false };
   }
 
   /** Shares a release, or some of its tracks. The release must be this Mac's own and not added in place. */
@@ -1305,16 +1315,19 @@ export class SyncEngine implements ReleaseSyncHooks {
         await api.downloadFile(url, path.join(dir, name));
       }
       const release = await this.releases.importSynced(record, dir);
-      await this.syncState.update((current) => ({
-        ...current,
-        importedShares: { ...(current.importedShares ?? {}), [id]: nowIso },
-      }));
+      const accountKey = accountKeyOf((await this.settings.get()).sync);
+      if (accountKey) {
+        await this.syncState.update((current) => ({
+          ...current,
+          importedShares: { ...current.importedShares, [accountKey]: { ...importedFor(current, accountKey), [id]: nowIso } },
+        }));
+      }
       this.received = this.received.filter((r) => r.id !== id);
       void this.push(release);
       try {
         await api.claimShare(id);
         await api.hideShare(id).catch(() => undefined);
-        await this.forgetImportedShares([id]);
+        await this.forgetImportedShares([id], accountKey);
       } catch (err) {
         // Imported but not claimed: hidden from the tray, claimed again on the next reconcile.
         console.warn(`SyncEngine: could not claim share ${id} after importing it: ${err instanceof Error ? err.message : err}`);
