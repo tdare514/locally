@@ -215,10 +215,13 @@ struct RecordSleeve: View {
 // MARK: - Disc
 
 /// The vinyl: dark face with grooves, the cover on the centre label, and a fixed sheen.
-/// With no cover the label is black with a hairline ring (#296), never `accent`. Also the invitation's bare disc.
+/// With no cover the label is black with a hairline ring (#296), never `accent`; only the Import
+/// invitation's bare disc (`inviteLabel`, #330) prints the accent blue.
 struct RecordDisc: View {
     let cover: UIImage?
     let size: CGFloat
+    /// The Import invitation's bare disc: an accent label with a soft sheen (#330).
+    var inviteLabel: Bool = false
     var tuck: Double = 0
     var rotationDegrees: Double = 0
 
@@ -246,8 +249,17 @@ struct RecordDisc: View {
 
     private func labelView(diameter: CGFloat) -> some View {
         ZStack {
-            Circle().fill(Theme.noCoverLabel)
-            if cover == nil {
+            if inviteLabel && cover == nil {
+                Circle().fill(Theme.accent)
+                Circle().fill(RadialGradient(
+                    colors: [.white.opacity(Theme.Import.inviteLabelSheen), .clear],
+                    center: UnitPoint(x: 0.35, y: 0.3), startRadius: 0, endRadius: diameter * 0.7
+                ))
+                Circle().strokeBorder(.black.opacity(Theme.Import.inviteLabelEdge), lineWidth: 1)
+            } else {
+                Circle().fill(Theme.noCoverLabel)
+            }
+            if cover == nil && !inviteLabel {
                 Circle().strokeBorder(Theme.noCoverLabelRing, lineWidth: 1)
             }
             if let cover {

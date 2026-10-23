@@ -33,7 +33,7 @@ struct ImportInvitation: View {
 
     private var content: some View {
         VStack(spacing: Theme.Import.inviteGap) {
-            RecordDisc(cover: nil, size: Theme.Import.inviteDiscSize)
+            RecordDisc(cover: nil, size: Theme.Import.inviteDiscSize, inviteLabel: true)
                 .accessibilityHidden(true)
             VStack(spacing: Theme.Import.inviteButtonGap) {
                 Button(action: onAddTrack) {
