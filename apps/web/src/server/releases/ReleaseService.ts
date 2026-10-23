@@ -431,7 +431,7 @@ export class ReleaseService {
    * Never pushed back to sync by this method itself - the caller
    * (`SyncEngine`) owns that bookkeeping.
    */
-  async importSynced(record: SyncRecord, dir: string): Promise<Release> {
+  async importSynced(record: SyncRecord, dir: string, extra: { releaseDate?: string } = {}): Promise<Release> {
     // A details-only record has no files to write; it is never sent to Spotify from here (#245).
     assertWritable({ adopted: record.source === "adopted", title: record.title });
     const settings = await this.settings.get();
@@ -485,6 +485,7 @@ export class ReleaseService {
           albumArtist: record.artist,
           album: record.title,
           year: record.year,
+          ...(extra.releaseDate ? { releaseDate: extra.releaseDate } : {}),
           genre: record.genre,
           ...tagNumbers[i],
           coverPath,

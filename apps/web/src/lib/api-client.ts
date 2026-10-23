@@ -18,6 +18,13 @@ import type {
   PlaysSummaryResponse,
   ReleasePlaysResponse,
 } from "../shared/types";
+import type {
+  CreateShareRequest,
+  CreateShareResponse,
+  SentSharesView,
+  ShareGroup,
+  ShareOptions,
+} from "../shared/shares";
 import type { AdoptProposal } from "../server/adopt/types";
 import type { AdoptBatchResponse } from "./adopt-review";
 
@@ -232,6 +239,69 @@ export async function unhideFromTray(id: string): Promise<void> {
 export async function acceptFromPhone(id: string): Promise<{ ok: true; release: Release }> {
   const res = await fetch(`/api/sync/accept/${encodeURIComponent(id)}`, { method: "POST" });
   return handle<{ ok: true; release: Release }>(res);
+}
+
+/** "Send to Spotify" on a share from a friend (#182): claims it and adds a new release to the library. */
+export async function acceptFriendShare(id: string): Promise<{ ok: true; release: Release }> {
+  const res = await fetch(`/api/shares/${encodeURIComponent(id)}/accept`, { method: "POST" });
+  return handle<{ ok: true; release: Release }>(res);
+}
+
+/** Dismiss on a share from a friend. */
+export async function hideFriendShare(id: string): Promise<void> {
+  const res = await fetch(`/api/shares/${encodeURIComponent(id)}/hide`, { method: "POST" });
+  await handle<{ ok: true }>(res);
+}
+
+/** The address of a share from a friend's cover, for an <img>. */
+export function friendCoverUrl(id: string): string {
+  return `/api/shares/${encodeURIComponent(id)}/cover`;
+}
+
+export async function getShareOptions(): Promise<ShareOptions> {
+  const res = await fetch("/api/shares/options", { cache: "no-store" });
+  return handle<ShareOptions>(res);
+}
+
+export async function createShare(body: CreateShareRequest): Promise<CreateShareResponse> {
+  const res = await fetch("/api/shares", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return handle<CreateShareResponse>(res);
+}
+
+/** One page of the shares this account sent. */
+export async function getSentShares(cursor?: string | null): Promise<SentSharesView> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  const res = await fetch(`/api/shares${query}`, { cache: "no-store" });
+  return handle<SentSharesView>(res);
+}
+
+export async function revokeShare(id: string): Promise<void> {
+  const res = await fetch(`/api/shares/${encodeURIComponent(id)}`, { method: "DELETE" });
+  await handle<{ ok: true }>(res);
+}
+
+/** How many people a release is still shared with (and whether by link), for the delete confirm. */
+export async function getShareSummary(releaseId: string): Promise<{ people: number; link: boolean }> {
+  const res = await fetch(`/api/shares/summary?releaseId=${encodeURIComponent(releaseId)}`, { cache: "no-store" });
+  return handle<{ people: number; link: boolean }>(res);
+}
+
+export async function getShareGroups(): Promise<ShareGroup[]> {
+  const res = await fetch("/api/shares/groups", { cache: "no-store" });
+  return (await handle<{ groups: ShareGroup[] }>(res)).groups;
+}
+
+export async function putShareGroups(groups: ShareGroup[]): Promise<ShareGroup[]> {
+  const res = await fetch("/api/shares/groups", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ groups }),
+  });
+  return (await handle<{ groups: ShareGroup[] }>(res)).groups;
 }
 
 export async function getLibrary(signal?: AbortSignal): Promise<Library> {

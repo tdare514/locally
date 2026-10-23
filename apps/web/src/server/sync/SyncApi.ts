@@ -15,6 +15,15 @@ import {
   type ServerPlaysSummaryPage,
   type ServerReleasePlays,
 } from "../plays/playsWire";
+import {
+  CreateShareResponseSchema,
+  ReceivedSharesPageSchema,
+  SentSharesPageSchema,
+  type CreateShareRequest,
+  type CreateShareResponse,
+  type ReceivedSharesPage,
+  type SentSharesPage,
+} from "../../shared/shares";
 import { SyncRecordRejectedError, parseSyncRecord, type SyncRecord } from "./SyncRecord";
 
 export type SyncPlatform = "mac" | "ios";
@@ -61,6 +70,8 @@ export interface MeResult {
   devicesHasMore?: boolean;
   /** When any device last asked for a resync (#172), ISO; null if never. Absent on an older service. */
   resyncRequestedAt?: string | null;
+  /** Whether the service has public share links switched on (#146); the Link option is hidden unless true. Absent on an older service. */
+  publicSharesEnabled?: boolean;
 }
 
 export interface ListReleasesResult {
@@ -206,6 +217,21 @@ export interface SyncApi {
   spotifyLinkStatus(): Promise<SpotifyLinkStatus>;
   /** `DELETE /v1/spotify/link`. Throws `SyncUnavailableError` on a 404. */
   spotifyUnlink(): Promise<void>;
+  /** `POST /v1/shares`. A release added in place (`source: "adopted"`, a 409) throws a `PublicError` saying so;
+   * a private share where no recipient resolves is `share: null`. */
+  createShare(body: CreateShareRequest): Promise<CreateShareResponse>;
+  /** `GET /v1/shares?role=sent`, one page, newest first. */
+  listSentShares(cursor?: string | null, limit?: number): Promise<SentSharesPage>;
+  /** `GET /v1/shares?role=received`, one page: live shares only. */
+  listReceivedShares(cursor?: string | null, limit?: number): Promise<ReceivedSharesPage>;
+  /** `DELETE /v1/shares/:id`: revokes it and every reshare below it. */
+  revokeShare(id: string): Promise<void>;
+  /** `GET /v1/shares/:id/files/:name`: a 5-minute signed URL for one of the share's files. */
+  shareFileUrl(id: string, name: string): Promise<{ url: string; expiresAt: string }>;
+  /** `POST /v1/shares/:id/claim`: idempotent; the caller then imports the share. */
+  claimShare(id: string): Promise<{ claimedAt: string }>;
+  /** `POST /v1/shares/:id/hide`: dismisses a received share from the tray. */
+  hideShare(id: string): Promise<void>;
   /** Streams `filePath` to the given upload target without buffering it in memory. */
   uploadFile(upload: SyncUploadTarget, filePath: string): Promise<void>;
   /** Streams the response body at `url` to `destPath` without buffering it in memory. */
@@ -450,6 +476,72 @@ export class HttpSyncApi implements SyncApi {
       signal: AbortSignal.timeout(SPOTIFY_LINK_TIMEOUT_MS),
     });
     if (res.status === 404) throw new SyncUnavailableError("Online play counting is not available on this sync service");
+    await this.handle(res);
+  }
+
+  async createShare(body: CreateShareRequest): Promise<CreateShareResponse> {
+    const res = await fetch(this.url("/v1/shares"), {
+      method: "POST",
+      headers: this.headers(true),
+      body: JSON.stringify(body),
+    });
+    // `handle` reads a 409 as a release conflict; here it only means "adopted".
+    if (res.status === 409) {
+      throw new PublicError("This release was added in place from a Spotify folder, so Locally can't share it.");
+    }
+    const parsed = CreateShareResponseSchema.safeParse(await this.handle<unknown>(res));
+    if (!parsed.success) throw new PublicError("Sync service sent an unexpected reply to a share");
+    return parsed.data;
+  }
+
+  private sharesQuery(role: "sent" | "received", cursor: string | null | undefined, limit: number): string {
+    const query = new URLSearchParams({ role, limit: String(limit) });
+    if (cursor) query.set("cursor", cursor);
+    return `/v1/shares?${query.toString()}`;
+  }
+
+  async listSentShares(cursor?: string | null, limit = 50): Promise<SentSharesPage> {
+    const res = await fetch(this.url(this.sharesQuery("sent", cursor, limit)), { headers: this.headers(false) });
+    const parsed = SentSharesPageSchema.safeParse(await this.handle<unknown>(res));
+    if (!parsed.success) throw new PublicError("Sync service sent an unexpected reply for your shares");
+    return parsed.data;
+  }
+
+  async listReceivedShares(cursor?: string | null, limit = 50): Promise<ReceivedSharesPage> {
+    const res = await fetch(this.url(this.sharesQuery("received", cursor, limit)), { headers: this.headers(false) });
+    const parsed = ReceivedSharesPageSchema.safeParse(await this.handle<unknown>(res));
+    if (!parsed.success) throw new PublicError("Sync service sent an unexpected reply for shares sent to you");
+    return parsed.data;
+  }
+
+  async revokeShare(id: string): Promise<void> {
+    const res = await fetch(this.url(`/v1/shares/${encodeURIComponent(id)}`), {
+      method: "DELETE",
+      headers: this.headers(false),
+    });
+    await this.handle(res);
+  }
+
+  async shareFileUrl(id: string, name: string): Promise<{ url: string; expiresAt: string }> {
+    const res = await fetch(this.url(`/v1/shares/${encodeURIComponent(id)}/files/${encodeURIComponent(name)}`), {
+      headers: this.headers(false),
+    });
+    return this.handle<{ url: string; expiresAt: string }>(res);
+  }
+
+  async claimShare(id: string): Promise<{ claimedAt: string }> {
+    const res = await fetch(this.url(`/v1/shares/${encodeURIComponent(id)}/claim`), {
+      method: "POST",
+      headers: this.headers(false),
+    });
+    return this.handle<{ claimedAt: string }>(res);
+  }
+
+  async hideShare(id: string): Promise<void> {
+    const res = await fetch(this.url(`/v1/shares/${encodeURIComponent(id)}/hide`), {
+      method: "POST",
+      headers: this.headers(false),
+    });
     await this.handle(res);
   }
 

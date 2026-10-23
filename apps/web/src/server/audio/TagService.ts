@@ -4,6 +4,8 @@ export interface WriteTagsInput {
   albumArtist: string;
   album: string;
   year?: string | null;
+  /** `YYYY-MM` or `YYYY-MM-DD` when the release date is more exact than the year (#221); written as TDRC beside TYER. */
+  releaseDate?: string | null;
   genre?: string | null;
   /** The number for the file's track tag (TRCK): the position within its disc when discs are set,
    * else the release-wide `trackNumber`. Derive it with `deriveTagNumbers`. */

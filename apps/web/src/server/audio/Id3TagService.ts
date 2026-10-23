@@ -28,6 +28,7 @@ export class Id3TagService implements TagService {
     tags.partOfSet =
       input.discNumber != null && input.discTotal != null ? `${input.discNumber}/${input.discTotal}` : undefined;
     if (input.year) tags.year = input.year;
+    if (input.releaseDate) tags.recordingTime = input.releaseDate;
     if (input.genre) tags.genre = input.genre;
 
     if (input.coverPath) {
