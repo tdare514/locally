@@ -17,7 +17,7 @@
 | Made or edited in Locally on this device | yes, from the Spotify folder (security-scoped bookmark) | yes, from the library folder |
 | Arrived from the other device and sent to Spotify here | yes, it is now in the folder | yes |
 | Still waiting in "From your devices" or "From your friends" | no, its files aren't here yet | no |
-| Adopted (#245) | no: only its details sync, and the audio is on the Mac | yes, read in place from the Spotify folder it was adopted from (read-only) |
+| Adopted (#245) | not yet: only its details sync. Once the phone adopts its own Spotify folder (#332), the same release plays from the phone's copy | yes, read in place from the Spotify folder it was adopted from (read-only) |
 | File moved or deleted outside Locally | no: the row shows "File missing" and is skipped | the same |
 
 A row that can't play shows no play button and gives no reason, except when the file is missing.
@@ -76,7 +76,9 @@ A row that can't play shows no play button and gives no reason, except when the 
   - Sign-out and account deletion clear only the pushed markers, as the Mac does.
   - The service already accepts any device's counts (`max(stored, sent)` per device and track), so **no API change** is needed.
 - **No double count:** a Locally play and a Spotify play of the same file at the same moment would need both apps playing at once.
-  - If Spotify is playing when Locally starts, Locally doesn't pause it. Each counts its own.
+  - **Mac:** Locally doesn't pause Spotify (owner, 23 Oct). Both can play, and each counts its own.
+  - **iPhone:** iOS gives audio to one app at a time. Locally's `.playback` session interrupts Spotify, the way any music app does,
+    so the two can't both be counting. Locally doesn't try to resume Spotify afterwards.
   - On the Mac, while Locally is playing, the Spotify tracker ignores a now-playing read whose track matches the Locally one.
 - **What Stats shows:** the counts include Locally plays, with no split by source. The Stats footnote changes from Spotify-only wording to
   "Plays in Spotify and in Locally".
