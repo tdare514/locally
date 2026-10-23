@@ -592,6 +592,100 @@ final class ReleaseCoordinator {
         return release
     }
 
+    /// Imports a received share (#183) as a NEW release: fresh release and track ids, the downloaded
+    /// files (in `dir`, named as the snapshot names them) tagged from the snapshot through the same
+    /// writers an import uses, then moved into Spotify's folder under the usual flat name and
+    /// indexed. The snapshot, not the downloaded files' own tags, says what the tags are. It then
+    /// syncs like any release.
+    func importShared(_ snapshot: ShareSnapshot, dir: URL) async throws -> Release {
+        guard let kind = ReleaseKind(rawValue: snapshot.kind) else {
+            throw LocallyError.libraryFailed("That release's kind wasn't recognised.")
+        }
+        guard !snapshot.tracks.isEmpty else {
+            throw LocallyError.importFailed("That share has no tracks.")
+        }
+        let ordered = snapshot.tracks.enumerated().sorted { a, b in
+            a.element.trackNumber != b.element.trackNumber ? a.element.trackNumber < b.element.trackNumber : a.offset < b.offset
+        }.map(\.element)
+        let releaseId = UUID()
+        let date = snapshot.date
+
+        var cover: Data?
+        if let coverName = snapshot.cover {
+            let coverSource = try syncedSource(in: dir, name: coverName)
+            cover = try? Data(contentsOf: coverSource)
+        }
+
+        let tagNumbers = DiscNumbering.tagNumbers(for: ordered.map { (trackNumber: $0.trackNumber, discNumber: $0.discNumber) })
+        var movedURLs: [URL] = []
+        var tracks: [Track] = []
+
+        do {
+            for (index, shared) in ordered.enumerated() {
+                let sourceURL = try syncedSource(in: dir, name: shared.file)
+                let ext = (shared.file as NSString).pathExtension.lowercased()
+                guard ext == "mp3" || ext == "m4a" else {
+                    throw LocallyError.importFailed("\"\(shared.file)\" isn't a song file Locally can tag.")
+                }
+                guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+                    throw LocallyError.importFailed("\"\(shared.file)\" didn't download.")
+                }
+                let tags = TagSet(
+                    title: shared.title,
+                    artist: snapshot.artist,
+                    album: snapshot.title,
+                    trackNumber: tagNumbers[index].trackNumber,
+                    totalTracks: tagNumbers[index].totalTracks,
+                    date: date,
+                    genre: snapshot.genre,
+                    discNumber: tagNumbers[index].discNumber,
+                    totalDiscs: tagNumbers[index].totalDiscs
+                )
+                try await writer(for: ext).write(tags, cover: cover, to: sourceURL)
+                let durationSec: Double?
+                if let known = shared.durationSec { durationSec = known } else { durationSec = await durationReader.duration(of: sourceURL) }
+                let fileName = layout.fileName(
+                    artist: snapshot.artist, album: snapshot.title, trackNumber: shared.trackNumber, title: shared.title, ext: ext
+                )
+                let destinationURL = try moveIntoFolder(from: sourceURL, fileName: fileName)
+                movedURLs.append(destinationURL)
+                tracks.append(Track(
+                    id: UUID(),
+                    title: shared.title,
+                    trackNumber: shared.trackNumber,
+                    discNumber: shared.discNumber,
+                    filePath: destinationURL.path,
+                    originalName: shared.file,
+                    durationSec: durationSec
+                ))
+            }
+        } catch {
+            removeMovedFiles(movedURLs)
+            throw error
+        }
+
+        let coverPath = cover.flatMap { try? coverStore.save($0, for: releaseId) }
+        var release = Release(
+            id: releaseId,
+            kind: kind,
+            title: snapshot.title,
+            artist: snapshot.artist,
+            genre: snapshot.genre,
+            coverPath: coverPath,
+            folderPath: movedURLs.first?.deletingLastPathComponent().path ?? "",
+            tracks: tracks
+        )
+        release.date = date
+        do {
+            try library.upsert(release)
+        } catch {
+            removeMovedFiles(movedURLs)
+            throw LocallyError.libraryFailed(error.localizedDescription)
+        }
+        syncHook?.pushAfterChange(release)
+        return release
+    }
+
     /// Stores an adopted record (`source == .adopted`) as a details-only
     /// release: no audio files, no Spotify folder access, no tagging. The
     /// cover bytes (downloaded by `SyncEngine`) go to `CoverStore`. The

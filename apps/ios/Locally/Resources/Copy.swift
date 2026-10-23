@@ -534,6 +534,108 @@ enum Copy {
         static func signOutCleanupFailed(_ detail: String) -> String { "Signed out, but couldn't clear queued sync changes: \(detail)" }
     }
 
+    /// Sharing a release or a song with friends (#146, #183), after `docs/plans/146-sharing.md`.
+    enum Share {
+        // The action
+        static let share = "Share"
+        static func shareTitle(_ title: String) -> String { "Share \(title)" }
+        static let shareThisSong = "Share this song"
+        static let sheetTitle = "Share"
+        static let signInToShare = "Sign in to share"
+        static let signInBody = "Sharing needs your Locally account. Sign in from Settings, then come back."
+        static let openSettings = "Open Settings"
+        static let close = "Close"
+
+        // People
+        static let peopleSection = "People"
+        static let emailLabel = "Email address"
+        static let emailPlaceholder = "Add an email"
+        static let addEmailHint = "Press return or type a comma to add it."
+        static func removePerson(_ email: String) -> String { "Remove \(email)" }
+        static let notAnEmail = "That doesn't look like an email address."
+        static let tooMany = "You can share with up to 50 people at once."
+        static let groupsHeading = "Groups"
+        static func addGroup(name: String, count: Int) -> String { "Add \(name), \(count == 1 ? "1 person" : "\(count) people")" }
+        static func deleteGroup(_ name: String) -> String { "Delete group \(name)" }
+        static let saveAsGroup = "Save these people as a group"
+        static let groupNameTitle = "Name this group"
+        static let groupNamePlaceholder = "Group name"
+        static let groupSave = "Save group"
+        static let groupCancel = "Cancel"
+        static let groupsStayOnDevice = "Groups are saved on this phone only."
+
+        // Options
+        static let optionsSection = "Options"
+        static let link = "Link"
+        static let linkOn = "Anyone with the link can download this"
+        static let linkOff = "Only the people above can download this"
+        static let allowReshare = "Let them share it on"
+        static let reshareOn = "They can share it on from Locally"
+        static let reshareOff = "They can't share it on from Locally"
+        static let expires = "Expires"
+        static let never = "Never"
+        static let sevenDays = "7 days"
+        static let thirtyDays = "30 days"
+
+        // Send and result
+        static let send = "Share"
+        static let sending = "Sharing…"
+        static let done = "Done"
+        static func sharedWith(_ count: Int) -> String { count == 1 ? "Shared with 1 person" : "Shared with \(count) people" }
+        static let nobodyReached = "Nothing was shared yet"
+        static let notOnLocally = "Not on Locally yet"
+        static let notOnLocallyHint = "Locally doesn't hold a share for someone without an account. Share again once they join."
+        static let linkReady = "Your link"
+        static let copyLink = "Copy link"
+        static let copied = "Copied"
+        static let shareLink = "Share link"
+        static let copyItNow = "Copy it now. Locally can't show this link again."
+        static let tracksShared = "Only this song is shared."
+
+        // Errors
+        static let errorLinksOff = "Public links are switched off right now."
+        static let errorNotSynced = "Locally hasn't synced this release yet. Try again in a moment."
+        static let errorAdopted = "Releases added from your Mac's Spotify folder can't be shared."
+
+        // From your friends (the Library tray)
+        static let fromYourFriends = "From your friends"
+        static func fromSender(_ email: String) -> String { "from \(email)" }
+        static func trayButtonLabel(count: Int) -> String { "From your friends, \(count) waiting" }
+        static func trayButtonLabelBoth(count: Int) -> String { "From your devices and friends, \(count) waiting" }
+        static let dismiss = "Dismiss"
+        static func dismissTitle(_ title: String) -> String { "Dismiss \(title)" }
+
+        // Shared by you (Settings)
+        static let sharedByYou = "Shared by you"
+        static let linkOnBadge = "Link on"
+        static let linkShare = "Shared by link"
+        static let recipientAdded = "Added"
+        static let recipientNotYet = "Not yet"
+        static let revoke = "Revoke"
+        static let revoking = "Revoking…"
+        static func revokeTitle(_ title: String) -> String { "Revoke \(title)" }
+        static let revokeConfirmTitle = "Stop sharing this?"
+        static func revokeConfirmMessage(people: Int) -> String {
+            people == 0
+                ? "The link will stop working."
+                : (people == 1 ? "1 person will lose access." : "\(people) people will lose access.")
+        }
+        static let revoked = "Revoked"
+        static let expired = "Expired"
+        static let neverExpires = "Never expires"
+        static func expiresOn(_ date: String) -> String { "Expires \(date)" }
+        static func expiredOn(_ date: String) -> String { "Expired \(date)" }
+        static func revokedOn(_ date: String) -> String { "Revoked \(date)" }
+        static func downloads(_ count: Int) -> String { count == 1 ? "1 download" : "\(count) downloads" }
+        static let couldntLoad = "Couldn't load your shares."
+
+        // Deleting a shared release
+        static func deleteWarning(people: Int) -> String {
+            people == 1 ? "It's shared with 1 person. They'll lose access." : "It's shared with \(people) people. They'll lose access."
+        }
+        static let deleteWarningLink = "It's shared by link. The link will stop working."
+    }
+
     /// The Stats tab (#204). The period, digest and date wording ports `apps/web/src/lib/stats-copy.ts`
     /// string for string, so the phone and the Mac say the same thing.
     enum Stats {

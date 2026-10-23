@@ -57,6 +57,7 @@ struct RootView: View {
                         .tag(Tab.settings)
                 }
                 .tint(Theme.accent)
+                .environment(\.openSettingsTab, { selectedTab = .settings })
             }
         }
         .background(Theme.background)

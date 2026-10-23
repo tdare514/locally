@@ -281,6 +281,31 @@ final class ReleaseDetailViewModel {
         }
     }
 
+    // MARK: Shares (#183)
+
+    /// Distinct people the release is shared with through live shares, and whether a live link
+    /// share exists; read before the delete confirm, which says what deleting does to them.
+    private(set) var liveSharePeople = 0
+    private(set) var hasLiveLinkShare = false
+
+    /// Sharing needs an account, and an adopted release's audio is not on the server.
+    var canShare: Bool { !isAdopted }
+    var isSignedInForSharing: Bool { isSignedIn() }
+
+    func loadShareImpact(now: Date = Date()) async {
+        guard let syncApi, isSignedIn() else { return }
+        guard let sent = try? await syncApi.sentShares() else { return }
+        let mine = sent.filter { $0.releaseId.lowercased() == releaseId.uuidString.lowercased() && $0.isLive(at: now) }
+        liveSharePeople = Set(mine.flatMap(\.recipients).map { $0.email.lowercased() }).count
+        hasLiveLinkShare = mine.contains { $0.hasLink }
+    }
+
+    /// The line the delete confirm adds when the release is shared, else nil.
+    var deleteShareWarning: String? {
+        if liveSharePeople > 0 { return Copy.Share.deleteWarning(people: liveSharePeople) }
+        return hasLiveLinkShare ? Copy.Share.deleteWarningLink : nil
+    }
+
     /// The play total to show under a track row, or nil when it has none.
     func playTotal(for row: TrackRow) -> Int? {
         playTotals[row.id.uuidString.lowercased()]

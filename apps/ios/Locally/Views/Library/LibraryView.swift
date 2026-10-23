@@ -173,7 +173,7 @@ struct LibraryView: View {
                     }
                 }
             }
-            .onChange(of: syncStatus.pendingFromMac.count) { _, count in
+            .onChange(of: pendingCount) { _, count in
                 tray.pendingCountChanged(to: count)
                 // A send that finished (or a retry inside a reconcile) has added a release.
                 load()
@@ -287,14 +287,15 @@ struct LibraryView: View {
 
     // MARK: From your devices (#269)
 
-    private var pendingCount: Int { syncStatus.pendingFromMac.count }
+    /// One badge counts both sections: records from the owner's devices and friends' shares (#183).
+    private var pendingCount: Int { syncStatus.pendingFromMac.count + syncStatus.receivedShares.count }
 
     /// The header's cloud; while the tray is open it is hidden (the layer draws the X) but still
     /// anchors the tray. Nothing is drawn while nothing is pending.
     @ViewBuilder
     private var devicesButton: some View {
         if pendingCount > 0 {
-            DevicesTrayButton(count: pendingCount, isOpen: false) { setTray(open: true) }
+            DevicesTrayButton(count: pendingCount, friends: syncStatus.receivedShares.count, isOpen: false) { setTray(open: true) }
                 .opacity(tray.isOpen ? 0 : 1)
                 .accessibilityHidden(tray.isOpen)
                 .accessibilityFocused($cloudButtonFocused)
@@ -351,6 +352,9 @@ struct LibraryView: View {
                         rows: DevicesTrayModel.rows(
                             pending: syncStatus.pendingFromMac, accepting: syncStatus.acceptingIds,
                             failed: syncStatus.failedAcceptIds),
+                        friendRows: DevicesTrayModel.friendRows(
+                            shares: syncStatus.receivedShares, accepting: syncStatus.acceptingShareIds,
+                            failed: syncStatus.failedShareIds),
                         maxHeight: screen * 0.6,
                         headingFocus: $trayHeadingFocused,
                         runs: trayRuns,
@@ -359,6 +363,15 @@ struct LibraryView: View {
                                 await container?.syncEngine.acceptFromMac(id)
                                 load()
                             }
+                        },
+                        onSendFriend: { id in
+                            Task {
+                                await container?.syncEngine.sendShareToSpotify(id)
+                                load()
+                            }
+                        },
+                        onDismissFriend: { id in
+                            Task { await container?.syncEngine.dismissShare(id) }
                         },
                         onAddAll: { runTray(.addAll) },
                         onTryAllAgain: { runTray(.tryAllAgain) }
@@ -369,7 +382,7 @@ struct LibraryView: View {
                     .padding(.leading, max(gutter, min(frame.maxX, geo.size.width - gutter) - panelWidth))
                     .padding(.top, frame.maxY + 8)
                     .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.92, anchor: .topTrailing)))
-                    DevicesTrayButton(count: pendingCount, isOpen: true) { setTray(open: false) }
+                    DevicesTrayButton(count: pendingCount, friends: syncStatus.receivedShares.count, isOpen: true) { setTray(open: false) }
                         .position(x: frame.midX, y: frame.midY)
                 }
             }

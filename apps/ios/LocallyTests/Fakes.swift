@@ -626,6 +626,41 @@ final class FakeSyncApi: SyncApi {
         try data.write(to: destination)
     }
 
+    // MARK: Shares (#183)
+
+    var sentSharesResult: Result<[SentShare], Error> = .success([])
+    var receivedSharesResult: Result<[ReceivedShare], Error> = .success([])
+    var createShareResult: Result<ShareCreateResult, Error> = .success(ShareCreateResult(share: nil, notOnLocally: [], link: nil))
+    private(set) var createShareCalls: [ShareCreateRequest] = []
+    private(set) var revokedShareIds: [String] = []
+    private(set) var claimedShareIds: [String] = []
+    private(set) var hiddenShareIds: [String] = []
+    private(set) var shareFileRequests: [(shareId: String, name: String)] = []
+    var claimShareError: Error?
+
+    func createShare(_ request: ShareCreateRequest) async throws -> ShareCreateResult {
+        createShareCalls.append(request)
+        return try createShareResult.get()
+    }
+
+    func sentShares() async throws -> [SentShare] { try sentSharesResult.get() }
+    func receivedShares() async throws -> [ReceivedShare] { try receivedSharesResult.get() }
+
+    func revokeShare(_ id: String) async throws { revokedShareIds.append(id) }
+
+    func shareFileURL(shareId: String, fileName: String) async throws -> URL {
+        shareFileRequests.append((shareId, fileName))
+        return URL(string: "https://fake-storage.example.com/share/\(shareId)/\(fileName)")!
+    }
+
+    func claimShare(_ id: String) async throws -> Date {
+        if let claimShareError { throw claimShareError }
+        claimedShareIds.append(id)
+        return Date()
+    }
+
+    func hideShare(_ id: String) async throws { hiddenShareIds.append(id) }
+
     /// Test helper: seeds the fake "server" with `record` directly (as if
     /// another device had already `PUT` it), bumping the version so
     /// `releases(sinceVersion:)` returns it.

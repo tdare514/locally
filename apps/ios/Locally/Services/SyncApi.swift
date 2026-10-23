@@ -27,6 +27,9 @@ struct SyncMeResult: Equatable {
     /// When the Mac last asked the phone to send its files again (#171), or
     /// `nil` if it never has, or the server is older than that field.
     var resyncRequestedAt: Date? = nil
+    /// Whether the server has public share links switched on (#146); the share sheet hides its Link
+    /// option when this is false. Absent on an older API, which reads as false.
+    var publicSharesEnabled: Bool = false
 }
 
 /// One release in `GET /v1/files/missing`: the file names its record
@@ -202,6 +205,23 @@ protocol SyncApi {
     /// Downloads `url` to `destination` via `downloadTask(with:)`, so the
     /// file streams straight to disk rather than through memory.
     func downloadFile(from url: URL, to destination: URL) async throws
+
+    // MARK: Shares (#146, #183)
+
+    /// `POST /v1/shares`. `share` is nil when a private share reached nobody.
+    func createShare(_ request: ShareCreateRequest) async throws -> ShareCreateResult
+    /// `GET /v1/shares?role=sent`, every page.
+    func sentShares() async throws -> [SentShare]
+    /// `GET /v1/shares?role=received`, every page (live shares, claimed ones included).
+    func receivedShares() async throws -> [ReceivedShare]
+    /// `DELETE /v1/shares/:id`.
+    func revokeShare(_ id: String) async throws
+    /// `GET /v1/shares/:id/files/:name`: a 5-minute download URL.
+    func shareFileURL(shareId: String, fileName: String) async throws -> URL
+    /// `POST /v1/shares/:id/claim`: when it was first claimed.
+    func claimShare(_ id: String) async throws -> Date
+    /// `POST /v1/shares/:id/hide`.
+    func hideShare(_ id: String) async throws
 }
 
 /// Production `SyncApi`, over `URLSession`. Reads `baseURL`/`deviceToken`
@@ -259,6 +279,7 @@ final class HttpSyncApi: SyncApi {
             /// Absent or null on an older API. Read as text and parsed below, so
             /// a value this build can't parse costs the nudge, not the whole call.
             let resyncRequestedAt: String?
+            let publicSharesEnabled: Bool?
         }
         let decoded = try decode(Response.self, from: data)
         return SyncMeResult(
@@ -266,7 +287,8 @@ final class HttpSyncApi: SyncApi {
             deviceId: decoded.device.id,
             deviceName: decoded.device.name,
             quota: SyncQuota(usedBytes: decoded.quota.usedBytes, limitBytes: decoded.quota.limitBytes),
-            resyncRequestedAt: decoded.resyncRequestedAt.flatMap(SyncDateFormat.decode)
+            resyncRequestedAt: decoded.resyncRequestedAt.flatMap(SyncDateFormat.decode),
+            publicSharesEnabled: decoded.publicSharesEnabled ?? false
         )
     }
 
@@ -436,6 +458,72 @@ final class HttpSyncApi: SyncApi {
             }
             task.resume()
         }
+    }
+
+    // MARK: - Shares
+
+    func createShare(_ request: ShareCreateRequest) async throws -> ShareCreateResult {
+        let data = try await send(
+            path: "/v1/shares",
+            method: "POST",
+            body: request.json,
+            statusErrors: [
+                403: .network(Copy.Share.errorLinksOff),
+                404: .network(Copy.Share.errorNotSynced),
+                409: .network(Copy.Share.errorAdopted),
+                429: .rateLimited,
+            ]
+        )
+        return try decode(ShareCreateResult.self, from: data)
+    }
+
+    func sentShares() async throws -> [SentShare] { try await sharePages(role: "sent") }
+
+    func receivedShares() async throws -> [ReceivedShare] { try await sharePages(role: "received") }
+
+    /// Follows `nextCursor` to the end, at most 20 pages (a guard against a cursor that never ends).
+    private func sharePages<Share: Decodable>(role: String) async throws -> [Share] {
+        var all: [Share] = []
+        var cursor: String?
+        for _ in 0..<20 {
+            var query = "role=\(role)&limit=100"
+            if let cursor {
+                var allowed = CharacterSet.urlQueryAllowed
+                allowed.remove(charactersIn: "&=+#")
+                query += "&cursor=\(cursor.addingPercentEncoding(withAllowedCharacters: allowed) ?? cursor)"
+            }
+            let data = try await send(path: "/v1/shares?\(query)", method: "GET", statusErrors: [404: .notFound, 429: .rateLimited])
+            let page = try decode(SharesPage<Share>.self, from: data)
+            all.append(contentsOf: page.shares)
+            guard let next = page.nextCursor else { break }
+            cursor = next
+        }
+        return all
+    }
+
+    func revokeShare(_ id: String) async throws {
+        _ = try await send(path: "/v1/shares/\(id)", method: "DELETE", statusErrors: [404: .notFound])
+    }
+
+    func shareFileURL(shareId: String, fileName: String) async throws -> URL {
+        let encodedName = fileName.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? fileName
+        let data = try await send(path: "/v1/shares/\(shareId)/files/\(encodedName)", method: "GET")
+        struct Response: Decodable { let url: String; let expiresAt: String }
+        let decoded = try decode(Response.self, from: data)
+        guard let url = Self.serverURL(decoded.url) else {
+            throw SyncApiError.network("Malformed download URL.")
+        }
+        return url
+    }
+
+    func claimShare(_ id: String) async throws -> Date {
+        let data = try await send(path: "/v1/shares/\(id)/claim", method: "POST")
+        struct Response: Decodable { let claimedAt: Date }
+        return try decode(Response.self, from: data).claimedAt
+    }
+
+    func hideShare(_ id: String) async throws {
+        _ = try await send(path: "/v1/shares/\(id)/hide", method: "POST")
     }
 
     // MARK: - Private

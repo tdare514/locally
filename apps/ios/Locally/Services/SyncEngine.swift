@@ -57,6 +57,13 @@ final class SyncStatus {
     /// has the (text) update, just not yet the new cover. Retried directly
     /// (not re-fetched) by `retryFailedCoverUpdates()` every `reconcile()`.
     var failedCoverUpdates: [String: SyncRecord] = [:]
+    /// Shares friends sent this account that are not yet claimed (#183), offered in the Library tray's
+    /// "From your friends" section. Refreshed on every reconcile from `GET /v1/shares?role=received`.
+    var receivedShares: [ReceivedShare] = []
+    /// Share ids being sent to Spotify now, and ones whose last send failed (kept in the tray, with
+    /// their own retry, even after the server marks them claimed).
+    var acceptingShareIds: Set<String> = []
+    var failedShareIds: Set<String> = []
     /// Whether a code was just sent, and to which address — drives the
     /// Settings sign-in form's step (email entry vs. code entry).
     var codeSentTo: String?
@@ -671,6 +678,7 @@ final class SyncEngine: ReleaseSyncHook {
             }
 
             await retryFailedAccepts()
+            await refreshReceivedShares()
 
             // Re-check after the await: a sign-out or account delete that
             // ran while `me()` was in flight has already cleared the
@@ -1200,6 +1208,78 @@ final class SyncEngine: ReleaseSyncHook {
     func retryFailedAcceptsFromMac() async -> AcceptRunResult {
         let snapshot = status.pendingFromMac.map(\.id).filter { status.failedAcceptIds.contains($0) }
         return await acceptReserved(snapshot)
+    }
+
+    // MARK: - Shares from friends (#183)
+
+    private var reservedShareIds: Set<String> = []
+
+    /// Reads the shares sent to this account and keeps the unclaimed ones for the tray. A share whose
+    /// last send failed stays even if the server already marks it claimed (the claim comes first).
+    /// Quiet: an API without the route, or any failure, leaves the list as it was and sets no error.
+    func refreshReceivedShares() async {
+        guard isSignedIn else { return }
+        guard let shares = try? await api.receivedShares(), isSignedIn else { return }
+        let failed = status.failedShareIds
+        status.receivedShares = shares.filter { $0.claimedAt == nil || failed.contains($0.id) || reservedShareIds.contains($0.id) }
+        status.failedShareIds.formIntersection(status.receivedShares.map(\.id))
+    }
+
+    /// "Send to Spotify" on a friend's share: claims it, downloads each file from the share, then
+    /// writes a new release (fresh ids, tagged from the snapshot) into the Spotify folder and the
+    /// library. A failure keeps the row, marked failed, for another try.
+    func sendShareToSpotify(_ id: String) async {
+        guard let share = status.receivedShares.first(where: { $0.id == id }), !reservedShareIds.contains(id) else { return }
+        reservedShareIds.insert(id)
+        status.acceptingShareIds.insert(id)
+        defer {
+            reservedShareIds.remove(id)
+            status.acceptingShareIds.remove(id)
+        }
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Locally-Share-\(UUID().uuidString)", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+            _ = try await api.claimShare(id)
+            for track in share.snapshot.tracks {
+                try await downloadShareFile(shareId: id, name: track.file, into: tempDir)
+            }
+            if let cover = share.snapshot.cover {
+                try await downloadShareFile(shareId: id, name: cover, into: tempDir)
+            }
+            // A new release of this account: the coordinator queues its push like any import.
+            _ = try await coordinator.importShared(share.snapshot, dir: tempDir)
+            status.receivedShares.removeAll { $0.id == id }
+            status.failedShareIds.remove(id)
+        } catch {
+            status.failedShareIds.insert(id)
+            status.lastError = error.localizedDescription
+        }
+    }
+
+    /// "Dismiss" on a friend's share: hides it from the tray on the server too.
+    func dismissShare(_ id: String) async {
+        guard !reservedShareIds.contains(id) else { return }
+        do {
+            try await api.hideShare(id)
+            status.receivedShares.removeAll { $0.id == id }
+            status.failedShareIds.remove(id)
+        } catch {
+            status.lastError = error.localizedDescription
+        }
+    }
+
+    private func downloadShareFile(shareId: String, name: String, into dir: URL) async throws {
+        guard ReleaseLayout.isPlainFileName(name) else {
+            throw LocallyError.importFailed("A file in that share has a name Locally won't use.")
+        }
+        let destination = dir.appendingPathComponent(name)
+        guard ReleaseLayout().isInside(folder: dir, path: destination.path) else {
+            throw LocallyError.pathOutsideFolder
+        }
+        let url = try await api.shareFileURL(shareId: shareId, fileName: name)
+        try await api.downloadFile(from: url, to: destination)
     }
 
     /// `name` came off the network in a record. It is written under `dir`,

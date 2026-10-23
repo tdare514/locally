@@ -44,6 +44,8 @@ struct SettingsView: View {
 
                         SyncSettingsSection()
 
+                        SharedByYouSection()
+
                         GlassSection(title: Copy.Settings.purchaseSection) { purchaseCard }
 
                         GlassSection(title: Copy.Settings.appIcon) {

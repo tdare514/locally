@@ -26,6 +26,16 @@ struct DevicesTrayRow: Identifiable, Equatable {
     /// Which section it is in: the last send failed (#296). Separate from `state`, because a row
     /// being sent keeps the section it was in, with its sending look.
     let inFailedSection: Bool
+    /// A friend's share (#183) instead of a record from this account's own devices: its origin line
+    /// is the sender's email, a failed send keeps the row in place with its retry, and the row can
+    /// be dismissed.
+    var friendOrigin: String? = nil
+    var isFriend: Bool { friendOrigin != nil }
+    /// Whether the row shows its own retry icon.
+    var showsRetry: Bool { inFailedSection || (isFriend && state == .failed) }
+
+    /// The origin line under the title.
+    var originLine: String { friendOrigin.map(Copy.Share.fromSender) ?? Copy.Sync.originLabel(origin) }
 
     /// A row can be sent unless a send is already running.
     var canSend: Bool { state != .sending }
@@ -96,6 +106,17 @@ struct DevicesTrayModel: Equatable {
     /// The badge is shown only while something is pending, and not while the tray is open.
     static func showsBadge(count: Int, isOpen: Bool) -> Bool { count > 0 && !isOpen }
 
+    /// The "From your friends" rows (#183): unclaimed shares, in server order.
+    static func friendRows(shares: [ReceivedShare], accepting: Set<String>, failed: Set<String>) -> [DevicesTrayRow] {
+        shares.filter { $0.claimedAt == nil || failed.contains($0.id) || accepting.contains($0.id) }.map { share in
+            let state: DevicesTrayRowState = accepting.contains(share.id) ? .sending
+                : failed.contains(share.id) ? .failed : .ready
+            return DevicesTrayRow(id: share.id, title: share.snapshot.title, artist: share.snapshot.artist,
+                                  trackCount: share.snapshot.tracks.count, origin: "friend", state: state,
+                                  inFailedSection: false, friendOrigin: share.from.email)
+        }
+    }
+
     /// Rows keep the sync order. A running send beats an earlier failure.
     static func rows(pending: [SyncRecord], accepting: Set<String>, failed: Set<String>) -> [DevicesTrayRow] {
         pending.map { record in
@@ -121,6 +142,8 @@ struct DevicesTrayAnchorKey: PreferenceKey {
 /// The 40 pt faked-glass cloud (44 pt hit area) with the count badge; open, a bare red X.
 struct DevicesTrayButton: View {
     let count: Int
+    /// How many of `count` are friends' shares (#183); the rest come from the owner's devices.
+    var friends = 0
     let isOpen: Bool
     let action: () -> Void
 
@@ -169,7 +192,10 @@ struct DevicesTrayButton: View {
         .onChange(of: count) { old, new in
             if new > old { badgeEpoch += 1 }
         }
-        .accessibilityLabel(isOpen ? Copy.Sync.trayClose : Copy.Sync.trayButtonLabel(count: count))
+        .accessibilityLabel(isOpen ? Copy.Sync.trayClose
+            : friends == 0 ? Copy.Sync.trayButtonLabel(count: count)
+            : friends == count ? Copy.Share.trayButtonLabel(count: count)
+            : Copy.Share.trayButtonLabelBoth(count: count))
     }
 
     private var badge: some View {
@@ -200,11 +226,15 @@ enum DevicesTrayMotion {
 /// its rows), scrolling when taller than `maxHeight`.
 struct DevicesTrayPanel: View {
     let rows: [DevicesTrayRow]
+    /// "From your friends" (#183): empty hides the section.
+    var friendRows: [DevicesTrayRow] = []
     let maxHeight: CGFloat
     var headingFocus: AccessibilityFocusState<Bool>.Binding?
     /// The runs in flight: their buttons read "Adding…" or "Trying…" and are disabled.
     var runs: Set<DevicesTrayRun> = []
     let onSend: (String) -> Void
+    var onSendFriend: (String) -> Void = { _ in }
+    var onDismissFriend: (String) -> Void = { _ in }
     var onAddAll: () -> Void = {}
     var onTryAllAgain: () -> Void = {}
 
@@ -224,13 +254,16 @@ struct DevicesTrayPanel: View {
         let sections = DevicesTraySections(rows: rows)
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Text(Copy.Sync.fromYourDevices)
-                    .font(.system(.subheadline, weight: .semibold))
-                    .foregroundStyle(Theme.primaryText)
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityHeading(.h2)
-                    .modifier(HeadingFocus(binding: headingFocus))
-                    .accessibilityFocused($focus, equals: .heading)
+                // An empty section hides, with its heading.
+                if !rows.isEmpty {
+                    Text(Copy.Sync.fromYourDevices)
+                        .font(.system(.subheadline, weight: .semibold))
+                        .foregroundStyle(Theme.primaryText)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityHeading(.h2)
+                        .modifier(HeadingFocus(binding: headingFocus))
+                        .accessibilityFocused($focus, equals: .heading)
+                }
                 if !sections.ready.isEmpty {
                     section(name: Copy.Sync.readyToAdd, rows: sections.ready, run: .addAll,
                             showsAction: sections.showsAddAll(running: runs.contains(.addAll)),
@@ -244,6 +277,13 @@ struct DevicesTrayPanel: View {
                     section(name: Copy.Sync.couldntSendYet, rows: sections.failed, run: .tryAllAgain,
                             showsAction: sections.showsTryAllAgain,
                             actionEnabled: sections.retryableCount > 0, note: Copy.Sync.couldntSendThese)
+                }
+                if !friendRows.isEmpty {
+                    if !rows.isEmpty {
+                        Rectangle().fill(Theme.Track.separatorTint).frame(height: 1 / displayScale)
+                            .accessibilityHidden(true)
+                    }
+                    friendsSection
                 }
             }
             .padding(16)
@@ -266,7 +306,7 @@ struct DevicesTrayPanel: View {
         .overlay(shape.stroke(Theme.Immersive.panelStroke, lineWidth: 1))
         .clipShape(shape)
         .shadow(color: .black.opacity(0.45), radius: 18, y: 8)
-        .animation(reduceMotion ? nil : DevicesTrayMotion.collapse, value: rows.map(\.id))
+        .animation(reduceMotion ? nil : DevicesTrayMotion.collapse, value: rows.map(\.id) + friendRows.map(\.id))
         .accessibilityElement(children: .contain)
         .onAppear { previousSections = sections }
         .onChange(of: rows.map(\.id)) { _, _ in
@@ -305,6 +345,28 @@ struct DevicesTrayPanel: View {
                     )
                     .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.94, anchor: .top)))
                 }
+            }
+        }
+    }
+
+    /// "From your friends": a heading (the tray's first when no device row is waiting), then its rows.
+    private var friendsSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(Copy.Share.fromYourFriends)
+                .font(.system(rows.isEmpty ? .subheadline : .footnote, weight: .semibold))
+                .foregroundStyle(Theme.primaryText)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityHeading(rows.isEmpty ? .h2 : .h3)
+                .modifier(HeadingFocus(binding: rows.isEmpty ? headingFocus : nil))
+            ForEach(friendRows) { row in
+                DevicesTrayRowView(
+                    row: row,
+                    onSend: { onSendFriend(row.id) },
+                    onRetry: { onSendFriend(row.id) },
+                    onDismiss: { onDismissFriend(row.id) },
+                    focus: $focus
+                )
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.94, anchor: .top)))
             }
         }
     }
@@ -411,6 +473,8 @@ struct DevicesTrayRowView: View {
     var cover: UIImage?
     let onSend: () -> Void
     var onRetry: () -> Void = {}
+    /// A friend's row only: dismisses the share.
+    var onDismiss: (() -> Void)?
     var focus: AccessibilityFocusState<DevicesTrayFocus?>.Binding?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -418,11 +482,12 @@ struct DevicesTrayRowView: View {
     @ScaledMetric(relativeTo: .footnote) private var detailSize: CGFloat = 13
     @ScaledMetric(relativeTo: .caption) private var labelSize: CGFloat = 12
 
-    init(row: DevicesTrayRow, cover: UIImage? = nil, onSend: @escaping () -> Void, onRetry: @escaping () -> Void = {}, focus: AccessibilityFocusState<DevicesTrayFocus?>.Binding? = nil) {
+    init(row: DevicesTrayRow, cover: UIImage? = nil, onSend: @escaping () -> Void, onRetry: @escaping () -> Void = {}, onDismiss: (() -> Void)? = nil, focus: AccessibilityFocusState<DevicesTrayFocus?>.Binding? = nil) {
         self.row = row
         self.cover = cover
         self.onSend = onSend
         self.onRetry = onRetry
+        self.onDismiss = onDismiss
         self.focus = focus
     }
 
@@ -440,20 +505,37 @@ struct DevicesTrayRowView: View {
                     .foregroundStyle(Theme.secondaryText)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                     .truncationMode(.tail)
-                Text(Copy.Sync.originLabel(row.origin))
+                Text(row.originLine)
                     .font(.system(size: labelSize))
                     .foregroundStyle(Theme.textDim)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
-            .accessibilityHint(row.inFailedSection ? Copy.Sync.failedHint : "")
-            if row.inFailedSection { retryButton }
+            .accessibilityHint(row.showsRetry ? Copy.Sync.failedHint : "")
+            if row.showsRetry { retryButton }
+            if let onDismiss { dismissButton(onDismiss) }
         }
     }
 
     @ViewBuilder private var sleeve: some View {
         let sleeve = DevicesSleeve(state: row.state, cover: cover, title: row.title, onSend: onSend)
         if let focus { sleeve.accessibilityFocused(focus, equals: .send(row.id)) } else { sleeve }
+    }
+
+    /// A friend's row: a small X at its end (44 pt) that hides the share.
+    private func dismissButton(_ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            LocallyIcon(.x, size: 16, relativeTo: .footnote)
+                .foregroundStyle(Theme.secondaryText)
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(row.state == .sending)
+        .opacity(row.state == .sending ? 0.4 : 1)
+        .accessibilityLabel(Copy.Share.dismissTitle(row.title))
+        .padding(.top, -4)
+        .padding(.trailing, -8)
     }
 
     /// A failed row's own retry: a small icon button at its end (a send there is one download).
