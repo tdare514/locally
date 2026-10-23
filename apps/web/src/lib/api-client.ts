@@ -460,6 +460,9 @@ export interface LibraryMovePreview {
   folderName: string;
   /** True when the library folder's name is not the Locally folder name. */
   needsMove: boolean;
+  /** False when the library folder also holds other things; `reason` says so. */
+  movable: boolean;
+  reason?: string;
   releases: number;
   songs: number;
 }

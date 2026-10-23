@@ -41,6 +41,26 @@ export function movableCounts(releases: readonly Release[], libraryDir: string):
   return { releases: own.length, songs: own.reduce((n, r) => n + r.tracks.length, 0) };
 }
 
+export const BROAD_LIBRARY_REASON =
+  "Your library folder also holds other things, so Locally won't move it. Choose a folder that only holds your Locally music.";
+
+/**
+ * Null when the whole current library folder may be moved; else the reason it may not. A folder that is home, a
+ * direct child of home (~/Music, ~/Documents), or that holds Locally's data or a Spotify folder holds more than music.
+ */
+export function libraryNotMovableReason(
+  deps: Pick<MoveLibraryDeps, "fs" | "home" | "dataDir">,
+  libraryDir: string,
+  adoptRoots: readonly string[]
+): string | null {
+  const lib = deps.fs.realAncestorPath(path.resolve(libraryDir));
+  const home = deps.fs.realAncestorPath(deps.home);
+  if (lib === home || path.dirname(lib) === home) return BROAD_LIBRARY_REASON;
+  if (within(lib, deps.fs.realAncestorPath(deps.dataDir))) return BROAD_LIBRARY_REASON;
+  if (adoptRoots.some((r) => within(lib, deps.fs.realAncestorPath(path.resolve(r))))) return BROAD_LIBRARY_REASON;
+  return null;
+}
+
 /** The checks on a destination; returns the resolved path or throws a ValidationError that is safe to show. */
 export async function validateDestination(deps: MoveLibraryDeps, libraryDir: string, destination: unknown): Promise<string> {
   if (typeof destination !== "string" || destination.trim().length === 0 || !path.isAbsolute(destination)) {
@@ -139,6 +159,8 @@ export async function moveLibrary(deps: MoveLibraryDeps, destination: unknown): 
   return runLibraryMove(async () => {
     const current = await deps.settings.get();
     const from = path.resolve(current.libraryDir);
+    const broad = libraryNotMovableReason(deps, from, current.adoptRoots ?? []);
+    if (broad) throw new ValidationError(broad);
     const to = await validateDestination(deps, from, destination);
     await fs.stat(from).catch(() => {
       throw new ValidationError("Your current library folder can't be found, so there is nothing to move.");

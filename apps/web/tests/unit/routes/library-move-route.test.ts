@@ -129,6 +129,30 @@ describe("POST /api/library/move", () => {
     expect(await fs.readFile(r.tracks[0].filePath, "utf-8")).toBe("one-audio");
   });
 
+  it("refuses to move a broad library folder: ~/Music, home, or one holding an adopt root", async () => {
+    const dest = path.join(homeDir, "Locally");
+    const music = path.join(homeDir, "Music");
+    for (const [dir, roots] of [
+      [music, []],
+      [homeDir, []],
+      [lib, [path.join(lib, "Spot")]],
+    ] as const) {
+      await fs.mkdir(path.join(dir, "Spot"), { recursive: true });
+      await settings.set({ libraryDir: dir, sync: null, adoptRoots: [...roots] } as Settings);
+      const res = await POST(post(dest));
+      expect(res.status, dir).toBe(400);
+      expect((await res.json()).error).toContain("also holds other things");
+      const got = await (await GET()).json();
+      expect(got).toMatchObject({ movable: false });
+      expect(got.reason).toContain("won't move it");
+    }
+    await expect(fs.stat(dest)).rejects.toThrow();
+  });
+
+  it("allows ~/Music/Spotify Local Import and reports movable", async () => {
+    expect(await (await GET()).json()).toMatchObject({ movable: true, needsMove: true });
+  });
+
   it("onto an existing empty folder works", async () => {
     await seed();
     const dest = path.join(homeDir, "Empty");

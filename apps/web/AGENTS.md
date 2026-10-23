@@ -40,6 +40,8 @@ src/server/
     AdoptScanner.ts          # walks the adopt roots read only and proposes releases (#247)
     AdoptService.ts          # scan/proposal/adopt in place: releases with adopted:true, covers copied to app data (#248)
     guards.ts                # assertWritable (adopted = read-only) and the read check for adopt roots (#248)
+  library/
+    LibraryMover.ts         # POST /api/library/move (#335): validates, renames or verified-copies the library folder, rewrites index paths; writeActivity.ts counts running writes it must wait for
   fs/
     FileSystem.ts             # interface wrapping disk I/O (save, move, mkdirp, isInside, ...)
     NodeFileSystem.ts         # node:fs implementation

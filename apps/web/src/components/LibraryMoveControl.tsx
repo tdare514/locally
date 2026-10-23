@@ -80,7 +80,10 @@ export default function LibraryMoveControl({ onToast, onMoved }: LibraryMoveCont
           </div>
         </div>
       )}
-      {preview?.needsMove && !open && (
+      {preview?.needsMove && !preview.movable && preview.reason && (
+        <p className="text-xs text-text-dim">{preview.reason}</p>
+      )}
+      {preview?.needsMove && preview.movable && !open && (
         <div>
           <button
             type="button"
