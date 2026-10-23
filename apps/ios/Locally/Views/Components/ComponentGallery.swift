@@ -28,7 +28,10 @@ struct ComponentGallery: View {
         // #226: the library search box with a typed query, and the crop sheet's Square / Original pill.
         "icons-library-search", "crop-sheet", "devices-header-narrow",
         // #221: the Release date row. The import case is `import-record-date`.
-        "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save"]
+        "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save",
+        // #183: sharing. The share sheet, its Link option and result, the friends tray, "Shared by you".
+        "share-sheet", "share-sheet-link", "share-sheet-result", "share-sheet-signed-out", "share-sheet-large-text",
+        "devices-tray-friends", "devices-tray-friends-large-text", "shared-by-you", "shared-by-you-large-text", "release-share-blocked"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -47,7 +50,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save"].contains(name)
+        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || name.hasPrefix("share") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save", "release-share-blocked"].contains(name)
     }
 
     var body: some View {
@@ -240,6 +243,26 @@ struct ComponentGallery: View {
             IconsGallery.release().dynamicTypeSize(.accessibility3)
         case "release-view-large-text-bottom":
             IconsGallery.release().dynamicTypeSize(.accessibility3).defaultScrollAnchor(.bottom)
+        case "share-sheet":
+            ShareGallery.sheet()
+        case "share-sheet-link":
+            ShareGallery.sheet(link: true)
+        case "share-sheet-result":
+            ShareGallery.sheet(result: true)
+        case "share-sheet-signed-out":
+            ShareGallery.sheet(signedOut: true)
+        case "share-sheet-large-text":
+            ShareGallery.sheet(link: true).dynamicTypeSize(.accessibility3)
+        case "devices-tray-friends":
+            IconsGallery.devices(pending: 2, open: true, friends: 3)
+        case "devices-tray-friends-large-text":
+            IconsGallery.devices(pending: 0, open: true, friends: 3).dynamicTypeSize(.accessibility3)
+        case "release-share-blocked":
+            IconsGallery.release(sharedFrom: SharedFrom(shareId: UUID().uuidString.lowercased(), allowReshare: false))
+        case "shared-by-you":
+            ShareGallery.sharedByYou()
+        case "shared-by-you-large-text":
+            ShareGallery.sharedByYou().dynamicTypeSize(.accessibility3)
         case "devices-tray-sections":
             IconsGallery.devices(pending: 5, open: true, sections: true)
         case "devices-tray-sections-large-text":
@@ -484,7 +507,7 @@ enum IconsGallery {
         return container
     }
 
-    private static func environment<V: View>(_ view: V, _ container: AppContainer) -> some View {
+    static func environment<V: View>(_ view: V, _ container: AppContainer) -> some View {
         view
             .environment(\.appContainer, container)
             .environment(FolderStatus(isConnected: true))
@@ -503,7 +526,7 @@ enum IconsGallery {
 
     /// The real Library over sample pending records (#269): the first is ready, the second's last
     /// send failed, the third is sending now. `failedOnly` shows just the failed one.
-    static func devices(pending: Int, open: Bool, failedOnly: Bool = false, sections: Bool = false) -> some View {
+    static func devices(pending: Int, open: Bool, failedOnly: Bool = false, sections: Bool = false, friends: Int = 0) -> some View {
         UserDefaults.standard.set(LibraryLayout.list.rawValue, forKey: LibraryViewPrefs.layoutKey)
         let container = container()
         let now = Date()
@@ -531,6 +554,13 @@ enum IconsGallery {
         status.failedAcceptIds = Set(shown.enumerated().filter { $0.element.3 == "failed" }.map { "gallery-\($0.offset)" })
         status.acceptingIds = Set(shown.enumerated().filter { $0.element.3 == "sending" }.map { "gallery-\($0.offset)" })
         status.lastError = "The network connection was lost."
+        status.receivedShares = Array(ShareGallery.received.prefix(friends))
+        // Covers as the engine would have downloaded them (once each).
+        let sampleCovers = StatsGallery.releases.compactMap { StatsGallery.covers[$0.id] }
+        for (index, share) in status.receivedShares.enumerated() where !sampleCovers.isEmpty {
+            status.shareCoverData[share.id] = sampleCovers[index % sampleCovers.count]
+        }
+        status.failedShareIds = friends > 2 ? [ShareGallery.received[2].id] : []
         return environment(IconsLibrary(openTray: open), container)
     }
 
@@ -577,10 +607,11 @@ enum IconsGallery {
     }
 
     /// An album's release page, with its cover (Edit) and the playlist guide (Copy).
-    static func release(noCover: Bool = false, editing: Bool = false) -> some View {
+    static func release(noCover: Bool = false, editing: Bool = false, sharedFrom: SharedFrom? = nil) -> some View {
         let container = container()
         var release = StatsGallery.releases[0]
         release.year = "2025"
+        release.sharedFrom = sharedFrom
         if noCover { release.coverPath = nil }
         return environment(NavigationStack { ReleaseDetailView(release: release, startsEditing: editing) }, container)
     }
@@ -1021,6 +1052,73 @@ extension IconsGallery {
         let container = artistsContainer()
         let release = artistsLibrarySeed.releases.first { $0.title == "Tidelines" } ?? StatsGallery.releases[0]
         return environment(NavigationStack { ReleaseDetailView(release: release) }, container)
+    }
+}
+
+
+/// Sample data and frames for sharing (#183). Nothing here reaches the network: the sheet is given
+/// its state directly.
+enum ShareGallery {
+    private static func snapshot(_ title: String, _ artist: String, tracks: Int) -> ShareSnapshot {
+        ShareSnapshot(
+            kind: tracks > 1 ? "album" : "single", title: title, artist: artist, year: "2025", genre: "Synthwave",
+            tracks: (0..<tracks).map { ShareSnapshotTrack(id: UUID().uuidString, title: "Track \($0 + 1)", trackNumber: $0 + 1, file: "t\($0).mp3", bytes: 1) })
+    }
+
+    static let received: [ReceivedShare] = [
+        ("Night Bus to Nowhere", "Neon Harbor", 11, "alex.rivera@example.com"),
+        ("Slow Fires", "Juniper Hale", 1, "mira@example.com"),
+        ("Paper Lanterns Over the Long Way Home", "Amelia Rowe", 9, "a.very.long.email.address.for.testing@subdomain.example.org"),
+    ].enumerated().map { index, sample in
+        ReceivedShare(id: "gallery-share-\(index)", from: ShareSender(email: sample.3), trackIds: nil, allowReshare: false, canReshare: false,
+                      expiresAt: nil, createdAt: Date(), claimedAt: nil, snapshot: snapshot(sample.0, sample.1, tracks: sample.2))
+    }
+
+    @MainActor
+    static func sheet(link: Bool = false, result: Bool = false, signedOut: Bool = false) -> some View {
+        let container = IconsGallery.container()
+        let groups = InMemoryShareGroupStore([
+            ShareGroup(name: "Band", emails: ["jo@example.com", "sam@example.com", "kit@example.com"]),
+            ShareGroup(name: "Family", emails: ["mum@example.com"]),
+        ])
+        let model = ShareSheetModel(
+            releaseId: UUID(), subject: "Night Bus to Nowhere", isSignedIn: !signedOut, api: container.syncApi, groupStore: groups,
+            publicSharesEnabled: link || result, loadsOptions: false)
+        if !signedOut {
+            model.addEmail("alex.rivera@example.com")
+            model.addEmail("mira@example.com")
+            model.addEmail("a.very.long.email.address.for.testing@subdomain.example.org")
+            model.linkOn = link
+            model.expiry = .sevenDays
+        }
+        if result {
+            model.outcome = ShareOutcome(sharedCount: 2, notOnLocally: ["new.friend@example.com"], link: "https://locally-sync-api.vercel.app/s/4f9c2b7e1a8d")
+        }
+        return ShareSheet(model: model, onClose: {}).preferredColorScheme(.dark)
+    }
+
+    @MainActor
+    static func sharedByYou() -> some View {
+        let container = IconsGallery.container()
+        let now = Date()
+        func day(_ n: Int) -> Date { now.addingTimeInterval(Double(n) * 86_400) }
+        func sent(_ id: String, _ title: String, people: [(String, Bool)], link: Bool, expires: Date? = nil, revoked: Date? = nil) -> SentShare {
+            SentShare(id: id, releaseId: StatsGallery.releases[0].id.uuidString, trackIds: nil, visibility: link ? .public : .private, allowReshare: false,
+                      expiresAt: expires, revokedAt: revoked, createdAt: day(-3), snapshot: snapshot(title, "Neon Harbor", tracks: 3),
+                      recipients: people.map { ShareRecipient(email: $0.0, claimedAt: $0.1 ? day(-2) : nil) }, hasLink: link, parentShareId: nil, downloads: 4)
+        }
+        let model = SharedByYouModel(api: container.syncApi, shares: [
+            sent("a", "Night Bus to Nowhere", people: [("alex.rivera@example.com", true), ("mira@example.com", false), ("jo@example.com", true)], link: true, expires: day(12)),
+            sent("b", "Slow Fires", people: [("mira@example.com", false)], link: false),
+            sent("c", "Low Tide", people: [("jo@example.com", true)], link: false, revoked: day(-1)),
+            sent("d", "Kitchen Radio", people: [], link: true, expires: day(-2)),
+        ], now: { now })
+        return IconsGallery.environment(
+            ZStack {
+                StudioBackdrop()
+                ScrollView { SharedByYouList(model: model, onRevoke: { _ in }).padding(20) }
+            },
+            container)
     }
 }
 #endif

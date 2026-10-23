@@ -840,3 +840,14 @@ Plan: `docs/plans/146-sharing.md`. Owner's picks, 23 Oct: a glass popover for Sh
 - **Tray headings.** "From your devices" is the first section heading above both device groups, whose names ("Ready to add", the waiting group) are quieter status subheadings; "From your friends" is a section heading of its own. The sender line and every count use the muted text token (4.5:1 on the glass).
 - **Popover size.** The popover never grows past the room on its side of the anchor: the heading and the Share or Done button stay, the body scrolls. After a successful share focus moves to its result heading.
 - No new colours, effects or animations: the tray's row collapse and the popovers' scale-in only.
+
+## Sharing (#146) on the iPhone
+
+Plan: `docs/plans/146-sharing.md`; built in #183. Copy is in `Copy.Share`, sentence case, nothing promises more than Locally's own sharing.
+
+- **Share** is a text button beside Edit on the release page in view mode, and "Share this song" in a track row's context menu (and a VoiceOver action). Adopted releases have neither.
+- **The sheet** (medium and large detents) sits on the studio backdrop in glass groups: **People** (wrapping email pills with a 44 pt ✕, a field that adds on return or a comma, saved group chips, "Save these people as a group"; groups live on the device only), then **Options** (Link, only while `GET /v1/me` says `publicSharesEnabled`; "Let them share it on", with "They can't share it on from Locally" when off; Expires as a `GlowSwitch` of Never / 7 days / 30 days), then a full-width **Share** pill. The result replaces the form: "Shared with 3 people", each unknown address with "Not on Locally yet", a returned link with Copy link and a `ShareLink`, and "Copy it now. Locally can't show this link again."
+- **From your friends** is a second section of the Library header's tray, under "From your devices", in the same row language: the sleeve is **Send to Spotify**, the origin line is "from <sender email>", a small ✕ dismisses. One badge counts both sections; an empty section hides with its heading.
+- **Shared by you** is a Settings glass group: cover, title, "Shared with N people", each recipient "Added" or "Not yet", "Link on", the expiry, and a destructive **Revoke** with a confirm. Revoked and expired shares are greyed without Revoke. The group hides when there are none.
+- **Delete** confirm adds "It's shared with N people. They'll lose access." when live shares exist.
+- Everything uses `themeFont` / `Theme.ScaledFont`, wraps at the accessibility sizes, keeps 44 pt targets and labels every control for VoiceOver. No new motion; the tray keeps its Reduce Motion fade.

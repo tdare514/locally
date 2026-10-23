@@ -32,6 +32,9 @@ protocol SyncAccountStore: AnyObject {
     /// The device name the server echoed from `POST /v1/auth/verify`, shown in
     /// Settings; `nil` when signed out or when signed in before it was stored.
     var deviceName: String? { get set }
+    /// The signed-in account's user id from `POST /v1/auth/verify`, or `nil` when signed out (or signed in
+    /// before it was stored). Scopes per-account state such as imported shares (#183).
+    var userId: String? { get set }
     /// When `SyncEngine` last asked the service which files it never received
     /// (`GET /v1/files/missing`, #171), so that check runs at most every few
     /// hours. `nil` before the first check and after a sign-out.
@@ -67,6 +70,7 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
         static let deviceId = "com.tdare.locally.sync.deviceId"
         static let lastVersion = "com.tdare.locally.sync.lastVersion"
         static let deviceName = "com.tdare.locally.sync.deviceName"
+        static let userId = "com.tdare.locally.sync.userId"
         static let lastMissingFilesCheckAt = "com.tdare.locally.sync.lastMissingFilesCheckAt"
     }
 
@@ -123,6 +127,13 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
         }
     }
 
+    var userId: String? {
+        get { defaults.string(forKey: Key.userId) }
+        set {
+            if let newValue { defaults.set(newValue, forKey: Key.userId) } else { defaults.removeObject(forKey: Key.userId) }
+        }
+    }
+
     var lastMissingFilesCheckAt: Date? {
         get { defaults.object(forKey: Key.lastMissingFilesCheckAt) as? Date }
         set {
@@ -147,6 +158,7 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
         defaults.removeObject(forKey: Key.deviceId)
         defaults.removeObject(forKey: Key.lastVersion)
         defaults.removeObject(forKey: Key.deviceName)
+        defaults.removeObject(forKey: Key.userId)
         defaults.removeObject(forKey: Key.lastMissingFilesCheckAt)
         tokenStore.delete()
     }

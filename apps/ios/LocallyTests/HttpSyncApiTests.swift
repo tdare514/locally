@@ -501,3 +501,27 @@ private extension SyncRecord {
         )
     }
 }
+
+extension HttpSyncApiTests {
+    @Test func aReshareThatTheSenderForbadeReadsAsNotAllowed() async throws {
+        for code in ["use_reshare", "reshare_not_allowed"] {
+            let (api, _) = makeApi()
+            StubURLProtocol.handler = { _ in (403, [:], self.jsonData(["error": code])) }
+            let request = ShareCreateRequest(releaseId: "r", trackIds: nil, recipients: ["a@example.com"], visibility: .private, allowReshare: false, expiresInDays: nil)
+            await #expect(throws: SyncApiError.network(Copy.Share.reshareNotAllowed)) { try await api.createShare(request) }
+            await #expect(throws: SyncApiError.network(Copy.Share.reshareNotAllowed)) { try await api.reshareShare("6f1c2a40-8d3e-4b7a-9c55-0e2f1a7b3d90", request) }
+        }
+    }
+
+    @Test func aReshareCallsTheParentSharesRouteWithoutTheReleaseOrTracks() async throws {
+        let (api, _) = makeApi()
+        let shareId = "6f1c2a40-8d3e-4b7a-9c55-0e2f1a7b3d90"
+        StubURLProtocol.handler = { _ in (201, [:], self.jsonData(["share": NSNull(), "notOnLocally": [], "link": NSNull()])) }
+        let request = ShareCreateRequest(releaseId: "r", trackIds: ["t"], recipients: ["a@example.com"], visibility: .private, allowReshare: true, expiresInDays: 7)
+        _ = try await api.reshareShare(shareId, request)
+        let seen = try #require(StubURLProtocol.lastRequest)
+        #expect(seen.httpMethod == "POST" && seen.url?.path == "/v1/shares/\(shareId)/reshare")
+        let body = try #require(JSONSerialization.jsonObject(with: bodyData(from: seen)) as? [String: Any])
+        #expect(Set(body.keys) == ["recipients", "visibility", "allowReshare", "expiresInDays"])
+    }
+}

@@ -88,6 +88,9 @@ struct Release: Identifiable, Codable, Hashable {
     /// only: no audio files here, never tagged, sent or pushed by this phone);
     /// `nil` for Locally's own releases.
     var source: ReleaseSource?
+    /// Set when this release was imported from a received share (#328): sharing it again goes through that
+    /// share's reshare route, and only when it allowed it.
+    var sharedFrom: SharedFrom?
 
     /// True for a details-only release this phone does not own.
     var isAdopted: Bool { source == .adopted }
@@ -117,7 +120,8 @@ struct Release: Identifiable, Codable, Hashable {
         updatedAt: Date = Date(),
         syncedUpdatedAt: Date? = nil,
         uploadedFileNames: [String] = [],
-        source: ReleaseSource? = nil
+        source: ReleaseSource? = nil,
+        sharedFrom: SharedFrom? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -134,6 +138,7 @@ struct Release: Identifiable, Codable, Hashable {
         self.syncedUpdatedAt = syncedUpdatedAt
         self.uploadedFileNames = uploadedFileNames
         self.source = source
+        self.sharedFrom = sharedFrom
     }
 }
 

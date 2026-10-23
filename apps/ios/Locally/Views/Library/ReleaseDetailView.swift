@@ -26,6 +26,7 @@ struct ReleaseDetailView: View {
     /// Files cannot present while it is still on screen).
     @State private var pendingCoverChoice: CoverChoiceSheet.Choice?
     @State private var isPresentingDeleteConfirm = false
+    @State private var shareTarget: ShareTarget?
     @State private var isPresentingReview = false
     @State private var isPresentingDiscardConfirm = false
     /// Whether Discard also leaves the page (Back) or only edit mode (Cancel).
@@ -99,7 +100,7 @@ struct ReleaseDetailView: View {
                     if isAlbum { playlistGuide(model).panelRow(.middle) }
                     messages(model)
                     if model.isEditing {
-                        deleteButton.panelRow(.bottom).transition(.opacity)
+                        deleteButton(model).panelRow(.bottom).transition(.opacity)
                     }
                 }
                 .panelListSection()
@@ -129,7 +130,10 @@ struct ReleaseDetailView: View {
                     .disabled(model.isSaving)
                 }
             } else if !model.isAdopted {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if model.canShare {
+                        Button(Copy.Share.share) { shareTarget = ShareTarget(trackId: nil, subject: model.title) }
+                    }
                     Button(Copy.Release.edit) { model.beginEditing() }
                 }
             }
@@ -150,6 +154,17 @@ struct ReleaseDetailView: View {
         .sheet(isPresented: Binding(get: { featuringIndex(model) != nil }, set: { if !$0 { model.featuringRowID = nil } })) {
             if let id = model.featuringRowID, let index = featuringIndex(model) {
                 FeaturingSheet(trackTitle: model.trackRows[index].title, names: featuringBinding(id, in: model)) { model.featuringRowID = nil }
+            }
+        }
+        .sheet(item: $shareTarget) { target in
+            if let container {
+                ShareSheet(
+                    model: ShareSheetModel(
+                        releaseId: model.releaseId, subject: target.subject, trackIds: target.trackId.map { [$0] },
+                        isSignedIn: model.isSignedInForSharing, api: container.syncApi, groupStore: UserDefaultsShareGroupStore(),
+                        reshareShareId: model.sharedFrom?.shareId),
+                    coverImage: coverImage
+                ) { shareTarget = nil }
             }
         }
         .sheet(isPresented: $isPresentingReview) {
@@ -214,6 +229,8 @@ struct ReleaseDetailView: View {
                 Task { await model.delete() }
             }
             Button(Copy.Detail.deleteConfirmCancel, role: .cancel) {}
+        } message: {
+            if let warning = model.deleteShareWarning { Text(warning) }
         }
         .onChange(of: model.isDeleted) { _, isDeleted in
             if isDeleted { dismiss() }
@@ -300,6 +317,13 @@ struct ReleaseDetailView: View {
     private func viewTracks(_ model: ReleaseDetailViewModel) -> some View {
         let headings = model.discHeadings
         let last = model.trackRows.count - 1
+        if model.isShareBlocked {
+            Text(Copy.Share.reshareNotAllowed)
+                .themeFont(.rowSubtitle)
+                .foregroundStyle(Theme.secondaryText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .clearRow(top: 0, bottom: 12)
+        }
         Text(Copy.Import.tracks)
             .font(.system(size: tracksHeadingSize, weight: .bold))
             .foregroundStyle(Theme.primaryText)
@@ -325,6 +349,20 @@ struct ReleaseDetailView: View {
             )
             .overlay(alignment: .bottom) {
                 if index != last { Rectangle().fill(Theme.Track.separatorTint).frame(height: 1) }
+            }
+            .contextMenu {
+                if model.canShareTracks {
+                    Button(Copy.Share.shareThisSong, systemImage: "square.and.arrow.up") {
+                        shareTarget = ShareTarget(trackId: row.id, subject: model.kind == .single ? model.title : row.title)
+                    }
+                }
+            }
+            .accessibilityActions {
+                if model.canShareTracks {
+                    Button(Copy.Share.shareThisSong) {
+                        shareTarget = ShareTarget(trackId: row.id, subject: model.kind == .single ? model.title : row.title)
+                    }
+                }
             }
             .clearRow(top: 0, bottom: 0)
         }
@@ -448,9 +486,13 @@ struct ReleaseDetailView: View {
         }
     }
 
-    private var deleteButton: some View {
+    private func deleteButton(_ model: ReleaseDetailViewModel) -> some View {
         Button {
-            isPresentingDeleteConfirm = true
+            // Ask what is shared first, so the confirm can say who loses access.
+            Task {
+                await model.loadShareImpact()
+                isPresentingDeleteConfirm = true
+            }
         } label: {
             Text(Copy.Detail.delete)
         }
@@ -526,4 +568,11 @@ private struct ViewModeCoverAccessibility: ViewModifier {
                 .accessibilityAddTraits(.isImage)
         }
     }
+}
+
+/// What the share sheet is about: the whole release (`trackId` nil) or one song.
+struct ShareTarget: Identifiable {
+    let id = UUID()
+    let trackId: UUID?
+    let subject: String
 }

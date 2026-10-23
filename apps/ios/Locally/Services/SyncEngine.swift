@@ -57,6 +57,15 @@ final class SyncStatus {
     /// has the (text) update, just not yet the new cover. Retried directly
     /// (not re-fetched) by `retryFailedCoverUpdates()` every `reconcile()`.
     var failedCoverUpdates: [String: SyncRecord] = [:]
+    /// Shares friends sent this account that are not yet claimed (#183), offered in the Library tray's
+    /// "From your friends" section. Refreshed on every reconcile from `GET /v1/shares?role=received`.
+    var receivedShares: [ReceivedShare] = []
+    /// Share ids being sent to Spotify now, and ones whose last send failed (kept in the tray, with
+    /// their own retry, even after the server marks them claimed).
+    var acceptingShareIds: Set<String> = []
+    var failedShareIds: Set<String> = []
+    /// The downloaded cover bytes of the shares in `receivedShares`, by share id (each downloaded once).
+    var shareCoverData: [String: Data] = [:]
     /// Whether a code was just sent, and to which address — drives the
     /// Settings sign-in form's step (email entry vs. code entry).
     var codeSentTo: String?
@@ -119,6 +128,7 @@ final class SyncEngine: ReleaseSyncHook {
     private let reconcileSleep: @Sendable (Duration) async throws -> Void
     private let now: () -> Date
     private let defaults: UserDefaults
+    private let shareCovers: ShareCoverCache?
 
     let status: SyncStatus
 
@@ -151,9 +161,11 @@ final class SyncEngine: ReleaseSyncHook {
         reconcileSleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         now: @escaping () -> Date = { Date() },
         deviceName: @escaping () -> String,
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        shareCovers: ShareCoverCache? = nil
     ) {
         self.defaults = defaults
+        self.shareCovers = shareCovers
         self.api = api
         self.account = account
         self.library = library
@@ -234,6 +246,9 @@ final class SyncEngine: ReleaseSyncHook {
         let result = try await api.verify(email: email, code: code, deviceName: deviceName(), platform: "ios")
         try account.save(email: result.email, deviceToken: result.token, deviceId: result.deviceId)
         account.deviceName = result.deviceName
+        account.userId = result.userId
+        // Another account's shares never carry over (its persisted ids stay under its own key).
+        resetShareState(persisted: false)
         status.signedIn = true
         status.email = result.email
         status.deviceName = result.deviceName
@@ -270,13 +285,13 @@ final class SyncEngine: ReleaseSyncHook {
         do {
             try await api.deleteAccount(email: email)
         } catch SyncApiError.unauthorized {
-            clearLocalAccountState()
+            clearLocalAccountState(forgetShares: true)
             return true
         } catch {
             status.lastError = error.localizedDescription
             return false
         }
-        clearLocalAccountState()
+        clearLocalAccountState(forgetShares: true)
         return true
     }
 
@@ -284,7 +299,11 @@ final class SyncEngine: ReleaseSyncHook {
     /// the persisted device name), the outbox, `status`, and every release's
     /// sync markers (`signOut` and `deleteAccount` both end here). Never
     /// talks to the server.
-    private func clearLocalAccountState() {
+    private func clearLocalAccountState(forgetShares: Bool = false) {
+        // An ordinary sign-out keeps the imported and owed-claim ids (under the account-and-host key), so
+        // signing back in does not offer a share again whose release is still here; deleting the account
+        // forgets them.
+        resetShareState(persisted: forgetShares)
         account.clear()
         // A failure here would let queued work go out under the next account,
         // or leave markers that stop a new account re-pushing everything, so
@@ -671,6 +690,7 @@ final class SyncEngine: ReleaseSyncHook {
             }
 
             await retryFailedAccepts()
+            await refreshReceivedShares()
 
             // Re-check after the await: a sign-out or account delete that
             // ran while `me()` was in flight has already cleared the
@@ -1200,6 +1220,236 @@ final class SyncEngine: ReleaseSyncHook {
     func retryFailedAcceptsFromMac() async -> AcceptRunResult {
         let snapshot = status.pendingFromMac.map(\.id).filter { status.failedAcceptIds.contains($0) }
         return await acceptReserved(snapshot)
+    }
+
+    // MARK: - Shares from friends (#183)
+
+    private var reservedShareIds: Set<String> = []
+
+    static let importedSharesKey = "com.tdare.locally.sync.importedShares.v1"
+    static let unclaimedImportedSharesKey = "com.tdare.locally.sync.unclaimedImportedShares.v1"
+
+    /// The account the share state belongs to: its user id, or (for a sign-in made before the id was stored)
+    /// its email. `nil` when signed out.
+    private var shareScope: String? {
+        let who = account.userId ?? account.email.map { "email:" + $0.lowercased() }
+        // The same account on another host is another account.
+        return who.map { $0 + "@" + account.baseURL.absoluteString }
+    }
+
+    /// Who a share request belongs to, captured when it starts and compared when it completes, so an answer
+    /// that arrives after a sign-out or a different sign-in is dropped.
+    private var shareSession: String? {
+        shareScope.map { $0 + "|" + (account.deviceId ?? "") }
+    }
+
+    private func scopedKey(_ base: String, scope: String?) -> String? { scope.map { base + "." + $0 } }
+
+    private func idSet(_ base: String) -> Set<String> {
+        guard let key = scopedKey(base, scope: shareScope) else { return [] }
+        return Set(defaults.stringArray(forKey: key) ?? [])
+    }
+
+    /// Edits the persisted set under an explicit scope (the one captured when a request began).
+    private func updateIdSet(_ base: String, scope: String, _ change: (inout Set<String>) -> Void) {
+        guard let key = scopedKey(base, scope: scope) else { return }
+        var set = Set(defaults.stringArray(forKey: key) ?? [])
+        change(&set)
+        defaults.set(set.sorted(), forKey: key)
+    }
+
+    private func setIdSet(_ base: String, _ value: Set<String>) {
+        guard let key = scopedKey(base, scope: shareScope) else { return }
+        defaults.set(value.sorted(), forKey: key)
+    }
+
+    /// Ids of shares this phone has imported (for this account): the tray hides them even before the claim
+    /// succeeds, and across a relaunch.
+    private var importedShareIds: Set<String> {
+        get { idSet(Self.importedSharesKey) }
+        set { setIdSet(Self.importedSharesKey, newValue) }
+    }
+    /// Imported shares whose `POST /claim` has not been confirmed yet; each reconcile retries them.
+    private var unclaimedImportedShareIds: Set<String> {
+        get { idSet(Self.unclaimedImportedSharesKey) }
+        set { setIdSet(Self.unclaimedImportedSharesKey, newValue) }
+    }
+
+    /// Forgets everything about friends' shares for the current account: the tray rows, the imported and
+    /// owed-claim id sets, and the cached covers. Used on sign-out, account deletion, a new sign-in and a
+    /// change of sync host.
+    private func resetShareState(persisted: Bool = true) {
+        if persisted, let scope = shareScope {
+            defaults.removeObject(forKey: Self.importedSharesKey + "." + scope)
+            defaults.removeObject(forKey: Self.unclaimedImportedSharesKey + "." + scope)
+        }
+        status.receivedShares = []
+        status.acceptingShareIds = []
+        status.failedShareIds = []
+        status.shareCoverData = [:]
+        shareCovers?.removeAll()
+    }
+
+    /// The sync host was changed in Settings: the account store has already signed the device out, so the
+    /// engine drops the share state it held (and follows the account store's signed-out state).
+    func syncHostChanged(previousScope: String?) {
+        if let previousScope {
+            defaults.removeObject(forKey: Self.importedSharesKey + "." + previousScope)
+            defaults.removeObject(forKey: Self.unclaimedImportedSharesKey + "." + previousScope)
+        }
+        resetShareState()
+        status.signedIn = account.deviceToken != nil
+        status.email = account.email
+    }
+
+    /// The scope a host change must pass to `syncHostChanged`, read before the change.
+    var currentShareScope: String? { shareScope }
+
+    /// Reads the shares sent to this account and keeps the unclaimed, not-yet-imported ones for the
+    /// tray, fetches each one's cover once, then retries claims owed for shares already imported. Quiet:
+    /// an API without the route, or any failure, leaves the list as it was and sets no error.
+    func refreshReceivedShares() async {
+        guard isSignedIn, let session = shareSession else { return }
+        guard let shares = try? await api.receivedShares(), isSignedIn, shareSession == session else { return }
+        let listed = Set(shares.map(\.id))
+        // A share the server no longer lists (hidden, revoked, expired) needs no bookkeeping or cover.
+        importedShareIds = importedShareIds.intersection(listed)
+        unclaimedImportedShareIds = unclaimedImportedShareIds.intersection(listed)
+        shareCovers?.prune(keeping: listed)
+        let imported = importedShareIds
+        status.receivedShares = shares.filter { share in
+            reservedShareIds.contains(share.id) || (share.claimedAt == nil && !imported.contains(share.id))
+        }
+        status.failedShareIds.formIntersection(status.receivedShares.map(\.id))
+        status.shareCoverData = status.shareCoverData.filter { listed.contains($0.key) }
+        await fetchShareCovers(session: session)
+        await retryOwedClaims(session: session)
+    }
+
+    private var coverFetches: Set<String> = []
+
+    /// Downloads the cover of each tray share that has none cached yet. A cached cover is read from disk,
+    /// never fetched again; a fetch in flight is not repeated.
+    private func fetchShareCovers(session: String) async {
+        guard let cache = shareCovers else { return }
+        for share in status.receivedShares {
+            guard let coverName = share.snapshot.cover, status.shareCoverData[share.id] == nil,
+                  ReleaseLayout.isPlainFileName(coverName),
+                  let destination = cache.fileURL(shareId: share.id, coverName: coverName) else { continue }
+            if let data = cache.data(shareId: share.id, coverName: coverName) {
+                status.shareCoverData[share.id] = data
+                continue
+            }
+            guard !coverFetches.contains(share.id) else { continue }
+            coverFetches.insert(share.id)
+            defer { coverFetches.remove(share.id) }
+            cache.prepareDirectory()
+            do {
+                let url = try await api.shareFileURL(shareId: share.id, fileName: coverName)
+                try await api.downloadFile(from: url, to: destination)
+                guard shareSession == session else {
+                    try? FileManager.default.removeItem(at: destination)
+                    return
+                }
+                status.shareCoverData[share.id] = try? Data(contentsOf: destination)
+            } catch {
+                // The row shows without its cover; the next refresh tries again.
+            }
+        }
+    }
+
+    private func retryOwedClaims(session: String) async {
+        for id in unclaimedImportedShareIds where !reservedShareIds.contains(id) {
+            do {
+                _ = try await api.claimShare(id)
+                guard shareSession == session else { return }
+                unclaimedImportedShareIds.remove(id)
+            } catch SyncApiError.notFound {
+                if shareSession == session { unclaimedImportedShareIds.remove(id) }
+            } catch {
+                // Kept for the next reconcile.
+            }
+        }
+    }
+
+    /// "Send to Spotify" on a friend's share: downloads each file from the share, writes a new
+    /// release (fresh ids, tagged from the snapshot) into the Spotify folder and the library, and
+    /// only then claims the share. A failed download or import claims nothing and leaves the row,
+    /// marked failed, for another try. A claim that fails after the import is retried on the next
+    /// reconcile; the row is already hidden. If the account changes while this runs, it stops and
+    /// records nothing for the new account.
+    func sendShareToSpotify(_ id: String) async {
+        guard let share = status.receivedShares.first(where: { $0.id == id }), !reservedShareIds.contains(id),
+              let session = shareSession, let scope = shareScope else { return }
+        reservedShareIds.insert(id)
+        status.acceptingShareIds.insert(id)
+        defer {
+            reservedShareIds.remove(id)
+            status.acceptingShareIds.remove(id)
+        }
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Locally-Share-\(UUID().uuidString)", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+            for track in share.snapshot.tracks {
+                try await downloadShareFile(shareId: id, name: track.file, into: tempDir)
+            }
+            if let cover = share.snapshot.cover {
+                try await downloadShareFile(shareId: id, name: cover, into: tempDir)
+            }
+            // A different account is signed in now: this share is not theirs to import.
+            guard shareSession == session else { return }
+            // A new release of this account: the coordinator queues its push like any import. It carries
+            // where it came from, so sharing it again goes through this share's reshare route.
+            _ = try await coordinator.importShared(
+                share.snapshot, dir: tempDir, isPartial: share.trackIds != nil,
+                sharedFrom: SharedFrom(shareId: share.id, allowReshare: share.canReshare))
+        } catch {
+            guard shareSession == session else { return }
+            status.failedShareIds.insert(id)
+            status.lastError = error.localizedDescription
+            return
+        }
+        // The release is in the library now. Remember it under the account and host this import started
+        // for, even if the session has changed since, so signing back in does not offer the share again.
+        updateIdSet(Self.importedSharesKey, scope: scope) { $0.insert(id) }
+        updateIdSet(Self.unclaimedImportedSharesKey, scope: scope) { $0.insert(id) }
+        // A changed session gets no UI update and no claim; the owed claim is retried at the next sign-in.
+        guard shareSession == session else { return }
+        status.receivedShares.removeAll { $0.id == id }
+        status.failedShareIds.remove(id)
+        do {
+            _ = try await api.claimShare(id)
+            if shareSession == session { updateIdSet(Self.unclaimedImportedSharesKey, scope: scope) { $0.remove(id) } }
+        } catch {
+            // Imported, so the row stays hidden; the next reconcile claims it.
+        }
+    }
+
+    /// "Dismiss" on a friend's share: hides it from the tray on the server too.
+    func dismissShare(_ id: String) async {
+        guard !reservedShareIds.contains(id), let session = shareSession else { return }
+        do {
+            try await api.hideShare(id)
+            guard shareSession == session else { return }
+            status.receivedShares.removeAll { $0.id == id }
+            status.failedShareIds.remove(id)
+        } catch {
+            status.lastError = error.localizedDescription
+        }
+    }
+
+    private func downloadShareFile(shareId: String, name: String, into dir: URL) async throws {
+        guard ReleaseLayout.isPlainFileName(name) else {
+            throw LocallyError.importFailed("A file in that share has a name Locally won't use.")
+        }
+        let destination = dir.appendingPathComponent(name)
+        guard ReleaseLayout().isInside(folder: dir, path: destination.path) else {
+            throw LocallyError.pathOutsideFolder
+        }
+        let url = try await api.shareFileURL(shareId: shareId, fileName: name)
+        try await api.downloadFile(from: url, to: destination)
     }
 
     /// `name` came off the network in a record. It is written under `dir`,

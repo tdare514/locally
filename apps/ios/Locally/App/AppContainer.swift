@@ -137,7 +137,8 @@ final class AppContainer {
             coordinator: coordinator,
             coverStore: coverStore,
             outbox: outbox,
-            deviceName: { SyncDeviceName.current() }
+            deviceName: { SyncDeviceName.current() },
+            shareCovers: ShareCoverCache.standard()
         )
         let container = AppContainer(
             folder: folder,

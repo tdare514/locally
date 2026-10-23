@@ -297,7 +297,12 @@ struct DevelopmentServerField: View {
                 set: { newValue in
                     serverAddressText = newValue
                     if let url = URL(string: newValue), newValue.contains("://") {
+                        let previous = container?.syncEngine.currentShareScope
                         container?.syncAccount.baseURL = url
+                        // A new host signs the device out (the account store clears itself); drop the shares.
+                        if let engine = container?.syncEngine, container?.syncAccount.deviceToken == nil, previous != nil {
+                            engine.syncHostChanged(previousScope: previous)
+                        }
                     }
                 }
             ), keyboardType: .URL)

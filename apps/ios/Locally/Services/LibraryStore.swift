@@ -63,8 +63,12 @@ final class ReleaseRecord {
     /// rows written before it existed (an optional attribute, so SwiftData's
     /// automatic lightweight migration adds it, as for `uploadedFileNamesData`).
     var sourceRaw: String?
+    /// `Release.sharedFrom`, as two optional attributes (nil for every release not imported from a share and
+    /// for rows written before it existed, so SwiftData's lightweight migration adds them).
+    var sharedFromShareId: String?
+    var sharedFromAllowReshare: Bool?
 
-    init(id: UUID, kindRaw: String, title: String, artist: String, year: String?, releaseDate: String? = nil, genre: String?, coverPath: String?, folderPath: String, tracksData: Data, createdAt: Date, updatedAt: Date, syncedUpdatedAt: Date? = nil, uploadedFileNamesData: Data? = nil, sourceRaw: String? = nil) {
+    init(id: UUID, kindRaw: String, title: String, artist: String, year: String?, releaseDate: String? = nil, genre: String?, coverPath: String?, folderPath: String, tracksData: Data, createdAt: Date, updatedAt: Date, syncedUpdatedAt: Date? = nil, uploadedFileNamesData: Data? = nil, sourceRaw: String? = nil, sharedFromShareId: String? = nil, sharedFromAllowReshare: Bool? = nil) {
         self.id = id
         self.kindRaw = kindRaw
         self.title = title
@@ -80,6 +84,8 @@ final class ReleaseRecord {
         self.syncedUpdatedAt = syncedUpdatedAt
         self.uploadedFileNamesData = uploadedFileNamesData
         self.sourceRaw = sourceRaw
+        self.sharedFromShareId = sharedFromShareId
+        self.sharedFromAllowReshare = sharedFromAllowReshare
     }
 }
 
@@ -180,6 +186,8 @@ final class SwiftDataLibraryStore: LibraryStore {
             existing.syncedUpdatedAt = release.syncedUpdatedAt
             existing.uploadedFileNamesData = uploadedFileNamesData
             existing.sourceRaw = release.source?.rawValue
+            existing.sharedFromShareId = release.sharedFrom?.shareId
+            existing.sharedFromAllowReshare = release.sharedFrom?.allowReshare
         } else {
             guard insertIfMissing else { return false }
             let record = ReleaseRecord(
@@ -197,7 +205,9 @@ final class SwiftDataLibraryStore: LibraryStore {
                 updatedAt: release.updatedAt,
                 syncedUpdatedAt: release.syncedUpdatedAt,
                 uploadedFileNamesData: uploadedFileNamesData,
-                sourceRaw: release.source?.rawValue
+                sourceRaw: release.source?.rawValue,
+                sharedFromShareId: release.sharedFrom?.shareId,
+                sharedFromAllowReshare: release.sharedFrom?.allowReshare
             )
             context.insert(record)
         }
@@ -229,7 +239,10 @@ final class SwiftDataLibraryStore: LibraryStore {
             updatedAt: record.updatedAt,
             syncedUpdatedAt: record.syncedUpdatedAt,
             uploadedFileNames: uploadedFileNames,
-            source: record.sourceRaw.flatMap(ReleaseSource.init(rawValue:))
+            source: record.sourceRaw.flatMap(ReleaseSource.init(rawValue:)),
+            sharedFrom: record.sharedFromShareId.flatMap { id in
+                record.sharedFromAllowReshare.map { SharedFrom(shareId: id, allowReshare: $0) }
+            }
         )
     }
 }
