@@ -97,7 +97,8 @@ struct StatsCopyTests {
         #expect(Copy.Stats.busy == "Couldn't load your plays just now. Try again in a few minutes.")
     }
 
-    @Test func noPlaysExplainsWhenTheMacCounts() {
-        #expect(Copy.Stats.noPlays == "Plays show up here once Locally on your Mac has counted some. They count while your Mac is on, or all the time with Count plays when this Mac is off in its Settings.")
+    @Test func noPlaysNamesBothPlacesThatCount() {
+        #expect(Copy.Stats.noPlays == "Plays show up here once Locally has counted some: songs you play in Locally on this phone, and in Spotify on your Mac. The Mac counts while it is on, or all the time with Count plays when this Mac is off in its Settings.")
+        #expect(Copy.Stats.playsSource == "Plays in Spotify and in Locally")
     }
 }

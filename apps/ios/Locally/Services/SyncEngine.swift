@@ -129,6 +129,8 @@ final class SyncEngine: ReleaseSyncHook {
     private let now: () -> Date
     private let defaults: UserDefaults
     private let shareCovers: ShareCoverCache?
+    /// The phone's own play counts (#337); nil in tests that don't count.
+    private let playCounts: PlayCountStoring?
 
     let status: SyncStatus
 
@@ -162,9 +164,11 @@ final class SyncEngine: ReleaseSyncHook {
         now: @escaping () -> Date = { Date() },
         deviceName: @escaping () -> String,
         defaults: UserDefaults = .standard,
-        shareCovers: ShareCoverCache? = nil
+        shareCovers: ShareCoverCache? = nil,
+        playCounts: PlayCountStoring? = nil
     ) {
         self.defaults = defaults
+        self.playCounts = playCounts
         self.shareCovers = shareCovers
         self.api = api
         self.account = account
@@ -311,6 +315,8 @@ final class SyncEngine: ReleaseSyncHook {
         var cleanupFailure: Error?
         do { try outbox.removeAll() } catch { cleanupFailure = error }
         do { try library.clearSyncMarkers() } catch { cleanupFailure = error }
+        // The counts stay; only what was pushed is forgotten, so a new account is sent them all (#337).
+        playCounts?.clearPushedMarkers()
         status.signedIn = false
         status.email = nil
         status.deviceName = nil
@@ -668,6 +674,7 @@ final class SyncEngine: ReleaseSyncHook {
             // converges in this one pass rather than lagging a cycle.
             await backfillUnpushed()
             await drainOutbox()
+            await pushPlays()
             // Retried before the fetch below, not after: a cover download
             // that fails during this run's own `process(_:)` loop is left
             // pending for the *next* `reconcile()` (see
@@ -717,6 +724,31 @@ final class SyncEngine: ReleaseSyncHook {
             }
         } catch {
             status.lastError = error.localizedDescription
+        }
+    }
+
+    /// Most entries in one `PUT /v1/plays`, and the service's cap on day rows per request.
+    static let playsBatchEntries = 500
+    static let playsBatchDayRows = 2000
+
+    /// Sends the counts and days ahead of what was pushed (#337), at most 500 entries per request.
+    /// A failure leaves the rest pending for the next reconcile and is not shown: counts are
+    /// absolute, so nothing is lost by waiting. An entry the service ignores (its release is not
+    /// live there) is marked pushed like the rest; the next play of that track sends the count again.
+    private func pushPlays() async {
+        guard let playCounts else { return }
+        while isSignedIn {
+            let batch = playCounts.pending(maxEntries: Self.playsBatchEntries, maxDayRows: Self.playsBatchDayRows)
+            if batch.isEmpty { return }
+            do {
+                try await api.putPlays(batch)
+            } catch {
+                Self.log.error("Pushing play counts failed: \(String(describing: error), privacy: .public)")
+                return
+            }
+            // A sign-out while the request was in flight has cleared the markers for the next account.
+            guard isSignedIn else { return }
+            playCounts.markPushed(batch)
         }
     }
 

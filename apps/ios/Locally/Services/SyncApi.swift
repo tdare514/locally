@@ -202,6 +202,9 @@ protocol SyncApi {
     /// plays in the days `from`...`to` (`YYYY-MM-DD`) plus all-time. Throws
     /// `.notFound` on an API that predates the route and `.rateLimited` on a 429.
     func playsSummary(from: String, to: String, cursor: String?) async throws -> SyncPlaysSummaryPage
+    /// `PUT /v1/plays` (#337): this device's absolute counts, 1 to 500 entries, each with `source: "locally"`.
+    @discardableResult
+    func putPlays(_ counts: [SyncPlayCount]) async throws -> SyncPlaysPutResult
     /// Downloads `url` to `destination` via `downloadTask(with:)`, so the
     /// file streams straight to disk rather than through memory.
     func downloadFile(from url: URL, to destination: URL) async throws
@@ -429,6 +432,12 @@ final class HttpSyncApi: SyncApi {
             statusErrors: [404: .notFound, 429: .rateLimited]
         )
         return try decode(SyncPlaysSummaryPage.self, from: data)
+    }
+
+    func putPlays(_ counts: [SyncPlayCount]) async throws -> SyncPlaysPutResult {
+        let body = try JSONEncoder.syncApi.encode(SyncPlayCountsBody(counts: counts))
+        let data = try await send(path: "/v1/plays", method: "PUT", bodyData: body)
+        return try decode(SyncPlaysPutResult.self, from: data)
     }
 
     func downloadFile(from url: URL, to destination: URL) async throws {

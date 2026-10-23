@@ -45,7 +45,8 @@ struct PlaybackServiceTests {
         let r = release()
         service.play(release: r, startingAt: id(r, 2))
         await settle()
-        #expect(service.queue?.tracks.map(\.trackNumber) == [2, 3, 4])
+        #expect(service.queue?.items == [2, 3, 4].map { QueueItem(releaseId: r.id, trackId: id(r, $0)) })
+        #expect(service.queue?.context == .release(r.id))
         #expect(engine.played.map(\.lastPathComponent) == ["t2.mp3"])
         #expect(service.currentTrack?.trackNumber == 2)
         #expect(session.activations == 1)
@@ -396,5 +397,113 @@ struct PlaybackServiceTests {
         }
         #expect(engine.played.isEmpty)
         #expect(!service.isPlaying)
+    }
+
+    @Test func aQueueFromTwoReleasesResolvesEachItemFromItsOwnRelease() async {
+        var first = release()
+        first.title = "First Album"
+        first.artist = "First Artist"
+        var second = release()
+        second.title = "Second Album"
+        second.artist = "Second Artist"
+        let counts = FakePlayCounts()
+        var clock = Date(timeIntervalSince1970: 1_000_000)
+        let counting = PlaybackService(
+            engine: engine, access: access, session: session, nowPlaying: nowPlaying, remote: remote,
+            playCounts: counts, now: { clock }
+        )
+        let items = [QueueItem(releaseId: first.id, trackId: id(first, 1)), QueueItem(releaseId: second.id, trackId: id(second, 2))]
+        let collection = QueueContext(kind: .collection, id: UUID())
+        counting.play(items: items, releases: [first, second], context: collection)
+        await settle()
+        #expect(nowPlaying.published.compactMap { $0 }.last?.title == "Song 1")
+        #expect(nowPlaying.published.compactMap { $0 }.last?.album == "First Album")
+        #expect(counting.currentRelease?.id == first.id)
+
+        // 31 seconds of the first item (half-second ticks) counts against the first release.
+        for tick in 0...62 {
+            clock = Date(timeIntervalSince1970: 1_000_000 + Double(tick) / 2)
+            engine.onProgress?(Double(tick) / 2, 200)
+        }
+        #expect(counts.increments == [items[0]])
+
+        engine.end(.finished)
+        await settle()
+        let info = nowPlaying.published.compactMap { $0 }.last
+        #expect(info?.title == "Song 2")
+        #expect(info?.artist == "Second Artist")
+        #expect(info?.album == "Second Album")
+        #expect(counting.currentRelease?.id == second.id)
+        #expect(access.opened.last == id(second, 2))
+
+        for tick in 0...62 {
+            clock = Date(timeIntervalSince1970: 2_000_000 + Double(tick) / 2)
+            engine.onProgress?(Double(tick) / 2, 200)
+        }
+        #expect(counts.increments == items)
+
+        // A collection's context is a no-op for now; a release's opens its page.
+        counting.openContext()
+        #expect(counting.openReleaseRequest == nil)
+        let single = release()
+        counting.play(release: single, startingAt: id(single, 1))
+        await settle()
+        counting.openContext()
+        #expect(counting.openReleaseRequest == single.id)
+    }
+
+    @Test func aTickFromACancelledRunNeverCounts() async {
+        let r = release()
+        let counts = FakePlayCounts()
+        var clock = Date(timeIntervalSince1970: 1_000_000)
+        let counting = PlaybackService(
+            engine: engine, access: access, session: session, nowPlaying: nowPlaying, remote: remote,
+            playCounts: counts, now: { clock }
+        )
+        counting.play(release: r, startingAt: id(r, 1))
+        await settle()
+        for tick in 0...50 {
+            clock = Date(timeIntervalSince1970: 1_000_000 + Double(tick) / 2)
+            engine.onProgress?(Double(tick) / 2, 200)
+        }
+        counting.stop()
+        // The player reports late ticks after the stop; none of them counts.
+        for tick in 51...130 {
+            clock = Date(timeIntervalSince1970: 1_000_000 + Double(tick) / 2)
+            engine.onProgress?(Double(tick) / 2, 200)
+        }
+        #expect(counts.increments.isEmpty)
+    }
+
+    @Test func aPlayLoadedPausedCountsFromWhenItActuallyPlays() async {
+        let r = release()
+        let counts = FakePlayCounts()
+        var clock = Date(timeIntervalSince1970: 1_000_000)
+        let counting = PlaybackService(
+            engine: engine, access: access, session: session, nowPlaying: nowPlaying, remote: remote,
+            playCounts: counts, now: { clock }
+        )
+        func tick(_ t: Double) {
+            clock = Date(timeIntervalSince1970: 1_000_000 + t)
+            engine.onProgress?(t, 200)
+        }
+        access.delayMilliseconds = 100
+        counting.play(release: r, startingAt: id(r, 1))
+        await settle()
+        // Paused while the file opens: it loads paused at 0 and waits.
+        counting.pause()
+        try? await Task.sleep(for: .milliseconds(300))
+        await settle()
+        #expect(engine.played.isEmpty)
+        // Ticks while it waits, or while paused, never count.
+        for t in stride(from: 0.0, through: 60, by: 0.5) { tick(t) }
+        #expect(counts.increments.isEmpty)
+
+        counting.resume()
+        await settle()
+        #expect(engine.played.count == 1)
+        // Then 30 s of real playback, and 30 more: counted once.
+        for t in stride(from: 100.0, through: 160, by: 0.5) { tick(t - 100) }
+        #expect(counts.increments == [QueueItem(releaseId: r.id, trackId: id(r, 1))])
     }
 }

@@ -672,10 +672,12 @@ enum Copy {
         static let title = "Stats"
         static let tabLabel = "Stats"
         static let coverage = "Collected across all your devices."
+        /// Under the stats with `coverage`: what the plays are (#337).
+        static let playsSource = "Plays in Spotify and in Locally"
         static let signedOutTitle = "Your plays live on your Mac"
         static let signedOutBody = "Locally counts the songs you play in Spotify on your Mac. Sign in on both to see them here."
         static let signedOutAction = "Sign in"
-        static let noPlays = "Plays show up here once Locally on your Mac has counted some. They count while your Mac is on, or all the time with Count plays when this Mac is off in its Settings."
+        static let noPlays = "Plays show up here once Locally has counted some: songs you play in Locally on this phone, and in Spotify on your Mac. The Mac counts while it is on, or all the time with Count plays when this Mac is off in its Settings."
         static let failed = "Couldn't load your plays. Pull down to try again."
         static let busy = "Couldn't load your plays just now. Try again in a few minutes."
 

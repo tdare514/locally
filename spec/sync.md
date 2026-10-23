@@ -356,6 +356,7 @@ the shipped web and iOS clients are unaffected. The Mac app pushing and displayi
   totals, and they ignore `bySource`. The Mac (#338) and the iPhone (#337) will send `locally` for
   plays inside Locally. The UI still shows one total; the split is kept so a breakdown can come
   later.
+- The iPhone pushes its counts too (#337), with `source: "locally"` on every entry, because it only counts plays in Locally's own player.
 - Play counts of a tombstoned release are never served and are deleted by the daily cleanup,
   on the same 30-day schedule as the release's files; deleting the account deletes them at once.
 - **Day buckets (#193, #201).** An entry may carry an optional `days: [{ day, count }]`: this

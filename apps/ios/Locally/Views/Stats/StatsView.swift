@@ -226,7 +226,7 @@ struct StatsView: View {
             .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: model.isRefreshing)
 
             if model.phase == .ready || model.phase == .quiet {
-                Text(Copy.Stats.coverage)
+                Text("\(Copy.Stats.playsSource). \(Copy.Stats.coverage)")
                     .font(Theme.ScaledFont.caption)
                     .foregroundStyle(Theme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
