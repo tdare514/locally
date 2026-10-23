@@ -532,6 +532,7 @@ export class ReleaseService {
         artist: record.artist,
         year: record.year,
         ...(remoteReleaseDate !== undefined ? { releaseDate: remoteReleaseDate } : {}),
+        ...(record.sharedFrom ? { sharedFrom: record.sharedFrom } : {}),
         genre: record.genre,
         coverPath,
         folderPath,
@@ -647,6 +648,8 @@ export class ReleaseService {
     };
     if (remoteReleaseDate !== undefined) updated.releaseDate = remoteReleaseDate;
     else delete updated.releaseDate;
+    // Never dropped by a record without it: an API from before #328 strips the key, and this Mac still knows.
+    if (record.sharedFrom) updated.sharedFrom = record.sharedFrom;
 
     await this.repo.upsert(libraryDir, updated);
     return updated;

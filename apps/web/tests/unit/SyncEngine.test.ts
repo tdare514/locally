@@ -313,6 +313,28 @@ class FakeSyncApi implements SyncApi {
 
   async spotifyUnlink(): Promise<void> {}
 
+  // Sharing (#182) is tested in SharesEngine.test.ts; here the account has no shares.
+  async createShare(): Promise<never> {
+    throw new Error("not used here");
+  }
+  async listSentShares() {
+    return { shares: [], nextCursor: null };
+  }
+  async listReceivedShares() {
+    return { shares: [], nextCursor: null };
+  }
+  async reshareShare(): Promise<never> {
+    throw new Error("not used here");
+  }
+  async revokeShare(): Promise<void> {}
+  async shareFileUrl(): Promise<never> {
+    throw new Error("not used here");
+  }
+  async claimShare(): Promise<never> {
+    throw new Error("not used here");
+  }
+  async hideShare(): Promise<void> {}
+
   async uploadFile(upload: SyncUploadTarget, filePath: string): Promise<void> {
     this.uploadCalls.push({ name: upload.name, filePath });
     const bytes = await fs.readFile(filePath);

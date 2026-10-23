@@ -2,6 +2,7 @@
  * Shared contract between the API (server) and the UI (client).
  * Both sides import from here. Do not duplicate these shapes elsewhere.
  */
+import type { FriendShare, ShareGroup, SharedFrom } from "./shares";
 
 export type ReleaseKind = "single" | "album";
 
@@ -28,6 +29,8 @@ export interface Release {
   /** "2024-05" or "2024-05-17" when the date is more precise than `year` (#221); `year` is then its first four
    * characters. Absent for a year-only date. Read and written through `src/shared/releaseDate.ts`. */
   releaseDate?: string;
+  /** Set when this release was imported from a friend's share (#328): which share, and whether it may be shared on. */
+  sharedFrom?: SharedFrom;
   genre: string | null;
   coverPath: string | null; // absolute path to cover.jpg/png stored next to the tracks
   folderPath: string;    // absolute folder holding this release's files
@@ -109,6 +112,7 @@ export interface Settings {
   spotify?: SpotifySettings;  // the Spotify connection (#239); absent when disconnected
   playsPromptAnswered?: boolean;  // user answered the one-time "Count your Spotify plays?" card, either button (#110)
   adoptRoots?: string[];  // folders Spotify reads that Locally scans to adopt in place (#245); read as [] when absent
+  shareGroups?: ShareGroup[];  // saved lists of recipient emails for sharing (#182); client-side only, never sent to the service
   installId?: string;  // random UUID made once on this Mac, sent with sync sign-in (#210); never logged, never sent to the browser
 }
 
@@ -241,6 +245,8 @@ export interface SyncStatus {
   pendingFromPhone: PendingFromPhone[];
   /** releaseId -> the `hideKey` hidden from the tray on this Mac (#295). */
   hiddenFromTray?: Record<string, string>;
+  /** Shares sent to this account that it has not claimed, for the tray's "From your friends" section (#182). */
+  fromFriends?: FriendShare[];
   quota: SyncQuota | null;
 }
 

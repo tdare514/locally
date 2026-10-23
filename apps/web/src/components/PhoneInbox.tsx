@@ -15,6 +15,9 @@ import {
   visiblePending,
 } from "../lib/tray-sections";
 import type { PendingFromPhone } from "../shared/types";
+import type { FriendShare } from "../shared/shares";
+import { friendCoverUrl } from "../lib/api-client";
+import { friendTitle, fromLabel } from "../lib/share-copy";
 import { CloudDownIcon, EyeOffIcon, MusicNoteIcon, PlusIcon, XIcon } from "./Icons";
 
 /** Matches the .phone-tray exit transition in globals.css. */
@@ -33,18 +36,35 @@ interface PhoneInboxProps {
   onHide: (id: string) => Promise<boolean>;
   /** Reconciles, then asks the other devices to upload again. */
   onResync: () => Promise<ResyncOutcome>;
+  /** Shares from friends not claimed yet (#182): the "From your friends" section. */
+  friends?: FriendShare[];
+  /** Claims, downloads and imports a share; resolves true when it was added. */
+  onAcceptFriend?: (id: string) => Promise<boolean>;
+  /** Dismisses a share from the tray; resolves true once it is gone. */
+  onDismissFriend?: (id: string) => Promise<boolean>;
 }
 
-function triggerLabel(count: number, open: boolean): string {
+function triggerLabel(count: number, open: boolean, friends: number): string {
   const base =
     count === 0
-      ? "Nothing from your devices"
-      : `${count} release${count === 1 ? "" : "s"} from your devices`;
+      ? "Nothing from your devices or friends"
+      : friends === 0
+        ? `${count} release${count === 1 ? "" : "s"} from your devices`
+        : `${count} release${count === 1 ? "" : "s"} from your devices and friends`;
   return open ? `${base}, close` : base;
 }
 
 /** Round inbox button in the pane's top-right corner that opens a "From your devices" tray. */
-export default function PhoneInbox({ pending: allPending, hidden = {}, onAccept, onHide, onResync }: PhoneInboxProps) {
+export default function PhoneInbox({
+  pending: allPending,
+  hidden = {},
+  onAccept,
+  onHide,
+  onResync,
+  friends = [],
+  onAcceptFriend,
+  onDismissFriend,
+}: PhoneInboxProps) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [leaving, setLeaving] = useState<Set<string>>(new Set());
@@ -64,7 +84,7 @@ export default function PhoneInbox({ pending: allPending, hidden = {}, onAccept,
   const latest = useRef({ ready: [] as PendingFromPhone[], other: [] as PendingFromPhone[], leaving: new Set<string>(), addingAll: false, resyncing: false });
 
   const pending = useMemo(() => visiblePending(allPending, hidden), [allPending, hidden]);
-  const count = pending.length;
+  const count = pending.length + friends.length;
   const { ready, other } = traySections(pending);
   const copy = otherSectionCopy(other);
   useEffect(() => {
@@ -236,6 +256,49 @@ export default function PhoneInbox({ pending: allPending, hidden = {}, onAccept,
     }
   }
 
+  /** Focus on a leaving friend row moves to the next friend row's control, else the previous, else the heading. */
+  function startLeavingFriend(id: string) {
+    const panel = panelRef.current;
+    const rowEl = panel?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(id)}"]`);
+    const hadFocus = !!rowEl && rowEl.contains(document.activeElement);
+    setLeaving((prev) => new Set(prev).add(id));
+    if (!panel || !hadFocus) return;
+    const rows = friends.filter((f) => !leaving.has(f.id));
+    const at = rows.findIndex((f) => f.id === id);
+    const next = rows[at + 1] ?? rows[at - 1];
+    const el = next ? panel.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(next.id)}"] [data-row-control]`) : null;
+    (el ?? document.getElementById(headingId))?.focus({ preventScroll: true });
+  }
+
+  /** Send to Spotify on a friend's share: the row collapses out, and comes back if the add fails. */
+  async function sendFriend(id: string) {
+    if (!onAcceptFriend) return;
+    const taken = reservations.current.reserve([id]);
+    if (taken.length === 0) return;
+    markReserved(taken);
+    try {
+      startLeavingFriend(id);
+      if (!(await onAcceptFriend(id))) unleave(id);
+    } finally {
+      reservations.current.release(id);
+      markReleased(id);
+    }
+  }
+
+  async function dismissFriend(id: string) {
+    if (!onDismissFriend) return;
+    const taken = reservations.current.reserve([id]);
+    if (taken.length === 0) return;
+    markReserved(taken);
+    try {
+      startLeavingFriend(id);
+      if (!(await onDismissFriend(id))) unleave(id);
+    } finally {
+      reservations.current.release(id);
+      markReleased(id);
+    }
+  }
+
   const announcement = outcome === "asked" ? copy.asked : outcome === "later" ? copy.later : "";
 
   return (
@@ -246,7 +309,7 @@ export default function PhoneInbox({ pending: allPending, hidden = {}, onAccept,
         onClick={toggle}
         aria-expanded={open}
         aria-controls={panelId}
-        aria-label={triggerLabel(count, open)}
+        aria-label={triggerLabel(count, open, friends.length)}
         className={`relative isolate flex h-[var(--tray-size)] w-[var(--tray-size)] items-center justify-center rounded-full transition-[filter,background-color,box-shadow] active:scale-95 ${
           // Open: the glass drops away and the red X stands alone.
           open ? "bg-transparent" : "glass-fake hover:brightness-125"
@@ -279,19 +342,27 @@ export default function PhoneInbox({ pending: allPending, hidden = {}, onAccept,
           className="phone-tray glass-fake glass-frost absolute right-full top-full z-30 isolate w-[300px] max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain rounded-[22px] p-2 outline-none"
         >
           <h2 id={headingId} tabIndex={-1} className="sr-only">
-            {INBOX_TITLE}
+            {friends.length > 0 ? `${INBOX_TITLE} and friends` : INBOX_TITLE}
           </h2>
           {/* One polite live region for the whole tray: the lines after Try all again. */}
           <div aria-live="polite" role="status" className="sr-only">
             {announcement}
           </div>
-          {pending.length === 0 && (
+          {count === 0 && (
             <p className="px-3 py-3 text-sm text-text-muted">Nothing waiting from your devices.</p>
+          )}
+          {pending.length > 0 && (
+            // The first section heading: the device groups below are its status subheadings.
+            <h3 id={`${panelId}-devices`} className="px-3 pb-0.5 pt-1.5 text-[13px] font-semibold leading-snug text-text">
+              {INBOX_TITLE}
+              <span className="sr-only">,</span> <span className="font-normal text-text-muted">{pending.length}</span>
+            </h3>
           )}
           {ready.length > 0 && (
             <section data-section="ready" aria-labelledby={`${panelId}-ready`}>
               <SectionHeader
                 id={`${panelId}-ready`}
+                sub
                 name="Ready to add"
                 count={ready.length}
                 action={
@@ -312,6 +383,7 @@ export default function PhoneInbox({ pending: allPending, hidden = {}, onAccept,
             <section data-section="other" aria-labelledby={`${panelId}-other`}>
               <SectionHeader
                 id={`${panelId}-other`}
+                sub
                 name={copy.name}
                 count={other.length}
                 action={
@@ -331,6 +403,23 @@ export default function PhoneInbox({ pending: allPending, hidden = {}, onAccept,
                     leaving={leaving.has(p.id)}
                     onSend={() => {}}
                     onHide={() => hide(p.id)}
+                  />
+                </Row>
+              ))}
+            </section>
+          )}
+          {friends.length > 0 && pending.length > 0 && <hr className="mx-2 my-1.5 border-0 border-t border-white/10" />}
+          {friends.length > 0 && (
+            <section data-section="friends" aria-labelledby={`${panelId}-friends`}>
+              <SectionHeader id={`${panelId}-friends`} name="From your friends" count={friends.length} />
+              {friends.map((f) => (
+                <Row key={f.id} id={f.id} leaving={leaving.has(f.id)} onFocusRow={(on) => (focusedRow.current = on ? f.id : null)}>
+                  <FriendRow
+                    item={f}
+                    busy={reserved.has(f.id)}
+                    leaving={leaving.has(f.id)}
+                    onSend={() => sendFriend(f.id)}
+                    onDismiss={() => dismissFriend(f.id)}
                   />
                 </Row>
               ))}
@@ -376,18 +465,28 @@ export function SectionHeader({
   name,
   count,
   action,
+  sub = false,
 }: {
   id: string;
   name: string;
   count: number;
+  /** A status subheading under "From your devices": a level down and quieter. */
+  sub?: boolean;
   action?: { label: string; busy: boolean; onClick: () => void };
 }) {
   return (
     <div className="flex items-center justify-between gap-2 px-3 pb-1 pt-1.5">
-      <h3 id={id} className="min-w-0 whitespace-nowrap text-[13px] font-semibold leading-snug text-text">
-        {name}
-        <span className="sr-only">,</span> <span className="font-normal text-text-dim">{count}</span>
-      </h3>
+      {sub ? (
+        <h4 id={id} className="min-w-0 whitespace-nowrap text-[12px] font-medium leading-snug text-text-muted">
+          {name}
+          <span className="sr-only">,</span> <span className="font-normal text-text-muted">{count}</span>
+        </h4>
+      ) : (
+        <h3 id={id} className="min-w-0 whitespace-nowrap text-[13px] font-semibold leading-snug text-text">
+          {name}
+          <span className="sr-only">,</span> <span className="font-normal text-text-muted">{count}</span>
+        </h3>
+      )}
       {action && (
         <button type="button" data-header-action disabled={action.busy} onClick={action.onClick} className="btn-save btn-save-compact">
           {action.label}
@@ -522,6 +621,96 @@ export function PendingRow({
             <EyeOffIcon className="h-4 w-4" />
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** One share from a friend: the cover as a record sleeve that is itself the Send to Spotify button, the
+ * title and artist cut short, and the sender's email as the quiet origin line. Dismiss shows on hover and
+ * whenever focus is inside the row. */
+export function FriendRow({
+  item,
+  leaving,
+  busy = false,
+  onSend,
+  onDismiss,
+}: {
+  item: FriendShare;
+  leaving: boolean;
+  busy?: boolean;
+  onSend: () => void;
+  onDismiss: () => void;
+}) {
+  const [coverFailed, setCoverFailed] = useState(false);
+  const title = friendTitle(item);
+  const showCover = item.hasCover && !coverFailed;
+  return (
+    <div className="group/row" aria-busy={busy || undefined}>
+      <div className="flex items-center gap-3.5 rounded-2xl px-2.5 py-2.5">
+        <button
+          type="button"
+          data-row-control
+          disabled={leaving || busy}
+          onClick={onSend}
+          aria-label={`Send ${title} from ${item.fromEmail} to Spotify`}
+          title="Send to Spotify"
+          className="group/send relative h-12 w-[4.25rem] shrink-0 rounded-[10px] active:scale-95 disabled:opacity-60"
+        >
+          <span className="absolute right-0 top-1/2 h-11 w-11 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,#3a3a40_0_12%,#0c0c0e_13%_17%,#26262b_18%_40%,#1a1a1e_41%_62%,#2a2a30_63%_100%)] shadow-[0_4px_12px_-4px_rgb(0_0_0/0.8)] ring-1 ring-white/15 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none group-hover/send:translate-x-1.5 group-hover/send:rotate-45 group-focus-visible/send:translate-x-1.5">
+            <span className="absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#050505] ring-1 ring-[#1E1E1E]" />
+          </span>
+          <span className="absolute left-0 top-0 flex h-12 w-12 items-center justify-center overflow-hidden rounded-[10px] bg-card text-text-dim shadow-[0_6px_16px_-6px_rgb(0_0_0/0.8)] ring-1 ring-white/10 transition-colors group-focus-visible/send:ring-2 group-focus-visible/send:ring-white">
+            {showCover ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={friendCoverUrl(item.id)}
+                alt=""
+                onError={() => setCoverFailed(true)}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <MusicNoteIcon className="h-4 w-4" />
+            )}
+            {!busy && (
+              <span className="absolute inset-0 flex items-center justify-center bg-accent opacity-0 transition-opacity motion-reduce:transition-none group-hover/send:opacity-100 group-focus-visible/send:opacity-100">
+                <PlusIcon className="h-5 w-5 text-black" strokeWidth={2.5} />
+              </span>
+            )}
+          </span>
+          {busy && (
+            <span
+              aria-hidden="true"
+              className="sending-dots absolute left-0 top-0 flex h-12 w-12 items-start justify-center gap-[3px] pt-[30px]"
+            >
+              <span className="h-1 w-1 bg-white" />
+              <span className="h-1 w-1 bg-white" />
+              <span className="h-1 w-1 bg-white" />
+            </span>
+          )}
+        </button>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-semibold text-text">{title}</span>
+          <span className="flex text-[13px] text-text-muted">
+            <span className="truncate">{item.artist}</span>
+            <span className="shrink-0 whitespace-pre">
+              {" · "}
+              {item.trackCount} track{item.trackCount === 1 ? "" : "s"}
+            </span>
+          </span>
+          <span title={item.fromEmail} className="block truncate text-[12px] text-text-muted">{fromLabel(item.fromEmail)}</span>
+        </span>
+        <button
+          type="button"
+          data-row-control
+          disabled={leaving || busy}
+          onClick={onDismiss}
+          aria-label={`Dismiss ${title} from ${item.fromEmail}`}
+          title="Dismiss"
+          className="btn-icon text-text-muted opacity-0 transition-opacity motion-reduce:transition-none group-hover/row:opacity-100 group-focus-within/row:opacity-100 disabled:cursor-not-allowed"
+        >
+          <XIcon className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );

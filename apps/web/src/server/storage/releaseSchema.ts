@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SharedFromSchema } from "../../shared/shares";
 import { MAX_DISC_NUMBER } from "../../shared/discs";
 
 /**
@@ -27,6 +28,8 @@ export const ReleaseSchema = z.looseObject({
   year: z.string().nullable(),
   /** "YYYY-MM" or "YYYY-MM-DD" when known beyond the year (#221); omitted otherwise. */
   releaseDate: z.string().optional(),
+  /** Imported from a friend's share (#328); a bad shape reads as absent. */
+  sharedFrom: SharedFromSchema.optional().catch(undefined),
   genre: z.string().nullable(),
   coverPath: z.string().nullable(),
   folderPath: z.string(),

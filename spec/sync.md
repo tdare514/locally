@@ -101,6 +101,19 @@ The Mac adds it in step 2 of the plan and the iPhone in step 3. On pull, a clien
 `releaseDate`, or whose year disagrees with `year`, applies the record with `year` alone: the date is dropped,
 the rest of the record is kept, and it is never a reason to skip a record or fail a page.
 
+A record may carry `sharedFrom` (#328): this release was imported from a received share. Its shape is exactly
+`{ "shareId": "<lowercase UUID>", "allowReshare": true|false }`, the share it came from and whether that share allows
+resharing. The key is omitted on any other release, never written as null:
+
+```json
+{ "sharedFrom": { "shareId": "6f1c2a40-8d3e-4b7a-9c55-0e2f1a7b3d90", "allowReshare": false } }
+```
+
+The API answers a 400 for any other shape (a missing or extra key, a non-UUID or upper-case `shareId`, a non-boolean
+`allowReshare`, null), and stores and returns the key exactly. `syncVersion` stays 2. Effect on clients: older clients
+ignore the key (and drop it if they re-push a record, accepted because only the owner's own devices sync and they
+update together). Clients set it when they import a claimed share.
+
 A `tracks[]` entry may carry `localId` (#303): the `spotify:local:` id the Mac stored when it adopted the file,
 a string that starts with `spotify:local:` and is at most 1,000 characters (anything else is a 400). The key is
 omitted when there is none, never written as null, and only the Mac sends it, for adopted tracks. The sync
@@ -222,7 +235,10 @@ from the live release, so a later edit does not change what was shared. `canResh
   `link` is the full public URL `<origin>/s/<token>`, returned **only here** and only for a public share. Errors: 404 for a
   release that is not the caller's live release; 409 `{ "error": "adopted" }` for a release with `source: "adopted"` (its
   audio is not on the server); 403 `{ "error": "public_links_disabled" }` for `visibility: "public"` while the server's
-  `PUBLIC_SHARES_ENABLED` is not `true`; 400 for anything malformed.
+  `PUBLIC_SHARES_ENABLED` is not `true`; 403 `{ "error": "use_reshare" }` for a release whose record has `sharedFrom`
+  (it was imported from a share; checked before any recipient lookup, nothing is inserted). A client sharing such a
+  release calls `POST /v1/shares/:shareId/reshare` with `sharedFrom.shareId` instead, and hides Share when
+  `sharedFrom.allowReshare` is false; 400 for anything malformed.
 - `GET /v1/shares?role=sent|received&cursor=<opaque>&limit=1..100`: `{ shares, nextCursor }`, newest first, `nextCursor`
   `null` on the last page. `sent` holds the caller's own shares (`SentShare`), revoked and expired ones included.
   `received` holds `ReceivedShare`s that are **live**: not revoked, not expired, not hidden, and no revoked or expired

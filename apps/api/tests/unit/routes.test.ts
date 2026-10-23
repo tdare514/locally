@@ -401,4 +401,43 @@ describe("routes (through the exported handler functions, no server)", () => {
     const mismatch = makeReleaseRecord({ year: "2024", releaseDate: "2023-05-17" });
     expect((await put(mismatch)).status).toBe(400);
   });
+
+  it("stores and returns sharedFrom exactly, leaves it out when absent, and refuses any other shape", async () => {
+    const { token } = await signIn("shared-from@example.com");
+    const put = (record: unknown, id: string) =>
+      releaseRoute.PUT(
+        jsonRequest(`http://localhost/v1/releases/${id}`, "PUT", record, token),
+        { params: Promise.resolve({ id }) }
+      );
+    const sharedFrom = { shareId: crypto.randomUUID(), allowReshare: false };
+    const imported = makeReleaseRecord({ sharedFrom });
+    const plain = makeReleaseRecord();
+    expect((await put(imported, imported.id)).status).toBe(200);
+    expect((await put(plain, plain.id)).status).toBe(200);
+
+    const list = await releasesListRoute.GET(
+      new Request("http://localhost/v1/releases?sinceVersion=0", { headers: { authorization: `Bearer ${token}` } })
+    );
+    const body = (await list.json()) as { releases: { id: string; sharedFrom?: unknown }[] };
+    expect(body.releases.find((r) => r.id === imported.id)!.sharedFrom).toEqual(sharedFrom);
+    expect("sharedFrom" in body.releases.find((r) => r.id === plain.id)!).toBe(false);
+
+    const id = crypto.randomUUID();
+    const bad: unknown[] = [
+      null,
+      {},
+      { shareId: id },
+      { allowReshare: true },
+      { shareId: id, allowReshare: true, extra: 1 },
+      { shareId: "not-a-uuid", allowReshare: true },
+      { shareId: id.toUpperCase(), allowReshare: true },
+      { shareId: id, allowReshare: "true" },
+      { shareId: id, allowReshare: null },
+      { shareId: null, allowReshare: true },
+    ];
+    for (const value of bad) {
+      const record = { ...makeReleaseRecord(), sharedFrom: value };
+      expect((await put(record, record.id)).status, JSON.stringify(value)).toBe(400);
+    }
+  });
 });

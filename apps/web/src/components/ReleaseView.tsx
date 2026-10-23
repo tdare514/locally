@@ -9,6 +9,7 @@ import {
   getRelease,
   getSettings,
   getReleasePlays,
+  getShareSummary,
   getSpotifyPlaylists,
   openSpotifyPlaylist,
   replaceCover,
@@ -29,6 +30,9 @@ import { IS_DEMO } from "../lib/demo";
 import { UNKNOWN_ARTIST } from "../shared/adopt";
 import { folderAfterRoot } from "../lib/adopt-review";
 import NoCover from "./NoCover";
+import ShareControl from "./ShareControl";
+import { deleteSharedLine } from "../lib/share-copy";
+import { RESHARE_REFUSED } from "../shared/shares";
 import ReleaseBar, { BarConfirm, useBarConfirm } from "./ReleaseBar";
 import { libraryWidthClass } from "../lib/library-view-prefs";
 import { useLibraryWidth } from "../lib/use-library-width";
@@ -56,6 +60,10 @@ interface ReleaseViewProps {
   onUpdated: () => void;
   onToast: (kind: "success" | "error", text: string) => void;
   onOpenSettings: () => void;
+  /** Signed in to sync: Share is offered only then (#182). */
+  syncSignedIn?: boolean;
+  /** Opens Settings at the sync account section, for "Sign in to share". */
+  onOpenAccount?: () => void;
   /** Every artist in the library, for the Artist field's suggestions (#287). */
   artistIndex: ArtistEntry[];
 }
@@ -228,6 +236,8 @@ export default function ReleaseView({
   onUpdated,
   onToast,
   onOpenSettings,
+  syncSignedIn = false,
+  onOpenAccount,
   artistIndex,
 }: ReleaseViewProps) {
   const artistNav = useArtistNav();
@@ -254,12 +264,24 @@ export default function ReleaseView({
     bindOpener: bindDeleteOpener,
   } = useBarConfirm();
   const [deleting, setDeleting] = useState(false);
+  // What the delete confirm adds when the release is still shared (#182); asked when the confirm opens.
+  const [sharedLine, setSharedLine] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [spin, setSpin] = useState(0);
   // Each track's total plays across devices, by track id (#107). Empty until the one fetch lands.
   const [plays, setPlays] = useState<Record<string, number>>({});
   // The Spotify playlists each track is in, by track id (#212). Empty until connected and read.
   const [playlists, setPlaylists] = useState<Record<string, { id: string; name: string }[]>>({});
+  useEffect(() => {
+    if (!confirmingDelete || !syncSignedIn) return;
+    let cancelled = false;
+    getShareSummary(releaseId)
+      .then((s) => !cancelled && setSharedLine(deleteSharedLine(s.people, s.link)))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [confirmingDelete, syncSignedIn, releaseId]);
   const copiedTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   // A release added from a Spotify folder (#249) opens in view mode: nothing on it is editable.
   const {
@@ -639,6 +661,20 @@ export default function ReleaseView({
             plays={plays}
             playlists={playlists}
             onOpenPlaylist={handleOpenPlaylist}
+            renderShare={
+              isAdopted || IS_DEMO || release.sharedFrom
+                ? undefined
+                : (key, trackName) => (
+                    <ShareControl
+                      releaseId={release.id}
+                      name={trackName}
+                      trackIds={[key]}
+                      variant="row"
+                      signedIn={syncSignedIn}
+                      onSignIn={() => (onOpenAccount ?? onOpenSettings)()}
+                    />
+                  )
+            }
           />
           {tracks.some((t) => (plays[t.key] ?? 0) > 0) && (
             <p className="text-xs text-text-muted">{PLAYS_ACROSS_DEVICES}</p>
@@ -698,7 +734,7 @@ export default function ReleaseView({
               </button>
             )
           ) : confirmingDelete ? (
-            <BarConfirm message="Delete this release?" onCancel={cancelDelete}>
+            <BarConfirm message={sharedLine && syncSignedIn ? `Delete this release? ${sharedLine}` : "Delete this release?"} onCancel={cancelDelete}>
               <button
                 type="button"
                 onClick={handleDelete}
@@ -724,15 +760,30 @@ export default function ReleaseView({
         status={unsaved && !IS_DEMO && !confirmingDelete && !isAdopted ? "Unsaved changes" : undefined}
         beforeMain={
           isAdopted ? undefined : (
-            <button
-              type="button"
-              onClick={handleReveal}
-              disabled={IS_DEMO}
-              title={IS_DEMO ? "Not available in the demo" : undefined}
-              className="btn-ink"
-            >
-              <span className="btn-ink-label">Show in Finder</span>
-            </button>
+            <>
+              {!IS_DEMO && release.sharedFrom?.allowReshare === false && (
+                // Imported from a friend's share that was not allowed to go on (#328): quiet text, no button.
+                <span className="text-sm text-text-muted">{RESHARE_REFUSED}</span>
+              )}
+              {!IS_DEMO && release.sharedFrom?.allowReshare !== false && (
+                <ShareControl
+                  releaseId={release.id}
+                  name={release.title}
+                  variant="bar"
+                  signedIn={syncSignedIn}
+                  onSignIn={() => (onOpenAccount ?? onOpenSettings)()}
+                />
+              )}
+              <button
+                type="button"
+                onClick={handleReveal}
+                disabled={IS_DEMO}
+                title={IS_DEMO ? "Not available in the demo" : undefined}
+                className="btn-ink"
+              >
+                <span className="btn-ink-label">Show in Finder</span>
+              </button>
+            </>
           )
         }
         main={
