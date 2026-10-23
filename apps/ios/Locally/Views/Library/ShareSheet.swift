@@ -26,12 +26,14 @@ struct WrapLayout: Layout {
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let result = arrange(width: bounds.width, subviews: subviews)
         for (index, origin) in result.origins.enumerated() {
-            subviews[index].place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y), proposal: .unspecified)
+            // Proposed the line's width at most, so a long address wraps inside its pill.
+            subviews[index].place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y), proposal: .init(width: min(result.sizes[index].width, bounds.width), height: nil))
         }
     }
 
-    private func arrange(width: CGFloat, subviews: Subviews) -> (size: CGSize, origins: [CGPoint]) {
+    private func arrange(width: CGFloat, subviews: Subviews) -> (size: CGSize, origins: [CGPoint], sizes: [CGSize]) {
         var origins: [CGPoint] = []
+        var sizes: [CGSize] = []
         var x: CGFloat = 0, y: CGFloat = 0, lineHeight: CGFloat = 0, maxX: CGFloat = 0
         for subview in subviews {
             // A child wider than the line gets the whole line.
@@ -43,11 +45,12 @@ struct WrapLayout: Layout {
                 lineHeight = 0
             }
             origins.append(CGPoint(x: x, y: y))
+            sizes.append(size)
             x += size.width + spacing
             maxX = max(maxX, x - spacing)
             lineHeight = max(lineHeight, size.height)
         }
-        return (CGSize(width: maxX, height: y + lineHeight), origins)
+        return (CGSize(width: maxX, height: y + lineHeight), origins, sizes)
     }
 }
 

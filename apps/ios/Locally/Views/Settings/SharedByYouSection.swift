@@ -30,8 +30,9 @@ final class SharedByYouModel {
     private(set) var revoking: Set<String> = []
     private(set) var errorMessage: String?
 
-    init(api: SyncApi, now: @escaping () -> Date = { Date() }) {
+    init(api: SyncApi, shares: [SentShare] = [], now: @escaping () -> Date = { Date() }) {
         self.api = api
+        self.shares = shares
         self.now = now
     }
 

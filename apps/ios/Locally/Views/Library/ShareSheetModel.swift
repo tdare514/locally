@@ -117,13 +117,16 @@ final class ShareSheetModel {
     var allowReshare = false
     var expiry = ShareExpiry.never
     /// Set from `GET /v1/me`. The Link option exists only while this is true.
-    private(set) var publicSharesEnabled = false
+    private(set) var publicSharesEnabled: Bool
+    /// False where the server is not asked (the component gallery sets the state itself).
+    private let loadsOptions: Bool
 
     private(set) var isSending = false
     private(set) var errorMessage: String?
     var outcome: ShareOutcome?
 
-    init(releaseId: UUID, subject: String, trackIds: [UUID]? = nil, isSignedIn: Bool, api: SyncApi, groupStore: ShareGroupStore) {
+    init(releaseId: UUID, subject: String, trackIds: [UUID]? = nil, isSignedIn: Bool, api: SyncApi, groupStore: ShareGroupStore,
+         publicSharesEnabled: Bool = false, loadsOptions: Bool = true) {
         self.releaseId = releaseId
         self.subject = subject
         self.trackIds = trackIds
@@ -131,13 +134,15 @@ final class ShareSheetModel {
         self.api = api
         self.groupStore = groupStore
         self.groups = groupStore.all()
+        self.publicSharesEnabled = publicSharesEnabled
+        self.loadsOptions = loadsOptions
     }
 
     var showsLinkOption: Bool { publicSharesEnabled }
 
     /// Reads whether public links are on. A failed read leaves the Link option hidden.
     func loadOptions() async {
-        guard isSignedIn else { return }
+        guard isSignedIn, loadsOptions else { return }
         publicSharesEnabled = (try? await api.me())?.publicSharesEnabled ?? false
         if !publicSharesEnabled { linkOn = false }
     }
