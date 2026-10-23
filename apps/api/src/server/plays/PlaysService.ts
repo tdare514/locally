@@ -23,9 +23,9 @@ export class PlaysService {
   ) {}
 
   /**
-   * Store `max(stored, sent)` for each (device, track). One `db.batch`, one
+   * Store `max(stored, sent)` for each (device, track, source); `source` defaults to `spotify` (#340). One `db.batch`, one
    * statement per entry: `INSERT ... SELECT ... FROM releases WHERE id = ? AND
-   * user_id = ? AND deleted = 0 ON CONFLICT (device_id, track_id) DO UPDATE`,
+   * user_id = ? AND deleted = 0 ON CONFLICT (device_id, track_id, source) DO UPDATE`,
    * so an entry for a release that isn't a live release of `userId` inserts
    * nothing. `RETURNING` tells which statements wrote a row: `accepted` is
    * those, `ignored` is the rest.
@@ -39,8 +39,9 @@ export class PlaysService {
         throw new ValidationError("A day is later than tomorrow (UTC)");
       }
     }
-    const countStatements = counts.map((entry) =>
-      this.db
+    const countStatements = counts.map((entry) => {
+      const source = entry.source ?? "spotify";
+      return this.db
         .insert(playCounts)
         .select(
           this.db
@@ -49,6 +50,7 @@ export class PlaysService {
               deviceId: sql<string>`${deviceId}`.as("device_id"),
               releaseId: sql<string>`${releases.id}`.as("release_id"),
               trackId: sql<string>`${entry.trackId}`.as("track_id"),
+              source: sql<string>`${source}`.as("source"),
               count: sql<number>`${entry.count}`.as("count"),
               updatedAt: sql<number>`${now}`.as("updated_at"),
             })
@@ -56,7 +58,7 @@ export class PlaysService {
             .where(and(eq(releases.id, entry.releaseId), eq(releases.userId, userId), eq(releases.deleted, false)))
         )
         .onConflictDoUpdate({
-          target: [playCounts.deviceId, playCounts.trackId],
+          target: [playCounts.deviceId, playCounts.trackId, playCounts.source],
           set: {
             count: sql`max(${playCounts.count}, excluded.count)`,
             releaseId: sql`excluded.release_id`,
@@ -64,8 +66,8 @@ export class PlaysService {
           },
           setWhere: eq(playCounts.userId, userId),
         })
-        .returning({ trackId: playCounts.trackId })
-    );
+        .returning({ trackId: playCounts.trackId });
+    });
 
     // Day buckets: same rule and same live-release guard, one statement per (entry, day). Days older
     // than the retention window are dropped silently (the daily cleanup would delete them anyway).
@@ -83,6 +85,7 @@ export class PlaysService {
                   releaseId: sql<string>`${releases.id}`.as("release_id"),
                   trackId: sql<string>`${entry.trackId}`.as("track_id"),
                   day: sql<string>`${d.day}`.as("day"),
+                  source: sql<string>`${entry.source ?? "spotify"}`.as("source"),
                   count: sql<number>`${d.count}`.as("count"),
                   updatedAt: sql<number>`${now}`.as("updated_at"),
                 })
@@ -90,7 +93,7 @@ export class PlaysService {
                 .where(and(eq(releases.id, entry.releaseId), eq(releases.userId, userId), eq(releases.deleted, false)))
             )
             .onConflictDoUpdate({
-              target: [playDays.deviceId, playDays.trackId, playDays.day],
+              target: [playDays.deviceId, playDays.trackId, playDays.source, playDays.day],
               set: {
                 count: sql`max(${playDays.count}, excluded.count)`,
                 releaseId: sql`excluded.release_id`,
@@ -125,11 +128,12 @@ export class PlaysService {
           deviceId: playCounts.deviceId,
           name: devices.name,
           platform: devices.platform,
-          count: playCounts.count,
+          count: sql<number>`sum(${playCounts.count})`,
         })
         .from(playCounts)
         .innerJoin(devices, and(eq(devices.id, playCounts.deviceId), eq(devices.userId, userId)))
         .where(and(eq(playCounts.userId, userId), eq(playCounts.releaseId, releaseId)))
+        .groupBy(playCounts.trackId, playCounts.deviceId, devices.name, devices.platform)
         .orderBy(playCounts.trackId, devices.name, devices.id),
     ]);
     if (!release) return null;
@@ -141,12 +145,13 @@ export class PlaysService {
         track = { trackId: row.trackId, total: 0, devices: [] };
         tracks.push(track);
       }
-      track.total += row.count;
+      const count = Number(row.count);
+      track.total += count;
       track.devices.push({
         deviceId: row.deviceId,
         name: row.name,
         platform: row.platform,
-        count: row.count,
+        count,
         current: row.deviceId === requestingDeviceId,
       });
     }
@@ -202,6 +207,8 @@ export class PlaysService {
           releaseId: playCounts.releaseId,
           plays: sql<number>`sum(${playCounts.count})`,
           devicePlays: sql<number>`sum(case when ${playCounts.deviceId} = ${deviceId} then ${playCounts.count} else 0 end)`,
+          spotifyPlays: sql<number>`sum(case when ${playCounts.source} = 'spotify' then ${playCounts.count} else 0 end)`,
+          locallyPlays: sql<number>`sum(case when ${playCounts.source} = 'locally' then ${playCounts.count} else 0 end)`,
         })
         .from(playCounts)
         .innerJoin(releases, eq(releases.id, playCounts.releaseId))
@@ -214,6 +221,8 @@ export class PlaysService {
           releaseId: playDays.releaseId,
           plays: sql<number>`sum(${playDays.count})`,
           devicePlays: sql<number>`sum(case when ${playDays.deviceId} = ${deviceId} then ${playDays.count} else 0 end)`,
+          spotifyPlays: sql<number>`sum(case when ${playDays.source} = 'spotify' then ${playDays.count} else 0 end)`,
+          locallyPlays: sql<number>`sum(case when ${playDays.source} = 'locally' then ${playDays.count} else 0 end)`,
           lastPlayedDay: sql<string>`max(case when ${playDays.count} > 0 then ${playDays.day} end)`,
         })
         .from(playDays)
@@ -242,8 +251,15 @@ export class PlaysService {
           plays: Number(r.plays),
           devicePlays: Number(r.devicePlays),
           lastPlayedDay: r.lastPlayedDay,
+          bySource: { spotify: Number(r.spotifyPlays), locally: Number(r.locallyPlays) },
         })),
-      allTime: allTimeRows.map((r) => ({ trackId: r.trackId, releaseId: r.releaseId, plays: Number(r.plays), devicePlays: Number(r.devicePlays) })),
+      allTime: allTimeRows.map((r) => ({
+        trackId: r.trackId,
+        releaseId: r.releaseId,
+        plays: Number(r.plays),
+        devicePlays: Number(r.devicePlays),
+        bySource: { spotify: Number(r.spotifyPlays), locally: Number(r.locallyPlays) },
+      })),
       nextCursor: hasMore ? lastId : null,
     };
   }

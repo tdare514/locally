@@ -179,7 +179,7 @@ sync at runtime.
 | GET `/v1/releases/:id/files/:name` | | `{ url, expiresAt }` download URL |
 | GET `/v1/files/missing` | | `{ releases: [{ id, missing: [names], recordUpdatedAt }], checkedAt, truncated? }`; the caller's live releases with files that are not stored; `truncated` is `true` only when a cap cut the check short; see "Missing files" |
 | POST `/v1/files/resync-request` | none | `{ resyncRequestedAt }` (ISO); records that this account asked its devices to re-send files; see "Missing files" |
-| PUT `/v1/plays` | `{ counts: [{ releaseId, trackId, count, days?: [{ day, count }] }] }`, 1 to 500 entries | `{ accepted, ignored }`; see "Play counts" |
+| PUT `/v1/plays` | `{ counts: [{ releaseId, trackId, count, source?, days?: [{ day, count }] }] }`, 1 to 500 entries | `{ accepted, ignored }`; see "Play counts" |
 | GET `/v1/releases/:id/plays` | | `{ tracks: [{ trackId, total, devices: [{ deviceId, name, platform, count, current }] }] }`; 404 for a release that isn't the user's or is tombstoned |
 | POST `/v1/shares` | `{ releaseId, trackIds?, recipients, visibility, allowReshare, expiresInDays }` | 201 `{ share, notOnLocally, link }`; see "Shares" |
 | GET `/v1/shares?role=sent\|received&cursor&limit` | `limit` 1 to 100 (default 50) | `{ shares: [SentShare \| ReceivedShare], nextCursor }` |
@@ -342,6 +342,20 @@ the shipped web and iOS clients are unaffected. The Mac app pushing and displayi
   route) and an empty `tracks` list for a release with no plays. `current` is true for the
   requesting device. Devices are listed with their stored name and platform even when revoked,
   because their plays still count. `total` is the sum over all devices.
+- **Source (#340).** An entry may carry `source`: `"spotify"` or `"locally"`, where the play was
+  counted. Absent means `"spotify"`; any other value (including `null` or a different case) is a
+  400. The server keeps counts apart per source: `max(stored, sent)` applies per (device, track,
+  source), and per (device, track, source, day) for day buckets, so a Spotify count and a Locally
+  count for one track never overwrite each other. An entry's `days` carry the entry's source.
+  Reads sum every source, so `total`, a device's `count`, `plays` and `devicePlays` are the same
+  numbers as before for existing data (every row stored before #340 is `spotify`). Each
+  `tracks[]` and `allTime[]` entry of `GET /v1/plays/summary` also carries
+  `bySource: { spotify, locally }` (both numbers always present); `plays` is their sum. The
+  cloud sampler writes `spotify`.
+- **Effect on clients (#340).** Shipped clients send no `source` (= `spotify`) and read the same
+  totals, and they ignore `bySource`. The Mac (#338) and the iPhone (#337) will send `locally` for
+  plays inside Locally. The UI still shows one total; the split is kept so a breakdown can come
+  later.
 - Play counts of a tombstoned release are never served and are deleted by the daily cleanup,
   on the same 30-day schedule as the release's files; deleting the account deletes them at once.
 - **Day buckets (#193, #201).** An entry may carry an optional `days: [{ day, count }]`: this

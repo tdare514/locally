@@ -265,6 +265,10 @@ export const PLAYS_SUMMARY_PAGE_SIZE = 1_000;
 /** A strict `YYYY-MM-DD` that is a real calendar date. */
 export const daySchema = z.string().refine(isRealDay, "Must be a real date as YYYY-MM-DD");
 
+/** Where a play was counted (#340): Spotify (the cloud sampler, shipped clients) or inside Locally. */
+export const playSourceSchema = z.enum(["spotify", "locally"]);
+export type PlaySource = z.infer<typeof playSourceSchema>;
+
 /** Body of `PUT /v1/plays`. Strict: a body naming a device or user (or anything else unknown) is refused. */
 export const playCountsRequestSchema = z
   .object({
@@ -275,6 +279,8 @@ export const playCountsRequestSchema = z
             releaseId: uuidSchema,
             trackId: uuidSchema,
             count: z.number().int().min(0).max(MAX_PLAY_COUNT),
+            /** Absent means `spotify`. */
+            source: playSourceSchema.optional(),
             days: z
               .array(
                 z
@@ -332,9 +338,15 @@ export const playsSummaryQuerySchema = z.object({
 export type PlaysSummaryQuery = z.infer<typeof playsSummaryQuerySchema>;
 
 /** `devicePlays` is the calling device's own share of `plays` (the rest comes from the user's other devices). */
+export interface PlaysBySource {
+  spotify: number;
+  locally: number;
+}
+
+/** `bySource` splits `plays` by where they were counted (#340); `plays` is still the sum. */
 export interface PlaysSummaryResponse {
-  tracks: Array<{ trackId: string; releaseId: string; plays: number; devicePlays: number; lastPlayedDay: string }>;
-  allTime: Array<{ trackId: string; releaseId: string; plays: number; devicePlays: number }>;
+  tracks: Array<{ trackId: string; releaseId: string; plays: number; devicePlays: number; lastPlayedDay: string; bySource: PlaysBySource }>;
+  allTime: Array<{ trackId: string; releaseId: string; plays: number; devicePlays: number; bySource: PlaysBySource }>;
   nextCursor: string | null;
 }
 
