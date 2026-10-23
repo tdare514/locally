@@ -244,9 +244,10 @@ struct FriendShareTests {
         let covers: FakeCoverStore
     }
 
-    private func makeHarness(m4aWriter: TagWriter = M4ATagWriter()) -> Harness {
-        let library = InMemoryLibraryStore()
-        let api = FakeSyncApi()
+    private func makeHarness(
+        m4aWriter: TagWriter = M4ATagWriter(), api: FakeSyncApi = FakeSyncApi(),
+        defaults: UserDefaults = UserDefaults(suiteName: UUID().uuidString)!, library: InMemoryLibraryStore = InMemoryLibraryStore()
+    ) -> Harness {
         let folderDir = FileManager.default.temporaryDirectory.appendingPathComponent("ShareTests-\(UUID().uuidString)", isDirectory: true)
         let folder = FakeSpotifyFolder(directory: folderDir)
         let covers = FakeCoverStore()
@@ -256,7 +257,7 @@ struct FriendShareTests {
         let account = InMemorySyncAccountStore()
         account.save(email: "toby@example.com", deviceToken: "t", deviceId: "d")
         let engine = SyncEngine(api: api, account: account, library: library, coordinator: coordinator, coverStore: covers,
-                                outbox: InMemorySyncOutbox(), deviceName: { "Phone" }, defaults: UserDefaults(suiteName: UUID().uuidString)!)
+                                outbox: InMemorySyncOutbox(), deviceName: { "Phone" }, defaults: defaults)
         return Harness(library: library, folder: folderDir, api: api, engine: engine, covers: covers)
     }
 
@@ -394,28 +395,97 @@ struct FriendShareTests {
         #expect(written.isEmpty)
     }
 
-    @Test func aFailedSendKeepsTheRowEvenOnceTheServerMarksItClaimed() async throws {
-        let h = makeHarness()
+    @Test func anImportFailureClaimsNothingAndTheRowSurvivesARelaunch() async throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let api = FakeSyncApi()
+        let h = makeHarness(api: api, defaults: defaults)
         defer { try? FileManager.default.removeItem(at: h.folder) }
         let snapshot = try albumSnapshot()
-        h.api.receivedSharesResult = .success([received(snapshot: snapshot)])
-        h.api.downloadFailCountRemaining = ["01 - Intro.mp3": 1]
+        api.receivedSharesResult = .success([received(snapshot: snapshot)])
+        api.downloadFailCountRemaining = ["01 - Intro.mp3": 1]
         await h.engine.refreshReceivedShares()
 
         await h.engine.sendShareToSpotify("share-1")
+
+        #expect(api.claimedShareIds.isEmpty, "nothing is claimed before the import")
         #expect(h.engine.status.failedShareIds == ["share-1"])
+        #expect(h.engine.status.receivedShares.map(\.id) == ["share-1"])
         #expect(try h.library.all().isEmpty)
 
-        // The server now lists it as claimed (the claim came first), but it has not been imported.
-        h.api.receivedSharesResult = .success([received(claimed: Date(), snapshot: snapshot)])
+        // A relaunch: a new engine over the same defaults still lists it, and a retry imports it.
+        let again = makeHarness(api: api, defaults: defaults)
+        await again.engine.refreshReceivedShares()
+        #expect(again.engine.status.receivedShares.map(\.id) == ["share-1"])
+        await again.engine.sendShareToSpotify("share-1")
+        let importedCount = try again.library.all().count
+        #expect(importedCount == 1 && api.claimedShareIds == ["share-1"])
+        try? FileManager.default.removeItem(at: again.folder)
+    }
+
+    @Test func aClaimThatFailsAfterTheImportHidesTheRowAndIsRetriedNextReconcile() async throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let api = FakeSyncApi()
+        let h = makeHarness(api: api, defaults: defaults)
+        defer { try? FileManager.default.removeItem(at: h.folder) }
+        let snapshot = try albumSnapshot()
+        api.receivedSharesResult = .success([received(snapshot: snapshot)])
+        api.claimShareError = SyncApiError.unreachable("offline")
         await h.engine.refreshReceivedShares()
-        #expect(h.engine.status.receivedShares.map(\.id) == ["share-1"])
-        let rows = DevicesTrayModel.friendRows(shares: h.engine.status.receivedShares, accepting: [], failed: h.engine.status.failedShareIds)
-        #expect(rows.first?.state == .failed && rows.first?.showsRetry == true)
 
         await h.engine.sendShareToSpotify("share-1")
-        #expect(h.engine.status.receivedShares.isEmpty && h.engine.status.failedShareIds.isEmpty)
-        #expect(try h.library.all().count == 1)
+
+        #expect(try h.library.all().count == 1, "imported")
+        #expect(api.claimedShareIds.isEmpty && h.engine.status.receivedShares.isEmpty)
+        await h.engine.refreshReceivedShares()
+        #expect(h.engine.status.receivedShares.isEmpty, "still hidden while the server says unclaimed")
+
+        // Back online, after a relaunch: the next reconcile claims it, and it is not imported twice.
+        api.claimShareError = nil
+        let again = makeHarness(api: api, defaults: defaults, library: h.library)
+        await again.engine.reconcile()
+        #expect(api.claimedShareIds == ["share-1"])
+        let importedCount = try h.library.all().count
+        #expect(again.engine.status.receivedShares.isEmpty && importedCount == 1)
+        try? FileManager.default.removeItem(at: again.folder)
+    }
+
+    @Test func aPartialShareImportsJustItsTracksRenumberedFromOne() async throws {
+        let h = makeHarness()
+        defer { try? FileManager.default.removeItem(at: h.folder) }
+        let full = try albumSnapshot()
+        // One song from the album: it was track 2 on disc 2, and no other disc remains.
+        var oneSong = full
+        oneSong.tracks = [full.tracks[1]]
+        h.api.receivedSharesResult = .success([ReceivedShare(
+            id: "share-1", from: ShareSender(email: "friend@example.com"), trackIds: [full.tracks[1].id], allowReshare: false, canReshare: false,
+            expiresAt: nil, createdAt: Date(), claimedAt: nil, snapshot: oneSong)])
+        await h.engine.refreshReceivedShares()
+
+        await h.engine.sendShareToSpotify("share-1")
+
+        let release = try #require(try h.library.all().first)
+        #expect(release.kind == .album && release.title == "Night Drive", "title and kind stay as the snapshot says")
+        #expect(release.tracks.map(\.trackNumber) == [1] && release.tracks[0].discNumber == nil)
+        let frames = try id3Frames(URL(fileURLWithPath: release.tracks[0].filePath))
+        #expect(frames["TRCK"] == "1/1" && frames["TPOS"] == nil && frames["TIT2"] == "Outro")
+        #expect((release.tracks[0].filePath as NSString).lastPathComponent == "Chromatics - Night Drive - 01 - Outro.mp3")
+    }
+
+    @Test func aPartialShareKeepsDiscsOnlyWhileSeveralRemain() async throws {
+        let h = makeHarness()
+        defer { try? FileManager.default.removeItem(at: h.folder) }
+        func track(_ n: Int, disc: Int) -> ShareSnapshotTrack {
+            ShareSnapshotTrack(id: UUID().uuidString, title: "T\(n)", trackNumber: n, discNumber: disc, file: "t\(n).mp3", bytes: 1)
+        }
+        let snapshot = ShareSnapshot(kind: "album", title: "Box", artist: "A", tracks: [track(3, disc: 1), track(7, disc: 2), track(9, disc: 2)])
+        h.api.receivedSharesResult = .success([ReceivedShare(
+            id: "share-1", from: ShareSender(email: "f@example.com"), trackIds: snapshot.tracks.map(\.id), allowReshare: false, canReshare: false,
+            expiresAt: nil, createdAt: Date(), claimedAt: nil, snapshot: snapshot)])
+        await h.engine.refreshReceivedShares()
+        await h.engine.sendShareToSpotify("share-1")
+
+        let release = try #require(try h.library.all().first)
+        #expect(release.tracks.map(\.trackNumber) == [1, 2, 3] && release.tracks.map(\.discNumber) == [1, 2, 2])
     }
 
     @Test func theTrayHidesAClaimedShareAndShowsTheSenderAsTheOriginLine() async throws {

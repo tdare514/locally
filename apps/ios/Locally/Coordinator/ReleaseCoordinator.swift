@@ -596,17 +596,29 @@ final class ReleaseCoordinator {
     /// files (in `dir`, named as the snapshot names them) tagged from the snapshot through the same
     /// writers an import uses, then moved into Spotify's folder under the usual flat name and
     /// indexed. The snapshot, not the downloaded files' own tags, says what the tags are. It then
-    /// syncs like any release.
-    func importShared(_ snapshot: ShareSnapshot, dir: URL) async throws -> Release {
+    /// syncs like any release. A partial share (`isPartial`, the sender chose some tracks) becomes a
+    /// release of just those tracks, numbered 1...n in snapshot order, with a disc kept only if the
+    /// tracks left still span more than one; title and kind stay as the snapshot says.
+    func importShared(_ snapshot: ShareSnapshot, dir: URL, isPartial: Bool = false) async throws -> Release {
         guard let kind = ReleaseKind(rawValue: snapshot.kind) else {
             throw LocallyError.libraryFailed("That release's kind wasn't recognised.")
         }
         guard !snapshot.tracks.isEmpty else {
             throw LocallyError.importFailed("That share has no tracks.")
         }
-        let ordered = snapshot.tracks.enumerated().sorted { a, b in
-            a.element.trackNumber != b.element.trackNumber ? a.element.trackNumber < b.element.trackNumber : a.offset < b.offset
-        }.map(\.element)
+        var ordered = snapshot.tracks
+        if isPartial {
+            let spansDiscs = Set(ordered.map { $0.discNumber ?? 1 }).count > 1
+            for index in ordered.indices {
+                ordered[index].trackNumber = index + 1
+                if !spansDiscs { ordered[index].discNumber = nil }
+            }
+        } else {
+            // Stable: equal numbers keep the snapshot's order.
+            ordered = ordered.enumerated().sorted { a, b in
+                a.element.trackNumber != b.element.trackNumber ? a.element.trackNumber < b.element.trackNumber : a.offset < b.offset
+            }.map(\.element)
+        }
         let releaseId = UUID()
         let date = snapshot.date
 

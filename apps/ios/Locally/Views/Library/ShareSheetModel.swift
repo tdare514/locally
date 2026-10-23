@@ -61,6 +61,12 @@ enum ShareExpiry: Hashable, CaseIterable {
 }
 
 enum ShareEmail {
+    /// The address for drawing: a zero-width space after each "@" and "." so a long one breaks only
+    /// there, never inside a word with a hyphen. Display only; the stored address is untouched.
+    static func breakable(_ email: String) -> String {
+        email.replacingOccurrences(of: "@", with: "@\u{200B}").replacingOccurrences(of: ".", with: ".\u{200B}")
+    }
+
     /// The address trimmed and lower-cased, or nil when it is not shaped like an email.
     static func normalize(_ raw: String) -> String? {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()

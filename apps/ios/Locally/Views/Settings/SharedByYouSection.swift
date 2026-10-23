@@ -203,20 +203,22 @@ struct SentShareRow: View {
     }
 
     private func recipientLine(_ recipient: ShareRecipient) -> some View {
-        let state = recipient.claimedAt != nil ? Copy.Share.recipientAdded : Copy.Share.recipientNotYet
+        let added = recipient.claimedAt != nil
+        let state = added ? Copy.Share.recipientAdded : Copy.Share.recipientNotYet
+        let email = Text(recipient.email).foregroundStyle(Theme.primaryText)
+        let stateText = Text(state).foregroundStyle(added ? Theme.Tint.accentText : Theme.secondaryText)
         return ViewThatFits(in: .horizontal) {
             HStack {
-                Text(recipient.email).addressLineLimit()
+                email.addressLineLimit()
                 Spacer(minLength: 8)
-                Text(state)
+                stateText
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(recipient.email).addressLineLimit()
-                Text(state)
+                Text(ShareEmail.breakable(recipient.email)).foregroundStyle(Theme.primaryText)
+                stateText
             }
         }
         .font(Theme.ScaledFont.caption)
-        .foregroundStyle(recipient.claimedAt != nil ? Theme.Tint.accentText : Theme.secondaryText)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(recipient.email), \(state)")
     }

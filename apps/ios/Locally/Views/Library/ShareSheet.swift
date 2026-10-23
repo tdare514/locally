@@ -347,8 +347,9 @@ struct EmailPill: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Text(email)
+            Text(ShareEmail.breakable(email))
                 .font(Theme.ScaledFont.subheadline)
+                .accessibilityLabel(email)
                 .foregroundStyle(Theme.primaryText)
                 .multilineTextAlignment(.leading)
                 .padding(.leading, 14)

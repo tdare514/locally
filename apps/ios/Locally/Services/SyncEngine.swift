@@ -1214,20 +1214,57 @@ final class SyncEngine: ReleaseSyncHook {
 
     private var reservedShareIds: Set<String> = []
 
-    /// Reads the shares sent to this account and keeps the unclaimed ones for the tray. A share whose
-    /// last send failed stays even if the server already marks it claimed (the claim comes first).
-    /// Quiet: an API without the route, or any failure, leaves the list as it was and sets no error.
+    static let importedSharesKey = "com.tdare.locally.sync.importedShares.v1"
+    static let unclaimedImportedSharesKey = "com.tdare.locally.sync.unclaimedImportedShares.v1"
+
+    /// Ids of shares this phone has imported: the tray hides them even before the claim succeeds,
+    /// and across a relaunch.
+    private var importedShareIds: Set<String> {
+        get { Set(defaults.stringArray(forKey: Self.importedSharesKey) ?? []) }
+        set { defaults.set(newValue.sorted(), forKey: Self.importedSharesKey) }
+    }
+    /// Imported shares whose `POST /claim` has not been confirmed yet; each reconcile retries them.
+    private var unclaimedImportedShareIds: Set<String> {
+        get { Set(defaults.stringArray(forKey: Self.unclaimedImportedSharesKey) ?? []) }
+        set { defaults.set(newValue.sorted(), forKey: Self.unclaimedImportedSharesKey) }
+    }
+
+    /// Reads the shares sent to this account and keeps the unclaimed, not-yet-imported ones for the
+    /// tray, then retries claims owed for shares already imported. Quiet: an API without the route,
+    /// or any failure, leaves the list as it was and sets no error.
     func refreshReceivedShares() async {
         guard isSignedIn else { return }
         guard let shares = try? await api.receivedShares(), isSignedIn else { return }
-        let failed = status.failedShareIds
-        status.receivedShares = shares.filter { $0.claimedAt == nil || failed.contains($0.id) || reservedShareIds.contains($0.id) }
+        let listed = Set(shares.map(\.id))
+        // A share the server no longer lists (hidden, revoked, expired) needs no bookkeeping.
+        importedShareIds = importedShareIds.intersection(listed)
+        unclaimedImportedShareIds = unclaimedImportedShareIds.intersection(listed)
+        let imported = importedShareIds
+        status.receivedShares = shares.filter { share in
+            reservedShareIds.contains(share.id) || (share.claimedAt == nil && !imported.contains(share.id))
+        }
         status.failedShareIds.formIntersection(status.receivedShares.map(\.id))
+        await retryOwedClaims()
     }
 
-    /// "Send to Spotify" on a friend's share: claims it, downloads each file from the share, then
-    /// writes a new release (fresh ids, tagged from the snapshot) into the Spotify folder and the
-    /// library. A failure keeps the row, marked failed, for another try.
+    private func retryOwedClaims() async {
+        for id in unclaimedImportedShareIds where !reservedShareIds.contains(id) {
+            do {
+                _ = try await api.claimShare(id)
+                unclaimedImportedShareIds.remove(id)
+            } catch SyncApiError.notFound {
+                unclaimedImportedShareIds.remove(id)
+            } catch {
+                // Kept for the next reconcile.
+            }
+        }
+    }
+
+    /// "Send to Spotify" on a friend's share: downloads each file from the share, writes a new
+    /// release (fresh ids, tagged from the snapshot) into the Spotify folder and the library, and
+    /// only then claims the share. A failed download or import claims nothing and leaves the row,
+    /// marked failed, for another try. A claim that fails after the import is retried on the next
+    /// reconcile; the row is already hidden.
     func sendShareToSpotify(_ id: String) async {
         guard let share = status.receivedShares.first(where: { $0.id == id }), !reservedShareIds.contains(id) else { return }
         reservedShareIds.insert(id)
@@ -1241,7 +1278,6 @@ final class SyncEngine: ReleaseSyncHook {
         do {
             try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: tempDir) }
-            _ = try await api.claimShare(id)
             for track in share.snapshot.tracks {
                 try await downloadShareFile(shareId: id, name: track.file, into: tempDir)
             }
@@ -1249,12 +1285,21 @@ final class SyncEngine: ReleaseSyncHook {
                 try await downloadShareFile(shareId: id, name: cover, into: tempDir)
             }
             // A new release of this account: the coordinator queues its push like any import.
-            _ = try await coordinator.importShared(share.snapshot, dir: tempDir)
-            status.receivedShares.removeAll { $0.id == id }
-            status.failedShareIds.remove(id)
+            _ = try await coordinator.importShared(share.snapshot, dir: tempDir, isPartial: share.trackIds != nil)
         } catch {
             status.failedShareIds.insert(id)
             status.lastError = error.localizedDescription
+            return
+        }
+        importedShareIds.insert(id)
+        unclaimedImportedShareIds.insert(id)
+        status.receivedShares.removeAll { $0.id == id }
+        status.failedShareIds.remove(id)
+        do {
+            _ = try await api.claimShare(id)
+            unclaimedImportedShareIds.remove(id)
+        } catch {
+            // Imported, so the row stays hidden; the next reconcile claims it.
         }
     }
 

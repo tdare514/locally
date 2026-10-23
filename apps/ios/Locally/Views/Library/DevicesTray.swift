@@ -108,7 +108,7 @@ struct DevicesTrayModel: Equatable {
 
     /// The "From your friends" rows (#183): unclaimed shares, in server order.
     static func friendRows(shares: [ReceivedShare], accepting: Set<String>, failed: Set<String>) -> [DevicesTrayRow] {
-        shares.filter { $0.claimedAt == nil || failed.contains($0.id) || accepting.contains($0.id) }.map { share in
+        shares.filter { $0.claimedAt == nil || accepting.contains($0.id) }.map { share in
             let state: DevicesTrayRowState = accepting.contains(share.id) ? .sending
                 : failed.contains(share.id) ? .failed : .ready
             return DevicesTrayRow(id: share.id, title: share.snapshot.title, artist: share.snapshot.artist,
@@ -508,6 +508,10 @@ struct DevicesTrayRowView: View {
                 Text(row.originLine)
                     .font(.system(size: labelSize))
                     .foregroundStyle(Theme.textDim)
+                    // One line, the middle cut; VoiceOver still reads the whole address.
+                    .lineLimit(row.isFriend ? 1 : nil)
+                    .truncationMode(.middle)
+                    .accessibilityLabel(row.originLine)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
