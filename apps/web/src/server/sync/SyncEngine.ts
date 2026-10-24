@@ -12,6 +12,7 @@ import { assertReadablePath, assertWritable, isAdoptedCoverPath } from "../adopt
 import type { ReleaseService } from "../releases/ReleaseService";
 import type { ReleaseSyncHooks } from "../releases/ReleaseSyncHooks";
 import type { PlayCountStore } from "../plays/PlayCountStore";
+import { isPendingEvent, MAX_PLAY_EVENTS_PER_PUSH, type PlayEventStore } from "../plays/PlayEventStore";
 import { batchPlayEntries, pendingPlayEntries } from "../plays/releasePlays";
 import { invalidateServerSummary } from "../plays/serverSummary";
 import {
@@ -180,7 +181,9 @@ export class SyncEngine implements ReleaseSyncHooks {
     /** Where received shares' covers are kept so the tray's pictures are downloaded once (#182). */
     private readonly coverCacheDir: () => string = () => path.join(settingsDir(), "share-covers"),
     /** This Mac's collections (#349); null in tests that don't care, which skips the collections sync. */
-    private readonly collections: CollectionStore | null = null
+    private readonly collections: CollectionStore | null = null,
+    /** This Mac's play events (#398); null in tests that don't care, which skips the events push. */
+    private readonly playEvents: PlayEventStore | null = null,
   ) {}
 
   /** Set while the service refuses a new collection (it holds 1,000); cleared by the next pass that gets through. */
@@ -650,6 +653,8 @@ export class SyncEngine implements ReleaseSyncHooks {
       // After the releases above, so the service already holds the release each count belongs to
       // (it ignores counts for a release it doesn't have).
       await this.pushPlays(api);
+      // Never throws: events are an extra, and a service without them (404) is not an error.
+      await this.pushPlayEvents(api);
 
       this.lastError = null;
     } catch (err) {
@@ -828,6 +833,41 @@ export class SyncEngine implements ReleaseSyncHooks {
     // one whose counts went through without days) leaves its days off, so the summary merge keeps
     // subtracting this Mac's local days rather than risk counting a copy the service still holds twice.
     if (!refused && !before.daysInSync && store.pushedEpoch() === epoch) await store.markDaysInSync(epoch);
+  }
+
+  /**
+   * Sends the play events (#398) whose `listenedMs` the service has not seen, 500 to a request, and marks each
+   * batch on success. A 404 (an API from before play events), a 429 or any other failure stops the pass and
+   * leaves the rest pending, with no error line: the next reconcile tries again. A sign-out in flight (the
+   * store's epoch moved) marks nothing.
+   */
+  private async pushPlayEvents(api: SyncApi): Promise<void> {
+    const store = this.playEvents;
+    if (!store) return;
+    try {
+      const epoch = store.pushedEpoch();
+      const pending = (await store.list()).filter(isPendingEvent).sort((a, b) => a.startedAt - b.startedAt);
+      for (let i = 0; i < pending.length; i += MAX_PLAY_EVENTS_PER_PUSH) {
+        if (store.pushedEpoch() !== epoch) return;
+        const batch = pending.slice(i, i + MAX_PLAY_EVENTS_PER_PUSH);
+        await api.pushPlayEvents(
+          batch.map((e) => ({
+            id: e.id,
+            releaseId: e.releaseId,
+            trackId: e.trackId,
+            source: e.source,
+            startedAt: e.startedAt,
+            day: e.day,
+            listenedMs: e.listenedMs,
+          })),
+        );
+        await store.markPushed(Object.fromEntries(batch.map((e) => [e.id, e.listenedMs])), epoch);
+        // A service summary read before this push must not be merged with markers read after it.
+        invalidateServerSummary();
+      }
+    } catch {
+      // Left pending: a 404, a 429, an expired sign-in or a dropped connection all try again next time.
+    }
   }
 
   /**

@@ -3,6 +3,7 @@ import type { SettingsStore } from "../config/SettingsStore";
 import type { LibraryRepository } from "../storage/LibraryRepository";
 import { resolveLocalTrack } from "./LocalTrackResolver";
 import type { PlayCountStore } from "./PlayCountStore";
+import { MAX_EVENT_LISTENED_MS, type PlayEventStore } from "./PlayEventStore";
 import { PlayCounter } from "./PlayCounter";
 import { localDay } from "./playDays";
 import type { SpotifyNowPlaying } from "./SpotifyNowPlaying";
@@ -14,6 +15,8 @@ export const DEFAULT_POLL_INTERVAL_MS = 5000;
 export const IDLE_POLL_INTERVAL_MS = 30_000;
 /** Once nothing has played this long, poll at the idle interval until something plays again (#228). */
 export const IDLE_AFTER_NOT_PLAYING_MS = 120_000;
+/** More audible time a counted Spotify play gathers before its event is written again (#398). */
+export const EVENT_STEP_MS = 15_000;
 
 /**
  * Polls Spotify while the user has opted in, feeds samples to {@link PlayCounter} and
@@ -32,6 +35,8 @@ export class PlayTracker {
   private notPlayingSince: number | null = null;
   /** True while the sync service counts plays online and this Mac stays out of it (#307). */
   private standDown = false;
+  /** The counted play whose event is being raised as samples come in (#398); null when none is. */
+  private eventSession: { trackId: string; releaseId: string; startedAt: number; written: number; latest: number } | null = null;
 
   constructor(
     private readonly nowPlaying: SpotifyNowPlaying,
@@ -47,6 +52,8 @@ export class PlayTracker {
     private readonly online?: Pick<CloudPlays, "active" | "refreshIfStale">,
     /** Locally's own player (#338): a Spotify read of the track it is playing is ignored, so a play never counts twice. */
     private readonly locally?: Pick<LocallyNowPlaying, "trackId">,
+    /** Play events (#398): one is written where a play counts, and its listened time grows with the samples. */
+    private readonly events?: Pick<PlayEventStore, "record">,
   ) {}
 
   setEnabled(enabled: boolean): void {
@@ -102,6 +109,7 @@ export class PlayTracker {
         if (this.standDown) {
           // End the counter's session so resuming re-anchors instead of crediting the gap.
           this.lastStatus = "on";
+          this.eventSession = null;
           this.counter.push({ at: this.now(), running: false, state: "stopped", id: null, positionSec: 0, durationMs: 0 });
           return;
         }
@@ -150,10 +158,14 @@ export class PlayTracker {
       }
       const counted = this.counter.push({ at, ...result });
       if (counted) await this.record(counted, at);
+
     } catch (err) {
       console.warn("Play tracker poll failed:", err instanceof Error ? err.message : err);
     } finally {
+      // Started before `polling` is released, so its reads of the counter are not interleaved with the next poll's.
+      const raising = this.eventSession ? this.raiseEvent() : null;
       this.polling = false;
+      await raising;
     }
   }
 
@@ -166,6 +178,26 @@ export class PlayTracker {
     return resolved.kind === "match" && resolved.trackId === playing;
   }
 
+  /**
+   * Raises the open event's `listenedMs` to the counter's, when the play is paused or has gathered `EVENT_STEP_MS`
+   * more since the last write, and writes its final value once the session is over (#398). Never throws into the poll.
+   */
+  private async raiseEvent(): Promise<void> {
+    const open = this.eventSession;
+    if (!open || !this.events) return;
+    const session = this.counter.session();
+    const same = session !== null && session.startedAt === open.startedAt && session.counted;
+    if (same) open.latest = Math.min(session.listenedMs, MAX_EVENT_LISTENED_MS);
+    else this.eventSession = null;
+    // Written when paused, when the session is over, or after another EVENT_STEP_MS of listening.
+    const due = !same || !session.playing || open.latest - open.written >= EVENT_STEP_MS;
+    if (!due || open.latest <= open.written) return;
+    open.written = open.latest;
+    await this.events
+      .record({ releaseId: open.releaseId, trackId: open.trackId, source: "spotify", startedAt: open.startedAt, listenedMs: open.latest })
+      .catch((err) => console.warn("Play tracker could not update a play event:", err instanceof Error ? err.message : err));
+  }
+
   private async record(spotifyId: string, at: number): Promise<void> {
     const settings: Settings = await this.settings.get();
     const releases: Release[] = await this.library.list(settings.libraryDir);
@@ -173,6 +205,14 @@ export class PlayTracker {
     if (resolved.kind === "match") {
       // The day is the Mac's local date when the play counted, not when the library lookup finished.
       await this.store.increment(resolved.trackId, resolved.releaseId, localDay(at, this.timeZone));
+      const session = this.counter.session();
+      if (this.events && session) {
+        const listenedMs = Math.min(session.listenedMs, MAX_EVENT_LISTENED_MS);
+        this.eventSession = { trackId: resolved.trackId, releaseId: resolved.releaseId, startedAt: session.startedAt, written: listenedMs, latest: listenedMs };
+        await this.events
+          .record({ releaseId: resolved.releaseId, trackId: resolved.trackId, source: "spotify", startedAt: session.startedAt, listenedMs })
+          .catch((err) => console.warn("Play tracker could not write a play event:", err instanceof Error ? err.message : err));
+      }
     } else if (resolved.kind === "ambiguous" && !this.warnedAmbiguous.has(spotifyId)) {
       this.warnedAmbiguous.add(spotifyId);
       console.warn("Play tracker: a Spotify local file matches more than one Locally track; not counted.");

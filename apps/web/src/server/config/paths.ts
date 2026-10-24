@@ -52,6 +52,11 @@ export function playsFilePath(): string {
   return path.join(settingsDir(), "plays.json");
 }
 
+/** Full path to the local play events file (#398), next to plays.json. */
+export function playEventsFilePath(): string {
+  return path.join(settingsDir(), "play-events.json");
+}
+
 /** Full path to the collections file (#349), next to settings.json. */
 export function collectionsFilePath(): string {
   return path.join(settingsDir(), "collections.json");

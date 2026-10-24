@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { medalFor, type StatItem } from "../../lib/play-stats";
+import { lastPlayedAtLabel, medalFor, type StatItem } from "../../lib/play-stats";
 import { formatCount, lastPlayedLabel, playsCount } from "../../lib/stats-copy";
 import { moreLabel, nextShown, seaTiers } from "../../lib/stats-layout";
 import StatCover, { statCoverUrl } from "../sidebar/StatCover";
@@ -111,7 +111,7 @@ export function StatsList({
                   {linkArtists && item.subtitle.trim() !== "" ? <ArtistLinks artist={item.subtitle} featuring={trackRows ? splitFeaturing(item.title).featuring : []} /> : item.subtitle}
                 </span>
               </span>
-              <span className="st-row-last truncate text-sm text-text-muted">{lastPlayedLabel(item.lastPlayedDay, today)}</span>
+              <span className="st-row-last truncate text-sm text-text-muted">{item.lastPlayedAt !== null ? lastPlayedAtLabel(item.lastPlayedAt, today) : lastPlayedLabel(item.lastPlayedDay, today)}</span>
               <span className="st-row-bar flex items-center gap-3">
                 <PlayBar plays={item.plays} max={max} />
               </span>

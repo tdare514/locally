@@ -8,10 +8,13 @@ import { PublicError } from "../../shared/errors";
 import type { CloudPlaysProblem } from "../../shared/types";
 import {
   PlayCountsResultSchema,
+  ServerPlayEventsPageSchema,
   ServerPlaysSummaryPageSchema,
   ServerReleasePlaysSchema,
   type PlayCountsResult,
   type PlayEntry,
+  type PlayEventWire,
+  type ServerPlayEventsPage,
   type ServerPlaysSummaryPage,
   type ServerReleasePlays,
 } from "../plays/playsWire";
@@ -217,6 +220,11 @@ export interface SyncApi {
   /** `GET /v1/plays/summary?from&to[&cursor]`: one page of every device's plays in the date range
    * and all time (#201). Throws `SyncRequestError` with the status on a 404 or 429. */
   playsSummary(from: string, to: string, cursor?: string): Promise<ServerPlaysSummaryPage>;
+  /** `PUT /v1/plays/events` (#398): up to 500 play events; a known id raises its `listenedMs`. Throws
+   * `SyncRequestError` with the status on a 404 (an API from before play events) or a 429. */
+  pushPlayEvents(events: PlayEventWire[]): Promise<PlayCountsResult>;
+  /** `GET /v1/plays/events?from&to[&cursor]` (epoch ms): one page of every device's events, newest first. */
+  playEvents(from: number, to: number, cursor?: string): Promise<ServerPlayEventsPage>;
   /** `GET /v1/files/missing`: the caller's releases whose files are not stored. Resolves null when
    * the service answers 404, an API from before #170: callers carry on as they did without it. */
   missingFiles(): Promise<MissingFilesResult | null>;
@@ -476,6 +484,30 @@ export class HttpSyncApi implements SyncApi {
     });
     const parsed = ServerPlaysSummaryPageSchema.safeParse(await this.handle<unknown>(res));
     if (!parsed.success) throw new PublicError("Sync service sent an unexpected reply for the play summary");
+    return parsed.data;
+  }
+
+  async pushPlayEvents(events: PlayEventWire[]): Promise<PlayCountsResult> {
+    const res = await fetch(this.url("/v1/plays/events"), {
+      method: "PUT",
+      headers: this.headers(true),
+      body: JSON.stringify({ events }),
+      signal: AbortSignal.timeout(PLAYS_PUSH_TIMEOUT_MS),
+    });
+    const parsed = PlayCountsResultSchema.safeParse(await this.handle<unknown>(res));
+    if (!parsed.success) throw new PublicError("Sync service sent an unexpected reply to a play events push");
+    return parsed.data;
+  }
+
+  async playEvents(from: number, to: number, cursor?: string): Promise<ServerPlayEventsPage> {
+    const query = new URLSearchParams({ from: String(from), to: String(to) });
+    if (cursor) query.set("cursor", cursor);
+    const res = await fetch(this.url(`/v1/plays/events?${query.toString()}`), {
+      headers: this.headers(false),
+      signal: AbortSignal.timeout(PLAYS_READ_TIMEOUT_MS),
+    });
+    const parsed = ServerPlayEventsPageSchema.safeParse(await this.handle<unknown>(res));
+    if (!parsed.success) throw new PublicError("Sync service sent an unexpected reply for the play events");
     return parsed.data;
   }
 

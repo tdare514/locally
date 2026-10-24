@@ -33,6 +33,19 @@ interface LastSession {
   at: number;
   listenedSec: number;
   counted: boolean;
+  startedAt: number;
+}
+
+/** The session in progress: when it began and how long it has been heard (#398). */
+export interface PlaySession {
+  id: string;
+  /** Wall-clock ms of the session's first sample. */
+  startedAt: number;
+  /** Audible ms so far: paused time and seeks are not in it. */
+  listenedMs: number;
+  counted: boolean;
+  /** True when the last sample was playing. */
+  playing: boolean;
 }
 
 /**
@@ -43,9 +56,16 @@ export class PlayCounter {
   private sessionId: string | null = null;
   private listenedSec = 0;
   private counted = false;
+  private startedAt = 0;
   private prev: Previous | null = null;
   /** Recent ended sessions by track id, oldest first (Map keeps insertion order). */
   private readonly memory = new Map<string, LastSession>();
+
+  /** The session in progress, or null when nothing local is playing (#398). */
+  session(): PlaySession | null {
+    if (this.sessionId === null) return null;
+    return { id: this.sessionId, startedAt: this.startedAt, listenedMs: Math.round(this.listenedSec * 1000), counted: this.counted, playing: this.prev?.playing === true };
+  }
 
   /** Feed one sample. Returns the Spotify id when this sample makes a play count, else null. */
   push(sample: PlaySample): string | null {
@@ -61,6 +81,7 @@ export class PlayCounter {
       this.sessionId = id;
       this.listenedSec = 0;
       this.counted = false;
+      this.startedAt = sample.at;
       this.prev = null;
       // The same track resuming where the last session left off (the source switched, or Spotify
       // quit and came back) is the same play, not a new one. A replay from the start is not.
@@ -74,6 +95,7 @@ export class PlayCounter {
       ) {
         this.listenedSec = last.listenedSec;
         this.counted = last.counted;
+        this.startedAt = last.startedAt;
       }
     }
 
@@ -107,6 +129,7 @@ export class PlayCounter {
         at,
         listenedSec: this.listenedSec,
         counted: this.counted,
+        startedAt: this.startedAt,
       });
       while (this.memory.size > MAX_REMEMBERED) this.memory.delete(this.memory.keys().next().value as string);
     }
@@ -117,6 +140,7 @@ export class PlayCounter {
     this.sessionId = null;
     this.listenedSec = 0;
     this.counted = false;
+    this.startedAt = 0;
     this.prev = null;
   }
 }

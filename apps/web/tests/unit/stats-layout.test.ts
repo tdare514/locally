@@ -3,7 +3,7 @@ import type { StatItem } from "../../src/lib/play-stats";
 import { SEA_TIER_SIZES, STATS_PAGE_SIZE, keepRecent, moreLabel, nextShown, seaTiers, sortItems } from "../../src/lib/stats-layout";
 
 function item(rank: number, title: string, lastPlayedDay: string | null): StatItem {
-  return { id: title, rank, title, subtitle: "Artist", plays: 100 - rank, cover: null, releaseId: "r", lastPlayedDay };
+  return { id: title, rank, title, subtitle: "Artist", plays: 100 - rank, cover: null, releaseId: "r", lastPlayedDay, lastPlayedAt: null, minutes: null };
 }
 
 const items = [
