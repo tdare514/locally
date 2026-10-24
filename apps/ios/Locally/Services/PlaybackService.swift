@@ -116,6 +116,8 @@ final class PlaybackService {
     private(set) var missingTrackIDs: Set<UUID> = []
     /// Set when the audio session could not start; shown briefly where the mini player would be.
     private(set) var startError: String?
+    /// Counts every start error, so the root can announce each one once, even a repeat of the same text.
+    private(set) var startErrorCount = 0
     /// Set by the mini player; the Library opens that release's page and clears it.
     var openReleaseRequest: UUID?
 
@@ -129,6 +131,14 @@ final class PlaybackService {
     @ObservationIgnored private var cursor = 0
     @ObservationIgnored private var isSkipping = false
     @ObservationIgnored private var resumeAfterInterruption = false
+    /// What the listener wants, apart from what the player is doing: set by a play and a resume, cleared by a
+    /// pause, an interruption, headphones out and a stop. A file that finishes opening after a clear loads
+    /// paused instead of starting audio.
+    @ObservationIgnored private(set) var wantsToPlay = false
+    /// True once the engine has been handed the current item.
+    @ObservationIgnored private var itemLoaded = false
+    /// Waits for `resume()` when an item finished opening while the listener didn't want audio.
+    @ObservationIgnored private var intentWaiter: CheckedContinuation<Bool, Never>?
     @ObservationIgnored private var isSetUp = false
     /// Bumped whenever the item being opened is replaced (a skip, a stop, a new play), so a file-access
     /// callback that comes back late can tell it is no longer wanted and never starts audio.
@@ -187,7 +197,7 @@ final class PlaybackService {
     /// A row's number: pause the playing track, resume the paused one, else start from this row.
     func tapRow(release: Release, trackID: UUID) {
         if isCurrent(trackID, in: release) {
-            isPlaying ? pause() : resume()
+            togglePlayPause()
         } else {
             play(release: release, startingAt: trackID)
         }
@@ -211,6 +221,7 @@ final class PlaybackService {
             return
         }
         startError = nil
+        wantsToPlay = true
         setUpOnce()
         queue = Queue(release: release, tracks: Array(ordered[start...]))
         cursor = 0
@@ -219,20 +230,31 @@ final class PlaybackService {
     }
 
     func pause() {
-        guard hasQueue, isPlaying else { return }
+        guard hasQueue else { return }
+        wantsToPlay = false
+        guard isPlaying else { return }
         engine.pause()
         isPlaying = false
         publish()
     }
 
     func resume() {
-        guard hasQueue, !isPlaying else { return }
+        guard hasQueue else { return }
+        wantsToPlay = true
+        if let waiter = intentWaiter {
+            // The item finished opening while paused: let it start now.
+            intentWaiter = nil
+            waiter.resume(returning: true)
+            return
+        }
+        // Still opening (the open will see the intent), or already playing.
+        guard itemLoaded, !isPlaying else { return }
         engine.resume()
         isPlaying = true
         publish()
     }
 
-    func togglePlayPause() { isPlaying ? pause() : resume() }
+    func togglePlayPause() { wantsToPlay ? pause() : resume() }
 
     func next() {
         guard let queue else { return }
@@ -268,6 +290,7 @@ final class PlaybackService {
         currentIndex = 0
         cursor = 0
         isPlaying = false
+        wantsToPlay = false
         elapsed = 0
         duration = nil
         resumeAfterInterruption = false
@@ -292,7 +315,8 @@ final class PlaybackService {
     func handle(_ event: InterruptionEvent) {
         switch event {
         case .began:
-            resumeAfterInterruption = isPlaying
+            resumeAfterInterruption = wantsToPlay
+            wantsToPlay = false
             if isPlaying {
                 engine.pause()
                 isPlaying = false
@@ -329,6 +353,7 @@ final class PlaybackService {
 
     private func showStartError() {
         startError = Copy.Playback.couldntStart
+        startErrorCount += 1
         startErrorTask?.cancel()
         startErrorTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(4))
@@ -341,8 +366,17 @@ final class PlaybackService {
         startError = nil
     }
 
+    /// Ends the wait for a resume, telling the waiting item not to start.
+    private func cancelIntentWait() {
+        itemLoaded = false
+        let waiter = intentWaiter
+        intentWaiter = nil
+        waiter?.resume(returning: false)
+    }
+
     private func skip(to index: Int) {
         runToken += 1
+        cancelIntentWait()
         cursor = index
         isSkipping = true
         elapsed = 0
@@ -352,6 +386,7 @@ final class PlaybackService {
     /// Cancels the run and ends the item in the engine, which closes its folder access.
     private func endRun() {
         runToken += 1
+        cancelIntentWait()
         runner?.cancel()
         runner = nil
         isSkipping = false
@@ -367,6 +402,7 @@ final class PlaybackService {
             elapsed = 0
             duration = track.durationSec
             isSkipping = false
+            itemLoaded = false
             let end = await playItem(track, token: runToken)
             if Task.isCancelled { return }
             if end == .stopped, !isSkipping { break }
@@ -385,7 +421,16 @@ final class PlaybackService {
                     return .failed
                 }
                 missingTrackIDs.remove(track.id)
+                if !wantsToPlay {
+                    // Paused (or interrupted, or headphones out) while the file was opening: the item waits
+                    // here, paused at 0 with its access held, until a resume.
+                    isPlaying = false
+                    publish()
+                    let go: Bool = await withCheckedContinuation { intentWaiter = $0 }
+                    guard go, !Task.isCancelled, token == runToken else { return .stopped }
+                }
                 isPlaying = true
+                itemLoaded = true
                 publish()
                 return await engine.play(url: url)
             }

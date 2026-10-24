@@ -83,6 +83,10 @@ struct RootView: View {
                 .tint(Theme.accent)
                 .miniPlayerAccessory(playback)
                 .environment(\.openSettingsTab, { selectedTab = .settings })
+                // A start error is announced once, even when the same text comes round again.
+                .onChange(of: playback?.startErrorCount) { _, _ in
+                    if let message = playback?.startError { AccessibilityNotification.Announcement(message).post() }
+                }
                 // The mini player's bar opens its release in the Library.
                 .onChange(of: playback?.openReleaseRequest) { _, id in
                     if id != nil { selectedTab = .library }

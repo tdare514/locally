@@ -282,4 +282,60 @@ struct PlaybackServiceTests {
         #expect(service.startError == nil)
         #expect(service.isPlaying)
     }
+
+    /// Starts a play whose file takes 100 ms to open, runs `during` while it is opening, then waits it out.
+    private func playOpening(during: () -> Void) async -> Release {
+        let r = release()
+        access.delayMilliseconds = 100
+        service.play(release: r, startingAt: id(r, 2))
+        await settle()
+        during()
+        try? await Task.sleep(for: .milliseconds(300))
+        await settle()
+        return r
+    }
+
+    @Test func aPauseWhileTheFileIsOpeningLoadsItPausedThenResumePlaysIt() async {
+        let r = await playOpening { service.pause() }
+        #expect(engine.played.isEmpty)
+        #expect(!service.isPlaying)
+        #expect(service.currentTrack?.id == id(r, 2))
+        #expect(service.hasQueue)
+        service.resume()
+        await settle()
+        #expect(engine.played.map(\.lastPathComponent) == ["t2.mp3"])
+        #expect(service.isPlaying)
+    }
+
+    @Test func anInterruptionWhileTheFileIsOpeningLoadsItPaused() async {
+        let r = await playOpening { service.handle(InterruptionEvent.began) }
+        #expect(engine.played.isEmpty)
+        #expect(!service.isPlaying)
+        #expect(service.currentTrack?.id == id(r, 2))
+        // The system says to resume when it ends: now it plays.
+        service.handle(InterruptionEvent.ended(shouldResume: true))
+        await settle()
+        #expect(engine.played.map(\.lastPathComponent) == ["t2.mp3"])
+        #expect(service.isPlaying)
+    }
+
+    @Test func headphonesOutWhileTheFileIsOpeningLoadsItPausedAndStaysPaused() async {
+        let r = await playOpening { service.handle(RouteChangeEvent.builtInSpeaker) }
+        #expect(engine.played.isEmpty)
+        #expect(!service.isPlaying)
+        #expect(service.currentTrack?.id == id(r, 2))
+        service.handle(InterruptionEvent.ended(shouldResume: true))
+        await settle()
+        #expect(engine.played.isEmpty)
+        #expect(!service.isPlaying)
+    }
+
+    @Test func aRemotePauseWhileOpeningAndThenStopClosesTheWaitingItem() async {
+        _ = await playOpening { remote.handler?(.pause) }
+        #expect(access.isOpen.count == 1)
+        service.stop()
+        await settle()
+        #expect(access.isOpen.isEmpty)
+        #expect(engine.played.isEmpty)
+    }
 }

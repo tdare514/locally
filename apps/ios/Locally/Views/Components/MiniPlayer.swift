@@ -154,15 +154,13 @@ struct MiniPlayerInset: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
+    /// Always the same view structure: only what the inset holds changes, so showing the bar or an error
+    /// never replaces the tab under it (which would reset its navigation and any draft).
     func body(content: Content) -> some View {
         let showing = playback?.hasQueue ?? false
         // The accessory is a fixed-height capsule, so the accessibility sizes use the inset bar, which grows.
         let inAccessory = MiniPlayerPlacement.usesTabAccessory && !dynamicTypeSize.isAccessibilitySize
-        if inAccessory, playback?.startError == nil {
-            content
-        } else {
-            inset(content, showing: showing, inAccessory: inAccessory)
-        }
+        return inset(content, showing: showing, inAccessory: inAccessory)
     }
 
     private func inset(_ content: Content, showing: Bool, inAccessory: Bool) -> some View {
