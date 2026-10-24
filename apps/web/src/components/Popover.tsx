@@ -9,7 +9,7 @@ const STOPS = 'input[data-menu-search], [role="menuitem"]:not([disabled])';
 /**
  * A small anchored panel in the app's overlay layer (#349), for the Add to collection list and a row's menu. Focus
  * moves into it when it opens (the search field, else the first item); the up and down arrows, Home and End walk its
- * items; Escape closes it and gives focus back to the button that opened it; Tab or a press outside closes it.
+ * items; Escape closes it and gives focus back to the button that opened it; a press outside, or focus moving to somewhere outside it, closes it (Tab walks inside it, so a form in it works).
  * Placed below the anchor, right edges aligned, or above it when there is no room below.
  */
 export default function Popover({
@@ -70,18 +70,24 @@ export default function Popover({
     };
   }, [open, place]);
 
-  // Focus goes in when it opens.
+  // Focus goes in when it opens, and again if the content changes and the focused control went with it.
   useEffect(() => {
     if (!open) return;
-    const first = panelRef.current?.querySelector<HTMLElement>(STOPS) ?? panelRef.current;
+    const panel = panelRef.current;
+    if (panel?.contains(document.activeElement)) return;
+    const first = panel?.querySelector<HTMLElement>(STOPS) ?? panel;
     first?.focus({ preventScroll: true });
-  }, [open]);
+  }, [open, role]);
+
+  // A press on the anchor toggles it; it must not also read as focus leaving.
+  const anchorPressRef = useRef(false);
 
   // A press outside closes it.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
       const t = e.target as Node;
+      anchorPressRef.current = anchorRef.current?.contains(t) ?? false;
       if (panelRef.current?.contains(t) || anchorRef.current?.contains(t)) return;
       onCloseRef.current(false);
     };
@@ -98,10 +104,6 @@ export default function Popover({
       onClose(true);
       return;
     }
-    if (e.key === "Tab") {
-      onClose(false);
-      return;
-    }
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
     const stops = Array.from(panelRef.current?.querySelectorAll<HTMLElement>(STOPS) ?? []);
     if (stops.length === 0) return;
@@ -116,6 +118,14 @@ export default function Popover({
     stops[next]?.focus();
   }
 
+  // Focus actually leaving closes it. No related target (the window lost focus, or the focused control was removed) is not leaving.
+  function onBlur(e: React.FocusEvent<HTMLDivElement>) {
+    const to = e.relatedTarget as Node | null;
+    if (!to || panelRef.current?.contains(to)) return;
+    if (anchorPressRef.current && anchorRef.current?.contains(to)) return;
+    onClose(false);
+  }
+
   const overlay = document.getElementById("overlay-root");
   const node = (
     <div
@@ -124,6 +134,7 @@ export default function Popover({
       aria-label={label}
       tabIndex={-1}
       onKeyDown={onKeyDown}
+      onBlur={onBlur}
       // The track list starts a drag from a bare press; a press in here is not one.
       onPointerDown={(e) => e.stopPropagation()}
       style={{

@@ -95,7 +95,7 @@ export default function AddToCollection({
       <span role="status" aria-live="polite" className="sr-only">
         {note}
       </span>
-      <Popover open={open} anchorRef={buttonRef} onClose={close} label="Add to collection" role="menu">
+      <Popover open={open} anchorRef={buttonRef} onClose={close} label={creating ? "New collection" : "Add to collection"} role={creating ? "dialog" : "menu"}>
         <div id={id}>
           {creating ? (
             <NewCollectionForm onCreate={createAndAdd} onCancel={() => setCreating(false)} submitLabel="Create and add" />
