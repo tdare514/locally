@@ -186,7 +186,7 @@ struct ReleaseTrackRow: View {
     let timeSpoken: String?
     /// Set where the track can play: the number becomes a 44 pt play button.
     var play: TrackPlayControl?
-    /// 0 to 1: how far the number has turned the accent colour (#362). Opacity only.
+    /// 0 to 1: how far the number has turned white (#362). Opacity only.
     var highlight: Double = 0
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -289,11 +289,11 @@ struct ReleaseTrackRow: View {
         }
     }
 
-    /// The number again in the accent, faded in over the dim one while the row is highlighted.
+    /// The number again in white semibold, faded in over the dim one while the row is highlighted.
     private var accentNumber: some View {
         Text("\(number)")
-            .font(.system(size: numberSize).monospacedDigit())
-            .foregroundStyle(Theme.accent)
+            .font(.system(size: numberSize, weight: .semibold).monospacedDigit())
+            .foregroundStyle(.white)
             .opacity(highlight)
             .fixedSize()
             .accessibilityHidden(true)

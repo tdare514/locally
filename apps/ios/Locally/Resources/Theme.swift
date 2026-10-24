@@ -580,8 +580,21 @@ enum Theme {
         static let separatorOpacity: Double = 0.07
         static var separatorTint: Color { .white.opacity(separatorOpacity) }
         /// The wash behind the track a release was opened from (#362): the accent at this opacity.
-        static let highlightOpacity: Double = 0.12
-        static let highlightCornerRadius: CGFloat = 10
+        static let highlightCornerRadius: CGFloat = 12
+        /// The wash's gradient, leading to trailing, in the cover's brightest glow colour; the rim; the outer glow.
+        static let highlightLeading: Double = 0.30
+        static let highlightTrailing: Double = 0.06
+        static let highlightRimTop: Double = 0.30
+        static let highlightRim: Double = 0.16
+        static let highlightGlow: Double = 0.35
+        static let highlightGlowRadius: CGFloat = 12
+        /// Palette colours are dark, so the tint is lifted to at least this brightness.
+        static let highlightMinBrightness: Double = 0.85
+        /// The needle cue at the wash's leading edge: size, how far down the wash it starts, and its starting y scale.
+        static let cueWidth: CGFloat = 3
+        static let cueHeight: CGFloat = 22
+        static let cueTopInset: CGFloat = 8
+        static let cueFromScale: CGFloat = 0.2
         /// Seconds: the wait for the push to settle, the fade in, the hold, the fade out.
         static let highlightDelay: Double = 0.35
         static let highlightFadeIn: Double = 0.3

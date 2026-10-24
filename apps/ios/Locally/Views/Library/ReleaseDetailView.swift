@@ -374,11 +374,7 @@ struct ReleaseDetailView: View {
             )
             .background {
                 if row.id == highlightTrackID {
-                    RoundedRectangle(cornerRadius: Theme.Track.highlightCornerRadius)
-                        .fill(Theme.accent.opacity(Theme.Track.highlightOpacity))
-                        .opacity(highlight)
-                        .padding(.horizontal, -washBleed)
-                        .padding(.vertical, -4)
+                    trackHighlight(tint: highlightTint)
                 }
             }
             .id(row.id)
@@ -595,6 +591,42 @@ struct ReleaseDetailView: View {
 
     private var glowColors: [Color] { glowColorsFor(palette) }
 
+    /// The brightest of the cover's glow colours, or the accent with no cover (#362).
+    private var highlightTint: Color {
+        guard coverImage != nil, let base = glowColors.max(by: { UIColor($0).hsbBrightness < UIColor($1).hsbBrightness }) else { return Theme.accent }
+        // The palette colours are dark by design; lift the brightest to a glow, keeping its hue.
+        var h: CGFloat = 0, sat: CGFloat = 0, b: CGFloat = 0
+        UIColor(base).getHue(&h, saturation: &sat, brightness: &b, alpha: nil)
+        return Color(hue: h, saturation: sat, brightness: max(b, Theme.Track.highlightMinBrightness))
+    }
+
+    /// The glow behind the track a release was opened from: a fake-glass wash in the cover's colour, a rim,
+    /// a soft outer glow and a needle cue at the leading edge. Only opacity and the cue's scale animate.
+    private func trackHighlight(tint: Color) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.Track.highlightCornerRadius)
+        return ZStack(alignment: .leading) {
+            shape
+                .fill(LinearGradient(colors: [tint.opacity(Theme.Track.highlightLeading), tint.opacity(Theme.Track.highlightTrailing)], startPoint: .leading, endPoint: .trailing))
+                .shadow(color: tint.opacity(Theme.Track.highlightGlow), radius: Theme.Track.highlightGlowRadius)
+            shape.strokeBorder(
+                LinearGradient(colors: [.white.opacity(Theme.Track.highlightRimTop), .white.opacity(Theme.Track.highlightRim)], startPoint: .top, endPoint: .bottom),
+                lineWidth: 1
+            )
+            Capsule()
+                .fill(tint)
+                .frame(width: Theme.Track.cueWidth, height: Theme.Track.cueHeight)
+                .scaleEffect(y: reduceMotion ? 1 : Theme.Track.cueFromScale + (1 - Theme.Track.cueFromScale) * highlight)
+                .padding(.leading, 2)
+                .padding(.top, Theme.Track.cueTopInset)
+                .frame(maxHeight: .infinity, alignment: .top)
+        }
+        .opacity(highlight)
+        .padding(.horizontal, -washBleed)
+        .padding(.vertical, -4)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
     private func featuringIndex(_ model: ReleaseDetailViewModel) -> Int? {
         model.featuringRowID.flatMap { id in model.trackRows.firstIndex { $0.id == id } }
     }
@@ -664,4 +696,12 @@ struct ShareTarget: Identifiable {
     let id = UUID()
     let trackId: UUID?
     let subject: String
+}
+
+private extension UIColor {
+    var hsbBrightness: CGFloat {
+        var b: CGFloat = 0
+        getHue(nil, saturation: nil, brightness: &b, alpha: nil)
+        return b
+    }
 }

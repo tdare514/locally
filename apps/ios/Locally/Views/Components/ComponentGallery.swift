@@ -35,7 +35,7 @@ struct ComponentGallery: View {
         "share-sheet", "share-sheet-link", "share-sheet-result", "share-sheet-signed-out", "share-sheet-large-text",
         "devices-tray-friends", "devices-tray-friends-large-text", "shared-by-you", "shared-by-you-large-text", "release-share-blocked",
         // #362: a release opened from one of its tracks, the row mid-highlight.
-        "release-track-highlight", "release-track-highlight-long", "release-track-highlight-ax", "release-track-plain-long", "stats-open-track",
+        "release-track-highlight", "release-track-highlight-long", "release-track-highlight-ax", "release-track-highlight-bright", "release-track-highlight-dark", "release-track-plain-long", "stats-open-track",
         // #350: collections in List view over seeded sample collections.
         "collections-library", "collections-screen", "collections-queue", "collections-edit", "collections-empty", "collections-queue-ax", "collections-add", "collections-playing", "collections-add-failed", "collections-wont-play", "collections-playlist-guide", "collections-none-here",
         // #352: the record player on the Collections screen, over seeded collections and a player on fakes.
@@ -59,7 +59,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("collections-") || name.hasPrefix("player-") || name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || name.hasPrefix("share") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "root-banner", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save", "release-share-blocked", "release-track-highlight", "release-track-highlight-long", "release-track-highlight-ax", "release-track-plain-long"].contains(name)
+        name.hasPrefix("collections-") || name.hasPrefix("player-") || name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || name.hasPrefix("share") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "root-banner", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save", "release-share-blocked", "release-track-highlight", "release-track-highlight-long", "release-track-highlight-ax", "release-track-highlight-bright", "release-track-highlight-dark", "release-track-plain-long"].contains(name)
     }
 
     var body: some View {
@@ -332,6 +332,10 @@ struct ComponentGallery: View {
             IconsGallery.highlightedRelease()
         case "release-track-highlight-long":
             IconsGallery.highlightedRelease(tracks: 12, track: 9)
+        case "release-track-highlight-bright":
+            IconsGallery.highlightedRelease(tracks: 12, track: 9, cover: [.systemYellow, .systemOrange, .systemYellow])
+        case "release-track-highlight-dark":
+            IconsGallery.highlightedRelease(tracks: 12, track: 9, cover: [UIColor(white: 0.04, alpha: 1), UIColor(white: 0.1, alpha: 1), .black])
         case "release-track-highlight-ax":
             IconsGallery.highlightedRelease(tracks: 12, track: 9).dynamicTypeSize(.accessibility3)
         case "release-track-plain-long":
@@ -1149,9 +1153,12 @@ extension IconsGallery {
 
     /// Tidelines opened from one of its tracks (#362), the wash held at full strength. `tracks` pads it to a
     /// long release so the scroll shows; a nil `track` is a plain push with no highlight.
-    static func highlightedRelease(tracks: Int? = nil, track: Int? = 2) -> some View {
-        let container = artistsContainer()
-        var release = artistsLibrarySeed.releases.first { $0.title == "Tidelines" } ?? StatsGallery.releases[0]
+    static func highlightedRelease(tracks: Int? = nil, track: Int? = 2, cover: [UIColor]? = nil) -> some View {
+        let seed = artistsLibrarySeed
+        var covers = seed.covers
+        var release = seed.releases.first { $0.title == "Tidelines" } ?? StatsGallery.releases[0]
+        if let cover { covers[release.id] = SampleArtwork.cover(cover, size: 360).pngData() ?? Data() }
+        let container = Self.container(releases: seed.releases, covers: covers, playStats: GalleryPlayStats(artistsPlays(seed.releases)))
         if let tracks, release.tracks.count < tracks {
             for n in release.tracks.count..<tracks {
                 release.tracks.append(Track(id: UUID(), title: "Interlude \(n + 1)", trackNumber: n + 1, filePath: "x\(n).mp3", originalName: "x\(n).mp3", durationSec: 200))
