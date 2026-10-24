@@ -91,13 +91,20 @@ export function rowQueuePositions(rows: readonly CollectionRow[]): (number | nul
   return rows.map((row) => row.tracks.map((t) => (t.missing ? null : next++)));
 }
 
-/** A row is current only when the player's queue is this collection's and sits at the row's position in it. */
+/**
+ * A row is current only when the player's queue is this collection's, sits at the row's position in it, and the item
+ * there is this row's track. The last check keeps a reorder made while it plays from lighting up the wrong row.
+ */
 export function isCurrentRow(
-  queue: { index: number; context: { kind: string; id: string } } | null,
+  queue: { items: readonly { releaseId: string; trackId: string }[]; index: number; context: { kind: string; id: string } } | null,
   collectionId: string,
   position: number | null,
+  item: { releaseId: string; trackId: string },
 ): boolean {
-  return queue !== null && position !== null && queue.context.kind === "collection" && queue.context.id === collectionId && queue.index === position;
+  if (queue === null || position === null) return false;
+  if (queue.context.kind !== "collection" || queue.context.id !== collectionId || queue.index !== position) return false;
+  const at = queue.items[queue.index];
+  return at !== undefined && at.releaseId === item.releaseId && at.trackId === item.trackId;
 }
 
 /** Side A and Side B: the queue split in half, the extra track on Side A. */

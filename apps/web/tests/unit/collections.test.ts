@@ -152,11 +152,23 @@ describe("now-playing row", () => {
 
   it("a row is current only in this collection's queue at its own position", () => {
     const q = buildCollectionQueueAt(col, [rel1], 3)!;
-    expect(isCurrentRow(q, "col", 3)).toBe(true);
-    expect(isCurrentRow(q, "col", 0)).toBe(false); // same track, other row
-    expect(isCurrentRow(q, "other", 3)).toBe(false);
-    expect(isCurrentRow({ ...q, context: { kind: "release", id: "col" } }, "col", 3)).toBe(false);
-    expect(isCurrentRow(null, "col", 3)).toBe(false);
-    expect(isCurrentRow(q, "col", null)).toBe(false);
+    const a = { releaseId: R1, trackId: "a" };
+    expect(isCurrentRow(q, "col", 3, a)).toBe(true);
+    expect(isCurrentRow(q, "col", 0, a)).toBe(false); // same track, other row
+    expect(isCurrentRow(q, "other", 3, a)).toBe(false);
+    expect(isCurrentRow({ ...q, context: { kind: "release", id: "col" } }, "col", 3, a)).toBe(false);
+    expect(isCurrentRow(null, "col", 3, a)).toBe(false);
+    expect(isCurrentRow(q, "col", null, a)).toBe(false);
+  });
+
+  it("a reorder while it plays doesn't light up the row that moved into the playing position", () => {
+    // B plays at position 1 of [A, B]; after a reorder to [B, A], A sits at position 1 but isn't what plays.
+    const queue = {
+      items: [{ releaseId: R1, trackId: "a" }, { releaseId: R1, trackId: "b" }],
+      index: 1,
+      context: { kind: "collection", id: "col" },
+    };
+    expect(isCurrentRow(queue, "col", 1, { releaseId: R1, trackId: "a" })).toBe(false);
+    expect(isCurrentRow(queue, "col", 1, { releaseId: R1, trackId: "b" })).toBe(true);
   });
 });

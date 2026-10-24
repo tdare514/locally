@@ -364,7 +364,7 @@ function Queue({
   );
   const { a, b } = splitSides(entries);
   function playFrom(e: Entry) {
-    if (isCurrentRow(playerQueue, collection.id, e.position)) {
+    if (isCurrentRow(playerQueue, collection.id, e.position, { releaseId: e.release.id, trackId: e.trackId })) {
       playerStore.toggle();
       return;
     }
@@ -377,7 +377,7 @@ function Queue({
         <h3 className="px-2 pb-1 pt-3 text-sm font-medium text-text-muted">{label}</h3>
         <ol className="flex flex-col">
           {list.map((e) => {
-            const isCurrent = isCurrentRow(playerQueue, collection.id, e.position);
+            const isCurrent = isCurrentRow(playerQueue, collection.id, e.position, { releaseId: e.release.id, trackId: e.trackId });
             return (
               <li key={e.key}>
                 <button
