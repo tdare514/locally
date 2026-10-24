@@ -211,8 +211,8 @@ struct CollectionsModelTests {
 
     @Test func createSavesTrimsTellsSyncAndRefusesBadNames() throws {
         let s = try setup()
-        #expect(s.model.create(name: "   ") == nil)
-        let id = try #require(s.model.create(name: "  Late drives ", items: [.release(s.release.id), .release(s.release.id)]))
+        #expect(try s.model.create(name: "   ") == nil)
+        let id = try #require(try s.model.create(name: "  Late drives ", items: [.release(s.release.id), .release(s.release.id)]))
         let saved = try #require(try s.store.get(id))
         #expect(saved.name == "Late drives")
         #expect(saved.origin == "ios")
@@ -224,10 +224,10 @@ struct CollectionsModelTests {
 
     @Test func editsBumpUpdatedAtAndQueueSync() throws {
         let s = try setup()
-        let id = try #require(s.model.create(name: "Mix"))
+        let id = try #require(try s.model.create(name: "Mix"))
         let created = try #require(try s.store.get(id)).updatedAt
-        #expect(s.model.add([.track(releaseId: s.release.id, trackId: s.release.tracks[0].id), .release(s.release.id)], to: id) == 2)
-        #expect(s.model.add([.release(s.release.id)], to: id) == 0)
+        #expect(try s.model.add([.track(releaseId: s.release.id, trackId: s.release.tracks[0].id), .release(s.release.id)], to: id) == 2)
+        #expect(try s.model.add([.release(s.release.id)], to: id) == 0)
         #expect(s.model.rename(id, to: "Mixtape"))
         #expect(!s.model.rename(id, to: ""))
         s.model.move(id, position: 1, by: -1)
@@ -242,11 +242,54 @@ struct CollectionsModelTests {
 
     @Test func deleteRemovesAndQueuesATombstone() throws {
         let s = try setup()
-        let id = try #require(s.model.create(name: "Mix"))
+        let id = try #require(try s.model.create(name: "Mix"))
         s.model.delete(id)
         #expect(try s.store.get(id) == nil)
         #expect(s.hook.deleted == [id])
         #expect(s.model.collections.isEmpty)
+    }
+
+    @Test func aFailedSaveThrowsAndQueuesNothing() throws {
+        let s = try setup()
+        let id = try #require(try s.model.create(name: "Mix"))
+        s.hook.reset()
+        s.store.upsertError = CocoaError(.fileWriteUnknown)
+        #expect(throws: (any Error).self) { try s.model.add([.release(s.release.id)], to: id) }
+        #expect(s.model.failure != nil)
+        #expect(s.hook.changed.isEmpty)
+        #expect(try s.store.get(id)?.items.isEmpty == true)
+        s.store.upsertError = CocoaError(.fileWriteUnknown)
+        #expect(throws: (any Error).self) { try s.model.create(name: "Other") }
+        // The next save works and clears the failure.
+        #expect(try s.model.add([.release(s.release.id)], to: id) == 1)
+        #expect(s.model.failure == nil)
+    }
+
+    @Test func anUnreadableStoreIsAReadFailureNotAnEmptyLibrary() throws {
+        let s = try setup()
+        s.store.allError = CocoaError(.fileReadUnknown)
+        s.model.reload()
+        #expect(s.model.readFailure != nil)
+        s.store.allError = nil
+        s.model.reload()
+        #expect(s.model.readFailure == nil)
+    }
+
+    @Test func theLengthIsTheTracksThisPhoneCanPlay() throws {
+        let s = try setup()
+        var held = s.release
+        held.tracks[0].durationSec = 120
+        held.tracks[1].durationSec = 60
+        try s.library.upsert(held)
+        let macOnly = Release(kind: .single, title: "M", artist: "A", folderPath: "/m", tracks: [Track(title: "m", trackNumber: 1, filePath: "", originalName: "", durationSec: 999)], source: .adopted)
+        try s.library.upsert(macOnly)
+        let id = try #require(try s.model.create(name: "Mix", items: [.release(held.id), .release(macOnly.id)]))
+        let collection = try #require(s.model.collection(id))
+        #expect(s.model.playableDuration(of: collection) == 180)
+        #expect(TrackLength.spokenTotal(1920) == "32 minutes")
+        #expect(Copy.Collections.rowLabel(name: "Late drives", tracks: 8, length: "32 minutes") == "Late drives, 8 tracks, 32 minutes")
+        #expect(Copy.Collections.rowLabel(name: "Late drives", tracks: 8) == "Late drives, 8 tracks")
+        #expect(Copy.Collections.addSheetTitle == "Add to collection")
     }
 
     @Test func coverIsTheFirstFourDifferentCoversOnly() throws {
@@ -254,7 +297,7 @@ struct CollectionsModelTests {
         var covered = s.release
         covered.coverPath = "/c.jpg"
         try s.library.upsert(covered)
-        let id = try #require(s.model.create(name: "Mix", items: [.release(covered.id), .track(releaseId: covered.id, trackId: covered.tracks[0].id)]))
+        let id = try #require(try s.model.create(name: "Mix", items: [.release(covered.id), .track(releaseId: covered.id, trackId: covered.tracks[0].id)]))
         let collection = try #require(s.model.collection(id))
         #expect(s.model.coverReleaseIDs(of: collection) == [covered.id])
     }

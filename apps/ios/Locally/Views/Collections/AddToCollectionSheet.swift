@@ -15,12 +15,22 @@ struct AddToCollectionSheet: View {
 
     @State private var isNaming = false
     @State private var newName = ""
+    /// A save that failed: what to say, and what Try again repeats.
+    @State private var failure: Failure?
+
+    private struct Failure {
+        let message: String
+        let retry: () -> Void
+    }
 
     var body: some View {
         NavigationStack {
             ZStack {
                 Theme.background.ignoresSafeArea()
                 List {
+                    if let failure {
+                        failureRow(failure)
+                    }
                     Button {
                         newName = ""
                         isNaming = true
@@ -33,9 +43,7 @@ struct AddToCollectionSheet: View {
                     .listRowBackground(Theme.Immersive.panelFill)
                     ForEach(model.collections) { collection in
                         Button {
-                            let added = model.add(items, to: collection.id)
-                            announce(Copy.Collections.added(added, to: collection.name))
-                            onDone()
+                            add(to: collection)
                         } label: {
                             HStack(spacing: 12) {
                                 CollectionCoverView(releaseIDs: model.coverReleaseIDs(of: collection), side: 44)
@@ -67,14 +75,53 @@ struct AddToCollectionSheet: View {
             }
             .task { model.reload() }
             .nameAlert(Copy.Collections.nameTitle, action: Copy.Collections.create, isPresented: $isNaming, text: $newName) { name in
-                if model.create(name: name, items: items) != nil {
-                    announce(Copy.Collections.added(items.count, to: name))
-                    onDone()
-                }
+                create(named: name)
             }
         }
         .preferredColorScheme(.dark)
         .presentationDetents([.medium, .large])
+    }
+
+    private func add(to collection: MusicCollection) {
+        do {
+            let added = try model.add(items, to: collection.id)
+            failure = nil
+            announce(Copy.Collections.added(added, to: collection.name))
+            onDone()
+        } catch {
+            fail(Copy.Collections.addFailed(to: collection.name)) { add(to: collection) }
+        }
+    }
+
+    private func create(named name: String) {
+        do {
+            guard try model.create(name: name, items: items) != nil else { return }
+            failure = nil
+            announce(Copy.Collections.added(items.count, to: name))
+            onDone()
+        } catch {
+            fail(Copy.Collections.createFailed) { create(named: name) }
+        }
+    }
+
+    /// The sheet stays open: the error shows inline and VoiceOver hears it.
+    private func fail(_ message: String, retry: @escaping () -> Void) {
+        failure = Failure(message: message, retry: retry)
+        announce("\(message) \(Copy.Collections.tryAgain)")
+    }
+
+    private func failureRow(_ failure: Failure) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(failure.message)
+                .themeFont(.body)
+                .foregroundStyle(Theme.danger)
+            Button(Copy.Collections.tryAgain, action: failure.retry)
+                .buttonStyle(CollectionPillButtonStyle())
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
+        .listRowBackground(Theme.Immersive.panelFill)
+        .accessibilityElement(children: .combine)
     }
 
     private func announce(_ text: String) {

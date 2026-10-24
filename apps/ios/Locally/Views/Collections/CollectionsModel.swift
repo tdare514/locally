@@ -18,7 +18,10 @@ final class CollectionsModel {
     private(set) var releases: [UUID: Release] = [:]
     /// False until the local store has been read once, so the screen can show placeholders for that moment.
     private(set) var isLoaded = false
+    /// The last write that did not save (shown by the screen that made it), cleared by the next success.
     private(set) var failure: String?
+    /// Why the collections could not be read; the screens show it, with Try again, instead of an empty library.
+    private(set) var readFailure: String?
 
     init(store: CollectionStore, library: LibraryStore, hook: CollectionSyncHook?, deviceName: @escaping () -> String = { "iPhone" }, now: @escaping () -> Date = { Date() }) {
         self.store = store
@@ -32,9 +35,9 @@ final class CollectionsModel {
         do {
             collections = try store.all().sorted { $0.updatedAt != $1.updatedAt ? $0.updatedAt > $1.updatedAt : $0.id.uuidString < $1.id.uuidString }
             releases = Dictionary(try library.all().map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-            failure = nil
+            readFailure = nil
         } catch {
-            failure = error.localizedDescription
+            readFailure = error.localizedDescription
         }
         isLoaded = true
     }
@@ -46,12 +49,18 @@ final class CollectionsModel {
         CollectionQueue.rows(collection.items, releases: releases)
     }
 
-    /// What Play will queue (wired to the player once #344 lands).
+    /// What Play queues: the rows this phone holds, in order.
     func playQueue(of collection: MusicCollection) -> [(releaseID: UUID, trackID: UUID)] {
         CollectionQueue.items(collection.items, releases: releases)
     }
 
     func trackCount(of collection: MusicCollection) -> Int { rows(of: collection).count }
+
+    /// Seconds in the tracks this phone can play; nil when none has a known length.
+    func playableDuration(of collection: MusicCollection) -> Double? {
+        let total = rows(of: collection).filter(\.isHeld).compactMap(\.durationSec).filter { $0.isFinite && $0 > 0 }.reduce(0, +)
+        return total > 0 ? total : nil
+    }
 
     /// The first four different covers among the items' releases (the 2x2, or one when only one).
     func coverReleaseIDs(of collection: MusicCollection) -> [UUID] {
@@ -68,29 +77,30 @@ final class CollectionsModel {
         CollectionEdit.visible(collection.items, releases: releases)
     }
 
-    /// Makes a collection named `name` holding `items`; `nil` for a name that isn't valid.
+    /// Makes a collection named `name` holding `items`; `nil` for a name that isn't valid. Throws when it can't be saved.
     @discardableResult
-    func create(name: String, items: [CollectionItem] = []) -> UUID? {
+    func create(name: String, items: [CollectionItem] = []) throws -> UUID? {
         guard let name = MusicCollection.validName(name) else { return nil }
         let stamp = now()
         let made = MusicCollection(
             id: UUID(), name: name, items: CollectionEdit.appended([], items).items, origin: "ios",
             originDevice: deviceName(), createdAt: stamp, updatedAt: stamp
         )
-        return save(made) ? made.id : nil
+        try save(made)
+        return made.id
     }
 
     @discardableResult
     func rename(_ id: UUID, to name: String) -> Bool {
         guard let name = MusicCollection.validName(name) else { return false }
-        return change(id) { $0.name = name }
+        return (try? change(id) { $0.name = name }) != nil
     }
 
-    /// Adds `items`; returns how many went in (an item already there is skipped).
+    /// Adds `items`; returns how many went in (an item already there is skipped). Throws when it can't be saved.
     @discardableResult
-    func add(_ items: [CollectionItem], to id: UUID) -> Int {
+    func add(_ items: [CollectionItem], to id: UUID) throws -> Int {
         var added = 0
-        change(id) { collection in
+        try change(id) { collection in
             let result = CollectionEdit.appended(collection.items, items)
             collection.items = result.items
             added = result.added
@@ -99,20 +109,20 @@ final class CollectionsModel {
     }
 
     func move(_ id: UUID, from source: IndexSet, to destination: Int) {
-        change(id) { collection in
+        _ = try? change(id) { collection in
             collection.items = CollectionEdit.moved(collection.items, visible: CollectionEdit.visible(collection.items, releases: releases), from: source, to: destination)
         }
     }
 
     /// VoiceOver's "Move up" / "Move down" (`step` -1 / +1) on the visible entry at `position`.
     func move(_ id: UUID, position: Int, by step: Int) {
-        change(id) { collection in
+        _ = try? change(id) { collection in
             collection.items = CollectionEdit.moved(collection.items, visible: CollectionEdit.visible(collection.items, releases: releases), position: position, by: step)
         }
     }
 
     func remove(_ id: UUID, position: Int) {
-        change(id) { collection in
+        _ = try? change(id) { collection in
             collection.items = CollectionEdit.removed(collection.items, visible: CollectionEdit.visible(collection.items, releases: releases), position: position)
         }
     }
@@ -128,28 +138,33 @@ final class CollectionsModel {
         reload()
     }
 
-    /// Applies `edit`, stamps `updatedAt` and saves, only when the collection changed.
-    @discardableResult
-    private func change(_ id: UUID, _ edit: (inout MusicCollection) -> Void) -> Bool {
-        guard var current = collection(id) else { return false }
+    /// Applies `edit`, stamps `updatedAt` and saves, only when the collection changed. A collection that is gone
+    /// is an error too.
+    private func change(_ id: UUID, _ edit: (inout MusicCollection) -> Void) throws {
+        guard var current = collection(id) else { throw CollectionsModelError.missing }
         let before = current
         edit(&current)
-        guard current != before else { return true }
+        guard current != before else { return }
         current.updatedAt = max(now(), before.updatedAt.addingTimeInterval(0.001))
-        return save(current)
+        try save(current)
     }
 
-    private func save(_ collection: MusicCollection) -> Bool {
+    private func save(_ collection: MusicCollection) throws {
         do {
             try store.upsert(collection)
-            hook?.collectionChanged(collection.id)
-            reload()
-            return true
         } catch {
             failure = error.localizedDescription
-            return false
+            throw error
         }
+        failure = nil
+        hook?.collectionChanged(collection.id)
+        reload()
     }
+}
+
+enum CollectionsModelError: Error {
+    /// The collection an edit named is no longer there.
+    case missing
 }
 
 extension AppContainer {

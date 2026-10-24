@@ -210,7 +210,7 @@ struct LibraryView: View {
                 }
             }
             .nameAlert(Copy.Collections.nameTitle, action: Copy.Collections.create, isPresented: $isNamingCollection, text: $newCollectionName) { name in
-                if let id = collections?.create(name: name) { path.append(CollectionRoute(id: id)) }
+                if let id = try? collections?.create(name: name) { path.append(CollectionRoute(id: id)) }
             }
             // `.onAppear` (not `.task`) so returning from `ReleaseDetailView`
             // after a save/delete re-reads the store and reflects it here.

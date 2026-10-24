@@ -12,6 +12,7 @@ struct CollectionDetailView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isRenaming = false
     @State private var renameText = ""
     @State private var isConfirmingDelete = false
@@ -29,6 +30,8 @@ struct CollectionDetailView: View {
             Theme.background.ignoresSafeArea()
             if let collection = model.collection(id) {
                 content(collection)
+            } else if let failure = model.readFailure {
+                ReadFailureView(message: failure) { model.reload() }
             } else {
                 Color.clear
             }
@@ -40,7 +43,7 @@ struct CollectionDetailView: View {
             if model.collection(id) != nil {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(editMode.isEditing ? Copy.Collections.done : Copy.Collections.edit) {
-                        withAnimation { editMode = editMode.isEditing ? .inactive : .active }
+                        withAnimation(reduceMotion ? nil : .default) { editMode = editMode.isEditing ? .inactive : .active }
                     }
                 }
             }

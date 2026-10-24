@@ -211,7 +211,74 @@ struct CollectionSyncTests {
         #expect(try h.outbox.collectionEntries().map(\.operation) == [.delete])
     }
 
+    @Test func anEditMadeWhileThePutIsInFlightStaysQueuedAndGoesOutNext() async throws {
+        let h = makeHarness()
+        let c = collection("Before", updatedAt: t0)
+        try queue(h, c)
+        var suspended: CheckedContinuation<Void, Never>?
+        h.api.onPutCollection = { await withCheckedContinuation { suspended = $0 } }
+
+        let drain = Task { await h.engine.drainOutbox() }
+        while suspended == nil { await Task.yield() }
+        var edited = c
+        edited.name = "After"
+        edited.updatedAt = t0.addingTimeInterval(10)
+        try h.collections.upsert(edited)
+        try h.outbox.enqueueCollection(c.id, .push)
+        h.api.onPutCollection = nil
+        suspended?.resume()
+        await drain.value
+
+        #expect(h.api.collectionPutCalls.first?.name == "Before")
+        // The entry survived the first put; the same drain pass does not resend it, the next reconcile does.
+        #expect(try h.outbox.collectionEntries().count == 1)
+        await h.engine.reconcile()
+        #expect(h.api.collectionPutCalls.last?.name == "After")
+        #expect(h.api.storedCollection(c.id.uuidString.lowercased())?.name == "After")
+        #expect(try h.outbox.collectionEntries().isEmpty)
+    }
+
     // MARK: Pull
+
+    @Test func aRecordThatCannotBeStoredStopsThePullAndKeepsTheCursor() async throws {
+        let h = makeHarness()
+        let remote = collection("From the Mac", items: [.release(UUID())])
+        h.api.seedCollection(SyncCollection(remote))
+        h.collections.upsertError = CocoaError(.fileWriteUnknown)
+
+        await h.engine.reconcile()
+
+        #expect(h.account.lastCollectionVersion == 0)
+        #expect(h.engine.status.lastError != nil)
+        #expect(try h.collections.get(remote.id) == nil)
+
+        await h.engine.reconcile()
+
+        #expect(try h.collections.get(remote.id)?.name == "From the Mac")
+        #expect(h.account.lastCollectionVersion > 0)
+    }
+
+    @Test func aForcedCollectionStaysForcedUntilItIsStored() async throws {
+        let h = makeHarness()
+        let keep = CollectionItem.release(UUID())
+        let dropped = CollectionItem.release(UUID())
+        let c = collection(items: [keep, dropped])
+        try queue(h, c)
+        // A phone that has pulled before (no first-sign-in back-fill of every collection).
+        let earlier = h.api.seedCollection(SyncCollection(collection("Earlier")))
+        h.account.lastCollectionVersion = earlier
+        h.api.collectionPrunedOnNextPut = 1
+        // The server's pruned copy is not stored the first time.
+        h.api.onPutCollection = { h.collections.upsertError = CocoaError(.fileWriteUnknown) }
+
+        await h.engine.drainOutbox()
+        #expect(try h.collections.get(c.id)?.items == [keep, dropped])
+        #expect(h.account.lastCollectionVersion == earlier)
+
+        h.api.onPutCollection = nil
+        await h.engine.reconcile()
+        #expect(try h.collections.get(c.id)?.items == [keep])
+    }
 
     @Test func reconcilePullsAfterReleasesAndStoresTheCursor() async throws {
         let h = makeHarness()

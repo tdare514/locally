@@ -153,9 +153,22 @@ final class InMemorySyncOutbox: SyncOutbox {
 final class InMemoryCollectionStore: CollectionStore {
     private var storage: [UUID: MusicCollection] = [:]
 
-    func all() throws -> [MusicCollection] { Array(storage.values) }
+    /// Thrown by `all()` while set (an unreadable store).
+    var allError: Error?
+    func all() throws -> [MusicCollection] {
+        if let allError { throw allError }
+        return Array(storage.values)
+    }
     func get(_ id: UUID) throws -> MusicCollection? { storage[id] }
-    func upsert(_ collection: MusicCollection) throws { storage[collection.id] = collection }
+    /// Thrown by the next `upsert` only, then cleared (a storage failure).
+    var upsertError: Error?
+    func upsert(_ collection: MusicCollection) throws {
+        if let upsertError {
+            self.upsertError = nil
+            throw upsertError
+        }
+        storage[collection.id] = collection
+    }
     func delete(id: UUID) throws { storage.removeValue(forKey: id) }
 }
 
@@ -165,6 +178,7 @@ final class FakeCollectionSyncHook: CollectionSyncHook {
     private(set) var deleted: [UUID] = []
     func collectionChanged(_ id: UUID) { changed.append(id) }
     func collectionDeleted(_ id: UUID) { deleted.append(id) }
+    func reset() { changed = []; deleted = [] }
 }
 
 /// `SpotifyFolderAccess` fake backed by a real temp directory, so
@@ -503,6 +517,9 @@ final class FakeSyncApi: SyncApi {
     var collectionPrunedOnNextPut = 0
     /// When set, `collections(...)` returns exactly this page.
     var collectionsOverride: SyncCollectionsPage?
+    /// Awaited inside `putCollection` once the call is recorded and before the server stores it: a test suspends
+    /// the request here and edits the collection meanwhile.
+    var onPutCollection: (() async -> Void)?
 
     /// Puts `record` straight into the fake server, as if another device had written it.
     @discardableResult
@@ -538,6 +555,7 @@ final class FakeSyncApi: SyncApi {
         }
         collectionPutCalls.append(record)
         callOrder.append("putCollection")
+        await onPutCollection?()
         if let stored = collectionStorage[record.id], stored.updatedAt > record.updatedAt {
             throw SyncApiError.conflict(serverUpdatedAt: stored.updatedAt)
         }

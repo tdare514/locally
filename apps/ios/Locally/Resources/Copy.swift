@@ -340,7 +340,10 @@ enum Copy {
         /// A 409 `too_many_collections`: the put stays queued. (The plan gives no wording; this is the executor's.)
         static let tooMany = "You have the most collections allowed. Delete one and this one will sync."
         static func trackCount(_ count: Int) -> String { count == 1 ? "1 track" : "\(count) tracks" }
-        static func rowLabel(name: String, tracks: Int) -> String { "\(name), \(trackCount(tracks))" }
+        /// "Late drives, 8 tracks, 32 minutes"; the length is left out when no track has one.
+        static func rowLabel(name: String, tracks: Int, length: String? = nil) -> String {
+            [name, trackCount(tracks), length].compactMap { $0 }.joined(separator: ", ")
+        }
         static let edit = "Edit"
         static let done = "Done"
         static let rename = "Rename"
@@ -360,7 +363,17 @@ enum Copy {
         static let itemsHeading = "In this collection"
         static let reorderHint = "Drag to reorder."
         static let addToCollection = "Add to collection"
-        static let addSheetTitle = "Add to a collection"
+        static let addSheetTitle = "Add to collection"
+        /// A put that did not save, in the add sheet (the plan gives no wording; this is the executor's).
+        static func addFailed(to name: String) -> String { "Couldn't add to \(name)." }
+        static let createFailed = "Couldn't make the collection."
+        /// The local collections could not be read (the plan gives no wording; this is the executor's).
+        static let readFailed = "Couldn't open your collections."
+        static let tryAgain = "Try again"
+        static let play = "Play"
+        static let pause = "Pause"
+        static func playRow(_ title: String) -> String { "Play \(title)" }
+        static let nowPlaying = "Now playing"
         static func added(_ count: Int, to name: String) -> String {
             count == 0 ? "Already in \(name)" : "Added to \(name)"
         }

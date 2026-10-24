@@ -579,10 +579,20 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
             return
         }
         do {
+            let sentRevision = collection.updatedAt
             let result = try await api.putCollection(SyncCollection(collection))
             account.collectionsRouteSeen = true
-            try? outbox.removeCollection(id, ifOperation: .push)
-            if result.pruned > 0 {
+            // An edit made while the put was in flight is a newer revision: keep the entry so the next drain sends it.
+            // A collection deleted meanwhile has its own delete entry; one that can't be read keeps its entry.
+            var unchanged = false
+            do {
+                let current = try collections.get(id)
+                unchanged = current == nil || current?.updatedAt == sentRevision
+            } catch {
+                Self.log.info("Collection unreadable after its put; the entry stays queued.")
+            }
+            if unchanged { try? outbox.removeCollection(id, ifOperation: .push) }
+            if result.pruned > 0, unchanged {
                 // The server dropped items naming deleted releases: take its copy rather than keep ours.
                 forcedCollectionIds.insert(id)
                 await pullCollections()
@@ -656,7 +666,8 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
             }
             guard isSignedIn else { return }
             account.collectionsRouteSeen = true
-            for record in page.collections { applyRemote(record, to: collections) }
+            // A record that can't be stored stops the pull with the cursor where it was, so it is fetched again.
+            for record in page.collections where !applyRemote(record, to: collections) { return }
             account.lastCollectionVersion = page.nextVersion
             guard page.hasMore, page.nextVersion > cursor else { return }
             cursor = page.nextVersion
@@ -665,21 +676,26 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
 
     /// A pulled tombstone removes the local collection. Any other record replaces ours when it is newer, or when
     /// we were told to take it (`forcedCollectionIds`); an echo of what we hold changes nothing.
-    private func applyRemote(_ record: SyncCollection, to collections: CollectionStore) {
-        guard let remote = record.collection else { return }
+    /// Returns false when the record could not be stored; its `forcedCollectionIds` entry then stays.
+    private func applyRemote(_ record: SyncCollection, to collections: CollectionStore) -> Bool {
+        guard let remote = record.collection else { return true }
         do {
-            let forced = forcedCollectionIds.remove(remote.id) != nil
+            let forced = forcedCollectionIds.contains(remote.id)
             if record.deleted {
                 try collections.delete(id: remote.id)
                 try? outbox.removeCollection(remote.id, ifOperation: .push)
-                return
+                forcedCollectionIds.remove(remote.id)
+                return true
             }
-            if let local = try collections.get(remote.id), !forced, remote.updatedAt <= local.updatedAt { return }
+            if let local = try collections.get(remote.id), !forced, remote.updatedAt <= local.updatedAt { return true }
             try collections.upsert(remote)
+            forcedCollectionIds.remove(remote.id)
             // Our queued put was for an older copy; the server's replaces it.
             try? outbox.removeCollection(remote.id, ifOperation: .push)
+            return true
         } catch {
             surface(Copy.Sync.libraryUnreadable(error.localizedDescription), error: error)
+            return false
         }
     }
 

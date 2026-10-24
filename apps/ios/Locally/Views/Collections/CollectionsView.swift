@@ -18,6 +18,7 @@ struct CollectionsView: View {
     @State private var query = ""
     @State private var isNaming = false
     @State private var newName = ""
+    @State private var createFailed = false
 
     private var matching: [MusicCollection] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -33,6 +34,8 @@ struct CollectionsView: View {
                     header
                     if !model.isLoaded {
                         loadingRows
+                    } else if let failure = model.readFailure {
+                        ReadFailureView(message: failure) { model.reload() }
                     } else if model.collections.isEmpty {
                         emptyState
                     } else {
@@ -61,8 +64,16 @@ struct CollectionsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .task { model.reload() }
+        .alert(Copy.Collections.createFailed, isPresented: $createFailed) {
+            Button(Copy.Collections.tryAgain) { isNaming = true }
+            Button(Copy.Collections.cancel, role: .cancel) {}
+        }
         .nameAlert(Copy.Collections.nameTitle, action: Copy.Collections.create, isPresented: $isNaming, text: $newName) { name in
-            if let id = model.create(name: name) { onOpen(id) }
+            do {
+                if let id = try model.create(name: name) { onOpen(id) }
+            } catch {
+                createFailed = true
+            }
         }
     }
 
@@ -76,7 +87,7 @@ struct CollectionsView: View {
                 .foregroundStyle(Theme.primaryText)
                 .accessibilityAddTraits(.isHeader)
             if !dynamicTypeSize.isAccessibilitySize { Spacer() }
-            if model.isLoaded, !model.collections.isEmpty { newButton }
+            if model.isLoaded, model.readFailure == nil, !model.collections.isEmpty { newButton }
         }
     }
 
@@ -161,6 +172,8 @@ struct CollectionRow: View {
 
     var body: some View {
         let count = model.trackCount(of: collection)
+        let seconds = model.playableDuration(of: collection)
+        let length = TrackLength.format(seconds)
         Button(action: onOpen) {
             HStack(spacing: 12) {
                 CollectionCoverView(releaseIDs: model.coverReleaseIDs(of: collection))
@@ -169,7 +182,7 @@ struct CollectionRow: View {
                         .themeFont(.rowTitle)
                         .foregroundStyle(Theme.primaryText)
                         .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                    Text(Copy.Collections.trackCount(count))
+                    Text(subtitle(count: count, length: length))
                         .themeFont(.rowSubtitle)
                         .foregroundStyle(Theme.secondaryText)
                 }
@@ -184,7 +197,37 @@ struct CollectionRow: View {
             .contentShape(.rect(cornerRadius: Theme.Radius.card))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(Copy.Collections.rowLabel(name: collection.name, tracks: count))
+        .accessibilityLabel(Copy.Collections.rowLabel(name: collection.name, tracks: count, length: TrackLength.spokenTotal(seconds)))
+    }
+
+    /// "8 tracks · 32:10": the count, then the length of the tracks this phone can play.
+    private func subtitle(count: Int, length: String?) -> String {
+        [Copy.Collections.trackCount(count), length].compactMap { $0 }.joined(separator: " \u{00B7} ")
+    }
+}
+
+/// The collections could not be read: the reason and Try again, in place of the empty state.
+struct ReadFailureView: View {
+    let message: String
+    var onRetry: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text(Copy.Collections.readFailed)
+                .themeFont(.body)
+                .foregroundStyle(Theme.primaryText)
+                .multilineTextAlignment(.center)
+            Text(message)
+                .themeFont(.rowSubtitle)
+                .foregroundStyle(Theme.secondaryText)
+                .multilineTextAlignment(.center)
+            Button(action: onRetry) { Text(Copy.Collections.tryAgain) }
+                .buttonStyle(CollectionPillButtonStyle())
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 40)
+        .accessibilityElement(children: .contain)
+        .onAppear { AccessibilityNotification.Announcement("\(Copy.Collections.readFailed) \(Copy.Collections.tryAgain)").post() }
     }
 }
 
