@@ -10,6 +10,49 @@ struct ReleaseEditRoute: Hashable {
     var trackId: UUID?
 }
 
+/// A song's page (#365), pushed from a release page's title, "Song info" in the long-press menu, or a Stats track.
+struct SongRoute: Hashable {
+    let release: Release
+    let trackId: UUID
+
+    /// Edit on the song page: the release in edit mode at this song; nil for an adopted song.
+    var editRoute: ReleaseEditRoute? {
+        TrackActionRules.canEdit(release) ? ReleaseEditRoute(release: release, trackId: trackId) : nil
+    }
+
+    /// The song page's Album row: the release, scrolled to and lighting this song.
+    var albumRoute: ReleaseTrackRoute { ReleaseTrackRoute(release: release, trackId: trackId) }
+}
+
+private struct OpenSongKey: EnvironmentKey {
+    static let defaultValue: ((SongRoute) -> Void)? = nil
+}
+
+extension EnvironmentValues {
+    /// Pushes a song's page onto the enclosing stack. Set on the `NavigationStack` itself so pushed pages inherit it;
+    /// nil where no stack shows songs (the debug galleries), so the entry points hide.
+    var openSong: ((SongRoute) -> Void)? {
+        get { self[OpenSongKey.self] }
+        set { self[OpenSongKey.self] = newValue }
+    }
+}
+
+/// The song page as a stack shows it: Edit and the Album row push onto the stack's path, a collection opens the way
+/// the mini player's does (the Library tab, that collection).
+struct SongPageDestination: View {
+    let route: SongRoute
+    let open: (any Hashable) -> Void
+    @Environment(\.playback) private var playback
+
+    var body: some View {
+        SongPageView(
+            release: route.release, trackID: route.trackId,
+            onEdit: route.editRoute.map { edit in { open(edit) } },
+            onOpenCollection: { playback?.openCollectionRequest = $0 },
+            onOpenAlbum: { open(route.albumRoute) })
+    }
+}
+
 /// Pure rules for which menu items apply to a release or song.
 enum TrackActionRules {
     /// The phone can edit its own releases; an adopted (details-only) one waits on #285/#332.
@@ -80,6 +123,9 @@ final class TrackActionSheets {
         }
         if goToAlbum, let trackId {
             actions.goToAlbum = { open(ReleaseTrackRoute(release: release, trackId: trackId)) }
+        }
+        if let trackId {
+            actions.songInfo = { open(SongRoute(release: release, trackId: trackId)) }
         }
         if let route = TrackActionRules.artistRoute(for: release) {
             actions.goToArtist = { open(route) }

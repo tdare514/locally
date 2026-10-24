@@ -189,6 +189,9 @@ struct ReleaseTrackRow: View {
     var play: TrackPlayControl?
     /// 0 to 1: how far the number has turned white (#362). Opacity only.
     var highlight: Double = 0
+    /// A tap on the title line opens the song's page (#365); the number stays the play button and the artist
+    /// line keeps its links. Nil where no stack shows songs.
+    var onOpenSong: (() -> Void)?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var titleSize: CGFloat = 16
@@ -209,6 +212,7 @@ struct ReleaseTrackRow: View {
                         .lineLimit(accessible ? nil : 1)
                         .truncationMode(.tail)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("track-title-\(number)")
                     if !accessible {
                         Text(plays.map { $0.formatted() } ?? "")
                             .accessibilityLabel(plays.map(Copy.Detail.playCount) ?? "")
@@ -218,6 +222,8 @@ struct ReleaseTrackRow: View {
                             .frame(width: columns.time, alignment: .trailing)
                     }
                 }
+                .contentShape(Rectangle())
+                .onTapGesture { onOpenSong?() }
                 // View mode only (#288): "A, feat. B & C", every name its own link, on one line (#361).
                 ArtistLineText(
                     main: credit.artist, featuring: credit.featuring, linkMain: artist != Copy.Detail.unknownArtist,

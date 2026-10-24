@@ -107,6 +107,21 @@ Actions: Collection (`AddToCollectionSheet`), Play next (the long-press menu's q
 page's `ShareSheet` for one song; left out for an adopted song or one received from a share) and Edit (an `onEdit`
 closure the host passes; nil hides it). Signed out or offline hides the Plays group.
 
-**Pass 2 (not built yet): the entry points.** The title tap on the release page, "Song info" in the long-press menu and a
+**Pass 2 (built, see below): the entry points.** The title tap on the release page, "Song info" in the long-press menu and a
 Stats row, once the other branch editing `ReleaseDetailView`, `LibraryView`, `StatsRows` and `StatsView` lands. Until then
 the page is reachable only from the debug gallery (`song-page*`). Screenshots: `docs/design-previews/365/`.
+
+## Built, pass 2 (24 Oct)
+
+The page is reachable. `SongRoute` (release plus track) is registered on the Library and Stats stacks (collections open inside the
+Library's stack) and pushes `SongPageDestination`; stacks also set an `openSong` environment action so rows deep in a stack can push it.
+- **Release page:** a tap on a track row's title line (not the number, which stays the play button, and not the artist links)
+  pushes the song page; "Song info" is also a VoiceOver custom action. Edit mode rows are fields, so no navigation.
+- **Long-press menu:** `songInfo` is set on release-page rows, Stats track rows and tiles, and collection queue rows. Releases get none.
+- **Stats:** a tap on a track row or tile opens the song page; albums and artists keep their taps, and the fan's sleeves still open
+  the release. Go to album and the song page's Album row reach the release at the song.
+- **Album row:** the "Album" row in On the album is a button with a chevron and the hint "Opens the album at this song"; it pushes
+  `ReleaseTrackRoute`. Edit pushes `ReleaseEditRoute` for the song (nil for adopted); a collection sleeve opens that collection the
+  way the mini player does (`openCollectionRequest`).
+- **Try again** is now a bare glyph-and-label action (`arrow.clockwise` 24 pt over a footnote label, the action row's pressed glow, 44 pt target).
+Tests: `SongPageUITests` (title tap, Song info, Stats row then Album row, Edit), `TrackActionRulesTests` (routes). Screenshots retaken in `docs/design-previews/365/`, plus `song-info-menu.png`.

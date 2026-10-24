@@ -12,6 +12,8 @@ struct SongPageView: View {
     let trackID: UUID
     var onEdit: (() -> Void)?
     var onOpenCollection: ((UUID) -> Void)?
+    /// The Album row opens the release at this song; without it the row is plain.
+    var onOpenAlbum: (() -> Void)?
     /// Opens scrolled to the bottom (the gallery's bottom frame).
     var startsAtEnd = false
 
@@ -28,11 +30,12 @@ struct SongPageView: View {
     @State private var shareTarget: ShareTarget?
 
     init(release: Release, trackID: UUID, onEdit: (() -> Void)? = nil, onOpenCollection: ((UUID) -> Void)? = nil,
-         loader: SongPageLoader? = nil, collectionsModel: CollectionsModel? = nil, startsAtEnd: Bool = false) {
+         onOpenAlbum: (() -> Void)? = nil, loader: SongPageLoader? = nil, collectionsModel: CollectionsModel? = nil, startsAtEnd: Bool = false) {
         self.release = release
         self.trackID = trackID
         self.onEdit = onEdit
         self.onOpenCollection = onOpenCollection
+        self.onOpenAlbum = onOpenAlbum
         self.startsAtEnd = startsAtEnd
         _loader = State(initialValue: loader)
         _collectionsModel = State(initialValue: collectionsModel)
@@ -140,15 +143,18 @@ struct SongPageView: View {
         .padding(.bottom, 28)
     }
 
-    /// The file is missing or will not decode: the collection page's wording and Try again, in plain text on the wash.
+    /// The file is missing or will not decode: the collection page's wording, then Try again as a bare action.
     private var playbackFailure: some View {
         VStack(spacing: 8) {
             Text(Copy.Collections.couldntPlay)
                 .font(Theme.ScaledFont.subheadline)
                 .foregroundStyle(Theme.danger)
                 .multilineTextAlignment(.center)
-            Button(Copy.Collections.tryAgain) { playback?.play(release: release, startingAt: trackID) }
-                .buttonStyle(CollectionPillButtonStyle())
+            // The action row's bare glyph over a label (its caption font is footnote).
+            Button { playback?.play(release: release, startingAt: trackID) } label: { Text(Copy.Collections.tryAgain) }
+                .buttonStyle(SongBareActionStyle(icon: "arrow.clockwise", label: Copy.Collections.tryAgain, tint: tint))
+                .accessibilityLabel(Copy.Collections.tryAgain)
+                .frame(minWidth: 44, minHeight: 44)
         }
         .padding(.top, 4)
     }
@@ -191,7 +197,7 @@ struct SongPageView: View {
                 group(Copy.SongPage.plays) { plays(model, total: total) }
             }
             group(Copy.SongPage.inCollections) { collections(model) }
-            group(Copy.SongPage.onTheAlbum) { SongFactRows(rows: albumRows(model)) }
+            group(Copy.SongPage.onTheAlbum) { SongFactRows(rows: albumRows(model), links: albumLinks) }
             group(Copy.SongPage.file) { SongFactRows(rows: fileRows(model)) }
         }
         .padding(.horizontal, Theme.SongPage.pageGutter)
@@ -218,6 +224,12 @@ struct SongPageView: View {
         if let released = model.releasedText { rows.append((Copy.SongPage.released, released)) }
         if let length = model.lengthText { rows.append((Copy.SongPage.length, length)) }
         return rows
+    }
+
+    /// The Album row opens the release at this song.
+    private var albumLinks: [String: SongRowLink] {
+        guard let onOpenAlbum else { return [:] }
+        return [Copy.SongPage.album: SongRowLink(hint: Copy.SongPage.albumHint, open: onOpenAlbum)]
     }
 
     private func fileRows(_ model: SongPageModel) -> [(String, String)] {
@@ -415,26 +427,54 @@ private struct SongDetailsPanelBackground: View {
     }
 }
 
-/// A label above or beside its value; stacks at accessibility sizes.
+/// A fact row that opens something: the action and the hint VoiceOver reads.
+private struct SongRowLink {
+    let hint: String
+    let open: () -> Void
+}
+
+/// A label above or beside its value; stacks at accessibility sizes. With a link it is a button with a chevron.
 private struct SongFactRow: View {
     let label: String
     let value: String
+    var link: SongRowLink?
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        Group {
-            if typeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 2) { labelView; valueView }
-            } else {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    labelView
-                    Spacer(minLength: 12)
-                    valueView.multilineTextAlignment(.trailing)
+        if let link {
+            Button(action: link.open) { row(chevron: true) }
+                .buttonStyle(.plain)
+                .accessibilityHint(link.hint)
+                .accessibilityIdentifier("song-row-\(label.lowercased())")
+        } else {
+            row(chevron: false)
+        }
+    }
+
+    private func row(chevron: Bool) -> some View {
+        HStack(spacing: 8) {
+            Group {
+                if typeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 2) { labelView; valueView }
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        labelView
+                        Spacer(minLength: 12)
+                        valueView.multilineTextAlignment(.trailing)
+                    }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if chevron {
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Theme.secondaryText)
+                    .accessibilityHidden(true)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 12)
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
 
@@ -450,6 +490,8 @@ private struct SongFactRow: View {
 /// Rows with a hairline between them.
 private struct SongFactRows: View {
     let rows: [(String, String)]
+    /// Rows that open something, by label.
+    var links: [String: SongRowLink] = [:]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -457,7 +499,7 @@ private struct SongFactRows: View {
                 if index > 0 {
                     Rectangle().fill(Color.white.opacity(Theme.SongPage.hairlineOpacity)).frame(height: 1).accessibilityHidden(true)
                 }
-                SongFactRow(label: row.0, value: row.1)
+                SongFactRow(label: row.0, value: row.1, link: links[row.0])
             }
         }
     }

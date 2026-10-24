@@ -1058,6 +1058,7 @@ extension Copy {
         // The album and the file
         static let onTheAlbum = "On the album"
         static let album = "Album"
+        static let albumHint = "Opens the album at this song"
         static let track = "Track"
         static let disc = "Disc"
         static let genre = "Genre"

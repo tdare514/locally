@@ -59,4 +59,24 @@ struct TrackActionRulesTests {
         #expect(songSubject == "Orange Streetlight")
         #expect(wholeSubject == "Night Bus")
     }
+    @Test("a song's page routes Edit to the release in edit mode at the song, and the Album row to the release at the song")
+    func songRoutes() {
+        let album = release()
+        let trackId = album.tracks[0].id
+        let route = SongRoute(release: album, trackId: trackId)
+        let edit = route.editRoute
+        let expectedEdit: ReleaseEditRoute? = ReleaseEditRoute(release: album, trackId: trackId)
+        let albumRoute = route.albumRoute
+        let expectedAlbum = ReleaseTrackRoute(release: album, trackId: trackId)
+        #expect(edit == expectedEdit)
+        #expect(albumRoute == expectedAlbum)
+    }
+
+    @Test("an adopted song's page has no Edit route")
+    func adoptedSongHasNoEdit() {
+        let adopted = release(source: .adopted)
+        let route = SongRoute(release: adopted, trackId: adopted.tracks[0].id)
+        let edit = route.editRoute
+        #expect(edit == nil)
+    }
 }
