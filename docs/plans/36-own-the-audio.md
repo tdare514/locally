@@ -27,21 +27,34 @@ field on `POST /v1/auth/code` or `POST /v1/auth/verify`, and it is not stored on
 the account. `spec/sync.md` stays as it is. A stored consent record would say
 something new about what the service keeps, and the privacy text is still open.
 
-Once a privacy-policy URL exists, both clients link it next to the clause. Until
-that URL is decided, the form shows the rights sentence and the acknowledgement,
-with no link and no placeholder address.
+Once the privacy page is live, both clients link it next to the clause. Until
+then, the form shows the rights sentence and the acknowledgement, with no link
+and no placeholder address.
 
 The same form is how an existing account adds a device. The clause is on that
 form too, so every sign-in sees the same sentence.
 
-## Still open
+## Owner decisions (24 Oct 2026)
 
-Leave these as owner decisions. The implementation issue does not pick an answer:
+These were open until 24 Oct. They follow what Untitled (untitled.stream) publishes: a privacy
+page and a terms page at `/privacy` and `/terms`, a named contact for copyright notices, a rule
+that repeat infringers lose their account, and a closed iOS beta at the start.
 
-- the privacy-policy URL and the full privacy text (what is stored, where, deletion)
-- a takedown contact
-- whether the existing 30-day unused-blob cleanup is the retention policy
-- whether first sign-ups are invite-only
+- **Privacy-policy URL:** `https://getlathe.pages.dev/privacy`, with the terms at `/terms`. That is
+  the Cloudflare Pages project `getlathe`, claimed on 24 Oct for the Lathe rename. Both clients
+  link it next to the clause once the page is live. The full privacy text is written with the
+  legal pages (still out of scope below).
+- **Takedown contact:** a dedicated mailbox for copyright notices, named on the terms page. The
+  owner creates it before sign-ups open. It becomes `legal@<domain>` once a domain is bought.
+  The terms say a notified file is removed, its owner is told, and repeat infringers lose their
+  account.
+- **Retention:** the current cleanup is the policy, stated as `CleanupService.ts` and
+  `spec/sync.md` describe it today, not as the older "30-day unused-blob cleanup" wording. Your
+  files stay until you delete them. A deleted release's files are removed 30 days after deletion
+  (`TOMBSTONE_RETENTION_MS`). Unfinished uploads are dropped after a day (`spec/sync.md`).
+  Deleting the account (`DELETE /v1/me`) removes everything within a day. Daily play history is
+  kept for 400 days (`PLAY_DAY_RETENTION_DAYS`).
+- **First sign-ups are invite-only.** The gate is #186's invite-only sign-in.
 
 ## Out of scope
 
