@@ -36,6 +36,11 @@ struct PlaybackServiceTests {
     }
 
     /// Lets the run loop's task take its turns.
+    /// Yields until `condition` holds (up to a generous limit), so a test waits for an event, not a time.
+    private func waitUntil(_ condition: () -> Bool) async {
+        for _ in 0..<2000 where !condition() { await Task.yield(); try? await Task.sleep(for: .milliseconds(1)) }
+    }
+
     private func settle() async {
         for _ in 0..<30 { await Task.yield() }
         try? await Task.sleep(for: .milliseconds(20))
@@ -487,12 +492,14 @@ struct PlaybackServiceTests {
             clock = Date(timeIntervalSince1970: 1_000_000 + t)
             engine.onProgress?(t, 200)
         }
-        access.delayMilliseconds = 100
+        // The file open is held at a gate the test opens itself, not by timing.
+        access.holdsOpens = true
         counting.play(release: r, startingAt: id(r, 1))
-        await settle()
+        await waitUntil { access.heldCount == 1 }
+        #expect(access.heldCount == 1)
         // Paused while the file opens: it loads paused at 0 and waits.
         counting.pause()
-        try? await Task.sleep(for: .milliseconds(300))
+        access.releaseHeldOpens()
         await settle()
         #expect(engine.played.isEmpty)
         // Ticks while it waits, or while paused, never count.
@@ -500,7 +507,7 @@ struct PlaybackServiceTests {
         #expect(counts.increments.isEmpty)
 
         counting.resume()
-        await settle()
+        await waitUntil { engine.played.count == 1 }
         #expect(engine.played.count == 1)
         // Then 30 s of real playback, and 30 more: counted once.
         for t in stride(from: 100.0, through: 160, by: 0.5) { tick(t - 100) }
