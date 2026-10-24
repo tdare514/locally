@@ -97,6 +97,8 @@ struct CollectionQueueRows: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.playback) private var playback
+    /// "Add to collection" from a row's long-press menu (#364).
+    @State private var addTarget: (rowID: String, target: AddToCollectionTarget)?
     /// The queue row's number column (minWidth 24) plus its 12 gap: where the title starts; it grows with the text.
     @ScaledMetric(relativeTo: .footnote) private var numberColumnWidth: CGFloat = 24
 
@@ -107,6 +109,7 @@ struct CollectionQueueRows: View {
         queueSections(rows)
         if !rows.isEmpty { playlistGuide }
     }
+
 
     // MARK: Queue
 
@@ -161,11 +164,32 @@ struct CollectionQueueRows: View {
                 // The row's place among the playable ones: where Play starts from.
                 let playablePosition: Int? = row.isHeld ? rows[..<index].filter(\.isHeld).count : nil
                 queueRow(row, number: index + 1, playablePosition: playablePosition)
+                    .trackActions(rowActions(row))
+                    .sheet(item: addSheetBinding(for: row)) { target in
+                        AddToCollectionSheet(model: model, items: target.items) { addTarget = nil }
+                    }
                     .modifier(QueueRowChrome(layout: layout))
             }
         } header: {
             stickyHeader(title)
         }
+    }
+
+    /// The long-press menu of a queue row (#364): queue it or add it to a collection. Navigation items wait for part B.
+    private func rowActions(_ row: CollectionQueue.Row) -> TrackActions? {
+        guard let release = model.releases[row.releaseID] else { return nil }
+        return TrackActions(
+            target: .track(releaseId: row.releaseID, trackId: row.trackID), release: release,
+            addToCollection: { addTarget = (row.id, AddToCollectionTarget(items: [.track(releaseId: row.releaseID, trackId: row.trackID)])) }
+        )
+    }
+
+    /// Only the row that was long-pressed presents the sheet.
+    private func addSheetBinding(for row: CollectionQueue.Row) -> Binding<AddToCollectionTarget?> {
+        Binding(
+            get: { addTarget?.rowID == row.id ? addTarget?.target : nil },
+            set: { if $0 == nil { addTarget = nil } }
+        )
     }
 
     @ViewBuilder

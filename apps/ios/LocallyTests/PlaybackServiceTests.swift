@@ -559,4 +559,230 @@ struct PlaybackServiceTests {
         for t in stride(from: 100.0, through: 160, by: 0.5) { tick(t - 100) }
         #expect(counts.increments == [QueueItem(releaseId: r.id, trackId: id(r, 1))])
     }
+
+    // MARK: Play next and add to queue (#364)
+
+    private func items(_ r: Release, _ numbers: [Int]) -> [QueueItem] {
+        numbers.map { QueueItem(releaseId: r.id, trackId: id(r, $0)) }
+    }
+
+    @Test func playNextInsertsRightAfterThePlayingItemAndPlaysItWhenTheCurrentOneEnds() async {
+        let r = release()
+        let other = release()
+        service.play(release: r, startingAt: id(r, 1))
+        await waitUntil { engine.played.count == 1 }
+        let outcome = service.playNext(items(other, [4]), releases: [other])
+        #expect(outcome == QueueAddOutcome(added: 1, leftOut: 0, started: false))
+        #expect(service.queue?.items == items(r, [1]) + items(other, [4]) + items(r, [2, 3, 4]))
+        // The current track is neither restarted nor interrupted.
+        #expect(engine.played.count == 1)
+        #expect(service.currentTrack?.trackNumber == 1)
+        engine.end(.finished)
+        await waitUntil { engine.played.count == 2 }
+        #expect(service.currentItem == items(other, [4])[0])
+        #expect(service.currentRelease?.id == other.id)
+        engine.end(.finished)
+        await waitUntil { engine.played.count == 3 }
+        #expect(service.currentItem == items(r, [2])[0])
+    }
+
+    @Test func playNextTwiceKeepsTheOrderOfTheCalls() async {
+        let r = release()
+        service.play(release: r, startingAt: id(r, 4))
+        await settle()
+        _ = service.playNext(items(r, [1, 2]), releases: [r])
+        #expect(service.queue?.items == items(r, [4, 1, 2]))
+        #expect(service.queue?.index == 0)
+    }
+
+    @Test func addToQueueAppendsAndPlaysAfterThePreviousLastItem() async {
+        let r = release()
+        let other = release()
+        service.play(release: r, startingAt: id(r, 3))
+        await settle()
+        let outcome = service.addToQueue(items(other, [1, 2]), releases: [other])
+        #expect(outcome == QueueAddOutcome(added: 2, leftOut: 0, started: false))
+        #expect(service.queue?.items == items(r, [3, 4]) + items(other, [1, 2]))
+        engine.end(.finished)
+        await settle()
+        engine.end(.finished)
+        await settle()
+        #expect(service.currentItem == items(other, [1])[0])
+        #expect(service.currentRelease?.id == other.id)
+    }
+
+    @Test func addingWhileTheLastItemPlaysContinuesIntoTheNewItems() async {
+        let r = release()
+        service.play(release: r, startingAt: id(r, 4))
+        await settle()
+        _ = service.addToQueue(items(r, [1]), releases: [r])
+        engine.end(.finished)
+        await settle()
+        #expect(service.hasQueue)
+        #expect(service.currentItem == items(r, [1])[0])
+    }
+
+    @Test func aReleaseContextStaysForAddsFromThatReleaseAndBecomesMixedForAnother() async {
+        let r = release()
+        let other = release()
+        service.play(release: r, startingAt: id(r, 1))
+        await settle()
+        _ = service.addToQueue(items(r, [2]), releases: [r])
+        #expect(service.queue?.context == .release(r.id))
+        _ = service.playNext(items(r, [3]), releases: [r])
+        #expect(service.queue?.context == .release(r.id))
+        _ = service.addToQueue(items(r, [2]) + items(other, [1]), releases: [r, other])
+        #expect(service.queue?.context == QueueContext(kind: .mixed, id: r.id))
+        // Mixed stays mixed.
+        _ = service.addToQueue(items(r, [1]), releases: [r])
+        #expect(service.queue?.context.kind == .mixed)
+    }
+
+    @Test func aCollectionContextBecomesMixedOnAnyAdd() async {
+        let r = release()
+        service.play(items: items(r, [1, 2]), releases: [r], context: QueueContext(kind: .collection, id: UUID()))
+        await settle()
+        _ = service.addToQueue(items(r, [3]), releases: [r])
+        #expect(service.queue?.context == QueueContext(kind: .mixed, id: r.id))
+    }
+
+    @Test func aMixedContextIdFollowsTheCurrentItemAtTheTimeOfTheAdd() async {
+        let r = release()
+        let other = release()
+        service.play(items: items(other, [1]) + items(r, [1]), releases: [r, other], context: QueueContext(kind: .collection, id: UUID()))
+        await settle()
+        engine.end(.finished)
+        await settle()
+        _ = service.addToQueue(items(r, [2]), releases: [r])
+        #expect(service.queue?.context == QueueContext(kind: .mixed, id: r.id))
+    }
+
+    @Test func adoptedItemsAreLeftOutAndCounted() async {
+        let r = release()
+        let adopted = release(adopted: true)
+        service.play(release: r, startingAt: id(r, 1))
+        await settle()
+        let outcome = service.addToQueue(items(adopted, [1, 2]) + items(r, [2]), releases: [adopted, r])
+        #expect(outcome == QueueAddOutcome(added: 1, leftOut: 2, started: false))
+        #expect(service.queue?.items == items(r, [1, 2, 3, 4, 2]))
+        // Nothing but adopted: nothing changes, and a release context is not turned mixed.
+        let none = service.playNext(items(adopted, [1]), releases: [adopted])
+        #expect(none == QueueAddOutcome(added: 0, leftOut: 1, started: false))
+        #expect(service.queue?.context == .release(r.id))
+    }
+
+    @Test func anItemWhoseReleaseIsMissingIsLeftOut() async {
+        let r = release()
+        let stranger = release()
+        service.play(release: r, startingAt: id(r, 1))
+        await settle()
+        let outcome = service.addToQueue(items(stranger, [1]), releases: [r])
+        #expect(outcome == QueueAddOutcome(added: 0, leftOut: 1, started: false))
+    }
+
+    @Test func withNoQueueAddingStartsPlayingTheItems() async {
+        let r = release()
+        let outcome = service.addToQueue(items(r, [2, 3]), releases: [r])
+        await settle()
+        #expect(outcome == QueueAddOutcome(added: 2, leftOut: 0, started: true))
+        #expect(service.queue?.context == .release(r.id))
+        #expect(service.currentTrack?.trackNumber == 2)
+        #expect(service.isPlaying)
+    }
+
+    @Test func withNoQueueItemsFromTwoReleasesStartAMixedQueue() async {
+        let r = release()
+        let other = release()
+        let outcome = service.playNext(items(r, [1]) + items(other, [1]), releases: [r, other])
+        await settle()
+        #expect(outcome.started)
+        #expect(service.queue?.context == QueueContext(kind: .mixed, id: r.id))
+    }
+
+    @Test func withNoQueueAndNothingPlayableNothingChanges() async {
+        let adopted = release(adopted: true)
+        let outcome = service.playNext(items(adopted, [1]), releases: [adopted])
+        #expect(outcome == QueueAddOutcome(added: 0, leftOut: 1, started: false))
+        #expect(!service.hasQueue)
+        #expect(session.activations == 0)
+    }
+
+    @Test func openingAMixedContextOpensTheCurrentItemsRelease() async {
+        let r = release()
+        let other = release()
+        service.play(release: r, startingAt: id(r, 1))
+        await settle()
+        _ = service.addToQueue(items(other, [1]), releases: [other])
+        service.openContext()
+        #expect(service.openReleaseRequest == r.id)
+        #expect(service.openCollectionRequest == nil)
+        service.next()
+        await settle()
+        service.openContext()
+        #expect(service.openReleaseRequest == r.id)
+    }
+
+    @Test func openingAMixedContextFollowsTheItemThatPlaysNow() async {
+        let r = release()
+        let other = release()
+        service.play(release: r, startingAt: id(r, 1))
+        await settle()
+        _ = service.playNext(items(other, [2]), releases: [other])
+        service.next()
+        await settle()
+        service.openContext()
+        #expect(service.openReleaseRequest == other.id)
+    }
+
+    @Test func nextAndPreviousStillWalkAroundInsertedItems() async {
+        let r = release()
+        let other = release()
+        service.play(release: r, startingAt: id(r, 1))
+        await settle()
+        _ = service.playNext(items(other, [1]), releases: [other])
+        service.next()
+        await settle()
+        #expect(service.currentItem == items(other, [1])[0])
+        service.next()
+        await settle()
+        #expect(service.currentItem == items(r, [2])[0])
+        service.previous()
+        await settle()
+        #expect(service.currentItem == items(other, [1])[0])
+        service.previous()
+        await settle()
+        #expect(service.currentItem == items(r, [1])[0])
+    }
+
+    @Test func insertingWhileTheCurrentFileIsStillOpeningDoesNotRestartIt() async {
+        let r = release()
+        let other = release()
+        access.delayMilliseconds = 80
+        service.play(release: r, startingAt: id(r, 1))
+        await settle()
+        _ = service.playNext(items(other, [3]), releases: [other])
+        try? await Task.sleep(for: .milliseconds(250))
+        await settle()
+        #expect(engine.played.map(\.lastPathComponent) == ["t1.mp3"])
+        #expect(service.currentTrack?.trackNumber == 1)
+        access.delayMilliseconds = 0
+        engine.end(.finished)
+        await settle()
+        #expect(service.currentItem == items(other, [3])[0])
+    }
+
+    @Test func insertingDuringASkipKeepsTheSkipTargetAndPlaysTheInsertedItemAfterIt() async {
+        let r = release()
+        let other = release()
+        service.play(release: r, startingAt: id(r, 1))
+        await settle()
+        service.next()
+        // No await yet: the skip target (track 2) has not become the current item.
+        _ = service.playNext(items(other, [1]), releases: [other])
+        await settle()
+        #expect(service.currentItem == items(r, [2])[0])
+        engine.end(.finished)
+        await settle()
+        #expect(service.currentItem == items(other, [1])[0])
+    }
 }
