@@ -1,8 +1,8 @@
 import SwiftUI
 import Observation
 
-// The confirmation after "Play next" / "Add to queue" (#364): a glass capsule tinted by the cover, floating
-// above the mini player. One center owns the message on screen; a new one replaces the old.
+// The confirmation after "Play next" / "Add to queue" (#364): a light glass capsule tinted by the cover that hugs its text,
+// centred and floating clear above the mini player. One center owns the message on screen; a new one replaces the old.
 
 /// What one toast says.
 struct QueueToastMessage: Equatable, Identifiable {
@@ -78,7 +78,7 @@ struct QueueToast: View {
         let large = dynamicTypeSize.isAccessibilitySize
         Button(action: onTap) {
             HStack(spacing: 12) {
-                QueueToastSleeve(cover: message.cover, side: min(thumb, 64))
+                QueueToastSleeve(cover: message.cover, side: min(thumb, 56), slides: true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(message.title)
                         .themeFont(.rowTitle)
@@ -92,16 +92,16 @@ struct QueueToast: View {
                             .fixedSize(horizontal: false, vertical: large)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: large ? .infinity : nil, alignment: .leading)
             }
-            .padding(.leading, 10)
-            .padding(.trailing, large ? 28 : 22)
-            .padding(.vertical, 8)
+            .padding(.leading, 8)
+            .padding(.trailing, large ? 24 : 18)
+            .padding(.vertical, 6)
             .frame(minHeight: Theme.QueueToast.minHeight)
             .background { glass }
             .overlay { GlowRim() }
             .clipShape(Capsule())
-            .shadow(color: .black.opacity(Theme.QueueToast.shadowOpacity), radius: 14, y: 6)
+            .shadow(color: .black.opacity(Theme.QueueToast.shadowOpacity), radius: 10, y: 4)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -132,6 +132,11 @@ struct QueueToast: View {
 struct QueueToastSleeve: View {
     let cover: Data?
     let side: CGFloat
+    /// The disc slides out of the sleeve as the toast appears; Reduce Motion shows it already out.
+    var slides = false
+
+    @State private var out = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -140,7 +145,7 @@ struct QueueToastSleeve: View {
                 .overlay { Circle().stroke(Color.white.opacity(0.12), lineWidth: 0.5) }
                 .overlay { Circle().fill(Color.white.opacity(0.35)).frame(width: side * 0.16) }
                 .frame(width: side * 0.9, height: side * 0.9)
-                .offset(x: side * 0.28)
+                .offset(x: (out || reduceMotion || !slides) ? side * 0.28 : side * 0.02)
             Group {
                 if let cover, let image = UIImage(data: cover) {
                     Image(uiImage: image).resizable().scaledToFill()
@@ -154,6 +159,10 @@ struct QueueToastSleeve: View {
         }
         .frame(width: side * 1.28, height: side, alignment: .leading)
         .accessibilityHidden(true)
+        .onAppear {
+            guard slides, !reduceMotion else { return }
+            withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.4).delay(0.12)) { out = true }
+        }
     }
 }
 
@@ -168,8 +177,8 @@ struct QueueToastHost: ViewModifier {
             .overlay(alignment: .bottom) {
                 if let center, let message = center.current {
                     QueueToast(message: message) { center.dismiss() }
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 8)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 20)
                         .id(message.id)
                         .transition(reduceMotion ? .opacity : .asymmetric(
                             insertion: .offset(y: Theme.QueueToast.rise).combined(with: .opacity),
