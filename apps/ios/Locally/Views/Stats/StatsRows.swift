@@ -153,6 +153,8 @@ private struct StatsRow: View {
                 Text(Copy.Stats.lastPlayedLabel(item, today: today))
                     .font(.footnote)
                     .foregroundStyle(Theme.secondaryText)
+                    // "Yesterday at 9:02 AM" wraps at large text rather than being cut short.
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
