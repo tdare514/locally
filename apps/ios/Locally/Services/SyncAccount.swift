@@ -31,6 +31,9 @@ protocol SyncAccountStore: AnyObject {
     var lastVersion: Int { get set }
     /// The same cursor for `GET /v1/collections` (#350): the last `nextVersion` a collections page gave.
     var lastCollectionVersion: Int { get set }
+    /// `true` once a collections page, put or delete has succeeded, so a later 404 means "no such collection"
+    /// rather than "an older API without the route". Cleared on sign-out.
+    var collectionsRouteSeen: Bool { get set }
     /// The device name the server echoed from `POST /v1/auth/verify`, shown in
     /// Settings; `nil` when signed out or when signed in before it was stored.
     var deviceName: String? { get set }
@@ -72,6 +75,7 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
         static let deviceId = "com.tdare.locally.sync.deviceId"
         static let lastVersion = "com.tdare.locally.sync.lastVersion"
         static let lastCollectionVersion = "com.tdare.locally.sync.lastCollectionVersion"
+        static let collectionsRouteSeen = "com.tdare.locally.sync.collectionsRouteSeen"
         static let deviceName = "com.tdare.locally.sync.deviceName"
         static let userId = "com.tdare.locally.sync.userId"
         static let lastMissingFilesCheckAt = "com.tdare.locally.sync.lastMissingFilesCheckAt"
@@ -124,6 +128,11 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
         set { defaults.set(newValue, forKey: Key.lastCollectionVersion) }
     }
 
+    var collectionsRouteSeen: Bool {
+        get { defaults.bool(forKey: Key.collectionsRouteSeen) }
+        set { defaults.set(newValue, forKey: Key.collectionsRouteSeen) }
+    }
+
     var deviceName: String? {
         get { defaults.string(forKey: Key.deviceName) }
         set {
@@ -166,6 +175,7 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
         defaults.removeObject(forKey: Key.deviceId)
         defaults.removeObject(forKey: Key.lastVersion)
         defaults.removeObject(forKey: Key.lastCollectionVersion)
+        defaults.removeObject(forKey: Key.collectionsRouteSeen)
         defaults.removeObject(forKey: Key.deviceName)
         defaults.removeObject(forKey: Key.userId)
         defaults.removeObject(forKey: Key.lastMissingFilesCheckAt)

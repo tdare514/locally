@@ -77,6 +77,39 @@ struct CollectionSyncTests {
         #expect(try h.outbox.collectionEntries().isEmpty)
     }
 
+    @Test func a404DeleteIsDroppedOnceTheRouteHasBeenSeen() async throws {
+        let h = makeHarness()
+        await h.engine.reconcile()
+        #expect(h.account.collectionsRouteSeen)
+        try h.outbox.enqueueCollection(UUID(), .delete)
+        h.api.collectionDeleteError = SyncApiError.notFound
+
+        await h.engine.reconcile()
+
+        #expect(try h.outbox.collectionEntries().isEmpty)
+    }
+
+    @Test func a404DeleteStaysQueuedWhenTheRouteWasNeverSeen() async throws {
+        let h = makeHarness()
+        h.api.collectionsError = SyncApiError.notFound
+        try h.outbox.enqueueCollection(UUID(), .delete)
+
+        await h.engine.reconcile()
+
+        #expect(!h.account.collectionsRouteSeen)
+        #expect(try h.outbox.collectionEntries().count == 1)
+    }
+
+    @Test func signingOutClearsTheRouteSeenFlag() async throws {
+        let h = makeHarness()
+        await h.engine.reconcile()
+        #expect(h.account.collectionsRouteSeen)
+
+        await h.engine.signOut()
+
+        #expect(!h.account.collectionsRouteSeen)
+    }
+
     @Test func releasesGoFirstThenChangedCollectionsThenDeletes() async throws {
         let h = makeHarness()
         let release = Release(kind: .single, title: "S", artist: "A", folderPath: "/f", tracks: [Track(title: "S", trackNumber: 1, filePath: "/f/s.mp3", originalName: "s.mp3")])

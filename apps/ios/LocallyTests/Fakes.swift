@@ -360,6 +360,7 @@ final class InMemorySyncAccountStore: SyncAccountStore {
     private(set) var deviceId: String?
     var lastVersion: Int = 0
     var lastCollectionVersion: Int = 0
+    var collectionsRouteSeen = false
     var deviceName: String?
     var userId: String?
     var lastMissingFilesCheckAt: Date?
@@ -376,6 +377,7 @@ final class InMemorySyncAccountStore: SyncAccountStore {
         deviceId = nil
         lastVersion = 0
         lastCollectionVersion = 0
+        collectionsRouteSeen = false
         deviceName = nil
         userId = nil
         lastMissingFilesCheckAt = nil
@@ -496,6 +498,7 @@ final class FakeSyncApi: SyncApi {
     var collectionsError: Error?
     /// Thrown by the next `putCollection` only (e.g. `.tooManyCollections`), then cleared.
     var collectionPutError: Error?
+    var collectionDeleteError: Error?
     /// What the next `putCollection` answers as `pruned`; the stored copy loses its last item per prune.
     var collectionPrunedOnNextPut = 0
     /// When set, `collections(...)` returns exactly this page.
@@ -549,6 +552,7 @@ final class FakeSyncApi: SyncApi {
     @discardableResult
     func deleteCollection(_ id: String) async throws -> Int {
         if let collectionsError { throw collectionsError }
+        if let error = collectionDeleteError { throw error }
         collectionDeleteCalls.append(id)
         callOrder.append("deleteCollection")
         var stored = collectionStorage[id] ?? SyncCollection(id: id, name: "x", items: [], origin: "ios", originDevice: "", createdAt: Date(), updatedAt: Date())

@@ -580,6 +580,7 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
         }
         do {
             let result = try await api.putCollection(SyncCollection(collection))
+            account.collectionsRouteSeen = true
             try? outbox.removeCollection(id, ifOperation: .push)
             if result.pruned > 0 {
                 // The server dropped items naming deleted releases: take its copy rather than keep ours.
@@ -608,9 +609,16 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
     private func sendCollectionDelete(_ id: UUID) async {
         do {
             try await api.deleteCollection(id.uuidString.lowercased())
+            account.collectionsRouteSeen = true
             try? outbox.removeCollection(id, ifOperation: .delete)
         } catch SyncApiError.notFound {
-            Self.log.info("Collection delete unavailable: the sync server doesn't have the route yet.")
+            if account.collectionsRouteSeen {
+                // The route exists, so this is "no such collection" (made and deleted before its put went out).
+                Self.log.info("Collection delete answered 404 on a server with the route: nothing to delete, dropping it.")
+                try? outbox.removeCollection(id, ifOperation: .delete)
+            } else {
+                Self.log.info("Collection delete unavailable: the sync server doesn't have the route yet.")
+            }
         } catch SyncApiError.rateLimited {
             Self.log.info("Collections rate limited; trying again on the next reconcile.")
         } catch {
@@ -647,6 +655,7 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
                 return
             }
             guard isSignedIn else { return }
+            account.collectionsRouteSeen = true
             for record in page.collections { applyRemote(record, to: collections) }
             account.lastCollectionVersion = page.nextVersion
             guard page.hasMore, page.nextVersion > cursor else { return }
