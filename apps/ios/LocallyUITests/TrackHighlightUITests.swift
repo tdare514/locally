@@ -50,4 +50,35 @@ final class TrackHighlightUITests: XCTestCase {
         expectation(for: washed, evaluatedWith: deep)
         waitForExpectations(timeout: 10)
     }
+
+    /// Leaving the page mid-glow (an artist page pushed during the hold) must not leave the row glowing on return.
+    func testGlowClearsWhenAnotherPageIsPushedAndPoppedMidGlow() {
+        let app = launch("release-track-highlight-long")
+        let deep = row(10, in: app)
+        XCTAssertTrue(deep.waitForExistence(timeout: 15), "no track-row-10")
+        let washed = NSPredicate(format: "value == %@", "highlighted")
+        expectation(for: washed, evaluatedWith: deep)
+        waitForExpectations(timeout: 10)
+        let artist = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Open ")).firstMatch
+        var swipes = 0
+        while !(artist.exists && artist.isHittable) && swipes < 6 {
+            app.swipeDown()
+            swipes += 1
+        }
+        XCTAssertTrue(artist.isHittable, "no artist link on the release page")
+        artist.tap()
+        let title = app.staticTexts["artist-page-title"]
+        if !title.waitForExistence(timeout: 4) { artist.tap() }
+        XCTAssertTrue(title.waitForExistence(timeout: 10), "no artist page")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(artist.waitForExistence(timeout: 10), "release page did not return")
+        // The list is lazy, so scroll until the row is built.
+        var scrolls = 0
+        while !(deep.exists && deep.isHittable) && scrolls < 6 {
+            app.swipeUp()
+            scrolls += 1
+        }
+        XCTAssertTrue(deep.exists, "track-row-10 not reachable after returning")
+        XCTAssertNotEqual(deep.value as? String, "highlighted", "track-row-10 still glows after coming back")
+    }
 }

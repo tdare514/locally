@@ -1165,7 +1165,7 @@ extension IconsGallery {
             }
         }
         let id = track.map { release.tracks.indices.contains($0) ? release.tracks[$0].id : release.tracks[0].id }
-        return environment(NavigationStack { ReleaseDetailView(release: release, highlightTrackID: id, holdsHighlight: true) }, container)
+        return environment(HighlightedReleaseHost(release: release, trackID: id), container)
     }
 
     /// The album Tidelines in view mode: a track featuring Mira Valdane, linked.
@@ -1503,4 +1503,21 @@ private struct CollectionsPlayingGallery: View {
         }
     }
 }
+
+/// The highlighted release in a stack that opens artist links like the Library does, so a test can push an
+/// artist page off it (#362).
+private struct HighlightedReleaseHost: View {
+    let release: Release
+    let trackID: UUID?
+    @State private var path: [ArtistRoute] = []
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            ReleaseDetailView(release: release, highlightTrackID: trackID, holdsHighlight: true)
+                .navigationDestination(for: ArtistRoute.self) { ArtistPageView(route: $0) }
+        }
+        .artistLinks { path.append($0) }
+    }
+}
+
 #endif

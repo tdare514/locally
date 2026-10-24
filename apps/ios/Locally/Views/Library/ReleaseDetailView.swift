@@ -127,6 +127,7 @@ struct ReleaseDetailView: View {
             .environment(\.defaultMinListRowHeight, 0)
             .scrollContentBackground(.hidden)
             .task { await highlightTrack(in: model, proxy: proxy) }
+            .onDisappear { clearHighlight() }
             }
         }
         .navigationTitle("")
@@ -444,8 +445,15 @@ struct ReleaseDetailView: View {
         withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: Theme.Track.highlightFadeIn)) { highlight = 1 }
         guard !holdsHighlight else { return }
         try? await Task.sleep(for: .seconds(Theme.Track.highlightFadeIn + Theme.Track.highlightHold))
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled else { clearHighlight(); return }
         withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: Theme.Track.highlightFadeOut)) { highlight = 0 }
+    }
+
+    /// Drops the glow at once, so a page left mid-glow shows its row plain on return (the glow plays once per push).
+    private func clearHighlight() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { highlight = 0 }
     }
 
     /// The row's play button (#336), or nil when the release can't play here (an adopted one).
