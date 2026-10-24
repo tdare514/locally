@@ -586,13 +586,35 @@ struct PlaybackServiceTests {
         #expect(service.currentItem == items(r, [2])[0])
     }
 
-    @Test func playNextTwiceKeepsTheOrderOfTheCalls() async {
+    @Test func playNextKeepsTheOrderWithinOneBatch() async {
         let r = release()
         service.play(release: r, startingAt: id(r, 4))
         await settle()
         _ = service.playNext(items(r, [1, 2]), releases: [r])
         #expect(service.queue?.items == items(r, [4, 1, 2]))
         #expect(service.queue?.index == 0)
+    }
+
+    @Test func theMostRecentPlayNextPlaysNext() async {
+        let r = release()
+        let a = release()
+        let b = release()
+        service.play(release: r, startingAt: id(r, 1))
+        await settle()
+        _ = service.playNext(items(a, [1]), releases: [a])
+        _ = service.playNext(items(b, [1]), releases: [b])
+        #expect(service.queue?.items == items(r, [1]) + items(b, [1]) + items(a, [1]) + items(r, [2, 3, 4]))
+    }
+
+    @Test func addToQueueTwiceIsFirstInFirstOut() async {
+        let r = release()
+        let a = release()
+        let b = release()
+        service.play(release: r, startingAt: id(r, 3))
+        await settle()
+        _ = service.addToQueue(items(a, [1]), releases: [a])
+        _ = service.addToQueue(items(b, [1]), releases: [b])
+        #expect(service.queue?.items == items(r, [3, 4]) + items(a, [1]) + items(b, [1]))
     }
 
     @Test func addToQueueAppendsAndPlaysAfterThePreviousLastItem() async {

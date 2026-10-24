@@ -74,6 +74,10 @@ struct QueueToast: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var thumb: CGFloat = Theme.QueueToast.thumbSide
 
+    /// Bounded so wrapped text never meets a curve; at one line this is still more than half the height, so it reads as a capsule.
+    private static let corner: CGFloat = 22
+    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: Self.corner, style: .continuous) }
+
     var body: some View {
         let large = dynamicTypeSize.isAccessibilitySize
         Button(action: onTap) {
@@ -88,7 +92,7 @@ struct QueueToast: View {
                         Text(detail)
                             .themeFont(.rowSubtitle)
                             .foregroundStyle(Theme.secondaryText)
-                            .lineLimit(large ? nil : 1)
+                            .lineLimit(large ? 3 : 1)
                             .fixedSize(horizontal: false, vertical: large)
                     }
                 }
@@ -96,13 +100,13 @@ struct QueueToast: View {
             }
             .padding(.leading, 8)
             .padding(.trailing, large ? 24 : 18)
-            .padding(.vertical, 6)
+            .padding(.vertical, large ? 12 : 6)
             .frame(minHeight: Theme.QueueToast.minHeight)
             .background { glass }
-            .overlay { GlowRim() }
-            .clipShape(Capsule())
+            .overlay { GlowRim(corner: Self.corner) }
+            .clipShape(shape)
             .shadow(color: .black.opacity(Theme.QueueToast.shadowOpacity), radius: 10, y: 4)
-            .contentShape(Capsule())
+            .contentShape(shape)
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
