@@ -70,14 +70,16 @@ export default function Popover({
     };
   }, [open, place]);
 
-  // Focus goes in when it opens, and again if the content changes and the focused control went with it.
+  // Focus goes in when it opens, and again if the content changes and the focused control went with it. It waits
+  // for the first placement: the panel is `visibility: hidden` until then, and a hidden control can't take focus.
+  const placed = pos !== null;
   useEffect(() => {
-    if (!open) return;
+    if (!open || !placed) return;
     const panel = panelRef.current;
     if (panel?.contains(document.activeElement)) return;
     const first = panel?.querySelector<HTMLElement>(STOPS) ?? panel;
     first?.focus({ preventScroll: true });
-  }, [open, role]);
+  }, [open, placed, role]);
 
   // A press on the anchor toggles it; it must not also read as focus leaving.
   const anchorPressRef = useRef(false);
