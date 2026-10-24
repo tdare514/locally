@@ -99,13 +99,15 @@ struct StatsPeriodSheet: View {
             Button(action: onClose) {
                 Image(systemName: "xmark")
                     .font(.system(.title3, weight: .bold))
+                    .dynamicTypeSize(...DynamicTypeSize.xxLarge)
                     .foregroundStyle(Color.red)
                     .frame(width: Theme.Stats.minTarget, height: Theme.Stats.minTarget)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Close")
-            .padding(8)
+            .padding(.top, 12)
+            .padding(.trailing, 14)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Copy.Stats.periodPopupLabel)
