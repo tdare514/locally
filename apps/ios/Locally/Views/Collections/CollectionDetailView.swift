@@ -8,6 +8,11 @@ struct CollectionDetailView: View {
     /// "Add tracks": leaves for the Library, where any release or track row can be added.
     var onAddTracks: () -> Void
     @State private var editMode: EditMode
+    /// "Make it a playlist" (#353) starts closed.
+    @State private var isGuideOpen: Bool
+    private let startsGuideOpen: Bool
+    private static let guideID = "playlist-guide"
+    private static let endID = "list-end"
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -24,12 +29,14 @@ struct CollectionDetailView: View {
         let retry: () -> Void
     }
 
-    /// `startsEditing` opens the screen in edit mode (the debug gallery's screenshots).
-    init(model: CollectionsModel, id: UUID, startsEditing: Bool = false, onAddTracks: @escaping () -> Void) {
+    /// `startsEditing` opens the screen in edit mode, `startsGuideOpen` the playlist guide (the debug gallery's screenshots).
+    init(model: CollectionsModel, id: UUID, startsEditing: Bool = false, startsGuideOpen: Bool = false, onAddTracks: @escaping () -> Void) {
         self.model = model
         self.id = id
         self.onAddTracks = onAddTracks
         _editMode = State(initialValue: startsEditing ? .active : .inactive)
+        _isGuideOpen = State(initialValue: startsGuideOpen)
+        self.startsGuideOpen = startsGuideOpen
     }
 
     var body: some View {
@@ -74,7 +81,8 @@ struct CollectionDetailView: View {
     private func content(_ collection: MusicCollection) -> some View {
         let rows = model.rows(of: collection)
         let visible = model.visibleItems(of: collection)
-        return List {
+        return ScrollViewReader { proxy in
+        List {
             header(collection, rows: rows)
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
@@ -85,11 +93,27 @@ struct CollectionDetailView: View {
                 editSection(collection, visible: visible)
             } else {
                 queueSection(collection, rows: rows)
+                if !rows.isEmpty { playlistGuide(collection) }
+                #if DEBUG
+                if startsGuideOpen {
+                    // Debug gallery only: the end of the list, so the open guide can be scrolled into view.
+                    Color.clear.frame(height: 1).id(Self.endID).listRowBackground(Color.clear).listRowSeparator(.hidden)
+                }
+                #endif
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, 44)
+        .task {
+            #if DEBUG
+            // The gallery's open-guide frame: bring the guide into view (the guide starts closed otherwise).
+            guard startsGuideOpen else { return }
+            try? await Task.sleep(for: .milliseconds(600))
+            withAnimation(nil) { proxy.scrollTo(Self.endID, anchor: .bottom) }
+            #endif
+        }
+        }
     }
 
     // MARK: Edits that can fail
@@ -197,6 +221,43 @@ struct CollectionDetailView: View {
 
     // MARK: View mode
 
+    /// "Make it a playlist" (#353), the release page's disclosure over this collection's tracks that this phone holds.
+    private func playlistGuide(_ collection: MusicCollection) -> some View {
+        let guide = CollectionQueue.playlistGuide(collection.items, releases: model.releases)
+        return DisclosureGroup(Copy.Detail.makeItAPlaylist, isExpanded: $isGuideOpen) {
+            if guide.titles.isEmpty {
+                Text(Copy.Collections.nothingToAdd)
+                    .themeFont(.body)
+                    .foregroundStyle(Theme.secondaryText)
+            } else {
+                PlaylistGuide(
+                    albumTitle: collection.name,
+                    trackTitles: guide.titles,
+                    note: guide.leftOut > 0 ? Copy.Collections.leftOutOfGuide(guide.leftOut) : nil
+                )
+            }
+        }
+        .themeFont(.body)
+        .foregroundStyle(Theme.primaryText)
+        .frame(minHeight: Theme.Immersive.panelActionMinHeight)
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .id(Self.guideID)
+    }
+
+    /// A section header that sticks while the list scrolls: it carries the page's own opaque background, full width, so rows pass under it cleanly.
+    private func stickyHeader(_ title: String) -> some View {
+        Text(title)
+            .themeFont(.sectionTitle)
+            .foregroundStyle(Theme.primaryText)
+            .textCase(nil)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 20)
+            .background(Theme.background)
+            .listRowInsets(EdgeInsets())
+    }
+
     @ViewBuilder
     private func queueSection(_ collection: MusicCollection, rows: [CollectionQueue.Row]) -> some View {
         if rows.isEmpty {
@@ -229,10 +290,7 @@ struct CollectionDetailView: View {
                         .listRowSeparatorTint(Theme.Track.separatorTint)
                 }
             } header: {
-                Text(Copy.Collections.queueHeading)
-                    .themeFont(.sectionTitle)
-                    .foregroundStyle(Theme.primaryText)
-                    .textCase(nil)
+                stickyHeader(Copy.Collections.queueHeading)
             }
         }
     }
@@ -341,10 +399,7 @@ struct CollectionDetailView: View {
                 }
             }
         } header: {
-            Text(Copy.Collections.itemsHeading)
-                .themeFont(.sectionTitle)
-                .foregroundStyle(Theme.primaryText)
-                .textCase(nil)
+            stickyHeader(Copy.Collections.itemsHeading)
         }
         Section {
             Button {

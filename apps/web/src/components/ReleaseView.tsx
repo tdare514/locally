@@ -22,6 +22,7 @@ import RecordSleeve from "./RecordSleeve";
 import AmbientBackdrop from "./AmbientBackdrop";
 import SpotifySourceBanner from "./SpotifySourceBanner";
 import { ChevronRightIcon, CopyIcon } from "./Icons";
+import { copyText } from "../lib/copy-text";
 import { COPIED_LABEL, COPY_LABEL, PLAYLIST_FALLBACK, playlistSteps } from "../lib/playlist-copy";
 import { PLAYS_ACROSS_DEVICES } from "../lib/plays-copy";
 import { startPlaylistsPolling } from "../lib/playlists-poll";
@@ -69,32 +70,6 @@ interface ReleaseViewProps {
   onOpenAccount?: () => void;
   /** Every artist in the library, for the Artist field's suggestions (#287). */
   artistIndex: ArtistEntry[];
-}
-
-/** Copies `text` from a user gesture: the async Clipboard API first, then the
- * legacy `execCommand("copy")` path for hosts that deny `clipboard-write`. */
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    // fall through to the legacy path
-  }
-  const area = document.createElement("textarea");
-  area.value = text;
-  area.setAttribute("readonly", "");
-  area.style.position = "fixed";
-  area.style.opacity = "0";
-  document.body.appendChild(area);
-  area.select();
-  let ok = false;
-  try {
-    ok = document.execCommand("copy");
-  } catch {
-    ok = false;
-  }
-  area.remove();
-  return ok;
 }
 
 interface Draft {
@@ -741,7 +716,7 @@ export default function ReleaseView({
           className="group rounded-[9px] border border-border bg-card p-5"
         >
           <summary className="flex cursor-pointer list-none items-center gap-2 text-base font-bold tracking-[-0.02em] text-text [&::-webkit-details-marker]:hidden">
-            <ChevronRightIcon className="h-4 w-4 text-text-muted transition-transform group-open:rotate-90" />
+            <ChevronRightIcon className="h-4 w-4 text-text-muted transition-transform motion-reduce:transition-none group-open:rotate-90" />
             Make it a playlist
           </summary>
           <div className="mt-4 flex flex-col gap-3">
@@ -757,7 +732,7 @@ export default function ReleaseView({
               </button>
             </div>
             <p className="text-sm text-text-muted">{playlistSteps(release.title, tracks.length)}</p>
-            <p className="text-xs text-text-dim">{PLAYLIST_FALLBACK}</p>
+            <p className="text-xs text-text-muted">{PLAYLIST_FALLBACK}</p>
           </div>
         </details>
       )}

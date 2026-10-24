@@ -35,7 +35,7 @@ struct ComponentGallery: View {
         "share-sheet", "share-sheet-link", "share-sheet-result", "share-sheet-signed-out", "share-sheet-large-text",
         "devices-tray-friends", "devices-tray-friends-large-text", "shared-by-you", "shared-by-you-large-text", "release-share-blocked",
         // #350: collections in List view over seeded sample collections.
-        "collections-library", "collections-screen", "collections-queue", "collections-edit", "collections-empty", "collections-queue-ax", "collections-add", "collections-playing", "collections-add-failed", "collections-wont-play"]
+        "collections-library", "collections-screen", "collections-queue", "collections-edit", "collections-empty", "collections-queue-ax", "collections-add", "collections-playing", "collections-add-failed", "collections-wont-play", "collections-playlist-guide", "collections-none-here"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -142,15 +142,15 @@ struct ComponentGallery: View {
             Self.settings(signedIn: false, codeSentTo: "sample@example.com")
         case "settings-scrolled":
             // Opens at the bottom of the page, to see the lower groups and the edge fade.
-            Self.settings(signedIn: true).defaultScrollAnchor(.bottom)
+            Self.settings(signedIn: true)
         case "stats-week":
             StatsGallery.page(.week)
         case "stats-week-scrolled":
-            StatsGallery.page(.week).defaultScrollAnchor(.bottom)
+            StatsGallery.page(.week)
         case "stats-albums-grid":
             StatsGallery.page(.albumsGrid)
         case "stats-grid-scrolled":
-            StatsGallery.page(.albumsGrid).defaultScrollAnchor(.bottom)
+            StatsGallery.page(.albumsGrid)
         case "stats-artists":
             StatsGallery.page(.artists)
         case "stats-quiet":
@@ -160,7 +160,7 @@ struct ComponentGallery: View {
         case "stats-signed-out-ax3":
             StatsGallery.page(.signedOut).dynamicTypeSize(.accessibility3)
         case "stats-week-scrolled-ax3":
-            StatsGallery.page(.week).dynamicTypeSize(.accessibility3).defaultScrollAnchor(.bottom)
+            StatsGallery.page(.week).dynamicTypeSize(.accessibility3)
         case "stats-large-text":
             StatsGallery.page(.week).dynamicTypeSize(.accessibility2)
         case "release-tracks":
@@ -187,7 +187,7 @@ struct ComponentGallery: View {
         case "artist-page-featured":
             IconsGallery.artistPage(name: "Jonah Reyes")
         case "artist-page-bottom":
-            IconsGallery.artistPage(name: "Mira Valdane").defaultScrollAnchor(.bottom)
+            IconsGallery.artistPage(name: "Mira Valdane")
         case "library-sort-menu":
             IconsGallery.artistsLibrary(layout: .list, sort: .title)
         case "release-links":
@@ -224,6 +224,10 @@ struct ComponentGallery: View {
             CollectionsGallery.queue()
         case "collections-queue-ax":
             CollectionsGallery.queue().dynamicTypeSize(.accessibility3)
+        case "collections-playlist-guide":
+            CollectionsGallery.queue(guideOpen: true)
+        case "collections-none-here":
+            CollectionsGallery.queue(guideOpen: true, id: CollectionsGallery.noneHereID)
         case "collections-edit":
             CollectionsGallery.queue(editing: true)
         case "collections-add":
@@ -266,7 +270,7 @@ struct ComponentGallery: View {
         case "devices-tray-large-text":
             IconsGallery.devices(pending: 3, open: true).dynamicTypeSize(.accessibility3)
         case "icons-release-bottom":
-            IconsGallery.release().defaultScrollAnchor(.bottom)
+            IconsGallery.release()
         case "release-view-nocover":
             IconsGallery.release(noCover: true)
         case "release-edit-nocover":
@@ -280,7 +284,7 @@ struct ComponentGallery: View {
         case "release-view-large-text":
             IconsGallery.release().dynamicTypeSize(.accessibility3)
         case "release-view-large-text-bottom":
-            IconsGallery.release().dynamicTypeSize(.accessibility3).defaultScrollAnchor(.bottom)
+            IconsGallery.release().dynamicTypeSize(.accessibility3)
         case "share-sheet":
             ShareGallery.sheet()
         case "share-sheet-link":
@@ -1285,6 +1289,8 @@ enum CollectionsGallery {
         ], source: .adopted)
 
     static let queueID = UUID(uuidString: "00000000-0000-0000-0000-0000000000c1")!
+    /// A collection of only the Mac-only release: the playlist guide has nothing to add.
+    static let noneHereID = UUID(uuidString: "00000000-0000-0000-0000-0000000000c2")!
 
     private static func container(seed: Bool) -> (AppContainer, CollectionsModel) {
         let container = IconsGallery.container(releases: StatsGallery.releases + [macOnly])
@@ -1299,6 +1305,7 @@ enum CollectionsGallery {
                 make(UUID(), "Sunday morning, slow coffee", [.release(r[3].id), .release(r[4].id)], 60),
                 make(UUID(), "Gym", [.track(releaseId: r[5].id, trackId: r[5].tracks[0].id)], 120),
                 make(UUID(), "Someday", [], 180),
+                make(noneHereID, "From the Mac", [.release(macOnly.id)], 240),
             ]
             for collection in collections { try? container.collections.upsert(collection) }
         }
@@ -1328,9 +1335,9 @@ enum CollectionsGallery {
         return IconsGallery.environment(NavigationStack { CollectionsView(model: model) { _ in } }, container)
     }
 
-    static func queue(editing: Bool = false) -> some View {
+    static func queue(editing: Bool = false, guideOpen: Bool = false, id: UUID = queueID) -> some View {
         let (container, model) = container(seed: true)
-        return IconsGallery.environment(NavigationStack { CollectionDetailView(model: model, id: queueID, startsEditing: editing) {} }, container)
+        return IconsGallery.environment(NavigationStack { CollectionDetailView(model: model, id: id, startsEditing: editing, startsGuideOpen: guideOpen) {} }, container)
     }
 
     static func addSheet(saveFails: Bool = false) -> some View {
