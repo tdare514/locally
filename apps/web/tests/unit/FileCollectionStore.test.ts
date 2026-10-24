@@ -83,6 +83,17 @@ describe("FileCollectionStore", () => {
     expect((await s.list())[0].name).toBe("Remote wins");
   });
 
+  it("markPushed never marks a newer local revision as pushed", async () => {
+    const s = store();
+    const made = await s.create({ name: "A", items: [], originDevice: "Mac" });
+    clock += 60_000;
+    const edited = await s.update(made.id, { name: "B" });
+    await s.markPushed(made.id, made.updatedAt); // the PUT that was in flight carried the old revision
+    expect((await s.entries())[0].pushed).toBeNull();
+    await s.markPushed(made.id, edited!.updatedAt);
+    expect((await s.entries())[0].pushed).toBe(edited!.updatedAt);
+  });
+
   it("a different account clears the pushed markers", async () => {
     const s = store();
     const made = await s.create({ name: "A", items: [], originDevice: "Mac" });

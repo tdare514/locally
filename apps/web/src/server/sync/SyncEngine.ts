@@ -679,6 +679,7 @@ export class SyncEngine implements ReleaseSyncHooks {
       for (const { record } of changed.filter((e) => !e.record.deleted)) {
         try {
           const { pruned } = await api.putCollection(record);
+          await this.noteCollectionsRoute();
           await store.markPushed(record.id, record.updatedAt);
           if (pruned > 0) pullAll = true;
         } catch (err) {
@@ -690,8 +691,17 @@ export class SyncEngine implements ReleaseSyncHooks {
         }
       }
       for (const { record, pushed } of changed.filter((e) => e.record.deleted)) {
-        // A collection the service never held needs no delete.
-        if (pushed !== null) await api.deleteCollection(record.id);
+        // Every tombstone is sent: a PUT whose reply was lost leaves `pushed` null yet the service holds it.
+        try {
+          await api.deleteCollection(record.id);
+          await this.noteCollectionsRoute();
+        } catch (err) {
+          if (!(err instanceof SyncRequestError) || err.status !== 404) throw err;
+          // 404: nothing to delete if the route is known to exist, or if we never pushed it (nothing was there).
+          // Otherwise it may be an API from before collections, so leave the delete pending.
+          const seen = (await this.syncState.get()).collectionsRouteSeen === true;
+          if (!seen && pushed !== null) continue;
+        }
         await store.markPushed(record.id, record.updatedAt);
       }
       this.collectionsProblem = problem;
@@ -704,7 +714,7 @@ export class SyncEngine implements ReleaseSyncHooks {
           void version;
           await store.applyRemote(record);
         }
-        await this.syncState.update((s) => ({ ...s, collectionsVersion: nextVersion }));
+        await this.syncState.update((s) => ({ ...s, collectionsVersion: nextVersion, collectionsRouteSeen: true }));
         if (!hasMore) return;
         if (nextVersion <= cursor) throw new Error("Sync pull stalled: the server reported more collections without advancing the cursor.");
         cursor = nextVersion;
@@ -714,6 +724,11 @@ export class SyncEngine implements ReleaseSyncHooks {
       if (err instanceof SyncRequestError && (err.status === 404 || err.status === 429)) return;
       throw err;
     }
+  }
+
+  /** Records that the service answered a collections request, so a later 404 on a DELETE means "already gone". */
+  private async noteCollectionsRoute(): Promise<void> {
+    await this.syncState.update((s) => (s.collectionsRouteSeen ? null : { ...s, collectionsRouteSeen: true }));
   }
 
   /**

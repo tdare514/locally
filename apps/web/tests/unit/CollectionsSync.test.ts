@@ -87,6 +87,7 @@ class FakeApi {
   put: (r: CollectionRecord) => Promise<{ version: number; pruned: number }> = async () => ({ version: 5, pruned: 0 });
   listFails: Error | null = null;
   deletes: string[] = [];
+  deleteFails: Error | null = null;
   async listReleases() {
     this.order.push("listReleases");
     return { releases: [], nextVersion: 0, hasMore: false };
@@ -114,6 +115,7 @@ class FakeApi {
   async deleteCollection(id: string) {
     this.order.push(`delete:${id}`);
     this.deletes.push(id);
+    if (this.deleteFails) throw this.deleteFails;
     return { version: 9 };
   }
 }
@@ -158,12 +160,46 @@ describe("collections sync", () => {
     expect(entries.every((e) => e.pushed === e.record.updatedAt)).toBe(true);
   });
 
-  it("a tombstone the service never held is not sent", async () => {
+  it("a tombstone with no pushed marker is still sent (a PUT whose reply was lost)", async () => {
     const { store, api, engine } = setup();
     store.add(record({ deleted: true }), null);
     await engine.reconcile();
-    expect(api.deletes).toEqual([]);
+    expect(api.deletes).toEqual([ID]);
     expect((await store.entries())[0].pushed).toBe(record().updatedAt);
+  });
+
+  it("a DELETE answered 404 is done when the route has been seen", async () => {
+    const { store, api, state, engine } = setup();
+    state.state.collectionsRouteSeen = true;
+    store.add(record({ deleted: true }), "2026-10-23T19:00:00Z");
+    api.deleteFails = new SyncRequestError("Not found", 404);
+    await engine.reconcile();
+    expect((await store.entries())[0].pushed).toBe(record().updatedAt);
+  });
+
+  it("a DELETE answered 404 stays pending when the GET is 404 too (an older API)", async () => {
+    const { store, api, state, engine } = setup();
+    store.add(record({ deleted: true }), "2026-10-23T19:00:00Z");
+    api.deleteFails = new SyncRequestError("Not found", 404);
+    api.listFails = new SyncRequestError("Not found", 404);
+    await engine.reconcile();
+    expect((await store.entries())[0].pushed).toBe("2026-10-23T19:00:00Z");
+    expect(state.state.collectionsRouteSeen).toBeUndefined();
+  });
+
+  it("a never-pushed tombstone is cleared after one 404", async () => {
+    const { store, api, engine } = setup();
+    store.add(record({ deleted: true }), null);
+    api.deleteFails = new SyncRequestError("Not found", 404);
+    await engine.reconcile();
+    expect(api.deletes).toEqual([ID]);
+    expect((await store.entries())[0].pushed).toBe(record().updatedAt);
+  });
+
+  it("a successful pull page marks the route as seen", async () => {
+    const { state, engine } = setup();
+    await engine.reconcile();
+    expect(state.state.collectionsRouteSeen).toBe(true);
   });
 
   it("pages while hasMore and keeps nextVersion as the cursor", async () => {
