@@ -164,6 +164,77 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
     }
 }
 
+/// This phone's stable install id (#337), sent as `installId` at sign-in so the service gives a phone that
+/// signs out and in again its old device back, and its pushed play counts are not summed twice.
+protocol InstallIdStoring: AnyObject {
+    /// Made the first time it is needed, then the same on every call.
+    func installId() -> UUID
+}
+
+/// Production: a small file in Application Support next to `plays.json`, so the identity lives exactly as
+/// long as the counts. A reinstall removes both: a new id, a new device and fresh counts, which add up
+/// correctly with the old device's. It survives sign-out. Written atomically.
+final class FileInstallIdStore: InstallIdStoring {
+    private let url: URL
+    private var cached: UUID?
+
+    init(url: URL) { self.url = url }
+
+    static func standard() -> FileInstallIdStore {
+        let base = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true))
+            ?? FileManager.default.temporaryDirectory
+        return FileInstallIdStore(url: base.appendingPathComponent("install-id"))
+    }
+
+    func installId() -> UUID {
+        if let cached { return cached }
+        if let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8),
+           let stored = UUID(uuidString: text.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            cached = stored
+            return stored
+        }
+        let made = UUID()
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        // If the write fails, the id lasts for this launch only: the worst case is a new device.
+        try? Data(made.uuidString.lowercased().utf8).write(to: url, options: .atomic)
+        cached = made
+        return made
+    }
+}
+
+/// Which install a signed-in session belongs to (#337): written at a successful sign-in, holding the
+/// install id that sign-in sent. A token whose binding is missing or differs from the current install id
+/// (a session from before install ids, or a Keychain token that outlived a reinstall) is unbound and
+/// must sign in again, so plays are never pushed under a device row this install did not make.
+protocol SessionBindingStoring: AnyObject {
+    func binding() -> UUID?
+    func bind(_ installId: UUID)
+}
+
+/// Production: a `session-binding` file in Application Support beside `install-id` and `plays.json`,
+/// written atomically.
+final class FileSessionBindingStore: SessionBindingStoring {
+    private let url: URL
+
+    init(url: URL) { self.url = url }
+
+    static func standard() -> FileSessionBindingStore {
+        let base = (try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true))
+            ?? FileManager.default.temporaryDirectory
+        return FileSessionBindingStore(url: base.appendingPathComponent("session-binding"))
+    }
+
+    func binding() -> UUID? {
+        guard let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8) else { return nil }
+        return UUID(uuidString: text.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    func bind(_ installId: UUID) {
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Data(installId.uuidString.lowercased().utf8).write(to: url, options: .atomic)
+    }
+}
+
 /// Errors from `KeychainTokenStore.save`, surfaced to the caller instead of
 /// being swallowed, since a lost device token means a silent sign-out.
 enum KeychainTokenStoreError: LocalizedError, Equatable {

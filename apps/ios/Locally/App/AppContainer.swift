@@ -65,7 +65,8 @@ final class AppContainer {
         syncApi: SyncApi,
         syncEngine: SyncEngine,
         playStats: PlayStatsReading,
-        modelContainer: ModelContainer
+        modelContainer: ModelContainer,
+        playCounts: PlayCountStoring? = nil
     ) {
         self.folder = folder
         self.library = library
@@ -79,7 +80,7 @@ final class AppContainer {
         self.syncEngine = syncEngine
         self.playStats = playStats
         self.modelContainer = modelContainer
-        self.playback = PlaybackService.production(folder: folder, coverStore: coverStore)
+        self.playback = PlaybackService.production(folder: folder, coverStore: coverStore, playCounts: playCounts)
         self.folderStatus = FolderStatus(isConnected: folder.isConnected)
         self.purchaseStatus = PurchaseStatus(isFullUnlocked: purchase.isFullUnlocked)
         coordinator.syncHook = syncEngine
@@ -133,6 +134,8 @@ final class AppContainer {
         let syncAccount = UserDefaultsSyncAccountStore()
         let syncApi = HttpSyncApi(account: syncAccount)
         let outbox = SwiftDataSyncOutbox(context: modelContainer.mainContext)
+        let playCounts = FilePlayCountStore.standard()
+        let installIds = FileInstallIdStore.standard()
         let syncEngine = SyncEngine(
             api: syncApi,
             account: syncAccount,
@@ -141,7 +144,10 @@ final class AppContainer {
             coverStore: coverStore,
             outbox: outbox,
             deviceName: { SyncDeviceName.current() },
-            shareCovers: ShareCoverCache.standard()
+            shareCovers: ShareCoverCache.standard(),
+            playCounts: playCounts,
+            installIds: installIds,
+            sessionBinding: FileSessionBindingStore.standard()
         )
         let container = AppContainer(
             folder: folder,
@@ -155,7 +161,8 @@ final class AppContainer {
             syncApi: syncApi,
             syncEngine: syncEngine,
             playStats: SyncPlayStatsService(api: syncApi, account: syncAccount),
-            modelContainer: modelContainer
+            modelContainer: modelContainer,
+            playCounts: playCounts
         )
         Task { await container.refreshPurchaseStatus() }
         return container

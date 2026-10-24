@@ -2,12 +2,13 @@ import SwiftUI
 
 /// The mini player (#336): a faked-glass bar above the tab bar on every tab, shown only while a queue
 /// exists. The cover, the title over the artist, play/pause and next (44 pt each), and a thin progress
-/// line along its bottom edge. Tapping the bar (the cover and names) opens the release's page. At the
+/// line along its bottom edge. Tapping the bar (the cover and names) opens the queue's context: a release's page. At the
 /// accessibility sizes the names take a row of their own above the buttons.
 /// What the bar draws, read where the bar is built (the tab bar accessory is hosted by the system and
 /// does not reliably re-run a view that reads the observable player itself).
 @MainActor
 struct MiniPlayerState: Equatable {
+    /// The playing item's own release: the cover is looked up by it.
     var releaseID: UUID
     var title: String
     var artist: String
@@ -40,7 +41,7 @@ struct MiniPlayerBar: View {
         Group {
             let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4)) : AnyLayout(HStackLayout(spacing: 4))
             layout {
-                Button { playback.openReleaseRequest = state.releaseID } label: {
+                Button { playback.openContext() } label: {
                     HStack(spacing: 12) {
                         coverView
                         VStack(alignment: .leading, spacing: 2) {

@@ -52,6 +52,8 @@ struct StatsView: View {
     private static var edgeFade: CGFloat { 22 }
     private static var maxBottomFade: CGFloat { 90 }
 
+    @Environment(SyncStatus.self) private var syncStatus
+
     init(model: StatsViewModel, cache: StatsCoverCache, selectedTab: Binding<RootView.Tab>, librarySearchRequest: Binding<String?>) {
         _model = State(initialValue: model)
         self.cache = cache
@@ -226,7 +228,7 @@ struct StatsView: View {
             .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: model.isRefreshing)
 
             if model.phase == .ready || model.phase == .quiet {
-                Text(Copy.Stats.coverage)
+                Text("\(Copy.Stats.playsSource). \(Copy.Stats.coverage)")
                     .font(Theme.ScaledFont.caption)
                     .foregroundStyle(Theme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -242,6 +244,12 @@ struct StatsView: View {
                     .font(Theme.ScaledFont.headline)
                     .foregroundStyle(Theme.primaryText)
                     .accessibilityAddTraits(.isHeader)
+                if syncStatus.signInAgainNotice {
+                    Text(Copy.Sync.signInAgain)
+                        .font(Theme.ScaledFont.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Text(Copy.Stats.signedOutBody)
                     .font(Theme.ScaledFont.subheadline)
                     .foregroundStyle(Theme.secondaryText)

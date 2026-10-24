@@ -475,6 +475,8 @@ enum Copy {
     }
 
     enum Sync {
+        /// Shown in Settings and Stats after a session this install did not make was signed out (#337).
+        static let signInAgain = "Sign in again to keep syncing this phone."
         static let cardTitle = "Sync with your Mac"
         static let cardBody = "Keep this phone's library and your Mac's Locally library in step."
         static let emailFieldLabel = "Email"
@@ -672,10 +674,12 @@ enum Copy {
         static let title = "Stats"
         static let tabLabel = "Stats"
         static let coverage = "Collected across all your devices."
-        static let signedOutTitle = "Your plays live on your Mac"
-        static let signedOutBody = "Locally counts the songs you play in Spotify on your Mac. Sign in on both to see them here."
+        /// Under the stats with `coverage`: what the plays are (#337).
+        static let playsSource = "Plays in Spotify and in Locally"
+        static let signedOutTitle = "Your plays"
+        static let signedOutBody = "This phone counts the songs you play in Locally. Sign in to see plays from all your devices together. Counting in Spotify on your Mac is optional."
         static let signedOutAction = "Sign in"
-        static let noPlays = "Plays show up here once Locally on your Mac has counted some. They count while your Mac is on, or all the time with Count plays when this Mac is off in its Settings."
+        static let noPlays = "Plays show up here once Locally has counted some: songs you play in Locally on this phone, and in Spotify on your Mac. The Mac counts while it is on, or all the time with Count plays when this Mac is off in its Settings."
         static let failed = "Couldn't load your plays. Pull down to try again."
         static let busy = "Couldn't load your plays just now. Try again in a few minutes."
 

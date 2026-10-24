@@ -97,18 +97,34 @@ protocol RemoteCommandRegistrar: AnyObject {
     func register(_ handler: @escaping (RemoteCommand) -> Void)
 }
 
+/// One queued track and the release it belongs to. A queue can mix releases (a collection, #339).
+struct QueueItem: Hashable, Codable {
+    let releaseId: UUID
+    let trackId: UUID
+}
+
+/// Where a queue came from; tapping the mini player opens it.
+struct QueueContext: Hashable, Codable {
+    enum Kind: String, Codable { case release, collection }
+    let kind: Kind
+    let id: UUID
+
+    static func release(_ id: UUID) -> QueueContext { QueueContext(kind: .release, id: id) }
+}
+
 @MainActor
 @Observable
 final class PlaybackService {
-    /// The queued tracks in play order, with the release they came from.
     struct Queue: Equatable {
-        var release: Release
-        var tracks: [Track]
+        var items: [QueueItem]
+        /// The item playing (or paused).
+        var index: Int
+        var context: QueueContext
     }
 
     private(set) var queue: Queue?
-    /// Index into `queue.tracks` of the item playing (or paused).
-    private(set) var currentIndex = 0
+    /// The releases the queued items belong to, by id. Each item is resolved from its own release.
+    private var releases: [UUID: Release] = [:]
     private(set) var isPlaying = false
     private(set) var elapsed: Double = 0
     private(set) var duration: Double?
@@ -121,12 +137,24 @@ final class PlaybackService {
     /// Set by the mini player; the Library opens that release's page and clears it.
     var openReleaseRequest: UUID?
 
+    /// Tapping the mini player opens where the queue came from.
+    func openContext() {
+        guard let context = queue?.context else { return }
+        switch context.kind {
+        case .release: openReleaseRequest = context.id
+        case .collection: break // A collection's page comes with Collections (#339).
+        }
+    }
+
     @ObservationIgnored private let engine: PlaybackEngine
     @ObservationIgnored private let access: PlaybackFileAccess
     @ObservationIgnored private let session: PlaybackSession
     @ObservationIgnored private let nowPlaying: NowPlayingPublisher
     @ObservationIgnored private let remote: RemoteCommandRegistrar
     @ObservationIgnored private let coverData: (Release) -> Data?
+    @ObservationIgnored private let playCounts: PlayCountStoring?
+    @ObservationIgnored private let now: () -> Date
+    @ObservationIgnored private var counter = PlayCounter()
     @ObservationIgnored private var runner: Task<Void, Never>?
     @ObservationIgnored private var cursor = 0
     @ObservationIgnored private var isSkipping = false
@@ -143,11 +171,14 @@ final class PlaybackService {
     /// Bumped whenever the item being opened is replaced (a skip, a stop, a new play), so a file-access
     /// callback that comes back late can tell it is no longer wanted and never starts audio.
     @ObservationIgnored private var runToken = 0
+    /// The run token of the item whose audio has started; a tick from a cancelled run never counts.
+    @ObservationIgnored private var countingToken: Int?
     @ObservationIgnored private var startErrorTask: Task<Void, Never>?
 
     init(
         engine: PlaybackEngine, access: PlaybackFileAccess, session: PlaybackSession,
-        nowPlaying: NowPlayingPublisher, remote: RemoteCommandRegistrar, coverData: @escaping (Release) -> Data? = { _ in nil }
+        nowPlaying: NowPlayingPublisher, remote: RemoteCommandRegistrar, coverData: @escaping (Release) -> Data? = { _ in nil },
+        playCounts: PlayCountStoring? = nil, now: @escaping () -> Date = Date.init
     ) {
         self.engine = engine
         self.access = access
@@ -155,17 +186,25 @@ final class PlaybackService {
         self.nowPlaying = nowPlaying
         self.remote = remote
         self.coverData = coverData
+        self.playCounts = playCounts
+        self.now = now
     }
 
     // MARK: What the views read
 
     var hasQueue: Bool { queue != nil }
-    var currentTrack: Track? {
-        guard let queue, queue.tracks.indices.contains(currentIndex) else { return nil }
-        return queue.tracks[currentIndex]
+    var currentItem: QueueItem? {
+        guard let queue, queue.items.indices.contains(queue.index) else { return nil }
+        return queue.items[queue.index]
     }
-    var currentRelease: Release? { queue?.release }
-    var cover: Data? { queue.flatMap { coverData($0.release) } }
+    /// The playing item's own release and track, never "the queue's release".
+    var currentTrack: Track? { currentItem.flatMap(track(for:)) }
+    var currentRelease: Release? { currentItem.flatMap { releases[$0.releaseId] } }
+    var cover: Data? { currentRelease.flatMap { coverData($0) } }
+
+    private func track(for item: QueueItem) -> Track? {
+        releases[item.releaseId]?.tracks.first { $0.id == item.trackId }
+    }
     /// 0...1 along the mini player's bottom edge.
     var progress: Double {
         guard let duration, duration > 0 else { return 0 }
@@ -191,7 +230,7 @@ final class PlaybackService {
     }
 
     func isCurrent(_ trackID: UUID, in release: Release) -> Bool {
-        queue?.release.id == release.id && currentTrack?.id == trackID
+        currentItem == QueueItem(releaseId: release.id, trackId: trackID)
     }
 
     /// A row's number: pause the playing track, resume the paused one, else start from this row.
@@ -210,8 +249,23 @@ final class PlaybackService {
         guard Self.canPlay(release) else { return }
         let ordered = Self.playOrder(release)
         guard let start = ordered.firstIndex(where: { $0.id == trackID }) else { return }
+        play(
+            items: ordered[start...].map { QueueItem(releaseId: release.id, trackId: $0.id) },
+            releases: [release], context: .release(release.id)
+        )
+    }
+
+    /// Plays `items` in order from the first one. `releases` holds every release the items name;
+    /// an item whose release is missing, adopted or lacks the track is left out.
+    func play(items: [QueueItem], releases newReleases: [Release], context: QueueContext) {
+        let byID = Dictionary(newReleases.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let playable = items.filter { item in
+            guard let release = byID[item.releaseId], Self.canPlay(release) else { return false }
+            return release.tracks.contains { $0.id == item.trackId }
+        }
+        guard let first = playable.first else { return }
         endRun()
-        missingTrackIDs.remove(trackID)
+        missingTrackIDs.remove(first.trackId)
         do {
             try session.activate()
         } catch {
@@ -223,7 +277,9 @@ final class PlaybackService {
         startError = nil
         wantsToPlay = true
         setUpOnce()
-        queue = Queue(release: release, tracks: Array(ordered[start...]))
+        releases = byID
+        counter.reset()
+        queue = Queue(items: playable, index: 0, context: context)
         cursor = 0
         isSkipping = false
         runner = Task { [weak self] in await self?.run() }
@@ -260,8 +316,8 @@ final class PlaybackService {
 
     func next() {
         guard let queue else { return }
-        if currentIndex + 1 < queue.tracks.count {
-            skip(to: currentIndex + 1)
+        if queue.index + 1 < queue.items.count {
+            skip(to: queue.index + 1)
         } else {
             stop()
         }
@@ -270,10 +326,10 @@ final class PlaybackService {
     /// Within the first 3 seconds it goes to the previous track, after that it restarts this one.
     func previous() {
         guard hasQueue else { return }
-        if elapsed > 3 || currentIndex == 0 {
+        if elapsed > 3 || (queue?.index ?? 0) == 0 {
             seek(to: 0)
         } else {
-            skip(to: currentIndex - 1)
+            skip(to: (queue?.index ?? 1) - 1)
         }
     }
 
@@ -289,7 +345,8 @@ final class PlaybackService {
     func stop() {
         endRun()
         queue = nil
-        currentIndex = 0
+        releases = [:]
+        counter.reset()
         cursor = 0
         isPlaying = false
         wantsToPlay = false
@@ -349,6 +406,7 @@ final class PlaybackService {
             guard let self else { return }
             self.elapsed = elapsed
             if let duration, duration > 0 { self.duration = duration }
+            self.countSample()
         }
         remote.register { [weak self] in self?.handle($0) }
     }
@@ -396,13 +454,14 @@ final class PlaybackService {
     }
 
     private func run() async {
-        while !Task.isCancelled, let queue, queue.tracks.indices.contains(cursor) {
+        while !Task.isCancelled, let queue, queue.items.indices.contains(cursor) {
             let index = cursor
             cursor = index + 1
-            currentIndex = index
-            let track = queue.tracks[index]
+            self.queue?.index = index
+            guard let track = track(for: queue.items[index]) else { continue }
             elapsed = 0
             duration = track.durationSec
+            counter.reset()
             isSkipping = false
             itemLoaded = false
             let end = await playItem(track, token: runToken)
@@ -439,6 +498,8 @@ final class PlaybackService {
                     let go: Bool = await withCheckedContinuation { intentWaiter = $0 }
                     if !go { return .stopped }
                 }
+                // Counting starts when the audio does: after any wait for a resume.
+                countingToken = token
                 isPlaying = true
                 itemLoaded = true
                 publish()
@@ -453,11 +514,22 @@ final class PlaybackService {
         }
     }
 
+    /// Feeds the counting rule; a play that counts is added for that item's own release and track.
+    private func countSample() {
+        guard let playCounts, let item = currentItem, countingToken == runToken else { return }
+        // Nothing counts while the player is meant to be paused, whatever a late tick says.
+        let playing = isPlaying && wantsToPlay
+        let sample = PlaySample(at: now().timeIntervalSince1970, playing: playing, positionSec: elapsed, durationSec: duration ?? 0)
+        if counter.push(sample), playing {
+            playCounts.increment(releaseId: item.releaseId, trackId: item.trackId, at: now())
+        }
+    }
+
     private func publish() {
-        guard let queue, let track = currentTrack else { return }
+        guard let release = currentRelease, let track = currentTrack else { return }
         nowPlaying.publish(NowPlayingInfo(
-            title: track.title, artist: queue.release.artist, album: queue.release.title,
-            artwork: coverData(queue.release), duration: duration ?? track.durationSec, elapsed: elapsed, isPlaying: isPlaying
+            title: track.title, artist: release.artist, album: release.title,
+            artwork: coverData(release), duration: duration ?? track.durationSec, elapsed: elapsed, isPlaying: isPlaying
         ))
     }
 }

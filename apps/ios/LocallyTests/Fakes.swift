@@ -384,7 +384,7 @@ final class FakeReleaseSyncHook: ReleaseSyncHook {
 /// "upload missing files" behaviour `SyncEngine.push` relies on.
 final class FakeSyncApi: SyncApi {
     private(set) var requestCodeCalls: [String] = []
-    private(set) var verifyCalls: [(email: String, code: String, deviceName: String, platform: String)] = []
+    private(set) var verifyCalls: [(email: String, code: String, deviceName: String, platform: String, installId: String?)] = []
     var verifyResult: Result<SyncVerifyResult, Error> = .success(
         SyncVerifyResult(token: "test-token", userId: "user-1", email: "test@example.com", deviceId: "device-1", deviceName: "Test Device")
     )
@@ -443,8 +443,8 @@ final class FakeSyncApi: SyncApi {
         requestCodeCalls.append(email)
     }
 
-    func verify(email: String, code: String, deviceName: String, platform: String) async throws -> SyncVerifyResult {
-        verifyCalls.append((email, code, deviceName, platform))
+    func verify(email: String, code: String, deviceName: String, platform: String, installId: String?) async throws -> SyncVerifyResult {
+        verifyCalls.append((email, code, deviceName, platform, installId))
         return try verifyResult.get()
     }
 
@@ -454,7 +454,11 @@ final class FakeSyncApi: SyncApi {
         return try meResult.get()
     }
 
+    /// When set, thrown by `revokeDevice` (an offline sign-out).
+    var revokeDeviceError: Error?
+
     func revokeDevice(_ id: String) async throws {
+        if let revokeDeviceError { throw revokeDeviceError }
         revokedDeviceIds.append(id)
     }
 
@@ -607,6 +611,21 @@ final class FakeSyncApi: SyncApi {
         await playsSummaryGate?()
         guard !playsSummaryScript.isEmpty else { return SyncPlaysSummaryPage(tracks: [], allTime: [], nextCursor: nil) }
         return try playsSummaryScript[min(index, playsSummaryScript.count - 1)].get()
+    }
+
+    /// Every `putPlays` request, in order. `putPlaysResults` is consumed in order (empty or spent means success).
+    private(set) var putPlaysCalls: [[SyncPlayCount]] = []
+    var putPlaysResults: [Result<SyncPlaysPutResult, Error>] = []
+
+    /// Awaited inside `putPlays` after the call is recorded, with the call's index, to hold a request open.
+    var putPlaysGate: ((Int) async -> Void)?
+
+    func putPlays(_ counts: [SyncPlayCount]) async throws -> SyncPlaysPutResult {
+        let index = putPlaysCalls.count
+        putPlaysCalls.append(counts)
+        await putPlaysGate?(index)
+        if index < putPlaysResults.count { return try putPlaysResults[index].get() }
+        return SyncPlaysPutResult(accepted: counts.count, ignored: 0)
     }
 
     func downloadURL(releaseId: String, fileName: String) async throws -> URL {

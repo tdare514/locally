@@ -458,14 +458,92 @@ describe("AuthService", () => {
       await expect(auth.authenticate(first.token)).resolves.toBeDefined();
     });
 
-    it("ignores an install ID sent with another platform", async () => {
+    it("never crosses platforms: a Mac sending an iPhone's install ID gets a new device", async () => {
       const phone = await signIn(EMAIL, "iPhone", "ios", ID_A);
-      expect((await deviceRow(phone.device.id)).installId).toBeNull();
       await auth.revokeDevice(phone.user.id, phone.device.id);
 
       const mac = await signIn(EMAIL, "iPhone", "mac", ID_A);
 
       expect(mac.device.id).not.toBe(phone.device.id);
+    });
+
+    describe("iPhone (#337)", () => {
+      it("gives an iPhone with the same install ID its old row back, with the new token", async () => {
+        const first = await signIn(EMAIL, "iPhone", "ios", ID_A);
+        expect((await deviceRow(first.device.id)).installId).toBe(ID_A);
+        await auth.revokeDevice(first.user.id, first.device.id);
+
+        const second = await signIn(EMAIL, "iPhone", "ios", ID_A);
+
+        expect(second.device.id).toBe(first.device.id);
+        await expect(auth.authenticate(first.token)).rejects.toThrow(UnauthorizedError);
+        await expect(auth.authenticate(second.token)).resolves.toBeDefined();
+        expect((await deviceRow(first.device.id)).revokedAt).toBeNull();
+        expect((await auth.listDevices(first.user.id)).devices).toHaveLength(1);
+      });
+
+      it("makes a new device for a different install ID", async () => {
+        const first = await signIn(EMAIL, "iPhone", "ios", ID_A);
+        await auth.revokeDevice(first.user.id, first.device.id);
+
+        const second = await signIn(EMAIL, "iPhone", "ios", ID_B);
+
+        expect(second.device.id).not.toBe(first.device.id);
+        expect((await deviceRow(first.device.id)).revokedAt).not.toBeNull();
+      });
+
+      it("makes a new device when no install ID is sent, as before", async () => {
+        const first = await signIn(EMAIL, "iPhone", "ios");
+        await auth.revokeDevice(first.user.id, first.device.id);
+
+        const second = await signIn(EMAIL, "iPhone", "ios");
+
+        expect(second.device.id).not.toBe(first.device.id);
+      });
+
+      it("never revives an iPhone by name, even one with no stored install ID", async () => {
+        const old = await signIn(EMAIL, "iPhone", "ios");
+        await auth.revokeDevice(old.user.id, old.device.id);
+        const other = await signIn(EMAIL, "iPhone", "ios", ID_A);
+        await auth.revokeDevice(other.user.id, other.device.id);
+
+        const next = await signIn(EMAIL, "iPhone", "ios", ID_B);
+
+        expect(next.device.id).not.toBe(old.device.id);
+        expect(next.device.id).not.toBe(other.device.id);
+      });
+
+      it("takes over an active iPhone with the same install ID (an offline sign-out), and its old token dies", async () => {
+        const first = await signIn(EMAIL, "iPhone", "ios", ID_A);
+        // Never revoked: the phone signed out while offline.
+        const second = await signIn(EMAIL, "iPhone", "ios", ID_A);
+
+        expect(second.device.id).toBe(first.device.id);
+        await expect(auth.authenticate(first.token)).rejects.toThrow(UnauthorizedError);
+        await expect(auth.authenticate(second.token)).resolves.toBeDefined();
+        expect((await auth.listDevices(first.user.id)).devices).toHaveLength(1);
+      });
+
+      it("never takes an active iPhone of another user, or an active device of another platform", async () => {
+        const alice = await signIn("alice@example.com", "iPhone", "ios", ID_A);
+        const mac = await signIn(EMAIL, "Mac", "mac", ID_A);
+
+        const bob = await signIn("bob@example.com", "iPhone", "ios", ID_A);
+        const phone = await signIn(EMAIL, "iPhone", "ios", ID_A);
+
+        expect(bob.device.id).not.toBe(alice.device.id);
+        expect(phone.device.id).not.toBe(mac.device.id);
+        await expect(auth.authenticate(alice.token)).resolves.toBeDefined();
+        await expect(auth.authenticate(mac.token)).resolves.toBeDefined();
+      });
+
+      it("still never takes an active Mac", async () => {
+        const first = await signIn(EMAIL, "Mac", "mac", ID_A);
+        const second = await signIn(EMAIL, "Mac", "mac", ID_A);
+
+        expect(second.device.id).not.toBe(first.device.id);
+        await expect(auth.authenticate(first.token)).resolves.toBeDefined();
+      });
     });
 
     it("never matches another user's install ID: a new device, and the other row is untouched", async () => {

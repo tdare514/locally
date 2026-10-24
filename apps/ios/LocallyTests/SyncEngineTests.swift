@@ -4,7 +4,7 @@ import Testing
 
 @MainActor
 struct SyncEngineTests {
-    private struct Harness {
+    struct Harness {
         let coordinator: ReleaseCoordinator
         let folder: FakeSpotifyFolder
         let library: InMemoryLibraryStore
@@ -52,14 +52,17 @@ struct SyncEngineTests {
     /// `library` and `outbox` are accepted so a test can simulate an app
     /// restart: build a second harness over the same (still-in-memory, but
     /// standing in for "on disk") library and outbox, with a fresh `api`.
-    private func makeHarness(
+    func makeHarness(
         library: InMemoryLibraryStore = InMemoryLibraryStore(),
         outbox: any SyncOutbox = InMemorySyncOutbox(),
         api: FakeSyncApi = FakeSyncApi(),
         account: InMemorySyncAccountStore? = nil,
         defaults: UserDefaults = UserDefaults(suiteName: UUID().uuidString)!,
         coverStore: FakeCoverStore = FakeCoverStore(),
-        now: @escaping () -> Date = { Date() }
+        now: @escaping () -> Date = { Date() },
+        playCounts: PlayCountStoring? = nil,
+        installIds: InstallIdStoring? = nil,
+        sessionBinding: SessionBindingStoring? = nil
     ) -> Harness {
         let folderDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let folder = FakeSpotifyFolder(directory: folderDir)
@@ -81,7 +84,7 @@ struct SyncEngineTests {
             resolvedAccount = InMemorySyncAccountStore()
             resolvedAccount.save(email: "toby@example.com", deviceToken: "test-token", deviceId: "device-1")
         }
-        let engine = SyncEngine(api: api, account: resolvedAccount, library: library, coordinator: coordinator, coverStore: coverStore, outbox: outbox, now: now, deviceName: { "Toby's iPhone" }, defaults: defaults)
+        let engine = SyncEngine(api: api, account: resolvedAccount, library: library, coordinator: coordinator, coverStore: coverStore, outbox: outbox, now: now, deviceName: { "Toby's iPhone" }, defaults: defaults, playCounts: playCounts, installIds: installIds, sessionBinding: sessionBinding)
         return Harness(coordinator: coordinator, folder: folder, library: library, tagWriter: tagWriter, coverStore: coverStore, api: api, account: resolvedAccount, outbox: outbox, engine: engine, defaults: defaults)
     }
 

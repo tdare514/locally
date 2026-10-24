@@ -91,13 +91,15 @@ struct StatsCopyTests {
         #expect(Copy.Stats.title == "Stats")
         #expect(Copy.Stats.tabLabel == "Stats")
         #expect(Copy.Stats.coverage == "Collected across all your devices.")
-        #expect(Copy.Stats.signedOutTitle == "Your plays live on your Mac")
+        #expect(Copy.Stats.signedOutTitle == "Your plays")
+        #expect(Copy.Stats.signedOutBody == "This phone counts the songs you play in Locally. Sign in to see plays from all your devices together. Counting in Spotify on your Mac is optional.")
         #expect(Copy.Stats.signedOutAction == "Sign in")
         #expect(Copy.Stats.failed == "Couldn't load your plays. Pull down to try again.")
         #expect(Copy.Stats.busy == "Couldn't load your plays just now. Try again in a few minutes.")
     }
 
-    @Test func noPlaysExplainsWhenTheMacCounts() {
-        #expect(Copy.Stats.noPlays == "Plays show up here once Locally on your Mac has counted some. They count while your Mac is on, or all the time with Count plays when this Mac is off in its Settings.")
+    @Test func noPlaysNamesBothPlacesThatCount() {
+        #expect(Copy.Stats.noPlays == "Plays show up here once Locally has counted some: songs you play in Locally on this phone, and in Spotify on your Mac. The Mac counts while it is on, or all the time with Count plays when this Mac is off in its Settings.")
+        #expect(Copy.Stats.playsSource == "Plays in Spotify and in Locally")
     }
 }

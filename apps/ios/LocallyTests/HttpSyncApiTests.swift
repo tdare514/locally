@@ -237,6 +237,19 @@ struct HttpSyncApiTests {
         }
     }
 
+    @Test func verifySendsTheInstallIdInTheSignInBody() async throws {
+        let (api, _) = makeApi(token: nil)
+        let install = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+        StubURLProtocol.handler = { request in
+            let body = (try? JSONSerialization.jsonObject(with: self.bodyData(from: request))) as? [String: String]
+            #expect(request.url?.path == "/v1/auth/verify")
+            #expect(body == ["email": "a@example.com", "code": "123456", "deviceName": "Toby's iPhone", "platform": "ios", "installId": install])
+            return (200, [:], self.jsonData(["token": "t", "user": ["id": "u-1", "email": "a@example.com"], "device": ["id": "d-1", "name": "Toby's iPhone"]]))
+        }
+        let result = try await api.verify(email: "a@example.com", code: "123456", deviceName: "Toby's iPhone", platform: "ios", installId: install)
+        #expect(result.deviceId == "d-1")
+    }
+
     @Test func playsSummarySendsTheRangeWithoutACursorAndDecodesThePage() async throws {
         let (api, _) = makeApi()
         StubURLProtocol.handler = { request in

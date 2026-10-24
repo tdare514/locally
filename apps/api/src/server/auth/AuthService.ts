@@ -114,8 +114,8 @@ export class AuthService {
 
   /**
    * Verify a code, then give the caller a device and its long-lived bearer token. A Mac that
-   * signs back in after a sign-out gets its old device row back (see `reviveMac`); every other
-   * sign-in creates a new device.
+   * signs back in after a sign-out gets its old device row back (see `reviveDevice`), and so does an
+   * iPhone that sends the same install ID; every other sign-in creates a new device.
    */
   async verify(input: VerifyInput): Promise<VerifyResult> {
     const [row] = await this.db
@@ -165,10 +165,10 @@ export class AuthService {
     const tokenHash = this.hashToken(token);
     const now = this.now();
 
-    const installId = input.platform === "mac" ? (input.installId ?? null) : null;
+    const installId = input.platform === "mac" || input.platform === "ios" ? (input.installId ?? null) : null;
     const revivedId =
-      input.platform === "mac"
-        ? await this.reviveMac(user.id, input.deviceName, installId, tokenHash, now)
+      input.platform === "mac" || input.platform === "ios"
+        ? await this.reviveDevice(input.platform, user.id, input.deviceName, installId, tokenHash, now)
         : null;
     const deviceId = revivedId ?? crypto.randomUUID();
     if (revivedId === null) {
@@ -193,8 +193,9 @@ export class AuthService {
   }
 
   /**
-   * Take back one of this user's revoked Macs, if there is one, and return its id; otherwise
-   * null (the caller inserts a new device). In order (#210):
+   * Take back one of this user's revoked devices of `platform`, if there is one, and return its id;
+   * otherwise null (the caller inserts a new device). For an iPhone only the install ID counts (#337):
+   * phones share names such as "iPhone", so an iPhone is never revived by name. For a Mac, in order (#210):
    *   1. a revoked Mac with the same install ID (only when the Mac sent one);
    *   2. a revoked Mac with the same name and no install ID (the #175 rule, for rows made before
    *      install IDs), or, for a Mac that sent no install ID, any revoked Mac of that name;
@@ -205,9 +206,11 @@ export class AuthService {
    * Play counts are stored per device and summed over every device, revoked ones included
    * (#104), so a Mac that signs out and back in would otherwise push its counts again under a
    * new id and the total would double (#175). Macs only: two phones of one model share a name,
-   * and phones don't count plays. An active Mac is never touched.
+   * and an iPhone is revived by install ID only so its pushed play counts (#337) are not summed
+   * twice either. An active device is never touched.
    */
-  private async reviveMac(
+  private async reviveDevice(
+    platform: "mac" | "ios",
     userId: string,
     name: string,
     installId: string | null,
@@ -215,33 +218,39 @@ export class AuthService {
     now: number
   ): Promise<string | null> {
     if (installId !== null) {
-      const byId = await this.reviveWhere(userId, eq(devices.installId, installId), installId, tokenHash, now);
+      const byId = await this.reviveWhere(platform, userId, eq(devices.installId, installId), installId, tokenHash, now);
       if (byId !== null) return byId;
     }
+    if (platform === "ios") return null;
     // A Mac with an install ID only takes rows that have none; an old Mac (no ID) keeps the
     // plain name rule.
     const byName = and(eq(devices.name, name), installId === null ? undefined : isNull(devices.installId));
-    return this.reviveWhere(userId, byName, installId, tokenHash, now);
+    return this.reviveWhere(platform, userId, byName, installId, tokenHash, now);
   }
 
   /**
    * One UPDATE ... RETURNING is the whole step, so it is atomic: the row is picked and changed
-   * in a single statement whose WHERE repeats the preconditions (this user, a Mac, still
+   * in a single statement whose WHERE repeats the preconditions (this user, this platform, and for a Mac still
    * revoked). Two verifies racing for the same row cannot both revive it, since the loser no
    * longer matches `revoked_at IS NOT NULL`. The new token hash replaces the old one, so the old
    * token stops working at once. The row keeps its install ID, or gains `installId`.
    */
   private async reviveWhere(
+    platform: "mac" | "ios",
     userId: string,
     match: SQL | undefined,
     installId: string | null,
     tokenHash: string,
     now: number
   ): Promise<string | null> {
+    // An iPhone that signed out offline never revoked its row, so it is still active: the same install
+    // ID on the same user's iPhone takes it over (the new token replaces the old, which dies at once).
+    // A Mac is taken back only once revoked (#337).
+    const revokedOnly = platform === "ios" ? undefined : isNotNull(devices.revokedAt);
     const candidate = this.db
       .select({ id: devices.id })
       .from(devices)
-      .where(and(eq(devices.userId, userId), eq(devices.platform, "mac"), match, isNotNull(devices.revokedAt)))
+      .where(and(eq(devices.userId, userId), eq(devices.platform, platform), match, revokedOnly))
       .orderBy(desc(devices.lastSeenAt), desc(devices.createdAt), asc(devices.id))
       .limit(1);
 
@@ -257,8 +266,8 @@ export class AuthService {
         and(
           eq(devices.id, candidate),
           eq(devices.userId, userId),
-          eq(devices.platform, "mac"),
-          isNotNull(devices.revokedAt)
+          eq(devices.platform, platform),
+          revokedOnly
         )
       )
       .returning({ id: devices.id });
