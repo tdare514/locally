@@ -186,6 +186,8 @@ struct ReleaseTrackRow: View {
     let timeSpoken: String?
     /// Set where the track can play: the number becomes a 44 pt play button.
     var play: TrackPlayControl?
+    /// 0 to 1: how far the number has turned white (#362). Opacity only.
+    var highlight: Double = 0
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var titleSize: CGFloat = 16
@@ -263,6 +265,7 @@ struct ReleaseTrackRow: View {
                         Text("\(number)")
                             .font(.system(size: numberSize).monospacedDigit())
                             .foregroundStyle(Theme.textDim)
+                            .overlay { accentNumber }
                     }
                 }
                 .accessibilityHidden(true)
@@ -282,7 +285,18 @@ struct ReleaseTrackRow: View {
                 .foregroundStyle(Theme.textDim)
                 .frame(width: accessible ? nil : columns.number, alignment: .leading)
                 .fixedSize(horizontal: accessible, vertical: false)
+                .overlay { accentNumber }
         }
+    }
+
+    /// The number again in white semibold, faded in over the dim one while the row is highlighted.
+    private var accentNumber: some View {
+        Text("\(number)")
+            .font(.system(size: numberSize, weight: .semibold).monospacedDigit())
+            .foregroundStyle(.white)
+            .opacity(highlight)
+            .fixedSize()
+            .accessibilityHidden(true)
     }
 
     private var credit: (artist: String, featuring: [String]) {

@@ -12,11 +12,21 @@ struct ReleaseDetailView: View {
     @Environment(\.playback) private var playback
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .headline) private var tracksHeadingSize: CGFloat = 17
 
     let release: Release
     /// DEBUG screenshots open the page already in edit mode.
     var startsEditing = false
+    /// The track the release was opened from (#362): scrolled into view and washed once per push.
+    var highlightTrackID: UUID?
+    /// DEBUG screenshots hold the wash at full strength instead of fading it.
+    var holdsHighlight = false
+    @State private var highlight: Double = 0
+    @State private var didHighlight = false
+    /// How far the wash reaches past the row's text; less at large text so it stays inside the screen edge.
+    private var washBleed: CGFloat { dynamicTypeSize.isAccessibilitySize ? 4 : min(8, Theme.Immersive.recordRowSideInset / 2) }
+    @AccessibilityFocusState private var focusedTrackID: UUID?
 
     @State private var model: ReleaseDetailViewModel?
     @State private var isPresentingFileImporter = false
@@ -73,6 +83,7 @@ struct ReleaseDetailView: View {
             ArtworkBackdrop(palette: palette)
             .ignoresSafeArea()
 
+            ScrollViewReader { proxy in
             List {
                 Section {
                     hero(model)
@@ -115,6 +126,9 @@ struct ReleaseDetailView: View {
             .listSectionSpacing(.custom(Theme.Spacing.editorSectionGap))
             .environment(\.defaultMinListRowHeight, 0)
             .scrollContentBackground(.hidden)
+            .task { await highlightTrack(in: model, proxy: proxy) }
+            .onDisappear { clearHighlight() }
+            }
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
@@ -356,8 +370,17 @@ struct ReleaseDetailView: View {
                 plays: model.playTotal(for: row),
                 time: TrackLength.format(seconds),
                 timeSpoken: TrackLength.spoken(seconds),
-                play: playControl(for: row.id, in: model.savedRelease)
+                play: playControl(for: row.id, in: model.savedRelease),
+                highlight: row.id == highlightTrackID ? highlight : 0
             )
+            .background {
+                if row.id == highlightTrackID {
+                    trackHighlight(tint: highlightTint)
+                }
+            }
+            .id(row.id)
+            .accessibilityValue(row.id == highlightTrackID && highlight > 0 ? Copy.Detail.trackHighlighted : "")
+            .accessibilityFocused($focusedTrackID, equals: row.id)
             .overlay(alignment: .bottom) {
                 if index != last { Rectangle().fill(Theme.Track.separatorTint).frame(height: 1) }
             }
@@ -404,6 +427,33 @@ struct ReleaseDetailView: View {
         if model.isAdopted { adoptedNote.clearRow(top: 8, bottom: 0) }
         if model.kind == .album { playlistGuide(model).clearRow(top: 8, bottom: 0) }
         viewMessages(model)
+    }
+
+    /// Once the push has settled: scrolls the opened-from track to the middle, washes it in, holds, and
+    /// fades it out. Opacity only; Reduce Motion jumps the scroll. Plays once per push.
+    private func highlightTrack(in model: ReleaseDetailViewModel, proxy: ScrollViewProxy) async {
+        guard let id = highlightTrackID, !didHighlight, !model.isEditing, model.trackRows.contains(where: { $0.id == id }) else { return }
+        try? await Task.sleep(for: .seconds(Theme.Track.highlightDelay))
+        guard !Task.isCancelled else { return }
+        didHighlight = true
+        if reduceMotion {
+            proxy.scrollTo(id, anchor: .center)
+        } else {
+            withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.3)) { proxy.scrollTo(id, anchor: .center) }
+        }
+        focusedTrackID = id
+        withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: Theme.Track.highlightFadeIn)) { highlight = 1 }
+        guard !holdsHighlight else { return }
+        try? await Task.sleep(for: .seconds(Theme.Track.highlightFadeIn + Theme.Track.highlightHold))
+        guard !Task.isCancelled else { clearHighlight(); return }
+        withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: Theme.Track.highlightFadeOut)) { highlight = 0 }
+    }
+
+    /// Drops the glow at once, so a page left mid-glow shows its row plain on return (the glow plays once per push).
+    private func clearHighlight() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { highlight = 0 }
     }
 
     /// The row's play button (#336), or nil when the release can't play here (an adopted one).
@@ -549,6 +599,42 @@ struct ReleaseDetailView: View {
 
     private var glowColors: [Color] { glowColorsFor(palette) }
 
+    /// The brightest of the cover's glow colours, or the accent with no cover (#362).
+    private var highlightTint: Color {
+        guard coverImage != nil, let base = glowColors.max(by: { UIColor($0).hsbBrightness < UIColor($1).hsbBrightness }) else { return Theme.accent }
+        // The palette colours are dark by design; lift the brightest to a glow, keeping its hue.
+        var h: CGFloat = 0, sat: CGFloat = 0, b: CGFloat = 0
+        UIColor(base).getHue(&h, saturation: &sat, brightness: &b, alpha: nil)
+        return Color(hue: h, saturation: sat, brightness: max(b, Theme.Track.highlightMinBrightness))
+    }
+
+    /// The glow behind the track a release was opened from: a fake-glass wash in the cover's colour, a rim,
+    /// a soft outer glow and a needle cue at the leading edge. Only opacity and the cue's scale animate.
+    private func trackHighlight(tint: Color) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Theme.Track.highlightCornerRadius)
+        return ZStack(alignment: .leading) {
+            shape
+                .fill(LinearGradient(colors: [tint.opacity(Theme.Track.highlightLeading), tint.opacity(Theme.Track.highlightTrailing)], startPoint: .leading, endPoint: .trailing))
+                .shadow(color: tint.opacity(Theme.Track.highlightGlow), radius: Theme.Track.highlightGlowRadius)
+            shape.strokeBorder(
+                LinearGradient(colors: [.white.opacity(Theme.Track.highlightRimTop), .white.opacity(Theme.Track.highlightRim)], startPoint: .top, endPoint: .bottom),
+                lineWidth: 1
+            )
+            Capsule()
+                .fill(tint)
+                .frame(width: Theme.Track.cueWidth, height: Theme.Track.cueHeight)
+                .scaleEffect(y: reduceMotion ? 1 : Theme.Track.cueFromScale + (1 - Theme.Track.cueFromScale) * highlight)
+                .padding(.leading, 2)
+                .padding(.top, Theme.Track.cueTopInset)
+                .frame(maxHeight: .infinity, alignment: .top)
+        }
+        .opacity(highlight)
+        .padding(.horizontal, -washBleed)
+        .padding(.vertical, -4)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
     private func featuringIndex(_ model: ReleaseDetailViewModel) -> Int? {
         model.featuringRowID.flatMap { id in model.trackRows.firstIndex { $0.id == id } }
     }
@@ -618,4 +704,12 @@ struct ShareTarget: Identifiable {
     let id = UUID()
     let trackId: UUID?
     let subject: String
+}
+
+private extension UIColor {
+    var hsbBrightness: CGFloat {
+        var b: CGFloat = 0
+        getHue(nil, saturation: nil, brightness: &b, alpha: nil)
+        return b
+    }
 }

@@ -152,6 +152,8 @@ final class PlaybackService {
     private(set) var startErrorCount = 0
     /// Set by the mini player; the Library opens that release's page and clears it.
     var openReleaseRequest: UUID?
+    /// With `openReleaseRequest`: the playing track, which the release page highlights (#362).
+    var openReleaseTrackRequest: UUID?
     /// Set by the mini player while a collection plays; the Library opens that collection's page and clears it.
     var openCollectionRequest: UUID?
 
@@ -159,7 +161,9 @@ final class PlaybackService {
     func openContext() {
         guard let context = queue?.context else { return }
         switch context.kind {
-        case .release: openReleaseRequest = context.id
+        case .release:
+            openReleaseTrackRequest = currentItem.flatMap { $0.releaseId == context.id ? $0.trackId : nil }
+            openReleaseRequest = context.id
         case .collection: openCollectionRequest = context.id
         case .mixed: openReleaseRequest = currentItem?.releaseId
         }

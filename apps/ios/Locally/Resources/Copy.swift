@@ -444,6 +444,8 @@ enum Copy {
         /// Hint under the Tracks header when there are 2+ tracks, since the
         /// compact layout dropped the Edit-mode toolbar button.
         static let reorderHint = "Hold and drag a track to reorder."
+        /// Spoken value of the track row a release was opened from, while its wash shows (#362).
+        static let trackHighlighted = "highlighted"
         /// Under a track row: its total Spotify plays across devices.
         static func playCount(_ count: Int) -> String {
             count == 1 ? "1 play" : "\(count) plays"

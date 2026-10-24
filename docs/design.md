@@ -619,8 +619,11 @@ eyebrows still apply to those labels.
   - **Activation**: a sleeve, list row and grid tile is a button. A sleeve first plays a short
     opening beat (360ms: the record slides further out, the sleeve lifts and grows a little; none
     under reduced motion, which opens at once), then the release opens. A track opens its release
-    scrolled to that track's row (centred) with a one-time soft tint on the row (about 1.6s; shown
-    still for 2s under reduced motion); list rows and tiles do the same without the beat. An album
+    scrolled to that track's row (centred) with a one-time glow in the release's own cover colour on the
+    row (iPhone, #362: its brightest palette colour lifted to at least 0.85 brightness, a 12 pt-radius wash
+    from 30 % at the leading edge to 6 %, a 1 pt rim brighter on top, a soft outer glow, a 3 x 22 pt needle
+    cue at the leading edge that grows in, and the number turning white semibold; accent when there is no
+    cover; only opacity and the cue's scale animate; about 1.6s; shown still for 2s under reduced motion); list rows and tiles do the same without the beat. An album
     opens its release with no highlight; an artist opens the Library filtered to that artist (its search
     query). A mouse only lifts on hover. On touch the first tap lifts and the second opens; a tap
     elsewhere drops the lift. Visible focus rings (2px white; the shelf keeps its accent ring).

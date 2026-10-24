@@ -120,7 +120,12 @@ struct LibraryView: View {
 
     private func openRequestedRelease() {
         guard let id = playback?.openReleaseRequest, let release = releases.first(where: { $0.id == id }) else { return }
-        path = NavigationPath([release])
+        if let trackId = playback?.openReleaseTrackRequest {
+            path = NavigationPath([ReleaseTrackRoute(release: release, trackId: trackId)])
+        } else {
+            path = NavigationPath([release])
+        }
+        playback?.openReleaseTrackRequest = nil
         playback?.openReleaseRequest = nil
     }
 
@@ -204,6 +209,9 @@ struct LibraryView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Release.self) { release in
                 ReleaseDetailView(release: release)
+            }
+            .navigationDestination(for: ReleaseTrackRoute.self) { route in
+                ReleaseDetailView(release: route.release, highlightTrackID: route.trackId)
             }
             .navigationDestination(for: ArtistRoute.self) { route in
                 ArtistPageView(route: route)
