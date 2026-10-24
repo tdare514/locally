@@ -1,10 +1,12 @@
-import { and, eq, lte, sql } from "drizzle-orm";
+import { and, desc, eq, lte, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import type { Db } from "../../db/client";
-import { playCounts, playDays, releases, samplerLease, spotifyLinks } from "../../db/schema";
-import type { ReleaseRecord } from "../../shared/types";
+import { playCounts, playDays, playEvents, releases, samplerLease, spotifyLinks } from "../../db/schema";
+import { MAX_EVENT_LISTENED_MS, type PlayEventInput, type ReleaseRecord } from "../../shared/types";
 import { ensureCloudDevice } from "./CloudDevice";
-import { countSample, needsResolve, type LocalIds, type SessionState } from "./CloudPlayCounter";
+import { PlayEventsService } from "../plays/PlayEventsService";
+import { countSample, continuesSession, needsResolve, type LocalIds, type SessionState } from "./CloudPlayCounter";
+import { sessionEventId } from "./PlayEventId";
 import { resolveLocalTrack } from "./LocalTrackResolver";
 import type { SpotifyLinkRow, SpotifyPlayerClient } from "./SpotifyPlayerClient";
 
@@ -16,6 +18,8 @@ export const SAMPLER_CONCURRENCY = 25;
 /** A user is skipped this close to the lease's expiry: too late to write safely. */
 const LEASE_MARGIN_MS = 5_000;
 const LEASE_ID = "spotify-sampler";
+/** A later sample raises the session's event only when `listenedMs` has grown by this much since the last write (or when the session ends). */
+export const EVENT_STEP_MS = 30_000;
 const STOPPING_PROBLEMS = new Set(["reconnect", "notOnTesterList"]);
 
 export interface SampleRunResult {
@@ -60,11 +64,15 @@ function sessionOf(link: SpotifyLinkRow): SessionState | null {
  * (uri, title or id) is ever logged.
  */
 export class SpotifySampler {
+  private readonly events: PlayEventsService;
+
   constructor(
     private readonly db: Db,
     private readonly player: SpotifyPlayerClient,
     private readonly now: () => number = () => Date.now()
-  ) {}
+  ) {
+    this.events = new PlayEventsService(db, now);
+  }
 
   async run(): Promise<SampleRunResult> {
     const leaseUntil = await this.takeLease();
@@ -166,12 +174,74 @@ export class SpotifySampler {
         .where(and(eq(spotifyLinks.userId, link.userId), this.holdsLease(leaseUntil))),
     ];
 
-    if (outcome.counted && next) {
+    // The event of an already counted session, raised by a later sample or finished when the session ends (#396).
+    if (prev?.counted && sample.kind === "item" && link.cloudDeviceId !== null) {
+      const continues = next !== null && next.uri === prev.uri && continuesSession(prev, sample.progressMs, at);
+      const progress = continues ? sample.progressMs : prev.progressMs;
+      const raise = await this.raiseStatement(link.userId, link.cloudDeviceId, prev, progress, continues, at, leaseUntil);
+      if (raise) statements.push(...(raise as unknown as BatchItem<"sqlite">[]));
+    }
+
+    if (outcome.counted && next && sample.kind === "item") {
       const deviceId = await ensureCloudDevice(this.db, link.userId, link.cloudDeviceId, at);
-      statements.push(...this.countStatements(link.userId, deviceId, next, localDay(at, link.timeZone), at, leaseUntil));
+      const day = localDay(at, link.timeZone);
+      statements.push(...this.countStatements(link.userId, deviceId, next, day, at, leaseUntil));
+      const startedAt = Math.max(0, at - sample.progressMs);
+      statements.push(
+        this.events.upsertStatement(
+          link.userId,
+          deviceId,
+          {
+            id: sessionEventId(link.userId, next.trackId, startedAt),
+            releaseId: next.releaseId,
+            trackId: next.trackId,
+            source: "spotify",
+            startedAt,
+            day,
+            listenedMs: Math.min(sample.progressMs, MAX_EVENT_LISTENED_MS),
+          },
+          at,
+          this.holdsLease(leaseUntil)
+        )
+      );
     }
     await this.db.batch(statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
     return { counted: outcome.counted, playing: sample.kind === "item" && sample.isPlaying };
+  }
+
+  /**
+   * The upsert (in a one-item array) that raises a counted session's event to `progressMs`, or null when nothing is due. The event
+   * is found by its row (the newest spotify event for this track on the cloud device), whose stored
+   * `listenedMs` is the last written value, so no extra session state is kept: while the session continues a
+   * write is due once it has grown by `EVENT_STEP_MS`, and when it ends, once it has grown at all.
+   */
+  private async raiseStatement(userId: string, deviceId: string, session: SessionState, progressMs: number, continues: boolean, now: number, leaseUntil: number) {
+    const [row] = await this.db
+      .select()
+      .from(playEvents)
+      .where(
+        and(
+          eq(playEvents.userId, userId),
+          eq(playEvents.deviceId, deviceId),
+          eq(playEvents.trackId, session.trackId),
+          eq(playEvents.source, "spotify")
+        )
+      )
+      .orderBy(desc(playEvents.startedAt))
+      .limit(1);
+    const listenedMs = Math.min(progressMs, MAX_EVENT_LISTENED_MS);
+    if (!row || listenedMs - row.listenedMs < (continues ? EVENT_STEP_MS : 1)) return null;
+    const event: PlayEventInput = {
+      id: row.id,
+      releaseId: row.releaseId,
+      trackId: row.trackId,
+      source: "spotify",
+      startedAt: row.startedAt,
+      day: row.day,
+      listenedMs,
+    };
+    // Wrapped: a query builder is thenable, so returning it bare from an async function would run it.
+    return [this.events.upsertStatement(userId, deviceId, event, now, this.holdsLease(leaseUntil))];
   }
 
   private async resolve(userId: string, uri: string): Promise<LocalIds | null> {
