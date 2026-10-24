@@ -73,6 +73,8 @@ struct LibraryView: View {
     @State private var collections: CollectionsModel?
     @State private var isNamingCollection = false
     @State private var newCollectionName = ""
+    /// A New collection whose save failed: an alert says so and offers the name again.
+    @State private var collectionCreateFailed = false
 
     /// A release's cover identity: a replaced cover bumps `updatedAt`.
     private struct CoverKey: Hashable {
@@ -217,7 +219,16 @@ struct LibraryView: View {
                 }
             }
             .nameAlert(Copy.Collections.nameTitle, action: Copy.Collections.create, isPresented: $isNamingCollection, text: $newCollectionName) { name in
-                if let id = try? collections?.create(name: name) { path.append(CollectionRoute(id: id)) }
+                do {
+                    if let id = try collections?.create(name: name) { path.append(CollectionRoute(id: id)) }
+                } catch {
+                    newCollectionName = name
+                    collectionCreateFailed = true
+                }
+            }
+            .alert(Copy.Collections.createFailed, isPresented: $collectionCreateFailed) {
+                Button(Copy.Collections.tryAgain) { isNamingCollection = true }
+                Button(Copy.Collections.cancel, role: .cancel) { newCollectionName = "" }
             }
             // `.onAppear` (not `.task`) so returning from `ReleaseDetailView`
             // after a save/delete re-reads the store and reflects it here.
