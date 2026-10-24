@@ -235,7 +235,7 @@ struct ArtistPageView: View {
                     .foregroundStyle(Theme.primaryText)
                     .lineLimit(stacked ? nil : 2)
                     .accessibilityHidden(true)
-                ArtistLineText(main: credit.main, featuring: credit.featuring, font: .footnote, lineLimit: stacked ? nil : 2)
+                ArtistLineText(main: credit.main, featuring: credit.featuring, font: .footnote)
                 if let detail {
                     Text(detail)
                         .font(.caption)

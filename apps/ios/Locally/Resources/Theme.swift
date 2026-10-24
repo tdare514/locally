@@ -515,8 +515,22 @@ enum Theme {
         static let silverRim = Color(red: 0xC5 / 255, green: 0xCA / 255, blue: 0xD3 / 255)
         static let bronzeRim = Color(red: 0xC9 / 255, green: 0x8A / 255, blue: 0x4E / 255)
 
+        /// A grid cover's sleeve depth (#361): a 1 pt top-edge highlight, a soft drop shadow, and a disc peeking out of ranks 1 to 3.
+        static let tileEdgeTop: Double = 0.28
+        static let tileShadow: Double = 0.5
+        static let tileShadowRadius: CGFloat = 8
+        static let tileShadowY: CGFloat = 5
+        static let tileDiscPeek: CGFloat = 0.08
+        /// The glass rank chip's dark base, under the glass, so the number holds 4.5:1 on a pale cover.
+        static let chipBase: Double = 0.72
+        /// The word "plays" under a tile's name, softer than its number.
+        static let playsWordOpacity: Double = 0.72
+
         static let gutter: CGFloat = 16
         static let rowCover: CGFloat = 44
+        /// A Stats list row narrower than this stacks its plays under the name; narrower than `wideRow` it drops the last-played line (#361).
+        static let narrowRow: CGFloat = 350
+        static let wideRow: CGFloat = 430
         static let minTarget: CGFloat = 44
         static let tileMin: CGFloat = 72
         static let tileGap: CGFloat = 12

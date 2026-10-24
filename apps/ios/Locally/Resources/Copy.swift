@@ -199,6 +199,8 @@ enum Copy {
     enum Artists {
         static let title = "Artists"
         static func noMatches(_ query: String) -> String { "No artists match \u{201C}\(query)\u{201D}." }
+        /// The shortened artist line's tail (#361): "A & 2 more", "A, feat. B & 1 more".
+        static func andMore(_ n: Int) -> String { "\(n) more" }
         static func releases(_ n: Int) -> String { n == 1 ? "1 release" : "\(n) releases" }
         static func tracks(_ n: Int) -> String { n == 1 ? "1 track" : "\(n) tracks" }
         static func albums(_ n: Int) -> String { n == 1 ? "1 album" : "\(n) albums" }
@@ -451,7 +453,7 @@ enum Copy {
         static let trackHighlighted = "highlighted"
         /// Under a track row: its total Spotify plays across devices.
         static func playCount(_ count: Int) -> String {
-            count == 1 ? "1 play" : "\(count) plays"
+            count == 1 ? "1 play" : "\(count.formatted()) plays"
         }
         /// Page and track details (#296): "Album · 5 tracks", "Year 2025", "Genre Rap".
         static func metaLine(kind: String, tracks: Int) -> String {
@@ -795,14 +797,14 @@ enum Copy {
         static let sortPlays = "Most played"
         static let sortName = "Name"
         static let sortRecent = "Recent"
-        static let gridHint = "Ranked by plays, left to right. Bigger covers have more plays."
-        /// The grid hint for the selected sort: the order, and what the cover size means (size follows position).
+        static let gridHint = "Ranked by plays, left to right."
+        /// The grid hint for the selected sort: the order (every cover is one size, #361).
         static func gridHint(for sort: StatsSort) -> String {
             switch sort {
             case .plays: return gridHint
-            case .minutes: return "Ranked by minutes, left to right. Bigger covers have more minutes."
-            case .name: return "A to Z, left to right. Bigger covers come first, not necessarily more plays."
-            case .recent: return "Most recent first, left to right. Bigger covers were played more recently, not necessarily more."
+            case .minutes: return "Ranked by minutes, left to right."
+            case .name: return "A to Z, left to right."
+            case .recent: return "Most recent first, left to right."
             }
         }
         static let loadingLabel = "Loading your plays"
@@ -878,6 +880,10 @@ enum Copy {
         static func playsCount(_ n: Int) -> String {
             n == 1 ? "1 play" : "\(formatCount(n)) plays"
         }
+
+        /// The two halves of `playsCount`, so a number can be set strong and its word soft: "1,204" and " plays".
+        static func playsNumber(_ n: Int) -> String { formatCount(n) }
+        static func playsWord(_ n: Int) -> String { n == 1 ? " play" : " plays" }
 
         /// "Today", "Last week", "3 months ago": the name of a period on the control.
         static func periodLabel(_ selection: PeriodSelection) -> String {

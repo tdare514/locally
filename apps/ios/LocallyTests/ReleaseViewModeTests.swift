@@ -9,6 +9,8 @@ struct ReleaseViewModeTests {
         #expect(TrackRowLine.playsAndTime(plays: 1, time: "0:59") == "1 play, 0:59")
         #expect(TrackRowLine.playsAndTime(plays: nil, time: "2:22") == "2:22")
         #expect(TrackRowLine.playsAndTime(plays: 12, time: nil) == "12 plays")
+        // The same grouping as the plays column at the default sizes ("1,204").
+        #expect(TrackRowLine.playsAndTime(plays: 1204, time: "3:34") == "\(1204.formatted()) plays, 3:34")
         #expect(TrackRowLine.playsAndTime(plays: nil, time: nil) == nil)
     }
 

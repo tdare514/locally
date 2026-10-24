@@ -35,6 +35,17 @@ enum ArtistLink {
         main: String, featuring: [String], linked: Bool, linkMain: Bool = true,
         mainColor: Color, dimColor: Color
     ) -> AttributedString {
+        attributed(
+            credit: .shortened(main: main, featuring: featuring, level: 0), linked: linked, linkMain: linkMain,
+            mainColor: mainColor, dimColor: dimColor
+        )
+    }
+
+    /// A line at one shortening level (#361). Names that show keep their links; "& N more" is plain.
+    static func attributed(
+        credit: ArtistCredit, linked: Bool, linkMain: Bool = true,
+        mainColor: Color, dimColor: Color
+    ) -> AttributedString {
         var result = AttributedString()
         func run(_ text: String, color: Color, link: String? = nil) {
             var piece = AttributedString(text)
@@ -42,12 +53,17 @@ enum ArtistLink {
             if linked, let link, let url = url(forName: link) { piece.link = url }
             result.append(piece)
         }
-        run(main, color: mainColor, link: linkMain ? main : nil)
-        guard !featuring.isEmpty else { return result }
-        run(", feat. ", color: dimColor)
-        for (index, name) in featuring.enumerated() {
-            if index > 0 { run(index == featuring.count - 1 ? " & " : ", ", color: dimColor) }
-            run(name, color: dimColor, link: name)
+        run(credit.main, color: mainColor, link: linkMain ? credit.main : nil)
+        if credit.hasFeatPart {
+            run(credit.main.isEmpty ? "feat. " : ", feat. ", color: dimColor)
+            for (index, name) in credit.featuring.enumerated() {
+                if index > 0 { run(index == credit.featuring.count - 1 && credit.more == 0 ? " & " : ", ", color: dimColor) }
+                run(name, color: dimColor, link: name)
+            }
+        }
+        if credit.more > 0 {
+            run(credit.main.isEmpty && !credit.hasFeatPart ? "" : " & ", color: dimColor)
+            run(Copy.Artists.andMore(credit.more), color: dimColor)
         }
         return result
     }
@@ -85,8 +101,10 @@ enum ArtistLink {
     }
 }
 
-/// One artist line, "A, feat. B & C", with a link on every name when `linked`. It wraps like any
-/// text, and VoiceOver reads each name as a link (the Links rotor).
+/// One artist line, "A, feat. B & C", with a link on every name when `linked`. Below the accessibility
+/// sizes it stays on one line and shortens when it does not fit (#361): "A, feat. B & 1 more", then
+/// "A & 2 more", then a tail ellipsis. At the accessibility sizes it wraps with every name. VoiceOver
+/// reads each name as a link (the Links rotor) and the label holds every name.
 struct ArtistLineText: View {
     let main: String
     var featuring: [String] = []
@@ -96,14 +114,44 @@ struct ArtistLineText: View {
     var font: Font = .subheadline
     var mainColor: Color = Theme.secondaryText
     var dimColor: Color = Theme.secondaryText
-    var lineLimit: Int?
+
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        Text(ArtistLink.attributed(main: main, featuring: featuring, linked: linked, linkMain: linkMain, mainColor: mainColor, dimColor: dimColor))
-            .font(font)
-            .lineLimit(lineLimit)
-            .tint(mainColor)
+        if typeSize.isAccessibilitySize {
+            line(level: 0)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            // Each level at one line; the last that is tried is cut with an ellipsis if it still does not fit.
+            ViewThatFits(in: .horizontal) {
+                line(level: 0).lineLimit(1)
+                line(level: 1).lineLimit(1)
+                line(level: 2).lineLimit(1)
+                // Last resort: the main name alone, so the ellipsis never lands inside "& N more".
+                line(level: 3).lineLimit(1)
+            }
             .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// Level 3 is the main name alone. Only the shortened levels carry the full-names label, so the
+    /// unshortened line keeps its links in the Links rotor untouched.
+    @ViewBuilder
+    private func line(level: Int) -> some View {
+        let credit: ArtistCredit = level >= ArtistCredit.levelCount
+            ? .shortened(main: main, featuring: [], level: 0)
+            : .shortened(main: main, featuring: featuring, level: level)
+        let shortened = level > 0 && !featuring.isEmpty
+        let text = Text(ArtistLink.attributed(
+            credit: credit, linked: linked, linkMain: linkMain, mainColor: mainColor, dimColor: dimColor
+        ))
+        .font(font)
+        .tint(mainColor)
+        if shortened {
+            text.accessibilityLabel(ArtistCredit.spoken(main: main, featuring: featuring))
+        } else {
+            text
+        }
     }
 }
 
