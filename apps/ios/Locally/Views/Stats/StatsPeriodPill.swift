@@ -65,6 +65,7 @@ struct StatsPeriodPill: View {
         }
         .sheet(isPresented: typeSize.isAccessibilitySize ? $isPresented : .constant(false)) {
             StatsPeriodSheet(current: current, tint: tint, onClose: { isPresented = false }) { choose($0) }
+                .dynamicTypeSize(typeSize)
                 .presentationDetents([.medium, .large])
                 .presentationBackground { StatsPopupBackground(tint: tint) }
         }

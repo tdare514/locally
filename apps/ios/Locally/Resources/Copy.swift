@@ -791,6 +791,15 @@ enum Copy {
         static let sortName = "Name"
         static let sortRecent = "Recent"
         static let gridHint = "Ranked by plays, left to right. Bigger covers have more plays."
+        /// The grid hint for the selected sort: the order, and what the cover size means (size follows position).
+        static func gridHint(for sort: StatsSort) -> String {
+            switch sort {
+            case .plays: return gridHint
+            case .minutes: return "Ranked by minutes, left to right. Bigger covers have more minutes."
+            case .name: return "A to Z, left to right. Bigger covers come first, not necessarily more plays."
+            case .recent: return "Most recent first, left to right. Bigger covers were played more recently, not necessarily more."
+            }
+        }
         static let loadingLabel = "Loading your plays"
         static let lastPlayedHeading = "Last played"
 

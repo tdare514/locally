@@ -178,7 +178,7 @@ struct StatsSea: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text(Copy.Stats.gridHint)
+            Text(Copy.Stats.gridHint(for: sort))
                 .font(.footnote)
                 .foregroundStyle(Theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)

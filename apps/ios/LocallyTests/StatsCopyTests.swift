@@ -22,6 +22,13 @@ struct StatsCopyTests {
         #expect(Copy.Stats.periodLabel(sel(.all, 0)) == "All time")
     }
 
+    @Test func gridHintFollowsTheSort() {
+        #expect(Copy.Stats.gridHint(for: .plays) == Copy.Stats.gridHint)
+        #expect(Copy.Stats.gridHint(for: .minutes).hasPrefix("Ranked by minutes"))
+        #expect(Copy.Stats.gridHint(for: .name).hasPrefix("A to Z"))
+        #expect(Copy.Stats.gridHint(for: .recent).hasPrefix("Most recent first"))
+    }
+
     @Test func periodWhenReadsInsideASentence() {
         #expect(Copy.Stats.periodWhen(sel(.week, 0)) == "this week")
         #expect(Copy.Stats.periodWhen(sel(.month, 2)) == "2 months ago")

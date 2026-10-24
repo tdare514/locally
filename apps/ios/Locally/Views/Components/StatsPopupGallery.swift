@@ -4,11 +4,11 @@ import SwiftUI
 /// #367: the Stats page with the period pill closed and open, and the minutes sort, over the
 /// same sample plays as `StatsGallery`.
 enum StatsPopupGallery {
-    static let names = ["stats-period-closed", "stats-period-open", "stats-sort-minutes", "stats-period-ax3", "stats-period-sheet-ax5", "stats-grid-minutes"]
+    static let names = ["stats-period-closed", "stats-period-open", "stats-sort-minutes", "stats-period-ax3", "stats-period-sheet-ax5", "stats-period-sheet-ax3", "stats-grid-minutes"]
 
     @MainActor
     static func page(_ name: String) -> some View {
-        let open = name == "stats-period-open" || name == "stats-period-sheet-ax5"
+        let open = name == "stats-period-open" || name == "stats-period-sheet-ax5" || name == "stats-period-sheet-ax3"
         let minutes = name == "stats-sort-minutes" || name == "stats-grid-minutes"
         return TabView {
             view(open: open, minutes: minutes, grid: name == "stats-grid-minutes")
@@ -18,7 +18,7 @@ enum StatsPopupGallery {
         .environment(FolderStatus(isConnected: true))
         .environment(PurchaseStatus(isFullUnlocked: false))
         .environment(SyncStatus())
-        .dynamicTypeSize(name == "stats-period-ax3" ? .accessibility3 : (name == "stats-period-sheet-ax5" ? .accessibility5 : .large))
+        .dynamicTypeSize(name == "stats-period-ax3" ? .accessibility3 : (name == "stats-period-sheet-ax5" ? .accessibility5 : (name == "stats-period-sheet-ax3" ? .accessibility3 : .large)))
     }
 
     @MainActor
