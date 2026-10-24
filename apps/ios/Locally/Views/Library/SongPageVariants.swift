@@ -81,6 +81,7 @@ struct SongPageSample {
 
 // MARK: - Gallery entry
 
+/// Also `song-a2` (glass circles) and `song-a3` (one glass bar), same flags.
 /// `song-a`, `song-a-bottom`, `song-a-ax3`, `song-a-adopted` and the same for b and c.
 struct SongPageGallery: View {
     let name: String
@@ -95,6 +96,8 @@ struct SongPageGallery: View {
             switch variant {
             case "b": SongPageB(sample: sample, scrollsToEnd: toEnd)
             case "c": SongPageC(sample: sample, scrollsToEnd: toEnd)
+            case "a2": SongPageA2(sample: sample, scrollsToEnd: toEnd, style: .circles, startsPlaying: true, pinnedTurn: 40)
+            case "a3": SongPageA2(sample: sample, scrollsToEnd: toEnd, style: .bar, startsPlaying: true, pinnedTurn: 40)
             default: SongPageA(sample: sample, scrollsToEnd: toEnd)
             }
         }
@@ -459,6 +462,324 @@ struct SongPageA: View {
                     .frame(maxWidth: .infinity)
             }
             SongActions(sample: sample)
+            GlassSection(title: Copy.SongPage.plays) { playsCard }
+            GlassSection(title: Copy.SongPage.inCollections) {
+                GlassCard { CollectionSleeves(sample: sample).padding(18) }
+            }
+            GlassSection(title: Copy.SongPage.onTheAlbum) {
+                GlassCard {
+                    FactRows(rows: [
+                        (Copy.SongPage.album, sample.album),
+                        (Copy.SongPage.track, Copy.SongPage.ofTotal(sample.trackNumber, sample.trackCount)),
+                        (Copy.SongPage.disc, Copy.SongPage.ofTotal(sample.discNumber, sample.discCount)),
+                        (Copy.SongPage.genre, sample.genre),
+                        (Copy.SongPage.released, sample.released),
+                        (Copy.SongPage.length, sample.length),
+                    ])
+                }
+            }
+            GlassSection(title: Copy.SongPage.file) {
+                GlassCard {
+                    FactRows(rows: [
+                        (Copy.SongPage.fileName, sample.fileName),
+                        (Copy.SongPage.format, sample.format),
+                        (Copy.SongPage.size, sample.size ?? Copy.SongPage.sizeUnknown),
+                        (Copy.SongPage.livesOn, sample.location),
+                    ])
+                }
+            }
+        }
+    }
+
+    private var playsCard: some View {
+        GlassCard(prominent: true) {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("\(sample.playsTotal)")
+                        .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                        .monospacedDigit()
+                    Text(Copy.SongPage.playsUnit)
+                        .font(Theme.ScaledFont.subheadline)
+                        .foregroundStyle(Theme.secondaryText)
+                    Spacer(minLength: 0)
+                }
+                .accessibilityElement(children: .combine)
+                Text("\(Copy.SongPage.lastPlayed) \(sample.lastPlayed.map { $0.lowercased() } ?? Copy.SongPage.neverPlayed)")
+                    .font(Theme.ScaledFont.subheadline)
+                    .foregroundStyle(Theme.secondaryText)
+                PeriodBars(sample: sample)
+            }
+            .padding(18)
+        }
+    }
+}
+
+// MARK: - A2 / A3: play from the record, sleeker actions
+
+/// Which action row sits under the artist line.
+private enum SongActionStyle { case circles, bar }
+
+private enum SongActionCopy {
+    static let collection = "Collection"
+    static let playNext = "Play next"
+    static let share = "Share"
+    static let edit = "Edit"
+    static let editOnMacLine = "Edit it on your Mac"
+    static let playHint = "Plays this song"
+    static let pauseHint = "Pauses it"
+    static func playLabel(_ title: String) -> String { "Play \(title)" }
+    static func pauseLabel(_ title: String) -> String { "Pause \(title)" }
+    static func onlyOnMac(_ title: String) -> String { "\(title), only on your Mac" }
+}
+
+private struct SongAction: Identifiable {
+    let id: String
+    let icon: String
+    var caption: String { id }
+}
+
+private func songActions(for sample: SongPageSample) -> [SongAction] {
+    var items = [
+        SongAction(id: SongActionCopy.collection, icon: "text.badge.plus"),
+        SongAction(id: SongActionCopy.playNext, icon: "text.line.first.and.arrowtriangle.forward"),
+        SongAction(id: SongActionCopy.share, icon: "square.and.arrow.up"),
+    ]
+    if sample.isOnPhone { items.append(SongAction(id: SongActionCopy.edit, icon: "pencil")) }
+    return items
+}
+
+/// One round glass button with its caption under it. The circle scales to 0.94 and the rim brightens while pressed.
+private struct SongCircleButtonStyle: ButtonStyle {
+    let action: SongAction
+    let tint: Color
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var ease: Animation { .timingCurve(0.16, 1, 0.3, 1, duration: 0.35) }
+
+    func makeBody(configuration: Configuration) -> some View {
+        let pressed = configuration.isPressed
+        VStack(spacing: 8) {
+            ZStack {
+                Theme.background.opacity(0.55)
+                GlowGlass()
+                LinearGradient(colors: [.white.opacity(0.16), .clear], startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.4))
+            }
+            .frame(width: 56, height: 56)
+            .clipShape(Circle())
+            .overlay { GlowRim(round: true) }
+            .overlay {
+                Circle().strokeBorder(tint.opacity(pressed ? 0.95 : 0.5), lineWidth: 1)
+            }
+            .overlay {
+                Image(systemName: action.icon)
+                    .font(.system(size: 20, weight: .regular))
+                    .foregroundStyle(Color.white)
+            }
+            .scaleEffect(pressed && !reduceMotion ? 0.94 : 1)
+            Text(action.caption)
+                .font(Theme.ScaledFont.caption)
+                .foregroundStyle(Theme.secondaryText)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .contentShape(Rectangle())
+        .animation(ease, value: pressed)
+    }
+}
+
+private struct SongCircleRow: View {
+    let sample: SongPageSample
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    var body: some View {
+        let tint = Theme.coverGlowColors(sample.palette).first ?? Theme.accent
+        let items = songActions(for: sample)
+        Group {
+            if typeSize.isAccessibilitySize {
+                LazyVGrid(columns: [GridItem(.flexible(), alignment: .top), GridItem(.flexible(), alignment: .top)], spacing: 20) {
+                    ForEach(items) { item in button(item, tint: tint) }
+                }
+                .padding(.horizontal, 24)
+            } else {
+                HStack(alignment: .top, spacing: 22) {
+                    ForEach(items) { item in button(item, tint: tint).frame(width: 64) }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func button(_ item: SongAction, tint: Color) -> some View {
+        Button {} label: { Text(item.caption) }
+            .buttonStyle(SongCircleButtonStyle(action: item, tint: tint))
+            .accessibilityLabel(item.caption)
+    }
+}
+
+/// A segment of the glass bar: icon over label. Pressed, a soft highlight sits inside the segment.
+private struct SongSegmentStyle: ButtonStyle {
+    let action: SongAction
+    var rows = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        let pressed = configuration.isPressed
+        Group {
+            if rows {
+                HStack(spacing: 14) {
+                    Image(systemName: action.icon).font(.system(size: 20)).frame(width: 28)
+                    Text(action.caption).font(Theme.ScaledFont.subheadline)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 20)
+                .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            } else {
+                VStack(spacing: 3) {
+                    Image(systemName: action.icon).font(.system(size: 17)).frame(height: 20)
+                    Text(action.caption).font(Theme.ScaledFont.caption).lineLimit(1)
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: 52)
+            }
+        }
+        .foregroundStyle(Color.white)
+        .background {
+            RoundedRectangle(cornerRadius: rows ? 14 : 22, style: .continuous)
+                .fill(LinearGradient(colors: [.white.opacity(0.18), .white.opacity(0.06)], startPoint: .top, endPoint: .bottom))
+                .padding(rows ? 4 : 4)
+                .opacity(pressed ? 1 : 0)
+        }
+        .contentShape(Rectangle())
+        .animation(reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: 0.35), value: pressed)
+    }
+}
+
+private struct SongGlassBar: View {
+    let sample: SongPageSample
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    var body: some View {
+        let tint = Theme.coverGlowColors(sample.palette).first ?? Theme.accent
+        let items = songActions(for: sample)
+        Group {
+            if typeSize.isAccessibilitySize {
+                VStack(spacing: 0) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        if index > 0 { Rectangle().fill(Color.white.opacity(0.12)).frame(height: 1).accessibilityHidden(true) }
+                        button(item, rows: true)
+                    }
+                }
+                .background { glass }
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(tint.opacity(0.55), lineWidth: 1) }
+            } else {
+                HStack(spacing: 0) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        if index > 0 { Rectangle().fill(Color.white.opacity(0.12)).frame(width: 1, height: 28).accessibilityHidden(true) }
+                        button(item, rows: false)
+                    }
+                }
+                .frame(height: 52)
+                .background { glass }
+                .clipShape(Capsule())
+                .overlay { GlowRim() }
+                .overlay { Capsule().strokeBorder(tint.opacity(0.5), lineWidth: 1) }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var glass: some View {
+        ZStack {
+            Theme.background.opacity(0.55)
+            GlowGlass()
+        }
+    }
+
+    private func button(_ item: SongAction, rows: Bool) -> some View {
+        Button {} label: { Text(item.caption) }
+            .buttonStyle(SongSegmentStyle(action: item, rows: rows))
+            .accessibilityLabel(item.caption)
+    }
+}
+
+/// The record is the play control: tap the sleeve to play, tap again to pause. The disc turns only while playing.
+private struct PlayableSleeve: View {
+    let sample: SongPageSample
+    @Binding var playing: Bool
+    /// The gallery holds the disc at this angle instead of spinning it.
+    var pinnedTurn: Double?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let playable = sample.isOnPhone
+        let label = playable
+            ? (playing ? SongActionCopy.pauseLabel(sample.title) : SongActionCopy.playLabel(sample.title))
+            : SongActionCopy.onlyOnMac(sample.title)
+        Group {
+            if playing && pinnedTurn == nil && !reduceMotion {
+                TimelineView(.animation) { context in
+                    let seconds = context.date.timeIntervalSinceReferenceDate
+                    sleeve(turn: (seconds.truncatingRemainder(dividingBy: Theme.SongPage.platterTurnSeconds) / Theme.SongPage.platterTurnSeconds) * 360)
+                }
+            } else {
+                sleeve(turn: playing ? (pinnedTurn ?? 0) : 0)
+            }
+        }
+        .disabled(!playable)
+        .opacity(playable ? 1 : 0.45)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityHint(playable ? (playing ? SongActionCopy.pauseHint : SongActionCopy.playHint) : "")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { if playable { playing.toggle() } }
+    }
+
+    private func sleeve(turn: Double) -> some View {
+        RecordSleeve(cover: sample.cover, pose: CeremonyPose(tuck: 0, rotationDegrees: turn), size: Theme.SongPage.sleeveHero, showsAddCaption: false, onAddCover: { playing.toggle() })
+    }
+}
+
+struct SongPageA2: View {
+    fileprivate let sample: SongPageSample
+    var scrollsToEnd = false
+    fileprivate var style: SongActionStyle = .circles
+    var pinnedTurn: Double?
+    @State private var playing: Bool
+
+    fileprivate init(sample: SongPageSample, scrollsToEnd: Bool = false, style: SongActionStyle = .circles, startsPlaying: Bool = false, pinnedTurn: Double? = nil) {
+        self.sample = sample
+        self.scrollsToEnd = scrollsToEnd
+        self.style = style
+        self.pinnedTurn = pinnedTurn
+        _playing = State(initialValue: startsPlaying && sample.isOnPhone)
+    }
+
+    var body: some View {
+        SongScaffold(sample: sample, scrollsToEnd: scrollsToEnd) {
+            VStack(spacing: 12) {
+                PlayableSleeve(sample: sample, playing: $playing, pinnedTurn: pinnedTurn)
+                    .padding(.bottom, 8)
+                Text(sample.title)
+                    .font(Theme.ScaledFont.largeTitle)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                SongArtistLine(sample: sample)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+            }
+            VStack(spacing: 14) {
+                switch style {
+                case .circles: SongCircleRow(sample: sample)
+                case .bar: SongGlassBar(sample: sample)
+                }
+                if !sample.isOnPhone {
+                    Text(SongActionCopy.editOnMacLine)
+                        .font(Theme.ScaledFont.caption)
+                        .foregroundStyle(Theme.secondaryText)
+                        .multilineTextAlignment(.center)
+                }
+            }
             GlassSection(title: Copy.SongPage.plays) { playsCard }
             GlassSection(title: Copy.SongPage.inCollections) {
                 GlassCard { CollectionSleeves(sample: sample).padding(18) }

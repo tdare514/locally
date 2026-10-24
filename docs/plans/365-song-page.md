@@ -23,6 +23,16 @@ Prototype: `apps/ios/Locally/Views/Library/SongPageVariants.swift` (DEBUG only),
 Adopted (details-only) songs: location reads "On your Mac", Play is disabled and Edit is replaced by one quiet line
 saying why; the file size reads "Only on your Mac".
 
+## Owner's direction (24 Oct)
+
+- Keep A's layout: cover wash, sleeve with the disc half out, big title, linked artist line, then glass cards.
+- No Play button. The record is the play control: tap the sleeve to play, tap again to pause; the disc spins only while playing and stops on pause, reusing the collection page's sleeve behaviour from #369 in the build.
+- "In collections" comes from B (the row of tiny sleeves), in the house sans fonts only; no serif anywhere.
+- The chunky full-width pills go. Two sleeker action rows, both with Collection, Play next, Share, Edit:
+  - **a2, Glass circles** (recommended): four 56 pt glass circles with captions under them. `a2-top.png`, `a2-bottom.png`, `a2-ax3.png` (2 x 2 grid), `a2-adopted.png`
+  - **a3, One glass bar**: one content-hugging 52 pt capsule with hairline-separated segments; rows in one glass panel at AX3. `a3-top.png`, `a3-ax3.png`
+- Adopted: the sleeve is dimmed and disabled ("Paper Moon, only on your Mac"), Edit is removed, and "Edit it on your Mac" sits under the actions.
+
 ## Where each field comes from
 
 | Field | Source today | Missing |
