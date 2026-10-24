@@ -391,7 +391,11 @@ export class ReleaseService {
    * Remove an adopted release from Locally (#245): the record goes, its files are untouched. Refuses a
    * release that was not adopted, so `?forget=1` can never be a way around the delete checks.
    */
-  async forget(id: string): Promise<void> {
+  forget(id: string): Promise<void> {
+    return trackLibraryWrite(() => this.forgetUntracked(id));
+  }
+
+  private async forgetUntracked(id: string): Promise<void> {
     const settings = await this.settings.get();
     const existing = await this.repo.find(settings.libraryDir, id);
     if (!existing) throw new NotFoundError(`Release ${id} not found`);

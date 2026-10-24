@@ -463,6 +463,8 @@ export interface LibraryMovePreview {
   /** False when the library folder also holds other things; `reason` says so. */
   movable: boolean;
   reason?: string;
+  /** An unfinished move that start-up recovery could not sort out: Settings shows it as an error line. */
+  problem?: string;
   releases: number;
   songs: number;
 }

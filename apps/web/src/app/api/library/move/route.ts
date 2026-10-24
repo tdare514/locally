@@ -4,6 +4,7 @@ import { homeDir, settingsDir, defaultLibraryDirFor } from "../../../../server/c
 import { NodeFileSystem } from "../../../../server/fs/NodeFileSystem";
 import { errorResponse } from "../../../../server/http/responses";
 import { demoReadOnly, isDemo } from "../../../../server/demo";
+import { getMoveProblem } from "../../../../server/library/LibraryMoveJournal";
 import { LibraryBusyError } from "../../../../server/library/writeActivity";
 import { moveLibrary, movableCounts, libraryNotMovableReason } from "../../../../server/library/LibraryMover";
 import { BRAND_FOLDER_NAME } from "../../../../shared/brand";
@@ -20,14 +21,16 @@ export async function GET() {
     const { settings, library } = getServices();
     const current = await settings.get();
     const counts = movableCounts(await library.list(current.libraryDir), path.resolve(current.libraryDir));
-    const reason = libraryNotMovableReason(
+    const problem = getMoveProblem();
+    const reason = problem ?? (await libraryNotMovableReason(
       { fs: new NodeFileSystem(), home: homeDir(), dataDir: settingsDir() },
       current.libraryDir,
       current.adoptRoots ?? []
-    );
+    ));
     return NextResponse.json({
       movable: reason === null,
       ...(reason ? { reason } : {}),
+      ...(problem ? { problem } : {}),
       destination: defaultLibraryDirFor(homeDir(), current.adoptRoots ?? []),
       folderName: BRAND_FOLDER_NAME,
       needsMove: path.basename(current.libraryDir) !== BRAND_FOLDER_NAME,

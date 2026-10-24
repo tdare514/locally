@@ -80,7 +80,8 @@ export default function LibraryMoveControl({ onToast, onMoved }: LibraryMoveCont
           </div>
         </div>
       )}
-      {preview?.needsMove && !preview.movable && preview.reason && (
+      {preview?.problem && <p className="text-sm text-danger">{preview.problem}</p>}
+      {preview?.needsMove && !preview.problem && !preview.movable && preview.reason && (
         <p className="text-xs text-text-dim">{preview.reason}</p>
       )}
       {preview?.needsMove && preview.movable && !open && (
@@ -99,7 +100,7 @@ export default function LibraryMoveControl({ onToast, onMoved }: LibraryMoveCont
       )}
       {preview && open && (
         <div className="flex flex-col gap-3 rounded-md border border-border bg-elevated p-3">
-          <Field label="Move to" value={destination} onChange={setDestination} disabled={moving} />
+          <Field label="Move to" plainLabel value={destination} onChange={setDestination} disabled={moving} />
           <p className="text-sm text-text-muted">
             This moves {plural(preview.songs, "song", "songs")} in {plural(preview.releases, "release", "releases")} to the
             folder above. Nothing is changed until you confirm.

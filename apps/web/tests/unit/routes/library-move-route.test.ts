@@ -7,7 +7,10 @@ import type { Services } from "../../../src/server/container";
 import type { Release, Settings } from "../../../src/shared/types";
 import { FileSettingsStore } from "../../../src/server/config/FileSettingsStore";
 import { JsonLibraryRepository } from "../../../src/server/storage/JsonLibraryRepository";
-import { moveLibrary } from "../../../src/server/library/LibraryMover";
+import { moveLibrary, recoverLibraryMove } from "../../../src/server/library/LibraryMover";
+import { getMoveProblem, readJournal, writeJournal } from "../../../src/server/library/LibraryMoveJournal";
+import { AdoptService } from "../../../src/server/adopt/AdoptService";
+import { ReleaseService } from "../../../src/server/releases/ReleaseService";
 import { NodeFileSystem } from "../../../src/server/fs/NodeFileSystem";
 import { runLibraryMove, trackLibraryWrite } from "../../../src/server/library/writeActivity";
 
@@ -218,5 +221,135 @@ describe("POST /api/library/move", () => {
     finish();
     await moving;
     await expect(trackLibraryWrite(async () => 1)).resolves.toBe(1);
+  });
+});
+
+describe("symlinks (#335)", () => {
+  it("refuses a library with an absolute or a relative symlink, and GET says so", async () => {
+    await seed();
+    const folder = path.join(lib, "Artist", "Album");
+    const dest = path.join(homeDir, "Locally");
+    for (const make of [
+      () => fs.symlink(path.join(base, "elsewhere"), path.join(folder, "abs-link")),
+      () => fs.symlink("01.mp3", path.join(folder, "rel-link")),
+    ]) {
+      await make();
+      const res = await POST(post(dest));
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toContain("shortcuts (symlinks)");
+      expect(await (await GET()).json()).toMatchObject({ movable: false, reason: expect.stringContaining("symlinks") });
+      await fs.rm(path.join(folder, "abs-link"), { force: true });
+      await fs.rm(path.join(folder, "rel-link"), { force: true });
+    }
+    await expect(fs.stat(dest)).rejects.toThrow();
+    expect((await settings.get()).libraryDir).toBe(lib);
+  });
+});
+
+describe("reads never create the library (#335)", () => {
+  it("lists a missing folder as empty without making it", async () => {
+    const gone = path.join(homeDir, "Gone");
+    expect(await repo.list(gone)).toEqual([]);
+    await expect(fs.stat(gone)).rejects.toThrow();
+  });
+});
+
+describe("the lock covers every library write (#335)", () => {
+  it("refuses an adopt, an adopt scan's index write, and a forget during a move", async () => {
+    let inside!: () => void;
+    const started = new Promise<void>((r) => (inside = r));
+    let finish!: () => void;
+    const gate = new Promise<void>((r) => (finish = r));
+    const moving = runLibraryMove(async () => {
+      inside();
+      await gate;
+    });
+    await started;
+    const adopt = new AdoptService({ settings, library: repo, fs: new NodeFileSystem(), proposals: { load: async () => null, save: async () => undefined } } as never);
+    await expect(adopt.adopt(["k"])).rejects.toThrow(/moving/);
+    const releases = new ReleaseService(settings, repo, {} as never, {} as never, new NodeFileSystem());
+    await expect(releases.forget("r1")).rejects.toThrow(/moving/);
+    finish();
+    await moving;
+  });
+});
+
+describe("move journal and recovery (#335)", () => {
+  const deps = () => ({ settings, library: repo, dataDir: configDir });
+
+  it("a finished move leaves no journal", async () => {
+    await seed();
+    expect((await POST(post(path.join(homeDir, "Locally")))).status).toBe(200);
+    expect(await readJournal(configDir)).toBeNull();
+  });
+
+  it("finishes a rename that crashed after the folder moved", async () => {
+    await seed();
+    const dest = path.join(homeDir, "Locally");
+    await writeJournal(configDir, { from: lib, to: dest, mode: "rename", phase: "moved", toCreated: true });
+    await fs.rename(lib, dest);
+    expect(await recoverLibraryMove(deps())).toBe("finished");
+    expect((await settings.get()).libraryDir).toBe(dest);
+    expect((await repo.list(dest))[0].folderPath).toBe(path.join(dest, "Artist", "Album"));
+    expect(await readJournal(configDir)).toBeNull();
+  });
+
+  it("rolls back a rename that never happened, and removes only an empty folder it made", async () => {
+    await seed();
+    const dest = path.join(homeDir, "Locally");
+    await fs.mkdir(dest);
+    await writeJournal(configDir, { from: lib, to: dest, mode: "rename", phase: "moving", toCreated: true });
+    expect(await recoverLibraryMove(deps())).toBe("rolled-back");
+    await expect(fs.stat(dest)).rejects.toThrow();
+    expect((await settings.get()).libraryDir).toBe(lib);
+    expect(await readJournal(configDir)).toBeNull();
+  });
+
+  it("rolls back a half copy this move made, leaving the old library", async () => {
+    await seed();
+    const dest = path.join(homeDir, "Locally");
+    await fs.mkdir(dest);
+    await fs.writeFile(path.join(dest, "partial.mp3"), "x");
+    await writeJournal(configDir, { from: lib, to: dest, mode: "copy", phase: "moving", toCreated: true });
+    expect(await recoverLibraryMove(deps())).toBe("rolled-back");
+    await expect(fs.stat(dest)).rejects.toThrow();
+    expect((await repo.list(lib))).toHaveLength(1);
+  });
+
+  it("finishes a verified copy and removes the old tree only after it verifies", async () => {
+    await seed();
+    const dest = path.join(homeDir, "Locally");
+    await fs.cp(lib, dest, { recursive: true });
+    await writeJournal(configDir, { from: lib, to: dest, mode: "copy", phase: "moved", toCreated: true });
+    expect(await recoverLibraryMove(deps())).toBe("finished");
+    await expect(fs.stat(lib)).rejects.toThrow();
+    expect((await settings.get()).libraryDir).toBe(dest);
+    expect((await repo.list(dest))[0].tracks[0].filePath).toBe(path.join(dest, "Artist", "Album", "01.mp3"));
+  });
+
+  it("does not delete the old tree when the copy does not match", async () => {
+    await seed();
+    const dest = path.join(homeDir, "Locally");
+    await fs.cp(lib, dest, { recursive: true });
+    await fs.writeFile(path.join(dest, "Artist", "Album", "01.mp3"), "changed");
+    await settings.update((s) => ({ ...s, libraryDir: dest }));
+    await writeJournal(configDir, { from: lib, to: dest, mode: "copy", phase: "switched", toCreated: true });
+    expect(await recoverLibraryMove(deps())).toBe("unclear");
+    expect((await fs.stat(lib)).isDirectory()).toBe(true);
+    expect(await readJournal(configDir)).not.toBeNull();
+    expect(getMoveProblem()).toContain("contact support");
+  });
+
+  it("leaves everything alone when a partial copy sits in a folder the move did not create", async () => {
+    await seed();
+    const dest = path.join(homeDir, "Locally");
+    await fs.mkdir(dest);
+    await fs.writeFile(path.join(dest, "partial.mp3"), "x");
+    await writeJournal(configDir, { from: lib, to: dest, mode: "copy", phase: "moving", toCreated: false });
+    expect(await recoverLibraryMove(deps())).toBe("unclear");
+    expect((await fs.readdir(dest)).length).toBe(1);
+    expect(await readJournal(configDir)).not.toBeNull();
+    // and a new move is refused while the journal is there
+    expect((await POST(post(path.join(homeDir, "Other")))).status).toBe(400);
   });
 });

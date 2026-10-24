@@ -8,6 +8,7 @@ import { adoptedCoversDir } from "../config/paths";
 import type { SettingsStore } from "../config/SettingsStore";
 import type { FileSystem } from "../fs/FileSystem";
 import type { LibraryRepository } from "../storage/LibraryRepository";
+import { trackLibraryWrite } from "../library/writeActivity";
 import { AdoptScanner, type AdoptTagReader } from "./AdoptScanner";
 import type { AdoptProposal, ProposedGroup } from "./types";
 
@@ -89,7 +90,8 @@ export class AdoptService {
       });
       const proposal = await scanner.scan(roots);
       await this.opts.proposals.save(proposal);
-      await this.markMissing(settings.libraryDir);
+      // A write to the index: counted, with the library folder read again inside the lock (#335).
+      await trackLibraryWrite(async () => this.markMissing((await this.opts.settings.get()).libraryDir));
       return proposal;
     });
   }
@@ -118,7 +120,12 @@ export class AdoptService {
 
   /** Adopts the groups of the stored proposal named by `keys`. Adopting a group twice adds nothing. */
   adopt(keys: string[]): Promise<AdoptResult> {
-    return this.serial(async () => {
+    // Counted as a library write and the library folder read inside it, so a move can't slip between (#335).
+    return this.serial(() => trackLibraryWrite(() => this.adoptUntracked(keys)));
+  }
+
+  private adoptUntracked(keys: string[]): Promise<AdoptResult> {
+    return (async () => {
       const proposal = await this.opts.proposals.load();
       if (!proposal) throw new NotFoundError("No scan to adopt from; check for new files first");
       const settings = await this.opts.settings.get();
@@ -154,7 +161,7 @@ export class AdoptService {
         }
       }
       return result;
-    });
+    })();
   }
 
   private assertInsideRoots(roots: string[], target: string): void {
