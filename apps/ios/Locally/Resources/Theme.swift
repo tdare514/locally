@@ -344,6 +344,10 @@ enum Theme {
         /// The hub's radius (the dark platter rim included), and the rim's width.
         static let hubRadius: CGFloat = 154
         static let hubRimWidth: CGFloat = 8
+        /// The dark scrim over the page's cover wash, so grey text stays at 4.5:1 on a pale cover.
+        static let playerScrimOpacity: Double = 0.45
+        /// The switch's dot fading in under the chosen word.
+        static let wheelTagFadeDuration: Double = 0.2
         /// The platter's dark rim.
         static let platterColor = Color(red: 0x0A / 255, green: 0x0A / 255, blue: 0x0A / 255)
     }

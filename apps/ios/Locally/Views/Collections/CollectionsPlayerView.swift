@@ -13,12 +13,15 @@ struct CollectionsPlayerView: View {
     var onAddTracks: () -> Void
 
     @Environment(\.playback) private var playback
+    @Environment(\.appContainer) private var container
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.isTabSelected) private var isTabSelected
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
 
     @State private var frontID: UUID?
     @State private var isGuideOpen = false
+    /// The wash: the front collection's first cover, as the release page and the library sky take theirs.
+    @State private var palette: AmbientPalette?
     @State private var isScreenShowing = true
     @State private var isWheelInView = true
     @State private var isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
@@ -54,6 +57,18 @@ struct CollectionsPlayerView: View {
         WheelMotion.isAnimated(scenePhase: scenePhase, isScreenShowing: isTabSelected && isScreenShowing, isLowPowerMode: isLowPowerMode, isInView: isWheelInView, reduceMotion: reduceMotion)
     }
 
+    static let queueID = "front-queue"
+    #if DEBUG
+    static let debugScrollKey = "debugPlayerScrollToQueue"
+    #endif
+
+    private var frontCoverID: UUID? { frontID.flatMap { model.summary($0)?.coverReleaseIDs.first } }
+
+    private func loadPalette() async {
+        guard let id = frontCoverID, let store = container?.coverStore else { palette = nil; return }
+        palette = await Task.detached(priority: .utility) { ArtworkPalette.palette(forCover: store.load(id)) }.value
+    }
+
     private var frontIndex: Int { frontID.flatMap { id in model.summaries.firstIndex { $0.id == id } } ?? 0 }
 
     var body: some View {
@@ -61,6 +76,7 @@ struct CollectionsPlayerView: View {
         let isPlaying = playback?.isPlaying ?? false
         let front = frontID.flatMap { model.collection($0) }
         let frontControl = frontID.map { CollectionPlayControl(model: model, id: $0, playback: playback) }
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 12) {
@@ -103,9 +119,25 @@ struct CollectionsPlayerView: View {
                     }
                     .padding(.horizontal, Theme.Spacing.listPagePadding)
                     .padding(.top, 24)
+                    .id(Self.queueID)
                 }
             }
             .padding(.bottom, 24)
+        }
+        .background {
+            ArtworkBackdrop(palette: palette ?? .neutral)
+                .environment(\.isTabSelected, isTabSelected && isScreenShowing)
+                .overlay { Color.black.opacity(Theme.Immersive.playerScrimOpacity).ignoresSafeArea() }
+        }
+        .task(id: frontCoverID) { await loadPalette() }
+        #if DEBUG
+        .task {
+            // Debug gallery only: bring the queue into view (the won't-play frame).
+            guard UserDefaults.standard.bool(forKey: Self.debugScrollKey) else { return }
+            try? await Task.sleep(for: .milliseconds(600))
+            withAnimation(nil) { proxy.scrollTo(Self.queueID, anchor: .top) }
+        }
+        #endif
         }
         .onAppear { isScreenShowing = true }
         .onDisappear { isScreenShowing = false }

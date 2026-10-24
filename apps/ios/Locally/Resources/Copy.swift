@@ -398,6 +398,8 @@ enum Copy {
         // The record player (#352).
         static let viewRecordPlayer = "Record player"
         static let viewList = "List"
+        static let viewSwitchName = "View"
+        static let recordSwitchName = "Spinning record"
         static let pictureDisc = "Picture disc"
         static let blackVinyl = "Black vinyl"
         static func eyebrow(_ count: Int) -> String { "Library \u{00B7} \(countLine(count))" }

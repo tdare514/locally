@@ -254,7 +254,7 @@ struct ComponentGallery: View {
         case "collections-player-empty":
             CollectionsPlayerGallery(seed: false, playing: false)
         case "collections-player-wont-play":
-            CollectionsPlayerGallery(missingFirst: true)
+            CollectionsPlayerGallery(scrollsToQueue: true, missingFirst: true)
         case "collections-player-many":
             CollectionsPlayerGallery(many: 200)
         case "collections-wont-play":
@@ -1402,7 +1402,7 @@ private struct CollectionsPlayerGallery: View {
     var many = 0
     @State private var built: (container: AppContainer, model: CollectionsModel, playback: PlaybackService)
 
-    init(reduceMotion: Bool = false, seed: Bool = true, playing: Bool = true, paused: Bool = false, browsing: Bool = false, vinyl: Bool = false, missingFirst: Bool = false, many: Int = 0) {
+    init(reduceMotion: Bool = false, scrollsToQueue: Bool = false, seed: Bool = true, playing: Bool = true, paused: Bool = false, browsing: Bool = false, vinyl: Bool = false, missingFirst: Bool = false, many: Int = 0) {
         self.seed = seed
         self.playing = playing
         self.paused = paused
@@ -1411,6 +1411,7 @@ private struct CollectionsPlayerGallery: View {
         self.missingFirst = missingFirst
         self.many = many
         UserDefaults.standard.set(reduceMotion, forKey: WheelMotion.debugReduceMotionKey)
+        UserDefaults.standard.set(scrollsToQueue, forKey: CollectionsPlayerView.debugScrollKey)
         UserDefaults.standard.set(vinyl ? SpinningRecord.vinyl.rawValue : SpinningRecord.picture.rawValue, forKey: CollectionsViewPrefs.recordKey)
         UserDefaults.standard.set(CollectionsViewMode.player.rawValue, forKey: CollectionsViewPrefs.viewKey)
         _built = State(initialValue: CollectionsGallery.playingSetup(missingFirst: missingFirst, seed: seed, many: many))
