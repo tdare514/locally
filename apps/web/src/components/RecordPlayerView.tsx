@@ -118,6 +118,7 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
       if (!pose) continue;
       next.add(c.id);
       el.style.visibility = "visible";
+      el.style.pointerEvents = "auto";
       // The row element keeps a fixed 44 px hit box and only moves; the visible art and text (its first child) scale.
       el.style.transform = `translate(${pose.x - g.base / 2}px, ${cy + pose.y - ROW_HIT / 2}px)`;
       el.style.opacity = String(pose.opacity);
@@ -131,6 +132,7 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
       if (el) {
         el.style.visibility = "hidden";
         el.style.opacity = "0";
+        el.style.pointerEvents = "none";
       }
     }
     lit.current = next;
@@ -401,7 +403,10 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
   const washRelease = coverIds.length > 0 ? releases.find((r) => r.id === coverIds[0]) : undefined;
   const palette = useArtworkPalette(washRelease ? coverUrl(washRelease.id, washRelease.updatedAt) : null);
 
-  const mounted = windowIndexes(front, n, MOUNT_STEPS);
+  // The keyboard can run ahead of the turn; the selected row stays mounted (hidden until the wheel reaches it) so
+  // `aria-activedescendant` always names an element that exists.
+  const around = windowIndexes(front, n, MOUNT_STEPS);
+  const mounted = selected >= 0 && selected < n && !around.includes(selected) ? [...around, selected] : around;
 
   return (
     <div className="rp-root" data-live={isLive ? "true" : "false"}>

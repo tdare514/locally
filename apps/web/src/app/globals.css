@@ -3017,7 +3017,13 @@ body {
   height: 44px;
   visibility: hidden;
   opacity: 0;
+  pointer-events: none;
   will-change: transform, opacity;
+}
+/* The keyboard can run ahead of the turn: the selected option stays in the accessibility tree (still transparent and
+   not clickable until the wheel places it), so aria-activedescendant always names something a screen reader can read. */
+.rp-row[aria-selected="true"] {
+  visibility: visible !important;
 }
 /* The visible art and text: 64 px high, centred on the hit box, scaled by the layout loop. Rows stay level: they follow
    the dial's curve but never tilt (owner, 23 Oct). */
