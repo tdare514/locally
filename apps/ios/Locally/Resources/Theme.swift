@@ -718,3 +718,29 @@ extension Theme {
         static let shadowOpacity: Double = 0.35
     }
 }
+
+extension Theme {
+    /// #366: the collection builder's sizes.
+    enum Builder {
+        static let sleeve: CGFloat = 176
+        static let sleeveAccessibility: CGFloat = 220
+        static let shelfCover: CGFloat = 132
+        /// At accessibility text sizes.
+        static let shelfCoverLarge: CGFloat = 112
+        static let shelfRadius: CGFloat = 12
+        static let songCover: CGFloat = 52
+        static let songRadius: CGFloat = 8
+        static let songMinHeight: CGFloat = 60
+        static let crateCover: CGFloat = 52
+        static let crateOverlap: CGFloat = 18
+        static let crateShown = 5
+        static let shelfDot: CGFloat = 28
+        static let songDot: CGFloat = 30
+        /// The minimum target (the close X, clear search, Done).
+        static let control: CGFloat = 44
+        static let searchMinHeight: CGFloat = 48
+        static let mosaicSide: CGFloat = 400
+        /// The house easing, for the pick toggle and press feedback only.
+        static let ease = Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.35)
+    }
+}

@@ -1016,3 +1016,38 @@ extension Copy {
         static let toastHint = "Double tap to dismiss"
     }
 }
+
+extension Copy {
+    /// #366: the collection builder, one screen for a new collection and for "Add music" on an existing one.
+    enum CollectionBuilder {
+        static let newTitle = "New collection"
+        static let addMusicTitle = "Add music"
+        static let namePlaceholder = "Name it"
+        static let done = "Done"
+        static let close = "Close"
+        static let searchPlaceholder = "Search your library"
+        static let clearSearch = "Clear search"
+        static let songs = "Songs"
+        static let releases = "Releases"
+        static let nothingPicked = "Pick some music"
+        static let inCollection = "Already in this collection"
+        static let added = "Added"
+        /// The close X when something is typed or picked.
+        static let discardTitle = "Discard this collection?"
+        static let discard = "Discard"
+        static let keepEditing = "Keep editing"
+        static func add(_ title: String) -> String { "Add \(title)" }
+        static func songCount(_ count: Int) -> String { count == 1 ? "1 song" : "\(count) songs" }
+        static func newSongCount(_ count: Int) -> String { count == 1 ? "1 new song" : "\(count) new songs" }
+        /// Done's spoken label: "Done, 3 songs".
+        static func doneLabel(_ count: Int) -> String { count > 0 ? "\(done), \(songCount(count))" : done }
+        static func minutes(_ seconds: Double) -> String {
+            let total = max(1, Int((seconds / 60).rounded()))
+            return total >= 60 ? "\(total / 60) hr \(total % 60) min" : "\(total) min"
+        }
+        static func summary(_ count: String, seconds: Double?) -> String {
+            guard let seconds, seconds > 0 else { return count }
+            return "\(count) \u{00B7} \(minutes(seconds))"
+        }
+    }
+}
