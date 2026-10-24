@@ -510,7 +510,7 @@ function Queue({
           {list.map((e) => {
             const isCurrent = isCurrentRow(playerQueue, collection.id, e.position, { releaseId: e.release.id, trackId: e.trackId });
             return (
-              <li key={e.key} className="flex items-center gap-1">
+              <li key={e.key} className="@container flex flex-wrap items-center gap-1">
                 <button
                   type="button"
                   ref={(el) => {
@@ -520,7 +520,7 @@ function Queue({
                   disabled={!e.playable}
                   onClick={() => playFrom(e)}
                   aria-label={`${isCurrent && playing ? "Pause" : "Play"} ${e.title}${e.playable ? "" : ", file missing"}${e.failed ? `, ${COULDNT_PLAY_TRACK}` : ""}`}
-                  className="flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-[14px] p-2 text-left outline-none hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+                  className="flex min-h-14 min-w-0 basis-full items-center gap-2 rounded-[14px] p-2 @[26rem]:flex-1 @[26rem]:basis-0 @[26rem]:gap-3 text-left outline-none hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
                 >
                   <span className="relative block size-10 shrink-0 overflow-hidden rounded-[6px] bg-card">
                     {e.release.coverPath ? (
@@ -538,9 +538,9 @@ function Queue({
                       <span title={e.release.artist} className="line-clamp-2 break-words text-[0.8125rem] text-text-muted">{e.release.artist}</span>
                     )}
                   </span>
-                  {isCurrent && (playing ? <PauseIcon className="size-4 text-accent" /> : <NowPlayingIcon className="size-4 text-accent" />)}
-                  {!isCurrent && e.playable && <PlayIcon className="size-4 text-text-dim" />}
-                  <span className="min-w-12 shrink-0 text-right text-sm tabular-nums text-text-muted">
+                  {isCurrent && (playing ? <PauseIcon className="size-4 text-accent" /> : <NowPlayingIcon className={`size-4 text-accent ${e.failed ? "hidden @[26rem]:block" : ""}`} />)}
+                  {!isCurrent && e.playable && <PlayIcon className="hidden size-4 text-text-dim @[26rem]:block" />}
+                  <span className="shrink-0 text-right text-sm tabular-nums @[26rem]:min-w-12 text-text-muted">
                     {e.playable ? (e.durationSec !== null ? formatLength(e.durationSec) : "") : "Missing"}
                   </span>
                 </button>
@@ -548,7 +548,7 @@ function Queue({
                   <button
                     type="button"
                     onClick={() => tryAgain(e)}
-                    className="min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold text-text outline-none ring-1 ring-inset ring-white/20 hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent"
+                    className="mb-1 ml-[3.75rem] min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold text-text outline-none @[26rem]:mb-0 @[26rem]:ml-0 ring-1 ring-inset ring-white/20 hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent"
                   >
                     Try again
                   </button>
