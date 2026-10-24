@@ -106,11 +106,26 @@ struct RecordWheelView: View {
         )
     }
 
+    /// The ring is cut by the wheel's frame at ±height/2; this dissolves its last ~18 degrees there instead.
+    private static var ringFade: some View {
+        let half = height / 2
+        let clear = (ringRadius - half) / (ringRadius * 2)
+        let solid = (ringRadius - ringRadius * sin(asin(half / ringRadius) - 18 * .pi / 180)) / (ringRadius * 2)
+        return LinearGradient(
+            stops: [
+                .init(color: .clear, location: clear), .init(color: .black, location: solid),
+                .init(color: .black, location: 1 - solid), .init(color: .clear, location: 1 - clear),
+            ],
+            startPoint: .top, endPoint: .bottom
+        )
+    }
+
     private func dial(width: CGFloat) -> some View {
         ZStack(alignment: .leading) {
             Circle()
                 .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
                 .frame(width: Self.ringRadius * 2, height: Self.ringRadius * 2)
+                .mask { Self.ringFade }
                 .offset(x: -Self.ringRadius)
             HubRecordView(releaseID: hubReleaseID, style: style, isSpinning: spins)
                 .offset(x: -Theme.Immersive.hubRadius)

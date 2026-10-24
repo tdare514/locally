@@ -40,7 +40,9 @@ struct ComponentGallery: View {
         "collections-library", "collections-screen", "collections-queue", "collections-edit", "collections-empty", "collections-queue-ax", "collections-add", "collections-playing", "collections-add-failed", "collections-wont-play", "collections-playlist-guide", "collections-none-here",
         // #352: the record player on the Collections screen, over seeded collections and a player on fakes.
         "collections-player-playing", "collections-player-browsing", "collections-player-paused", "collections-player-vinyl", "collections-player-reduce-motion",
-        "collections-player-ax", "collections-player-narrow", "collections-player-empty", "collections-player-wont-play", "collections-player-many", "collections-player-single", "collections-player-ax-lower", "collections-player-ax-controls", "collections-player-narrow-lower"]
+        "collections-player-ax", "collections-player-narrow", "collections-player-empty", "collections-player-wont-play", "collections-player-many", "collections-player-single", "collections-player-ax-lower", "collections-player-ax-controls", "collections-player-narrow-lower",
+        // #363: the cover-tinted glass controls, a bright cover in front, and accessibility3 text.
+        "player-bright", "player-ax3"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -261,6 +263,10 @@ struct ComponentGallery: View {
             CollectionsPlayingGallery()
         case "collections-player-playing", "collections-player-ax":
             CollectionsPlayerGallery()
+        case "player-bright":
+            CollectionsPlayerGallery(brightFront: true, scrollsTo: CollectionsPlayerView.nowPlayingID)
+        case "player-ax3":
+            CollectionsPlayerGallery().dynamicTypeSize(.accessibility3)
         case "collections-player-browsing":
             CollectionsPlayerGallery(browsing: true)
         case "collections-player-paused":
@@ -1463,9 +1469,11 @@ private struct CollectionsPlayerGallery: View {
     var many = 0
     /// Only the first collection, so the wheel has nothing to turn (#363).
     var single = false
+    /// The wheel is on "Gym", a bright cover, while "Late drives" plays (#363).
+    var brightFront = false
     @State private var built: (container: AppContainer, model: CollectionsModel, playback: PlaybackService)
 
-    init(reduceMotion: Bool = false, scrollsTo: String? = nil, seed: Bool = true, playing: Bool = true, paused: Bool = false, browsing: Bool = false, vinyl: Bool = false, missingFirst: Bool = false, many: Int = 0, single: Bool = false) {
+    init(brightFront: Bool = false, reduceMotion: Bool = false, scrollsTo: String? = nil, seed: Bool = true, playing: Bool = true, paused: Bool = false, browsing: Bool = false, vinyl: Bool = false, missingFirst: Bool = false, many: Int = 0, single: Bool = false) {
         self.seed = seed
         self.playing = playing
         self.paused = paused
@@ -1474,6 +1482,7 @@ private struct CollectionsPlayerGallery: View {
         self.missingFirst = missingFirst
         self.many = many
         self.single = single
+        self.brightFront = brightFront
         UserDefaults.standard.set(reduceMotion, forKey: WheelMotion.debugReduceMotionKey)
         UserDefaults.standard.set(scrollsTo ?? "", forKey: CollectionsPlayerView.debugScrollKey)
         UserDefaults.standard.set(vinyl ? SpinningRecord.vinyl.rawValue : SpinningRecord.picture.rawValue, forKey: CollectionsViewPrefs.recordKey)
@@ -1483,7 +1492,7 @@ private struct CollectionsPlayerGallery: View {
 
     var body: some View {
         IconsGallery.environment(
-            NavigationStack { CollectionsView(model: built.model, onOpen: { _ in }, startsOn: browsing ? built.model.collections.dropFirst(3).first?.id : nil) }
+            NavigationStack { CollectionsView(model: built.model, onOpen: { _ in }, startsOn: browsing ? built.model.collections.dropFirst(3).first?.id : brightFront ? built.model.collections.dropFirst(2).first?.id : nil) }
                 .environment(\.playback, built.playback),
             built.container
         )
