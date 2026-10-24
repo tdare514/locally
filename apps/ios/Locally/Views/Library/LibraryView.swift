@@ -37,6 +37,7 @@ struct LibraryView: View {
     @AppStorage(LibraryViewPrefs.singlesCollapsedKey) private var singlesCollapsed = false
     @AppStorage(LibraryViewPrefs.albumsCollapsedKey) private var albumsCollapsed = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var layoutThumbSpace
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Icon and button sizes, scaling with Dynamic Type (#226).
     @ScaledMetric(relativeTo: .body) private var scaledToggleIconSize = Theme.Library.toggleIconSize
@@ -113,6 +114,12 @@ struct LibraryView: View {
 
     private var skyPalette: AmbientPalette {
         skyKey.flatMap { palettes[$0] } ?? .neutral
+    }
+
+    /// The header controls' tint: the sky cover's glow colour, the accent with no cover (as the Import record's switch).
+    private var controlsTint: Color {
+        let palette = skyPalette
+        return Theme.coverGlowColors(palette == .neutral ? nil : palette)[0]
     }
 
     private func openRequestedRelease() {
@@ -306,6 +313,9 @@ struct LibraryView: View {
         }
         if let collections {
             CollectionsLibraryCard(model: collections, onOpen: { path.append(CollectionsRoute()) })
+        } else if container != nil {
+            // Holds the card's height until the model exists, so the header does not pop in.
+            CollectionsLibraryCard.placeholder
         }
         searchField
         controls
@@ -503,15 +513,16 @@ struct LibraryView: View {
             layoutButton(.covers, systemImage: "square.grid.2x2", label: Copy.Library.layoutCovers)
             layoutButton(.artists, icon: .person, label: Copy.Library.layoutArtists)
         }
-        .padding(2)
-        .background(Capsule().fill(Theme.Immersive.panelFill))
-        .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
+        .padding(.horizontal, 3)
+        .background { GlowGlass().clipShape(Capsule()) }
+        .overlay { GlowRim() }
+        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: layout)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Copy.Library.layoutLabel)
     }
 
     private var sizeControl: some View {
-        CoverSizeSlider(selection: $coverSize)
+        CoverSizeSlider(selection: $coverSize, tint: controlsTint)
     }
 
     /// The sort menu (#288): the Mac's four options with a check on the current one.
@@ -523,13 +534,14 @@ struct LibraryView: View {
                 }
             }
         } label: {
+            let side = max(toggleButtonSize, Theme.Import.kindSwitchMinTarget)
             Image(systemName: "arrow.up.arrow.down")
                 .font(.system(size: toggleIconSize, weight: .semibold))
-                .foregroundStyle(Theme.secondaryText)
-                .frame(width: toggleButtonSize, height: toggleButtonSize - 4)
-                .background(Capsule().fill(Theme.Immersive.panelFill))
-                .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
-                .contentShape(Capsule())
+                .foregroundStyle(Color.white.opacity(0.85))
+                .frame(width: side, height: side)
+                .background { GlowGlass().clipShape(Circle()) }
+                .overlay { GlowRim(round: true) }
+                .contentShape(Circle())
         }
         .accessibilityLabel(Copy.Library.sortLabel(Copy.Library.sortName(sort)))
     }
@@ -554,9 +566,15 @@ struct LibraryView: View {
             layout = value
         } label: {
             glyph()
-                .foregroundStyle(selected ? Theme.onAccent : Theme.secondaryText)
-                .frame(width: toggleButtonSize, height: toggleButtonSize - 8)
-                .background { if selected { Capsule().fill(Theme.accent) } }
+                .foregroundStyle(Color.white.opacity(selected ? 1 : 0.55))
+                .frame(width: max(toggleButtonSize, Theme.Import.kindSwitchMinTarget), height: max(toggleButtonSize, Theme.Import.kindSwitchMinTarget))
+                .background {
+                    if selected {
+                        TintedGlassThumb(shape: Capsule(), tint: controlsTint)
+                            .padding(.vertical, Theme.Library.toggleThumbInset)
+                            .matchedGeometryEffect(id: "layoutThumb", in: layoutThumbSpace)
+                    }
+                }
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)

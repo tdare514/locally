@@ -438,14 +438,15 @@ eyebrows still apply to those labels.
     (#360: Large is the old Medium, Medium the old Small, and the new Small shows the title only; the old
     1-across size is gone, and the choice moved to the key `locally.library.coverSize2`, migrated once
     from the old key; a fresh install starts on Large). The size control is `CoverSizeSlider` at the
-    right end of the layout row, covers view only: a thin track with three detents, a round glass thumb,
-    a dense-grid glyph at the left and a bigger one at the right, a 44 pt hit height, a selection haptic
-    per detent, adjustable for VoiceOver ("Cover size, Medium"). Tiles
+    right end of the layout row, covers view only: a glass track (the Glow switch's glass and rim) with three 30 % white detent dots, a round thumb in the Glow
+    switch's tinted glass (`TintedGlassThumb`, tinted by the library sky, the accent with no cover) with a top-left
+    highlight and the Glow spring, a dense-grid glyph at the left and a bigger one at the right, a 44 pt hit height,
+    a selection haptic per detent, adjustable for VoiceOver ("Cover size, Medium"). Tiles
     have radius 8. A pressed tile grows to 1.03 with a shadow (radius 10, 35 %, y 4) over 0.15 s.
     List rows sit in a radius 16 panel, and the divider between Singles and Albums is white at 7 %.
-    The Library has no "Add a song" footer (the Import tab does that). Collections is a glass card
-    (`CollectionsLibraryCard`, at least 80 pt tall) under the header with the first three collections'
-    covers fanned out of its left edge; one tap opens the Collections screen, which holds "New collection".
+    The layout toggle and sort button are the same glass: the chosen layout is the tinted thumb sliding on the Glow spring. The Library has no "Add a song" footer (the Import tab does that). Collections is a glass card
+    (`CollectionsLibraryCard`, at least 80 pt tall) under the header, washed from the first collection's cover colours (55 % at the leading edge, clear at 70 %), with the first three collections'
+    covers as a stack of sleeves (the front one with a vinyl peeking out, the two behind tilted -7 and +5 degrees); it presses to 0.98 and holds its height while loading; one tap opens the Collections screen, which holds "New collection".
   - *Library sky*: an `ArtworkBackdrop` fixed behind the library, coloured by the cover last
     pressed or else the first cover on screen. A pressed cover stops colouring it after 120 pt of
     scroll (`pressedSkyReleaseDistance`). As the library scrolls, the two glows turn 28 and 22

@@ -1,15 +1,17 @@
 import SwiftUI
 
-/// The Library's cover size control (#360): a thin track with three detents, a round glass thumb, a
-/// dense-grid glyph at the left end and a big-grid glyph at the right. Drag or tap to move it; it
-/// snaps to a detent on the house easing, with a selection haptic per detent. VoiceOver reads it as
-/// an adjustable "Cover size, Medium".
+/// The Library's cover size control (#360): a glass track (the Glow switch's glass and rim) with three
+/// detent dots, a round thumb in the Glow switch's tinted glass with a small highlight, a dense-grid glyph
+/// at the left end and a big-grid glyph at the right. Drag or tap to move it; the thumb follows on the Glow
+/// switch's spring, with a selection haptic per detent. VoiceOver reads it as an adjustable "Cover size, Medium".
 struct CoverSizeSlider: View {
     @Binding var selection: CoverSize
+    /// The library sky's colour (the cover's glow colour; the accent with no cover).
+    var tint: Color = Theme.accent
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .body) private var scaledThumb = Theme.Library.sizeSliderThumb
-    /// Grows a little with the text but stays inside the 44 pt hit height.
-    private var thumb: CGFloat { min(scaledThumb, Theme.Library.sizeSliderHeight - 8) }
+    /// Grows a little with the text but stays within 36 pt and inside the 44 pt hit height.
+    private var thumb: CGFloat { min(scaledThumb, Theme.Library.sizeSliderThumbMax, Theme.Library.sizeSliderHeight - 8) }
 
     private var sizes: [CoverSize] { CoverSize.allCases }
 
@@ -45,23 +47,22 @@ struct CoverSizeSlider: View {
             let inset = thumb / 2
             let span = max(proxy.size.width - thumb, 1)
             let last = CGFloat(sizes.count - 1)
+            let dot = Theme.Library.sizeSliderDetent
             ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Theme.Immersive.panelStroke)
+                GlowGlass()
+                    .clipShape(Capsule())
+                    .overlay { GlowRim() }
                     .frame(height: Theme.Library.sizeSliderTrack)
                 ForEach(sizes, id: \.self) { size in
                     Circle()
-                        .fill(Theme.textDim)
-                        .frame(width: 5, height: 5)
-                        .offset(x: inset + span * CGFloat(size.rawValue) / last - 2.5)
+                        .fill(Color.white.opacity(Theme.Library.sizeSliderDetentOpacity))
+                        .frame(width: dot, height: dot)
+                        .offset(x: inset + span * CGFloat(size.rawValue) / last - dot / 2)
                 }
-                Circle()
-                    .fill(LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0.22)], startPoint: .top, endPoint: .bottom))
-                    .overlay(Circle().stroke(.white.opacity(0.6), lineWidth: 1))
-                    .shadow(color: .black.opacity(0.35), radius: 4, y: 2)
+                TintedGlassThumb(shape: Circle(), tint: tint, specular: true)
                     .frame(width: thumb, height: thumb)
                     .offset(x: span * CGFloat(selection.rawValue) / last)
-                    .animation(reduceMotion ? nil : .timingCurve(0.16, 1, 0.3, 1, duration: Theme.Library.sizeSliderSnapDuration), value: selection)
+                    .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: selection)
             }
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())

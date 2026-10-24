@@ -140,15 +140,34 @@ enum Theme {
         /// The slider's width with its two glyphs, the hit height, the thumb's size, the track's thickness and the snap duration.
         static let sizeSliderWidth: CGFloat = 150
         static let sizeSliderHeight: CGFloat = 44
-        static let sizeSliderThumb: CGFloat = 24
-        static let sizeSliderTrack: CGFloat = 3
+        static let sizeSliderThumb: CGFloat = 28
+        /// The glass track's thickness, the thumb's largest size and the detent dots' size and opacity.
+        static let sizeSliderTrack: CGFloat = 18
+        static let sizeSliderThumbMax: CGFloat = 36
+        static let sizeSliderDetent: CGFloat = 4
+        static let sizeSliderDetentOpacity: Double = 0.3
+        /// The thumb's top-left specular highlight.
+        static let thumbSpecularOpacity: Double = 0.35
+        /// The layout toggle's 44 pt buttons and how far the tinted thumb is inset from their top and bottom.
+        static let toggleThumbInset: CGFloat = 5
         static let sizeSliderGlyph: CGFloat = 13
         static let sizeSliderSnapDuration: Double = 0.3
         /// The Collections card: its minimum height, sleeve side, how far each sleeve peeks out, the tilt and the corner radius.
         static let collectionsCardMinHeight: CGFloat = 80
         static let collectionsCardSleeve: CGFloat = 52
-        static let collectionsCardSleeveStep: CGFloat = 22
-        static let collectionsCardTilt: Double = 5
+        /// How far the back sleeves sit to the right of the front one, per sleeve behind.
+        static let collectionsCardSleeveStep: CGFloat = 4
+        /// The card's cover-colour wash: opacity at the leading edge and the share of the width where it has faded out.
+        static let collectionsCardWashOpacity: Double = 0.55
+        static let collectionsCardWashEnd: CGFloat = 0.7
+        /// The stacked sleeves' tilts (back two, in degrees), the vinyl's size against the sleeve and how far it peeks out.
+        static let collectionsCardBackTilts: [Double] = [-7, 5]
+        static let collectionsCardDiscRatio: CGFloat = 0.92
+        static let collectionsCardDiscPeek: CGFloat = 24
+        /// The pressed card: its scale, opacity and the duration of the change.
+        static let collectionsCardPressScale: CGFloat = 0.98
+        static let collectionsCardPressOpacity: Double = 0.85
+        static let collectionsCardPressDuration: Double = 0.2
         static let collectionsCardRadius: CGFloat = 16
         /// The Singles / Albums header buttons: tap target, chevron size and the fold's duration.
         static let sectionHeaderMinHeight: CGFloat = 44
