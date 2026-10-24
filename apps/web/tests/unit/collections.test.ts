@@ -4,6 +4,9 @@ import { describe, expect, it } from "vitest";
 import {
   addItems,
   buildCollectionQueue,
+  buildCollectionQueueAt,
+  isCurrentRow,
+  rowQueuePositions,
   collectionCoverIds,
   collectionRows,
   collectionTotals,
@@ -123,5 +126,37 @@ describe("names", () => {
     expect(cleanCollectionName("   ")).toBeNull();
     expect(cleanCollectionName("x".repeat(101))).toBeNull();
     expect(cleanCollectionName("a\u0007b")).toBeNull();
+  });
+});
+
+describe("now-playing row", () => {
+  // The same release listed as a release item and again as one of its tracks: track "a" appears twice.
+  const items: CollectionItem[] = [
+    { kind: "release", releaseId: R1 },
+    { kind: "track", releaseId: R1, trackId: "a" },
+  ];
+  const col = { id: "col", items };
+
+  it("positions follow the built queue and skip missing tracks", () => {
+    const rows = collectionRows(items, [rel1]);
+    expect(rowQueuePositions(rows)).toEqual([[0, 1, 2, null], [3]]);
+  });
+
+  it("starts at the clicked row's position, not the first occurrence of the track", () => {
+    const q = buildCollectionQueueAt(col, [rel1], 3)!;
+    expect(q.items[q.index]).toEqual({ releaseId: R1, trackId: "a" });
+    expect(q.index).toBe(3);
+    expect(q.context).toEqual({ kind: "collection", id: "col" });
+    expect(buildCollectionQueueAt(col, [rel1], 4)).toBeNull();
+  });
+
+  it("a row is current only in this collection's queue at its own position", () => {
+    const q = buildCollectionQueueAt(col, [rel1], 3)!;
+    expect(isCurrentRow(q, "col", 3)).toBe(true);
+    expect(isCurrentRow(q, "col", 0)).toBe(false); // same track, other row
+    expect(isCurrentRow(q, "other", 3)).toBe(false);
+    expect(isCurrentRow({ ...q, context: { kind: "release", id: "col" } }, "col", 3)).toBe(false);
+    expect(isCurrentRow(null, "col", 3)).toBe(false);
+    expect(isCurrentRow(q, "col", null)).toBe(false);
   });
 });

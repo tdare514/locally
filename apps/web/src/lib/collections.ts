@@ -74,6 +74,32 @@ export function buildCollectionQueue(
   return { items, index, context: { kind: "collection", id: collection.id } };
 }
 
+/** The queue for playing a collection from the item at `index` of its queue. Null when that position doesn't exist. */
+export function buildCollectionQueueAt(
+  collection: Pick<CollectionRecord, "id" | "items">,
+  releases: readonly Release[],
+  index: number,
+): PlayQueue | null {
+  const items = collectionQueueItems(collection.items, releases);
+  if (!Number.isInteger(index) || index < 0 || index >= items.length) return null;
+  return { items, index, context: { kind: "collection", id: collection.id } };
+}
+
+/** Each row's tracks' positions in the collection's built queue (null for a track whose file is gone), same order as `rows[i].tracks`. */
+export function rowQueuePositions(rows: readonly CollectionRow[]): (number | null)[][] {
+  let next = 0;
+  return rows.map((row) => row.tracks.map((t) => (t.missing ? null : next++)));
+}
+
+/** A row is current only when the player's queue is this collection's and sits at the row's position in it. */
+export function isCurrentRow(
+  queue: { index: number; context: { kind: string; id: string } } | null,
+  collectionId: string,
+  position: number | null,
+): boolean {
+  return queue !== null && position !== null && queue.context.kind === "collection" && queue.context.id === collectionId && queue.index === position;
+}
+
 /** Side A and Side B: the queue split in half, the extra track on Side A. */
 export function splitSides<T>(items: readonly T[]): { a: T[]; b: T[] } {
   const half = Math.ceil(items.length / 2);

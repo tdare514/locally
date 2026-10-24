@@ -6,6 +6,9 @@ import { cleanCollectionName, itemKey, type CollectionRecord } from "../shared/c
 import {
   COLLECTIONS_COPY,
   buildCollectionQueue,
+  buildCollectionQueueAt,
+  isCurrentRow,
+  rowQueuePositions,
   collectionRows,
   collectionTotals,
   filterCollections,
@@ -19,7 +22,7 @@ import {
 import { coverUrl } from "../lib/api-client";
 import { formatLength } from "../lib/adopt-review";
 import { normalizeSearchText } from "../lib/library-sections";
-import { currentItem, itemKey as playerItemKey, playerStore, usePlayerSelector } from "../lib/play-queue";
+import { playerStore, usePlayerSelector, usePlayerState } from "../lib/play-queue";
 import { nearestSlot } from "../lib/track-order";
 import { useCollections } from "./CollectionsContext";
 import CollectionSleeve from "./CollectionSleeve";
@@ -202,7 +205,6 @@ function QueuePanel({
   const [confirming, setConfirming] = useState(false);
   const [name, setName] = useState(collection.name);
   const deleteOpener = useRef<HTMLButtonElement>(null);
-  const current = usePlayerSelector((s) => playerItemKey(currentItem(s.queue)));
   const context = usePlayerSelector((s) => (s.queue ? `${s.queue.context.kind}:${s.queue.context.id}` : null));
   const playing = usePlayerSelector((s) => s.playing);
 
@@ -319,7 +321,7 @@ function QueuePanel({
       ) : editing ? (
         <EditList collection={collection} rows={rows} />
       ) : (
-        <Queue collection={collection} rows={rows} releases={releases} current={current} playing={queueOfThis && playing} />
+        <Queue collection={collection} rows={rows} releases={releases} playing={queueOfThis && playing} />
       )}
     </section>
   );
@@ -332,23 +334,26 @@ interface Entry {
   title: string;
   durationSec: number | null;
   playable: boolean;
+  /** Position in the collection's built queue; null when the file is missing. */
+  position: number | null;
 }
 
 function Queue({
   collection,
   rows,
   releases,
-  current,
   playing,
 }: {
   collection: CollectionRecord;
   rows: CollectionRow[];
   releases: Release[];
-  current: string | null;
   playing: boolean;
 }) {
-  const entries: Entry[] = rows.flatMap((row) =>
-    row.tracks.map((t) => ({
+  const playerQueue = usePlayerState().queue;
+  const positions = rowQueuePositions(rows);
+  const entries: Entry[] = rows.flatMap((row, r) =>
+    row.tracks.map((t, i) => ({
+      position: positions[r][i],
       key: `${row.index}/${t.id}`,
       release: row.release,
       trackId: t.id,
@@ -359,12 +364,11 @@ function Queue({
   );
   const { a, b } = splitSides(entries);
   function playFrom(e: Entry) {
-    const same = current === `${e.release.id}/${e.trackId}`;
-    if (same) {
+    if (isCurrentRow(playerQueue, collection.id, e.position)) {
       playerStore.toggle();
       return;
     }
-    const queue = buildCollectionQueue(collection, releases, { releaseId: e.release.id, trackId: e.trackId });
+    const queue = e.position === null ? null : buildCollectionQueueAt(collection, releases, e.position);
     if (queue) playerStore.start(queue);
   }
   const side = (label: string, list: Entry[]) =>
@@ -373,7 +377,7 @@ function Queue({
         <h3 className="px-2 pb-1 pt-3 text-sm font-medium text-text-muted">{label}</h3>
         <ol className="flex flex-col">
           {list.map((e) => {
-            const isCurrent = current === `${e.release.id}/${e.trackId}`;
+            const isCurrent = isCurrentRow(playerQueue, collection.id, e.position);
             return (
               <li key={e.key}>
                 <button
