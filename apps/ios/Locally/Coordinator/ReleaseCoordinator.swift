@@ -768,6 +768,22 @@ final class ReleaseCoordinator {
         }
     }
 
+    /// Like `withTrackFiles`, for reads only: a file whose resolved URL is not inside the connected folder comes
+    /// back with a nil url, so nothing outside it is ever stat'ed or read (#365).
+    func withContainedTrackFiles<T>(of release: Release, _ body: ([(track: Track, url: URL?)]) async throws -> T) async throws -> T {
+        try await folder.withAccess { folderURL in
+            let files = release.tracks.map { (track: $0, url: Self.containedFileURL(for: $0, in: folderURL)) }
+            return try await body(files)
+        }
+    }
+
+    /// `resolvedFileURL`, or nil when the result is not inside `folderURL` (an outside absolute path, a `..` path),
+    /// by the same `ReleaseLayout.isInside` check every write and the player use. Pure: no disk access beyond the resolve.
+    static func containedFileURL(for track: Track, in folderURL: URL) -> URL? {
+        let url = resolvedFileURL(for: track, in: folderURL)
+        return ReleaseLayout().isInside(folder: folderURL, path: url.path) ? url : nil
+    }
+
     /// The track's file as it is reachable now. The stored path is absolute,
     /// but Spotify's container moves when Spotify is reinstalled, so when
     /// that path no longer exists the file is looked up by name inside the

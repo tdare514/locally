@@ -92,15 +92,18 @@ private struct StatsRow: View {
                 .foregroundStyle(StatsStyle.rankColor(item.medal))
                 .frame(width: min(rankWidth, 56))
                 .accessibilityHidden(true)
+                .allowsHitTesting(false)
             StatsCoverView(owner: owner, cache: cache, round: round)
                 .frame(width: Theme.Stats.rowCover, height: Theme.Stats.rowCover)
                 .shadow(color: .black.opacity(0.5), radius: 6, y: 4)
+                .allowsHitTesting(false)
             VStack(alignment: .leading, spacing: 2) {
                 Text(plainTitle)
                     .font(.system(.body, weight: .semibold))
                     .foregroundStyle(StatsStyle.nameColor(item.medal))
                     .lineLimit(stacked ? 4 : 1)
                     .accessibilityHidden(true)
+                    .allowsHitTesting(false)
                 if let credit = artistCredit {
                     ArtistLineText(
                         main: credit.artist, featuring: credit.featuring, font: .subheadline,
@@ -112,12 +115,13 @@ private struct StatsRow: View {
                         .foregroundStyle(Theme.secondaryText)
                         .lineLimit(stacked ? 3 : 1)
                         .accessibilityHidden(true)
+                        .allowsHitTesting(false)
                 }
-                if stacked { numbers(alignment: .leading).padding(.top, 4).accessibilityHidden(true) }
+                if stacked { numbers(alignment: .leading).padding(.top, 4).accessibilityHidden(true).allowsHitTesting(false) }
             }
             if !stacked {
                 Spacer(minLength: 8)
-                numbers(alignment: .trailing).fixedSize().accessibilityHidden(true)
+                numbers(alignment: .trailing).fixedSize().accessibilityHidden(true).allowsHitTesting(false)
             }
         }
         .padding(.horizontal, 16)

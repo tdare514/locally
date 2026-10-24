@@ -4,7 +4,7 @@ import SwiftUI
 /// Debug-only harness for deterministic screenshots of the immersive components. Launch the app
 /// with `-componentGallery <name>`; see `LocallyApp`.
 struct ComponentGallery: View {
-    static let names = StatsPopupGallery.names + TrackActionsGallery.names + ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "sleeve-bright", "sleeve-dark", "backdrop-a", "backdrop-b", "inline-field", "cover-sheet",
+    static let names = StatsPopupGallery.names + TrackActionsGallery.names + SongPageGallery.names + ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "sleeve-bright", "sleeve-dark", "backdrop-a", "backdrop-b", "inline-field", "cover-sheet",
         // #160: the studio backdrop and the real Settings with sample sync state.
         "studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "migration-banner", "root-banner",
         // #205: the release page's tracks panel (the shared `TrackRow`, preset rows).
@@ -30,7 +30,7 @@ struct ComponentGallery: View {
         // #226: the library search box with a typed query, and the crop sheet's Square / Original pill.
         "icons-library-search", "crop-sheet", "devices-header-narrow",
         // #221: the Release date row. The import case is `import-record-date`.
-        "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save",
+        "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save", "song-page-edit-save",
         // #183: sharing. The share sheet, its Link option and result, the friends tray, "Shared by you".
         "share-sheet", "share-sheet-link", "share-sheet-result", "share-sheet-signed-out", "share-sheet-large-text",
         "devices-tray-friends", "devices-tray-friends-large-text", "shared-by-you", "shared-by-you-large-text", "release-share-blocked",
@@ -65,7 +65,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("collections-") || name.hasPrefix("player-") || name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || name.hasPrefix("share") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "root-banner", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save", "release-share-blocked", "release-track-highlight", "release-track-highlight-long", "release-track-highlight-ax", "release-track-highlight-bright", "release-track-highlight-dark", "release-track-plain-long"].contains(name)
+        name.hasPrefix("collections-") || name.hasPrefix("player-") || name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || name.hasPrefix("share") || name.hasPrefix("song-page") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "root-banner", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save", "release-share-blocked", "release-track-highlight", "release-track-highlight-long", "release-track-highlight-ax", "release-track-highlight-bright", "release-track-highlight-dark", "release-track-plain-long"].contains(name)
     }
 
     var body: some View {
@@ -158,6 +158,8 @@ struct ComponentGallery: View {
         case "settings-scrolled":
             // Opens at the bottom of the page, to see the lower groups and the edge fade.
             Self.settings(signedIn: true)
+        case _ where SongPageGallery.names.contains(name):
+            SongPageGallery(name: name)
         case _ where StatsPopupGallery.names.contains(name):
             StatsPopupGallery.page(name)
         case "stats-week":
@@ -227,6 +229,8 @@ struct ComponentGallery: View {
             ReleaseDateFieldGallery(text: "17 September 2024").frame(width: 300)
         case "release-date-save":
             IconsGallery.saveableDateRelease()
+        case "song-page-edit-save":
+            IconsGallery.saveableSongRelease()
         case "release-featuring-view":
             IconsGallery.featuringRelease()
         case "release-featuring-edit":
@@ -749,6 +753,21 @@ enum IconsGallery {
         release.releaseDate = "2024-05-17"
         let container = container(releases: [release], covers: [:], folder: GalleryFolder(directory: dir), tagWriter: GalleryTagWriter())
         return environment(NavigationStack { ReleaseDetailView(release: release, startsEditing: true) }, container)
+    }
+
+    /// `song-page-edit-save`: an album's release page in the song-route stack, over scratch files and a tag writer that
+    /// writes nothing, so a UI test can open a song page, Edit, save and come back (#365).
+    static func saveableSongRelease() -> some View {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("gallery-song-save", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let tracks = ["Headlights", "Orange Streetlight"].enumerated().map { index, name -> Track in
+            let file = dir.appendingPathComponent("\(name).mp3")
+            try? Data([0xFF, 0xFB, 1, 2, 3, 4]).write(to: file)
+            return Track(title: name, trackNumber: index + 1, filePath: file.path, originalName: "\(name).mp3", durationSec: 214)
+        }
+        let release = Release(kind: .album, title: "Night Bus", artist: "Neon Harbor", year: "2024", genre: "Synthwave", folderPath: dir.path, tracks: tracks)
+        let container = container(releases: [release], covers: [:], folder: GalleryFolder(directory: dir), tagWriter: GalleryTagWriter())
+        return environment(ReleaseGalleryStack(release: release), container)
     }
 
     /// An album's release page, with its cover (Edit) and the playlist guide (Copy).
@@ -1355,8 +1374,14 @@ private struct PlayerGallery: View {
 @MainActor private final class GalleryEngine: PlaybackEngine {
     var onProgress: ((Double, Double?) -> Void)?
     private var continuation: CheckedContinuation<PlaybackEnd, Never>?
+    /// The first play ends as a corrupt file would (the song page's "won't play" frame); later ones play.
+    var failsFirstPlay = false
     func play(url: URL) async -> PlaybackEnd {
-        await withCheckedContinuation { continuation in
+        if failsFirstPlay {
+            failsFirstPlay = false
+            return .failed
+        }
+        return await withCheckedContinuation { continuation in
             self.continuation = continuation
             onProgress?(70, 200)
         }
@@ -1411,12 +1436,12 @@ enum CollectionsGallery {
     /// A collection of only the Mac-only release: the playlist guide has nothing to add.
     static let noneHereID = UUID(uuidString: "00000000-0000-0000-0000-0000000000c2")!
 
-    static func container(seed: Bool, many: Int = 0, single: Bool = false, bright: Bool = false) -> (AppContainer, CollectionsModel) {
+    static func container(seed: Bool, many: Int = 0, single: Bool = false, bright: Bool = false, extra: [Release] = [], extraCovers: [UUID: Data] = [:]) -> (AppContainer, CollectionsModel) {
         // `bright`: every cover is yellow and orange, so the sky and the card's wash come from a light cover.
         let covers = bright
             ? Dictionary(uniqueKeysWithValues: StatsGallery.releases.map { ($0.id, SampleArtwork.cover([.systemYellow, .systemOrange], size: 360).pngData() ?? Data()) })
             : StatsGallery.covers
-        let container = IconsGallery.container(releases: StatsGallery.releases + [macOnly], covers: covers)
+        let container = IconsGallery.container(releases: StatsGallery.releases + [macOnly] + extra, covers: covers.merging(extraCovers) { _, new in new })
         if seed {
             let r = StatsGallery.releases
             let stamp = Date()
@@ -1441,11 +1466,14 @@ enum CollectionsGallery {
         return (container, model)
     }
 
-    static func playingSetup(missingFirst: Bool = false, seed: Bool = true, many: Int = 0, single: Bool = false) -> (container: AppContainer, model: CollectionsModel, playback: PlaybackService) {
-        let (container, model) = container(seed: seed, many: many, single: single)
+    /// `extra` releases and their covers join the library (the song page's sample song, #365).
+    static func playingSetup(missingFirst: Bool = false, missingTrack: UUID? = nil, corruptFirstPlay: Bool = false, seed: Bool = true, many: Int = 0, single: Bool = false, extra: [Release] = [], extraCovers: [UUID: Data] = [:]) -> (container: AppContainer, model: CollectionsModel, playback: PlaybackService) {
+        let (container, model) = container(seed: seed, many: many, single: single, extra: extra, extraCovers: extraCovers)
         let firstPlayable = model.collection(queueID).flatMap { model.playQueue(of: $0).first?.trackID }
+        let engine = GalleryEngine()
+        engine.failsFirstPlay = corruptFirstPlay
         let playback = PlaybackService(
-            engine: GalleryEngine(), access: missingFirst ? GalleryAccess(missing: firstPlayable) : GalleryAccess(), session: GallerySession(),
+            engine: engine, access: missingFirst ? GalleryAccess(missing: firstPlayable) : GalleryAccess(missing: missingTrack), session: GallerySession(),
             nowPlaying: GalleryNowPlaying(), remote: GalleryRemote(), coverData: { _ in nil }
         )
         return (container, model, playback)

@@ -114,6 +114,7 @@ struct CollectionQueueRows: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.playback) private var playback
+    @Environment(\.openSong) private var openSong
     /// "Add to collection" from a row's long-press menu (#364).
     @State private var addTarget: (rowID: String, target: AddToCollectionTarget)?
     /// The queue row's number column (minWidth 24) plus its 12 gap: where the title starts; it grows with the text.
@@ -168,12 +169,14 @@ struct CollectionQueueRows: View {
         }
     }
 
-    /// The long-press menu of a queue row (#364): queue it or add it to a collection. Navigation items wait for part B.
+    /// The long-press menu of a queue row (#364): queue it, add it to a collection, or open its song page (#365). Other navigation items wait for part B.
     private func rowActions(_ row: CollectionQueue.Row) -> TrackActions? {
         guard let release = model.releases[row.releaseID] else { return nil }
+        let route = SongRoute(release: release, trackId: row.trackID)
         return TrackActions(
             target: .track(releaseId: row.releaseID, trackId: row.trackID), release: release,
-            addToCollection: { addTarget = (row.id, AddToCollectionTarget(items: [.track(releaseId: row.releaseID, trackId: row.trackID)])) }
+            addToCollection: { addTarget = (row.id, AddToCollectionTarget(items: [.track(releaseId: row.releaseID, trackId: row.trackID)])) },
+            songInfo: openSong.map { open in { open(route) } }
         )
     }
 

@@ -999,6 +999,7 @@ extension Copy {
         static let goToAlbum = "Go to album"
         static let goToArtist = "Go to artist"
         static let songInfo = "Song info"
+        static let opensSongPage = "Opens the song page"
 
         static let playingNow = "Playing now"
         static let playingNext = "Playing next"
@@ -1014,6 +1015,65 @@ extension Copy {
             "\(songCount(added)) added, \(leftOut) only \(leftOut == 1 ? "plays" : "play") on your Mac"
         }
         static let toastHint = "Double tap to dismiss"
+    }
+}
+
+/// The song page (#365).
+extension Copy {
+    enum SongPage {
+        // Actions
+        static let collection = "Collection"
+        static let playNext = "Play next"
+        static let share = "Share"
+        static let edit = "Edit"
+        static let editOnMac = "Edit it on your Mac"
+        static let playHint = "Plays this song"
+        static let pauseHint = "Pauses it"
+        static let resumeHint = "Resumes it"
+        static func playLabel(_ title: String) -> String { "Play \(title)" }
+        static func pauseLabel(_ title: String) -> String { "Pause \(title)" }
+        static func resumeLabel(_ title: String) -> String { "Resume \(title)" }
+        static func onlyOnMac(_ title: String) -> String { "\(title), only on your Mac" }
+
+        // Plays
+        static let plays = "Plays"
+        static let playsUnit = "plays"
+        static let lastPlayed = "Last played"
+        static let neverPlayed = "Not played yet"
+        static let today = "Today"
+        static let thisWeek = "This week"
+        static let thisMonth = "This month"
+        static let thisYear = "This year"
+        static let allTime = "All time"
+        /// "Last played yesterday": the time words are lower case; a date reads as it is.
+        static func lastPlayedLine(_ when: String) -> String { "\(lastPlayed) \(when)" }
+        static let playedToday = "today"
+        static let playedYesterday = "yesterday"
+        static func playedDaysAgo(_ days: Int) -> String { "\(days) days ago" }
+
+        // Collections
+        static let inCollections = "In collections"
+        static let notInCollection = "Not in a collection yet"
+        static func openCollection(_ name: String) -> String { "Open \(name)" }
+
+        // The album and the file
+        static let onTheAlbum = "On the album"
+        static let album = "Album"
+        static let albumHint = "Opens the album at this song"
+        static let track = "Track"
+        static let disc = "Disc"
+        static let genre = "Genre"
+        static let released = "Released"
+        static let length = "Length"
+        static let file = "File"
+        static let fileName = "Name"
+        static let format = "Format"
+        static let size = "Size"
+        static let sizeUnknown = "Only on your Mac"
+        static let livesOn = "Lives on"
+        static let onThisPhone = "This iPhone"
+        static let onYourMac = "On your Mac"
+        static func ofTotal(_ n: Int, _ total: Int) -> String { "\(n) of \(total)" }
     }
 }
 

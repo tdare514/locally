@@ -29,6 +29,7 @@ struct ReleaseDetailView: View {
     /// A song the long-press menu's Edit asked to scroll to; cleared once the page has scrolled there.
     @State private var editScrollTrackID: UUID?
     @Environment(\.openURL) private var openURL
+    @Environment(\.openSong) private var openSong
     /// How far the wash reaches past the row's text; less at large text so it stays inside the screen edge.
     private var washBleed: CGFloat { dynamicTypeSize.isAccessibilitySize ? 4 : min(8, Theme.Immersive.recordRowSideInset / 2) }
     @AccessibilityFocusState private var focusedTrackID: UUID?
@@ -380,7 +381,8 @@ struct ReleaseDetailView: View {
                 time: TrackLength.format(seconds),
                 timeSpoken: TrackLength.spoken(seconds),
                 play: playControl(for: row.id, in: model.savedRelease),
-                highlight: row.id == highlightTrackID ? highlight : 0
+                highlight: row.id == highlightTrackID ? highlight : 0,
+                onOpenSong: songOpener(for: row, in: model)
             )
             .background {
                 if row.id == highlightTrackID {
@@ -436,7 +438,15 @@ struct ReleaseDetailView: View {
         if let url = ArtistLink.url(forName: ArtistNames.splitArtistFeaturing(model.savedRelease.artist).artist) {
             actions.goToArtist = { openURL(url) }
         }
+        actions.songInfo = songOpener(for: row, in: model)
         return actions
+    }
+
+    /// Opens the song's page (#365) from the title tap and "Song info"; nil where no stack shows songs.
+    private func songOpener(for row: ReleaseDetailViewModel.TrackRow, in model: ReleaseDetailViewModel) -> (() -> Void)? {
+        guard let openSong else { return nil }
+        let route = SongRoute(release: model.savedRelease, trackId: row.id)
+        return { openSong(route) }
     }
 
     /// After Edit on a song: the edit list is long and lazy, so the song's edit row may not exist yet. This scrolls

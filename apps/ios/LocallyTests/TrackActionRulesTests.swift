@@ -59,4 +59,38 @@ struct TrackActionRulesTests {
         #expect(songSubject == "Orange Streetlight")
         #expect(wholeSubject == "Night Bus")
     }
+    @Test("a song's page routes Edit to the release in edit mode at the song, and the Album row to the release at the song")
+    func songRoutes() {
+        let album = release()
+        let trackId = album.tracks[0].id
+        let route = SongRoute(release: album, trackId: trackId)
+        let edit = route.editRoute(for: album)
+        let expectedEdit: ReleaseEditRoute? = ReleaseEditRoute(release: album, trackId: trackId)
+        let albumRoute = route.albumRoute(for: album)
+        let expectedAlbum = ReleaseTrackRoute(release: album, trackId: trackId)
+        #expect(edit == expectedEdit)
+        #expect(albumRoute == expectedAlbum)
+    }
+
+    @Test("an adopted song's page has no Edit route")
+    func adoptedSongHasNoEdit() {
+        let adopted = release(source: .adopted)
+        let route = SongRoute(release: adopted, trackId: adopted.tracks[0].id)
+        let edit = route.editRoute(for: adopted)
+        #expect(edit == nil)
+    }
+
+    @Test("a song's route holds ids only, so it is the same route after the release is edited")
+    func songRouteIgnoresEdits() {
+        let album = release()
+        let trackId = album.tracks[0].id
+        var edited = album
+        edited.title = "Renamed"
+        let before = SongRoute(release: album, trackId: trackId)
+        let after = SongRoute(release: edited, trackId: trackId)
+        let editRoute = before.editRoute(for: edited)
+        let expected: ReleaseEditRoute? = ReleaseEditRoute(release: edited, trackId: trackId)
+        #expect(before == after)
+        #expect(editRoute == expected)
+    }
 }

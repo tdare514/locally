@@ -121,12 +121,16 @@ struct StatsView: View {
             .navigationDestination(for: ReleaseEditRoute.self) { route in
                 ReleaseDetailView(release: route.release, startsEditing: true, scrollsToTrackID: route.trackId)
             }
+            .navigationDestination(for: SongRoute.self) { route in
+                SongPageDestination(route: route) { path.append($0) }
+            }
             .navigationDestination(for: ArtistRoute.self) { route in
                 ArtistPageView(route: route)
             }
         }
         // Every artist name opens that artist's page (#288); put on the stack so pushed pages inherit it.
         .artistLinks { path.append($0) }
+        .environment(\.openSong, { path.append($0) })
         .task(id: isTabSelected) {
             if isTabSelected { await model.read() }
         }
@@ -395,13 +399,13 @@ struct StatsView: View {
                     StatsList(
                         items: model.listed, sort: model.sort, today: model.today, round: model.tab == .artists, cache: cache,
                         ownerOf: { model.coverOwner(of: $0) },
-                        label: "\(Copy.Stats.yourHeading(noun)), \(sortPhrase)", onOpen: open, actions: itemActions
+                        label: "\(Copy.Stats.yourHeading(noun)), \(sortPhrase)", onOpen: openListed, actions: itemActions
                     )
                 } else {
                     StatsSea(
                         items: model.listed, sort: model.sort, width: room, round: model.tab == .artists, cache: cache,
                         ownerOf: { model.coverOwner(of: $0) },
-                        label: "\(Copy.Stats.yourHeading(noun)), \(sortPhrase)", onOpen: open, actions: itemActions
+                        label: "\(Copy.Stats.yourHeading(noun)), \(sortPhrase)", onOpen: openListed, actions: itemActions
                     )
                 }
             }
@@ -510,6 +514,16 @@ struct StatsView: View {
         guard let releaseId = item.releaseId, let release = model.releases.first(where: { $0.id == releaseId }) else { return nil }
         let target: TrackActionsTarget = item.trackId.map { .track(releaseId: releaseId, trackId: $0) } ?? .release(releaseId)
         return trackSheets.actions(for: target, release: release, goToAlbum: item.trackId != nil) { path.append($0) }
+    }
+
+    /// A tap on a list row or a tile: a track opens its song page (#365), the rest as `open`. The fan keeps `open`.
+    private func openListed(_ item: StatItem) {
+        if let trackId = item.trackId, let releaseId = item.releaseId,
+           let release = model.releases.first(where: { $0.id == releaseId }) {
+            path.append(SongRoute(release: release, trackId: trackId))
+        } else {
+            open(item)
+        }
     }
 
     private func open(_ item: StatItem) {

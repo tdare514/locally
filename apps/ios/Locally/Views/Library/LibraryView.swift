@@ -227,6 +227,9 @@ struct LibraryView: View {
             .navigationDestination(for: ReleaseEditRoute.self) { route in
                 ReleaseDetailView(release: route.release, startsEditing: true, scrollsToTrackID: route.trackId)
             }
+            .navigationDestination(for: SongRoute.self) { route in
+                SongPageDestination(route: route) { path.append($0) }
+            }
             .navigationDestination(for: ArtistRoute.self) { route in
                 ArtistPageView(route: route)
             }
@@ -267,6 +270,7 @@ struct LibraryView: View {
         }
         // Every artist name opens that artist's page (#288); on the stack so pushed pages inherit it.
         .artistLinks { path.append($0) }
+        .environment(\.openSong, { path.append($0) })
     }
 
     /// The Artists view: A to Z in letter groups, filtered by the search box.

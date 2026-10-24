@@ -71,7 +71,7 @@ struct TrackActionsGallery: View {
             TabView {
                 switch scene {
                 case .toast, .releasePage, .longAlbum:
-                    NavigationStack { ReleaseDetailView(release: scene == .longAlbum ? Self.longAlbum : playing) }
+                    ReleaseGalleryStack(release: scene == .longAlbum ? Self.longAlbum : playing)
                         .miniPlayerInset()
                         .tabItem { Label(Copy.Library.title, image: "Icon/Library") }
                     Color.clear
@@ -109,6 +109,27 @@ struct TrackActionsGallery: View {
                 toast.show(QueueToastMessage.make(QueueAddOutcome(added: 0, leftOut: 3, started: false), next: false, subject: Copy.TrackActions.songCount(3), cover: cover)!)
             }
         }
+    }
+}
+
+/// A release page in a path-driven stack with the Library's song routes (#365), so the title tap, Song info, Edit and the
+/// Album row work in the gallery as in the app.
+struct ReleaseGalleryStack: View {
+    let release: Release
+    @State private var path = NavigationPath()
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            ReleaseDetailView(release: release)
+                .navigationDestination(for: ReleaseTrackRoute.self) { ReleaseDetailView(release: $0.release, highlightTrackID: $0.trackId) }
+                .navigationDestination(for: ReleaseEditRoute.self) {
+                    ReleaseDetailView(release: $0.release, startsEditing: true, scrollsToTrackID: $0.trackId)
+                }
+                .navigationDestination(for: SongRoute.self) { route in
+                    SongPageDestination(route: route) { path.append($0) }
+                }
+        }
+        .environment(\.openSong, { path.append($0) })
     }
 }
 
