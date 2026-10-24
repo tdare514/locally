@@ -36,6 +36,8 @@ final class FakePlaybackAccess: PlaybackFileAccess, @unchecked Sendable {
     private(set) var opened: [UUID] = []
     private(set) var closed: [UUID] = []
     private(set) var isOpen: Set<UUID> = []
+    /// Holds every open this long (not cancellable), as a slow security-scoped bookmark resolve would.
+    var delayMilliseconds: Int?
 
     func withFile<T>(for track: Track, _ body: (URL?) async -> T) async throws -> T {
         if unreachable.contains(track.id) { throw Unreachable() }
@@ -45,6 +47,11 @@ final class FakePlaybackAccess: PlaybackFileAccess, @unchecked Sendable {
             closed.append(track.id)
             isOpen.remove(track.id)
         }
+        if let delayMilliseconds {
+            await withCheckedContinuation { continuation in
+                DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(delayMilliseconds)) { continuation.resume() }
+            }
+        }
         return await body(missing.contains(track.id) ? nil : URL(fileURLWithPath: "/fake/\(track.filePath)"))
     }
 }
@@ -53,9 +60,14 @@ final class FakePlaybackAccess: PlaybackFileAccess, @unchecked Sendable {
 final class FakePlaybackSession: PlaybackSession {
     var onInterruption: ((InterruptionEvent) -> Void)?
     var onRouteChange: ((RouteChangeEvent) -> Void)?
+    struct ActivationFailed: Error {}
+    var failsActivation = false
     private(set) var activations = 0
     private(set) var deactivations = 0
-    func activate() throws { activations += 1 }
+    func activate() throws {
+        if failsActivation { throw ActivationFailed() }
+        activations += 1
+    }
     func deactivate() { deactivations += 1 }
 }
 

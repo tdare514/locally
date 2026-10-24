@@ -114,6 +114,8 @@ final class PlaybackService {
     private(set) var duration: Double?
     /// Tracks whose file was gone when their turn came; the rows show "File missing".
     private(set) var missingTrackIDs: Set<UUID> = []
+    /// Set when the audio session could not start; shown briefly where the mini player would be.
+    private(set) var startError: String?
     /// Set by the mini player; the Library opens that release's page and clears it.
     var openReleaseRequest: UUID?
 
@@ -128,6 +130,10 @@ final class PlaybackService {
     @ObservationIgnored private var isSkipping = false
     @ObservationIgnored private var resumeAfterInterruption = false
     @ObservationIgnored private var isSetUp = false
+    /// Bumped whenever the item being opened is replaced (a skip, a stop, a new play), so a file-access
+    /// callback that comes back late can tell it is no longer wanted and never starts audio.
+    @ObservationIgnored private var runToken = 0
+    @ObservationIgnored private var startErrorTask: Task<Void, Never>?
 
     init(
         engine: PlaybackEngine, access: PlaybackFileAccess, session: PlaybackSession,
@@ -199,8 +205,12 @@ final class PlaybackService {
         do {
             try session.activate()
         } catch {
+            // Nothing from before stays on screen: the old queue goes, and a short line says why.
+            stop()
+            showStartError()
             return
         }
+        startError = nil
         setUpOnce()
         queue = Queue(release: release, tracks: Array(ordered[start...]))
         cursor = 0
@@ -317,7 +327,22 @@ final class PlaybackService {
         remote.register { [weak self] in self?.handle($0) }
     }
 
+    private func showStartError() {
+        startError = Copy.Playback.couldntStart
+        startErrorTask?.cancel()
+        startErrorTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4))
+            if !Task.isCancelled { self?.startError = nil }
+        }
+    }
+
+    func dismissStartError() {
+        startErrorTask?.cancel()
+        startError = nil
+    }
+
     private func skip(to index: Int) {
+        runToken += 1
         cursor = index
         isSkipping = true
         elapsed = 0
@@ -326,6 +351,7 @@ final class PlaybackService {
 
     /// Cancels the run and ends the item in the engine, which closes its folder access.
     private func endRun() {
+        runToken += 1
         runner?.cancel()
         runner = nil
         isSkipping = false
@@ -341,7 +367,7 @@ final class PlaybackService {
             elapsed = 0
             duration = track.durationSec
             isSkipping = false
-            let end = await playItem(track)
+            let end = await playItem(track, token: runToken)
             if Task.isCancelled { return }
             if end == .stopped, !isSkipping { break }
         }
@@ -349,9 +375,11 @@ final class PlaybackService {
     }
 
     /// One item with its folder access held for as long as it plays; always closed on the way out.
-    private func playItem(_ track: Track) async -> PlaybackEnd {
+    private func playItem(_ track: Track, token: Int) async -> PlaybackEnd {
         do {
             let end = try await access.withFile(for: track) { [self] url -> PlaybackEnd in
+                // A stop, skip or new play while the file was being opened: do nothing, the caller moves on.
+                guard !Task.isCancelled, token == runToken else { return .stopped }
                 guard let url else {
                     missingTrackIDs.insert(track.id)
                     return .failed
@@ -364,6 +392,7 @@ final class PlaybackService {
             return end
         } catch {
             // The folder is not reachable (lost bookmark): the item can't play, move on.
+            guard !Task.isCancelled, token == runToken else { return .stopped }
             missingTrackIDs.insert(track.id)
             return .failed
         }

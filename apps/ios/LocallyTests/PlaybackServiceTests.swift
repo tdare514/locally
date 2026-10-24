@@ -224,4 +224,62 @@ struct PlaybackServiceTests {
         let own = release()
         #expect(service.playAction(release: own, trackID: id(own, 1)) != nil)
     }
+
+    @Test func aStopWhileTheFileIsOpeningNeverStartsAudio() async {
+        let r = release()
+        access.delayMilliseconds = 100
+        service.play(release: r, startingAt: id(r, 1))
+        await settle()
+        service.stop()
+        try? await Task.sleep(for: .milliseconds(250))
+        await settle()
+        #expect(engine.played.isEmpty)
+        #expect(!service.hasQueue)
+        #expect(!service.isPlaying)
+        #expect(access.isOpen.isEmpty)
+        #expect(access.opened == access.closed)
+    }
+
+    @Test func aNewPlayWhileTheOldFileIsOpeningOnlyPlaysTheNewOne() async {
+        let r = release()
+        access.delayMilliseconds = 100
+        service.play(release: r, startingAt: id(r, 1))
+        await settle()
+        service.play(release: r, startingAt: id(r, 3))
+        try? await Task.sleep(for: .milliseconds(300))
+        await settle()
+        #expect(engine.played.map(\.lastPathComponent) == ["t3.mp3"])
+        #expect(service.currentTrack?.trackNumber == 3)
+    }
+
+    @Test func aSkipWhileTheFileIsOpeningPlaysOnlyTheTarget() async {
+        let r = release()
+        access.delayMilliseconds = 100
+        service.play(release: r, startingAt: id(r, 1))
+        await settle()
+        service.next()
+        try? await Task.sleep(for: .milliseconds(400))
+        await settle()
+        #expect(engine.played.map(\.lastPathComponent) == ["t2.mp3"])
+    }
+
+    @Test func aFailedActivationClearsTheOldQueueAndSaysSo() async {
+        let r = release()
+        service.play(release: r, startingAt: id(r, 1))
+        await settle()
+        #expect(service.hasQueue)
+        session.failsActivation = true
+        service.play(release: r, startingAt: id(r, 2))
+        await settle()
+        #expect(!service.hasQueue)
+        #expect(!service.isPlaying)
+        #expect(service.startError == Copy.Playback.couldntStart)
+        #expect(access.isOpen.isEmpty)
+        // A later play that works clears the line.
+        session.failsActivation = false
+        service.play(release: r, startingAt: id(r, 2))
+        await settle()
+        #expect(service.startError == nil)
+        #expect(service.isPlaying)
+    }
 }

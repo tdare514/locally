@@ -34,6 +34,7 @@ struct MiniPlayerBar: View {
     @ScaledMetric(relativeTo: .body) private var coverBase: CGFloat = 44
     private var coverSide: CGFloat { inAccessory ? min(coverBase, 38) : coverBase }
     @State private var cover: UIImage?
+    static let accessoryBacking = 0.7
 
     var body: some View {
         Group {
@@ -75,6 +76,11 @@ struct MiniPlayerBar: View {
             .padding(.trailing, 4)
             .padding(.vertical, inAccessory ? 0 : 6)
             .modifier(BarChrome(enabled: !inAccessory, progress: state.progress))
+            .background {
+                // The system's accessory glass lets the page's text show through; this dark backing keeps
+                // the title and artist readable over a row scrolling beneath.
+                if inAccessory { Rectangle().fill(Color.black.opacity(Self.accessoryBacking)).padding(.horizontal, -40).padding(.vertical, -20).ignoresSafeArea() }
+            }
             .accessibilityElement(children: .contain)
             .task(id: state.releaseID) { cover = playback.cover.flatMap(UIImage.init(data:)) }
         }
@@ -151,17 +157,23 @@ struct MiniPlayerInset: ViewModifier {
     func body(content: Content) -> some View {
         let showing = playback?.hasQueue ?? false
         // The accessory is a fixed-height capsule, so the accessibility sizes use the inset bar, which grows.
-        if MiniPlayerPlacement.usesTabAccessory, !dynamicTypeSize.isAccessibilitySize {
+        let inAccessory = MiniPlayerPlacement.usesTabAccessory && !dynamicTypeSize.isAccessibilitySize
+        if inAccessory, playback?.startError == nil {
             content
         } else {
-            inset(content, showing: showing)
+            inset(content, showing: showing, inAccessory: inAccessory)
         }
     }
 
-    private func inset(_ content: Content, showing: Bool) -> some View {
+    private func inset(_ content: Content, showing: Bool, inAccessory: Bool) -> some View {
         content
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if let playback, showing, let state = MiniPlayerState(playback) {
+                if let playback, let message = playback.startError {
+                    MiniPlayerNotice(message: message)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 8)
+                        .transition(.opacity)
+                } else if let playback, showing, !inAccessory, let state = MiniPlayerState(playback) {
                     MiniPlayerBar(playback: playback, state: state)
                         .padding(.horizontal, 12)
                         .padding(.bottom, 8)
@@ -169,6 +181,27 @@ struct MiniPlayerInset: ViewModifier {
                 }
             }
             .animation(reduceMotion ? .easeOut(duration: 0.16) : .timingCurve(0.16, 1, 0.3, 1, duration: 0.24), value: showing)
+            .animation(.easeOut(duration: 0.16), value: playback?.startError)
+    }
+}
+
+/// The one line shown where the mini player would be when playback could not start; it clears itself.
+struct MiniPlayerNotice: View {
+    let message: String
+    private let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+
+    var body: some View {
+        Text(message)
+            .themeFont(.rowSubtitle)
+            .foregroundStyle(Theme.primaryText)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
+            .background(shape.fill(Theme.card).overlay(shape.fill(Theme.Immersive.panelFill)))
+            .overlay(shape.stroke(Theme.Immersive.panelStroke, lineWidth: 1))
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("mini-player-error")
     }
 }
 

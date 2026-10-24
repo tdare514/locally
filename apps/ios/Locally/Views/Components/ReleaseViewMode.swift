@@ -240,7 +240,7 @@ struct ReleaseTrackRow: View {
 
     /// The number, or with a play control the same number as a 44 pt button (it reaches into the row's
     /// inset and the gap before the title, so the column keeps its width). The current track shows a
-    /// static `waveform` in the accent colour while it plays, and its number in the accent while paused.
+    /// static `waveform` in the accent colour while it plays, and a `play.fill` in the accent while paused.
     @ViewBuilder
     private func numberCell(accessible: Bool) -> some View {
         if let play {
@@ -253,10 +253,16 @@ struct ReleaseTrackRow: View {
                         Image(systemName: "waveform")
                             .font(.system(size: numberSize, weight: .semibold))
                             .foregroundStyle(Theme.accent)
+                    } else if play.isCurrent {
+                        // Paused on this row: a quiet play glyph says where a tap goes. The rest of the row
+                        // is not a play target because the artist names in it are links (#288).
+                        Image(systemName: "play.fill")
+                            .font(.system(size: numberSize - 2, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
                     } else {
                         Text("\(number)")
                             .font(.system(size: numberSize).monospacedDigit())
-                            .foregroundStyle(play.isCurrent ? Theme.accent : Theme.textDim)
+                            .foregroundStyle(Theme.textDim)
                     }
                 }
                 .accessibilityHidden(true)

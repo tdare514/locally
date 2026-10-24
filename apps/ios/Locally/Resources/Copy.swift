@@ -326,6 +326,8 @@ enum Copy {
         static func play(_ title: String) -> String { "Play \(title)" }
         static func pause(_ title: String) -> String { "Pause \(title)" }
         static let fileMissing = "File missing"
+        /// Shown briefly above the tab bar when the audio session would not start.
+        static let couldntStart = "Couldn't start playback. Try again."
         static let miniPlayerLabel = "Now playing"
         static let playButton = "Play"
         static let pauseButton = "Pause"
