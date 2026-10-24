@@ -12,12 +12,19 @@ struct AddToCollectionSheet: View {
     let model: CollectionsModel
     let items: [CollectionItem]
     var onDone: () -> Void
+    @State private var failure: Failure?
+
+    /// `initialFailure` opens the sheet already showing a failed save (the debug gallery's screenshot).
+    init(model: CollectionsModel, items: [CollectionItem], initialFailure: String? = nil, onDone: @escaping () -> Void) {
+        self.model = model
+        self.items = items
+        self.onDone = onDone
+        _failure = State(initialValue: initialFailure.map { Failure(message: $0, retry: {}) })
+    }
 
     @State private var isNaming = false
     @State private var newName = ""
     /// A save that failed: what to say, and what Try again repeats.
-    @State private var failure: Failure?
-
     private struct Failure {
         let message: String
         let retry: () -> Void

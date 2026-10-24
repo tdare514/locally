@@ -1,8 +1,7 @@
 import SwiftUI
 
 /// One collection (#350): its queue in play order, and an edit mode for the order, the name and the collection
-/// itself. Play is not here yet: the player takes a collection queue once #344 lands, and the queue it will play is
-/// `CollectionsModel.playQueue(of:)`.
+/// itself. Play queues `CollectionsModel.playQueue(of:)` as a collection context; a row starts it from there.
 struct CollectionDetailView: View {
     let model: CollectionsModel
     let id: UUID
@@ -13,6 +12,7 @@ struct CollectionDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.playback) private var playback
     @State private var isRenaming = false
     @State private var renameText = ""
     @State private var isConfirmingDelete = false
@@ -82,6 +82,40 @@ struct CollectionDetailView: View {
         .environment(\.defaultMinListRowHeight, 44)
     }
 
+    // MARK: Playing
+
+    private var context: QueueContext { QueueContext(kind: .collection, id: id) }
+    private var playQueue: [(releaseID: UUID, trackID: UUID)] {
+        model.collection(id).map { model.playQueue(of: $0) } ?? []
+    }
+    /// The player's queue came from this collection.
+    private var isPlayingThis: Bool { playback?.queue?.context == context }
+    private var isPlaying: Bool { playback?.isPlaying ?? false }
+
+    /// Play starts the queue; Pause / Play on the collection that is already playing.
+    private func togglePlay() {
+        if isPlayingThis { playback?.togglePlayPause() } else { start(at: 0) }
+    }
+
+    /// Plays this collection from the `position`th playable track.
+    private func start(at position: Int) {
+        let queue = playQueue
+        let releases = Set(queue.map(\.releaseID)).compactMap { model.releases[$0] }
+        playback?.play(items: queue.map { QueueItem(releaseId: $0.releaseID, trackId: $0.trackID) }, releases: releases, context: context, startingAt: position)
+    }
+
+    /// A row is playing only when the queue came from here and its index is that row's place among the playable
+    /// ones (the same track may be in the collection twice).
+    private func isNowPlaying(playablePosition: Int?, _ row: CollectionQueue.Row) -> Bool {
+        guard let playablePosition, let queue = playback?.queue, queue.context == context, queue.index == playablePosition,
+              queue.items.indices.contains(queue.index) else { return false }
+        return queue.items[queue.index] == QueueItem(releaseId: row.releaseID, trackId: row.trackID)
+    }
+
+    private func tapRow(_ row: CollectionQueue.Row, playablePosition: Int, nowPlaying: Bool) {
+        if nowPlaying { playback?.togglePlayPause() } else { start(at: playablePosition) }
+    }
+
     private func header(_ collection: MusicCollection, rows: [CollectionQueue.Row]) -> some View {
         HStack(spacing: 16) {
             CollectionCoverView(releaseIDs: model.coverReleaseIDs(of: collection), side: 88)
@@ -93,6 +127,15 @@ struct CollectionDetailView: View {
                 Text(Copy.Collections.trackCount(rows.count))
                     .themeFont(.meta)
                     .foregroundStyle(Theme.secondaryText)
+                if !editMode.isEditing {
+                    Button(action: togglePlay) {
+                        Label(isPlayingThis && isPlaying ? Copy.Collections.pause : Copy.Collections.play,
+                              systemImage: isPlayingThis && isPlaying ? "pause.fill" : "play.fill")
+                    }
+                    .buttonStyle(CollectionPillButtonStyle())
+                    .disabled(playQueue.isEmpty)
+                    .padding(.top, 4)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -126,7 +169,9 @@ struct CollectionDetailView: View {
             }
             Section {
                 ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                    queueRow(row, number: index + 1)
+                    // The row's place among the playable ones: where Play starts from.
+                    let playablePosition: Int? = row.isHeld ? rows[..<index].filter(\.isHeld).count : nil
+                    queueRow(row, number: index + 1, playablePosition: playablePosition)
                         .listRowBackground(Theme.Immersive.panelFill)
                         .listRowSeparatorTint(Theme.Track.separatorTint)
                 }
@@ -139,18 +184,44 @@ struct CollectionDetailView: View {
         }
     }
 
-    private func queueRow(_ row: CollectionQueue.Row, number: Int) -> some View {
+    @ViewBuilder
+    private func queueRow(_ row: CollectionQueue.Row, number: Int, playablePosition: Int?) -> some View {
+        let nowPlaying = isNowPlaying(playablePosition: playablePosition, row)
+        if let playablePosition {
+            Button { tapRow(row, playablePosition: playablePosition, nowPlaying: nowPlaying) } label: {
+                queueRowContent(row, number: number, nowPlaying: nowPlaying)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Copy.Collections.playRow("\(row.title), \(row.artist)"))
+            .accessibilityValue([nowPlaying ? Copy.Collections.nowPlaying : nil, TrackLength.spoken(row.durationSec)].compactMap { $0 }.joined(separator: ", "))
+            .accessibilityAddTraits(nowPlaying ? .isSelected : [])
+        } else {
+            queueRowContent(row, number: number, nowPlaying: false)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(row.title), \(row.artist), \(Copy.Collections.onYourMac)")
+                .accessibilityValue(TrackLength.spoken(row.durationSec) ?? "")
+        }
+    }
+
+    private func queueRowContent(_ row: CollectionQueue.Row, number: Int, nowPlaying: Bool) -> some View {
         HStack(spacing: 12) {
-            Text("\(number)")
-                .themeFont(.meta)
-                .foregroundStyle(Theme.textDim)
-                .monospacedDigit()
-                .frame(minWidth: 24, alignment: .trailing)
-                .accessibilityHidden(true)
+            Group {
+                if nowPlaying {
+                    Image(systemName: isPlaying ? "speaker.wave.2.fill" : "pause.fill")
+                        .foregroundStyle(Theme.accent)
+                } else {
+                    Text("\(number)")
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.textDim)
+                }
+            }
+            .themeFont(.meta)
+            .frame(minWidth: 24, alignment: .trailing)
+            .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.title)
                     .themeFont(.rowTitle)
-                    .foregroundStyle(Theme.primaryText)
+                    .foregroundStyle(nowPlaying ? Theme.accent : Theme.primaryText)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 Text(row.isHeld ? row.artist : Copy.Collections.onYourMac)
                     .themeFont(.rowSubtitle)
@@ -167,10 +238,9 @@ struct CollectionDetailView: View {
             }
         }
         .padding(.vertical, 4)
+        .frame(minHeight: 44)
+        .contentShape(.rect)
         .opacity(row.isHeld ? 1 : 0.5)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(row.isHeld ? "\(row.title), \(row.artist)" : "\(row.title), \(row.artist), \(Copy.Collections.onYourMac)")
-        .accessibilityValue(TrackLength.spoken(row.durationSec) ?? "")
     }
 
     // MARK: Edit mode

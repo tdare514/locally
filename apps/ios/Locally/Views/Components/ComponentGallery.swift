@@ -35,7 +35,7 @@ struct ComponentGallery: View {
         "share-sheet", "share-sheet-link", "share-sheet-result", "share-sheet-signed-out", "share-sheet-large-text",
         "devices-tray-friends", "devices-tray-friends-large-text", "shared-by-you", "shared-by-you-large-text", "release-share-blocked",
         // #350: collections in List view over seeded sample collections.
-        "collections-library", "collections-screen", "collections-queue", "collections-edit", "collections-empty", "collections-queue-ax", "collections-add"]
+        "collections-library", "collections-screen", "collections-queue", "collections-edit", "collections-empty", "collections-queue-ax", "collections-add", "collections-playing", "collections-add-failed"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -228,6 +228,10 @@ struct ComponentGallery: View {
             CollectionsGallery.queue(editing: true)
         case "collections-add":
             CollectionsGallery.addSheet()
+        case "collections-add-failed":
+            CollectionsGallery.addSheet(saveFails: true)
+        case "collections-playing":
+            CollectionsPlayingGallery()
         case "icons-tabs-library", "icons-library-list":
             IconsGallery.tabs(selected: .library, layout: .list)
         case "icons-library-grid":
@@ -1298,6 +1302,15 @@ enum CollectionsGallery {
         return (container, model)
     }
 
+    static func playingSetup() -> (container: AppContainer, model: CollectionsModel, playback: PlaybackService) {
+        let (container, model) = container(seed: true)
+        let playback = PlaybackService(
+            engine: GalleryEngine(), access: GalleryAccess(), session: GallerySession(),
+            nowPlaying: GalleryNowPlaying(), remote: GalleryRemote(), coverData: { _ in nil }
+        )
+        return (container, model, playback)
+    }
+
     static func library() -> some View {
         UserDefaults.standard.set(LibraryLayout.list.rawValue, forKey: LibraryViewPrefs.layoutKey)
         let (container, _) = container(seed: true)
@@ -1314,14 +1327,48 @@ enum CollectionsGallery {
         return IconsGallery.environment(NavigationStack { CollectionDetailView(model: model, id: queueID, startsEditing: editing) {} }, container)
     }
 
-    static func addSheet() -> some View {
+    static func addSheet(saveFails: Bool = false) -> some View {
         let (container, model) = container(seed: true)
         let target = StatsGallery.releases[5]
+        let failing = CollectionsModel(store: FailingCollectionStore(base: container.collections), library: container.library, hook: nil)
+        failing.reload()
         return IconsGallery.environment(
             Color.black.sheet(isPresented: .constant(true)) {
-                AddToCollectionSheet(model: model, items: [.release(target.id)]) {}
+                AddToCollectionSheet(
+                    model: saveFails ? failing : model, items: [.release(target.id)],
+                    initialFailure: saveFails ? Copy.Collections.addFailed(to: "Late drives") : nil
+                ) {}
             },
             container)
+    }
+}
+
+/// A store that reads but never saves, for the add sheet's failure frame.
+private struct FailingCollectionStore: CollectionStore {
+    let base: CollectionStore
+    func all() throws -> [MusicCollection] { try base.all() }
+    func get(_ id: UUID) throws -> MusicCollection? { try base.get(id) }
+    func upsert(_ collection: MusicCollection) throws { throw CocoaError(.fileWriteUnknown) }
+    func delete(id: UUID) throws { throw CocoaError(.fileWriteUnknown) }
+}
+
+/// A collection page whose player (on fakes) is playing the collection's second playable track.
+private struct CollectionsPlayingGallery: View {
+    @State private var built = CollectionsGallery.playingSetup()
+    var body: some View {
+        IconsGallery.environment(
+            NavigationStack { CollectionDetailView(model: built.model, id: CollectionsGallery.queueID) {} }
+                .environment(\.playback, built.playback),
+            built.container
+        )
+        .task {
+            let queue = built.model.collection(CollectionsGallery.queueID).map { built.model.playQueue(of: $0) } ?? []
+            let releases = Set(queue.map(\.releaseID)).compactMap { built.model.releases[$0] }
+            built.playback.play(
+                items: queue.map { QueueItem(releaseId: $0.releaseID, trackId: $0.trackID) }, releases: releases,
+                context: QueueContext(kind: .collection, id: CollectionsGallery.queueID), startingAt: 2
+            )
+        }
     }
 }
 #endif

@@ -122,6 +122,13 @@ struct LibraryView: View {
         playback?.openReleaseRequest = nil
     }
 
+    private func openRequestedCollection() {
+        guard let id = playback?.openCollectionRequest else { return }
+        if collections == nil, let container { collections = container.makeCollectionsModel() }
+        path = NavigationPath([CollectionRoute(id: id)])
+        playback?.openCollectionRequest = nil
+    }
+
     var body: some View {
         NavigationStack(path: $path) {
             ZStack {
@@ -217,10 +224,12 @@ struct LibraryView: View {
             .onAppear {
                 load()
                 openRequestedRelease()
+                openRequestedCollection()
                 if openTrayOnAppear { tray.isOpen = true }
             }
             // The mini player's bar (#336): show that release's page, replacing whatever is pushed.
             .onChange(of: playback?.openReleaseRequest) { _, _ in openRequestedRelease() }
+            .onChange(of: playback?.openCollectionRequest) { _, _ in openRequestedCollection() }
             .onChange(of: librarySearchRequest) { _, name in
                 guard let name else { return }
                 query = name
