@@ -2908,6 +2908,35 @@ body {
     margin-left: -2rem;
   }
 }
+/* Narrow: when the page is under 430 px wide (the wheel is then narrower than its 430 px) the rows would clip their
+   names at the wheel's edge, so they show art only and the selected collection's full name wraps under the wheel.
+   Rows keep an aria-label, so the options still have names. */
+.rp-cap {
+  display: none;
+}
+@container (max-width: 429px) {
+  .rp-row .rp-text {
+    display: none;
+  }
+  .rp-cap {
+    display: block;
+    margin-top: 0.75rem;
+    padding: 0 0.25rem;
+  }
+}
+.rp-cap-name {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.25;
+  font-weight: 700;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.rp-cap-sub {
+  margin: 0.125rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-soft);
+}
 .rp-list {
   position: absolute;
   inset: 0;
@@ -3116,7 +3145,10 @@ body {
   --s: 1;
   position: relative;
   isolation: isolate;
-  height: 470px;
+  /* The deck is drawn 470 px high; now playing is in the flow beside it, so at a larger text size the scene grows
+     with it and the queue moves down instead of being overlapped. */
+  min-height: 470px;
+  padding-top: 160px;
 }
 /* The decorative parts (deck, platter, record, hovering cover, tonearm) live in one stage drawn at its full size and
    scaled by a transform, so nothing overflows however narrow the room is. Now playing sits outside it, at full size. */
@@ -3133,12 +3165,11 @@ body {
   .rp-scene {
     --cx: 50%;
     --s: clamp(0.35, tan(atan2(100cqw, 520px)), 1);
-    height: calc(194px + 446px * var(--s));
+    min-height: 0;
+    padding-top: calc(446px * var(--s));
   }
   .rp-now {
-    left: 4px !important;
-    right: 4px !important;
-    top: calc(446px * var(--s)) !important;
+    margin: 0 4px !important;
   }
 }
 .rp-deck-top {
@@ -3416,29 +3447,31 @@ body {
 
 /* Now playing sits on the deck's right, where a real deck keeps its controls. */
 .rp-now {
-  position: absolute;
-  left: calc(var(--cx) + 268px);
-  right: 22px;
-  top: 160px;
+  position: relative;
+  margin-left: calc(var(--cx) + 268px);
+  margin-right: 22px;
+  min-width: 0;
 }
 .rp-k {
   margin: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--text-muted);
 }
 .rp-title {
-  margin: 4px 0 0;
-  font-size: 20px;
+  margin: 0.25rem 0 0;
+  font-size: 1.25rem;
   line-height: 1.2;
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--text);
+  overflow-wrap: anywhere;
 }
 .rp-artist {
-  margin: 2px 0 0;
-  font-size: 14px;
+  margin: 0.125rem 0 0;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-soft);
+  overflow-wrap: anywhere;
 }
 .rp-prog {
   margin-top: 14px;

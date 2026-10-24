@@ -479,6 +479,7 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
               </div>
             </div>
           )}
+          {selectedCollection && <SelectedCaption collection={selectedCollection} releases={releases} />}
         </div>
         <div className="rp-right">
           <Deck
@@ -560,6 +561,21 @@ const WheelRow = memo(function WheelRow({
     </div>
   );
 });
+
+/**
+ * The selected collection's full name and "6 tracks, 24 min", under the wheel. It only shows where the wheel is too
+ * narrow for its rows to carry names (CSS, `.rp-cap`); there the rows are art only. Not aria-hidden: it is not the
+ * option's exact label (that adds the player's state), and it is display: none whenever it is not showing.
+ */
+function SelectedCaption({ collection, releases }: { collection: CollectionRecord; releases: Release[] }) {
+  const totals = useMemo(() => collectionTotals(collection.items, releases), [collection.items, releases]);
+  return (
+    <div className="rp-cap">
+      <p className="rp-cap-name">{collection.name}</p>
+      <p className="rp-cap-sub">{rowCaption(totals.tracks, totals.seconds)}</p>
+    </div>
+  );
+}
 
 /**
  * The turntable. The platter, the record on it and the controls are mounted once and patched in place: a pause, a skip,

@@ -529,16 +529,16 @@ function Queue({
                     )}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className={`block truncate text-[15px] font-semibold ${isCurrent ? "text-accent" : "text-text"}`}>{e.title}</span>
+                    <span title={e.title} className={`line-clamp-2 break-words text-[0.9375rem] font-semibold ${isCurrent ? "text-accent" : "text-text"}`}>{e.title}</span>
                     {e.failed ? (
-                      <span className="block truncate text-[13px] text-danger">{COULDNT_PLAY_TRACK}</span>
+                      <span className="block break-words text-[0.8125rem] text-danger">{COULDNT_PLAY_TRACK}</span>
                     ) : (
-                      <span className="block truncate text-[13px] text-text-muted">{e.release.artist}</span>
+                      <span title={e.release.artist} className="line-clamp-2 break-words text-[0.8125rem] text-text-muted">{e.release.artist}</span>
                     )}
                   </span>
                   {isCurrent && (playing ? <PauseIcon className="size-4 text-accent" /> : <NowPlayingIcon className="size-4 text-accent" />)}
                   {!isCurrent && e.playable && <PlayIcon className="size-4 text-text-dim" />}
-                  <span className="w-12 shrink-0 text-right text-sm tabular-nums text-text-muted">
+                  <span className="min-w-12 shrink-0 text-right text-sm tabular-nums text-text-muted">
                     {e.playable ? (e.durationSec !== null ? formatLength(e.durationSec) : "") : "Missing"}
                   </span>
                 </button>
@@ -559,7 +559,7 @@ function Queue({
     );
   if (entries.length === 0) return null;
   return (
-    <div className={sides ? "grid gap-x-10 md:grid-cols-2" : "flex flex-col"}>
+    <div className={sides ? "grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-x-10" : "flex flex-col"}>
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {announcement}
       </div>
