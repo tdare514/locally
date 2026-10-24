@@ -123,6 +123,23 @@ struct CollectionQueueTests {
         #expect(rows.map(\.title) == ["m", "h"])
     }
 
+    @Test func playlistGuideListsHeldTracksInOrderAndCountsTheRest() {
+        let r = release("A", tracks: [("c", 3, 2), ("a", 1, 1), ("b", 2, 1)])
+        let adopted = release("Mac", tracks: [("m1", 1, nil), ("m2", 2, nil)], adopted: true)
+        let items: [CollectionItem] = [
+            .track(releaseId: r.id, trackId: r.tracks[0].id),
+            .release(adopted.id),
+            .release(r.id),
+            .track(releaseId: r.id, trackId: r.tracks[0].id),
+        ]
+        let guide = CollectionQueue.playlistGuide(items, releases: [r.id: r, adopted.id: adopted])
+        #expect(guide.titles == ["c", "a", "b", "c", "c"])
+        #expect(guide.leftOut == 2)
+        #expect(Copy.Collections.leftOutOfGuide(2) == "2 tracks aren't on this iPhone.")
+        #expect(Copy.Collections.leftOutOfGuide(1) == "1 track isn't on this iPhone.")
+        #expect(CollectionQueue.playlistGuide(items, releases: [:]).titles.isEmpty)
+    }
+
     @Test func aTrackFromAReleaseThatIsAlsoAnItemPlaysTwice() {
         let r = release("A", tracks: [("a", 1, nil)])
         let rows = CollectionQueue.rows([.release(r.id), .track(releaseId: r.id, trackId: r.tracks[0].id)], releases: [r.id: r])

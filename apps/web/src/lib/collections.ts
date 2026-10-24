@@ -135,6 +135,22 @@ export function collectionTotals(items: readonly CollectionItem[], releases: rea
   return { tracks, seconds };
 }
 
+/** What the "Make it a playlist" guide lists for a collection (#353): the tracks this Mac can play, in the collection's order, and how many it has to leave out. */
+export function collectionPlaylistGuide(
+  items: readonly CollectionItem[],
+  releases: readonly Release[],
+): { tracks: { title: string }[]; leftOut: number } {
+  const tracks: { title: string }[] = [];
+  let leftOut = 0;
+  for (const row of collectionRows(items, releases)) {
+    for (const t of row.tracks) {
+      if (t.missing) leftOut++;
+      else tracks.push({ title: t.title });
+    }
+  }
+  return { tracks, leftOut };
+}
+
 export function trackCountLabel(n: number): string {
   return `${n} ${n === 1 ? "track" : "tracks"}`;
 }
@@ -188,5 +204,7 @@ export const COLLECTIONS_COPY = {
   emptyQueue: "Nothing here yet. Add tracks from any release or track row.",
   noneHere: "None of these tracks are on this Mac.",
   onYourMac: "On your Mac",
+  /** The quiet line under the playlist guide's list (#353). `device` is "Mac" here. */
+  leftOutOfGuide: (n: number, device: string) => (n === 1 ? `1 track isn't on this ${device}.` : `${n} tracks aren't on this ${device}.`),
   failedToLoad: "Couldn't load your collections",
 } as const;

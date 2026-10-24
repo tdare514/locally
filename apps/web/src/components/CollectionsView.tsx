@@ -9,6 +9,7 @@ import {
   buildCollectionQueueAt,
   isCurrentRow,
   rowQueuePositions,
+  collectionPlaylistGuide,
   collectionRows,
   collectionTotals,
   filterCollections,
@@ -29,6 +30,7 @@ import CollectionSleeve from "./CollectionSleeve";
 import { NowPlayingIcon, PauseIcon, PlayIcon, PlusIcon, SearchIcon, XIcon } from "./Icons";
 import NewCollectionForm from "./NewCollectionForm";
 import NoCover from "./NoCover";
+import PlaylistGuide from "./PlaylistGuide";
 import Popover, { MENU_ITEM } from "./Popover";
 import { BarConfirm } from "./ReleaseBar";
 
@@ -210,6 +212,7 @@ function QueuePanel({
 
   const rows = collectionRows(collection.items, releases);
   const totals = collectionTotals(collection.items, releases);
+  const guide = collectionPlaylistGuide(collection.items, releases);
   const queueOfThis = context === `collection:${collection.id}`;
   const canPlay = buildCollectionQueue(collection, releases) !== null;
 
@@ -322,6 +325,14 @@ function QueuePanel({
         <EditList collection={collection} rows={rows} />
       ) : (
         <Queue collection={collection} rows={rows} releases={releases} playing={queueOfThis && playing} />
+      )}
+
+      {!empty && !editing && (
+        <PlaylistGuide
+          name={collection.name}
+          trackTitles={guide.tracks.map((t) => t.title)}
+          note={guide.leftOut > 0 ? COLLECTIONS_COPY.leftOutOfGuide(guide.leftOut, "Mac") : null}
+        />
       )}
     </section>
   );

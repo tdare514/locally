@@ -22,6 +22,7 @@ import RecordSleeve from "./RecordSleeve";
 import AmbientBackdrop from "./AmbientBackdrop";
 import SpotifySourceBanner from "./SpotifySourceBanner";
 import { ChevronRightIcon, CopyIcon } from "./Icons";
+import { copyText } from "../lib/copy-text";
 import { COPIED_LABEL, COPY_LABEL, PLAYLIST_FALLBACK, playlistSteps } from "../lib/playlist-copy";
 import { PLAYS_ACROSS_DEVICES } from "../lib/plays-copy";
 import { startPlaylistsPolling } from "../lib/playlists-poll";
@@ -69,32 +70,6 @@ interface ReleaseViewProps {
   onOpenAccount?: () => void;
   /** Every artist in the library, for the Artist field's suggestions (#287). */
   artistIndex: ArtistEntry[];
-}
-
-/** Copies `text` from a user gesture: the async Clipboard API first, then the
- * legacy `execCommand("copy")` path for hosts that deny `clipboard-write`. */
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    // fall through to the legacy path
-  }
-  const area = document.createElement("textarea");
-  area.value = text;
-  area.setAttribute("readonly", "");
-  area.style.position = "fixed";
-  area.style.opacity = "0";
-  document.body.appendChild(area);
-  area.select();
-  let ok = false;
-  try {
-    ok = document.execCommand("copy");
-  } catch {
-    ok = false;
-  }
-  area.remove();
-  return ok;
 }
 
 interface Draft {

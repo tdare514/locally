@@ -273,6 +273,13 @@ enum CollectionQueue {
         rows(items, releases: releases).filter(\.isHeld).map { (releaseID: $0.releaseID, trackID: $0.trackID) }
     }
 
+    /// What the "Make it a playlist" guide lists (#353): the titles this phone holds, in the collection's order (a
+    /// release expands disc then track, a repeated track stays), and how many tracks it has to leave out.
+    static func playlistGuide(_ items: [CollectionItem], releases: [UUID: Release]) -> (titles: [String], leftOut: Int) {
+        let all = rows(items, releases: releases)
+        return (all.filter(\.isHeld).map(\.title), all.filter { !$0.isHeld }.count)
+    }
+
     static func playOrder(_ tracks: [Track]) -> [Track] {
         tracks.sorted {
             ($0.discNumber ?? 1, $0.trackNumber) < ($1.discNumber ?? 1, $1.trackNumber)

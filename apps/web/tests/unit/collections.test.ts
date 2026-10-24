@@ -8,6 +8,8 @@ import {
   isCurrentRow,
   rowQueuePositions,
   collectionCoverIds,
+  collectionPlaylistGuide,
+  COLLECTIONS_COPY,
   collectionRows,
   collectionTotals,
   moveAnnouncement,
@@ -170,5 +172,26 @@ describe("now-playing row", () => {
     };
     expect(isCurrentRow(queue, "col", 1, { releaseId: R1, trackId: "a" })).toBe(false);
     expect(isCurrentRow(queue, "col", 1, { releaseId: R1, trackId: "b" })).toBe(true);
+  });
+});
+
+describe("collectionPlaylistGuide (#353)", () => {
+  const items: CollectionItem[] = [
+    { kind: "track", releaseId: R2, trackId: T2 },
+    { kind: "release", releaseId: R1 },
+    { kind: "track", releaseId: R1, trackId: "gone" },
+    { kind: "track", releaseId: R2, trackId: T2 },
+  ];
+  it("lists playable tracks in the collection's order (a release expands disc then track, repeats stay) and counts the rest", () => {
+    const g = collectionPlaylistGuide(items, [rel1, rel2]);
+    expect(g.tracks.map((t) => t.title)).toEqual([T2, "a", "c", "b", T2]);
+    expect(g.leftOut).toBe(2);
+  });
+  it("is empty and counts nothing when no item resolves", () => {
+    expect(collectionPlaylistGuide(items, [])).toEqual({ tracks: [], leftOut: 0 });
+  });
+  it("words the left-out line", () => {
+    expect(COLLECTIONS_COPY.leftOutOfGuide(2, "Mac")).toBe("2 tracks aren't on this Mac.");
+    expect(COLLECTIONS_COPY.leftOutOfGuide(1, "Mac")).toBe("1 track isn't on this Mac.");
   });
 });
