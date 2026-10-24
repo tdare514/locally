@@ -130,19 +130,26 @@ final class PlaybackService {
     private(set) var duration: Double?
     /// Tracks whose file was gone when their turn came; the rows show "File missing".
     private(set) var missingTrackIDs: Set<UUID> = []
+    /// Tracks the engine could not decode (a corrupt file); apart from `missingTrackIDs`, which means "File missing".
+    private(set) var failedTrackIDs: Set<UUID> = []
+    /// Missing or corrupt: what the collection page calls "Couldn't play this track".
+    var wontPlayTrackIDs: Set<UUID> { missingTrackIDs.union(failedTrackIDs) }
+    func wontPlay(_ trackID: UUID) -> Bool { missingTrackIDs.contains(trackID) || failedTrackIDs.contains(trackID) }
     /// Set when the audio session could not start; shown briefly where the mini player would be.
     private(set) var startError: String?
     /// Counts every start error, so the root can announce each one once, even a repeat of the same text.
     private(set) var startErrorCount = 0
     /// Set by the mini player; the Library opens that release's page and clears it.
     var openReleaseRequest: UUID?
+    /// Set by the mini player while a collection plays; the Library opens that collection's page and clears it.
+    var openCollectionRequest: UUID?
 
     /// Tapping the mini player opens where the queue came from.
     func openContext() {
         guard let context = queue?.context else { return }
         switch context.kind {
         case .release: openReleaseRequest = context.id
-        case .collection: break // A collection's page comes with Collections (#339).
+        case .collection: openCollectionRequest = context.id
         }
     }
 
@@ -255,17 +262,23 @@ final class PlaybackService {
         )
     }
 
-    /// Plays `items` in order from the first one. `releases` holds every release the items name;
-    /// an item whose release is missing, adopted or lacks the track is left out.
-    func play(items: [QueueItem], releases newReleases: [Release], context: QueueContext) {
+    /// Plays `items` in order from the first one, or from `startingAt`, a position in `items` (it follows its item
+    /// through the filter below; an item that is left out starts the next playable one). `releases` holds every
+    /// release the items name; an item whose release is missing, adopted or lacks the track is left out.
+    func play(items: [QueueItem], releases newReleases: [Release], context: QueueContext, startingAt index: Int = 0) {
         let byID = Dictionary(newReleases.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let playable = items.filter { item in
+        let playableOffsets = items.indices.filter { offset in
+            let item = items[offset]
             guard let release = byID[item.releaseId], Self.canPlay(release) else { return false }
             return release.tracks.contains { $0.id == item.trackId }
         }
-        guard let first = playable.first else { return }
+        let playable = playableOffsets.map { items[$0] }
+        let start = playableOffsets.firstIndex { $0 >= index } ?? 0
+        guard playable.indices.contains(start) else { return }
+        let first = playable[start]
         endRun()
         missingTrackIDs.remove(first.trackId)
+        failedTrackIDs.remove(first.trackId)
         do {
             try session.activate()
         } catch {
@@ -279,8 +292,8 @@ final class PlaybackService {
         setUpOnce()
         releases = byID
         counter.reset()
-        queue = Queue(items: playable, index: 0, context: context)
-        cursor = 0
+        queue = Queue(items: playable, index: start, context: context)
+        cursor = start
         isSkipping = false
         runner = Task { [weak self] in await self?.run() }
     }
@@ -482,6 +495,7 @@ final class PlaybackService {
                     return .failed
                 }
                 missingTrackIDs.remove(track.id)
+                failedTrackIDs.remove(track.id)
                 // Wait in a loop: every wake-up rechecks the intent, the run and cancellation, so a
                 // `resume()` followed at once by a `pause()` (or headphones out) never reaches the engine.
                 var announcedPaused = false
@@ -503,7 +517,9 @@ final class PlaybackService {
                 isPlaying = true
                 itemLoaded = true
                 publish()
-                return await engine.play(url: url)
+                let end = await engine.play(url: url)
+                if end == .failed, !Task.isCancelled, token == runToken { failedTrackIDs.insert(track.id) }
+                return end
             }
             return end
         } catch {

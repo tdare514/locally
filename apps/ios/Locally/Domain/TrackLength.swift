@@ -23,4 +23,14 @@ enum TrackLength {
         formatter.allowedUnits = [.hour, .minute, .second]
         return formatter.string(from: seconds.rounded())
     }
+
+    /// A total for VoiceOver in whole minutes ("32 minutes", "1 hour, 5 minutes"); seconds only under a minute.
+    static func spokenTotal(_ seconds: Double?) -> String? {
+        guard let seconds, seconds.isFinite, seconds > 0 else { return nil }
+        let formatter = DateComponentsFormatter()
+        formatter.unitsStyle = .full
+        formatter.allowedUnits = seconds < 60 ? [.second] : [.hour, .minute]
+        formatter.zeroFormattingBehavior = .dropAll
+        return formatter.string(from: seconds < 60 ? seconds.rounded() : (seconds / 60).rounded() * 60)
+    }
 }

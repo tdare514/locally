@@ -69,6 +69,12 @@ struct LibraryView: View {
     @State private var catalog = ArtistCatalog(releases: [])
     @State private var artistCovers: ArtistCoverSource?
     @State private var path = NavigationPath()
+    /// The collections (#350): the row under the title, the Collections screen and a collection's queue share it.
+    @State private var collections: CollectionsModel?
+    @State private var isNamingCollection = false
+    @State private var newCollectionName = ""
+    /// A New collection whose save failed: an alert says so and offers the name again.
+    @State private var collectionCreateFailed = false
 
     /// A release's cover identity: a replaced cover bumps `updatedAt`.
     private struct CoverKey: Hashable {
@@ -116,6 +122,13 @@ struct LibraryView: View {
         guard let id = playback?.openReleaseRequest, let release = releases.first(where: { $0.id == id }) else { return }
         path = NavigationPath([release])
         playback?.openReleaseRequest = nil
+    }
+
+    private func openRequestedCollection() {
+        guard let id = playback?.openCollectionRequest else { return }
+        if collections == nil, let container { collections = container.makeCollectionsModel() }
+        path = NavigationPath([CollectionRoute(id: id)])
+        playback?.openCollectionRequest = nil
     }
 
     var body: some View {
@@ -195,15 +208,39 @@ struct LibraryView: View {
             .navigationDestination(for: ArtistRoute.self) { route in
                 ArtistPageView(route: route)
             }
+            .navigationDestination(for: CollectionsRoute.self) { _ in
+                if let collections {
+                    CollectionsView(model: collections) { path.append(CollectionRoute(id: $0)) }
+                }
+            }
+            .navigationDestination(for: CollectionRoute.self) { route in
+                if let collections {
+                    CollectionDetailView(model: collections, id: route.id) { path = NavigationPath() }
+                }
+            }
+            .nameAlert(Copy.Collections.nameTitle, action: Copy.Collections.create, isPresented: $isNamingCollection, text: $newCollectionName) { name in
+                do {
+                    if let id = try collections?.create(name: name) { path.append(CollectionRoute(id: id)) }
+                } catch {
+                    newCollectionName = name
+                    collectionCreateFailed = true
+                }
+            }
+            .alert(Copy.Collections.createFailed, isPresented: $collectionCreateFailed) {
+                Button(Copy.Collections.tryAgain) { isNamingCollection = true }
+                Button(Copy.Collections.cancel, role: .cancel) { newCollectionName = "" }
+            }
             // `.onAppear` (not `.task`) so returning from `ReleaseDetailView`
             // after a save/delete re-reads the store and reflects it here.
             .onAppear {
                 load()
                 openRequestedRelease()
+                openRequestedCollection()
                 if openTrayOnAppear { tray.isOpen = true }
             }
             // The mini player's bar (#336): show that release's page, replacing whatever is pushed.
             .onChange(of: playback?.openReleaseRequest) { _, _ in openRequestedRelease() }
+            .onChange(of: playback?.openCollectionRequest) { _, _ in openRequestedCollection() }
             .onChange(of: librarySearchRequest) { _, name in
                 guard let name else { return }
                 query = name
@@ -274,6 +311,16 @@ struct LibraryView: View {
             // Top of the visible 40 pt glass level with the eyebrow's top; the 44 pt hit area
             // ends at the 16 pt gutter, so the badge inside it never crosses.
             devicesButton.offset(y: -2)
+        }
+        if let collections {
+            CollectionsLibraryRow(
+                model: collections,
+                onOpen: { path.append(CollectionsRoute()) },
+                onNew: {
+                    newCollectionName = ""
+                    isNamingCollection = true
+                }
+            )
         }
         searchField
         controls
@@ -729,6 +776,8 @@ struct LibraryView: View {
 
     private func load() {
         guard let container else { return }
+        if collections == nil { collections = container.makeCollectionsModel() }
+        collections?.reload()
         do {
             releases = try container.library.all().sorted { $0.updatedAt > $1.updatedAt }
             catalog = ArtistCatalog(releases: releases)

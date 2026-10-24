@@ -29,6 +29,9 @@ struct ReleaseDetailView: View {
     @State private var isPresentingDeleteConfirm = false
     @State private var shareTarget: ShareTarget?
     @State private var isPresentingReview = false
+    /// "Add to collection" (#350): what is being added, and the model behind the sheet.
+    @State private var addTarget: AddToCollectionTarget?
+    @State private var collectionsModel: CollectionsModel?
     @State private var isPresentingDiscardConfirm = false
     /// Whether Discard also leaves the page (Back) or only edit mode (Cancel).
     @State private var photosItem: PhotosPickerItem?
@@ -56,6 +59,7 @@ struct ReleaseDetailView: View {
                 coverImageData = made.coverData
                 if startsEditing { made.beginEditing() }
                 model = made
+                collectionsModel = container.makeCollectionsModel()
             }
             await model?.loadPlays()
             await model?.loadMissingLengths()
@@ -166,6 +170,11 @@ struct ReleaseDetailView: View {
                         reshareShareId: model.sharedFrom?.shareId),
                     coverImage: coverImage
                 ) { shareTarget = nil }
+            }
+        }
+        .sheet(item: $addTarget) { target in
+            if let collectionsModel {
+                AddToCollectionSheet(model: collectionsModel, items: target.items) { addTarget = nil }
             }
         }
         .sheet(isPresented: $isPresentingReview) {
@@ -353,13 +362,27 @@ struct ReleaseDetailView: View {
                 if index != last { Rectangle().fill(Theme.Track.separatorTint).frame(height: 1) }
             }
             .contextMenu {
+                Button(Copy.Collections.addToCollection, systemImage: "text.badge.plus") {
+                    addTarget = AddToCollectionTarget(items: [.track(releaseId: model.releaseId, trackId: row.id)])
+                }
                 if model.canShareTracks {
                     Button(Copy.Share.shareThisSong, systemImage: "square.and.arrow.up") {
                         shareTarget = ShareTarget(trackId: row.id, subject: model.kind == .single ? model.title : row.title)
                     }
                 }
             }
+            .swipeActions(edge: .trailing) {
+                Button {
+                    addTarget = AddToCollectionTarget(items: [.track(releaseId: model.releaseId, trackId: row.id)])
+                } label: {
+                    Label(Copy.Collections.addToCollection, systemImage: "text.badge.plus")
+                }
+                .tint(Theme.accent)
+            }
             .accessibilityActions {
+                Button(Copy.Collections.addToCollection) {
+                    addTarget = AddToCollectionTarget(items: [.track(releaseId: model.releaseId, trackId: row.id)])
+                }
                 if model.canShareTracks {
                     Button(Copy.Share.shareThisSong) {
                         shareTarget = ShareTarget(trackId: row.id, subject: model.kind == .single ? model.title : row.title)
@@ -368,6 +391,15 @@ struct ReleaseDetailView: View {
             }
             .clearRow(top: 0, bottom: 0)
         }
+        Button {
+            addTarget = AddToCollectionTarget(items: [.release(model.releaseId)])
+        } label: {
+            Label(Copy.Collections.addToCollection, systemImage: "text.badge.plus")
+                .themeFont(.rowTitle)
+                .foregroundStyle(Theme.accent)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        }
+        .clearRow(top: 8, bottom: 0)
         if model.hasPlays { playsFootnote.clearRow(top: 12, bottom: 0) }
         if model.isAdopted { adoptedNote.clearRow(top: 8, bottom: 0) }
         if model.kind == .album { playlistGuide(model).clearRow(top: 8, bottom: 0) }

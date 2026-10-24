@@ -1,0 +1,280 @@
+import SwiftUI
+
+/// Pushes the Collections screen onto the Library's stack.
+struct CollectionsRoute: Hashable {}
+
+/// Pushes one collection's queue.
+struct CollectionRoute: Hashable {
+    let id: UUID
+}
+
+/// The Collections screen in List view (#350): a search field, a row per collection, and "New collection". The
+/// record player look is a later step (`docs/plans/339-collections.md`).
+struct CollectionsView: View {
+    let model: CollectionsModel
+    var onOpen: (UUID) -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    @State private var query = ""
+    @State private var isNaming = false
+    @State private var newName = ""
+    @State private var createFailed = false
+
+    private var matching: [MusicCollection] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !needle.isEmpty else { return model.collections }
+        return model.collections.filter { $0.name.lowercased().contains(needle) }
+    }
+
+    var body: some View {
+        ZStack {
+            Theme.background.ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    header
+                    if !model.isLoaded {
+                        loadingRows
+                    } else if let failure = model.readFailure {
+                        ReadFailureView(message: failure) { model.reload() }
+                    } else if model.collections.isEmpty {
+                        emptyState
+                    } else {
+                        searchField
+                        if matching.isEmpty {
+                            Text(Copy.Collections.noMatches(query))
+                                .themeFont(.body)
+                                .foregroundStyle(Theme.secondaryText)
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, Theme.Library.noMatchesTopPadding)
+                        }
+                        LazyVStack(spacing: 8) {
+                            ForEach(matching) { collection in
+                                CollectionRow(model: model, collection: collection) { onOpen(collection.id) }
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, Theme.Spacing.listPagePadding)
+                .padding(.top, 12)
+                .padding(.bottom, 24)
+            }
+            .scrollDismissesKeyboard(.immediately)
+        }
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .task { model.reload() }
+        .alert(Copy.Collections.createFailed, isPresented: $createFailed) {
+            Button(Copy.Collections.tryAgain) { isNaming = true }
+            Button(Copy.Collections.cancel, role: .cancel) {}
+        }
+        .nameAlert(Copy.Collections.nameTitle, action: Copy.Collections.create, isPresented: $isNaming, text: $newName) { name in
+            do {
+                if let id = try model.create(name: name) { onOpen(id) }
+            } catch {
+                createFailed = true
+            }
+        }
+    }
+
+    private var header: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .center))
+        return layout {
+            Text(Copy.Collections.title)
+                .themeFont(.pageTitle)
+                .foregroundStyle(Theme.primaryText)
+                .accessibilityAddTraits(.isHeader)
+            if !dynamicTypeSize.isAccessibilitySize { Spacer() }
+            if model.isLoaded, model.readFailure == nil, !model.collections.isEmpty { newButton }
+        }
+    }
+
+    private var newButton: some View {
+        Button {
+            newName = ""
+            isNaming = true
+        } label: {
+            Text(Copy.Collections.newCollection)
+        }
+        .buttonStyle(CollectionPillButtonStyle())
+    }
+
+    /// No collections: one empty record, the plan's line, and the button.
+    private var emptyState: some View {
+        VStack(spacing: 20) {
+            CollectionCoverView(releaseIDs: [], side: 120)
+            Text(Copy.Collections.emptyLine)
+                .themeFont(.body)
+                .foregroundStyle(Theme.secondaryText)
+                .multilineTextAlignment(.center)
+            Button {
+                newName = ""
+                isNaming = true
+            } label: {
+                Text(Copy.Collections.newCollection)
+            }
+            .buttonStyle(CollectionPillButtonStyle())
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 40)
+    }
+
+    /// Quiet placeholders in the rows' final shape, for the moment before the store is read; no spinner.
+    private var loadingRows: some View {
+        VStack(spacing: 8) {
+            ForEach(0..<4, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: Theme.Radius.card)
+                    .fill(Theme.Immersive.panelFill)
+                    .frame(height: Theme.Library.thumbnailSize + 20)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: Theme.Library.headerControlGap) {
+            LocallyIcon(.search, size: 22, relativeTo: .body)
+                .foregroundStyle(Theme.secondaryText)
+            TextField("", text: $query, prompt: Text(Copy.Collections.searchPlaceholder).foregroundColor(Theme.textDim))
+                .themeFont(.body)
+                .lineLimit(1)
+                .foregroundStyle(Theme.primaryText)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Theme.secondaryText)
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Copy.Library.clearSearch)
+            }
+        }
+        .padding(.horizontal, Theme.Library.searchPaddingH)
+        .padding(.vertical, Theme.Library.searchPaddingV)
+        .frame(minHeight: Theme.Library.searchMinHeight)
+        .background(Capsule().fill(Theme.Immersive.panelFill))
+        .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
+    }
+}
+
+/// One collection in the list: its cover, name and track count. The whole row is one button of at least 44 pt.
+struct CollectionRow: View {
+    let model: CollectionsModel
+    let collection: MusicCollection
+    var onOpen: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        let count = model.trackCount(of: collection)
+        let seconds = model.playableDuration(of: collection)
+        let length = TrackLength.format(seconds)
+        Button(action: onOpen) {
+            HStack(spacing: 12) {
+                CollectionCoverView(releaseIDs: model.coverReleaseIDs(of: collection))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(collection.name)
+                        .themeFont(.rowTitle)
+                        .foregroundStyle(Theme.primaryText)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    Text(subtitle(count: count, length: length))
+                        .themeFont(.rowSubtitle)
+                        .foregroundStyle(Theme.secondaryText)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                LocallyIcon(.chevronRight, size: 20, relativeTo: .footnote)
+                    .foregroundStyle(Theme.textDim)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(minHeight: 44)
+            .background(RoundedRectangle(cornerRadius: Theme.Radius.card).fill(Theme.Immersive.panelFill))
+            .contentShape(.rect(cornerRadius: Theme.Radius.card))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Copy.Collections.rowLabel(name: collection.name, tracks: count, length: TrackLength.spokenTotal(seconds)))
+    }
+
+    /// "8 tracks · 32:10": the count, then the length of the tracks this phone can play.
+    private func subtitle(count: Int, length: String?) -> String {
+        [Copy.Collections.trackCount(count), length].compactMap { $0 }.joined(separator: " \u{00B7} ")
+    }
+}
+
+/// The collections could not be read: the reason and Try again, in place of the empty state.
+struct ReadFailureView: View {
+    let message: String
+    /// The slim form for a row (the Library's Collections row): the line and Try again side by side.
+    var compact = false
+    var onRetry: () -> Void
+
+    var body: some View {
+        if compact {
+            compactBody
+        } else {
+            fullBody
+        }
+    }
+
+    private var compactBody: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(Copy.Collections.readFailed)
+                    .themeFont(.meta)
+                    .foregroundStyle(Theme.primaryText)
+                Text(message)
+                    .themeFont(.meta)
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: onRetry) { Text(Copy.Collections.tryAgain) }
+                .buttonStyle(CollectionPillButtonStyle())
+        }
+        .accessibilityElement(children: .contain)
+        .onAppear { AccessibilityNotification.Announcement("\(Copy.Collections.readFailed) \(Copy.Collections.tryAgain)").post() }
+    }
+
+    private var fullBody: some View {
+        VStack(spacing: 16) {
+            Text(Copy.Collections.readFailed)
+                .themeFont(.body)
+                .foregroundStyle(Theme.primaryText)
+                .multilineTextAlignment(.center)
+            Text(message)
+                .themeFont(.rowSubtitle)
+                .foregroundStyle(Theme.secondaryText)
+                .multilineTextAlignment(.center)
+            Button(action: onRetry) { Text(Copy.Collections.tryAgain) }
+                .buttonStyle(CollectionPillButtonStyle())
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 40)
+        .accessibilityElement(children: .contain)
+        .onAppear { AccessibilityNotification.Announcement("\(Copy.Collections.readFailed) \(Copy.Collections.tryAgain)").post() }
+    }
+}
+
+/// The Primary pill at a compact width with a 44 pt hit area (the shared compact pill is 36 pt tall).
+struct CollectionPillButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .themeFont(.primaryButton)
+            .foregroundStyle(Theme.onAccent)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, Theme.Spacing.primaryButtonH)
+            .frame(minHeight: 44)
+            .background(Theme.accent)
+            .clipShape(Capsule())
+            .contentShape(Capsule())
+            .opacity(isEnabled ? 1 : 0.5)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1)
+    }
+}

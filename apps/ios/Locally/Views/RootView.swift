@@ -91,6 +91,9 @@ struct RootView: View {
                 .onChange(of: playback?.openReleaseRequest) { _, id in
                     if id != nil { selectedTab = .library }
                 }
+                .onChange(of: playback?.openCollectionRequest) { _, id in
+                    if id != nil { selectedTab = .library }
+                }
             }
         }
         .background(Theme.background)

@@ -1,8 +1,9 @@
 import Foundation
 import SwiftData
 
-/// Opens the SwiftData store that holds the library index (`ReleaseRecord`)
-/// and the sync outbox (`SyncOutboxRecord`), and moves it aside when it
+/// Opens the SwiftData store that holds the library index (`ReleaseRecord`),
+/// the sync outbox (`SyncOutboxRecord`), and the collections
+/// (`CollectionRecord`, `CollectionOutboxRecord`: additive models, #350), and moves it aside when it
 /// can't be opened. Nothing here ever deletes the store: the index has no
 /// rebuild-from-disk path, so a backup is the user's only way back.
 enum ModelStore {
@@ -12,7 +13,7 @@ enum ModelStore {
     /// Opens the store at `url`, or an in-memory one when `url` is `nil`.
     static func open(at url: URL?) throws -> ModelContainer {
         let configuration = url.map { ModelConfiguration(url: $0) } ?? ModelConfiguration(isStoredInMemoryOnly: true)
-        return try ModelContainer(for: ReleaseRecord.self, SyncOutboxRecord.self, configurations: configuration)
+        return try ModelContainer(for: ReleaseRecord.self, SyncOutboxRecord.self, CollectionRecord.self, CollectionOutboxRecord.self, configurations: configuration)
     }
 
     /// Moves the store file and its `-shm` / `-wal` siblings (whichever

@@ -122,7 +122,71 @@ final class InMemorySyncOutbox: SyncOutbox {
 
     func removeAll() throws {
         storage.removeAll()
+        collectionStorage.removeAll()
     }
+
+    private var collectionStorage: [UUID: CollectionOutboxEntry] = [:]
+
+    func collectionEntries() throws -> [CollectionOutboxEntry] {
+        collectionStorage.values.sorted { $0.enqueuedAt < $1.enqueuedAt }
+    }
+
+    func enqueueCollection(_ id: UUID, _ operation: SyncOutboxEntry.Operation) throws {
+        if collectionStorage[id] != nil, operation != .delete { return }
+        collectionStorage[id] = CollectionOutboxEntry(collectionId: id, operation: operation, attempts: 0, lastError: nil, enqueuedAt: Date())
+    }
+
+    func recordCollectionFailure(_ id: UUID, error: String) throws {
+        guard var entry = collectionStorage[id] else { return }
+        entry.attempts += 1
+        entry.lastError = error
+        collectionStorage[id] = entry
+    }
+
+    func removeCollection(_ id: UUID, ifOperation operation: SyncOutboxEntry.Operation) throws {
+        guard collectionStorage[id]?.operation == operation else { return }
+        collectionStorage.removeValue(forKey: id)
+    }
+}
+
+/// In-memory `CollectionStore` fake.
+final class InMemoryCollectionStore: CollectionStore {
+    private var storage: [UUID: MusicCollection] = [:]
+
+    /// Thrown by `all()` while set (an unreadable store).
+    var allError: Error?
+    func all() throws -> [MusicCollection] {
+        if let allError { throw allError }
+        return Array(storage.values)
+    }
+    func get(_ id: UUID) throws -> MusicCollection? { storage[id] }
+    /// Thrown by the next `upsert` only, then cleared (a storage failure).
+    var upsertError: Error?
+    func upsert(_ collection: MusicCollection) throws {
+        if let upsertError {
+            self.upsertError = nil
+            throw upsertError
+        }
+        storage[collection.id] = collection
+    }
+    /// Thrown by the next `delete` only, then cleared.
+    var deleteError: Error?
+    func delete(id: UUID) throws {
+        if let deleteError {
+            self.deleteError = nil
+            throw deleteError
+        }
+        storage.removeValue(forKey: id)
+    }
+}
+
+/// Records what the collections UI told the sync engine.
+final class FakeCollectionSyncHook: CollectionSyncHook {
+    private(set) var changed: [UUID] = []
+    private(set) var deleted: [UUID] = []
+    func collectionChanged(_ id: UUID) { changed.append(id) }
+    func collectionDeleted(_ id: UUID) { deleted.append(id) }
+    func reset() { changed = []; deleted = [] }
 }
 
 /// `SpotifyFolderAccess` fake backed by a real temp directory, so
@@ -317,6 +381,8 @@ final class InMemorySyncAccountStore: SyncAccountStore {
     private(set) var deviceToken: String?
     private(set) var deviceId: String?
     var lastVersion: Int = 0
+    var lastCollectionVersion: Int = 0
+    var collectionsRouteSeen = false
     var deviceName: String?
     var userId: String?
     var lastMissingFilesCheckAt: Date?
@@ -332,6 +398,8 @@ final class InMemorySyncAccountStore: SyncAccountStore {
         deviceToken = nil
         deviceId = nil
         lastVersion = 0
+        lastCollectionVersion = 0
+        collectionsRouteSeen = false
         deviceName = nil
         userId = nil
         lastMissingFilesCheckAt = nil
@@ -439,6 +507,85 @@ final class FakeSyncApi: SyncApi {
     /// simulates the network dropping partway through a multi-page pull.
     var releasesFailOnCall: (callNumber: Int, error: Error)?
 
+    // MARK: Collections (#350)
+
+    /// Collection id (lower case) -> stored record with its version; a tombstone stays with `deleted == true`.
+    private var collectionStorage: [String: SyncCollection] = [:]
+    /// Every release and collection write/read in the order the engine made it ("putRelease", "putCollection", ...).
+    private(set) var callOrder: [String] = []
+    private(set) var collectionPutCalls: [SyncCollection] = []
+    private(set) var collectionDeleteCalls: [String] = []
+    private(set) var collectionsSinceVersions: [Int] = []
+    /// Thrown by every collections call before it records anything (`.notFound` for an older API, `.rateLimited`).
+    var collectionsError: Error?
+    /// Thrown by the next `putCollection` only (e.g. `.tooManyCollections`), then cleared.
+    var collectionPutError: Error?
+    var collectionDeleteError: Error?
+    /// What the next `putCollection` answers as `pruned`; the stored copy loses its last item per prune.
+    var collectionPrunedOnNextPut = 0
+    /// When set, `collections(...)` returns exactly this page.
+    var collectionsOverride: SyncCollectionsPage?
+    /// Awaited inside `putCollection` once the call is recorded and before the server stores it: a test suspends
+    /// the request here and edits the collection meanwhile.
+    var onPutCollection: (() async -> Void)?
+
+    /// Puts `record` straight into the fake server, as if another device had written it.
+    @discardableResult
+    func seedCollection(_ record: SyncCollection) -> Int {
+        currentVersion += 1
+        var stored = record
+        stored.version = currentVersion
+        stored.serverUpdatedAt = record.updatedAt
+        collectionStorage[record.id] = stored
+        return currentVersion
+    }
+
+    func storedCollection(_ id: String) -> SyncCollection? { collectionStorage[id] }
+
+    func collections(sinceVersion: Int, limit: Int) async throws -> SyncCollectionsPage {
+        if let collectionsError { throw collectionsError }
+        callOrder.append("collections")
+        collectionsSinceVersions.append(sinceVersion)
+        if let collectionsOverride { return collectionsOverride }
+        let matching = collectionStorage.values
+            .filter { ($0.version ?? 0) > sinceVersion }
+            .sorted { ($0.version ?? 0) < ($1.version ?? 0) }
+        let page = Array(matching.prefix(limit))
+        let truncated = page.count < matching.count
+        return SyncCollectionsPage(collections: page, nextVersion: truncated ? (page.last?.version ?? currentVersion) : currentVersion, hasMore: truncated)
+    }
+
+    func putCollection(_ record: SyncCollection) async throws -> SyncCollectionPutResult {
+        if let collectionsError { throw collectionsError }
+        if let error = collectionPutError {
+            collectionPutError = nil
+            throw error
+        }
+        collectionPutCalls.append(record)
+        callOrder.append("putCollection")
+        await onPutCollection?()
+        if let stored = collectionStorage[record.id], stored.updatedAt > record.updatedAt {
+            throw SyncApiError.conflict(serverUpdatedAt: stored.updatedAt)
+        }
+        var kept = record
+        let pruned = min(collectionPrunedOnNextPut, kept.items.count)
+        collectionPrunedOnNextPut = 0
+        kept.items.removeLast(pruned)
+        let version = seedCollection(kept)
+        return SyncCollectionPutResult(version: version, pruned: pruned)
+    }
+
+    @discardableResult
+    func deleteCollection(_ id: String) async throws -> Int {
+        if let collectionsError { throw collectionsError }
+        if let error = collectionDeleteError { throw error }
+        collectionDeleteCalls.append(id)
+        callOrder.append("deleteCollection")
+        var stored = collectionStorage[id] ?? SyncCollection(id: id, name: "x", items: [], origin: "ios", originDevice: "", createdAt: Date(), updatedAt: Date())
+        stored.deleted = true
+        return seedCollection(stored)
+    }
+
     func requestCode(email: String) async throws {
         requestCodeCalls.append(email)
     }
@@ -476,6 +623,7 @@ final class FakeSyncApi: SyncApi {
 
     func releases(sinceVersion: Int, limit: Int) async throws -> SyncReleasesPage {
         releasesCallCount += 1
+        callOrder.append("releases")
         releasesSinceVersions.append(sinceVersion)
         if let releasesGate { await releasesGate() }
         if let releasesFailOnCall, releasesFailOnCall.callNumber == releasesCallCount {
@@ -497,6 +645,7 @@ final class FakeSyncApi: SyncApi {
     @discardableResult
     func putRelease(_ record: SyncRecord) async throws -> Int {
         putCalls.append(record)
+        callOrder.append("putRelease")
         if conflictOnNextPut.remove(record.id) != nil {
             throw SyncApiError.conflict(serverUpdatedAt: storage[record.id]?.updatedAt)
         }

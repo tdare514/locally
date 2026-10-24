@@ -118,6 +118,17 @@ struct PlaybackServiceTests {
         #expect(access.opened == access.closed + Array(access.isOpen))
     }
 
+    @Test func aCorruptFileIsRecordedAsFailedNotMissingAndTheQueueMovesOn() async {
+        let r = release()
+        service.play(release: r, startingAt: id(r, 1))
+        await settle()
+        engine.end(.failed)
+        await settle()
+        #expect(service.failedTrackIDs == [id(r, 1)])
+        #expect(service.missingTrackIDs.isEmpty)
+        #expect(service.currentTrack?.trackNumber == 2)
+    }
+
     @Test func anUnreachableFolderSkipsTheItemToo() async {
         let r = release()
         access.unreachable = [id(r, 1)]
@@ -447,14 +458,49 @@ struct PlaybackServiceTests {
         }
         #expect(counts.increments == items)
 
-        // A collection's context is a no-op for now; a release's opens its page.
+        // A collection's context asks for its page, not a release's; a release's opens its page.
         counting.openContext()
         #expect(counting.openReleaseRequest == nil)
+        #expect(counting.openCollectionRequest == collection.id)
+        counting.openCollectionRequest = nil
         let single = release()
         counting.play(release: single, startingAt: id(single, 1))
         await settle()
         counting.openContext()
         #expect(counting.openReleaseRequest == single.id)
+    }
+
+    @Test func startingAtAnIndexPlaysThatItemAndKeepsTheOrderAroundIt() async {
+        let r = release()
+        let gone = QueueItem(releaseId: UUID(), trackId: UUID())
+        let items = [QueueItem(releaseId: r.id, trackId: id(r, 1)), gone, QueueItem(releaseId: r.id, trackId: id(r, 2)), QueueItem(releaseId: r.id, trackId: id(r, 1))]
+        let context = QueueContext(kind: .collection, id: UUID())
+
+        // Index 2 of the full list is the second playable item; the unplayable one before it is filtered out.
+        service.play(items: items, releases: [r], context: context, startingAt: 2)
+        await settle()
+        #expect(service.queue?.items == [items[0], items[2], items[3]])
+        #expect(service.queue?.index == 1)
+        #expect(service.currentItem == items[2])
+        #expect(access.opened.last == id(r, 2))
+
+        // The same track twice: the later position is the one playing.
+        service.play(items: items, releases: [r], context: context, startingAt: 3)
+        await settle()
+        #expect(service.queue?.index == 2)
+
+        // An index on an unplayable item starts the next playable one; one past the end starts the first.
+        service.play(items: items, releases: [r], context: context, startingAt: 1)
+        await settle()
+        #expect(service.queue?.index == 1)
+        service.play(items: items, releases: [r], context: context, startingAt: 99)
+        await settle()
+        #expect(service.queue?.index == 0)
+
+        // Callers that don't pass an index start at the first item.
+        service.play(items: items, releases: [r], context: context)
+        await settle()
+        #expect(service.queue?.index == 0)
     }
 
     @Test func aTickFromACancelledRunNeverCounts() async {
