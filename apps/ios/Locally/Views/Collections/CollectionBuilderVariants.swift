@@ -4,6 +4,7 @@ import SwiftUI
 
 // #366 prototype: two ways to build a collection, over the gallery's sample library. Nothing here ships.
 // 1 "One screen": the sleeve, its name, the picks strip, search and the library on one page.
+// 1b "One screen, sleek": variant 1's page with no boxes: one wash, a releases shelf, a borderless list, a floating bar.
 // 2 "Name, then pick": a naming moment, then the picker as a sheet.
 // Both reuse the app's own parts: RecordSleeve, ArtworkBackdrop, GlowGlass/GlowRim, GlowSwitch,
 // CoverGlowButtonStyle, LibrarySearch, ArtworkPalette.
@@ -647,6 +648,471 @@ struct BuilderOneScreen: View {
     }
 }
 
+// MARK: - Variant 1b: one screen, sleek
+
+/// A cover's own accent colour, worked out once per release.
+@MainActor
+private enum BuilderAccent {
+    private static var cache: [UUID: Color] = [:]
+
+    static func color(_ id: UUID, in library: BuilderLibrary) -> Color {
+        if let hit = cache[id] { return hit }
+        let color = Theme.coverGlowColors(ArtworkPalette.palette(forCover: library.data[id])).first ?? Theme.accent
+        cache[id] = color
+        return color
+    }
+}
+
+/// A cover square with its own corner radius, or the double note when there is no art.
+private struct BuilderCover: View {
+    let image: UIImage?
+    let side: CGFloat
+    let radius: CGFloat
+
+    var body: some View {
+        Color.clear
+            .frame(width: side, height: side)
+            .overlay {
+                if let image {
+                    Image(uiImage: image).resizable().scaledToFill()
+                } else {
+                    NoCoverArt()
+                }
+            }
+            .clipShape(.rect(cornerRadius: radius, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
+/// `GlowRim`'s look on a rounded square, in the cover's colour (`GlowRim` only draws capsules and circles).
+private struct BuilderCoverRim: View {
+    let tint: Color
+    let radius: CGFloat
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .strokeBorder(
+                LinearGradient(colors: [tint.opacity(0.95), tint.opacity(0.55)], startPoint: .top, endPoint: .bottom),
+                lineWidth: 1.5)
+            .shadow(color: tint.opacity(0.55), radius: 8)
+            .allowsHitTesting(false)
+    }
+}
+
+/// A filled accent circle with a white check; a dim one for what the collection already holds.
+private struct BuilderPickedDot: View {
+    let tint: Color
+    let size: CGFloat
+    var dimmed = false
+    var glows = false
+
+    var body: some View {
+        ZStack {
+            Circle().fill(dimmed ? Color.white.opacity(0.22) : tint)
+            // A little black keeps the white check readable on a bright cover.
+            Circle().fill(Color.black.opacity(dimmed ? 0 : 0.22))
+            Image(systemName: "checkmark")
+                .font(.system(size: size * 0.46, weight: .bold))
+                .foregroundStyle(Color.white.opacity(dimmed ? 0.7 : 1))
+        }
+        .frame(width: size, height: size)
+        .shadow(color: glows && !dimmed ? tint.opacity(0.6) : .clear, radius: 7)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct BuilderPressStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+    }
+}
+
+/// The picks as overlapping mini sleeves, tilted the other way each time. No panel, no border.
+private struct BuilderCrate: View {
+    let draft: BuilderDraft
+
+    private static let shown = 5
+    private static let side: CGFloat = 52
+
+    var body: some View {
+        let picks = Array(draft.picks.prefix(Self.shown))
+        let extra = draft.picks.count - picks.count
+        HStack(spacing: -18) {
+            if picks.isEmpty {
+                ForEach(0..<3, id: \.self) { index in
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color(white: 0.13))
+                        .frame(width: Self.side, height: Self.side)
+                        .rotationEffect(.degrees(index.isMultiple(of: 2) ? -4 : 4))
+                }
+            }
+            ForEach(Array(picks.enumerated()), id: \.element) { index, pick in
+                BuilderCover(image: draft.library.images[pick.releaseID], side: Self.side, radius: 10)
+                    .shadow(color: .black.opacity(0.45), radius: 6, x: 2, y: 3)
+                    .rotationEffect(.degrees(index.isMultiple(of: 2) ? -4 : 4))
+                    .zIndex(Double(index))
+            }
+            if extra > 0 {
+                Text("+\(extra)")
+                    .font(Theme.ScaledFont.pill)
+                    .foregroundStyle(Theme.primaryText)
+                    .frame(width: Self.side, height: Self.side)
+                    .zIndex(Double(Self.shown))
+            }
+        }
+        .padding(.vertical, 6)
+        .accessibilityHidden(true)
+    }
+}
+
+/// A release on the shelf: one cover, one tap adds or removes the whole release.
+private struct BuilderShelfCover: View {
+    let draft: BuilderDraft
+    let release: Release
+    let side: CGFloat
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private static let radius: CGFloat = 12
+
+    private var pick: BuilderPick { BuilderPick(releaseID: release.id) }
+    private var state: BuilderRowState { draft.state(of: pick) }
+    private var isOn: Bool { state != .off }
+    private var tint: Color { BuilderAccent.color(release.id, in: draft.library) }
+
+    private var label: String {
+        var parts = [release.title, release.artist]
+        if release.source == .adopted { parts.append(Copy.Collections.onYourMac) }
+        if state == .existing { parts.append(Copy.CollectionBuilder.inCollection.lowercased()) }
+        else if isOn { parts.append(Copy.CollectionBuilder.added.lowercased()) }
+        return parts.joined(separator: ", ")
+    }
+
+    var body: some View {
+        Button { draft.toggle(pick) } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                BuilderCover(image: draft.library.images[release.id], side: side, radius: Self.radius)
+                    .shadow(color: .black.opacity(0.4), radius: 10, y: 6)
+                    .overlay { if state == .on { BuilderCoverRim(tint: tint, radius: Self.radius) } }
+                    .overlay(alignment: .topTrailing) {
+                        if isOn { BuilderPickedDot(tint: tint, size: 28, dimmed: state == .existing).padding(8) }
+                    }
+                Text(release.title)
+                    .font(.system(.subheadline, weight: .semibold))
+                    .foregroundStyle(Theme.primaryText)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                    .multilineTextAlignment(.leading)
+                Text(release.artist)
+                    .font(.system(.footnote))
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(width: side, alignment: .topLeading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(BuilderPressStyle())
+        .disabled(state == .existing)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityHint(isOn ? "" : Copy.CollectionBuilder.add(release.title))
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+}
+
+/// A song on the backdrop: no box, no separator; a picked one gets a faint wash of its cover.
+private struct BuilderSongRow: View {
+    let draft: BuilderDraft
+    let release: Release
+    let track: Track
+
+    private var pick: BuilderPick { BuilderPick(releaseID: release.id, trackID: track.id) }
+    private var state: BuilderRowState { draft.state(of: pick) }
+    private var isOn: Bool { state != .off }
+    private var tint: Color { BuilderAccent.color(release.id, in: draft.library) }
+    private var isAdopted: Bool { release.source == .adopted }
+
+    private var subtitle: String {
+        state == .existing ? Copy.CollectionBuilder.inCollection : "\(release.artist) \u{00B7} \(release.title)"
+    }
+
+    private var label: String {
+        var parts = [track.title, release.artist, release.title]
+        if isAdopted { parts.append(Copy.Collections.onYourMac) }
+        if state == .existing { parts.append(Copy.CollectionBuilder.inCollection.lowercased()) }
+        else if isOn { parts.append(Copy.CollectionBuilder.added.lowercased()) }
+        return parts.joined(separator: ", ")
+    }
+
+    var body: some View {
+        Button { draft.toggle(pick) } label: {
+            HStack(spacing: 14) {
+                BuilderCover(image: draft.library.images[release.id], side: 52, radius: 8)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(track.title)
+                        .font(.system(.body, weight: .semibold))
+                        .foregroundStyle(Theme.primaryText)
+                        .multilineTextAlignment(.leading)
+                    (Text(subtitle) + (isAdopted ? Text("  ") + Text(Image(systemName: "desktopcomputer")) : Text("")))
+                        .font(Theme.ScaledFont.subheadline)
+                        .foregroundStyle(Theme.secondaryText)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 0)
+                control
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(tint.opacity(state == .on ? 0.10 : 0))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(BuilderPressStyle())
+        .disabled(state == .existing || state == .viaRelease)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityHint(isOn ? "" : Copy.CollectionBuilder.add(track.title))
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+
+    @ViewBuilder
+    private var control: some View {
+        if isOn {
+            BuilderPickedDot(tint: tint, size: 30, dimmed: state != .on, glows: true)
+        } else {
+            ZStack {
+                Circle().strokeBorder(Color.white.opacity(0.35), lineWidth: 1)
+                Image(systemName: "plus")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.7))
+            }
+            .frame(width: 30, height: 30)
+            .accessibilityHidden(true)
+        }
+    }
+}
+
+/// The frosted search pill: a hairline, no heavy rim.
+private struct BuilderSearchPill: View {
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(Theme.secondaryText)
+                .accessibilityHidden(true)
+            TextField("", text: $text, prompt: Text(Copy.CollectionBuilder.searchPlaceholder).foregroundColor(Theme.secondaryText))
+                .font(Theme.ScaledFont.input)
+                .foregroundStyle(Theme.primaryText)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+            if !text.isEmpty {
+                Button { text = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(Theme.secondaryText)
+                        .frame(width: Theme.Builder.control, height: Theme.Builder.control)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Copy.CollectionBuilder.clearSearch)
+            }
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, text.isEmpty ? 16 : 2)
+        .frame(minHeight: 48)
+        .background {
+            ZStack {
+                Rectangle().fill(.ultraThinMaterial)
+                Color.black.opacity(0.45)
+            }
+            .clipShape(Capsule())
+        }
+        .overlay { Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5) }
+    }
+}
+
+/// The round Done: cover-tinted glass with a check.
+private struct BuilderDoneRound: View {
+    let draft: BuilderDraft
+    let isEnabled: Bool
+    let action: () -> Void
+
+    private var label: String {
+        draft.songCount > 0 ? "\(Copy.CollectionBuilder.done), \(Copy.CollectionBuilder.songCount(draft.songCount))" : Copy.CollectionBuilder.done
+    }
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle().fill(Color.black.opacity(0.8))
+                Circle().fill(draft.tint.opacity(0.4))
+                GlowGlass().clipShape(Circle())
+                Image(systemName: "checkmark")
+                    .font(.system(.body, weight: .bold))
+                    .foregroundStyle(Color.white)
+            }
+            .overlay { GlowRim(round: true) }
+            .frame(width: 48, height: 48)
+            .shadow(color: draft.tint.opacity(isEnabled ? 0.4 : 0), radius: 12, y: 3)
+            .contentShape(Circle())
+        }
+        .buttonStyle(BuilderPressStyle())
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.4)
+        .accessibilityLabel(label)
+    }
+}
+
+struct BuilderOneScreenSleek: View {
+    let draft: BuilderDraft
+    var onDone: () -> Void = {}
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var large: Bool { dynamicTypeSize.isAccessibilitySize }
+    private var sleeveSize: CGFloat { large ? Theme.Builder.sleeveAccessibility : Theme.Builder.sleeve }
+    private var shelfSide: CGFloat { large ? 112 : 132 }
+    private var title: String { draft.isNew ? Copy.CollectionBuilder.newTitle : Copy.CollectionBuilder.addMusicTitle }
+    private var canFinish: Bool { draft.songCount > 0 && (!draft.isNew || MusicCollection.validName(draft.name) != nil) }
+    private var pad: CGFloat { Theme.Spacing.pagePadding }
+
+    var body: some View {
+        ZStack {
+            BuilderBackdrop(draft: draft)
+            // One long fade to near-black, so no edge shows anywhere.
+            LinearGradient(stops: [
+                .init(color: .black.opacity(0), location: 0),
+                .init(color: .black.opacity(0.06), location: 0.15),
+                .init(color: .black.opacity(0.22), location: 0.3),
+                .init(color: .black.opacity(0.55), location: 0.45),
+                .init(color: .black.opacity(0.88), location: 0.58),
+                .init(color: .black.opacity(0.94), location: 0.7),
+                .init(color: .black.opacity(0.96), location: 1),
+            ], startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+            ScrollView {
+                VStack(spacing: 0) {
+                    HStack {
+                        Text(title)
+                            .font(Theme.ScaledFont.headline)
+                            .foregroundStyle(Theme.primaryText)
+                            .accessibilityAddTraits(.isHeader)
+                        Spacer()
+                        BuilderClose()
+                    }
+                    .padding(.horizontal, pad)
+                    BuilderSleeve(draft: draft, size: sleeveSize)
+                        .padding(.top, large ? 14 : 4)
+                        .padding(.bottom, 16)
+                    picksBar.padding(.horizontal, pad)
+                    library
+                }
+                .padding(.bottom, 12)
+            }
+            .scrollDismissesKeyboard(.immediately)
+        }
+        .safeAreaInset(edge: .bottom) { bottomBar }
+        .sensoryFeedback(.selection, trigger: draft.picks)
+    }
+
+    private var picksBar: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                BuilderCrate(draft: draft)
+                Spacer(minLength: 0)
+                summary.multilineTextAlignment(.trailing)
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                BuilderCrate(draft: draft)
+                summary
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var summary: some View {
+        Text(draft.summary)
+            .font(Theme.ScaledFont.subheadline)
+            .foregroundStyle(Theme.secondaryText)
+            .accessibilityLabel(draft.summary)
+    }
+
+    @ViewBuilder
+    private var library: some View {
+        let releases = draft.releaseMatches
+        let songs = draft.songMatches
+        VStack(spacing: 6) {
+            if releases.isEmpty && songs.isEmpty {
+                BuilderNoMatches(query: draft.query)
+            }
+            if !releases.isEmpty {
+                BuilderSectionTitle(text: Copy.CollectionBuilder.releases)
+                    .padding(.horizontal, pad)
+                    .padding(.top, 14)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 14) {
+                        ForEach(releases) { release in
+                            BuilderShelfCover(draft: draft, release: release, side: shelfSide)
+                        }
+                    }
+                    .padding(.horizontal, pad)
+                    .padding(.top, 8)
+                    .padding(.bottom, 14)
+                }
+                .scrollClipDisabled()
+            }
+            if !songs.isEmpty {
+                BuilderSectionTitle(text: Copy.CollectionBuilder.songs)
+                    .padding(.horizontal, pad)
+                    .padding(.top, 6)
+                VStack(spacing: 2) {
+                    ForEach(songs, id: \.track.id) { entry in
+                        BuilderSongRow(draft: draft, release: entry.release, track: entry.track)
+                    }
+                }
+                .padding(.horizontal, max(0, pad - 10))
+            }
+        }
+    }
+
+    /// The search pill and Done float over the page; at large text they stack.
+    private var bottomBar: some View {
+        @Bindable var draft = draft
+        return Group {
+            if large {
+                VStack(alignment: .trailing, spacing: 10) {
+                    BuilderSearchPill(text: $draft.query)
+                    Button(Copy.CollectionBuilder.done, action: onDone)
+                        .buttonStyle(CoverGlowButtonStyle(colors: self.draft.glow, isFullWidth: false))
+                        .disabled(!canFinish)
+                        .accessibilityLabel(self.draft.songCount > 0 ? "\(Copy.CollectionBuilder.done), \(Copy.CollectionBuilder.songCount(self.draft.songCount))" : Copy.CollectionBuilder.done)
+                }
+            } else {
+                HStack(spacing: 10) {
+                    BuilderSearchPill(text: $draft.query)
+                    BuilderDoneRound(draft: self.draft, isEnabled: canFinish, action: onDone)
+                }
+            }
+        }
+        .padding(.horizontal, pad)
+        .padding(.top, 44)
+        .padding(.bottom, 6)
+        .background {
+            LinearGradient(stops: [.init(color: .black.opacity(0), location: 0), .init(color: .black.opacity(0.92), location: 0.4), .init(color: .black.opacity(0.95), location: 1)], startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+        }
+    }
+}
+
 // MARK: - Variant 2: name, then pick
 
 /// Step 1: the empty sleeve centre stage, the name typed large on it.
@@ -772,6 +1238,7 @@ private struct BuilderTwoStepFlow: View {
 struct CollectionBuilderGallery: View {
     static let names = [
         "builder-1-empty", "builder-1-picks", "builder-1-search", "builder-1-ax3", "builder-1-add-music",
+        "builder-1b-empty", "builder-1b-picks", "builder-1b-search", "builder-1b-ax3", "builder-1b-add-music",
         "builder-2-name", "builder-2-empty", "builder-2-picks", "builder-2-search", "builder-2-ax3", "builder-2-add-music",
     ]
 
@@ -816,6 +1283,16 @@ struct CollectionBuilderGallery: View {
                 BuilderOneScreen(draft: draft(picks: Self.threePicks)).dynamicTypeSize(.accessibility3)
             case "builder-1-add-music":
                 BuilderOneScreen(draft: addMusicDraft())
+            case "builder-1b-empty":
+                BuilderOneScreenSleek(draft: draft(name: ""))
+            case "builder-1b-picks":
+                BuilderOneScreenSleek(draft: draft(picks: Self.threePicks + [Self.pick(0, track: nil)]))
+            case "builder-1b-search":
+                BuilderOneScreenSleek(draft: draft(picks: Self.threePicks, query: "night"))
+            case "builder-1b-ax3":
+                BuilderOneScreenSleek(draft: draft(picks: Self.threePicks)).dynamicTypeSize(.accessibility3)
+            case "builder-1b-add-music":
+                BuilderOneScreenSleek(draft: addMusicDraft())
             case "builder-2-name":
                 BuilderNameStep(draft: draft(name: "Rainy Sunday"))
             case "builder-2-empty":

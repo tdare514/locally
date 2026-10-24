@@ -40,6 +40,25 @@ Step 2 is the picker as a sheet: "Add to <name>", a glass search box, a Songs / 
 | Three picks, accessibility3 | `docs/design-previews/366/builder-2-ax3.png` |
 | Add music, over the collection's real page | `docs/design-previews/366/builder-2-add-music.png` |
 
+## Variant 1b: One screen, sleek (owner, 24 Oct)
+
+The owner chose variant 1 but found it boxy and old-iPhone. Same screen and data; only the chrome changes.
+
+- One continuous wash: the cover colours run down the page and fade to near-black by about 60% of the height, so the hard edge under the hero is gone.
+- The picks crate has no panel: overlapping mini sleeves tilted -4 and +4 degrees, with "3 songs · 7 min" as small secondary text.
+- Releases are a horizontal shelf of 132 pt covers (112 pt at accessibility sizes). A tap adds the whole release: an accent check dot and a cover-tinted glow ring.
+- Songs are a borderless list on the backdrop: spacing instead of cards and separators, a round add control at the end, and a faint cover-tinted wash behind a picked row.
+- Search and Done float at the bottom: a frosted search pill with a hairline, and a round cover-tinted Done (disabled at 0 picks). At large text they stack, with a Done capsule under the pill.
+- Each shelf cover and song row is one button that reads "Night Bus to Nowhere, Mira Valdane, added" with the selected trait.
+
+| State | Screenshot |
+|---|---|
+| Empty | `docs/design-previews/366/builder-1b-empty.png` |
+| Picks (three songs and one whole release) | `docs/design-previews/366/builder-1b-picks.png` |
+| Searching "night" | `docs/design-previews/366/builder-1b-search.png` |
+| Three picks, accessibility3 | `docs/design-previews/366/builder-1b-ax3.png` |
+| Add music | `docs/design-previews/366/builder-1b-add-music.png` |
+
 ## Trade-off
 
 Variant 1 never leaves one page, so the cover is visible while you pick, and it is closest to Import.
