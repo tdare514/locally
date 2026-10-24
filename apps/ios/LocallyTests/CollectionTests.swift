@@ -303,10 +303,55 @@ struct CollectionsModelTests {
         #expect(s.hook.deleted == [id])
     }
 
-    @Test func thePlayPillAndRowsSpeakTheSameStateAsTheirGlyphs() {
-        #expect(CollectionPlayState.pillLabel(isCurrentQueue: false, isPlaying: true) == Copy.Collections.play)
-        #expect(CollectionPlayState.pillLabel(isCurrentQueue: true, isPlaying: false) == Copy.Collections.play)
-        #expect(CollectionPlayState.pillLabel(isCurrentQueue: true, isPlaying: true) == Copy.Collections.pause)
+    @Test func theCoverTapStartsPausesOrResumesAndIsInertInEditModeOrWithNothingToPlay() {
+        func act(editing: Bool = false, canPlay: Bool = true, this: Bool, playing: Bool) -> CollectionSleeveAction {
+            CollectionSleeveAction.resolve(isEditing: editing, canPlay: canPlay, isPlayingThis: this, isPlaying: playing)
+        }
+        #expect(act(this: false, playing: false) == .start)
+        #expect(act(this: false, playing: true) == .start)   // something else plays: start from the top
+        #expect(act(this: true, playing: true) == .pause)
+        #expect(act(this: true, playing: false) == .resume)
+        #expect(act(editing: true, this: false, playing: false) == .inert)
+        #expect(act(editing: true, this: true, playing: true) == .inert)
+        #expect(act(canPlay: false, this: false, playing: false) == .inert)
+        #expect(CollectionSleeveAction.start.label(name: "Late drives", canPlay: true) == "Play Late drives")
+        #expect(CollectionSleeveAction.pause.label(name: "Late drives", canPlay: true) == "Pause Late drives")
+        #expect(CollectionSleeveAction.resume.label(name: "Late drives", canPlay: true) == "Resume Late drives")
+        #expect(CollectionSleeveAction.inert.label(name: "Gone", canPlay: false).contains(Copy.Collections.nonePlayable))
+    }
+
+    @Test func theCoverHintMatchesWhatTheTapDoes() {
+        #expect(CollectionSleeveAction.start.hint == "Plays the collection from the start")
+        #expect(CollectionSleeveAction.pause.hint == "Pauses playback")
+        #expect(CollectionSleeveAction.resume.hint == "Resumes playback")
+        #expect(CollectionSleeveAction.inert.hint.isEmpty)
+    }
+
+    @Test func theSleeveShrinksToANarrowListAndNeverGrowsPastItsSide() {
+        #expect(CollectionSleeveView.fittedSide(200, availableWidth: .infinity) == 200)
+        #expect(CollectionSleeveView.fittedSide(200, availableWidth: 400) == 200)
+        let narrow = CollectionSleeveView.fittedSide(200, availableWidth: 280)
+        #expect(narrow < 200)
+        #expect(abs(narrow * 1.46 - 280) < 0.01)
+    }
+
+    @Test func theQueueIsOneNumberedListWithNoSides() {
+        func release(_ title: String, _ names: [String], adopted: Bool = false) -> Release {
+            Release(kind: .album, title: title, artist: "Artist", folderPath: "/f",
+                    tracks: names.enumerated().map { Track(title: $1, trackNumber: $0 + 1, filePath: "/f/\($1).mp3", originalName: "\($1).mp3") },
+                    source: adopted ? .adopted : nil)
+        }
+        let held = release("H", ["a", "b", "c"])
+        let mac = release("M", ["m"], adopted: true)
+        let rows = CollectionQueue.rows([.release(held.id), .release(mac.id), .release(held.id)], releases: [held.id: held, mac.id: mac])
+        let list = CollectionQueue.numbered(rows)
+        #expect(list.map(\.number) == Array(1...7))
+        #expect(list.map(\.row.title) == ["a", "b", "c", "m", "a", "b", "c"])
+        // Play starts from a row's place among the playable ones; the Mac-only row has none.
+        #expect(list.map(\.playablePosition) == [0, 1, 2, nil, 3, 4, 5])
+    }
+
+    @Test func rowsSpeakTheSameStateAsTheirGlyphs() {
         #expect(CollectionPlayState.rowLabel("A, B", isCurrentRow: true, isPlaying: true) == "Pause A, B")
         #expect(CollectionPlayState.rowLabel("A, B", isCurrentRow: true, isPlaying: false) == "Play A, B")
         #expect(CollectionPlayState.rowLabel("A, B", isCurrentRow: false, isPlaying: true) == "Play A, B")

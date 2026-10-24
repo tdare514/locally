@@ -8,6 +8,9 @@ struct CollectionCoverView: View {
 
     let releaseIDs: [UUID]
     var side: CGFloat = Theme.Library.thumbnailSize
+    var cornerRadius: CGFloat = Theme.Radius.thumbnail
+    /// The first cover, once loaded (the album page's disc takes its label from it).
+    var onFirstImage: ((UIImage?) -> Void)?
 
     @State private var images: [UIImage] = []
 
@@ -15,7 +18,7 @@ struct CollectionCoverView: View {
         Color.clear
             .frame(width: side, height: side)
             .overlay { art }
-            .clipShape(.rect(cornerRadius: Theme.Radius.thumbnail))
+            .clipShape(.rect(cornerRadius: cornerRadius))
             .accessibilityHidden(true)
             .task(id: releaseIDs) {
                 let store = container?.coverStore
@@ -23,6 +26,7 @@ struct CollectionCoverView: View {
                 images = await Task.detached(priority: .utility) {
                     ids.compactMap { id in store?.load(id).flatMap { UIImage(data: $0) } }
                 }.value
+                onFirstImage?(images.first)
             }
     }
 

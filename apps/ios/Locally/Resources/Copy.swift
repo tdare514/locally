@@ -378,6 +378,11 @@ enum Copy {
         static let pause = "Pause"
         static func playRow(_ title: String) -> String { "Play \(title)" }
         static func pauseRow(_ title: String) -> String { "Pause \(title)" }
+        static func resumeRow(_ title: String) -> String { "Resume \(title)" }
+        /// The collection's cover, a button outside edit mode (#369).
+        static let playCollectionHint = "Plays the collection from the start"
+        static let pauseCollectionHint = "Pauses playback"
+        static let resumeCollectionHint = "Resumes playback"
         static let nowPlaying = "Now playing"
         static let playing = "Playing"
         static let paused = "Paused"
@@ -403,8 +408,6 @@ enum Copy {
         static let pictureDisc = "Picture disc"
         static let blackVinyl = "Black vinyl"
         static func eyebrow(_ count: Int) -> String { "Library \u{00B7} \(countLine(count))" }
-        static let sideA = "Side A"
-        static let sideB = "Side B"
         static let editCollection = "Edit collection"
         static let nothingPlaying = "Nothing playing"
         static let previousTrack = "Previous track"

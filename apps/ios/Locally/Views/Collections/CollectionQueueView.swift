@@ -6,7 +6,7 @@ enum CollectionQueueLayout {
 }
 
 /// A collection's header (#350, shared with the record player in #352): its name in full (no line limit, so a long name
-/// is read here in full), the count, Play / Pause, and "Edit collection" when the screen has no Edit button of its own.
+/// is read here in full), the count, and "Edit collection" when the screen has no Edit button of its own.
 struct CollectionQueueHeader: View {
     let model: CollectionsModel
     let collection: MusicCollection
@@ -17,49 +17,48 @@ struct CollectionQueueHeader: View {
     /// "Edit collection": the player's way into the edit mode that the collection page opens from its toolbar.
     var onEdit: (() -> Void)?
     @Environment(\.playback) private var playback
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         let control = CollectionPlayControl(model: model, id: collection.id, playback: playback)
         let summary = model.summary(collection.id)
         let tracks = summary?.tracks ?? model.trackCount(of: collection)
-        HStack(spacing: 16) {
+        let text = VStack(alignment: showsCover ? .center : .leading, spacing: 4) {
+            Text(collection.name)
+                .themeFont(.pageTitle)
+                .foregroundStyle(Theme.primaryText)
+                .multilineTextAlignment(showsCover ? .center : .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("collection-queue-title")
+            Text(countLine(tracks: tracks, seconds: summary?.playableSeconds))
+                .themeFont(.meta)
+                .foregroundStyle(Theme.secondaryText)
+            if !isEditing { editButton }
+        }
+        Group {
             if showsCover {
-                CollectionCoverView(releaseIDs: model.coverReleaseIDs(of: collection), side: 88)
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(collection.name)
-                    .themeFont(.pageTitle)
-                    .foregroundStyle(Theme.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityIdentifier("collection-queue-title")
-                Text(countLine(tracks: tracks, seconds: summary?.playableSeconds))
-                    .themeFont(.meta)
-                    .foregroundStyle(Theme.secondaryText)
-                if !isEditing {
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 16) { playButton(control); editButton }.fixedSize(horizontal: true, vertical: false)
-                        VStack(alignment: .leading, spacing: 8) { playButton(control); editButton }
+                // Like the release page: the sleeve with its disc, then the name and the count.
+                VStack(spacing: 16) {
+                    CollectionSleeveView(model: model, collection: collection, isEditing: isEditing)
+                    text
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                // The record player: a small sleeve beside the name; the cover plays the collection here too.
+                let sleeve = CollectionSleeveView(model: model, collection: collection, isEditing: isEditing, side: 64)
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 12) { sleeve; text }.frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    HStack(alignment: .center, spacing: 16) {
+                        sleeve
+                        text.frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .padding(.top, 4)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.vertical, 8)
         .onChange(of: playback?.wontPlayTrackIDs ?? []) { old, new in control.announceNewlyMissing(old: old, new: new) }
-    }
-
-    /// Play / Pause keeps its words on one line; the row of buttons drops to a column when they don't fit side by side.
-    private func playButton(_ control: CollectionPlayControl) -> some View {
-        Button(action: control.togglePlay) {
-            Label(CollectionPlayState.pillLabel(isCurrentQueue: control.isPlayingThis, isPlaying: control.isPlaying),
-                  systemImage: control.isPlayingNow ? "pause.fill" : "play.fill")
-        }
-        .accessibilityLabel(CollectionPlayState.pillLabel(isCurrentQueue: control.isPlayingThis, isPlaying: control.isPlaying))
-        .buttonStyle(CollectionPillButtonStyle())
-        .disabled(control.playQueue.isEmpty)
-        .fixedSize(horizontal: true, vertical: false)
     }
 
     @ViewBuilder
@@ -83,7 +82,7 @@ struct CollectionQueueHeader: View {
 }
 
 /// The collection's queue and its "Make it a playlist" guide (#350, #353), shared by the collection page and the record
-/// player (#352): Side A and Side B (the queue split in half), rows that keep "On your Mac" dimming, the accent
+/// player (#352): one plain list in the collection's order (no sides), rows that keep "On your Mac" dimming, the accent
 /// now-playing row and "Couldn't play this track" with Try again, then the guide. Its body is several rows, so it sits
 /// directly in a `List` or a stack.
 struct CollectionQueueRows: View {
@@ -113,20 +112,6 @@ struct CollectionQueueRows: View {
 
     // MARK: Queue
 
-    /// A section header that sticks while the list scrolls: it carries the page's own opaque background, full width, so rows pass under it cleanly.
-    private func stickyHeader(_ title: String) -> some View {
-        Text(title)
-            .themeFont(.sectionTitle)
-            .foregroundStyle(Theme.primaryText)
-            .textCase(nil)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 6)
-            .padding(.horizontal, layout == .list ? 20 : 0)
-            .background(Theme.background)
-            .listRowInsets(EdgeInsets())
-            .accessibilityAddTraits(.isHeader)
-    }
-
     @ViewBuilder
     private func queueSections(_ rows: [CollectionQueue.Row]) -> some View {
         if rows.isEmpty {
@@ -151,27 +136,17 @@ struct CollectionQueueRows: View {
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
             }
-            let half = CollectionQueue.sideACount(rows.count)
-            side(Copy.Collections.sideA, rows: rows, range: 0..<half)
-            if half < rows.count { side(Copy.Collections.sideB, rows: rows, range: half..<rows.count) }
-        }
-    }
-
-    private func side(_ title: String, rows: [CollectionQueue.Row], range: Range<Int>) -> some View {
-        Section {
-            ForEach(range, id: \.self) { index in
-                let row = rows[index]
-                // The row's place among the playable ones: where Play starts from.
-                let playablePosition: Int? = row.isHeld ? rows[..<index].filter(\.isHeld).count : nil
-                queueRow(row, number: index + 1, playablePosition: playablePosition)
-                    .trackActions(rowActions(row))
-                    .sheet(item: addSheetBinding(for: row)) { target in
-                        AddToCollectionSheet(model: model, items: target.items) { addTarget = nil }
-                    }
-                    .modifier(QueueRowChrome(layout: layout))
+            Section {
+                ForEach(CollectionQueue.numbered(rows), id: \.row.id) { entry in
+                    let row = entry.row
+                    queueRow(row, number: entry.number, playablePosition: entry.playablePosition)
+                        .trackActions(rowActions(row))
+                        .sheet(item: addSheetBinding(for: row)) { target in
+                            AddToCollectionSheet(model: model, items: target.items) { addTarget = nil }
+                        }
+                        .modifier(QueueRowChrome(layout: layout))
+                }
             }
-        } header: {
-            stickyHeader(title)
         }
     }
 

@@ -137,12 +137,6 @@ struct RecordWheelTests {
     @Test func deletingDownToNoneLeavesNothingInFront() {
         #expect(RecordWheel.frontAfterChange(oldIDs: ids, oldFront: ids[0], newIDs: []) == nil)
     }
-
-    @Test func sideACarriesTheExtraTrack() {
-        #expect(CollectionQueue.sideACount(27) == 14)
-        #expect(CollectionQueue.sideACount(4) == 2)
-        #expect(CollectionQueue.sideACount(1) == 1)
-    }
 }
 
 struct RecordSpinTests {

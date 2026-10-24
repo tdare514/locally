@@ -16,6 +16,9 @@ struct CollectionDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.appContainer) private var container
+    /// The wash: the collection's first cover, as the release page and the record player take theirs.
+    @State private var palette: AmbientPalette?
     @State private var isRenaming = false
     @State private var renameText = ""
     @State private var isConfirmingDelete = false
@@ -40,6 +43,9 @@ struct CollectionDetailView: View {
     var body: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
+            ArtworkBackdrop(palette: palette ?? .neutral)
+                .overlay { Color.black.opacity(Theme.Immersive.playerScrimOpacity) }
+                .ignoresSafeArea()
             if let collection = model.collection(id) {
                 content(collection)
             } else if let failure = model.readFailure {
@@ -62,6 +68,7 @@ struct CollectionDetailView: View {
         }
         .environment(\.editMode, $editMode)
         .task { model.reload() }
+        .task(id: model.summary(id)?.coverReleaseIDs.first) { await loadPalette() }
         .nameAlert(Copy.Collections.renameTitle, action: Copy.Collections.save, isPresented: $isRenaming, text: $renameText) { name in
             attempt(Copy.Collections.renameFailed) { try model.rename(id, to: name) }
         }
@@ -79,7 +86,7 @@ struct CollectionDetailView: View {
         let visible = model.visibleItems(of: collection)
         return ScrollViewReader { proxy in
         List {
-            CollectionQueueHeader(model: model, collection: collection, isEditing: editMode.isEditing)
+            CollectionQueueHeader(model: model, collection: collection, showsLength: true, isEditing: editMode.isEditing)
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             if let editFailure {
@@ -109,6 +116,11 @@ struct CollectionDetailView: View {
             #endif
         }
         }
+    }
+
+    private func loadPalette() async {
+        guard let cover = model.summary(id)?.coverReleaseIDs.first, let store = container?.coverStore else { palette = nil; return }
+        palette = await Task.detached(priority: .utility) { ArtworkPalette.palette(forCover: store.load(cover)) }.value
     }
 
     // MARK: Edits that can fail
