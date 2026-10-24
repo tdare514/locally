@@ -44,7 +44,7 @@ enum CoverSize: Int, CaseIterable {
     /// The size the grid uses at a text size: from AX3 Small and Medium both use Large (two across), so a title is not cut to a few
     /// letters; at AX1 and AX2 Small steps up to Medium; other sizes are unchanged.
     func forGrid(_ textSize: DynamicTypeSize) -> CoverSize {
-        if textSize >= .accessibility3 { return self == .large ? self : .large }
+        if textSize >= .accessibility3 { return .large }
         if textSize.isAccessibilitySize && self == .small { return .medium }
         return self
     }
