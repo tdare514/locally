@@ -39,6 +39,8 @@ struct StatsView: View {
     @Binding var librarySearchRequest: String?
 
     @State private var path = NavigationPath()
+    /// The sheets the ranked rows' and tiles' long-press menu raises (#364).
+    @State private var trackSheets = TrackActionSheets()
     /// The sleeve a tap has lifted; the next tap on it opens it.
     @State private var armed: Int?
     @State private var palette: AmbientPalette?
@@ -115,6 +117,9 @@ struct StatsView: View {
             }
             .navigationDestination(for: ReleaseTrackRoute.self) { route in
                 ReleaseDetailView(release: route.release, highlightTrackID: route.trackId)
+            }
+            .navigationDestination(for: ReleaseEditRoute.self) { route in
+                ReleaseDetailView(release: route.release, startsEditing: true, scrollsToTrackID: route.trackId)
             }
             .navigationDestination(for: ArtistRoute.self) { route in
                 ArtistPageView(route: route)
@@ -390,16 +395,17 @@ struct StatsView: View {
                     StatsList(
                         items: model.listed, sort: model.sort, today: model.today, round: model.tab == .artists, cache: cache,
                         ownerOf: { model.coverOwner(of: $0) },
-                        label: "\(Copy.Stats.yourHeading(noun)), \(sortPhrase)", onOpen: open
+                        label: "\(Copy.Stats.yourHeading(noun)), \(sortPhrase)", onOpen: open, actions: itemActions
                     )
                 } else {
                     StatsSea(
                         items: model.listed, sort: model.sort, width: room, round: model.tab == .artists, cache: cache,
                         ownerOf: { model.coverOwner(of: $0) },
-                        label: "\(Copy.Stats.yourHeading(noun)), \(sortPhrase)", onOpen: open
+                        label: "\(Copy.Stats.yourHeading(noun)), \(sortPhrase)", onOpen: open, actions: itemActions
                     )
                 }
             }
+            .trackActionSheets(trackSheets)
             .id("list-\(model.layout.rawValue)-\(model.tab.rawValue)-\(model.displayed.kind.rawValue)-\(model.displayed.back)")
         }
     }
@@ -498,6 +504,13 @@ struct StatsView: View {
     }
 
     // MARK: Opening
+
+    /// The long-press menu of a ranked track or album (#364); an artist has none. A track also offers Go to album.
+    private func itemActions(_ item: StatItem) -> TrackActions? {
+        guard let releaseId = item.releaseId, let release = model.releases.first(where: { $0.id == releaseId }) else { return nil }
+        let target: TrackActionsTarget = item.trackId.map { .track(releaseId: releaseId, trackId: $0) } ?? .release(releaseId)
+        return trackSheets.actions(for: target, release: release, goToAlbum: item.trackId != nil) { path.append($0) }
+    }
 
     private func open(_ item: StatItem) {
         model.open(

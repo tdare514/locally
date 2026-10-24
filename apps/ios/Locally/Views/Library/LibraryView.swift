@@ -211,6 +211,9 @@ struct LibraryView: View {
                 // A send that finished (or a retry inside a reconcile) has added a release.
                 load()
             }
+            // One host for the whole screen, so Singles and Albums never present the same request twice (#364), on the
+            // Library's own collections model so its card follows a collection made from the menu.
+            .trackActionSheets(trackSheets, collections: collections)
             .task(id: skyKey) { await ensurePalette(for: skyKey) }
             // No bar on the home screen (the header carries the title); pushed
             // release pages set their own.
@@ -220,6 +223,9 @@ struct LibraryView: View {
             }
             .navigationDestination(for: ReleaseTrackRoute.self) { route in
                 ReleaseDetailView(release: route.release, highlightTrackID: route.trackId)
+            }
+            .navigationDestination(for: ReleaseEditRoute.self) { route in
+                ReleaseDetailView(release: route.release, startsEditing: true, scrollsToTrackID: route.trackId)
             }
             .navigationDestination(for: ArtistRoute.self) { route in
                 ArtistPageView(route: route)
@@ -637,6 +643,14 @@ struct LibraryView: View {
         }
     }
 
+    /// The sheets the rows' and tiles' long-press menu raises (#364).
+    @State private var trackSheets = TrackActionSheets()
+
+    /// The long-press menu of a release's row or tile (#364).
+    private func releaseActions(_ release: Release) -> TrackActions {
+        trackSheets.actions(for: .release(release.id), release: release, goToAlbum: false) { path.append($0) }
+    }
+
     /// Rows in a translucent panel over the sky, separated by a 1 pt `panelStroke`.
     private func listPanel(_ items: [Release]) -> some View {
         let shape = RoundedRectangle(cornerRadius: Theme.Library.listPanelCornerRadius, style: .continuous)
@@ -646,6 +660,7 @@ struct LibraryView: View {
                     .buttonStyle(PressAwareStyle(rowHighlight: true, onPress: { didPress(release) }))
                     .onAppear { visibleIDs.insert(release.id) }
                     .onDisappear { visibleIDs.remove(release.id) }
+                    .trackActions(releaseActions(release))
 
                 if index < items.count - 1 {
                     Rectangle().fill(Theme.Immersive.panelStroke).frame(height: 1)
@@ -670,6 +685,7 @@ struct LibraryView: View {
                     .buttonStyle(PressAwareStyle(rowHighlight: false, onPress: { didPress(release) }))
                     .onAppear { visibleIDs.insert(release.id) }
                     .onDisappear { visibleIDs.remove(release.id) }
+                    .trackActions(releaseActions(release))
             }
         }
     }
