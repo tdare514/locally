@@ -1,0 +1,88 @@
+import Foundation
+
+/// What reading a song's file tells the page: its size, and its length when the index stores none.
+struct SongFileFacts: Equatable, Sendable {
+    var size: Int64?
+    var duration: Double?
+}
+
+/// Reads what the song page shows that is not in the library index (#365): the plays through the play stats
+/// service and the file's size and length. The plays use the service's cache and request budget (never forced), so
+/// opening the page costs at most five cached reads. Signed out, offline or busy leaves the plays nil and the page
+/// hides that group.
+@MainActor
+@Observable
+final class SongPageLoader {
+    /// The five reads, shortest period first, as the Stats tab asks for them.
+    static let periods: [StatsPeriodKind] = StatsPeriodKind.allCases
+
+    private(set) var plays: SongPlays?
+    private(set) var fileSize: Int64?
+    private(set) var readLength: Double?
+    /// The local day the plays were read for, for "last played yesterday".
+    private(set) var today = ""
+
+    @ObservationIgnored private let stats: PlayStatsReading?
+    @ObservationIgnored private let readFile: ((Release, Track) async -> SongFileFacts)?
+
+    init(stats: PlayStatsReading?, readFile: ((Release, Track) async -> SongFileFacts)? = nil) {
+        self.stats = stats
+        self.readFile = readFile
+    }
+
+    /// The production loader: plays from the container's service, the file read inside the Spotify folder's access.
+    convenience init(container: AppContainer) {
+        let coordinator = container.coordinator
+        self.init(stats: container.playStats) { release, track in
+            var only = release
+            only.tracks = [track]
+            let facts: SongFileFacts? = try? await coordinator.withTrackFiles(of: only) { files in
+                guard let url = files.first?.url else { return SongFileFacts() }
+                // The stat and the length read stay off the main thread.
+                let size: Int64? = await Task.detached(priority: .utility) {
+                    ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? NSNumber)?.int64Value
+                }.value
+                let duration = track.durationSec == nil ? await TrackLengthLoader.shared.duration(of: url) : nil
+                return SongFileFacts(size: size, duration: duration)
+            }
+            return facts ?? SongFileFacts()
+        }
+    }
+
+    func load(release: Release, trackID: UUID, now: Date = Date(), calendar: Calendar = .current) async {
+        async let plays: Void = loadPlays(release: release, trackID: trackID, now: now, calendar: calendar)
+        async let file: Void = loadFile(release: release, trackID: trackID)
+        _ = await (plays, file)
+    }
+
+    private func loadPlays(release: Release, trackID: UUID, now: Date, calendar: Calendar) async {
+        guard let stats else { plays = nil; return }
+        let today = PlayPeriods.localDayString(now, calendar: calendar)
+        let firstDay = PlayPeriods.isoFirstDay(fromAppleFirstWeekday: calendar.firstWeekday)
+        self.today = today
+        var reads: [StatsPeriodKind: PlaysSummary] = [:]
+        var signedOut = false
+        // One read per period; the service shares a request between equal ranges and answers from its 5-minute cache.
+        await withTaskGroup(of: (StatsPeriodKind, PlayStatsRead).self) { group in
+            for kind in Self.periods {
+                let range = PlayPeriods.selectionRange(PeriodSelection(kind: kind, back: 0), today: today, firstDay: firstDay)
+                group.addTask { @MainActor in (kind, await stats.summary(from: range.from, to: range.to, force: false)) }
+            }
+            for await (kind, read) in group {
+                switch read {
+                case .ok(let summary): reads[kind] = summary
+                case .signedOut: signedOut = true
+                case .failed, .busy: break
+                }
+            }
+        }
+        plays = signedOut ? nil : SongPlays.make(trackID: trackID, releaseID: release.id, reads: reads)
+    }
+
+    private func loadFile(release: Release, trackID: UUID) async {
+        guard !release.isAdopted, let readFile, let track = release.tracks.first(where: { $0.id == trackID }) else { return }
+        let facts = await readFile(release, track)
+        fileSize = facts.size
+        readLength = facts.duration
+    }
+}

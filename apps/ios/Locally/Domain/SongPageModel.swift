@@ -181,3 +181,34 @@ struct SongPageModel: Equatable, Sendable {
         return bytes == 1 ? "1 byte" : "\(max(0, bytes)) bytes"
     }
 }
+
+/// What a tap on the song's sleeve does (#365): nothing when this phone does not hold the song; otherwise start it
+/// from here, pause it or resume it. Pure, like `CollectionSleeveAction`.
+enum SongSleeveAction: Equatable {
+    case inert, start, pause, resume
+
+    static func resolve(canPlay: Bool, isCurrent: Bool, isPlaying: Bool) -> SongSleeveAction {
+        guard canPlay else { return .inert }
+        guard isCurrent else { return .start }
+        return isPlaying ? .pause : .resume
+    }
+
+    /// "Play Paper Moon" / "Pause Paper Moon" / "Resume Paper Moon"; when it cannot play, why.
+    func label(title: String) -> String {
+        switch self {
+        case .start: Copy.SongPage.playLabel(title)
+        case .pause: Copy.SongPage.pauseLabel(title)
+        case .resume: Copy.SongPage.resumeLabel(title)
+        case .inert: Copy.SongPage.onlyOnMac(title)
+        }
+    }
+
+    var hint: String {
+        switch self {
+        case .start: Copy.SongPage.playHint
+        case .pause: Copy.SongPage.pauseHint
+        case .resume: Copy.SongPage.resumeHint
+        case .inert: ""
+        }
+    }
+}
