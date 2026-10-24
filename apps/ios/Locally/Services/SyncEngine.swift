@@ -119,7 +119,7 @@ final class SyncStatus {
 /// push or reconcile is mid-flight), so a write that lands after such an
 /// action finished must never resurrect a release the user just deleted.
 @MainActor
-final class SyncEngine: ReleaseSyncHook {
+final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
     private let api: SyncApi
     private let account: SyncAccountStore
     private let library: LibraryStore
@@ -139,6 +139,11 @@ final class SyncEngine: ReleaseSyncHook {
     /// Bumps at sign-in, sign-out and account deletion: a play push that started under another value
     /// marks nothing and sends nothing more (the Mac's `pushedEpoch`).
     private var sessionEpoch = 0
+    /// The local collections (#350); `nil` where a caller (most tests) has none, which leaves collection sync off.
+    private let collections: CollectionStore?
+    /// Collections to take from the server whatever their `updatedAt` says: one whose put answered `pruned > 0`
+    /// or 409, so the server's copy replaces ours.
+    private var forcedCollectionIds: Set<UUID> = []
 
     let status: SyncStatus
 
@@ -175,8 +180,10 @@ final class SyncEngine: ReleaseSyncHook {
         shareCovers: ShareCoverCache? = nil,
         playCounts: PlayCountStoring? = nil,
         installIds: InstallIdStoring? = nil,
-        sessionBinding: SessionBindingStoring? = nil
+        sessionBinding: SessionBindingStoring? = nil,
+        collections: CollectionStore? = nil
     ) {
+        self.collections = collections
         self.defaults = defaults
         self.playCounts = playCounts
         self.installIds = installIds
@@ -437,6 +444,35 @@ final class SyncEngine: ReleaseSyncHook {
         }
     }
 
+    // MARK: - CollectionSyncHook
+
+    nonisolated func collectionChanged(_ id: UUID) {
+        Task { @MainActor [weak self] in
+            guard let self, self.isSignedIn else { return }
+            self.enqueueCollection(id, .push)
+            await self.drainOutbox()
+        }
+    }
+
+    nonisolated func collectionDeleted(_ id: UUID) {
+        Task { @MainActor [weak self] in
+            guard let self, self.isSignedIn else { return }
+            self.enqueueCollection(id, .delete)
+            await self.drainOutbox()
+        }
+    }
+
+    @discardableResult
+    private func enqueueCollection(_ id: UUID, _ operation: SyncOutboxEntry.Operation) -> Bool {
+        do {
+            try outbox.enqueueCollection(id, operation)
+            return true
+        } catch {
+            surface(Copy.Sync.queueFailed(error.localizedDescription), error: error)
+            return false
+        }
+    }
+
     // MARK: - Push / tombstone entry points
 
     /// Enqueues `release` for push (if signed in) and drains the outbox.
@@ -497,6 +533,144 @@ final class SyncEngine: ReleaseSyncHook {
             guard let entry = entries.first(where: { !attemptedThisPass.contains($0.releaseId) }) else { break }
             attemptedThisPass.insert(entry.releaseId)
             await send(entry)
+        }
+        // Releases first, then the changed collections, then the collection deletes (`spec/sync.md`).
+        await drainCollections()
+    }
+
+    // MARK: - Collections (#350)
+
+    /// Sends every queued collection put, then every collection delete. An entry that fails is left for the next
+    /// drain; a 404 (an older API) or 429 is skipped without a word.
+    private func drainCollections() async {
+        guard collections != nil else { return }
+        var attempted: Set<UUID> = []
+        for operation in [SyncOutboxEntry.Operation.push, .delete] {
+            while true {
+                let entries: [CollectionOutboxEntry]
+                do {
+                    entries = try outbox.collectionEntries()
+                } catch {
+                    surface(Copy.Sync.queueFailed(error.localizedDescription), error: error)
+                    return
+                }
+                guard let entry = entries.first(where: { $0.operation == operation && !attempted.contains($0.collectionId) }) else { break }
+                attempted.insert(entry.collectionId)
+                switch operation {
+                case .push: await sendCollectionPut(entry.collectionId)
+                case .delete: await sendCollectionDelete(entry.collectionId)
+                }
+            }
+        }
+    }
+
+    private func sendCollectionPut(_ id: UUID) async {
+        guard let collections else { return }
+        let collection: MusicCollection
+        do {
+            guard let found = try collections.get(id) else {
+                // Deleted before this entry was drained: nothing to push (its delete has its own entry).
+                try? outbox.removeCollection(id, ifOperation: .push)
+                return
+            }
+            collection = found
+        } catch {
+            surface(Copy.Sync.libraryUnreadable(error.localizedDescription), error: error)
+            return
+        }
+        do {
+            let result = try await api.putCollection(SyncCollection(collection))
+            try? outbox.removeCollection(id, ifOperation: .push)
+            if result.pruned > 0 {
+                // The server dropped items naming deleted releases: take its copy rather than keep ours.
+                forcedCollectionIds.insert(id)
+                await pullCollections()
+            }
+        } catch SyncApiError.conflict {
+            // The server's copy is newer: last writer wins on the whole record, so drop ours and take theirs.
+            try? outbox.removeCollection(id, ifOperation: .push)
+            forcedCollectionIds.insert(id)
+            await pullCollections()
+        } catch SyncApiError.notFound {
+            Self.log.info("Collections unavailable: the sync server doesn't have the route yet.")
+        } catch SyncApiError.rateLimited {
+            Self.log.info("Collections rate limited; trying again on the next reconcile.")
+        } catch SyncApiError.tooManyCollections {
+            // Stays queued: it goes out once the owner deletes one.
+            try? outbox.recordCollectionFailure(id, error: Copy.Collections.tooMany)
+            surface(Copy.Collections.tooMany, error: SyncApiError.tooManyCollections)
+        } catch {
+            try? outbox.recordCollectionFailure(id, error: error.localizedDescription)
+            status.lastError = error.localizedDescription
+        }
+    }
+
+    private func sendCollectionDelete(_ id: UUID) async {
+        do {
+            try await api.deleteCollection(id.uuidString.lowercased())
+            try? outbox.removeCollection(id, ifOperation: .delete)
+        } catch SyncApiError.notFound {
+            Self.log.info("Collection delete unavailable: the sync server doesn't have the route yet.")
+        } catch SyncApiError.rateLimited {
+            Self.log.info("Collections rate limited; trying again on the next reconcile.")
+        } catch {
+            try? outbox.recordCollectionFailure(id, error: error.localizedDescription)
+            status.lastError = error.localizedDescription
+        }
+    }
+
+    /// Queues every local collection once, on a phone that has never pulled collections (a first sign-in, or a
+    /// new account), so they reach the server. An equal `updatedAt` is accepted there, so a repeat is harmless.
+    private func backfillCollections() {
+        guard let collections, account.lastCollectionVersion == 0, let all = try? collections.all() else { return }
+        for collection in all { enqueueCollection(collection.id, .push) }
+    }
+
+    /// Pages `GET /v1/collections` from the saved cursor and applies each record. Never throws: a 404 (an older
+    /// API) or 429 is skipped quietly and retried next reconcile, anything else is shown and retried too, and
+    /// neither stops the rest of the reconcile.
+    private func pullCollections() async {
+        guard let collections else { return }
+        var cursor = account.lastCollectionVersion
+        for _ in 0..<Self.maxReleasePagesPerReconcile {
+            let page: SyncCollectionsPage
+            do {
+                page = try await api.collections(sinceVersion: cursor, limit: syncReleasesPageLimit)
+            } catch SyncApiError.notFound {
+                Self.log.info("Collections unavailable: the sync server doesn't have the route yet.")
+                return
+            } catch SyncApiError.rateLimited {
+                Self.log.info("Collections rate limited; trying again on the next reconcile.")
+                return
+            } catch {
+                surface(error.localizedDescription, error: error)
+                return
+            }
+            guard isSignedIn else { return }
+            for record in page.collections { applyRemote(record, to: collections) }
+            account.lastCollectionVersion = page.nextVersion
+            guard page.hasMore, page.nextVersion > cursor else { return }
+            cursor = page.nextVersion
+        }
+    }
+
+    /// A pulled tombstone removes the local collection. Any other record replaces ours when it is newer, or when
+    /// we were told to take it (`forcedCollectionIds`); an echo of what we hold changes nothing.
+    private func applyRemote(_ record: SyncCollection, to collections: CollectionStore) {
+        guard let remote = record.collection else { return }
+        do {
+            let forced = forcedCollectionIds.remove(remote.id) != nil
+            if record.deleted {
+                try collections.delete(id: remote.id)
+                try? outbox.removeCollection(remote.id, ifOperation: .push)
+                return
+            }
+            if let local = try collections.get(remote.id), !forced, remote.updatedAt <= local.updatedAt { return }
+            try collections.upsert(remote)
+            // Our queued put was for an older copy; the server's replaces it.
+            try? outbox.removeCollection(remote.id, ifOperation: .push)
+        } catch {
+            surface(Copy.Sync.libraryUnreadable(error.localizedDescription), error: error)
         }
     }
 
@@ -716,6 +890,7 @@ final class SyncEngine: ReleaseSyncHook {
             // reflected in the very next fetch below, so `lastVersion`
             // converges in this one pass rather than lagging a cycle.
             await backfillUnpushed()
+            backfillCollections()
             await drainOutbox()
             await pushPlays()
             // Retried before the fetch below, not after: a cover download
@@ -738,6 +913,9 @@ final class SyncEngine: ReleaseSyncHook {
                 defaults.set(true, forKey: Self.fullRefetchKey)
                 defaults.set(true, forKey: Self.adoptedCoverRefetchKey)
             }
+
+            // Collections after the releases they name (#350).
+            await pullCollections()
 
             await retryFailedAccepts()
             await refreshReceivedShares()
@@ -1563,4 +1741,11 @@ final class SyncEngine: ReleaseSyncHook {
         default: return "application/octet-stream"
         }
     }
+}
+
+/// What the collections UI tells the sync engine (#350): a collection was made or changed, or deleted.
+/// `SyncEngine` queues it in the outbox and drains.
+protocol CollectionSyncHook: AnyObject {
+    func collectionChanged(_ id: UUID)
+    func collectionDeleted(_ id: UUID)
 }

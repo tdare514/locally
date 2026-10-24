@@ -69,6 +69,10 @@ struct LibraryView: View {
     @State private var catalog = ArtistCatalog(releases: [])
     @State private var artistCovers: ArtistCoverSource?
     @State private var path = NavigationPath()
+    /// The collections (#350): the row under the title, the Collections screen and a collection's queue share it.
+    @State private var collections: CollectionsModel?
+    @State private var isNamingCollection = false
+    @State private var newCollectionName = ""
 
     /// A release's cover identity: a replaced cover bumps `updatedAt`.
     private struct CoverKey: Hashable {
@@ -195,6 +199,19 @@ struct LibraryView: View {
             .navigationDestination(for: ArtistRoute.self) { route in
                 ArtistPageView(route: route)
             }
+            .navigationDestination(for: CollectionsRoute.self) { _ in
+                if let collections {
+                    CollectionsView(model: collections) { path.append(CollectionRoute(id: $0)) }
+                }
+            }
+            .navigationDestination(for: CollectionRoute.self) { route in
+                if let collections {
+                    CollectionDetailView(model: collections, id: route.id) { path = NavigationPath() }
+                }
+            }
+            .nameAlert(Copy.Collections.nameTitle, action: Copy.Collections.create, isPresented: $isNamingCollection, text: $newCollectionName) { name in
+                if let id = collections?.create(name: name) { path.append(CollectionRoute(id: id)) }
+            }
             // `.onAppear` (not `.task`) so returning from `ReleaseDetailView`
             // after a save/delete re-reads the store and reflects it here.
             .onAppear {
@@ -274,6 +291,16 @@ struct LibraryView: View {
             // Top of the visible 40 pt glass level with the eyebrow's top; the 44 pt hit area
             // ends at the 16 pt gutter, so the badge inside it never crosses.
             devicesButton.offset(y: -2)
+        }
+        if let collections {
+            CollectionsLibraryRow(
+                model: collections,
+                onOpen: { path.append(CollectionsRoute()) },
+                onNew: {
+                    newCollectionName = ""
+                    isNamingCollection = true
+                }
+            )
         }
         searchField
         controls
@@ -729,6 +756,8 @@ struct LibraryView: View {
 
     private func load() {
         guard let container else { return }
+        if collections == nil { collections = container.makeCollectionsModel() }
+        collections?.reload()
         do {
             releases = try container.library.all().sorted { $0.updatedAt > $1.updatedAt }
             catalog = ArtistCatalog(releases: releases)

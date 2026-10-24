@@ -45,6 +45,8 @@ final class AppContainer {
     let folderStatus: FolderStatus
     let purchaseStatus: PurchaseStatus
     let modelContainer: ModelContainer
+    /// The collections (#350).
+    let collections: CollectionStore
     /// The app-wide player (#336); its audio pieces are created on first play.
     let playback: PlaybackService
 
@@ -66,8 +68,10 @@ final class AppContainer {
         syncEngine: SyncEngine,
         playStats: PlayStatsReading,
         modelContainer: ModelContainer,
-        playCounts: PlayCountStoring? = nil
+        playCounts: PlayCountStoring? = nil,
+        collections: CollectionStore? = nil
     ) {
+        self.collections = collections ?? SwiftDataCollectionStore(context: modelContainer.mainContext)
         self.folder = folder
         self.library = library
         self.importer = importer
@@ -136,6 +140,7 @@ final class AppContainer {
         let outbox = SwiftDataSyncOutbox(context: modelContainer.mainContext)
         let playCounts = FilePlayCountStore.standard()
         let installIds = FileInstallIdStore.standard()
+        let collections = SwiftDataCollectionStore(context: modelContainer.mainContext)
         let syncEngine = SyncEngine(
             api: syncApi,
             account: syncAccount,
@@ -147,7 +152,8 @@ final class AppContainer {
             shareCovers: ShareCoverCache.standard(),
             playCounts: playCounts,
             installIds: installIds,
-            sessionBinding: FileSessionBindingStore.standard()
+            sessionBinding: FileSessionBindingStore.standard(),
+            collections: collections
         )
         let container = AppContainer(
             folder: folder,
@@ -162,7 +168,8 @@ final class AppContainer {
             syncEngine: syncEngine,
             playStats: SyncPlayStatsService(api: syncApi, account: syncAccount),
             modelContainer: modelContainer,
-            playCounts: playCounts
+            playCounts: playCounts,
+            collections: collections
         )
         Task { await container.refreshPurchaseStatus() }
         return container
@@ -186,7 +193,8 @@ final class AppContainer {
         syncApi: SyncApi,
         outbox: SyncOutbox? = nil,
         deviceName: @escaping () -> String = { "Test Device" },
-        playStats: PlayStatsReading? = nil
+        playStats: PlayStatsReading? = nil,
+        collections: CollectionStore? = nil
     ) -> AppContainer {
         // swiftlint:disable:next force_try
         let modelContainer = try! ModelStore.open(at: nil)
@@ -212,7 +220,8 @@ final class AppContainer {
             coordinator: coordinator,
             coverStore: coverStore,
             outbox: resolvedOutbox,
-            deviceName: deviceName
+            deviceName: deviceName,
+            collections: collections
         )
         return AppContainer(
             folder: folder,
@@ -226,7 +235,8 @@ final class AppContainer {
             syncApi: syncApi,
             syncEngine: syncEngine,
             playStats: playStats ?? SyncPlayStatsService(api: syncApi, account: syncAccount),
-            modelContainer: modelContainer
+            modelContainer: modelContainer,
+            collections: collections
         )
     }
 }

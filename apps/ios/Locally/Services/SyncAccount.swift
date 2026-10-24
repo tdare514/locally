@@ -29,6 +29,8 @@ protocol SyncAccountStore: AnyObject {
     /// The last `version` reconcile saw from `GET /v1/releases`, so the next
     /// call only pages in what changed since. `0` before the first sync.
     var lastVersion: Int { get set }
+    /// The same cursor for `GET /v1/collections` (#350): the last `nextVersion` a collections page gave.
+    var lastCollectionVersion: Int { get set }
     /// The device name the server echoed from `POST /v1/auth/verify`, shown in
     /// Settings; `nil` when signed out or when signed in before it was stored.
     var deviceName: String? { get set }
@@ -69,6 +71,7 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
         static let email = "com.tdare.locally.sync.email"
         static let deviceId = "com.tdare.locally.sync.deviceId"
         static let lastVersion = "com.tdare.locally.sync.lastVersion"
+        static let lastCollectionVersion = "com.tdare.locally.sync.lastCollectionVersion"
         static let deviceName = "com.tdare.locally.sync.deviceName"
         static let userId = "com.tdare.locally.sync.userId"
         static let lastMissingFilesCheckAt = "com.tdare.locally.sync.lastMissingFilesCheckAt"
@@ -116,6 +119,11 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
         set { defaults.set(newValue, forKey: Key.lastVersion) }
     }
 
+    var lastCollectionVersion: Int {
+        get { defaults.integer(forKey: Key.lastCollectionVersion) }
+        set { defaults.set(newValue, forKey: Key.lastCollectionVersion) }
+    }
+
     var deviceName: String? {
         get { defaults.string(forKey: Key.deviceName) }
         set {
@@ -157,6 +165,7 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
         defaults.removeObject(forKey: Key.email)
         defaults.removeObject(forKey: Key.deviceId)
         defaults.removeObject(forKey: Key.lastVersion)
+        defaults.removeObject(forKey: Key.lastCollectionVersion)
         defaults.removeObject(forKey: Key.deviceName)
         defaults.removeObject(forKey: Key.userId)
         defaults.removeObject(forKey: Key.lastMissingFilesCheckAt)

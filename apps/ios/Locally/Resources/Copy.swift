@@ -322,6 +322,54 @@ enum Copy {
     }
 
     /// Playing a track inside Locally (#336).
+    /// Collections (#339, #350): the plan's "States and wording" table word for word, then the labels around it.
+    enum Collections {
+        static let title = "Collections"
+        static let newCollection = "New collection"
+        static let searchPlaceholder = "Search collections"
+        static func noMatches(_ query: String) -> String { "No matches for \u{201C}\(query)\u{201D}" }
+        /// No collections: the Collections screen's empty record, and the Library row (smaller).
+        static let emptyLine = "Make your first collection: a mixtape of any tracks and releases."
+        /// An empty collection: its queue.
+        static let emptyCollection = "Nothing here yet. Add tracks from any release or track row."
+        static let addTracks = "Add tracks"
+        /// The devices line on a queue row whose audio isn't on this phone.
+        static let onYourMac = "On your Mac"
+        /// Shown where Play will sit when no row is on this phone.
+        static let nonePlayable = "None of these tracks are on this iPhone."
+        /// A 409 `too_many_collections`: the put stays queued. (The plan gives no wording; this is the executor's.)
+        static let tooMany = "You have the most collections allowed. Delete one and this one will sync."
+        static func trackCount(_ count: Int) -> String { count == 1 ? "1 track" : "\(count) tracks" }
+        static func rowLabel(name: String, tracks: Int) -> String { "\(name), \(trackCount(tracks))" }
+        static let edit = "Edit"
+        static let done = "Done"
+        static let rename = "Rename"
+        static let renameTitle = "Rename collection"
+        static let namePlaceholder = "Name"
+        static let nameTitle = "Name your collection"
+        static let create = "Create"
+        static let save = "Save"
+        static let cancel = "Cancel"
+        static let delete = "Delete collection"
+        static let deleteTitle = "Delete this collection?"
+        static let deleteMessage = "The releases and tracks in it stay in your library."
+        static let removeItem = "Remove from collection"
+        static let moveUp = "Move up"
+        static let moveDown = "Move down"
+        static let queueHeading = "Queue"
+        static let itemsHeading = "In this collection"
+        static let reorderHint = "Drag to reorder."
+        static let addToCollection = "Add to collection"
+        static let addSheetTitle = "Add to a collection"
+        static func added(_ count: Int, to name: String) -> String {
+            count == 0 ? "Already in \(name)" : "Added to \(name)"
+        }
+        static func releaseItem(tracks: Int) -> String { "Release, \(trackCount(tracks))" }
+        static let trackItem = "Track"
+        static func countLine(_ count: Int) -> String { count == 1 ? "1 collection" : "\(count) collections" }
+        static let libraryRowHint = "Opens your collections"
+    }
+
     enum Playback {
         static func play(_ title: String) -> String { "Play \(title)" }
         static func pause(_ title: String) -> String { "Pause \(title)" }

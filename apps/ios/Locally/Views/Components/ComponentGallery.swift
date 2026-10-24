@@ -33,7 +33,9 @@ struct ComponentGallery: View {
         "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save",
         // #183: sharing. The share sheet, its Link option and result, the friends tray, "Shared by you".
         "share-sheet", "share-sheet-link", "share-sheet-result", "share-sheet-signed-out", "share-sheet-large-text",
-        "devices-tray-friends", "devices-tray-friends-large-text", "shared-by-you", "shared-by-you-large-text", "release-share-blocked"]
+        "devices-tray-friends", "devices-tray-friends-large-text", "shared-by-you", "shared-by-you-large-text", "release-share-blocked",
+        // #350: collections in List view over seeded sample collections.
+        "collections-library", "collections-screen", "collections-queue", "collections-edit", "collections-empty", "collections-queue-ax", "collections-add"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -52,7 +54,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("player-") || name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || name.hasPrefix("share") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "root-banner", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save", "release-share-blocked"].contains(name)
+        name.hasPrefix("collections-") || name.hasPrefix("player-") || name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || name.hasPrefix("share") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "root-banner", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save", "release-share-blocked"].contains(name)
     }
 
     var body: some View {
@@ -212,6 +214,20 @@ struct ComponentGallery: View {
             IconsGallery.featuringRelease()
         case "release-featuring-edit":
             IconsGallery.featuringRelease(editing: true)
+        case "collections-library":
+            CollectionsGallery.library()
+        case "collections-screen":
+            CollectionsGallery.screen()
+        case "collections-empty":
+            CollectionsGallery.screen(seed: false)
+        case "collections-queue":
+            CollectionsGallery.queue()
+        case "collections-queue-ax":
+            CollectionsGallery.queue().dynamicTypeSize(.accessibility3)
+        case "collections-edit":
+            CollectionsGallery.queue(editing: true)
+        case "collections-add":
+            CollectionsGallery.addSheet()
         case "icons-tabs-library", "icons-library-list":
             IconsGallery.tabs(selected: .library, layout: .list)
         case "icons-library-grid":
@@ -1244,5 +1260,68 @@ private struct GalleryAccess: PlaybackFileAccess {
 
 @MainActor private final class GalleryRemote: RemoteCommandRegistrar {
     func register(_ handler: @escaping (RemoteCommand) -> Void) {}
+}
+
+
+/// #350: the Library row, the Collections screen, a queue (with a Mac-only release), its edit mode and the add sheet,
+/// over sample collections in the in-memory store. Nothing here signs in or syncs.
+@MainActor
+enum CollectionsGallery {
+    /// A release this phone has only the details of (adopted from the Mac): its rows show "On your Mac".
+    private static let macOnly = Release(
+        id: UUID(uuidString: "00000000-0000-0000-0000-0000000000a1")!, kind: .album, title: "Harbour Sessions", artist: "Okoro",
+        coverPath: "/cover/3.png", folderPath: "/mac", tracks: [
+            Track(title: "Low Light", trackNumber: 1, filePath: "", originalName: "", durationSec: 241),
+            Track(title: "Fog Horn", trackNumber: 2, filePath: "", originalName: "", durationSec: 198),
+        ], source: .adopted)
+
+    static let queueID = UUID(uuidString: "00000000-0000-0000-0000-0000000000c1")!
+
+    private static func container(seed: Bool) -> (AppContainer, CollectionsModel) {
+        let container = IconsGallery.container(releases: StatsGallery.releases + [macOnly])
+        if seed {
+            let r = StatsGallery.releases
+            let stamp = Date()
+            func make(_ id: UUID, _ name: String, _ items: [CollectionItem], _ age: Double) -> MusicCollection {
+                MusicCollection(id: id, name: name, items: items, origin: "ios", originDevice: "Gallery", createdAt: stamp, updatedAt: stamp.addingTimeInterval(-age))
+            }
+            let collections = [
+                make(queueID, "Late drives", [.release(r[0].id), .track(releaseId: r[1].id, trackId: r[1].tracks[0].id), .release(macOnly.id), .release(r[2].id)], 0),
+                make(UUID(), "Sunday morning, slow coffee", [.release(r[3].id), .release(r[4].id)], 60),
+                make(UUID(), "Gym", [.track(releaseId: r[5].id, trackId: r[5].tracks[0].id)], 120),
+                make(UUID(), "Someday", [], 180),
+            ]
+            for collection in collections { try? container.collections.upsert(collection) }
+        }
+        let model = container.makeCollectionsModel()
+        model.reload()
+        return (container, model)
+    }
+
+    static func library() -> some View {
+        UserDefaults.standard.set(LibraryLayout.list.rawValue, forKey: LibraryViewPrefs.layoutKey)
+        let (container, _) = container(seed: true)
+        return IconsGallery.environment(IconsLibrary(openTray: false), container)
+    }
+
+    static func screen(seed: Bool = true) -> some View {
+        let (container, model) = container(seed: seed)
+        return IconsGallery.environment(NavigationStack { CollectionsView(model: model) { _ in } }, container)
+    }
+
+    static func queue(editing: Bool = false) -> some View {
+        let (container, model) = container(seed: true)
+        return IconsGallery.environment(NavigationStack { CollectionDetailView(model: model, id: queueID, startsEditing: editing) {} }, container)
+    }
+
+    static func addSheet() -> some View {
+        let (container, model) = container(seed: true)
+        let target = StatsGallery.releases[5]
+        return IconsGallery.environment(
+            Color.black.sheet(isPresented: .constant(true)) {
+                AddToCollectionSheet(model: model, items: [.release(target.id)]) {}
+            },
+            container)
+    }
 }
 #endif

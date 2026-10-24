@@ -150,6 +150,9 @@ enum SyncApiError: LocalizedError, Equatable {
     case notFound
     /// A 429 on a route that rate-limits (`/v1/files/*`, #171; `/v1/plays/summary`, #204). Same scoping as `.notFound`.
     case rateLimited
+    /// A 409 `{ "error": "too_many_collections" }` on `PUT /v1/collections/:id` (#350): the account holds the
+    /// most live collections allowed, so this new one stays queued.
+    case tooManyCollections
     case network(String)
     /// The request got no HTTP response at all (offline, refused, timed out). Distinct from `.network`, which also covers an HTTP error status, so a caller can tell whether the service was reached.
     case unreachable(String)
@@ -166,6 +169,8 @@ enum SyncApiError: LocalizedError, Equatable {
             return "The sync server doesn't have that yet."
         case .rateLimited:
             return "The sync server is busy. Try again soon."
+        case .tooManyCollections:
+            return Copy.Collections.tooMany
         case .network(let message), .unreachable(let message):
             return message
         }
@@ -192,6 +197,15 @@ protocol SyncApi {
     /// `DELETE /v1/releases/:id` (a tombstone). Returns the new version.
     @discardableResult
     func deleteRelease(_ id: String) async throws -> Int
+    /// `GET /v1/collections` (#350), paged like the releases. Throws `.notFound` on an API that predates the
+    /// route and `.rateLimited` on a 429.
+    func collections(sinceVersion: Int, limit: Int) async throws -> SyncCollectionsPage
+    /// `PUT /v1/collections/:id`. Throws `.conflict` when the stored copy is newer and `.tooManyCollections`
+    /// at the per-account cap, `.notFound` / `.rateLimited` as above.
+    func putCollection(_ record: SyncCollection) async throws -> SyncCollectionPutResult
+    /// `DELETE /v1/collections/:id` (a tombstone). Returns the new version.
+    @discardableResult
+    func deleteCollection(_ id: String) async throws -> Int
     /// `POST /v1/releases/:id/files`. The server returns an upload ticket
     /// only for files it doesn't already have, so "upload missing files"
     /// falls out of uploading exactly what comes back here.
@@ -340,6 +354,44 @@ final class HttpSyncApi: SyncApi {
     @discardableResult
     func deleteRelease(_ id: String) async throws -> Int {
         let data = try await send(path: "/v1/releases/\(id)", method: "DELETE")
+        struct Response: Decodable { let version: Int }
+        return try decode(Response.self, from: data).version
+    }
+
+    // MARK: - Collections
+
+    func collections(sinceVersion: Int, limit: Int) async throws -> SyncCollectionsPage {
+        let data = try await send(
+            path: "/v1/collections?sinceVersion=\(sinceVersion)&limit=\(limit)", method: "GET",
+            statusErrors: [404: .notFound, 429: .rateLimited]
+        )
+        struct Response: Decodable {
+            let collections: [SyncCollectionPageElement]
+            let nextVersion: Int
+            let hasMore: Bool?
+        }
+        let decoded = try decode(Response.self, from: data)
+        return SyncCollectionsPage(
+            collections: decoded.collections.compactMap(\.collection),
+            nextVersion: decoded.nextVersion,
+            hasMore: decoded.hasMore ?? false
+        )
+    }
+
+    func putCollection(_ record: SyncCollection) async throws -> SyncCollectionPutResult {
+        let body = try JSONEncoder.syncApi.encode(record)
+        let data = try await send(
+            path: "/v1/collections/\(record.id)", method: "PUT", bodyData: body,
+            statusErrors: [404: .notFound, 429: .rateLimited]
+        )
+        struct Response: Decodable { let version: Int; let pruned: Int? }
+        let decoded = try decode(Response.self, from: data)
+        return SyncCollectionPutResult(version: decoded.version, pruned: decoded.pruned ?? 0)
+    }
+
+    @discardableResult
+    func deleteCollection(_ id: String) async throws -> Int {
+        let data = try await send(path: "/v1/collections/\(id)", method: "DELETE", statusErrors: [404: .notFound, 429: .rateLimited])
         struct Response: Decodable { let version: Int }
         return try decode(Response.self, from: data).version
     }
@@ -642,6 +694,7 @@ final class HttpSyncApi: SyncApi {
         case 401:
             throw SyncApiError.unauthorized
         case 409:
+            if message == "too_many_collections" { throw SyncApiError.tooManyCollections }
             throw SyncApiError.conflict(serverUpdatedAt: nil)
         case 402, 413:
             throw SyncApiError.quotaExceeded

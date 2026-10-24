@@ -18,6 +18,15 @@ struct SyncOutboxEntry: Equatable {
     var enqueuedAt: Date
 }
 
+/// A single collection's pending sync work (#350): `push` is a put of its current state, `delete` a tombstone.
+struct CollectionOutboxEntry: Equatable {
+    let collectionId: UUID
+    var operation: SyncOutboxEntry.Operation
+    var attempts: Int
+    var lastError: String?
+    var enqueuedAt: Date
+}
+
 /// A persistent queue of sync work that survives a process restart, so a
 /// delete (or push) made while the app is being killed, or while offline,
 /// is not lost the way a bare `Task { ... }` would lose it (#19).
@@ -46,6 +55,22 @@ protocol SyncOutbox: AnyObject {
     func recordFailure(_ releaseId: UUID, error: String) throws
     func remove(_ releaseId: UUID, ifOperation operation: SyncOutboxEntry.Operation) throws
     func removeAll() throws
+
+    /// Collection puts and deletes (#350), kept apart from the releases' entries and under the same rules:
+    /// one entry per collection id, a delete replaces anything queued, a push is a no-op when an entry exists
+    /// (it reads the collection's latest state when it is sent). `removeAll()` clears both kinds. The defaults
+    /// are for conformers that hold no collections.
+    func collectionEntries() throws -> [CollectionOutboxEntry]
+    func enqueueCollection(_ id: UUID, _ operation: SyncOutboxEntry.Operation) throws
+    func recordCollectionFailure(_ id: UUID, error: String) throws
+    func removeCollection(_ id: UUID, ifOperation operation: SyncOutboxEntry.Operation) throws
+}
+
+extension SyncOutbox {
+    func collectionEntries() throws -> [CollectionOutboxEntry] { [] }
+    func enqueueCollection(_ id: UUID, _ operation: SyncOutboxEntry.Operation) throws {}
+    func recordCollectionFailure(_ id: UUID, error: String) throws {}
+    func removeCollection(_ id: UUID, ifOperation operation: SyncOutboxEntry.Operation) throws {}
 }
 
 /// SwiftData-backed `@Model` mirroring `SyncOutboxEntry`.
@@ -59,6 +84,24 @@ final class SyncOutboxRecord {
 
     init(releaseId: UUID, operationRaw: String, attempts: Int, lastError: String?, enqueuedAt: Date) {
         self.releaseId = releaseId
+        self.operationRaw = operationRaw
+        self.attempts = attempts
+        self.lastError = lastError
+        self.enqueuedAt = enqueuedAt
+    }
+}
+
+/// SwiftData-backed `@Model` mirroring `CollectionOutboxEntry` (an additive model).
+@Model
+final class CollectionOutboxRecord {
+    @Attribute(.unique) var collectionId: UUID = UUID()
+    var operationRaw: String = "push"
+    var attempts: Int = 0
+    var lastError: String?
+    var enqueuedAt: Date = Date(timeIntervalSince1970: 0)
+
+    init(collectionId: UUID, operationRaw: String, attempts: Int, lastError: String?, enqueuedAt: Date) {
+        self.collectionId = collectionId
         self.operationRaw = operationRaw
         self.attempts = attempts
         self.lastError = lastError
@@ -129,8 +172,63 @@ final class SwiftDataSyncOutbox: SyncOutbox {
         try onMain {
             let records = try context.fetch(FetchDescriptor<SyncOutboxRecord>())
             for record in records { context.delete(record) }
+            for record in try context.fetch(FetchDescriptor<CollectionOutboxRecord>()) { context.delete(record) }
             try context.save()
         }
+    }
+
+    func collectionEntries() throws -> [CollectionOutboxEntry] {
+        try onMain {
+            let records = try context.fetch(FetchDescriptor<CollectionOutboxRecord>(
+                sortBy: [SortDescriptor(\.enqueuedAt, order: .forward)]
+            ))
+            return records.compactMap { record in
+                guard let operation = SyncOutboxEntry.Operation(rawValue: record.operationRaw) else { return nil }
+                return CollectionOutboxEntry(
+                    collectionId: record.collectionId, operation: operation, attempts: record.attempts,
+                    lastError: record.lastError, enqueuedAt: record.enqueuedAt
+                )
+            }
+        }
+    }
+
+    func enqueueCollection(_ id: UUID, _ operation: SyncOutboxEntry.Operation) throws {
+        try onMain {
+            if let existing = try fetchCollectionEntry(id) {
+                guard operation == .delete else { return }
+                existing.operationRaw = operation.rawValue
+                existing.attempts = 0
+                existing.lastError = nil
+                existing.enqueuedAt = Date()
+            } else {
+                context.insert(CollectionOutboxRecord(
+                    collectionId: id, operationRaw: operation.rawValue, attempts: 0, lastError: nil, enqueuedAt: Date()
+                ))
+            }
+            try context.save()
+        }
+    }
+
+    func recordCollectionFailure(_ id: UUID, error: String) throws {
+        try onMain {
+            guard let existing = try fetchCollectionEntry(id) else { return }
+            existing.attempts += 1
+            existing.lastError = error
+            try context.save()
+        }
+    }
+
+    func removeCollection(_ id: UUID, ifOperation operation: SyncOutboxEntry.Operation) throws {
+        try onMain {
+            guard let existing = try fetchCollectionEntry(id), existing.operationRaw == operation.rawValue else { return }
+            context.delete(existing)
+            try context.save()
+        }
+    }
+
+    private func fetchCollectionEntry(_ id: UUID) throws -> CollectionOutboxRecord? {
+        let predicate = #Predicate<CollectionOutboxRecord> { $0.collectionId == id }
+        return try context.fetch(FetchDescriptor(predicate: predicate)).first
     }
 
     private func fetch(_ releaseId: UUID) throws -> SyncOutboxRecord? {
