@@ -232,6 +232,8 @@ final class PlaybackService {
     func pause() {
         guard hasQueue else { return }
         wantsToPlay = false
+        // An explicit pause also cancels any "resume when the interruption ends".
+        resumeAfterInterruption = false
         guard isPlaying else { return }
         engine.pause()
         isPlaying = false
@@ -421,13 +423,21 @@ final class PlaybackService {
                     return .failed
                 }
                 missingTrackIDs.remove(track.id)
-                if !wantsToPlay {
-                    // Paused (or interrupted, or headphones out) while the file was opening: the item waits
-                    // here, paused at 0 with its access held, until a resume.
-                    isPlaying = false
-                    publish()
+                // Wait in a loop: every wake-up rechecks the intent, the run and cancellation, so a
+                // `resume()` followed at once by a `pause()` (or headphones out) never reaches the engine.
+                var announcedPaused = false
+                while true {
+                    guard !Task.isCancelled, token == runToken else { return .stopped }
+                    if wantsToPlay { break }
+                    if !announcedPaused {
+                        // Paused (or interrupted, or headphones out) while the file was opening: the item
+                        // waits here, paused at 0 with its access held, until a resume.
+                        announcedPaused = true
+                        isPlaying = false
+                        publish()
+                    }
                     let go: Bool = await withCheckedContinuation { intentWaiter = $0 }
-                    guard go, !Task.isCancelled, token == runToken else { return .stopped }
+                    if !go { return .stopped }
                 }
                 isPlaying = true
                 itemLoaded = true

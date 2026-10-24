@@ -338,4 +338,63 @@ struct PlaybackServiceTests {
         #expect(access.isOpen.isEmpty)
         #expect(engine.played.isEmpty)
     }
+
+    @Test func resumeThenPauseBackToBackOnAWaitingItemNeverPlays() async {
+        let r = await playOpening { service.pause() }
+        #expect(engine.played.isEmpty)
+        service.resume()
+        service.pause()
+        await settle()
+        #expect(engine.played.isEmpty)
+        #expect(!service.isPlaying)
+        #expect(service.currentTrack?.id == id(r, 2))
+        service.resume()
+        await settle()
+        #expect(engine.played.map(\.lastPathComponent) == ["t2.mp3"])
+        #expect(service.isPlaying)
+    }
+
+    @Test func resumeThenHeadphonesOutOnAWaitingItemNeverPlays() async {
+        let r = await playOpening { service.pause() }
+        service.resume()
+        service.handle(RouteChangeEvent.builtInSpeaker)
+        await settle()
+        #expect(engine.played.isEmpty)
+        #expect(!service.isPlaying)
+        #expect(service.currentTrack?.id == id(r, 2))
+        service.resume()
+        await settle()
+        #expect(engine.played.count == 1)
+    }
+
+    @Test func resumeThenInterruptionOnAWaitingItemNeverPlays() async {
+        _ = await playOpening { service.pause() }
+        service.resume()
+        service.handle(InterruptionEvent.began)
+        await settle()
+        #expect(engine.played.isEmpty)
+        #expect(!service.isPlaying)
+    }
+
+    @Test func anExplicitPauseCancelsTheResumeAfterAnInterruption() async {
+        let r = release()
+        service.play(release: r, startingAt: id(r, 1))
+        await settle()
+        service.handle(InterruptionEvent.began)
+        remote.handler?(.pause)
+        service.handle(InterruptionEvent.ended(shouldResume: true))
+        await settle()
+        #expect(!service.isPlaying)
+        #expect(engine.resumeCount == 0)
+    }
+
+    @Test func anExplicitPauseDuringTheOpenCancelsTheResumeAfterAnInterruption() async {
+        _ = await playOpening {
+            service.handle(InterruptionEvent.began)
+            remote.handler?(.pause)
+            service.handle(InterruptionEvent.ended(shouldResume: true))
+        }
+        #expect(engine.played.isEmpty)
+        #expect(!service.isPlaying)
+    }
 }
