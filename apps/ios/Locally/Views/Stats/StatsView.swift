@@ -42,6 +42,9 @@ struct StatsView: View {
     /// The sleeve a tap has lifted; the next tap on it opens it.
     @State private var armed: Int?
     @State private var palette: AmbientPalette?
+    @State private var periodOpen = false
+    /// The component gallery opens the period pop-up once the page is up.
+    private let openPeriodOnAppear: Bool
     @State private var isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
 
     @Environment(\.scenePhase) private var scenePhase
@@ -54,7 +57,8 @@ struct StatsView: View {
 
     @Environment(SyncStatus.self) private var syncStatus
 
-    init(model: StatsViewModel, cache: StatsCoverCache, selectedTab: Binding<RootView.Tab>, librarySearchRequest: Binding<String?>) {
+    init(model: StatsViewModel, cache: StatsCoverCache, selectedTab: Binding<RootView.Tab>, librarySearchRequest: Binding<String?>, periodOpen: Bool = false) {
+        openPeriodOnAppear = periodOpen
         _model = State(initialValue: model)
         self.cache = cache
         _selectedTab = selectedTab
@@ -205,8 +209,10 @@ struct StatsView: View {
                         .padding(.horizontal, 6)
                 }
                 periodPicker
+                    .frame(maxWidth: .infinity)
                 if model.showsStepper { stepper }
                 tabPicker
+                    .frame(maxWidth: .infinity)
             }
             Group {
                 switch model.phase {
@@ -280,13 +286,12 @@ struct StatsView: View {
     }
 
     private var periodPicker: some View {
-        GlowSwitch(
-            options: Copy.Stats.periodShortOptions.map { (value: $0.kind, icon: nil, label: $0.label) },
-            selection: Binding(get: { model.period.kind }, set: { model.selectKind($0) }),
-            tint: tint, compact: true, overflow: .scroll
-        )
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(Copy.Stats.timeFrameLabel)
+        StatsPeriodPill(current: model.period.kind, tint: tint, isPresented: $periodOpen) { model.selectKind($0) }
+            .task {
+                guard openPeriodOnAppear else { return }
+                try? await Task.sleep(for: .seconds(1.5))
+                periodOpen = true
+            }
     }
 
     private var stepper: some View {
@@ -365,7 +370,7 @@ struct StatsView: View {
                 listControls
                 if model.layout == .list {
                     StatsList(
-                        items: model.listed, today: model.today, round: model.tab == .artists, cache: cache,
+                        items: model.listed, sort: model.sort, today: model.today, round: model.tab == .artists, cache: cache,
                         ownerOf: { model.coverOwner(of: $0) },
                         label: "\(Copy.Stats.yourHeading(noun)), \(sortPhrase)", onOpen: open
                     )
@@ -384,6 +389,7 @@ struct StatsView: View {
     private var sortPhrase: String {
         switch model.sort {
         case .plays: return "most played first"
+        case .minutes: return "most minutes first"
         case .name: return "by name"
         case .recent: return "most recent first"
         }
@@ -392,6 +398,7 @@ struct StatsView: View {
     private var sortLabel: String {
         switch model.sort {
         case .plays: return Copy.Stats.sortPlays
+        case .minutes: return Copy.Stats.sortMinutes
         case .name: return Copy.Stats.sortName
         case .recent: return Copy.Stats.sortRecent
         }
@@ -415,6 +422,7 @@ struct StatsView: View {
         Menu {
             Picker(Copy.Stats.sortLabel, selection: Binding(get: { model.sort }, set: { model.selectSort($0) })) {
                 Text(Copy.Stats.sortPlays).tag(StatsSort.plays)
+                Text(Copy.Stats.sortMinutes).tag(StatsSort.minutes)
                 Text(Copy.Stats.sortName).tag(StatsSort.name)
                 Text(Copy.Stats.sortRecent).tag(StatsSort.recent)
             }

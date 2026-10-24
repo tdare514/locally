@@ -36,6 +36,7 @@ enum StatsSeaLayout {
 /// The ranked list under the fan: one glass card of rows. Each row is one button.
 struct StatsList: View {
     let items: [StatItem]
+    var sort: StatsSort = .plays
     let today: String
     let round: Bool
     let cache: StatsCoverCache
@@ -48,7 +49,7 @@ struct StatsList: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     if index > 0 { GlassDivider() }
-                    StatsRow(item: item, today: today, round: round, owner: ownerOf(item), cache: cache) { onOpen(item) }
+                    StatsRow(item: item, sort: sort, today: today, round: round, owner: ownerOf(item), cache: cache) { onOpen(item) }
                 }
             }
         }
@@ -59,6 +60,7 @@ struct StatsList: View {
 
 private struct StatsRow: View {
     let item: StatItem
+    let sort: StatsSort
     let today: String
     let round: Bool
     let owner: UUID?
@@ -135,14 +137,14 @@ private struct StatsRow: View {
     }
 
     private var buttonLabel: String {
-        let base = Copy.Stats.itemLabel(rank: item.rank, title: plainTitle, plays: item.plays)
+        let base = "\(item.rank), \(plainTitle), \(Copy.Stats.figure(item, sort: sort))"
         let played = Copy.Stats.lastPlayedLabel(item.lastPlayedDay, today: today)
         return artistCredit == nil ? "\(base), \(item.subtitle), \(played)" : "\(base), \(played)"
     }
 
     private func numbers(alignment: HorizontalAlignment) -> some View {
         VStack(alignment: alignment, spacing: 2) {
-            Text(Copy.Stats.playsCount(item.plays))
+            Text(Copy.Stats.figure(item, sort: sort))
                 .font(.system(.subheadline, weight: .semibold))
                 .monospacedDigit()
                 .foregroundStyle(Theme.primaryText)

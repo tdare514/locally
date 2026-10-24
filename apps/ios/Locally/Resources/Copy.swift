@@ -937,3 +937,28 @@ private extension String {
     /// "Appears on 3 tracks" as "appears on 3 tracks".
     var lowercasedFirst: String { prefix(1).lowercased() + dropFirst() }
 }
+
+// MARK: - Stats period pop-up and minutes sort (#367)
+
+extension Copy.Stats {
+    static let sortMinutes = "Most minutes"
+    /// The pill that opens the period pop-up, spoken as "Period, This week, button".
+    static let periodPillLabel = "Period"
+    static let periodPillHint = "Opens the list of periods"
+    static let periodPopupLabel = "Choose a period"
+
+    /// The time a figure stands for: "38 min", "2 h 10 min", "2 h". Never under "1 min" once there is any.
+    static func minutesLabel(seconds: Double) -> String {
+        guard seconds > 0 else { return "0 min" }
+        let total = max(1, Int((seconds / 60).rounded()))
+        let hours = total / 60
+        let minutes = total % 60
+        if hours == 0 { return "\(minutes) min" }
+        return minutes == 0 ? "\(formatCount(hours)) h" : "\(formatCount(hours)) h \(minutes) min"
+    }
+
+    /// The number a row or tile shows: minutes under the minutes sort, plays under any other.
+    static func figure(_ item: StatItem, sort: StatsSort) -> String {
+        sort == .minutes ? minutesLabel(seconds: item.seconds) : playsCount(item.plays)
+    }
+}
