@@ -561,6 +561,7 @@ private struct BuilderShelfCover: View {
     private var pick: BuilderPick { BuilderPick(releaseID: release.id) }
     private var state: BuilderRowState { draft.state(of: pick) }
     private var isOn: Bool { state != .off }
+    private var blocked: Bool { state == .off && !draft.canPick(pick) }
     private var tint: Color { art.accent(release.id) }
 
     private var label: String {
@@ -568,6 +569,7 @@ private struct BuilderShelfCover: View {
         if release.source == .adopted { parts.append(Copy.Collections.onYourMac) }
         if state == .existing { parts.append(Copy.CollectionBuilder.inCollection.lowercased()) }
         else if isOn { parts.append(Copy.CollectionBuilder.added.lowercased()) }
+        else if blocked { parts.append(Copy.CollectionBuilder.fullShort) }
         return parts.joined(separator: ", ")
     }
 
@@ -599,14 +601,15 @@ private struct BuilderShelfCover: View {
                     .foregroundStyle(Theme.secondaryText)
             }
             .frame(width: side, alignment: .topLeading)
+            .opacity(blocked ? 0.45 : 1)
             .contentShape(Rectangle())
             .animation(Theme.Builder.ease, value: state)
         }
         .buttonStyle(BuilderPressStyle())
-        .disabled(state == .existing)
+        .disabled(state == .existing || blocked)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
-        .accessibilityHint(isOn ? "" : Copy.CollectionBuilder.add(release.title))
+        .accessibilityHint(isOn ? "" : (blocked ? Copy.CollectionBuilder.full : Copy.CollectionBuilder.add(release.title)))
         .accessibilityAddTraits(isOn ? .isSelected : [])
         .task(id: isOn) { if isOn { await art.loadAccent(release.id) } }
     }
@@ -625,6 +628,7 @@ private struct BuilderSongRow: View {
     private var pick: BuilderPick { BuilderPick(releaseID: release.id, trackID: track.id) }
     private var state: BuilderRowState { draft.state(of: pick) }
     private var isOn: Bool { state != .off }
+    private var blocked: Bool { state == .off && !draft.canPick(pick) }
     private var tint: Color { art.accent(release.id) }
     private var isAdopted: Bool { release.source == .adopted }
 
@@ -637,6 +641,7 @@ private struct BuilderSongRow: View {
         if isAdopted { parts.append(Copy.Collections.onYourMac) }
         if state == .existing { parts.append(Copy.CollectionBuilder.inCollection.lowercased()) }
         else if isOn { parts.append(Copy.CollectionBuilder.added.lowercased()) }
+        else if blocked { parts.append(Copy.CollectionBuilder.fullShort) }
         return parts.joined(separator: ", ")
     }
 
@@ -673,14 +678,15 @@ private struct BuilderSongRow: View {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(tint.opacity(state == .on ? 0.12 : 0))
             }
+            .opacity(blocked ? 0.45 : 1)
             .contentShape(Rectangle())
             .animation(Theme.Builder.ease, value: state)
         }
         .buttonStyle(BuilderPressStyle())
-        .disabled(state == .existing || state == .viaRelease)
+        .disabled(state == .existing || state == .viaRelease || blocked)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
-        .accessibilityHint(isOn ? "" : Copy.CollectionBuilder.add(track.title))
+        .accessibilityHint(isOn ? "" : (blocked ? Copy.CollectionBuilder.full : Copy.CollectionBuilder.add(track.title)))
         .accessibilityAddTraits(isOn ? .isSelected : [])
         .task(id: isOn) { if isOn { await art.loadAccent(release.id) } }
     }
@@ -697,7 +703,7 @@ private struct BuilderSongRow: View {
                 Circle().strokeBorder(Color.white.opacity(0.35), lineWidth: 1)
                 Image(systemName: "plus")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.7))
+                    .foregroundStyle(Color.white.opacity(blocked ? 0.35 : 0.7))
             }
             .frame(width: size, height: size)
             .accessibilityHidden(true)

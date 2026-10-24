@@ -144,6 +144,15 @@ final class BuilderDraft {
         return ids
     }
 
+    /// Whether a tap on this pick would do something: an unpicked one that fits (a release counts the room its picked songs free), or a picked one, which a tap removes.
+    func canPick(_ pick: BuilderPick) -> Bool {
+        switch state(of: pick) {
+        case .existing, .viaRelease: return false
+        case .on: return true
+        case .off: return fits(pick)
+        }
+    }
+
     // MARK: Editing
 
     /// A tap. An existing item, a song of a picked release, or an unpicked row once the collection is full does nothing; a release replaces its picked songs.
@@ -152,7 +161,7 @@ final class BuilderDraft {
         case .existing, .viaRelease: return
         case .on: picks.removeAll { $0 == pick }
         case .off:
-            guard fits(pick) else { return }
+            guard canPick(pick) else { return }
             if pick.trackID == nil { picks.removeAll { $0.releaseID == pick.releaseID } }
             picks.append(pick)
         }

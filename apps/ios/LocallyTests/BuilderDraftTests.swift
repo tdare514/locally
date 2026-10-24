@@ -211,6 +211,20 @@ struct BuilderDraftTests {
         #expect(draft.picks == expected)
     }
 
+    @Test func atCapacityOnlyAPickedRowOrAFreeingReleaseCanBePicked() {
+        let draft = BuilderDraft(releases: [Self.heldAlbum, Self.single], name: "Mix", limit: 2)
+        draft.toggle(song(Self.heldAlbum, 0))
+        draft.toggle(song(Self.heldAlbum, 1))
+        let unpickedSong: Bool = draft.canPick(song(Self.single))
+        let removing: Bool = draft.canPick(song(Self.heldAlbum, 0))
+        let freeing: Bool = draft.canPick(whole(Self.heldAlbum))
+        let unpickedRelease: Bool = draft.canPick(whole(Self.single))
+        #expect(unpickedSong == false)
+        #expect(removing == true)
+        #expect(freeing == true)
+        #expect(unpickedRelease == false)
+    }
+
     @Test func anEmptyQueryReturnsEverySongInOrder() {
         let draft = draft()
         let titles: [String] = draft.songMatches.map(\.track.title)

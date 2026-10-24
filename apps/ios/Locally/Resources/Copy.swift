@@ -1031,6 +1031,8 @@ extension Copy {
         static let searchLabel = searchPlaceholder
         /// The quiet line under the summary when no more fits.
         static let full = "A collection holds up to 1,000 songs and releases."
+        /// Spoken after an unpicked row's name once no more fits.
+        static let fullShort = "collection full"
         static let notAllSaved = "Not everything fits in this collection, so nothing was saved. Remove a pick and try again."
         static let ok = "OK"
         static let discardAdditionsTitle = "Discard these additions?"
