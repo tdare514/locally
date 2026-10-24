@@ -140,6 +140,14 @@ struct CollectionQueueTests {
         #expect(CollectionQueue.playlistGuide(items, releases: [:]).titles.isEmpty)
     }
 
+    @Test func playlistGuideHasNothingToAddWhenNoTrackIsOnThisPhone() {
+        let adopted = release("Mac", tracks: [("m1", 1, nil), ("m2", 2, nil)], adopted: true)
+        let guide = CollectionQueue.playlistGuide([.release(adopted.id), .track(releaseId: adopted.id, trackId: adopted.tracks[0].id)], releases: [adopted.id: adopted])
+        #expect(guide.titles.isEmpty)
+        #expect(guide.leftOut == 3)
+        #expect(Copy.Collections.nothingToAdd == "None of these tracks are on this iPhone, so there's nothing to add here.")
+    }
+
     @Test func aTrackFromAReleaseThatIsAlsoAnItemPlaysTwice() {
         let r = release("A", tracks: [("a", 1, nil)])
         let rows = CollectionQueue.rows([.release(r.id), .track(releaseId: r.id, trackId: r.tracks[0].id)], releases: [r.id: r])

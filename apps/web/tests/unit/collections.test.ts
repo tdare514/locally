@@ -190,6 +190,19 @@ describe("collectionPlaylistGuide (#353)", () => {
   it("is empty and counts nothing when no item resolves", () => {
     expect(collectionPlaylistGuide(items, [])).toEqual({ tracks: [], leftOut: 0 });
   });
+  it("gives no tracks (the unavailable state) when every track is missing on disk", () => {
+    const allGone = release(R1, [track("x", 1, 1, { missing: true }), track("y", 2, 1, { missing: true })]);
+    const g = collectionPlaylistGuide([{ kind: "release", releaseId: R1 }], [allGone]);
+    expect(g.tracks).toEqual([]);
+    expect(g.leftOut).toBe(2);
+  });
+  it("gives no tracks when the items live only on another device (no release here)", () => {
+    const g = collectionPlaylistGuide([{ kind: "release", releaseId: R2 }, { kind: "track", releaseId: R1, trackId: "a" }], []);
+    expect(g.tracks).toEqual([]);
+  });
+  it("words the unavailable line", () => {
+    expect(COLLECTIONS_COPY.nothingToAdd).toBe("None of these tracks are on this Mac, so there's nothing to add here.");
+  });
   it("words the left-out line", () => {
     expect(COLLECTIONS_COPY.leftOutOfGuide(2, "Mac")).toBe("2 tracks aren't on this Mac.");
     expect(COLLECTIONS_COPY.leftOutOfGuide(1, "Mac")).toBe("1 track isn't on this Mac.");

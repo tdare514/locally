@@ -203,6 +203,8 @@ export const COLLECTIONS_COPY = {
   none: "Make your first collection: a mixtape of any tracks and releases.",
   emptyQueue: "Nothing here yet. Add tracks from any release or track row.",
   noneHere: "None of these tracks are on this Mac.",
+  /** In the playlist guide when no track can be added from this Mac (#353). */
+  nothingToAdd: "None of these tracks are on this Mac, so there's nothing to add here.",
   onYourMac: "On your Mac",
   /** The quiet line under the playlist guide's list (#353). `device` is "Mac" here. */
   leftOutOfGuide: (n: number, device: string) => (n === 1 ? `1 track isn't on this ${device}.` : `${n} tracks aren't on this ${device}.`),

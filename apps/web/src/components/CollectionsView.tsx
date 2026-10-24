@@ -331,6 +331,7 @@ function QueuePanel({
         <PlaylistGuide
           name={collection.name}
           trackTitles={guide.tracks.map((t) => t.title)}
+          unavailable={guide.tracks.length === 0 ? COLLECTIONS_COPY.nothingToAdd : null}
           note={guide.leftOut > 0 ? COLLECTIONS_COPY.leftOutOfGuide(guide.leftOut, "Mac") : null}
         />
       )}

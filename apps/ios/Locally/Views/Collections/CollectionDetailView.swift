@@ -225,11 +225,17 @@ struct CollectionDetailView: View {
     private func playlistGuide(_ collection: MusicCollection) -> some View {
         let guide = CollectionQueue.playlistGuide(collection.items, releases: model.releases)
         return DisclosureGroup(Copy.Detail.makeItAPlaylist, isExpanded: $isGuideOpen) {
-            PlaylistGuide(
-                albumTitle: collection.name,
-                trackTitles: guide.titles,
-                note: guide.leftOut > 0 ? Copy.Collections.leftOutOfGuide(guide.leftOut) : nil
-            )
+            if guide.titles.isEmpty {
+                Text(Copy.Collections.nothingToAdd)
+                    .themeFont(.body)
+                    .foregroundStyle(Theme.secondaryText)
+            } else {
+                PlaylistGuide(
+                    albumTitle: collection.name,
+                    trackTitles: guide.titles,
+                    note: guide.leftOut > 0 ? Copy.Collections.leftOutOfGuide(guide.leftOut) : nil
+                )
+            }
         }
         .themeFont(.body)
         .foregroundStyle(Theme.primaryText)
@@ -237,6 +243,19 @@ struct CollectionDetailView: View {
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
         .id(Self.guideID)
+    }
+
+    /// A section header that sticks while the list scrolls: it carries the page's own opaque background, full width, so rows pass under it cleanly.
+    private func stickyHeader(_ title: String) -> some View {
+        Text(title)
+            .themeFont(.sectionTitle)
+            .foregroundStyle(Theme.primaryText)
+            .textCase(nil)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 20)
+            .background(Theme.background)
+            .listRowInsets(EdgeInsets())
     }
 
     @ViewBuilder
@@ -271,10 +290,7 @@ struct CollectionDetailView: View {
                         .listRowSeparatorTint(Theme.Track.separatorTint)
                 }
             } header: {
-                Text(Copy.Collections.queueHeading)
-                    .themeFont(.sectionTitle)
-                    .foregroundStyle(Theme.primaryText)
-                    .textCase(nil)
+                stickyHeader(Copy.Collections.queueHeading)
             }
         }
     }
@@ -383,10 +399,7 @@ struct CollectionDetailView: View {
                 }
             }
         } header: {
-            Text(Copy.Collections.itemsHeading)
-                .themeFont(.sectionTitle)
-                .foregroundStyle(Theme.primaryText)
-                .textCase(nil)
+            stickyHeader(Copy.Collections.itemsHeading)
         }
         Section {
             Button {

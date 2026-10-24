@@ -337,6 +337,8 @@ enum Copy {
         static let onYourMac = "On your Mac"
         /// Shown where Play will sit when no row is on this phone.
         static let nonePlayable = "None of these tracks are on this iPhone."
+        /// In the playlist guide when no track can be added from this phone (#353).
+        static let nothingToAdd = "None of these tracks are on this iPhone, so there's nothing to add here."
         /// The quiet line under the playlist guide's list when some tracks are left out (#353).
         static func leftOutOfGuide(_ count: Int) -> String { count == 1 ? "1 track isn't on this iPhone." : "\(count) tracks aren't on this iPhone." }
         /// A 409 `too_many_collections`: the put stays queued. (The plan gives no wording; this is the executor's.)
