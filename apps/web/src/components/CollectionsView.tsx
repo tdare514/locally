@@ -8,6 +8,8 @@ import {
   buildCollectionQueue,
   buildCollectionQueueAt,
   isCurrentRow,
+  isFailedRow,
+  COULDNT_PLAY_TRACK,
   rowQueuePositions,
   collectionPlaylistGuide,
   collectionRows,
@@ -25,12 +27,21 @@ import { formatLength } from "../lib/adopt-review";
 import { normalizeSearchText } from "../lib/library-sections";
 import { playerStore, usePlayerSelector, usePlayerState } from "../lib/play-queue";
 import { nearestSlot } from "../lib/track-order";
+import {
+  loadSpinningRecord,
+  loadViewMode,
+  saveSpinningRecord,
+  saveViewMode,
+  type CollectionsViewMode,
+  type SpinningRecord,
+} from "../lib/record-player";
 import { useCollections } from "./CollectionsContext";
 import CollectionSleeve from "./CollectionSleeve";
 import { NowPlayingIcon, PauseIcon, PlayIcon, PlusIcon, SearchIcon, XIcon } from "./Icons";
 import NewCollectionForm from "./NewCollectionForm";
 import NoCover from "./NoCover";
 import PlaylistGuide from "./PlaylistGuide";
+import RecordPlayerView from "./RecordPlayerView";
 import Popover, { MENU_ITEM } from "./Popover";
 import { BarConfirm } from "./ReleaseBar";
 
@@ -43,11 +54,16 @@ interface Props {
   onAddTracks: () => void;
 }
 
-/** The Collections page in List view (#349): the collections on the left, the chosen one's queue (Side A, Side B) on the right. */
+/**
+ * The Collections page (#349, #351): the record player (a wheel, a turntable and the queue) or the List view (the
+ * collections on the left, the chosen one's queue on the right), by a switch remembered on this Mac.
+ */
 export default function CollectionsView({ releases, selectedId, onSelect, onAddTracks }: Props) {
   const api = useCollections();
   const [query, setQuery] = useState("");
   const [making, setMaking] = useState(false);
+  const [mode, setMode] = useState<CollectionsViewMode>(() => loadViewMode());
+  const [record, setRecord] = useState<SpinningRecord>(() => loadSpinningRecord());
   if (!api) return null;
   const { collections, loaded, failed } = api;
   const selected = collections.find((c) => c.id === selectedId) ?? collections[0] ?? null;
@@ -55,10 +71,40 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
 
   return (
     <div className="flex flex-col gap-6 pb-16">
-      <div className="flex flex-wrap items-end justify-between gap-4 pr-[calc(var(--tray-size)+0.75rem)] lg:pr-0">
-        <div>
-          <p className="text-sm font-semibold text-accent">Your music</p>
-          <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">Collections</h1>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0 max-w-full">
+          <div className="pr-[calc(var(--tray-size)+0.75rem)] lg:pr-0">
+            <p className="-ml-2.5 inline-block rounded-full bg-bg px-2.5 py-0.5 text-sm font-semibold text-accent">Your music</p>
+            <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">Collections</h1>
+          </div>
+          {loaded && collections.length > 0 && (
+            <div className="rp-switches mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-text-muted">
+              <Switch
+                label="Show as"
+                value={mode}
+                options={[
+                  ["player", "Record player"],
+                  ["list", "List"],
+                ]}
+                onChange={(v) => {
+                  setMode(v);
+                  saveViewMode(v);
+                }}
+              />
+              <Switch
+                label="Spinning record"
+                value={record}
+                options={[
+                  ["picture", "Picture disc"],
+                  ["vinyl", "Black vinyl"],
+                ]}
+                onChange={(v) => {
+                  setRecord(v);
+                  saveSpinningRecord(v);
+                }}
+              />
+            </div>
+          )}
         </div>
         <button type="button" onClick={() => setMaking((m) => !m)} aria-expanded={making} className="btn-ink min-h-11">
           <PlusIcon className="h-4 w-4" />
@@ -106,6 +152,25 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
             </button>
           )}
         </div>
+      ) : mode === "player" ? (
+        <RecordPlayerView
+          collections={collections}
+          releases={releases}
+          selectedId={selectedId}
+          record={record}
+          onNew={() => setMaking(true)}
+          renderQueue={(c) => (
+            <QueuePanel
+              key={c.id}
+              deck
+              collection={c}
+              releases={releases}
+              onGone={(nextId) => nextId && onSelect(nextId)}
+              nextId={collections.find((x) => x.id !== c.id)?.id ?? null}
+              onAddTracks={onAddTracks}
+            />
+          )}
+        />
       ) : (
         <div className="grid gap-8 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
           <section aria-label="Your collections" className="flex min-w-0 flex-col gap-3">
@@ -165,6 +230,32 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
   );
 }
 
+/** A two-option switch: words, and a dot under the chosen one (the app's `.btn-seg`). */
+function Switch<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: [T, string][];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div role="group" aria-label={label} className="btn-seg">
+      <span aria-hidden className="btn-seg-dot">
+        <span />
+      </span>
+      {options.map(([v, text]) => (
+        <button key={v} type="button" onClick={() => onChange(v)} aria-pressed={value === v} className="btn-seg-opt min-h-11 px-3">
+          {text}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** Quiet placeholders in the final shapes while the store is first read: no spinner. */
 function Placeholders() {
   return (
@@ -195,12 +286,15 @@ function QueuePanel({
   nextId,
   onGone,
   onAddTracks,
+  deck = false,
 }: {
   collection: CollectionRecord;
   releases: Release[];
   nextId: string | null;
   onGone: (nextId: string | null) => void;
   onAddTracks: () => void;
+  /** Under the record player's deck (#351): no sleeve (the hovering cover is the picture), the queue as two columns. */
+  deck?: boolean;
 }) {
   const api = useCollections()!;
   const [editing, setEditing] = useState(false);
@@ -239,7 +333,7 @@ function QueuePanel({
   return (
     <section aria-label={collection.name} className="flex min-w-0 flex-col gap-5">
       <div className="flex flex-wrap items-center gap-4">
-        <CollectionSleeve items={collection.items} releases={releases} className="size-24" />
+        {!deck && <CollectionSleeve items={collection.items} releases={releases} className="size-24" />}
         <div className="min-w-0 flex-1">
           {editing ? (
             <input
@@ -258,7 +352,7 @@ function QueuePanel({
               className="min-h-11 w-full rounded-[12px] bg-elevated px-3 text-2xl font-bold tracking-[-0.02em] text-text outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
           ) : (
-            <h2 className="truncate text-2xl font-bold tracking-[-0.02em] text-text">{collection.name}</h2>
+            <h2 className={`truncate font-bold tracking-[-0.02em] text-text ${deck ? "text-xl" : "text-2xl"}`}>{collection.name}</h2>
           )}
           <p className="mt-1 text-sm text-text-muted">
             {trackCountLabel(totals.tracks)}
@@ -324,7 +418,7 @@ function QueuePanel({
       ) : editing ? (
         <EditList collection={collection} rows={rows} />
       ) : (
-        <Queue collection={collection} rows={rows} releases={releases} playing={queueOfThis && playing} />
+        <Queue collection={collection} rows={rows} releases={releases} playing={queueOfThis && playing} sides={deck} />
       )}
 
       {!empty && !editing && (
@@ -346,6 +440,8 @@ interface Entry {
   title: string;
   durationSec: number | null;
   playable: boolean;
+  /** The player marked this track as one it could not play. */
+  failed: boolean;
   /** Position in the collection's built queue; null when the file is missing. */
   position: number | null;
 }
@@ -355,13 +451,17 @@ function Queue({
   rows,
   releases,
   playing,
+  sides = false,
 }: {
   collection: CollectionRecord;
   rows: CollectionRow[];
   releases: Release[];
   playing: boolean;
+  /** Side A and Side B next to each other (the record player's queue) instead of one under the other. */
+  sides?: boolean;
 }) {
-  const playerQueue = usePlayerState().queue;
+  const playerState = usePlayerState();
+  const playerQueue = playerState.queue;
   const positions = rowQueuePositions(rows);
   const entries: Entry[] = rows.flatMap((row, r) =>
     row.tracks.map((t, i) => ({
@@ -372,9 +472,20 @@ function Queue({
       title: t.title.trim() || "Untitled",
       durationSec: t.durationSec,
       playable: !t.missing,
+      failed: isFailedRow(playerState.queue, playerState.unavailable, collection.id, positions[r][i], { releaseId: row.release.id, trackId: t.id }),
     })),
   );
+  // A failure is announced once, when it appears (state adjusted while rendering, the way React documents it).
+  const failedKeys = entries.filter((e) => e.failed).map((e) => e.key);
+  const [seenFailed, setSeenFailed] = useState<string[]>([]);
+  const [announcement, setAnnouncement] = useState("");
+  if (failedKeys.join("|") !== seenFailed.join("|")) {
+    setSeenFailed(failedKeys);
+    const fresh = entries.find((e) => e.failed && !seenFailed.includes(e.key));
+    setAnnouncement(fresh ? `${COULDNT_PLAY_TRACK}: ${fresh.title}` : "");
+  }
   const { a, b } = splitSides(entries);
+  const rowButtons = useRef(new Map<string, HTMLButtonElement>());
   function playFrom(e: Entry) {
     if (isCurrentRow(playerQueue, collection.id, e.position, { releaseId: e.release.id, trackId: e.trackId })) {
       playerStore.toggle();
@@ -382,6 +493,14 @@ function Queue({
     }
     const queue = e.position === null ? null : buildCollectionQueueAt(collection, releases, e.position);
     if (queue) playerStore.start(queue);
+  }
+  function tryAgain(e: Entry) {
+    const queue = e.position === null ? null : buildCollectionQueueAt(collection, releases, e.position);
+    // Starting clears the failure marks, which unmounts this Try again button: focus goes to the track's own row first.
+    if (queue) {
+      rowButtons.current.get(e.key)?.focus();
+      playerStore.start(queue);
+    }
   }
   const side = (label: string, list: Entry[]) =>
     list.length === 0 ? null : (
@@ -391,13 +510,17 @@ function Queue({
           {list.map((e) => {
             const isCurrent = isCurrentRow(playerQueue, collection.id, e.position, { releaseId: e.release.id, trackId: e.trackId });
             return (
-              <li key={e.key}>
+              <li key={e.key} className="@container flex flex-wrap items-center gap-1">
                 <button
                   type="button"
+                  ref={(el) => {
+                    if (el) rowButtons.current.set(e.key, el);
+                    else rowButtons.current.delete(e.key);
+                  }}
                   disabled={!e.playable}
                   onClick={() => playFrom(e)}
-                  aria-label={`${isCurrent && playing ? "Pause" : "Play"} ${e.title}${e.playable ? "" : ", file missing"}`}
-                  className="flex min-h-14 w-full items-center gap-3 rounded-[14px] p-2 text-left outline-none hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+                  aria-label={`${isCurrent && playing ? "Pause" : "Play"} ${e.title}${e.playable ? "" : ", file missing"}${e.failed ? `, ${COULDNT_PLAY_TRACK}` : ""}`}
+                  className="flex min-h-14 min-w-0 basis-full items-center gap-2 rounded-[14px] p-2 @[26rem]:flex-1 @[26rem]:basis-0 @[26rem]:gap-3 text-left outline-none hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
                 >
                   <span className="relative block size-10 shrink-0 overflow-hidden rounded-[6px] bg-card">
                     {e.release.coverPath ? (
@@ -408,15 +531,28 @@ function Queue({
                     )}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className={`block truncate text-[15px] font-semibold ${isCurrent ? "text-accent" : "text-text"}`}>{e.title}</span>
-                    <span className="block truncate text-[13px] text-text-muted">{e.release.artist}</span>
+                    <span title={e.title} className={`line-clamp-2 break-words text-[0.9375rem] font-semibold ${isCurrent ? "text-accent" : "text-text"}`}>{e.title}</span>
+                    {e.failed ? (
+                      <span className="block break-words text-[0.8125rem] text-danger">{COULDNT_PLAY_TRACK}</span>
+                    ) : (
+                      <span title={e.release.artist} className="line-clamp-2 break-words text-[0.8125rem] text-text-muted">{e.release.artist}</span>
+                    )}
                   </span>
-                  {isCurrent && (playing ? <PauseIcon className="size-4 text-accent" /> : <NowPlayingIcon className="size-4 text-accent" />)}
-                  {!isCurrent && e.playable && <PlayIcon className="size-4 text-text-dim" />}
-                  <span className="w-12 shrink-0 text-right text-sm tabular-nums text-text-muted">
+                  {isCurrent && (playing ? <PauseIcon className="size-4 text-accent" /> : <NowPlayingIcon className={`size-4 text-accent ${e.failed ? "hidden @[26rem]:block" : ""}`} />)}
+                  {!isCurrent && e.playable && <PlayIcon className="hidden size-4 text-text-dim @[26rem]:block" />}
+                  <span className="shrink-0 text-right text-sm tabular-nums @[26rem]:min-w-12 text-text-muted">
                     {e.playable ? (e.durationSec !== null ? formatLength(e.durationSec) : "") : "Missing"}
                   </span>
                 </button>
+                {e.failed && (
+                  <button
+                    type="button"
+                    onClick={() => tryAgain(e)}
+                    className="mb-1 ml-[3.75rem] min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold text-text outline-none @[26rem]:mb-0 @[26rem]:ml-0 ring-1 ring-inset ring-white/20 hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    Try again
+                  </button>
+                )}
               </li>
             );
           })}
@@ -425,7 +561,10 @@ function Queue({
     );
   if (entries.length === 0) return null;
   return (
-    <div className="flex flex-col">
+    <div className={sides ? "grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-x-10" : "flex flex-col"}>
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {announcement}
+      </div>
       {side("Side A", a)}
       {side("Side B", b)}
     </div>

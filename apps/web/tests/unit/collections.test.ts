@@ -6,6 +6,7 @@ import {
   buildCollectionQueue,
   buildCollectionQueueAt,
   isCurrentRow,
+  isFailedRow,
   rowQueuePositions,
   collectionCoverIds,
   collectionPlaylistGuide,
@@ -161,6 +162,19 @@ describe("now-playing row", () => {
     expect(isCurrentRow({ ...q, context: { kind: "release", id: "col" } }, "col", 3, a)).toBe(false);
     expect(isCurrentRow(null, "col", 3, a)).toBe(false);
     expect(isCurrentRow(q, "col", null, a)).toBe(false);
+  });
+
+  it("isFailedRow: only the row of this collection's queue whose track the player marked unavailable", () => {
+    const q = buildCollectionQueueAt(col, [rel1], 3)!;
+    const a = { releaseId: R1, trackId: "a" };
+    const key = `${R1}/a`;
+    expect(isFailedRow(q, [key], "col", 3, a)).toBe(true);
+    expect(isFailedRow(q, [], "col", 3, a)).toBe(false);
+    expect(isFailedRow(q, [key], "col", 1, a)).toBe(false); // that position holds another track
+    expect(isFailedRow(q, [key], "other", 3, a)).toBe(false);
+    expect(isFailedRow({ ...q, context: { kind: "release", id: "col" } }, [key], "col", 3, a)).toBe(false);
+    expect(isFailedRow(null, [key], "col", 3, a)).toBe(false);
+    expect(isFailedRow(q, [key], "col", null, a)).toBe(false);
   });
 
   it("a reorder while it plays doesn't light up the row that moved into the playing position", () => {

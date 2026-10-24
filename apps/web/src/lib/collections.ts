@@ -107,6 +107,27 @@ export function isCurrentRow(
   return at !== undefined && at.releaseId === item.releaseId && at.trackId === item.trackId;
 }
 
+/** What a queue row says about a track the player could not play (the plan's "States and wording"). */
+export const COULDNT_PLAY_TRACK = "Couldn't play this track";
+
+/**
+ * A row whose track the player could not play: the player's queue is this collection's, the item at the row's
+ * position is this row's track, and the player has marked that item unavailable (`unavailable` holds "releaseId/trackId").
+ */
+export function isFailedRow(
+  queue: { items: readonly { releaseId: string; trackId: string }[]; context: { kind: string; id: string } } | null,
+  unavailable: readonly string[],
+  collectionId: string,
+  position: number | null,
+  item: { releaseId: string; trackId: string },
+): boolean {
+  if (queue === null || position === null) return false;
+  if (queue.context.kind !== "collection" || queue.context.id !== collectionId) return false;
+  const at = queue.items[position];
+  if (at === undefined || at.releaseId !== item.releaseId || at.trackId !== item.trackId) return false;
+  return unavailable.includes(`${item.releaseId}/${item.trackId}`);
+}
+
 /** Side A and Side B: the queue split in half, the extra track on Side A. */
 export function splitSides<T>(items: readonly T[]): { a: T[]; b: T[] } {
   const half = Math.ceil(items.length / 2);

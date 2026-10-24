@@ -150,6 +150,8 @@ export function createPlayerStore() {
   /** The attempt that has already failed, so the `play()` rejection and the `error` event of one load count once. */
   let failedAttempt = -1;
   const listeners = new Set<() => void>();
+  /** The audio element's seek, registered by the one Player; without it a seek only moves the reported position. */
+  let seeker: ((sec: number) => void) | null = null;
   const set = (patch: Partial<PlayerState>) => {
     state = { ...state, ...patch };
     listeners.forEach((l) => l());
@@ -220,6 +222,19 @@ export function createPlayerStore() {
       const { queue } = state;
       if (!queue || queue.index === 0) return;
       set({ queue: { ...queue, index: queue.index - 1 }, playing: true, positionSec: 0, durationSec: 0, move: "back", ...retryAt(queue.index - 1) });
+    },
+    /** The Player hands over its seek; returns the undo. */
+    registerSeek(fn: (sec: number) => void) {
+      seeker = fn;
+      return () => {
+        if (seeker === fn) seeker = null;
+      };
+    },
+    /** Move the current track to `sec` the way the mini player does (nothing changes when no queue is loaded). */
+    seek(sec: number) {
+      if (!state.queue) return;
+      if (seeker) seeker(sec);
+      else set({ positionSec: sec });
     },
     /** The audio element's position and length, as it reports them. */
     report(positionSec: number, durationSec: number) {

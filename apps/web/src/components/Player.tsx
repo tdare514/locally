@@ -85,6 +85,8 @@ export default function Player({ releases, onOpenRelease, onOpenCollection }: Pl
     playerStore.report(sec, Number.isFinite(audio.duration) ? audio.duration : 0);
   }, []);
 
+  useEffect(() => playerStore.registerSeek(seek), [seek]);
+
   const goPrevious = useCallback(() => {
     const { queue, positionSec } = playerStore.getState();
     if (!queue) return;

@@ -139,6 +139,26 @@ describe("the Mac player queue (#338)", () => {
     expect(previousAction({ ...queue, index: 1 }, 1)).toBe("back");
   });
 
+  it("seek goes through the Player's registered seek, else moves the reported position, and does nothing without a queue", () => {
+    const store = createPlayerStore();
+    store.seek(5);
+    expect(store.getState().positionSec).toBe(0);
+    store.start(buildReleaseQueue(withCover, "a1")!);
+    store.report(8, 100);
+    store.seek(0);
+    expect(store.getState().positionSec).toBe(0);
+    const seen: number[] = [];
+    const off = store.registerSeek((sec) => seen.push(sec));
+    store.report(8, 100);
+    store.seek(0);
+    expect(seen).toEqual([0]);
+    expect(store.getState().positionSec).toBe(8); // the Player reports the new position itself
+    off();
+    store.seek(0);
+    expect(seen).toEqual([0]);
+    expect(store.getState().positionSec).toBe(0);
+  });
+
   it("words the scrubber as 'm:ss of m:ss'", () => {
     expect(scrubberText(62, 200)).toBe("1:02 of 3:20");
   });
