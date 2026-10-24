@@ -447,6 +447,9 @@ eyebrows still apply to those labels.
     The layout toggle and sort button are the same glass: the chosen layout is the tinted thumb sliding on the Glow spring. The Library has no "Add a song" footer (the Import tab does that). Collections is a glass card
     (`CollectionsLibraryCard`, at least 80 pt tall) under the header, washed from the first collection's cover colours (55 % at the leading edge, clear at 70 %), with the first three collections'
     covers as a stack of sleeves (the front one with a vinyl peeking out, the two behind tilted -7 and +5 degrees); it presses to 0.98 and holds its height while loading; one tap opens the Collections screen, which holds "New collection".
+  - *Collection builder (iPhone, #366)*: "New collection" and "Add music" open one full-screen page (`CollectionBuilderView`). One cover wash fades down to near-black with no edge; the record sleeve carries the typed name over a mosaic of the first four picked covers; the picks lean in a boxless crate beside "3 songs · 7 min".
+    Releases are a shelf of 132 pt covers (112 pt at accessibility sizes; a pick gets a cover-tinted check dot and `GlowRim(corner:)`); Songs is a borderless list with a trailing round + that fills with the cover's accent. A frosted search pill and a round cover-tinted Done float at the bottom and stack at accessibility sizes.
+    Shelf text is held to accessibility1 so a word is never split ("Har-"). Previews in `docs/design-previews/366/`; sizes in `Theme.Builder`.
   - *Library sky*: an `ArtworkBackdrop` fixed behind the library, coloured by the cover last
     pressed or else the first cover on screen. A pressed cover stops colouring it after 120 pt of
     scroll (`pressedSkyReleaseDistance`). As the library scrolls, the two glows turn 28 and 22

@@ -5,8 +5,6 @@ import SwiftUI
 struct CollectionDetailView: View {
     let model: CollectionsModel
     let id: UUID
-    /// "Add tracks": leaves for the Library, where any release or track row can be added.
-    var onAddTracks: () -> Void
     @State private var editMode: EditMode
     /// "Make it a playlist" (#353) starts closed.
     @State private var isGuideOpen: Bool
@@ -24,6 +22,8 @@ struct CollectionDetailView: View {
     @State private var isConfirmingDelete = false
     /// An edit that did not save: what to say, and what Try again repeats.
     @State private var editFailure: EditFailure?
+    /// "Add music" (#366): the builder over this page, with the name fixed.
+    @State private var builder: BuilderTarget?
 
     private struct EditFailure {
         let message: String
@@ -31,10 +31,9 @@ struct CollectionDetailView: View {
     }
 
     /// `startsEditing` opens the screen in edit mode, `startsGuideOpen` the playlist guide (the debug gallery's screenshots).
-    init(model: CollectionsModel, id: UUID, startsEditing: Bool = false, startsGuideOpen: Bool = false, onAddTracks: @escaping () -> Void) {
+    init(model: CollectionsModel, id: UUID, startsEditing: Bool = false, startsGuideOpen: Bool = false) {
         self.model = model
         self.id = id
-        self.onAddTracks = onAddTracks
         _editMode = State(initialValue: startsEditing ? .active : .inactive)
         _isGuideOpen = State(initialValue: startsGuideOpen)
         self.startsGuideOpen = startsGuideOpen
@@ -68,6 +67,7 @@ struct CollectionDetailView: View {
         }
         .environment(\.editMode, $editMode)
         .task { model.reload() }
+        .collectionBuilder($builder, model: model) { _ in model.reload() }
         .task(id: model.summary(id)?.coverReleaseIDs.first) { await loadPalette() }
         .nameAlert(Copy.Collections.renameTitle, action: Copy.Collections.save, isPresented: $isRenaming, text: $renameText) { name in
             attempt(Copy.Collections.renameFailed) { try model.rename(id, to: name) }
@@ -86,7 +86,7 @@ struct CollectionDetailView: View {
         let visible = model.visibleItems(of: collection)
         return ScrollViewReader { proxy in
         List {
-            CollectionQueueHeader(model: model, collection: collection, showsLength: true, isEditing: editMode.isEditing)
+            CollectionQueueHeader(model: model, collection: collection, showsLength: true, isEditing: editMode.isEditing, onAddMusic: { builder = .addMusic(id) })
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             if let editFailure {
@@ -95,7 +95,7 @@ struct CollectionDetailView: View {
             if editMode.isEditing {
                 editSection(collection, visible: visible)
             } else {
-                CollectionQueueRows(model: model, collection: collection, layout: .list, isGuideOpen: $isGuideOpen, onAddTracks: onAddTracks)
+                CollectionQueueRows(model: model, collection: collection, layout: .list, isGuideOpen: $isGuideOpen, onAddMusic: { builder = .addMusic(id) })
                 #if DEBUG
                 if startsGuideOpen {
                     // Debug gallery only: the end of the list, so the open guide can be scrolled into view.
