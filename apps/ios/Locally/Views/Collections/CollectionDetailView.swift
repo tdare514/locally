@@ -248,7 +248,7 @@ struct CollectionDetailView: View {
                 Button(Copy.Collections.tryAgain) { start(at: playablePosition) }
                     .buttonStyle(CollectionPillButtonStyle())
                     // Under the title: past the number column and its gap.
-                    .padding(.leading, Self.numberColumnInset)
+                    .padding(.leading, numberColumnWidth + 12)
             }
         } else if let playablePosition {
             Button { tapRow(row, playablePosition: playablePosition, nowPlaying: nowPlaying) } label: {
@@ -267,7 +267,8 @@ struct CollectionDetailView: View {
     }
 
     /// The queue row's number column (minWidth 24) plus its 12 gap: where the title starts.
-    private static let numberColumnInset: CGFloat = 36
+    /// The number column grows with the text, and Try again's inset (past the column and its 12 pt gap) with it.
+    @ScaledMetric(relativeTo: .footnote) private var numberColumnWidth: CGFloat = 24
 
     private func queueRowContent(_ row: CollectionQueue.Row, number: Int, nowPlaying: Bool, wontPlay: Bool = false) -> some View {
         HStack(spacing: 12) {
@@ -282,7 +283,7 @@ struct CollectionDetailView: View {
                 }
             }
             .themeFont(.meta)
-            .frame(minWidth: 24, alignment: .trailing)
+            .frame(minWidth: numberColumnWidth, alignment: .trailing)
             .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.title)
