@@ -62,19 +62,36 @@ struct BrandFolderTests {
         #expect(top == [Brand.folderName])
     }
 
-    @Test func resolutionFallsBackFromBrandFolderToTopLevel() throws {
+    @Test func resolutionFollowsTheStoredStructureAndNeverCrossesFolders() throws {
         let folder = makeFolder()
-        let missing = Track(title: "T", trackNumber: 1, filePath: "/gone/x.mp3", originalName: "x.mp3")
-        // Neither exists: the top-level name (old behaviour).
-        #expect(ReleaseCoordinator.resolvedFileURL(for: missing, in: folder.directory).deletingLastPathComponent().lastPathComponent
-            == folder.directory.lastPathComponent)
-        try Data([1]).write(to: folder.directory.appendingPathComponent("x.mp3"))
-        #expect(ReleaseCoordinator.resolvedFileURL(for: missing, in: folder.directory).path
-            == folder.directory.appendingPathComponent("x.mp3").path)
         try FileManager.default.createDirectory(at: brandDir(folder), withIntermediateDirectories: true)
-        try Data([2]).write(to: brandDir(folder).appendingPathComponent("x.mp3"))
-        #expect(ReleaseCoordinator.resolvedFileURL(for: missing, in: folder.directory).path
-            == brandDir(folder).appendingPathComponent("x.mp3").path)
+        let legacy = Track(title: "T", trackNumber: 1, filePath: "/gone/x.mp3", originalName: "x.mp3")
+        let branded = Track(title: "T", trackNumber: 1, filePath: "/gone/\(Brand.folderName)/x (2).mp3", originalName: "x.mp3")
+        // Only the other place has a file: neither track may resolve to it.
+        try Data([1]).write(to: brandDir(folder).appendingPathComponent("x.mp3"))
+        try Data([1]).write(to: folder.directory.appendingPathComponent("x (2).mp3"))
+        #expect(ReleaseCoordinator.resolvedFileURL(for: legacy, in: folder.directory).path
+            == folder.directory.appendingPathComponent("x.mp3").path)
+        #expect(ReleaseCoordinator.resolvedFileURL(for: branded, in: folder.directory).path
+            == brandDir(folder).appendingPathComponent("x (2).mp3").path)
+    }
+
+    @Test func deletingAReleaseWhoseFileIsGoneLeavesAnotherReleasesFileAlone() async throws {
+        let folder = makeFolder()
+        let library = InMemoryLibraryStore()
+        try FileManager.default.createDirectory(at: brandDir(folder), withIntermediateDirectories: true)
+        let owned = brandDir(folder).appendingPathComponent("same.mp3")
+        try Data([5]).write(to: owned)
+        let a = Release(kind: .single, title: "A", artist: "A", folderPath: folder.directory.path,
+                        tracks: [Track(title: "A", trackNumber: 1, filePath: folder.directory.appendingPathComponent("same.mp3").path, originalName: "same.mp3")])
+        let b = Release(kind: .single, title: "B", artist: "B", folderPath: brandDir(folder).path,
+                        tracks: [Track(title: "B", trackNumber: 1, filePath: owned.path, originalName: "same.mp3")])
+        try library.upsert(a)
+        try library.upsert(b)
+        let coordinator = makeCoordinator(folder: folder, library: library)
+        try await coordinator.deleteRelease(a.id)
+        #expect(FileManager.default.fileExists(atPath: owned.path))
+        #expect(try library.all().map(\.id) == [b.id])
     }
 
     @Test func migrationMovesOnlyTrackedTopLevelFiles() async throws {
@@ -120,23 +137,28 @@ struct BrandFolderTests {
         #expect(await coordinator.migrateIntoBrandFolder(defaults: defaults) == 0)
     }
 
-    @Test func interruptedRunResumesAndFixesTheIndex() async throws {
+    @Test func interruptedRunResumesFromTheJournalIncludingACollisionSuffix() async throws {
         let folder = makeFolder()
         let library = InMemoryLibraryStore()
         let defaults = makeDefaults()
         let release = try seedLegacy(["one.mp3", "two.mp3"], in: folder, library: library)
-        // A run died after moving "one.mp3" but before saving the index.
+        // A stranger already sits at Locally/one.mp3, so the move of "one" went to "one (2).mp3".
         try FileManager.default.createDirectory(at: brandDir(folder), withIntermediateDirectories: true)
+        try Data([7]).write(to: brandDir(folder).appendingPathComponent("one.mp3"))
+        // The run journaled and moved it, then died before saving the index.
+        defaults.set([release.tracks[0].id.uuidString: "\(Brand.folderName)/one (2).mp3"],
+                     forKey: ReleaseCoordinator.brandFolderMigrationJournalKey)
         try FileManager.default.moveItem(at: folder.directory.appendingPathComponent("one.mp3"),
-                                         to: brandDir(folder).appendingPathComponent("one.mp3"))
+                                         to: brandDir(folder).appendingPathComponent("one (2).mp3"))
         let coordinator = makeCoordinator(folder: folder, library: library)
         _ = await coordinator.migrateIntoBrandFolder(defaults: defaults)
         let stored = try #require(try library.all().first { $0.id == release.id })
-        for track in stored.tracks {
-            #expect(track.filePath.contains("/\(Brand.folderName)/"))
-            #expect(FileManager.default.fileExists(atPath: track.filePath))
-        }
+        #expect(stored.tracks[0].filePath.hasSuffix("/\(Brand.folderName)/one (2).mp3"))
+        #expect(stored.tracks[1].filePath.contains("/\(Brand.folderName)/two"))
+        for track in stored.tracks { #expect(FileManager.default.fileExists(atPath: track.filePath)) }
+        #expect(try Data(contentsOf: brandDir(folder).appendingPathComponent("one.mp3")) == Data([7]))
         #expect(defaults.bool(forKey: ReleaseCoordinator.brandFolderMigrationKey))
+        #expect(defaults.dictionary(forKey: ReleaseCoordinator.brandFolderMigrationJournalKey) == nil)
     }
 
     @Test func nameCollisionGetsAUniqueSuffix() async throws {

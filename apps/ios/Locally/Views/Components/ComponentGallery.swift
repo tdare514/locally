@@ -6,7 +6,7 @@ import SwiftUI
 struct ComponentGallery: View {
     static let names = ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "sleeve-bright", "sleeve-dark", "backdrop-a", "backdrop-b", "inline-field", "cover-sheet",
         // #160: the studio backdrop and the real Settings with sample sync state.
-        "studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled",
+        "studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "migration-banner",
         // #205: the release page's tracks panel (the shared `TrackRow`, preset rows).
         "release-tracks",
         // Kind switch and cover glow buttons, on the studio backdrop.
@@ -125,6 +125,8 @@ struct ComponentGallery: View {
             }
         case "studio-backdrop":
             StudioBackdrop()
+        case "migration-banner":
+            VStack { MigrationNoticeBanner(text: Copy.Settings.songsMoved(count: 12), onDismiss: {}); Spacer() }
         case "settings-signed-in":
             Self.settings(signedIn: true)
         case "settings-signed-out":

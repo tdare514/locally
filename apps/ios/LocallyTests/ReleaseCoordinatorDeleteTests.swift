@@ -119,7 +119,7 @@ struct ReleaseCoordinatorDeleteTests {
 
         // Rewrite the index entry as if the folder had moved containers.
         var stale = release
-        stale.tracks[0].filePath = "/private/var/old-container/Documents/" + liveName
+        stale.tracks[0].filePath = "/private/var/old-container/\(Brand.folderName)/" + liveName
         try library.upsert(stale)
 
         try await coordinator.deleteRelease(release.id)

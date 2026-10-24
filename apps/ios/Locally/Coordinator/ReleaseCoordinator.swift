@@ -776,10 +776,14 @@ final class ReleaseCoordinator {
         if FileManager.default.fileExists(atPath: track.filePath) {
             return URL(fileURLWithPath: track.filePath)
         }
-        let name = (track.filePath as NSString).lastPathComponent
-        let inBrand = folderURL.appendingPathComponent(Brand.folderName, isDirectory: true).appendingPathComponent(name)
-        if FileManager.default.fileExists(atPath: inBrand.path) { return inBrand }
-        // Not migrated yet: still at the Spotify folder's top level.
+        let stored = URL(fileURLWithPath: track.filePath)
+        let name = stored.lastPathComponent
+        // By the stored structure, never by guessing: a track kept in the brand folder resolves
+        // only there, a legacy one only at the top level. Trying the other place could land on
+        // another release's file of the same name, and a delete would remove it.
+        if stored.deletingLastPathComponent().lastPathComponent == Brand.folderName {
+            return folderURL.appendingPathComponent(Brand.folderName, isDirectory: true).appendingPathComponent(name)
+        }
         return folderURL.appendingPathComponent(name)
     }
 
@@ -792,14 +796,16 @@ final class ReleaseCoordinator {
     }
 
     static let brandFolderMigrationKey = "locally.migration.brandFolder.v1"
+    static let brandFolderMigrationJournalKey = "locally.migration.brandFolder.v1.journal"
     static let brandFolderMigrationCountKey = "locally.migration.brandFolder.v1.moved"
 
     /// One-time move (#335) of Locally's own tracks from the Spotify folder's top level into
     /// `<Brand.folderName>/`. Returns the number of songs moved over all runs when this run finished
     /// the whole migration for the first time (0 if nothing needed moving), else `nil`: already
     /// done, folder unreachable, or a release failed (the next launch resumes). Touches only files
-    /// the index tracks. A track whose stored path is gone but whose file is already under
-    /// `<Brand.folderName>/` (a run cut short before the index was saved) just gets its index fixed.
+    /// the index tracks. Each move is journaled (track id to destination) before it happens, so a
+    /// run cut short between the move and the index save resumes by pointing the track at exactly
+    /// that destination; no file is ever claimed by guessing its name.
     func migrateIntoBrandFolder(defaults: UserDefaults = .standard) async -> Int? {
         guard !defaults.bool(forKey: Self.brandFolderMigrationKey) else { return nil }
         guard let releases = try? library.all() else { return nil }
@@ -823,34 +829,45 @@ final class ReleaseCoordinator {
                     }
                     for index in updated.tracks.indices {
                         let track = updated.tracks[index]
+                        let key = track.id.uuidString
+                        var journal = defaults.dictionary(forKey: Self.brandFolderMigrationJournalKey) as? [String: String] ?? [:]
+                        if let relative = journal[key] {
+                            // A move was started for this track. If its destination exists and nobody
+                            // else owns it, the move finished and only the index is behind.
+                            let dest = folderURL.appendingPathComponent(relative)
+                            let resolved = dest.resolvingSymlinksInPath().path
+                            if relative.hasPrefix(Brand.folderName + "/"), fm.fileExists(atPath: dest.path), !claimed.contains(resolved) {
+                                claimed.insert(resolved)
+                                updated.tracks[index].filePath = dest.path
+                                if save() {
+                                    journal.removeValue(forKey: key)
+                                    defaults.set(journal, forKey: Self.brandFolderMigrationJournalKey)
+                                    movedThisRun += 1
+                                } else { allDone = false }
+                                continue
+                            }
+                            // Not moved (the run died before it): forget the entry and move normally.
+                            journal.removeValue(forKey: key)
+                            defaults.set(journal, forKey: Self.brandFolderMigrationJournalKey)
+                        }
                         let name = (track.filePath as NSString).lastPathComponent
                         guard ReleaseLayout.isPlainFileName(name) else { continue }
-                        let topURL = folderURL.appendingPathComponent(name)
-                        let brandURL = folderURL.appendingPathComponent(Brand.folderName, isDirectory: true)
-                            .appendingPathComponent(name)
-                        let source: URL
-                        if fm.fileExists(atPath: track.filePath) {
-                            let parent = URL(fileURLWithPath: track.filePath).deletingLastPathComponent()
-                            guard parent.resolvingSymlinksInPath().path == top else { continue }
-                            source = URL(fileURLWithPath: track.filePath)
-                        } else if fm.fileExists(atPath: brandURL.path) {
-                            let key = brandURL.resolvingSymlinksInPath().path
-                            guard !claimed.contains(key) else { continue }
-                            claimed.insert(key)
-                            updated.tracks[index].filePath = brandURL.path
-                            if save() { movedThisRun += 1 } else { allDone = false }
-                            continue
-                        } else if fm.fileExists(atPath: topURL.path) {
-                            source = topURL
-                        } else {
-                            continue
-                        }
+                        // Only a file the index points at, sitting at the Spotify folder's top level.
+                        guard fm.fileExists(atPath: track.filePath) else { continue }
+                        let source = URL(fileURLWithPath: track.filePath)
+                        guard source.deletingLastPathComponent().resolvingSymlinksInPath().path == top else { continue }
                         do {
                             let dest = Self.uniqueDestination(in: try Self.brandFolder(in: folderURL), fileName: name)
+                            journal[key] = Brand.folderName + "/" + dest.lastPathComponent
+                            defaults.set(journal, forKey: Self.brandFolderMigrationJournalKey)
                             try fm.moveItem(at: source, to: dest)
                             claimed.insert(dest.resolvingSymlinksInPath().path)
                             updated.tracks[index].filePath = dest.path
-                            if save() { movedThisRun += 1 } else { allDone = false }
+                            if save() {
+                                journal.removeValue(forKey: key)
+                                defaults.set(journal, forKey: Self.brandFolderMigrationJournalKey)
+                                movedThisRun += 1
+                            } else { allDone = false }
                         } catch {
                             allDone = false
                         }
@@ -867,6 +884,7 @@ final class ReleaseCoordinator {
         }
         defaults.set(true, forKey: Self.brandFolderMigrationKey)
         defaults.removeObject(forKey: Self.brandFolderMigrationCountKey)
+        defaults.removeObject(forKey: Self.brandFolderMigrationJournalKey)
         return total
     }
 
