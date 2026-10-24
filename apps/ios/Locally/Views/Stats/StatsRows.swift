@@ -209,8 +209,10 @@ private struct StatsTile: View {
                         .font(.system(.footnote, weight: .semibold))
                         .foregroundStyle(StatsStyle.nameColor(item.medal))
                         .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
-                    let number = Text(Copy.Stats.playsNumber(item.plays)).fontWeight(.semibold)
-                    let word = Text(Copy.Stats.playsWord(item.plays)).foregroundStyle(playsColor.opacity(Theme.Stats.playsWordOpacity))
+                    // Under the minutes sort the whole time ("2 h 10 min") is the figure (#367).
+                    let minutes = sort == .minutes
+                    let number = Text(minutes ? Copy.Stats.figure(item, sort: sort) : Copy.Stats.playsNumber(item.plays)).fontWeight(.semibold)
+                    let word = Text(minutes ? "" : Copy.Stats.playsWord(item.plays)).foregroundStyle(playsColor.opacity(Theme.Stats.playsWordOpacity))
                     Text("\(number)\(word)")
                         .font(.footnote)
                         .monospacedDigit()
