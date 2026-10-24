@@ -173,8 +173,9 @@ struct TrackPlayControl {
     var action: () -> Void
 }
 
-/// A track in view mode: the number, the title over the artist, then plays and time (tabular,
-/// right-aligned). At the accessibility sizes plays and time move under the title as one line.
+/// A track in view mode: the number, then the title with plays and time on its line (tabular,
+/// right-aligned) over the artist line, which runs the full width (#361). At the accessibility sizes
+/// plays and time move under the title as one line.
 struct ReleaseTrackRow: View {
     let number: Int
     let title: String
@@ -200,12 +201,24 @@ struct ReleaseTrackRow: View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.Track.spacing) {
             numberCell(accessible: accessible)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .foregroundStyle(Theme.primaryText)
-                    .font(.system(size: titleSize, weight: .semibold))
-                    .lineLimit(accessible ? nil : 1)
-                    .truncationMode(.tail)
-                // View mode only (#288): "A, feat. B & C", every name its own link, wrapping.
+                // Plays and time sit on the title's line, so the artist line below runs the full width.
+                HStack(alignment: .firstTextBaseline, spacing: Theme.Track.spacing) {
+                    Text(title)
+                        .foregroundStyle(Theme.primaryText)
+                        .font(.system(size: titleSize, weight: .semibold))
+                        .lineLimit(accessible ? nil : 1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if !accessible {
+                        Text(plays.map(String.init) ?? "")
+                            .accessibilityLabel(plays.map(Copy.Detail.playCount) ?? "")
+                            .frame(width: columns.plays, alignment: .trailing)
+                        Text(time ?? "")
+                            .accessibilityLabel(timeSpoken ?? time ?? "")
+                            .frame(width: columns.time, alignment: .trailing)
+                    }
+                }
+                // View mode only (#288): "A, feat. B & C", every name its own link, on one line (#361).
                 ArtistLineText(
                     main: credit.artist, featuring: credit.featuring, linkMain: artist != Copy.Detail.unknownArtist,
                     font: .system(size: artistSize), mainColor: Theme.secondaryText, dimColor: Theme.secondaryText
@@ -223,14 +236,6 @@ struct ReleaseTrackRow: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            if !accessible {
-                Text(plays.map(String.init) ?? "")
-                    .accessibilityLabel(plays.map(Copy.Detail.playCount) ?? "")
-                    .frame(width: columns.plays, alignment: .trailing)
-                Text(time ?? "")
-                    .accessibilityLabel(timeSpoken ?? time ?? "")
-                    .frame(width: columns.time, alignment: .trailing)
-            }
         }
         .font(.system(size: numberSize).monospacedDigit())
         .foregroundStyle(Theme.secondaryText)

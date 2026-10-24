@@ -42,7 +42,9 @@ struct ComponentGallery: View {
         "collections-player-playing", "collections-player-browsing", "collections-player-paused", "collections-player-vinyl", "collections-player-reduce-motion",
         "collections-player-ax", "collections-player-narrow", "collections-player-empty", "collections-player-wont-play", "collections-player-many", "collections-player-single", "collections-player-ax-lower", "collections-player-ax-controls", "collections-player-narrow-lower",
         // #363: the cover-tinted glass controls, a bright cover in front, and accessibility3 text.
-        "player-bright", "player-ax3"]
+        "player-bright", "player-ax3",
+        // #361: the one-size Stats grid and the one-line artist rows. Each name takes "-320" (a 320 pt screen) and "-ax3" (accessibility3): see `StatsCreditGallery`.
+        "stats-361-grid-tracks", "stats-361-grid-albums", "stats-361-grid-artists", "stats-361-stats-row", "stats-361-track-row", "stats-361-artist-row"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -106,6 +108,8 @@ struct ComponentGallery: View {
     @ViewBuilder
     private var content: some View {
         switch name {
+        case _ where name.hasPrefix("stats-361-"):
+            StatsCreditGallery(name: name)
         case "sleeve-filled":
             RecordSleeve(cover: SampleArtwork.sunset, onAddCover: {})
         case "sleeve-bright":
