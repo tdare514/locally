@@ -17,12 +17,13 @@ struct CollectionQueueHeader: View {
     /// "Edit collection": the player's way into the edit mode that the collection page opens from its toolbar.
     var onEdit: (() -> Void)?
     @Environment(\.playback) private var playback
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         let control = CollectionPlayControl(model: model, id: collection.id, playback: playback)
         let summary = model.summary(collection.id)
         let tracks = summary?.tracks ?? model.trackCount(of: collection)
-        let text = VStack(spacing: 4) {
+        let text = VStack(alignment: showsCover ? .center : .leading, spacing: 4) {
             Text(collection.name)
                 .themeFont(.pageTitle)
                 .foregroundStyle(Theme.primaryText)
@@ -44,7 +45,16 @@ struct CollectionQueueHeader: View {
                 }
                 .frame(maxWidth: .infinity)
             } else {
-                text.frame(maxWidth: .infinity, alignment: .leading)
+                // The record player: a small sleeve beside the name; the cover plays the collection here too.
+                let sleeve = CollectionSleeveView(model: model, collection: collection, isEditing: isEditing, side: 64)
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 12) { sleeve; text }.frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    HStack(alignment: .center, spacing: 16) {
+                        sleeve
+                        text.frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
             }
         }
         .padding(.vertical, 8)

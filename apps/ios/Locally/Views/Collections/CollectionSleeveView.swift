@@ -8,6 +8,8 @@ struct CollectionSleeveView: View {
     let model: CollectionsModel
     let collection: MusicCollection
     var isEditing = false
+    /// The sleeve's side; the record player's queue header shows a small one.
+    var side: CGFloat = Theme.Immersive.sleeveSizeCompact
 
     @Environment(\.playback) private var playback
     @Environment(\.scenePhase) private var scenePhase
@@ -22,8 +24,6 @@ struct CollectionSleeveView: View {
     @State private var taps = 0
     @State private var isShimmering = false
     @State private var isBrightened = false
-
-    private var side: CGFloat { Theme.Immersive.sleeveSizeCompact }
 
     var body: some View {
         let control = CollectionPlayControl(model: model, id: collection.id, playback: playback)
