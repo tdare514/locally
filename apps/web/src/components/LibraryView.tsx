@@ -37,6 +37,9 @@ import {
 } from "../lib/library-view-prefs";
 import { useLibraryWidth } from "../lib/use-library-width";
 import BulkEditDialog from "./BulkEditDialog";
+import { useCollections } from "./CollectionsContext";
+import AddToCollection from "./AddToCollection";
+import LibraryCollections from "./LibraryCollections";
 import type { ArtistEntry } from "../lib/artist-index";
 import {
   ChevronRightIcon,
@@ -84,6 +87,8 @@ interface LibraryViewProps {
   onImport: (kind?: ReleaseKind) => void;
   /** Refresh the library after a bulk action. */
   onBulkDone: () => Promise<unknown> | void;
+  /** Open a collection on the Collections page (#349). */
+  onOpenCollection: (id: string) => void;
   onToast: (kind: "success" | "error", text: string) => void;
   /** The cover that should tint the ambient space, or null when there is none. */
   onAmbientCoverChange: (url: string | null) => void;
@@ -105,6 +110,7 @@ export default function LibraryView({
   onSelectArtist,
   onImport,
   onBulkDone,
+  onOpenCollection,
   onToast,
   onAmbientCoverChange,
   artistIndex,
@@ -181,6 +187,8 @@ export default function LibraryView({
   // Folding unmounts a section's rows and unfolding mounts new ones, so observation is rebuilt on every fold change.
   const singlesOpen = isSectionOpen(folds.singles, query);
   const albumsOpen = isSectionOpen(folds.albums, query);
+  const collectionsOpen = isSectionOpen(folds.collections, query);
+  const collectionCount = useCollections()?.collections.length ?? 0;
   useEffect(() => {
     const root = rootRef.current;
     if (!root || typeof IntersectionObserver === "undefined") return;
@@ -424,6 +432,13 @@ export default function LibraryView({
             </div>
           ) : (
             <div className="flex items-center gap-2">
+              <AddToCollection
+                name={`${selectedCount} ${selectedCount === 1 ? "release" : "releases"}`}
+                variant="bar"
+                disabled={busy || selectedCount === 0}
+                getItems={() => selectedReleases.map((r) => ({ kind: "release" as const, releaseId: r.id }))}
+                onDone={exitSelecting}
+              />
               <button
                 type="button"
                 onClick={() => setEditing(true)}
@@ -530,6 +545,21 @@ export default function LibraryView({
             <span className="btn-ink-label">Clear search</span>
           </button>
         </div>
+      )}
+
+      {!artistsView && (
+        <section className="flex flex-col gap-2">
+          <SectionHeader
+            label="Collections"
+            count={collectionCount}
+            bodyId="library-collections"
+            open={collectionsOpen}
+            onToggleOpen={() => toggleFold("collections")}
+          />
+          <div id="library-collections" hidden={!collectionsOpen} className={collectionsOpen ? "section-fade" : undefined}>
+            {collectionsOpen && <LibraryCollections releases={releases} onOpen={onOpenCollection} />}
+          </div>
+        </section>
       )}
 
       {!artistsView && singles.length > 0 && (

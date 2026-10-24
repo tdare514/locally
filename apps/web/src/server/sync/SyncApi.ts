@@ -26,6 +26,7 @@ import {
   type ReceivedSharesPage,
   type SentSharesPage,
 } from "../../shared/shares";
+import { parseCollectionRecord, type CollectionRecord, type CollectionsPage } from "../../shared/collections";
 import { SyncRecordRejectedError, parseSyncRecord, type SyncRecord } from "./SyncRecord";
 
 export type SyncPlatform = "mac" | "ios";
@@ -117,6 +118,9 @@ const PLAYS_PUSH_TIMEOUT_MS = 15_000;
 /** Thrown by `putRelease` on a 409: the server's stored `updatedAt` is newer than ours. */
 export class SyncConflictError extends Error {}
 
+/** Thrown by `putCollection` on a 409 `too_many_collections`: the service holds as many collections as it allows (#349). */
+export class TooManyCollectionsError extends Error {}
+
 /** Thrown for any other failed response (not 401 or 409), carrying its HTTP status. Still a
  * `PublicError`, so callers that only care that it failed behave as before. */
 export class SyncRequestError extends PublicError {
@@ -196,6 +200,13 @@ export interface SyncApi {
   listReleases(sinceVersion: number, limit: number): Promise<ListReleasesResult>;
   putRelease(record: SyncRecord): Promise<{ version: number }>;
   deleteRelease(id: string): Promise<{ version: number }>;
+  /** `GET /v1/collections` (#349), one page. Throws `SyncRequestError` with the status on a 404 or 429. */
+  listCollections(sinceVersion: number, limit: number): Promise<CollectionsPage>;
+  /** `PUT /v1/collections/:id`. A 409 throws `SyncConflictError` (the service copy is newer) or
+   * `TooManyCollectionsError`; a 404 or 429 throws `SyncRequestError` with the status. */
+  putCollection(record: CollectionRecord): Promise<{ version: number; pruned: number }>;
+  /** `DELETE /v1/collections/:id`: a tombstone. */
+  deleteCollection(id: string): Promise<{ version: number }>;
   createUploads(id: string, files: SyncFileToUpload[]): Promise<{ uploads: SyncUploadTarget[] }>;
   downloadUrl(id: string, name: string): Promise<{ url: string; expiresAt: string }>;
   /** `PUT /v1/plays`: this device's absolute per-track counts, at most 500 entries per call. The
@@ -368,6 +379,47 @@ export class HttpSyncApi implements SyncApi {
 
   async deleteRelease(id: string): Promise<{ version: number }> {
     const res = await fetch(this.url(`/v1/releases/${encodeURIComponent(id)}`), {
+      method: "DELETE",
+      headers: this.headers(false),
+    });
+    return this.handle<{ version: number }>(res);
+  }
+
+  async listCollections(sinceVersion: number, limit: number): Promise<CollectionsPage> {
+    const res = await fetch(
+      this.url(`/v1/collections?sinceVersion=${encodeURIComponent(String(sinceVersion))}&limit=${encodeURIComponent(String(limit))}`),
+      { headers: this.headers(false) }
+    );
+    const body = await this.handle<{ collections: unknown[]; nextVersion: number; hasMore?: unknown }>(res);
+    const collections: CollectionsPage["collections"] = [];
+    for (const raw of body.collections) {
+      const record = parseCollectionRecord(raw);
+      if (!record) {
+        console.warn("SyncApi: skipping a collection record that does not parse");
+        continue;
+      }
+      const version = (raw as { version?: unknown }).version;
+      collections.push({ ...record, version: typeof version === "number" ? version : 0 });
+    }
+    return { collections, nextVersion: body.nextVersion, hasMore: body.hasMore === true };
+  }
+
+  async putCollection(record: CollectionRecord): Promise<{ version: number; pruned: number }> {
+    const res = await fetch(this.url(`/v1/collections/${encodeURIComponent(record.id)}`), {
+      method: "PUT",
+      headers: this.headers(true),
+      body: JSON.stringify(record),
+    });
+    if (res.status === 409) {
+      const body = (await res.json().catch(() => null)) as { error?: unknown } | null;
+      if (body?.error === "too_many_collections") throw new TooManyCollectionsError("Too many collections");
+    }
+    const out = await this.handle<{ version: number; pruned?: number }>(res);
+    return { version: out.version, pruned: typeof out.pruned === "number" ? out.pruned : 0 };
+  }
+
+  async deleteCollection(id: string): Promise<{ version: number }> {
+    const res = await fetch(this.url(`/v1/collections/${encodeURIComponent(id)}`), {
       method: "DELETE",
       headers: this.headers(false),
     });

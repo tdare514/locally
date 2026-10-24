@@ -56,6 +56,10 @@ export interface SyncState {
    * kept across an ordinary sign-out. Changed only through `update`.
    */
   importedShares?: Record<string, Record<string, string>>;
+  /** The `GET /v1/collections` pull cursor (#349): the last page's `nextVersion`. Absent means from the start. */
+  collectionsVersion?: number;
+  /** True once the service answered a collections GET page, PUT or DELETE (#349): a 404 on a DELETE then means "already gone", not "no such route". Cleared with the rest on sign-out or a host change. */
+  collectionsRouteSeen?: boolean;
   /** True once the one-time back-fill of adopted releases (#307) has been queued under this account. */
   localIdBackfilled?: boolean;
 }

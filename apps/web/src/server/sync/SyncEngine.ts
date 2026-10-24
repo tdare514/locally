@@ -23,6 +23,7 @@ import {
   type SyncRecord,
 } from "./SyncRecord";
 import { RESHARE_REFUSED } from "../../shared/shares";
+import type { CollectionStore } from "../collections/CollectionStore";
 import type {
   CreateShareRequest,
   CreateShareResponse,
@@ -34,6 +35,7 @@ import {
   RELEASE_PAGE_LIMIT,
   SyncConflictError,
   SyncRequestError,
+  TooManyCollectionsError,
   type MeResult,
   type SyncApi,
   type SyncFileToUpload,
@@ -60,6 +62,9 @@ function permanentPlayRejection(err: unknown): number | null {
   }
   return null;
 }
+
+/** Collections per `GET /v1/collections` page (#349). */
+export const COLLECTION_PAGE_LIMIT = 200;
 
 /** Guard against a misbehaving or hostile server: a `pullOnce` reconcile stops after this many pages. */
 export const MAX_PULL_PAGES_PER_RECONCILE = 100;
@@ -173,8 +178,18 @@ export class SyncEngine implements ReleaseSyncHooks {
     /** The clock; tests pass a fake one to step through the "arriving" and "waiting" states. */
     private readonly now: () => Date = () => new Date(),
     /** Where received shares' covers are kept so the tray's pictures are downloaded once (#182). */
-    private readonly coverCacheDir: () => string = () => path.join(settingsDir(), "share-covers")
+    private readonly coverCacheDir: () => string = () => path.join(settingsDir(), "share-covers"),
+    /** This Mac's collections (#349); null in tests that don't care, which skips the collections sync. */
+    private readonly collections: CollectionStore | null = null
   ) {}
+
+  /** Set while the service refuses a new collection (it holds 1,000); cleared by the next pass that gets through. */
+  private collectionsProblem: "too_many_collections" | null = null;
+
+  /** What the last collections pass could not do, for the Collections page's wording. */
+  collectionsSyncProblem(): "too_many_collections" | null {
+    return this.collectionsProblem;
+  }
 
   // --- ReleaseSyncHooks -----------------------------------------------------
 
@@ -615,6 +630,7 @@ export class SyncEngine implements ReleaseSyncHooks {
       await this.queueLocalIdBackfill();
 
       await this.backFill(api, null);
+      await this.syncCollections(api, accountKeyOf(settings.sync));
 
       let me: MeResult | null = null;
       try {
@@ -642,6 +658,77 @@ export class SyncEngine implements ReleaseSyncHooks {
       this.lastRunAt = new Date().toISOString();
       this.running = false;
     }
+  }
+
+  /**
+   * Collections (#349), after the releases they name: push changed collections, then the deletes, then pull
+   * `/v1/collections`. A 404 (an API from before collections) or a 429 ends the pass quietly; the next reconcile
+   * tries again. A reply with `pruned > 0`, or a 409 because the service copy is newer, pulls everything again so
+   * the service's copy replaces ours (last writer wins on the whole record). A 409 `too_many_collections` keeps the
+   * local copy unpushed.
+   */
+  private async syncCollections(api: SyncApi, key: string | null): Promise<void> {
+    const store = this.collections;
+    if (!store) return;
+    try {
+      await store.bindAccount(key);
+      let pullAll = false;
+      let problem: "too_many_collections" | null = null;
+      const entries = await store.entries();
+      const changed = entries.filter((e) => e.pushed !== e.record.updatedAt);
+      for (const { record } of changed.filter((e) => !e.record.deleted)) {
+        try {
+          const { pruned } = await api.putCollection(record);
+          await this.noteCollectionsRoute();
+          await store.markPushed(record.id, record.updatedAt);
+          if (pruned > 0) pullAll = true;
+        } catch (err) {
+          if (err instanceof SyncConflictError) pullAll = true;
+          else if (err instanceof TooManyCollectionsError) problem = "too_many_collections";
+          else if (err instanceof SyncRequestError && (err.status === 400 || err.status === 422)) {
+            console.warn(`SyncEngine: skipping push of collection ${record.id}: ${err.message}`);
+          } else throw err;
+        }
+      }
+      for (const { record, pushed } of changed.filter((e) => e.record.deleted)) {
+        // Every tombstone is sent: a PUT whose reply was lost leaves `pushed` null yet the service holds it.
+        try {
+          await api.deleteCollection(record.id);
+          await this.noteCollectionsRoute();
+        } catch (err) {
+          if (!(err instanceof SyncRequestError) || err.status !== 404) throw err;
+          // 404: nothing to delete if the route is known to exist, or if we never pushed it (nothing was there).
+          // Otherwise it may be an API from before collections, so leave the delete pending.
+          const seen = (await this.syncState.get()).collectionsRouteSeen === true;
+          if (!seen && pushed !== null) continue;
+        }
+        await store.markPushed(record.id, record.updatedAt);
+      }
+      this.collectionsProblem = problem;
+
+      const state = await this.syncState.get();
+      let cursor = pullAll ? 0 : (state.collectionsVersion ?? 0);
+      for (let page = 0; page < MAX_PULL_PAGES_PER_RECONCILE; page++) {
+        const { collections, nextVersion, hasMore } = await api.listCollections(cursor, COLLECTION_PAGE_LIMIT);
+        for (const { version, ...record } of collections) {
+          void version;
+          await store.applyRemote(record);
+        }
+        await this.syncState.update((s) => ({ ...s, collectionsVersion: nextVersion, collectionsRouteSeen: true }));
+        if (!hasMore) return;
+        if (nextVersion <= cursor) throw new Error("Sync pull stalled: the server reported more collections without advancing the cursor.");
+        cursor = nextVersion;
+      }
+      throw new Error(`Collections pull did not finish after ${MAX_PULL_PAGES_PER_RECONCILE} pages; stopping this reconcile.`);
+    } catch (err) {
+      if (err instanceof SyncRequestError && (err.status === 404 || err.status === 429)) return;
+      throw err;
+    }
+  }
+
+  /** Records that the service answered a collections request, so a later 404 on a DELETE means "already gone". */
+  private async noteCollectionsRoute(): Promise<void> {
+    await this.syncState.update((s) => (s.collectionsRouteSeen ? null : { ...s, collectionsRouteSeen: true }));
   }
 
   /**

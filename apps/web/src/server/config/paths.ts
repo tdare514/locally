@@ -52,6 +52,11 @@ export function playsFilePath(): string {
   return path.join(settingsDir(), "plays.json");
 }
 
+/** Full path to the collections file (#349), next to settings.json. */
+export function collectionsFilePath(): string {
+  return path.join(settingsDir(), "collections.json");
+}
+
 /** Full path to the cached Spotify playlists file (#212), next to settings.json. */
 export function spotifyPlaylistsFilePath(): string {
   return path.join(settingsDir(), "spotify-playlists.json");

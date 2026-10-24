@@ -66,6 +66,8 @@ interface TrackListProps {
   linkArtists?: boolean;
   /** Release page (#182): a Share control for one track, at the end of its row (hover, focus or right-click). */
   renderShare?: (key: string, title: string) => ReactNode;
+  /** Release page (#349): an "Add to collection" control for one track, in the row's actions (hover, focus or right-click). */
+  renderCollect?: (key: string, title: string) => ReactNode;
   /** Release page (#338): play from the rows. Each row's number turns into a play button on hover and keyboard
    * focus. `playableKeys` are the rows that can play (a row with a missing file is left out). */
   player?: {
@@ -204,6 +206,7 @@ export default function TrackList({
   featuringIndex,
   linkArtists,
   renderShare,
+  renderCollect,
   player,
 }: TrackListProps) {
   const listRef = useRef<HTMLOListElement>(null);
@@ -507,7 +510,7 @@ export default function TrackList({
     onChange(next);
   }
 
-  const actionsWidth = (readOnly ? 0 : 32) + (onRemove ? 32 : 0) + (renderShare ? 32 : 0) + (canEditDiscs ? 32 : 0);
+  const actionsWidth = (readOnly ? 0 : 32) + (onRemove ? 32 : 0) + (renderShare ? 32 : 0) + (renderCollect ? 44 : 0) + (canEditDiscs ? 32 : 0);
   const gridTemplate = trackGridTemplate(columns, actionsWidth);
 
   return (
@@ -556,7 +559,10 @@ export default function TrackList({
                 // no disc actions opens its Share popover instead (#182).
                 if ((e.target as HTMLElement).closest("input, textarea")) return;
                 if (!hasDiscActions) {
-                  const share = e.currentTarget.querySelector<HTMLButtonElement>("[data-share-button]");
+                  // Add to collection (#349) first, else Share.
+                  const share =
+                    e.currentTarget.querySelector<HTMLButtonElement>("[data-collect-button]") ??
+                    e.currentTarget.querySelector<HTMLButtonElement>("[data-share-button]");
                   if (!share) return;
                   e.preventDefault();
                   share.click();
@@ -670,6 +676,7 @@ export default function TrackList({
                   onJoin={() => applyDiscAction(track.key, joinPreviousDisc(tracks, index))}
                 />
               )}
+              {renderCollect?.(track.key, track.title.trim() || `track ${index + 1}`)}
               {renderShare?.(track.key, track.title.trim() || `track ${index + 1}`)}
               {!readOnly && (
                 <button

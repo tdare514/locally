@@ -80,13 +80,17 @@ export function mediaMetadataFor(info: ItemInfo, origin: string): MediaMetadataI
   };
 }
 
-/** What a tap on the mini player opens: the release page for a "release" queue. */
-export function openContext(context: QueueContext, openRelease: (id: string) => void): void {
+/** What a tap on the mini player opens: the release page for a "release" queue, the Collections page for a "collection". */
+export function openContext(
+  context: QueueContext,
+  openRelease: (id: string) => void,
+  openCollection?: (id: string) => void,
+): void {
   if (context.kind === "release") {
     openRelease(context.id);
     return;
   }
-  // A "collection" has no page yet; the Collections feature (#339) adds one and opens it here.
+  openCollection?.(context.id);
 }
 
 /** "Previous" restarts the track when it has played a few seconds, else goes back one (the first track restarts). */
