@@ -20,6 +20,16 @@ enum CollectionSleeveAction: Equatable {
         case .inert: canPlay ? name : "\(name), \(Copy.Collections.nonePlayable)"
         }
     }
+
+    /// What the control will do, matching the action; nothing to say when it does nothing.
+    var hint: String {
+        switch self {
+        case .start: Copy.Collections.playCollectionHint
+        case .pause: Copy.Collections.pauseCollectionHint
+        case .resume: Copy.Collections.resumeCollectionHint
+        case .inert: ""
+        }
+    }
 }
 
 /// Playing a collection from its page or from the record player (#350, #352): what the Play pill, a queue row and the

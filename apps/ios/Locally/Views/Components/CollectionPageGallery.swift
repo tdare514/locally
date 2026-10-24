@@ -6,17 +6,19 @@ struct CollectionPageGallery: View {
     enum Phase { case idle, playing, paused }
     let phase: Phase
     var editing = false
+    var id = CollectionsGallery.queueID
     @State private var built: (container: AppContainer, model: CollectionsModel, playback: PlaybackService)
 
-    init(_ phase: Phase, editing: Bool = false) {
+    init(_ phase: Phase, editing: Bool = false, id: UUID = CollectionsGallery.queueID) {
         self.phase = phase
         self.editing = editing
+        self.id = id
         _built = State(initialValue: CollectionsGallery.playingSetup())
     }
 
     var body: some View {
         IconsGallery.environment(
-            NavigationStack { CollectionDetailView(model: built.model, id: CollectionsGallery.queueID, startsEditing: editing) {} }
+            NavigationStack { CollectionDetailView(model: built.model, id: id, startsEditing: editing) {} }
                 .environment(\.playback, built.playback),
             built.container
         )

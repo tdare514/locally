@@ -245,6 +245,10 @@ struct ComponentGallery: View {
             CollectionPageGallery(.paused)
         case "collection-page-editing":
             CollectionPageGallery(.idle, editing: true)
+        case "collection-page-narrow":
+            CollectionPageGallery(.idle).frame(width: 320)
+        case "collection-page-inert":
+            CollectionPageGallery(.idle, id: CollectionsGallery.noneHereID)
         case "collection-page-ax3":
             CollectionPageGallery(.playing).dynamicTypeSize(.accessibility3)
         case "collections-player-queue":

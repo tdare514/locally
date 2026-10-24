@@ -320,6 +320,21 @@ struct CollectionsModelTests {
         #expect(CollectionSleeveAction.inert.label(name: "Gone", canPlay: false).contains(Copy.Collections.nonePlayable))
     }
 
+    @Test func theCoverHintMatchesWhatTheTapDoes() {
+        #expect(CollectionSleeveAction.start.hint == "Plays the collection from the start")
+        #expect(CollectionSleeveAction.pause.hint == "Pauses playback")
+        #expect(CollectionSleeveAction.resume.hint == "Resumes playback")
+        #expect(CollectionSleeveAction.inert.hint.isEmpty)
+    }
+
+    @Test func theSleeveShrinksToANarrowListAndNeverGrowsPastItsSide() {
+        #expect(CollectionSleeveView.fittedSide(200, availableWidth: .infinity) == 200)
+        #expect(CollectionSleeveView.fittedSide(200, availableWidth: 400) == 200)
+        let narrow = CollectionSleeveView.fittedSide(200, availableWidth: 280)
+        #expect(narrow < 200)
+        #expect(abs(narrow * 1.46 - 280) < 0.01)
+    }
+
     @Test func theQueueIsOneNumberedListWithNoSides() {
         func release(_ title: String, _ names: [String], adopted: Bool = false) -> Release {
             Release(kind: .album, title: title, artist: "Artist", folderPath: "/f",

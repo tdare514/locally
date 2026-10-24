@@ -380,7 +380,9 @@ enum Copy {
         static func pauseRow(_ title: String) -> String { "Pause \(title)" }
         static func resumeRow(_ title: String) -> String { "Resume \(title)" }
         /// The collection's cover, a button outside edit mode (#369).
-        static let playCollectionHint = "Plays the collection"
+        static let playCollectionHint = "Plays the collection from the start"
+        static let pauseCollectionHint = "Pauses playback"
+        static let resumeCollectionHint = "Resumes playback"
         static let nowPlaying = "Now playing"
         static let playing = "Playing"
         static let paused = "Paused"
