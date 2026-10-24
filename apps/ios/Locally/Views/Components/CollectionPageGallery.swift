@@ -18,7 +18,7 @@ struct CollectionPageGallery: View {
 
     var body: some View {
         IconsGallery.environment(
-            NavigationStack { CollectionDetailView(model: built.model, id: id, startsEditing: editing) {} }
+            NavigationStack { CollectionDetailView(model: built.model, id: id, startsEditing: editing) }
                 .environment(\.playback, built.playback),
             built.container
         )

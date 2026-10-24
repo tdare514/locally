@@ -18,8 +18,6 @@ struct CollectionsView: View {
     var onOpen: (UUID) -> Void
     /// "Edit collection" on the record player: that collection's page, in edit mode.
     var onEdit: (UUID) -> Void = { _ in }
-    /// "Add tracks" on an empty collection: leaves for the Library.
-    var onAddTracks: () -> Void = {}
     /// Opens the wheel on this collection (the debug gallery's browsing frame); otherwise on the playing one.
     var startsOn: UUID?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -28,9 +26,8 @@ struct CollectionsView: View {
     @AppStorage(CollectionsViewPrefs.recordKey) private var recordRaw = SpinningRecord.default.rawValue
 
     @State private var query = ""
-    @State private var isNaming = false
-    @State private var newName = ""
-    @State private var createFailed = false
+    /// The collection builder (#366): "New collection", or "Add music" on an empty collection in the record player.
+    @State private var builder: BuilderTarget?
 
     private var matching: [MusicCollection] {
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -65,7 +62,7 @@ struct CollectionsView: View {
             if showsPlayer {
                 CollectionsPlayerView(
                     model: model, mode: mode, record: record, startsOn: startsOn ?? playingCollectionID,
-                    onEdit: onEdit, onNew: { newName = ""; isNaming = true }, onAddTracks: onAddTracks
+                    onEdit: onEdit, onNew: { builder = .new }, onAddMusic: { builder = .addMusic($0) }
                 )
             } else {
                 listScroll
@@ -75,17 +72,7 @@ struct CollectionsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
         .task { model.reload() }
-        .alert(Copy.Collections.createFailed, isPresented: $createFailed) {
-            Button(Copy.Collections.tryAgain) { isNaming = true }
-            Button(Copy.Collections.cancel, role: .cancel) {}
-        }
-        .nameAlert(Copy.Collections.nameTitle, action: Copy.Collections.create, isPresented: $isNaming, text: $newName) { name in
-            do {
-                if let id = try model.create(name: name) { onOpen(id) }
-            } catch {
-                createFailed = true
-            }
-        }
+        .collectionBuilder($builder, model: model, onDone: onOpen)
     }
 
     private var listScroll: some View {
@@ -138,8 +125,7 @@ struct CollectionsView: View {
 
     private var newButton: some View {
         Button {
-            newName = ""
-            isNaming = true
+            builder = .new
         } label: {
             Text(Copy.Collections.newCollection)
         }
@@ -155,8 +141,7 @@ struct CollectionsView: View {
                 .foregroundStyle(Theme.secondaryText)
                 .multilineTextAlignment(.center)
             Button {
-                newName = ""
-                isNaming = true
+                builder = .new
             } label: {
                 Text(Copy.Collections.newCollection)
             }
