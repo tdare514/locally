@@ -98,16 +98,17 @@ export default function Player({ releases, onOpenRelease }: PlayerProps) {
       // An element whose file failed to load stays failed until it is loaded again: a retry starts with that.
       if (audio.error) audio.load();
       const key = keyOf(currentItem(playerStore.getState().queue));
+      const attempt = playerStore.getState().attempt;
       audio.play().catch((err: unknown) => {
         if (!(err instanceof DOMException)) return;
         // Autoplay blocked: wait for a click. A track change interrupting a pending play is not a failure.
         if (err.name === "NotAllowedError") playerStore.setPlaying(false);
-        else if (err.name !== "AbortError" && key) playerStore.fail(key);
+        else if (err.name !== "AbortError" && key) playerStore.fail(key, attempt);
       });
     } else {
       audio.pause();
     }
-  }, [url, state.playing]);
+  }, [url, state.playing, state.attempt]);
 
   // A queued release that has since been deleted is skipped.
   useEffect(() => {
@@ -231,7 +232,7 @@ export default function Player({ releases, onOpenRelease }: PlayerProps) {
         // A file that will not load (gone, or a format this engine cannot play) is marked, then skipped past.
         onError={() => {
           const key = keyOf(currentItem(playerStore.getState().queue));
-          if (key) playerStore.fail(key);
+          if (key) playerStore.fail(key, playerStore.getState().attempt);
         }}
       />
       {state.queue && info && (

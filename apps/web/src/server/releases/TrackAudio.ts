@@ -26,9 +26,14 @@ export interface TrackAudioFile {
   contentType: string;
 }
 
-/** For tests: runs between the containment check and the open, where a swap would be a race. */
+/** For tests: run between the containment check and the open, where a swap would be a race. */
 export interface TrackAudioHooks {
+  /** Before the first stat (after the first containment check). */
+  beforeStat?: () => Promise<void>;
+  /** After the first stat, before the open. */
   beforeOpen?: () => Promise<void>;
+  /** After the open and its fstat, before the last resolve and stat. */
+  afterOpen?: () => Promise<void>;
 }
 
 export type ByteRange = { start: number; end: number };
@@ -78,25 +83,29 @@ export async function resolveTrackAudio(
   const realFile = await realOrNull(track.filePath);
   if (!realFile) throw new NotFoundError(NOT_FOUND);
 
-  let bases: string[];
-  if (release.adopted) {
-    // Only the Spotify folder this release was adopted from: the root that holds its own folder.
-    const realFolder = await realOrNull(release.folderPath);
-    const roots = (await Promise.all(adoptRoots.map(realOrNull))).filter((r): r is string => r !== null);
-    bases = realFolder ? roots.filter((root) => realFolder === root || strictlyBeneath(root, realFolder)) : [];
-  } else {
+  // Which real folders the file may sit in: the library, or the adopt root that holds the release's own folder.
+  const allowedBases = async (): Promise<string[]> => {
+    if (release.adopted) {
+      const realFolder = await realOrNull(release.folderPath);
+      const roots = (await Promise.all(adoptRoots.map(realOrNull))).filter((r): r is string => r !== null);
+      return realFolder ? roots.filter((root) => realFolder === root || strictlyBeneath(root, realFolder)) : [];
+    }
     const realLibrary = await realOrNull(libraryDir);
-    bases = realLibrary ? [realLibrary] : [];
-  }
-  if (!bases.some((base) => strictlyBeneath(base, realFile))) throw new NotFoundError(NOT_FOUND);
+    return realLibrary ? [realLibrary] : [];
+  };
+  const inside = async (real: string) => (await allowedBases()).some((base) => strictlyBeneath(base, real));
+  if (!(await inside(realFile))) throw new NotFoundError(NOT_FOUND);
 
+  await hooks.beforeStat?.();
   const checked = await fsp.stat(realFile).catch(() => null);
   if (!checked || !checked.isFile()) throw new NotFoundError(NOT_FOUND);
 
   await hooks.beforeOpen?.();
 
-  // Open once, without following a symlink at the end, then check the open file is the one that was checked. A swap of
-  // the file or of a folder above it between the check and here shows up as another dev/ino. Nothing opens by path again.
+  // Open once, without following a symlink at the end, then check the open file is the one that was checked. Node has no
+  // openat, so a folder above the file can still be swapped for a symlink at the moment of the open; the checks after it
+  // close that: the path is resolved and contained again, and the first stat, the open file and this last stat must all
+  // be the same file (dev and ino). Nothing opens by path again.
   let handle: fsp.FileHandle;
   try {
     handle = await fsp.open(realFile, constants.O_RDONLY | constants.O_NOFOLLOW);
@@ -106,6 +115,11 @@ export async function resolveTrackAudio(
   try {
     const opened = await handle.stat();
     if (!opened.isFile() || opened.dev !== checked.dev || opened.ino !== checked.ino) throw new NotFoundError(NOT_FOUND);
+    await hooks.afterOpen?.();
+    const again = await realOrNull(track.filePath);
+    if (!again || !(await inside(again))) throw new NotFoundError(NOT_FOUND);
+    const last = await fsp.stat(again).catch(() => null);
+    if (!last || last.dev !== opened.dev || last.ino !== opened.ino) throw new NotFoundError(NOT_FOUND);
     return { handle, size: opened.size, contentType };
   } catch (err) {
     await handle.close().catch(() => undefined);

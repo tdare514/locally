@@ -144,32 +144,56 @@ describe("the Mac player queue (#338)", () => {
   });
 
   describe("an item that will not play", () => {
+    const failNow = (store: ReturnType<typeof createPlayerStore>, key: string) => store.fail(key, store.getState().attempt);
+
     it("moves on to the next item and marks the failed one unavailable", () => {
       const store = createPlayerStore();
       store.start(buildReleaseQueue(withCover, "a1")!);
-      store.fail("r1/a1");
+      const first = store.getState().attempt;
+      failNow(store, "r1/a1");
       expect(store.getState()).toMatchObject({ playing: true, queue: { index: 1 }, unavailable: ["r1/a1"] });
-      // The same failure reported twice (the play() rejection and the error event) skips once.
-      store.fail("r1/a1");
+      // The same load reported twice (the play() rejection and the error event) skips once, and so does a late report.
+      store.fail("r1/a1", first);
       expect(store.getState().queue?.index).toBe(1);
     });
 
-    it("stops with the mark showing when the last item fails, and a retry leaves no phantom playback", () => {
+    it("stops with the mark showing when the last item fails; a play-button retry that fails again stops again", () => {
       const store = createPlayerStore();
       store.start(buildReleaseQueue(withCover, "a2")!);
-      store.fail("r1/a2");
+      failNow(store, "r1/a2");
       expect(store.getState()).toMatchObject({ playing: false, queue: { index: 1 }, unavailable: ["r1/a2"] });
-      store.toggle(); // retry
+      store.toggle();
       expect(store.getState()).toMatchObject({ playing: true, unavailable: [] });
-      store.fail("r1/a2"); // still unsupported
+      failNow(store, "r1/a2");
       expect(store.getState()).toMatchObject({ playing: false, unavailable: ["r1/a2"] });
+    });
+
+    it("a media-key retry of a failed item that fails again ends stopped, with playing false", () => {
+      const store = createPlayerStore();
+      store.start(buildReleaseQueue(withCover, "a2")!);
+      failNow(store, "r1/a2");
+      store.setPlaying(true); // the media key's play
+      expect(store.getState()).toMatchObject({ playing: true, unavailable: [] });
+      failNow(store, "r1/a2");
+      expect(store.getState()).toMatchObject({ playing: false, unavailable: ["r1/a2"] });
+    });
+
+    it("going back to a failed item that fails again stops there instead of bouncing forward", () => {
+      const store = createPlayerStore();
+      store.start(buildReleaseQueue(withCover, "a1")!);
+      failNow(store, "r1/a1"); // moves on to a2
+      store.back();
+      expect(store.getState()).toMatchObject({ playing: true, queue: { index: 0 }, unavailable: [] });
+      failNow(store, "r1/a1");
+      expect(store.getState()).toMatchObject({ playing: false, queue: { index: 0 }, unavailable: ["r1/a1"] });
     });
 
     it("ignores a failure reported for an item that is no longer current", () => {
       const store = createPlayerStore();
       store.start(buildReleaseQueue(withCover, "a1")!);
+      const old = store.getState().attempt;
       store.next();
-      store.fail("r1/a1");
+      store.fail("r1/a1", old);
       expect(store.getState()).toMatchObject({ playing: true, queue: { index: 1 }, unavailable: [] });
     });
   });

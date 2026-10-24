@@ -131,6 +131,10 @@ export interface PlayerState {
   durationSec: number;
   /** Items ("releaseId/trackId") whose file would not play, until they are tried again. */
   unavailable: readonly string[];
+  /** Counts every load or retry of an item. A failure is reported for one attempt, and only the first report counts. */
+  attempt: number;
+  /** How the current item was reached: a failure after "back" stops instead of bouncing forward again. */
+  move: "forward" | "back";
 }
 
 /** What the bar says about an item that would not play. */
@@ -138,12 +142,20 @@ export const COULDNT_PLAY = "Couldn't play this file";
 
 /** A small external store: the queue and what the one audio element reports. Pure state, no audio. */
 export function createPlayerStore() {
-  let state: PlayerState = { queue: null, playing: false, positionSec: 0, durationSec: 0, unavailable: [] };
+  let state: PlayerState = { queue: null, playing: false, positionSec: 0, durationSec: 0, unavailable: [], attempt: 0, move: "forward" };
+  /** The attempt that has already failed, so the `play()` rejection and the `error` event of one load count once. */
+  let failedAttempt = -1;
   const listeners = new Set<() => void>();
   const set = (patch: Partial<PlayerState>) => {
     state = { ...state, ...patch };
     listeners.forEach((l) => l());
   };
+  /** A new attempt at the current item, its mark cleared. */
+  const retryAt = (index: number) => {
+    const key = itemKey(state.queue?.items[index] ?? null);
+    return { attempt: state.attempt + 1, unavailable: state.unavailable.filter((k) => k !== key) };
+  };
+  const retry = () => retryAt(state.queue?.index ?? 0);
   return {
     getState: () => state,
     subscribe(listener: () => void) {
@@ -152,33 +164,42 @@ export function createPlayerStore() {
     },
     /** Start a queue and play it from its index. */
     start(queue: PlayQueue) {
-      set({ queue, playing: true, positionSec: 0, durationSec: 0, unavailable: [] });
+      set({ queue, playing: true, positionSec: 0, durationSec: 0, unavailable: [], attempt: state.attempt + 1, move: "forward" });
     },
+    /** Play or pause as the engine or the media keys say. Playing again is a retry: it clears the item's mark. */
     setPlaying(playing: boolean) {
-      if (state.queue && state.playing !== playing) set({ playing });
+      if (!state.queue || state.playing === playing) return;
+      if (playing) set({ playing, ...retry() });
+      else set({ playing });
     },
     toggle() {
       const { queue } = state;
       if (!queue) return;
       // Pressing play on an item that would not play tries it again.
-      const key = itemKey(currentItem(queue));
-      if (!state.playing && key && state.unavailable.includes(key)) {
-        set({ playing: true, unavailable: state.unavailable.filter((k) => k !== key) });
-        return;
-      }
-      set({ playing: !state.playing });
+      if (state.playing) set({ playing: false });
+      else set({ playing: true, ...retry() });
     },
     /**
      * The current item's file will not play (an unsupported file, a failed load): mark it unavailable and move on to
-     * the next item, or, at the end, stop with the mark showing. `key` is the item the failure was seen on, so a second
-     * report of the same failure (the `play()` rejection and the `error` event) skips only once.
+     * the next item, or stop with the mark showing when it is the last (or was reached by going back). `key` and
+     * `attempt` name the load that failed, so a second report of it (the `play()` rejection and the `error` event)
+     * and a report from an earlier load count for nothing.
      */
-    fail(key: string) {
+    fail(key: string, attempt: number) {
       const { queue } = state;
-      if (!queue || itemKey(currentItem(queue)) !== key || state.unavailable.includes(key)) return;
-      const unavailable = [...state.unavailable, key];
-      if (queue.index + 1 < queue.items.length) {
-        set({ queue: { ...queue, index: queue.index + 1 }, playing: true, positionSec: 0, durationSec: 0, unavailable });
+      if (!queue || attempt !== state.attempt || failedAttempt === attempt || itemKey(currentItem(queue)) !== key) return;
+      failedAttempt = attempt;
+      const unavailable = state.unavailable.includes(key) ? state.unavailable : [...state.unavailable, key];
+      if (state.move === "forward" && queue.index + 1 < queue.items.length) {
+        const nextKey = itemKey(queue.items[queue.index + 1]);
+        set({
+          queue: { ...queue, index: queue.index + 1 },
+          playing: true,
+          positionSec: 0,
+          durationSec: 0,
+          unavailable: unavailable.filter((k) => k !== nextKey),
+          attempt: state.attempt + 1,
+        });
       } else {
         set({ playing: false, positionSec: 0, unavailable });
       }
@@ -187,20 +208,21 @@ export function createPlayerStore() {
     next() {
       const { queue } = state;
       if (!queue) return;
-      if (queue.index + 1 < queue.items.length) set({ queue: { ...queue, index: queue.index + 1 }, playing: true, positionSec: 0, durationSec: 0 });
-      else set({ playing: false, positionSec: 0 });
+      if (queue.index + 1 < queue.items.length) {
+        set({ queue: { ...queue, index: queue.index + 1 }, playing: true, positionSec: 0, durationSec: 0, move: "forward", ...retryAt(queue.index + 1) });
+      } else set({ playing: false, positionSec: 0 });
     },
     back() {
       const { queue } = state;
       if (!queue || queue.index === 0) return;
-      set({ queue: { ...queue, index: queue.index - 1 }, playing: true, positionSec: 0, durationSec: 0 });
+      set({ queue: { ...queue, index: queue.index - 1 }, playing: true, positionSec: 0, durationSec: 0, move: "back", ...retryAt(queue.index - 1) });
     },
     /** The audio element's position and length, as it reports them. */
     report(positionSec: number, durationSec: number) {
       if (positionSec !== state.positionSec || durationSec !== state.durationSec) set({ positionSec, durationSec });
     },
     clear() {
-      set({ queue: null, playing: false, positionSec: 0, durationSec: 0, unavailable: [] });
+      set({ queue: null, playing: false, positionSec: 0, durationSec: 0, unavailable: [], attempt: state.attempt + 1 });
     },
   };
 }

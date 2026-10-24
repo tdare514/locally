@@ -174,6 +174,34 @@ describe("GET /api/releases/[id]/tracks/[trackId]/audio", () => {
       ).rejects.toThrow(/not available/);
     });
 
+    it("404s when a PARENT folder is swapped for an outside symlink before the first stat", async () => {
+      const outside = path.join(root, "outside2");
+      await fs.mkdir(outside);
+      await fs.writeFile(path.join(outside, "01 - T.mp3"), "secret bytes");
+      await expect(
+        resolveTrackAudio(new ReleaseLayout(), lib, [], releases[0], "t1", {
+          beforeStat: async () => {
+            await fs.rename(path.join(lib, "A", "T"), path.join(lib, "A", "T-moved"));
+            await fs.symlink(outside, path.join(lib, "A", "T"));
+          },
+        }),
+      ).rejects.toThrow(/not available/);
+    });
+
+    it("404s when a parent folder is swapped for an outside symlink after the open (the last resolve catches it)", async () => {
+      const outside = path.join(root, "outside3");
+      await fs.mkdir(outside);
+      await fs.copyFile(file(), path.join(outside, "01 - T.mp3"));
+      await expect(
+        resolveTrackAudio(new ReleaseLayout(), lib, [], releases[0], "t1", {
+          afterOpen: async () => {
+            await fs.rename(path.join(lib, "A", "T"), path.join(lib, "A", "T-moved"));
+            await fs.symlink(outside, path.join(lib, "A", "T"));
+          },
+        }),
+      ).rejects.toThrow(/not available/);
+    });
+
     it("404s when the file is replaced by another file (a different inode)", async () => {
       await expect(
         resolve(async () => {
