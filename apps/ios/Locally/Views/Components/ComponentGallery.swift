@@ -4,7 +4,10 @@ import SwiftUI
 /// Debug-only harness for deterministic screenshots of the immersive components. Launch the app
 /// with `-componentGallery <name>`; see `LocallyApp`.
 struct ComponentGallery: View {
-    static let names = ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "sleeve-bright", "sleeve-dark", "backdrop-a", "backdrop-b", "inline-field", "cover-sheet",
+    static let names = [
+        // #365: three song page layouts (SongPageVariants.swift).
+        "song-a", "song-a-bottom", "song-a-ax3", "song-a-adopted", "song-b", "song-b-bottom", "song-b-ax3", "song-b-adopted", "song-c", "song-c-bottom", "song-c-ax3", "song-c-adopted",
+        "sleeve-filled", "sleeve-empty", "sleeve-ceremony", "sleeve-bright", "sleeve-dark", "backdrop-a", "backdrop-b", "inline-field", "cover-sheet",
         // #160: the studio backdrop and the real Settings with sample sync state.
         "studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "migration-banner", "root-banner",
         // #205: the release page's tracks panel (the shared `TrackRow`, preset rows).
@@ -61,7 +64,9 @@ struct ComponentGallery: View {
     }
 
     var body: some View {
-        if name.hasPrefix("import-record-") || name.hasPrefix("import-sent-") {
+        if name.hasPrefix("song-") {
+            SongPageGallery(name: name).preferredColorScheme(.dark)
+        } else if name.hasPrefix("import-record-") || name.hasPrefix("import-sent-") {
             ImportRecordGallery(name: name).preferredColorScheme(.dark)
         } else if name.hasPrefix("import-") {
             ZStack {

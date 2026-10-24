@@ -937,3 +937,48 @@ private extension String {
     /// "Appears on 3 tracks" as "appears on 3 tracks".
     var lowercasedFirst: String { prefix(1).lowercased() + dropFirst() }
 }
+
+/// The song page (#365).
+extension Copy {
+    enum SongPage {
+        static let play = "Play"
+        static let addToCollection = "Add to collection"
+        static let edit = "Edit"
+        static let editOnMac = "You can edit this song on your Mac. This iPhone keeps only its details."
+        static let playOnMac = "This song plays from your Mac. This iPhone keeps only its details."
+        static let plays = "Plays"
+        static let playsUnit = "plays"
+        static let lastPlayed = "Last played"
+        static let neverPlayed = "Not played yet"
+        static let byPeriod = "By period"
+        static let inCollections = "In collections"
+        static let notInCollection = "Not in a collection yet"
+        static let onTheAlbum = "On the album"
+        static let album = "Album"
+        static let track = "Track"
+        static let disc = "Disc"
+        static let genre = "Genre"
+        static let released = "Released"
+        static let length = "Length"
+        static let file = "File"
+        static let fileName = "Name"
+        static let format = "Format"
+        static let size = "Size"
+        static let sizeUnknown = "Only on your Mac"
+        static let livesOn = "Lives on"
+        static let onThisPhone = "This iPhone"
+        static let onYourMac = "On your Mac"
+        static let linerNotes = "Liner notes"
+        static let tags = "Tags"
+        static let recentWeeks = "Plays, the last 12 weeks"
+        static let today = "Today"
+        static let thisWeek = "This week"
+        static let thisMonth = "This month"
+        static let thisYear = "This year"
+        static let allTime = "All time"
+        static func ofTotal(_ n: Int, _ total: Int) -> String { "\(n) of \(total)" }
+        static func trackOf(_ n: Int, _ total: Int) -> String { "Track \(n) of \(total)" }
+        static func discOf(_ n: Int, _ total: Int) -> String { "Disc \(n) of \(total)" }
+        static func inNCollections(_ n: Int) -> String { n == 1 ? "In 1 collection" : "In \(n) collections" }
+    }
+}

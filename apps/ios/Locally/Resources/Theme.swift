@@ -611,3 +611,19 @@ enum Theme {
         UINavigationBar.appearance().compactAppearance = nav
     }
 }
+
+extension Theme {
+    /// The song page (#365).
+    enum SongPage {
+        static let sleeveHero: CGFloat = 200
+        static let sleeveHeader: CGFloat = 104
+        static let sleeveMini: CGFloat = 52
+        static let platterSize: CGFloat = 292
+        static let sparkHeight: CGFloat = 56
+        static let barHeight: CGFloat = 8
+        static let tileMinHeight: CGFloat = 92
+        static let tiltDegrees: Double = -4
+        static let pageGutter: CGFloat = 16
+        static let platterTurnSeconds: Double = 14
+    }
+}
