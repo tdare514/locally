@@ -68,6 +68,13 @@ export async function resolveTrackAudio(
   trackId: string,
   hooks: TrackAudioHooks = {},
 ): Promise<TrackAudioFile> {
+  // The allowed roots are resolved once, first thing, and every containment check below uses these snapshots. A root is
+  // never resolved again in the same request, so renaming it to a symlink later cannot move the goalposts.
+  const snapshot = {
+    library: await realOrNull(libraryDir),
+    adoptRoots: (await Promise.all(adoptRoots.map(realOrNull))).filter((r): r is string => r !== null),
+    adoptedFolder: release?.adopted ? await realOrNull(release.folderPath) : null,
+  };
   if (!release) throw new NotFoundError("Release not found");
   const track = release.tracks.find((t) => t.id === trackId);
   if (!track) throw new NotFoundError("Track not found");
@@ -83,18 +90,16 @@ export async function resolveTrackAudio(
   const realFile = await realOrNull(track.filePath);
   if (!realFile) throw new NotFoundError(NOT_FOUND);
 
-  // Which real folders the file may sit in: the library, or the adopt root that holds the release's own folder.
-  const allowedBases = async (): Promise<string[]> => {
-    if (release.adopted) {
-      const realFolder = await realOrNull(release.folderPath);
-      const roots = (await Promise.all(adoptRoots.map(realOrNull))).filter((r): r is string => r !== null);
-      return realFolder ? roots.filter((root) => realFolder === root || strictlyBeneath(root, realFolder)) : [];
-    }
-    const realLibrary = await realOrNull(libraryDir);
-    return realLibrary ? [realLibrary] : [];
-  };
-  const inside = async (real: string) => (await allowedBases()).some((base) => strictlyBeneath(base, real));
-  if (!(await inside(realFile))) throw new NotFoundError(NOT_FOUND);
+  // The real folders the file may sit in: the library, or the adopt root that holds the release's own folder.
+  const bases: string[] = release.adopted
+    ? snapshot.adoptedFolder
+      ? snapshot.adoptRoots.filter((root) => snapshot.adoptedFolder === root || strictlyBeneath(root, snapshot.adoptedFolder!))
+      : []
+    : snapshot.library
+      ? [snapshot.library]
+      : [];
+  const inside = (real: string) => bases.some((base) => strictlyBeneath(base, real));
+  if (!inside(realFile)) throw new NotFoundError(NOT_FOUND);
 
   await hooks.beforeStat?.();
   const checked = await fsp.stat(realFile).catch(() => null);
@@ -102,10 +107,10 @@ export async function resolveTrackAudio(
 
   await hooks.beforeOpen?.();
 
-  // Open once, without following a symlink at the end, then check the open file is the one that was checked. Node has no
-  // openat, so a folder above the file can still be swapped for a symlink at the moment of the open; the checks after it
-  // close that: the path is resolved and contained again, and the first stat, the open file and this last stat must all
-  // be the same file (dev and ino). Nothing opens by path again.
+  // Open once, without following a symlink at the end, then check the open file is the one that was checked, and that the
+  // path still resolves inside the same roots to the same file (dev and ino). Node has no openat, so these repeated
+  // pathname checks narrow the races between check and open but do not remove them. What is left needs write access to
+  // the library by the same user, and this server only answers on loopback. Nothing opens by path again.
   let handle: fsp.FileHandle;
   try {
     handle = await fsp.open(realFile, constants.O_RDONLY | constants.O_NOFOLLOW);
@@ -117,7 +122,7 @@ export async function resolveTrackAudio(
     if (!opened.isFile() || opened.dev !== checked.dev || opened.ino !== checked.ino) throw new NotFoundError(NOT_FOUND);
     await hooks.afterOpen?.();
     const again = await realOrNull(track.filePath);
-    if (!again || !(await inside(again))) throw new NotFoundError(NOT_FOUND);
+    if (!again || !inside(again)) throw new NotFoundError(NOT_FOUND);
     const last = await fsp.stat(again).catch(() => null);
     if (!last || last.dev !== opened.dev || last.ino !== opened.ino) throw new NotFoundError(NOT_FOUND);
     return { handle, size: opened.size, contentType };
