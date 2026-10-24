@@ -29,7 +29,7 @@ struct StatsTab: View {
 }
 
 /// The Stats page, in the iPhone's "glass groups" language (#160): the Mac's approved page (#145)
-/// ported to a column. Top to bottom: the title, a one-line digest, the period picker and stepper,
+/// ported to a column. Top to bottom: the title, a one-line digest, the period row (arrows either side of the period pill),
 /// the Tracks / Albums / Artists switch, the five-sleeve fan, then everyone ranked from number one
 /// as a list or as the sorted grid. The backdrop takes its colours from the cover of number one.
 struct StatsView: View {
@@ -42,6 +42,9 @@ struct StatsView: View {
     /// The sleeve a tap has lifted; the next tap on it opens it.
     @State private var armed: Int?
     @State private var palette: AmbientPalette?
+    @State private var periodOpen = false
+    /// The component gallery opens the period pop-up once the page is up.
+    private let openPeriodOnAppear: Bool
     @State private var isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
 
     @Environment(\.scenePhase) private var scenePhase
@@ -54,7 +57,8 @@ struct StatsView: View {
 
     @Environment(SyncStatus.self) private var syncStatus
 
-    init(model: StatsViewModel, cache: StatsCoverCache, selectedTab: Binding<RootView.Tab>, librarySearchRequest: Binding<String?>) {
+    init(model: StatsViewModel, cache: StatsCoverCache, selectedTab: Binding<RootView.Tab>, librarySearchRequest: Binding<String?>, periodOpen: Bool = false) {
+        openPeriodOnAppear = periodOpen
         _model = State(initialValue: model)
         self.cache = cache
         _selectedTab = selectedTab
@@ -204,9 +208,14 @@ struct StatsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 6)
                 }
-                periodPicker
-                if model.showsStepper { stepper }
+                periodRow
+                    .task {
+                        guard openPeriodOnAppear else { return }
+                        try? await Task.sleep(for: .seconds(1.5))
+                        periodOpen = true
+                    }
                 tabPicker
+                    .frame(maxWidth: .infinity)
             }
             Group {
                 switch model.phase {
@@ -279,31 +288,42 @@ struct StatsView: View {
         palette.map { ArtworkBackdrop.color(hex: $0.primary) } ?? Theme.accent
     }
 
-    private var periodPicker: some View {
-        GlowSwitch(
-            options: Copy.Stats.periodShortOptions.map { (value: $0.kind, icon: nil, label: $0.label) },
-            selection: Binding(get: { model.period.kind }, set: { model.selectKind($0) }),
-            tint: tint, compact: true, overflow: .scroll
-        )
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(Copy.Stats.timeFrameLabel)
+    private var periodPill: some View {
+        StatsPeriodPill(
+            current: model.period.kind,
+            title: Copy.Stats.periodLabel(model.period),
+            detail: Copy.Stats.periodDetail(model.period, range: model.range, today: model.today),
+            tint: tint, isPresented: $periodOpen
+        ) { model.selectKind($0) }
     }
 
-    private var stepper: some View {
-        HStack(spacing: 4) {
-            stepButton(.chevronRight, mirrored: true, label: Copy.Stats.previousLabel(model.period.kind), enabled: model.canStepBack) { model.stepBack() }
-            VStack(spacing: 2) {
-                Text(Copy.Stats.periodLabel(model.period))
-                    .font(.system(.headline, weight: .semibold))
-                    .foregroundStyle(Theme.primaryText)
-                Text(Copy.Stats.periodDetail(model.period, range: model.range, today: model.today))
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.secondaryText)
+    private var backButton: some View {
+        stepButton(.chevronRight, mirrored: true, label: Copy.Stats.previousLabel(model.period.kind), enabled: model.canStepBack) { model.stepBack() }
+    }
+
+    private var forwardButton: some View {
+        stepButton(.chevronRight, label: Copy.Stats.nextLabel(model.period.kind), enabled: model.canStepForward) { model.stepForward() }
+    }
+
+    /// One row: ‹ [ This week ⌄ ] ›. The dates sit in the pill as its second line. At the largest text
+    /// sizes the arrows drop below the pill, side by side.
+    @ViewBuilder
+    private var periodRow: some View {
+        if model.showsStepper {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    backButton
+                    periodPill
+                    forwardButton
+                }
+                VStack(spacing: 10) {
+                    periodPill
+                    HStack(spacing: 24) { backButton; forwardButton }
+                }
             }
-            .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
-            .accessibilityElement(children: .combine)
-            stepButton(.chevronRight, label: Copy.Stats.nextLabel(model.period.kind), enabled: model.canStepForward) { model.stepForward() }
+        } else {
+            periodPill.frame(maxWidth: .infinity)
         }
     }
 
@@ -365,15 +385,15 @@ struct StatsView: View {
                 listControls
                 if model.layout == .list {
                     StatsList(
-                        items: model.listed, today: model.today, round: model.tab == .artists, cache: cache,
+                        items: model.listed, sort: model.sort, today: model.today, round: model.tab == .artists, cache: cache,
                         ownerOf: { model.coverOwner(of: $0) },
                         label: "\(Copy.Stats.yourHeading(noun)), \(sortPhrase)", onOpen: open
                     )
                 } else {
                     StatsSea(
-                        items: items, width: room, round: model.tab == .artists, cache: cache,
+                        items: model.listed, sort: model.sort, width: room, round: model.tab == .artists, cache: cache,
                         ownerOf: { model.coverOwner(of: $0) },
-                        label: "\(Copy.Stats.yourHeading(noun)), in rank order", onOpen: open
+                        label: "\(Copy.Stats.yourHeading(noun)), \(sortPhrase)", onOpen: open
                     )
                 }
             }
@@ -384,6 +404,7 @@ struct StatsView: View {
     private var sortPhrase: String {
         switch model.sort {
         case .plays: return "most played first"
+        case .minutes: return "most minutes first"
         case .name: return "by name"
         case .recent: return "most recent first"
         }
@@ -392,6 +413,7 @@ struct StatsView: View {
     private var sortLabel: String {
         switch model.sort {
         case .plays: return Copy.Stats.sortPlays
+        case .minutes: return Copy.Stats.sortMinutes
         case .name: return Copy.Stats.sortName
         case .recent: return Copy.Stats.sortRecent
         }
@@ -400,12 +422,12 @@ struct StatsView: View {
     private var listControls: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 12) {
-                if model.layout == .list { sortMenu }
+                sortMenu
                 Spacer(minLength: 0)
                 layoutPill
             }
             VStack(alignment: .leading, spacing: 12) {
-                if model.layout == .list { sortMenu }
+                sortMenu
                 layoutPill
             }
         }
@@ -415,6 +437,7 @@ struct StatsView: View {
         Menu {
             Picker(Copy.Stats.sortLabel, selection: Binding(get: { model.sort }, set: { model.selectSort($0) })) {
                 Text(Copy.Stats.sortPlays).tag(StatsSort.plays)
+                Text(Copy.Stats.sortMinutes).tag(StatsSort.minutes)
                 Text(Copy.Stats.sortName).tag(StatsSort.name)
                 Text(Copy.Stats.sortRecent).tag(StatsSort.recent)
             }

@@ -613,6 +613,22 @@ enum Theme {
 }
 
 extension Theme {
+    /// The Stats period pop-up (#367).
+    enum StatsPopup {
+        static let rowHeight: CGFloat = 52
+        static let width: CGFloat = 264
+        /// A dark base under the cover's colour keeps the white label at 4.5:1 on a bright cover.
+        static let base = Color(red: 0.06, green: 0.06, blue: 0.10)
+        static let baseOpacity = 0.9
+        static let washOpacity = 0.28
+        static let selectedWash = 0.55
+        static let glow = 0.5
+        /// The house easing, ~0.35 s.
+        static let ease = Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.35)
+    }
+}
+
+extension Theme {
     /// The queue toast (#364): a glass capsule tinted by the cover, floating above the mini player.
     enum QueueToast {
         static let thumbSide: CGFloat = 32

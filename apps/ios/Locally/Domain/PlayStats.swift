@@ -30,6 +30,8 @@ struct StatItem: Identifiable, Equatable {
     var trackId: UUID?
     var coverPath: String?
     var medal: Medal?
+    /// Estimated listening time in seconds: plays x each track's length, summed for albums and artists. A track with no known length adds 0 (#367).
+    var seconds: Double = 0
 }
 
 struct PlayStatsResult: Equatable {
@@ -76,6 +78,7 @@ enum PlayStats {
         var releaseId: UUID?
         var trackId: UUID?
         var lastPlayedDay: String?
+        var seconds: Double = 0
     }
 
     private struct ArtistTotals {
@@ -88,6 +91,7 @@ enum PlayStats {
         /// The first played release with a cover, for when the best one has none.
         var coverFallback: String?
         var lastPlayedDay: String?
+        var seconds: Double = 0
     }
 
     private static func laterDay(_ a: String?, _ b: String?) -> String? {
@@ -114,7 +118,7 @@ enum PlayStats {
             StatItem(
                 id: row.id, rank: i + 1, title: row.title, subtitle: row.subtitle, plays: row.plays,
                 lastPlayedDay: row.lastPlayedDay, releaseId: row.releaseId, trackId: row.trackId,
-                coverPath: row.coverPath, medal: medalFor(rank: i + 1)
+                coverPath: row.coverPath, medal: medalFor(rank: i + 1), seconds: row.seconds
             )
         }
     }
@@ -155,19 +159,22 @@ enum PlayStats {
             let cover = coverOf(release)
             var releasePlays = 0
             var releaseLast: String?
+            var releaseSeconds = 0.0
             for track in release.tracks {
                 let trackKey = track.id.uuidString.lowercased()
                 let entry = counted?[trackKey]
                 let plays = entry?.plays ?? 0
                 if plays <= 0 { continue }
                 releasePlays += plays
+                let seconds = Double(plays) * max(0, track.durationSec ?? 0)
+                releaseSeconds += seconds
                 let lastPlayedDay = (entry?.lastPlayedDay).flatMap { $0.isEmpty ? nil : $0 }
                 releaseLast = laterDay(releaseLast, lastPlayedDay)
                 trackRows.append(Row(
                     id: trackKey,
                     title: track.title.isEmpty ? release.title : track.title,
                     subtitle: release.artist, plays: plays, coverPath: cover,
-                    releaseId: release.id, trackId: track.id, lastPlayedDay: lastPlayedDay
+                    releaseId: release.id, trackId: track.id, lastPlayedDay: lastPlayedDay, seconds: seconds
                 ))
             }
             if releasePlays == 0 { continue }
@@ -177,12 +184,13 @@ enum PlayStats {
                 id: releaseKey,
                 title: release.title.isEmpty ? release.artist : release.title,
                 subtitle: release.artist, plays: releasePlays, coverPath: cover,
-                releaseId: release.id, trackId: nil, lastPlayedDay: releaseLast
+                releaseId: release.id, trackId: nil, lastPlayedDay: releaseLast, seconds: releaseSeconds
             ))
 
             let key = artistKey(release.artist)
             if var artist = artists[key] {
                 artist.plays += releasePlays
+                artist.seconds += releaseSeconds
                 artist.lastPlayedDay = laterDay(artist.lastPlayedDay, releaseLast)
                 if artist.best == nil || releasePlays > artist.best!.plays {
                     artist.best = (releasePlays, release)
@@ -200,7 +208,7 @@ enum PlayStats {
                 subtitle: genre.isEmpty ? releaseCountLabel(a.releases) : genre,
                 plays: a.plays,
                 coverPath: a.best.flatMap { coverOf($0.release) } ?? a.coverFallback,
-                releaseId: nil, trackId: nil, lastPlayedDay: a.lastPlayedDay
+                releaseId: nil, trackId: nil, lastPlayedDay: a.lastPlayedDay, seconds: a.seconds
             )
         }
 

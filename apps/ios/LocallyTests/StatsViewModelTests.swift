@@ -124,6 +124,67 @@ struct StatsViewModelTests {
         #expect(StatsViewModel.sorted([a, b, c], by: .recent).map(\.id) == ["b", "a", "c"])
     }
 
+    // MARK: Minutes (#367)
+
+    @Test func minutesSortPutsLongestListeningFirstAndUnknownLengthLast() {
+        let a = StatItem(id: "a", rank: 1, title: "A", subtitle: "", plays: 9, lastPlayedDay: nil, seconds: 600)
+        let b = StatItem(id: "b", rank: 2, title: "B", subtitle: "", plays: 5, lastPlayedDay: nil, seconds: 0)
+        let c = StatItem(id: "c", rank: 3, title: "C", subtitle: "", plays: 2, lastPlayedDay: nil, seconds: 5400)
+        let d = StatItem(id: "d", rank: 4, title: "D", subtitle: "", plays: 1, lastPlayedDay: nil, seconds: 0)
+        #expect(StatsViewModel.sorted([a, b, c, d], by: .minutes).map(\.id) == ["c", "a", "b", "d"])
+    }
+
+    @Test func minutesAreLengthTimesPlaysAndAlbumsAndArtistsSumTheirTracks() async {
+        let long = Track(id: u(21), title: "Long", trackNumber: 1, filePath: "l.mp3", originalName: "l.mp3", durationSec: 300)
+        let unknown = Track(id: u(22), title: "Unknown", trackNumber: 2, filePath: "u.mp3", originalName: "u.mp3", durationSec: nil)
+        let album = Release(id: u(3), kind: .album, title: "Mix", artist: "Okoro", coverPath: "/c/3", folderPath: "/lib/3", tracks: [long, unknown])
+        let other = Release(id: u(4), kind: .single, title: "Solo", artist: "Okoro", coverPath: "/c/4", folderPath: "/lib/4", tracks: [track(13, "Solo")])
+        let counts = [count(3, 21, 4), count(3, 22, 50), count(4, 13, 2)]
+        let m = make(summary(tracks: counts, allTime: counts), library: [album, other])
+        await m.model.read()
+        let result = m.model.result
+        #expect(result?.tracks.first { $0.title == "Long" }?.seconds == 1200)
+        #expect(result?.tracks.first { $0.title == "Unknown" }?.seconds == 0)
+        #expect(result?.albums.first { $0.title == "Mix" }?.seconds == 1200)
+        #expect(result?.artists.first?.seconds == 1560.0)
+        m.model.selectSort(.minutes)
+        #expect(m.model.listed.map(\.title) == ["Long", "Solo", "Unknown"])
+    }
+
+    @Test func gridItemsFollowTheMinutesSortAndTilesSpeakMinutes() async {
+        let long = Track(id: u(21), title: "Long", trackNumber: 1, filePath: "l.mp3", originalName: "l.mp3", durationSec: 300)
+        let album = Release(id: u(3), kind: .single, title: "Mix", artist: "Okoro", coverPath: "/c/3", folderPath: "/lib/3", tracks: [long])
+        let other = Release(id: u(4), kind: .single, title: "Solo", artist: "Okoro", coverPath: "/c/4", folderPath: "/lib/4", tracks: [track(13, "Solo")])
+        let counts = [count(3, 21, 4), count(4, 13, 2)]
+        let m = make(summary(tracks: counts, allTime: counts), library: [album, other])
+        await m.model.read()
+        m.model.selectLayout(.grid)
+        m.model.selectSort(.minutes)
+        let first = m.model.listed.first
+        #expect(first?.title == "Long")
+        #expect(first.map { Copy.Stats.figure($0, sort: .minutes) } == "20 min")
+        #expect(first.map { Copy.Stats.figure($0, sort: .plays) } == Copy.Stats.playsCount(4))
+    }
+
+    @Test func minutesSortIsRemembered() {
+        let m = make(.failed)
+        m.model.selectSort(.minutes)
+        let again = StatsViewModel(stats: m.stats, releases: { [] }, calendar: calendar, now: { now }, defaults: m.defaults)
+        #expect(again.sort == .minutes)
+    }
+
+    @Test func figuresFollowTheSort() {
+        let item = StatItem(id: "a", rank: 1, title: "A", subtitle: "", plays: 42, lastPlayedDay: nil, seconds: 7800)
+        #expect(Copy.Stats.figure(item, sort: .plays) == "42 plays")
+        #expect(Copy.Stats.figure(item, sort: .name) == "42 plays")
+        #expect(Copy.Stats.figure(item, sort: .minutes) == "2 h 10 min")
+        #expect(Copy.Stats.minutesLabel(seconds: 2280) == "38 min")
+        #expect(Copy.Stats.minutesLabel(seconds: 7200) == "2 h")
+        #expect(Copy.Stats.minutesLabel(seconds: 20) == "1 min")
+        #expect(Copy.Stats.minutesLabel(seconds: 0) == "0 min")
+        #expect(Copy.Stats.minutesLabel(seconds: 61_200) == "17 h")
+    }
+
     // MARK: Stepping
 
     @Test func stepBoundsAndChoosingAPeriodResetsBack() async {

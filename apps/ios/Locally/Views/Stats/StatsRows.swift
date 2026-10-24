@@ -36,6 +36,7 @@ enum StatsSeaLayout {
 /// The ranked list under the fan: one glass card of rows. Each row is one button.
 struct StatsList: View {
     let items: [StatItem]
+    var sort: StatsSort = .plays
     let today: String
     let round: Bool
     let cache: StatsCoverCache
@@ -48,7 +49,7 @@ struct StatsList: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     if index > 0 { GlassDivider() }
-                    StatsRow(item: item, today: today, round: round, owner: ownerOf(item), cache: cache) { onOpen(item) }
+                    StatsRow(item: item, sort: sort, today: today, round: round, owner: ownerOf(item), cache: cache) { onOpen(item) }
                 }
             }
         }
@@ -59,6 +60,7 @@ struct StatsList: View {
 
 private struct StatsRow: View {
     let item: StatItem
+    let sort: StatsSort
     let today: String
     let round: Bool
     let owner: UUID?
@@ -135,14 +137,14 @@ private struct StatsRow: View {
     }
 
     private var buttonLabel: String {
-        let base = Copy.Stats.itemLabel(rank: item.rank, title: plainTitle, plays: item.plays)
+        let base = "\(item.rank), \(plainTitle), \(Copy.Stats.figure(item, sort: sort))"
         let played = Copy.Stats.lastPlayedLabel(item.lastPlayedDay, today: today)
         return artistCredit == nil ? "\(base), \(item.subtitle), \(played)" : "\(base), \(played)"
     }
 
     private func numbers(alignment: HorizontalAlignment) -> some View {
         VStack(alignment: alignment, spacing: 2) {
-            Text(Copy.Stats.playsCount(item.plays))
+            Text(Copy.Stats.figure(item, sort: sort))
                 .font(.system(.subheadline, weight: .semibold))
                 .monospacedDigit()
                 .foregroundStyle(Theme.primaryText)
@@ -157,6 +159,7 @@ private struct StatsRow: View {
 /// the columns come from the room it has, so a tile is never under 72 pt.
 struct StatsSea: View {
     let items: [StatItem]
+    var sort: StatsSort = .plays
     /// The room the grid has.
     let width: CGFloat
     let round: Bool
@@ -175,7 +178,7 @@ struct StatsSea: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text(Copy.Stats.gridHint)
+            Text(Copy.Stats.gridHint(for: sort))
                 .font(.footnote)
                 .foregroundStyle(Theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -186,7 +189,7 @@ struct StatsSea: View {
                     alignment: .leading, spacing: Theme.Stats.tileRowGap
                 ) {
                     ForEach(group) { item in
-                        StatsTile(item: item, tier: tier, round: round, owner: ownerOf(item), cache: cache) { onOpen(item) }
+                        StatsTile(item: item, tier: tier, round: round, sort: sort, owner: ownerOf(item), cache: cache) { onOpen(item) }
                     }
                 }
             }
@@ -200,11 +203,17 @@ private struct StatsTile: View {
     let item: StatItem
     let tier: Int
     let round: Bool
+    var sort: StatsSort = .plays
     let owner: UUID?
     let cache: StatsCoverCache
     let action: () -> Void
 
     @Environment(\.dynamicTypeSize) private var typeSize
+
+    /// Minutes under the minutes sort, plays otherwise; the same text is spoken.
+    private var figure: String {
+        sort == .minutes || tier != 2 ? Copy.Stats.figure(item, sort: sort) : Copy.Stats.formatCount(item.plays)
+    }
 
     private var nameFont: Font {
         tier == 0 ? .system(.footnote, weight: .semibold) : .system(.caption, weight: .semibold)
@@ -216,7 +225,7 @@ private struct StatsTile: View {
                 StatsCoverView(owner: owner, cache: cache, round: round, cornerRadius: 4)
                     .aspectRatio(1, contentMode: .fit)
                     .overlay { chip("\(item.rank)", corner: .topLeading) }
-                    .overlay { chip(tier == 2 ? Copy.Stats.formatCount(item.plays) : Copy.Stats.playsCount(item.plays), corner: .bottomTrailing) }
+                    .overlay { chip(figure, corner: .bottomTrailing) }
                     .shadow(color: .black.opacity(0.55), radius: 8, y: 6)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(item.title)
@@ -236,7 +245,7 @@ private struct StatsTile: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(Copy.Stats.itemLabel(rank: item.rank, title: item.title, plays: item.plays)), \(item.subtitle)")
+        .accessibilityLabel("\(item.rank), \(item.title), \(Copy.Stats.figure(item, sort: sort)), \(item.subtitle)")
     }
 
     /// The rank or the plays over a cover: white on a dark pill. On a round cover the chips sit
