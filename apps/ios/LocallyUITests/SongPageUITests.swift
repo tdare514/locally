@@ -3,10 +3,10 @@ import XCTest
 /// The song page's three entry points and its Edit and Album links (#365), over the component gallery's seeded data
 /// (DEBUG builds). On demand, like the other UI tests.
 final class SongPageUITests: XCTestCase {
-    private func launch(_ name: String, extraArguments: [String] = []) -> XCUIApplication {
+    private func launch(_ name: String) -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchArguments = ["-componentGallery", name] + extraArguments
+        app.launchArguments = ["-componentGallery", name]
         app.launch()
         return app
     }
@@ -43,23 +43,32 @@ final class SongPageUITests: XCTestCase {
     }
 
     func testTheSongRowTargetStaysAtLeast44PointsAtAnAccessibilitySize() {
-        let app = launch("track-menu-release", extraArguments: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityL"])
+        // The gallery pins its own text size, so AX3 comes from its own variant.
+        let app = launch("track-menu-release-ax3")
         let title = app.buttons["track-title-2"]
-        XCTAssertTrue(waitHittable(title, timeout: 20), "no title button on track 2")
+        XCTAssertTrue(app.descendants(matching: .any)["track-row-1"].firstMatch.waitForExistence(timeout: 20))
+        // The AX3 header pushes the rows below the fold.
+        var tries = 0
+        while !(title.exists && title.isHittable) && tries < 6 {
+            app.swipeUp()
+            tries += 1
+        }
+        XCTAssertTrue(title.isHittable, "no title button on track 2")
         XCTAssertGreaterThanOrEqual(title.frame.height, 44, "the song page target is under 44 pt")
         attach("release-rows-ax")
         title.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.25)).tap()
         assertSongPage(app, title: "Orange Streetlight")
     }
 
-    func testAnArtistLinkOnAReleaseRowStillOpensTheArtist() {
+    /// The gallery has no artist route, so this proves only that the link takes its own tap; ArtistLinksUITests
+    /// covers where it goes.
+    func testAnArtistLinkOnAReleaseRowTakesItsOwnTap() {
         let app = launch("track-menu-release")
         let row = app.descendants(matching: .any)["track-row-2"].firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 20), "no track-row-2")
         let link = row.links.firstMatch
         XCTAssertTrue(link.waitForExistence(timeout: 5), "no artist link in row 2")
         link.tap()
-        attach("artist-from-row-link")
         XCTAssertFalse(app.buttons["song-row-album"].waitForExistence(timeout: 3), "the song page opened instead of the artist")
     }
 
