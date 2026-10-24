@@ -59,7 +59,9 @@ export function checkAdoptRoots(
     const isNew = !known.has(resolved) && !known.has(probe.realpath(resolved));
     if (isNew && !probe.isDirectory(resolved)) return { ok: false, error: `Couldn't find a folder at ${resolved}.` };
     const root = probe.realpath(resolved);
-    if (inside(library, root) || inside(root, library)) {
+    // The library may sit inside a Spotify folder (#335; the scanner skips it), but a Spotify folder may not be
+    // the library or sit inside it.
+    if (inside(library, root)) {
       return { ok: false, error: "Choose a folder that is not your Locally library folder or inside it." };
     }
     if (!out.includes(root)) out.push(root);

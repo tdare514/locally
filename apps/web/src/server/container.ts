@@ -1,5 +1,9 @@
 import { FileSettingsStore } from "./config/FileSettingsStore";
 import type { SettingsStore } from "./config/SettingsStore";
+import { settingsDir } from "./config/paths";
+import { recoverLibraryMove } from "./library/LibraryMover";
+import { setRecoveryGate } from "./library/writeActivity";
+import type { Settings } from "../shared/types";
 import { JsonLibraryRepository } from "./storage/JsonLibraryRepository";
 import type { LibraryRepository } from "./storage/LibraryRepository";
 import { FfmpegConverter } from "./audio/FfmpegConverter";
@@ -57,8 +61,30 @@ export interface Services {
   adopt: AdoptService;
 }
 
+class GatedSettingsStore implements SettingsStore {
+  constructor(private readonly inner: SettingsStore, private readonly ready: Promise<unknown>) {}
+  get() {
+    return this.ready.then(() => this.inner.get());
+  }
+  set(settings: Settings) {
+    return this.ready.then(() => this.inner.set(settings));
+  }
+  update(mutator: (current: Settings) => Settings | null) {
+    return this.ready.then(() => this.inner.update(mutator));
+  }
+}
+
 function buildServices(): Services {
-  const settings = new FileSettingsStore();
+  // Settings reads wait for the start-up check of an unfinished library move (#335), so nothing reads the
+  // library folder before recovery has put it right.
+  const rawSettings = new FileSettingsStore();
+  const moveRecovery = recoverLibraryMove({
+    settings: rawSettings,
+    library: new JsonLibraryRepository(),
+    dataDir: settingsDir(),
+  }).catch((err) => console.warn("Library move recovery failed:", err));
+  setRecoveryGate(moveRecovery);
+  const settings: SettingsStore = new GatedSettingsStore(rawSettings, moveRecovery);
   const library = new JsonLibraryRepository();
   // LOCALLY_FFMPEG is set by the Electron shell to a bundled binary; never user input.
   const converter = new FfmpegConverter(process.env.LOCALLY_FFMPEG?.trim() || undefined);

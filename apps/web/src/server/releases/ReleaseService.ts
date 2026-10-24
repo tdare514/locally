@@ -14,6 +14,7 @@ import { deriveTagNumbers } from "../../shared/discs";
 import { NoopReleaseSyncHooks, type ReleaseSyncHooks } from "./ReleaseSyncHooks";
 import { releaseDateOf, type SyncRecord } from "../sync/SyncRecord";
 import { assertWritable, isAdoptedCoverPath } from "../adopt/guards";
+import { trackLibraryWrite } from "../library/writeActivity";
 
 /**
  * Core release lifecycle: import, edit, re-cover, delete, and look up. All
@@ -43,7 +44,11 @@ export class ReleaseService {
   }
 
   /** Import a new release (single or album). */
-  async import(meta: ImportMeta, coverFile: File | null, audioFiles: File[]): Promise<Release> {
+  import(meta: ImportMeta, coverFile: File | null, audioFiles: File[]): Promise<Release> {
+    return trackLibraryWrite(() => this.importUntracked(meta, coverFile, audioFiles));
+  }
+
+  private async importUntracked(meta: ImportMeta, coverFile: File | null, audioFiles: File[]): Promise<Release> {
     if (meta.kind === "single" && audioFiles.length !== 1) {
       throw new ValidationError("A single must have exactly one audio file");
     }
@@ -184,7 +189,11 @@ export class ReleaseService {
    * The folder and file names therefore reflect the metadata at import time, and
    * `Track.filePath` stays stable for the life of the release.
    */
-  async update(id: string, patch: UpdateReleaseMeta): Promise<Release> {
+  update(id: string, patch: UpdateReleaseMeta): Promise<Release> {
+    return trackLibraryWrite(() => this.updateUntracked(id, patch));
+  }
+
+  private async updateUntracked(id: string, patch: UpdateReleaseMeta): Promise<Release> {
     const settings = await this.settings.get();
     const libraryDir = settings.libraryDir;
 
@@ -262,7 +271,11 @@ export class ReleaseService {
   }
 
   /** Replace the cover image for a release and re-embed it into every track's tags. */
-  async replaceCover(id: string, file: File): Promise<Release> {
+  replaceCover(id: string, file: File): Promise<Release> {
+    return trackLibraryWrite(() => this.replaceCoverUntracked(id, file));
+  }
+
+  private async replaceCoverUntracked(id: string, file: File): Promise<Release> {
     const settings = await this.settings.get();
     const libraryDir = settings.libraryDir;
 
@@ -341,7 +354,11 @@ export class ReleaseService {
   }
 
   /** Delete a release: removes its folder from disk and the library index entry. */
-  async delete(id: string): Promise<void> {
+  delete(id: string): Promise<void> {
+    return trackLibraryWrite(() => this.deleteUntracked(id));
+  }
+
+  private async deleteUntracked(id: string): Promise<void> {
     const settings = await this.settings.get();
     const libraryDir = settings.libraryDir;
 
@@ -374,7 +391,11 @@ export class ReleaseService {
    * Remove an adopted release from Locally (#245): the record goes, its files are untouched. Refuses a
    * release that was not adopted, so `?forget=1` can never be a way around the delete checks.
    */
-  async forget(id: string): Promise<void> {
+  forget(id: string): Promise<void> {
+    return trackLibraryWrite(() => this.forgetUntracked(id));
+  }
+
+  private async forgetUntracked(id: string): Promise<void> {
     const settings = await this.settings.get();
     const existing = await this.repo.find(settings.libraryDir, id);
     if (!existing) throw new NotFoundError(`Release ${id} not found`);
@@ -443,7 +464,11 @@ export class ReleaseService {
    * Never pushed back to sync by this method itself - the caller
    * (`SyncEngine`) owns that bookkeeping.
    */
-  async importSynced(record: SyncRecord, dir: string): Promise<Release> {
+  importSynced(record: SyncRecord, dir: string): Promise<Release> {
+    return trackLibraryWrite(() => this.importSyncedUntracked(record, dir));
+  }
+
+  private async importSyncedUntracked(record: SyncRecord, dir: string): Promise<Release> {
     // A details-only record has no files to write; it is never sent to Spotify from here (#245).
     assertWritable({ adopted: record.source === "adopted", title: record.title });
     const settings = await this.settings.get();
@@ -579,7 +604,11 @@ export class ReleaseService {
    * folder, under the name `record.cover` implies, and re-embedded into every
    * track alongside the metadata.
    */
-  async applyRemote(record: SyncRecord, options: { newCoverPath?: string | null } = {}): Promise<Release> {
+  applyRemote(record: SyncRecord, options: { newCoverPath?: string | null } = {}): Promise<Release> {
+    return trackLibraryWrite(() => this.applyRemoteUntracked(record, options));
+  }
+
+  private async applyRemoteUntracked(record: SyncRecord, options: { newCoverPath?: string | null } = {}): Promise<Release> {
     const settings = await this.settings.get();
     const libraryDir = settings.libraryDir;
 

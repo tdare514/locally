@@ -452,7 +452,9 @@ struct SyncEngineTests {
         let fileName = "Mac Artist - Mac Song - 01 - Mac Song.mp3"
         // A pre-existing, unrelated file already uses this name, forcing the
         // same "never overwrite" uniquing `ReleaseCoordinator` uses locally.
-        try Data([9, 9, 9]).write(to: h.folder.directory.appendingPathComponent(fileName))
+        let brandDir = h.folder.directory.appendingPathComponent(Brand.folderName, isDirectory: true)
+        try FileManager.default.createDirectory(at: brandDir, withIntermediateDirectories: true)
+        try Data([9, 9, 9]).write(to: brandDir.appendingPathComponent(fileName))
 
         let macRecord = SyncRecord(
             id: releaseId.uuidString,

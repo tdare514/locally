@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Orchestrates every end-to-end release flow — import (single or album),
 /// edit in place, and delete — by calling the protocol-backed services in
@@ -528,7 +529,7 @@ final class ReleaseCoordinator {
                     throw LocallyError.importFailed("\"\(syncTrack.file)\" didn't download.")
                 }
                 let destinationURL = try folder.withAccess { folderURL -> URL in
-                    let dest = Self.uniqueDestination(in: folderURL, fileName: syncTrack.file)
+                    let dest = Self.uniqueDestination(in: try Self.brandFolder(in: folderURL), fileName: syncTrack.file)
                     try FileManager.default.copyItem(at: sourceURL, to: dest)
                     return dest
                 }
@@ -776,8 +777,124 @@ final class ReleaseCoordinator {
         if FileManager.default.fileExists(atPath: track.filePath) {
             return URL(fileURLWithPath: track.filePath)
         }
-        let name = (track.filePath as NSString).lastPathComponent
+        let stored = URL(fileURLWithPath: track.filePath)
+        let name = stored.lastPathComponent
+        // By the stored structure, never by guessing: a track kept in the brand folder resolves
+        // only there, a legacy one only at the top level. Trying the other place could land on
+        // another release's file of the same name, and a delete would remove it.
+        if stored.deletingLastPathComponent().lastPathComponent == Brand.folderName {
+            return folderURL.appendingPathComponent(Brand.folderName, isDirectory: true).appendingPathComponent(name)
+        }
         return folderURL.appendingPathComponent(name)
+    }
+
+    /// `<Spotify folder>/<Brand.folderName>`, created if missing. Everything Locally writes into
+    /// Spotify's folder goes here (#335); call it inside `withAccess`.
+    static func brandFolder(in folderURL: URL) throws -> URL {
+        let dir = folderURL.appendingPathComponent(Brand.folderName, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    static let brandFolderMigrationKey = "locally.migration.brandFolder.v1"
+    static let brandFolderMigrationJournalKey = "locally.migration.brandFolder.v1.journal"
+    static let brandFolderMigrationCountKey = "locally.migration.brandFolder.v1.moved"
+
+    /// One-time move (#335) of Locally's own tracks from the Spotify folder's top level into
+    /// `<Brand.folderName>/`. Returns the number of songs moved over all runs when this run finished
+    /// the whole migration for the first time (0 if nothing needed moving), else `nil`: already
+    /// done, folder unreachable, or a release failed (the next launch resumes). Touches only files
+    /// the index tracks. Each move is journaled (track id to destination) before it happens, so a
+    /// run cut short between the move and the index save resumes by pointing the track at exactly
+    /// that destination; no file is ever claimed by guessing its name.
+    func migrateIntoBrandFolder(defaults: UserDefaults = .standard, journal journalStore: MigrationJournalStore = FileMigrationJournalStore()) async -> Int? {
+        guard !defaults.bool(forKey: Self.brandFolderMigrationKey) else { return nil }
+        guard let releases = try? library.all() else { return nil }
+        let fm = FileManager.default
+        // An unreadable journal may hide a move already made, so do nothing this launch: no moves,
+        // the journal file left as it is, the flag unset. The next launch tries again.
+        var journal: [String: String]
+        do { journal = try journalStore.load() } catch {
+            Logger(subsystem: Bundle.main.bundleIdentifier ?? "Locally", category: "migration")
+                .error("Brand-folder migration paused: the journal can't be read (\(error.localizedDescription, privacy: .public))")
+            return nil
+        }
+        var movedThisRun = 0
+        var allDone = true
+        do {
+            try await folder.withAccess { folderURL in
+                let top = folderURL.resolvingSymlinksInPath().path
+                // Every path any release (adopted too) already points at: a delete removes tracked
+                // files, so one file must never be claimed by two releases.
+                var claimed = Set(releases.flatMap { $0.tracks.map { URL(fileURLWithPath: $0.filePath).resolvingSymlinksInPath().path } })
+                for release in releases where !release.isAdopted && !release.tracks.isEmpty {
+                    var updated = release
+                    // Saves the index right away, so a cut-short run never leaves a moved file unknown to it.
+                    func save() -> Bool {
+                        if let first = updated.tracks.first {
+                            updated.folderPath = URL(fileURLWithPath: first.filePath).deletingLastPathComponent().path
+                        }
+                        do { try library.upsert(updated); return true } catch { return false }
+                    }
+                    for index in updated.tracks.indices {
+                        let track = updated.tracks[index]
+                        let key = track.id.uuidString
+                        if let relative = journal[key] {
+                            // A move was started for this track. If its destination exists and nobody
+                            // else owns it, the move finished and only the index is behind.
+                            let dest = folderURL.appendingPathComponent(relative)
+                            let resolved = dest.resolvingSymlinksInPath().path
+                            if relative.hasPrefix(Brand.folderName + "/"), fm.fileExists(atPath: dest.path), !claimed.contains(resolved) {
+                                claimed.insert(resolved)
+                                updated.tracks[index].filePath = dest.path
+                                if save() {
+                                    journal.removeValue(forKey: key)
+                                    try? journalStore.save(journal)
+                                    movedThisRun += 1
+                                } else { allDone = false }
+                                continue
+                            }
+                            // Not moved (the run died before it): forget the entry and move normally.
+                            journal.removeValue(forKey: key)
+                            try? journalStore.save(journal)
+                        }
+                        let name = (track.filePath as NSString).lastPathComponent
+                        guard ReleaseLayout.isPlainFileName(name) else { continue }
+                        // Only a file the index points at, sitting at the Spotify folder's top level.
+                        guard fm.fileExists(atPath: track.filePath) else { continue }
+                        let source = URL(fileURLWithPath: track.filePath)
+                        guard source.deletingLastPathComponent().resolvingSymlinksInPath().path == top else { continue }
+                        do {
+                            let dest = Self.uniqueDestination(in: try Self.brandFolder(in: folderURL), fileName: name)
+                            journal[key] = Brand.folderName + "/" + dest.lastPathComponent
+                            // Durable before the move; if it can't be stored the file stays put.
+                            try journalStore.save(journal)
+                            try fm.moveItem(at: source, to: dest)
+                            claimed.insert(dest.resolvingSymlinksInPath().path)
+                            updated.tracks[index].filePath = dest.path
+                            if save() {
+                                journal.removeValue(forKey: key)
+                                try? journalStore.save(journal)
+                                movedThisRun += 1
+                            } else { allDone = false }
+                        } catch {
+                            allDone = false
+                        }
+                    }
+                }
+            }
+        } catch {
+            return nil
+        }
+        let total = defaults.integer(forKey: Self.brandFolderMigrationCountKey) + movedThisRun
+        guard allDone else {
+            defaults.set(total, forKey: Self.brandFolderMigrationCountKey)
+            return nil
+        }
+        defaults.set(true, forKey: Self.brandFolderMigrationKey)
+        defaults.removeObject(forKey: Self.brandFolderMigrationCountKey)
+        journalStore.clear()
+        return total
     }
 
     /// `name.ext`, or `name (2).ext`, `name (3).ext`, ... if taken; mirrors the
@@ -805,7 +922,7 @@ final class ReleaseCoordinator {
         do {
             return try folder.withAccess { folderURL -> URL in
                 // Never overwrite: a user's unrelated song may share the name.
-                let dest = Self.uniqueDestination(in: folderURL, fileName: fileName)
+                let dest = Self.uniqueDestination(in: try Self.brandFolder(in: folderURL), fileName: fileName)
                 try FileManager.default.moveItem(at: sourceURL, to: dest)
                 return dest
             }

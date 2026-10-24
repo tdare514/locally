@@ -26,11 +26,30 @@ struct RootView: View {
     /// `LibraryView` puts it in its search box and clears it.
     @State private var librarySearchRequest: String?
 
+    /// The one-time line after the move into the brand folder (#335); nil once dismissed.
+    @State private var migrationNotice: String?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     enum Tab: Int {
         case library = 0, importSong = 1, settings = 2, stats = 3
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            // In the layout above the tabs, not over them: the Library's cloud button sits at the
+            // very top and must stay reachable.
+            if let migrationNotice {
+                MigrationNoticeBanner(text: migrationNotice) { self.migrationNotice = nil }
+                    .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+            }
+            tabsOrOnboarding
+        }
+        .background(Theme.background)
+        .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.35), value: migrationNotice)
+    }
+
+    @ViewBuilder
+    private var tabsOrOnboarding: some View {
         Group {
             if !folderStatus.isConnected || !hasFinishedOnboarding {
                 OnboardingView { hasFinishedOnboarding = true }
@@ -61,6 +80,18 @@ struct RootView: View {
             }
         }
         .background(Theme.background)
+        .task(id: folderStatus.isConnected) {
+            guard folderStatus.isConnected, let container else { return }
+            if let moved = await container.coordinator.migrateIntoBrandFolder(), moved > 0 {
+                let text = Copy.Settings.songsMoved(count: moved)
+                migrationNotice = text
+                AccessibilityNotification.Announcement(text).post()
+                // Left up for VoiceOver users, who need time to hear and act on it.
+                guard !UIAccessibility.isVoiceOverRunning else { return }
+                try? await Task.sleep(for: .seconds(8))
+                if !Task.isCancelled, migrationNotice == text { migrationNotice = nil }
+            }
+        }
         .onAppear {
             // A returning user with a stored bookmark skips onboarding entirely.
             if folderStatus.isConnected { hasFinishedOnboarding = true }
@@ -75,3 +106,37 @@ struct RootView: View {
         }
     }
 }
+
+/// The one-time "moved N songs" line (#335): a tap dismisses it.
+struct MigrationNoticeBanner: View {
+    let text: String
+    let onDismiss: () -> Void
+
+    var body: some View {
+        Button(action: onDismiss) {
+            Text(text)
+                .themeFont(.body, weight: .semibold)
+                .foregroundStyle(Theme.primaryText)
+                .multilineTextAlignment(.leading)
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.Immersive.panelFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, Theme.Spacing.pagePadding)
+        .accessibilityLabel(text)
+        .accessibilityHint(Copy.Settings.dismissHint)
+        .accessibilityAction(named: Copy.Settings.dismissAction, onDismiss)
+        .padding(.top, 8)
+    }
+}
+
+#if DEBUG
+extension RootView {
+    /// DEBUG only: the app's tabs with the "moved N songs" banner already showing (gallery `root-banner`).
+    init(demoNotice: String?) {
+        self.init()
+        _migrationNotice = State(initialValue: demoNotice)
+    }
+}
+#endif

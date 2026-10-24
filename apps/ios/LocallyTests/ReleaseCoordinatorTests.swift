@@ -37,7 +37,7 @@ struct ReleaseCoordinatorTests {
         let release = try await coordinator.importSingle(file: source, tags: tags, cover: nil)
 
         let expectedName = ReleaseLayout().fileName(artist: "My Artist", album: "My Album", trackNumber: 1, title: "My Title", ext: "mp3")
-        let expectedURL = folder.directory.appendingPathComponent(expectedName)
+        let expectedURL = folder.directory.appendingPathComponent(Brand.folderName).appendingPathComponent(expectedName)
         #expect(FileManager.default.fileExists(atPath: expectedURL.path))
 
         let allReleases = try library.all()

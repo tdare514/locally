@@ -9,6 +9,8 @@ interface FieldProps {
   placeholder?: string;
   type?: InputHTMLAttributes<HTMLInputElement>["type"];
   disabled?: boolean;
+  /** Sentence-case label in place of the small-caps one. */
+  plainLabel?: boolean;
 }
 
 /** A labelled text input, styled to match the rest of the app. */
@@ -19,10 +21,11 @@ export default function Field({
   placeholder,
   type = "text",
   disabled,
+  plainLabel,
 }: FieldProps) {
   return (
     <label className="flex flex-col gap-2 text-sm">
-      <span className="text-xs font-bold uppercase tracking-[0.14em] text-text-muted">
+      <span className={plainLabel ? "text-sm text-text-muted" : "text-xs font-bold uppercase tracking-[0.14em] text-text-muted"}>
         {label}
       </span>
       <input

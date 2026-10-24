@@ -41,11 +41,9 @@ export class JsonLibraryRepository implements LibraryRepository {
       raw = await fs.readFile(file, "utf-8");
     } catch (err) {
       const code = (err as NodeJS.ErrnoException)?.code;
-      if (code === "ENOENT") {
-        const lib = emptyLibrary();
-        await this.writeRaw(libraryDir, lib);
-        return lib;
-      }
+      // A missing index is an empty library; only a write creates the folder or the file (#335), so a
+      // read during a move can't bring the old folder back.
+      if (code === "ENOENT") return emptyLibrary();
       throw err;
     }
 

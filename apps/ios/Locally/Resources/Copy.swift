@@ -407,6 +407,14 @@ enum Copy {
         static let folderConnected = "Spotify's folder is connected."
         static let folderNotConnected = "Spotify's folder isn't connected."
         static let folderSection = "Spotify folder"
+        /// Where Locally keeps your music, under the folder group's status row (#335).
+        static let folderKeeps = "Locally keeps your music in the \(Brand.folderName) folder inside Spotify's folder."
+        /// The one-time line after the move into the brand folder.
+        static let dismissHint = "Double-tap to dismiss"
+        static let dismissAction = "Dismiss"
+        static func songsMoved(count: Int) -> String {
+            "\(Brand.folderName) moved \(count) \(count == 1 ? "song" : "songs") into its own \(Brand.folderName) folder in Spotify."
+        }
         static let purchaseSection = "Purchase"
         static let reconnect = "Reconnect"
         static let folderLost = "We can't reach Spotify's folder any more. This happens after Spotify is reinstalled or Local Files is turned off. Tap to reconnect."

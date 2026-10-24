@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { CloudPlaysStatus, PlaysStatus, SpotifyConnectionStatus, SyncStatus } from "../shared/types";
 import { DEFAULT_SYNC_BASE_URL } from "../shared/types";
+import { BRAND_FOLDER_NAME } from "../shared/brand";
 import {
   deleteSyncAccount,
   disconnectSpotify,
@@ -30,6 +31,7 @@ import { libraryWidthClass } from "../lib/library-view-prefs";
 import { useLibraryWidth } from "../lib/use-library-width";
 import { IS_DEMO } from "../lib/demo";
 import Field from "./Field";
+import LibraryMoveControl from "./LibraryMoveControl";
 import SpotifyFoldersCard from "./SpotifyFoldersCard";
 import { HAS_SPOTIFY_CONNECTION } from "./sidebar/flags";
 
@@ -564,7 +566,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
               label="Path"
               value={libraryDir}
               onChange={setLibraryDir}
-              placeholder="~/Music/Spotify Local Import"
+              placeholder={`~/Music/${BRAND_FOLDER_NAME}`}
               disabled={loading}
             />
           </div>
@@ -587,6 +589,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
           </div>
         </div>
         </fieldset>
+        <LibraryMoveControl onToast={onToast} onMoved={setLibraryDir} />
       </section>
 
       <SpotifyFoldersCard onToast={onToast} onCheck={onCheckSpotifyFolders} />

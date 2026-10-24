@@ -453,3 +453,41 @@ export function coverUrl(id: string, cacheBust?: string | null): string {
   const base = `/api/releases/${encodeURIComponent(id)}/cover`;
   return cacheBust ? `${base}?t=${encodeURIComponent(cacheBust)}` : base;
 }
+
+/** What moving the library into a Locally folder would do (#335). */
+export interface LibraryMovePreview {
+  destination: string;
+  folderName: string;
+  /** True when the library folder's name is not the Locally folder name. */
+  needsMove: boolean;
+  /** False when the library folder also holds other things; `reason` says so. */
+  movable: boolean;
+  reason?: string;
+  /** An unfinished move that start-up recovery could not sort out: Settings shows it as an error line. */
+  problem?: string;
+  releases: number;
+  songs: number;
+}
+
+export interface LibraryMoveResult {
+  from: string;
+  to: string;
+  releases: number;
+  songs: number;
+  oldRemoved: boolean;
+}
+
+export async function getLibraryMovePreview(signal?: AbortSignal): Promise<LibraryMovePreview> {
+  const res = await fetch("/api/library/move", { signal });
+  return handle<LibraryMovePreview>(res);
+}
+
+/** Moves the library folder. The server validates the destination and refuses while a write is running. */
+export async function moveLibrary(destination: string): Promise<LibraryMoveResult> {
+  const res = await fetch("/api/library/move", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ destination }),
+  });
+  return handle<LibraryMoveResult>(res);
+}

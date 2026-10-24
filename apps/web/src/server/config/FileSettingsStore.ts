@@ -5,8 +5,9 @@ import type { Settings, SpotifySettings, SyncSettings } from "../../shared/types
 import { defaultLibraryDir, settingsDir, settingsFilePath } from "./paths";
 import type { SettingsStore } from "./SettingsStore";
 
-async function ensureDirExists(dir: string): Promise<void> {
-  await fs.mkdir(dir, { recursive: true });
+/** The saved Spotify folders as strings, for the default library folder of a setup that has none saved. */
+function adoptRootsOf(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.filter((r): r is string => typeof r === "string" && r.trim().length > 0) : [];
 }
 
 /** Settings hold a sync device token and the Spotify tokens, so its directory and file are locked to the owner. */
@@ -118,7 +119,7 @@ export class FileSettingsStore implements SettingsStore {
     const libraryDir =
       typeof parsed.libraryDir === "string" && parsed.libraryDir.trim().length > 0
         ? parsed.libraryDir
-        : defaultLibraryDir();
+        : defaultLibraryDir(adoptRootsOf(parsed.adoptRoots));
     const spotifySourceDismissed =
       typeof parsed.spotifySourceDismissed === "boolean" ? parsed.spotifySourceDismissed : false;
     const trackPlays = typeof parsed.trackPlays === "boolean" ? parsed.trackPlays : false;
@@ -163,7 +164,8 @@ export class FileSettingsStore implements SettingsStore {
     // mkdir's `mode` only applies when it creates the directory; force it on
     // an already-existing one too (e.g. left over from before this hardening).
     await fs.chmod(dir, CONFIG_DIR_MODE);
-    await ensureDirExists(settings.libraryDir);
+    // The library folder is made by the first library write, never by a settings save (#335): a save during a
+    // move must not bring the old folder back.
 
     const file = settingsFilePath();
     // Write to a tmp file first and rename into place, so a crash mid-write

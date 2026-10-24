@@ -114,12 +114,12 @@ struct ReleaseCoordinatorDeleteTests {
         let album = AlbumDraft(title: "Album", artist: "Artist", tracks: [TrackDraft(title: "One")])
         let release = try await coordinator.importAlbum(files: files, album: album, cover: nil)
         let liveName = (release.tracks[0].filePath as NSString).lastPathComponent
-        let livePath = folder.directory.appendingPathComponent(liveName).path
+        let livePath = folder.directory.appendingPathComponent(Brand.folderName).appendingPathComponent(liveName).path
         #expect(FileManager.default.fileExists(atPath: livePath))
 
         // Rewrite the index entry as if the folder had moved containers.
         var stale = release
-        stale.tracks[0].filePath = "/private/var/old-container/Documents/" + liveName
+        stale.tracks[0].filePath = "/private/var/old-container/\(Brand.folderName)/" + liveName
         try library.upsert(stale)
 
         try await coordinator.deleteRelease(release.id)

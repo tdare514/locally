@@ -171,24 +171,25 @@ describe("planSettingsUpdate adoptRoots (#249)", () => {
     expect((r as { error: string }).error).toContain("Couldn't find a folder");
   });
 
-  it("refuses a folder inside the library folder, the library folder itself, and one that contains it", () => {
+  it("refuses a folder inside the library folder and the library folder itself; one that contains the library is fine (#335)", () => {
     const lib = current().libraryDir;
-    for (const root of [path.join(lib, "sub"), lib, path.join(home, "Music")]) {
+    const parent = path.join(home, "Music");
+    expect(planSettingsUpdate(current(), { adoptRoots: [parent] }, home, probe([parent]))).toMatchObject({ ok: true });
+    for (const root of [path.join(lib, "sub"), lib]) {
       const r = planSettingsUpdate(current(), { adoptRoots: [root] }, home, probe([root]));
       expect(r).toMatchObject({ ok: false });
       expect((r as { error: string }).error).toContain("library folder");
     }
   });
 
-  it("checks against the library folder set in the same request", () => {
-    const r = planSettingsUpdate(current(), { libraryDir: path.join(spotify, "Lib"), adoptRoots: [spotify] }, home, probe([spotify]));
+  it("checks against the library folder set in the same request: a Spotify folder inside it is refused", () => {
+    const r = planSettingsUpdate(current(), { libraryDir: path.join(spotify, "Lib"), adoptRoots: [path.join(spotify, "Lib", "x")] }, home, probe([path.join(spotify, "Lib", "x")]));
     expect(r).toMatchObject({ ok: false });
   });
 
-  it("refuses a new library folder inside an existing Spotify folder, with no adoptRoots in the request", () => {
+  it("allows a library folder inside an existing Spotify folder (#335)", () => {
     const r = planSettingsUpdate(current({ adoptRoots: [spotify] }), { libraryDir: path.join(spotify, "Lib") }, home, probe([spotify]));
-    expect(r).toMatchObject({ ok: false });
-    expect((r as { error: string }).error).toContain("library folder");
+    expect(r).toMatchObject({ ok: true });
   });
 
   it("refuses a symlink alias of the library, and saves a symlinked root as its real path", () => {
