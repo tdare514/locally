@@ -1,7 +1,7 @@
 import type { Release, Track } from "../shared/types";
 import { asKnownItem, itemKey, type CollectionItem, type CollectionRecord, type KnownItem } from "../shared/collections";
 import { moveItem } from "./track-order";
-import { playOrder, type PlayQueue, type QueueItem } from "./play-queue";
+import { playOrder, type PlayerStore, type PlayQueue, type QueueItem } from "./play-queue";
 
 /*
  * Collections on the Mac (#349), pure: resolving a collection's items against the library, building its play queue,
@@ -128,10 +128,30 @@ export function isFailedRow(
   return unavailable.includes(`${item.releaseId}/${item.trackId}`);
 }
 
-/** Side A and Side B: the queue split in half, the extra track on Side A. */
-export function splitSides<T>(items: readonly T[]): { a: T[]; b: T[] } {
-  const half = Math.ceil(items.length / 2);
-  return { a: items.slice(0, half), b: items.slice(half) };
+/** What a press on the collection's cover did (#369): started it from the top, paused it, resumed it, or nothing. */
+export type CoverPress = "started" | "paused" | "resumed" | null;
+
+/**
+ * The cover is the play control outside edit mode. If this collection's queue is the current one the press toggles
+ * pause and resume; otherwise it starts the collection from the top. Nothing happens in edit mode or when nothing in
+ * the collection can play on this Mac.
+ */
+export function pressCollectionCover(
+  store: Pick<PlayerStore, "getState" | "start" | "toggle">,
+  collection: Pick<CollectionRecord, "id" | "items">,
+  releases: readonly Release[],
+  editing: boolean,
+): CoverPress {
+  if (editing) return null;
+  const { queue, playing } = store.getState();
+  if (queue && queue.context.kind === "collection" && queue.context.id === collection.id) {
+    store.toggle();
+    return playing ? "paused" : "resumed";
+  }
+  const built = buildCollectionQueue(collection, releases);
+  if (!built) return null;
+  store.start(built);
+  return "started";
 }
 
 /** Release ids of the first four different covers among the items (one when only one), for the 2x2 sleeve. */
