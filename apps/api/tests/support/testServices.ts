@@ -13,6 +13,7 @@ import { PlaysService } from "../../src/server/plays/PlaysService";
 import { QuotaService } from "../../src/server/quota/QuotaService";
 import { ShareService } from "../../src/server/shares/ShareService";
 import { InMemoryRateLimiter } from "../../src/server/ratelimit/InMemoryRateLimiter";
+import { CollectionSyncService } from "../../src/server/collections/CollectionSyncService";
 import { ReleaseSyncService } from "../../src/server/releases/ReleaseSyncService";
 
 /**
@@ -76,6 +77,7 @@ export async function createTestServices(): Promise<TestServices> {
     auth: new AuthService(db, mailer, "test-auth-pepper", "test-token-pepper"),
     account: new AccountService(db),
     releases: new ReleaseSyncService(db),
+    collections: new CollectionSyncService(db),
     plays: new PlaysService(db),
     quota,
     files: new ReleaseFilesService(db, fileStore, quota),

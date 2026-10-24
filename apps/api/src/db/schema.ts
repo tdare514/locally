@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { sqliteTable, text, integer, uniqueIndex, index, primaryKey } from "drizzle-orm/sqlite-core";
+import type { CollectionRecord } from "../shared/collections";
 import type { ReleaseRecord, ShareSnapshot } from "../shared/types";
 
 /** 1 GiB, the default free-tier storage limit for a new account. */
@@ -64,6 +65,21 @@ export const releases = sqliteTable("releases", {
 }, (table) => ({
   userVersionIdx: index("releases_user_version_idx").on(table.userId, table.version),
   deletedIdx: index("releases_deleted_idx").on(table.deleted, table.serverUpdatedAt),
+}));
+
+export const collections = sqliteTable("collections", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  version: integer("version").notNull(),
+  /** The full `CollectionRecord` (see shared/collections.ts), serialized as JSON. */
+  record: text("record", { mode: "json" }).notNull().$type<CollectionRecord>(),
+  /** Epoch ms mirror of `record.updatedAt`, used for the last-writer-wins compare. */
+  updatedAt: integer("updated_at").notNull(),
+  deleted: integer("deleted", { mode: "boolean" }).notNull().default(false),
+  serverUpdatedAt: integer("server_updated_at").notNull(),
+}, (table) => ({
+  userVersionIdx: index("collections_user_version_idx").on(table.userId, table.version),
+  deletedIdx: index("collections_deleted_idx").on(table.deleted, table.serverUpdatedAt),
 }));
 
 export const files = sqliteTable("files", {

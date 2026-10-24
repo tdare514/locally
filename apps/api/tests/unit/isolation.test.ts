@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { devices } from "../../src/db/schema";
@@ -16,6 +17,8 @@ import * as authCodeRoute from "../../src/app/v1/auth/code/route";
 import * as authVerifyRoute from "../../src/app/v1/auth/verify/route";
 import * as meRoute from "../../src/app/v1/me/route";
 import * as devicesRoute from "../../src/app/v1/devices/[id]/route";
+import * as collectionsListRoute from "../../src/app/v1/collections/route";
+import * as collectionRoute from "../../src/app/v1/collections/[id]/route";
 import * as releasesListRoute from "../../src/app/v1/releases/route";
 import * as releaseRoute from "../../src/app/v1/releases/[id]/route";
 import * as playsRoute from "../../src/app/v1/plays/route";
@@ -265,6 +268,43 @@ describe("cross-user isolation", () => {
     const aliceSentBody = await aliceSent.json();
     expect(aliceSentBody.shares).toHaveLength(1);
     expect(aliceSentBody.shares[0].revokedAt).toBeNull();
+
+    // Collections (#339): another account gets 404 on PUT and DELETE, and an empty list.
+    const collectionId = crypto.randomUUID();
+    const collectionRecord = {
+      syncVersion: 1,
+      id: collectionId,
+      name: "Alice's mix",
+      items: [{ kind: "release", releaseId: record.id }],
+      origin: "mac",
+      originDevice: "Alice's Mac",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      deleted: false,
+    };
+    const aliceCollectionPut = await collectionRoute.PUT(
+      jsonRequest(`http://localhost/v1/collections/${collectionId}`, "PUT", collectionRecord, alice.token),
+      { params: Promise.resolve({ id: collectionId }) }
+    );
+    expect(aliceCollectionPut.status).toBe(200);
+    const bobCollectionPut = await collectionRoute.PUT(
+      jsonRequest(`http://localhost/v1/collections/${collectionId}`, "PUT", { ...collectionRecord, name: "Bob's now" }, bob.token),
+      { params: Promise.resolve({ id: collectionId }) }
+    );
+    expect(bobCollectionPut.status).toBe(404);
+    const bobCollectionDelete = await collectionRoute.DELETE(
+      new Request(`http://localhost/v1/collections/${collectionId}`, { method: "DELETE", headers: { authorization: `Bearer ${bob.token}` } }),
+      { params: Promise.resolve({ id: collectionId }) }
+    );
+    expect(bobCollectionDelete.status).toBe(404);
+    const bobCollections = await collectionsListRoute.GET(
+      new Request("http://localhost/v1/collections?sinceVersion=0", { headers: { authorization: `Bearer ${bob.token}` } })
+    );
+    expect((await bobCollections.json()).collections).toEqual([]);
+    const aliceCollections = await collectionsListRoute.GET(
+      new Request("http://localhost/v1/collections?sinceVersion=0", { headers: { authorization: `Bearer ${alice.token}` } })
+    );
+    expect((await aliceCollections.json()).collections[0].name).toBe("Alice's mix");
 
     // GET /v1/releases (list) never includes Alice's release for Bob.
     const bobList = await releasesListRoute.GET(
