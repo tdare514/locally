@@ -105,11 +105,22 @@ struct QueueItem: Hashable, Codable {
 
 /// Where a queue came from; tapping the mini player opens it.
 struct QueueContext: Hashable, Codable {
-    enum Kind: String, Codable { case release, collection }
+    /// `mixed`: tracks from elsewhere joined (play next, add to queue); `id` is the release playing when it did.
+    enum Kind: String, Codable { case release, collection, mixed }
     let kind: Kind
     let id: UUID
 
     static func release(_ id: UUID) -> QueueContext { QueueContext(kind: .release, id: id) }
+}
+
+/// What a play next / add to queue did, for the confirmation toast.
+struct QueueAddOutcome: Equatable {
+    /// Items that joined the queue.
+    var added: Int
+    /// Items left out because they cannot play on this phone (adopted, details-only).
+    var leftOut: Int
+    /// True when there was no queue and the items started playing.
+    var started: Bool
 }
 
 @MainActor
@@ -150,6 +161,7 @@ final class PlaybackService {
         switch context.kind {
         case .release: openReleaseRequest = context.id
         case .collection: openCollectionRequest = context.id
+        case .mixed: openReleaseRequest = currentItem?.releaseId
         }
     }
 
@@ -296,6 +308,46 @@ final class PlaybackService {
         cursor = start
         isSkipping = false
         runner = Task { [weak self] in await self?.run() }
+    }
+
+    // MARK: Play next and add to queue (#364)
+
+    /// Inserts the playable `items`, in order, right after the playing item. The playing item is not touched.
+    @discardableResult
+    func playNext(_ items: [QueueItem], releases newReleases: [Release]) -> QueueAddOutcome {
+        enqueue(items, releases: newReleases, atEnd: false)
+    }
+
+    /// Appends the playable `items` to the queue.
+    @discardableResult
+    func addToQueue(_ items: [QueueItem], releases newReleases: [Release]) -> QueueAddOutcome {
+        enqueue(items, releases: newReleases, atEnd: true)
+    }
+
+    private func enqueue(_ items: [QueueItem], releases newReleases: [Release], atEnd: Bool) -> QueueAddOutcome {
+        let byID = Dictionary(newReleases.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let playable = items.filter { item in
+            guard let release = byID[item.releaseId], Self.canPlay(release) else { return false }
+            return release.tracks.contains { $0.id == item.trackId }
+        }
+        let leftOut = items.count - playable.count
+        guard let first = playable.first else { return QueueAddOutcome(added: 0, leftOut: leftOut, started: false) }
+        guard let queue, queue.items.indices.contains(queue.index) else {
+            let oneRelease = playable.allSatisfy { $0.releaseId == first.releaseId }
+            let context = oneRelease ? QueueContext.release(first.releaseId) : QueueContext(kind: .mixed, id: first.releaseId)
+            play(items: playable, releases: newReleases, context: context)
+            return QueueAddOutcome(added: self.queue == nil ? 0 : playable.count, leftOut: leftOut, started: self.queue != nil)
+        }
+        for item in playable { releases[item.releaseId] = byID[item.releaseId] }
+        // While a skip is under way the target at `cursor` is the item about to play; `queue.index` is still the old one.
+        let current = isSkipping && queue.items.indices.contains(cursor) ? cursor : queue.index
+        let at = atEnd ? queue.items.count : current + 1
+        self.queue?.items.insert(contentsOf: playable, at: at)
+        let stays = queue.context.kind == .release && playable.allSatisfy { $0.releaseId == queue.context.id }
+        if !stays, let now = self.queue?.items[current].releaseId {
+            self.queue?.context = QueueContext(kind: .mixed, id: now)
+        }
+        return QueueAddOutcome(added: playable.count, leftOut: leftOut, started: false)
     }
 
     func pause() {

@@ -4,7 +4,7 @@ import SwiftUI
 /// Debug-only harness for deterministic screenshots of the immersive components. Launch the app
 /// with `-componentGallery <name>`; see `LocallyApp`.
 struct ComponentGallery: View {
-    static let names = ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "sleeve-bright", "sleeve-dark", "backdrop-a", "backdrop-b", "inline-field", "cover-sheet",
+    static let names = TrackActionsGallery.names + ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "sleeve-bright", "sleeve-dark", "backdrop-a", "backdrop-b", "inline-field", "cover-sheet",
         // #160: the studio backdrop and the real Settings with sample sync state.
         "studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "migration-banner", "root-banner",
         // #205: the release page's tracks panel (the shared `TrackRow`, preset rows).
@@ -314,6 +314,8 @@ struct ComponentGallery: View {
             IconsGallery.release().dynamicTypeSize(.accessibility3)
         case "share-sheet":
             ShareGallery.sheet()
+        case "queue-toast-next", "queue-toast-added", "queue-toast-left-out", "queue-toast-ax3", "queue-toast-long-ax5", "queue-toast-left-out-ax5":
+            TrackActionsGallery(name: name)
         case "share-sheet-link":
             ShareGallery.sheet(link: true)
         case "share-sheet-result":

@@ -217,6 +217,8 @@ struct GlowGlass: View {
 /// A 1 pt rim at 12 % white, brighter (32 %) along the top edge. `round` draws it on a circle.
 struct GlowRim: View {
     var round = false
+    /// A bounded continuous corner instead of a capsule, for multi-line content.
+    var corner: CGFloat?
 
     private var gradient: LinearGradient {
         LinearGradient(
@@ -234,6 +236,8 @@ struct GlowRim: View {
         Group {
             if round {
                 Circle().strokeBorder(gradient, lineWidth: 1)
+            } else if let corner {
+                RoundedRectangle(cornerRadius: corner, style: .continuous).strokeBorder(gradient, lineWidth: 1)
             } else {
                 Capsule().strokeBorder(gradient, lineWidth: 1)
             }

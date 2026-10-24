@@ -6,6 +6,7 @@ import SwiftUI
 @main
 struct LocallyApp: App {
     @State private var launch = LaunchState.open()
+    @State private var queueToast = QueueToastCenter()
 
     init() {
         Theme.applyChrome()
@@ -26,6 +27,7 @@ struct LocallyApp: App {
                     RootView()
                         .environment(\.appContainer, container)
                         .environment(\.playback, container.playback)
+                        .environment(\.queueToast, queueToast)
                         .environment(container.folderStatus)
                         .environment(container.purchaseStatus)
                         .environment(container.syncStatus)
