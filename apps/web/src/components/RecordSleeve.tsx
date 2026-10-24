@@ -17,18 +17,21 @@ interface RecordSleeveProps {
   /** The collection page (#369): true turns the record, false holds it at its angle. Leave it out and the disc
    * only spins after a save, as on the release page. */
   turning?: boolean;
+  /** The collection page (#369): size the sleeve and disc from the width of the nearest container (`--sleeve`, set by
+   * `.record-fluid`) instead of the fixed footprint, so a narrow column never overflows. */
+  fluid?: boolean;
 }
 
 /** A record peeking out of its sleeve, the hero of the release page (#112). The disc is
  * decoration only; the sleeve (children) is the interactive cover picker. */
-export default function RecordSleeve({ children, labelUrl, spin, discKey, turning }: RecordSleeveProps) {
+export default function RecordSleeve({ children, labelUrl, spin, discKey, turning, fluid }: RecordSleeveProps) {
   return (
-    <div className="record relative w-fit pr-[92px] sm:pr-[116px]">
+    <div className={`record relative w-fit ${fluid ? "record-fluid" : "pr-[92px] sm:pr-[116px]"}`}>
       {/* Keyed by `spin` so each save restarts the press and the spin. */}
       <div
         key={discKey === undefined ? spin : `${spin}:${discKey}`}
         aria-hidden
-        className={`record-disc size-[184px] sm:size-[228px] ${spin > 0 ? "record-pressed" : ""}`}
+        className={`record-disc ${fluid ? "size-[var(--sleeve)]" : "size-[184px] sm:size-[228px]"} ${spin > 0 ? "record-pressed" : ""}`}
       >
         <div className={`record-face ${spin > 0 ? "record-spin" : ""} ${turning === undefined ? "" : "record-turn"}`} data-turning={turning}>
           <div

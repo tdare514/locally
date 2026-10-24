@@ -176,7 +176,7 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
           )}
         />
       ) : (
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,min(24rem,40%))_minmax(0,1fr)]">
+        <div className="coll-wrap"><div className="coll-grid">
           <section aria-label="Your collections" className="flex min-w-0 flex-col gap-3">
             <div className="relative">
               <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
@@ -228,7 +228,7 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
               onAddTracks={onAddTracks}
             />
           )}
-        </div>
+        </div></div>
       )}
     </div>
   );
@@ -263,7 +263,7 @@ function Switch<T extends string>({
 /** Quiet placeholders in the final shapes while the store is first read: no spinner. */
 function Placeholders() {
   return (
-    <div aria-busy="true" aria-label="Loading collections" className="grid gap-8 lg:grid-cols-[minmax(0,min(24rem,40%))_minmax(0,1fr)]">
+    <div className="coll-wrap"><div aria-busy="true" aria-label="Loading collections" className="coll-grid">
       <div className="flex flex-col gap-1">
         {[0, 1, 2].map((i) => (
           <div key={i} className="flex min-h-14 items-center gap-3 p-2">
@@ -280,7 +280,7 @@ function Placeholders() {
           <div key={i} className="h-14 rounded-[14px] bg-card" />
         ))}
       </div>
-    </div>
+    </div></div>
   );
 }
 
@@ -346,9 +346,10 @@ function QueuePanel({
       )}
       <div className={`flex gap-x-8 gap-y-5 ${deck ? "flex-wrap items-center" : "flex-col items-start"}`}>
         {!deck && (
-          <RecordSleeve labelUrl={labelUrl} spin={0} turning={queueOfThis && playing}>
+          <div className="coll-sleeve-box">
+          <RecordSleeve labelUrl={labelUrl} spin={0} turning={queueOfThis && playing} fluid>
             {editing ? (
-              <CollectionSleeve items={collection.items} releases={releases} className="size-[184px] sm:size-[228px]" />
+              <CollectionSleeve items={collection.items} releases={releases} className="size-[var(--sleeve)]" />
             ) : (
               <button
                 type="button"
@@ -358,11 +359,12 @@ function QueuePanel({
                 title={canPlay ? undefined : COLLECTIONS_COPY.noneHere}
                 className="cover-play relative block overflow-hidden rounded-[8px] outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <CollectionSleeve items={collection.items} releases={releases} className="size-[184px] sm:size-[228px]" />
+                <CollectionSleeve items={collection.items} releases={releases} className="size-[var(--sleeve)]" />
                 {pressed > 0 && <span key={pressed} aria-hidden="true" className="cover-press" />}
               </button>
             )}
           </RecordSleeve>
+          </div>
         )}
         <div className="w-full min-w-0">
           {editing ? (
