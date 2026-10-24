@@ -72,4 +72,24 @@ import Testing
         #expect(!size.showsSubtitle)
         #expect(CoverSize.medium.showsSubtitle && CoverSize.large.showsSubtitle)
     }
+
+    @Test func sliderPositionSnapsToTheNearestDetentAndClamps() {
+        #expect(CoverSize.nearest(fraction: 0) == .small)
+        #expect(CoverSize.nearest(fraction: 0.24) == .small)
+        #expect(CoverSize.nearest(fraction: 0.26) == .medium)
+        #expect(CoverSize.nearest(fraction: 0.5) == .medium)
+        #expect(CoverSize.nearest(fraction: 0.74) == .medium)
+        #expect(CoverSize.nearest(fraction: 0.76) == .large)
+        #expect(CoverSize.nearest(fraction: 1) == .large)
+        #expect(CoverSize.nearest(fraction: -3) == .small)
+        #expect(CoverSize.nearest(fraction: 7) == .large)
+    }
+
+    @Test func voiceOverSteppingStopsAtTheEnds() {
+        #expect(CoverSize.small.stepped(by: 1) == .medium)
+        #expect(CoverSize.medium.stepped(by: 1) == .large)
+        #expect(CoverSize.large.stepped(by: 1) == .large)
+        #expect(CoverSize.large.stepped(by: -1) == .medium)
+        #expect(CoverSize.small.stepped(by: -1) == .small)
+    }
 }

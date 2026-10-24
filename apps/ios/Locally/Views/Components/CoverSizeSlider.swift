@@ -67,15 +67,13 @@ struct CoverSizeSlider: View {
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0).onChanged { value in
-                    let fraction = (value.location.x - inset) / span
-                    let index = Int((fraction * last).rounded())
-                    if let size = CoverSize(rawValue: min(max(index, 0), sizes.count - 1)) { selection = size }
+                    selection = CoverSize.nearest(fraction: (value.location.x - inset) / span)
                 }
             )
         }
     }
 
     private func move(by step: Int) {
-        if let size = CoverSize(rawValue: selection.rawValue + step) { selection = size }
+        selection = selection.stepped(by: step)
     }
 }

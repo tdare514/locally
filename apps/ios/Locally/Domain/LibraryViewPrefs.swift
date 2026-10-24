@@ -29,6 +29,18 @@ enum CoverSize: Int, CaseIterable {
         self = storedRaw.flatMap(CoverSize.init(rawValue:)) ?? .default
     }
 
+    /// The detent nearest a position along the slider, 0 (left end) to 1 (right end); outside that range clamps.
+    static func nearest(fraction: CGFloat) -> CoverSize {
+        let last = CGFloat(allCases.count - 1)
+        let index = Int((min(max(fraction, 0), 1) * last).rounded(.toNearestOrAwayFromZero))
+        return CoverSize(rawValue: index) ?? .default
+    }
+
+    /// The detent `step` places along, stopping at the ends.
+    func stepped(by step: Int) -> CoverSize {
+        CoverSize(rawValue: min(max(rawValue + step, 0), CoverSize.allCases.count - 1)) ?? self
+    }
+
     /// Minimum tile width for the adaptive grid.
     var tileMinWidth: CGFloat { Theme.Library.tileMinWidth[rawValue] }
     /// Gap between tiles, both ways.

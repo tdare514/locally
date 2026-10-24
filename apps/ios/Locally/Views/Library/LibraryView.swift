@@ -71,10 +71,7 @@ struct LibraryView: View {
     @State private var path = NavigationPath()
     /// The collections (#350): the row under the title, the Collections screen and a collection's queue share it.
     @State private var collections: CollectionsModel?
-    @State private var isNamingCollection = false
-    @State private var newCollectionName = ""
     /// A New collection whose save failed: an alert says so and offers the name again.
-    @State private var collectionCreateFailed = false
 
     /// A release's cover identity: a replaced cover bumps `updatedAt`.
     private struct CoverKey: Hashable {
@@ -228,18 +225,6 @@ struct LibraryView: View {
                 if let collections {
                     CollectionDetailView(model: collections, id: route.id, startsEditing: route.startsEditing) { path = NavigationPath() }
                 }
-            }
-            .nameAlert(Copy.Collections.nameTitle, action: Copy.Collections.create, isPresented: $isNamingCollection, text: $newCollectionName) { name in
-                do {
-                    if let id = try collections?.create(name: name) { path.append(CollectionRoute(id: id)) }
-                } catch {
-                    newCollectionName = name
-                    collectionCreateFailed = true
-                }
-            }
-            .alert(Copy.Collections.createFailed, isPresented: $collectionCreateFailed) {
-                Button(Copy.Collections.tryAgain) { isNamingCollection = true }
-                Button(Copy.Collections.cancel, role: .cancel) { newCollectionName = "" }
             }
             // `.onAppear` (not `.task`) so returning from `ReleaseDetailView`
             // after a save/delete re-reads the store and reflects it here.
@@ -657,7 +642,7 @@ struct LibraryView: View {
 
     private func coverGrid(_ items: [Release]) -> some View {
         LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: gridSize.tileMinWidth), spacing: gridSize.tileGap)],
+            columns: [GridItem(.adaptive(minimum: gridSize.tileMinWidth), spacing: gridSize.tileGap, alignment: .top)],
             spacing: gridSize.tileGap
         ) {
             ForEach(items) { release in
