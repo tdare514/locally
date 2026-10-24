@@ -31,6 +31,7 @@ import { UNKNOWN_ARTIST } from "../shared/adopt";
 import { folderAfterRoot } from "../lib/adopt-review";
 import NoCover from "./NoCover";
 import ShareControl from "./ShareControl";
+import AddToCollection from "./AddToCollection";
 import { deleteSharedLine } from "../lib/share-copy";
 import { RESHARE_REFUSED } from "../shared/shares";
 import ReleaseBar, { BarConfirm, useBarConfirm } from "./ReleaseBar";
@@ -701,6 +702,17 @@ export default function ReleaseView({
             }
             playlists={playlists}
             onOpenPlaylist={handleOpenPlaylist}
+            renderCollect={
+              IS_DEMO
+                ? undefined
+                : (key, trackName) => (
+                    <AddToCollection
+                      name={trackName}
+                      variant="row"
+                      getItems={() => [{ kind: "track", releaseId: release.id, trackId: key }]}
+                    />
+                  )
+            }
             renderShare={
               isAdopted || IS_DEMO || release.sharedFrom
                 ? undefined
@@ -798,7 +810,15 @@ export default function ReleaseView({
         }
         status={unsaved && !IS_DEMO && !confirmingDelete && !isAdopted ? "Unsaved changes" : undefined}
         beforeMain={
-          isAdopted ? undefined : (
+          <>
+          {!IS_DEMO && (
+            <AddToCollection
+              name={release.title}
+              variant="bar"
+              getItems={() => [{ kind: "release", releaseId: release.id }]}
+            />
+          )}
+          {isAdopted ? undefined : (
             <>
               {!IS_DEMO && release.sharedFrom?.allowReshare === false && (
                 // Imported from a friend's share that was not allowed to go on (#328): quiet text, no button.
@@ -823,7 +843,8 @@ export default function ReleaseView({
                 <span className="btn-ink-label">Show in Finder</span>
               </button>
             </>
-          )
+          )}
+          </>
         }
         main={
           isAdopted ? (

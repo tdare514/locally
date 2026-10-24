@@ -38,6 +38,8 @@ import { AdoptService } from "./adopt/AdoptService";
 import { FileAdoptProposalStore } from "./adopt/FileAdoptProposalStore";
 import { CloudPlays } from "./spotify/CloudPlays";
 import { isDemo } from "./demo";
+import { FileCollectionStore } from "./collections/FileCollectionStore";
+import type { CollectionStore } from "./collections/CollectionStore";
 
 export interface Services {
   settings: SettingsStore;
@@ -61,6 +63,7 @@ export interface Services {
   nowPlaying: SwitchingNowPlaying;
   cloudPlays: CloudPlays;
   adopt: AdoptService;
+  collections: CollectionStore;
 }
 
 class GatedSettingsStore implements SettingsStore {
@@ -97,7 +100,8 @@ function buildServices(): Services {
   const syncState = new FileSyncStateStore();
   const syncApiFactory: SyncApiFactory = (baseUrl, token) => new HttpSyncApi(baseUrl, token);
   const playStore = new FilePlayCountStore();
-  const syncEngine = new SyncEngine(settings, syncState, releases, fs, syncApiFactory, undefined, playStore);
+  const collections = new FileCollectionStore();
+  const syncEngine = new SyncEngine(settings, syncState, releases, fs, syncApiFactory, undefined, playStore, undefined, undefined, collections);
 
   // Late-wire the engine as ReleaseService's sync hooks (see ReleaseSyncHooks
   // for why this can't be a constructor parameter: SyncEngine itself depends
@@ -160,6 +164,7 @@ function buildServices(): Services {
     nowPlaying,
     cloudPlays,
     adopt: new AdoptService({ settings, library, fs, proposals: new FileAdoptProposalStore() }),
+    collections,
   };
 }
 

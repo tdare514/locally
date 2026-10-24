@@ -33,6 +33,8 @@ import {
 } from "../lib/back-stack";
 import Toast, { type ToastMessage } from "./Toast";
 import Player from "./Player";
+import CollectionsView from "./CollectionsView";
+import { CollectionsProvider } from "./CollectionsContext";
 
 export type View =
   | { type: "library" }
@@ -40,6 +42,8 @@ export type View =
   | { type: "release"; id: string; justImported?: boolean; trackId?: string }
   | { type: "settings"; section?: "account" }
   | { type: "stats" }
+  /** The Collections page (#349); `id` is the collection on show (the first when absent). */
+  | { type: "collections"; id?: string }
   /** An artist's page (#288), by `artistKey`. */
   | { type: "artist"; key: string }
   /** The review page for the Spotify folders (#249). `scan`: read the folders first. */
@@ -286,7 +290,7 @@ export default function AppShell() {
   // The sidebar highlights the page on screen; a release page is none of them.
   // The Spotify folders' review page belongs to Settings.
   const activePage: SidebarPage | null =
-    view.type === "release" || view.type === "artist" ? null : view.type === "adopt" ? "settings" : view.type;
+    view.type === "release" || view.type === "artist" || view.type === "collections" ? null : view.type === "adopt" ? "settings" : view.type;
 
   /** Resolves true once the release is imported, false (after a toast) when it failed. */
   async function handleAcceptFromPhone(id: string): Promise<boolean> {
@@ -359,6 +363,7 @@ export default function AppShell() {
   }
 
   return (
+    <CollectionsProvider onToast={showToast}>
     <div
       ref={shellRef}
       // The Import page's sky portals in here (#159), so it sits under the sidebar like the library's.
@@ -414,6 +419,15 @@ export default function AppShell() {
               onBulkDone={refreshLibrary}
               onToast={showToast}
               onAmbientCoverChange={setAmbientCoverUrl}
+              onOpenCollection={(id) => pushTo({ type: "collections", id })}
+            />
+          )}
+          {view.type === "collections" && (
+            <CollectionsView
+              releases={library?.releases ?? []}
+              selectedId={view.id}
+              onSelect={(id) => setView({ type: "collections", id })}
+              onAddTracks={() => goTo({ type: "library" })}
             />
           )}
           {view.type === "import" && (
@@ -516,7 +530,11 @@ export default function AppShell() {
         <div id="overlay-root" className="pointer-events-none fixed inset-0 z-30" />
         {/* The player (#338): its one <audio> lives here so playback survives page changes, and its mini bar
             floats above the release bar on every page while a queue exists. The demo has no files to play. */}
-        {!IS_DEMO && <Player releases={library?.releases ?? []} onOpenRelease={(id) => pushTo({ type: "release", id })} />}
+        {!IS_DEMO && <Player
+            releases={library?.releases ?? []}
+            onOpenRelease={(id) => pushTo({ type: "release", id })}
+            onOpenCollection={(id) => (view.type === "collections" ? setView({ type: "collections", id }) : pushTo({ type: "collections", id }))}
+          />}
         {!IS_DEMO && (
           <div className="absolute right-4 top-4 z-20 md:right-6 md:top-6">
             <PhoneInbox
@@ -534,5 +552,6 @@ export default function AppShell() {
       </div>
       <Toast toasts={toasts} onDismiss={dismissToast} />
     </div>
+    </CollectionsProvider>
   );
 }

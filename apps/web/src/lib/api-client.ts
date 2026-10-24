@@ -25,6 +25,7 @@ import type {
   ShareGroup,
   ShareOptions,
 } from "../shared/shares";
+import type { CollectionItem, CollectionRecord } from "../shared/collections";
 import type { AdoptProposal } from "../server/adopt/types";
 import type { AdoptBatchResponse } from "./adopt-review";
 
@@ -509,5 +510,37 @@ export async function putLocallyNowPlaying(trackId: string | null): Promise<void
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ trackId }),
   });
+  await handle<{ ok: true }>(res);
+}
+
+// --- Collections (#349) -----------------------------------------------------------------------------------------
+
+/** `GET /api/collections`: the live collections in order, and what the last sync pass could not do. */
+export async function getCollections(): Promise<{ collections: CollectionRecord[]; problem: "too_many_collections" | null }> {
+  const res = await fetch("/api/collections", { cache: "no-store" });
+  return handle(res);
+}
+
+export async function createCollection(name: string, items: CollectionItem[] = []): Promise<CollectionRecord> {
+  const res = await fetch("/api/collections", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, items }),
+  });
+  return (await handle<{ collection: CollectionRecord }>(res)).collection;
+}
+
+/** Replaces the name and/or the whole item list. */
+export async function updateCollection(id: string, patch: { name?: string; items?: CollectionItem[] }): Promise<CollectionRecord> {
+  const res = await fetch(`/api/collections/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  return (await handle<{ collection: CollectionRecord }>(res)).collection;
+}
+
+export async function deleteCollection(id: string): Promise<void> {
+  const res = await fetch(`/api/collections/${encodeURIComponent(id)}`, { method: "DELETE" });
   await handle<{ ok: true }>(res);
 }

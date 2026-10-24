@@ -34,6 +34,8 @@ const SKIP_SECONDS = 10;
 interface PlayerProps {
   releases: readonly Release[];
   onOpenRelease: (id: string) => void;
+  /** A queue made from a collection (#349): the mini player's tap opens that collection. */
+  onOpenCollection?: (id: string) => void;
 }
 
 /**
@@ -41,7 +43,7 @@ interface PlayerProps {
  * survives page changes, plus the mini player bar while a queue exists. Rows start it through `playerStore`.
  * Everything shown is resolved per queue item from that item's own release, `navigator.mediaSession` too.
  */
-export default function Player({ releases, onOpenRelease }: PlayerProps) {
+export default function Player({ releases, onOpenRelease, onOpenCollection }: PlayerProps) {
   const state = usePlayerState();
   const audioRef = useRef<HTMLAudioElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -253,8 +255,8 @@ export default function Player({ releases, onOpenRelease }: PlayerProps) {
           >
             <button
               type="button"
-              onClick={() => openContext(state.queue!.context, onOpenRelease)}
-              aria-label={`Open ${info.album}`}
+              onClick={() => openContext(state.queue!.context, onOpenRelease, onOpenCollection)}
+              aria-label={state.queue.context.kind === "collection" ? "Open the collection" : `Open ${info.album}`}
               className="flex min-w-0 shrink items-center gap-3 rounded-[14px] p-1 pr-3 text-left outline-none hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent basis-56"
             >
               <span className="block size-12 shrink-0 overflow-hidden rounded-[8px] shadow-[0_6px_16px_-6px_rgb(0_0_0/0.7)]">

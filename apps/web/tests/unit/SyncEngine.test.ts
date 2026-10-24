@@ -26,6 +26,7 @@ import {
   type VerifyCodeResult,
 } from "../../src/server/sync/SyncApi";
 import { toSyncRecord, type SyncRecord } from "../../src/server/sync/SyncRecord";
+import type { CollectionsPage } from "../../src/shared/collections";
 import type { PlayEntry } from "../../src/server/plays/playsWire";
 import { FakePlayCountStore } from "./FakePlayCountStore";
 
@@ -105,6 +106,7 @@ class FakeSyncStateStore implements SyncStateStore {
       hiddenFromTray: { ...this.state.hiddenFromTray },
       localIdQueuedAt: { ...this.state.localIdQueuedAt },
       localIdBackfilled: this.state.localIdBackfilled,
+      collectionsVersion: this.state.collectionsVersion,
     };
   }
   async set(state: SyncState): Promise<SyncState> {
@@ -334,6 +336,15 @@ class FakeSyncApi implements SyncApi {
     throw new Error("not used here");
   }
   async hideShare(): Promise<void> {}
+  async listCollections(): Promise<CollectionsPage> {
+    throw new SyncRequestError("Not found", 404);
+  }
+  async putCollection(): Promise<{ version: number; pruned: number }> {
+    throw new SyncRequestError("Not found", 404);
+  }
+  async deleteCollection(): Promise<{ version: number }> {
+    throw new SyncRequestError("Not found", 404);
+  }
 
   async uploadFile(upload: SyncUploadTarget, filePath: string): Promise<void> {
     this.uploadCalls.push({ name: upload.name, filePath });

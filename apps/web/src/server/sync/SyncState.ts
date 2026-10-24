@@ -56,6 +56,8 @@ export interface SyncState {
    * kept across an ordinary sign-out. Changed only through `update`.
    */
   importedShares?: Record<string, Record<string, string>>;
+  /** The `GET /v1/collections` pull cursor (#349): the last page's `nextVersion`. Absent means from the start. */
+  collectionsVersion?: number;
   /** True once the one-time back-fill of adopted releases (#307) has been queued under this account. */
   localIdBackfilled?: boolean;
 }

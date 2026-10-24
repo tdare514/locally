@@ -2,7 +2,7 @@
 
 /** The minimum a view needs for a label; AppShell's `View` fits it. */
 export interface BackView {
-  type: "library" | "import" | "release" | "settings" | "stats" | "adopt" | "artist";
+  type: "library" | "import" | "release" | "settings" | "stats" | "adopt" | "artist" | "collections";
 }
 
 /** One earlier view plus the state needed to put it back as it was. */
@@ -63,6 +63,8 @@ export function backLabel(destination: BackView["type"], artistName?: string): s
       return "Back to release";
     case "adopt":
       return "Back to your Spotify folders";
+    case "collections":
+      return "Back to Collections";
     case "artist": {
       // The name comes from the catalogue; an artist no longer in it is just "Back".
       const name = artistName?.trim();

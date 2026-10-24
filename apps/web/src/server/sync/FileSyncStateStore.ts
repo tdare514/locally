@@ -12,6 +12,8 @@ const SyncStateFileSchema = z.object({
   // Written by builds from #307 on: when a re-push of an adopted release's localIds was last queued.
   localIdQueuedAt: z.record(z.string(), z.string()).optional(),
   localIdBackfilled: z.boolean().optional(),
+  // Written by builds from #349 on: the collections pull cursor.
+  collectionsVersion: z.number().int().min(0).optional().catch(undefined),
   // Written by builds from #182 on: shares from friends imported here, until their claim is confirmed.
   // The first builds kept one flat list; that shape fails here and is dropped, the one case it can re-offer a share.
   importedShares: z.record(z.string(), z.record(z.string(), z.string())).optional().catch(undefined),
