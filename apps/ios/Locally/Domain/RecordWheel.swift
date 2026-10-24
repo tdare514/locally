@@ -118,9 +118,11 @@ enum RecordWheel {
     /// Which collection is in front after the collections change (one deleted, made or moved): the same one when it is
     /// still there; otherwise its replacement at the same place, or the new last one when the last was deleted. Nil with
     /// none left. The playing collection does not matter: the wheel follows what is in front.
-    static func frontAfterChange(oldFront: UUID?, oldIndex: Int, newIDs: [UUID]) -> (index: Int, id: UUID)? {
+    static func frontAfterChange(oldIDs: [UUID], oldFront: UUID?, newIDs: [UUID]) -> (index: Int, id: UUID)? {
         guard !newIDs.isEmpty else { return nil }
         if let oldFront, let index = newIDs.firstIndex(of: oldFront) { return (index, oldFront) }
+        // The place it had in the old list (not the new count), so deleting the last one lands on the new last.
+        let oldIndex = oldFront.flatMap { oldIDs.firstIndex(of: $0) } ?? 0
         let index = min(max(oldIndex, 0), newIDs.count - 1)
         return (index, newIDs[index])
     }

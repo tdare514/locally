@@ -93,7 +93,7 @@ struct RecordWheelView: View {
                 guard let new, let index = summaries.firstIndex(where: { $0.id == new }), index != frontIndex else { return }
                 settle(RecordWheel.turnTarget(index, from: position, summaries.count), duration: Theme.Immersive.wheelTapDuration)
             }
-            .onChange(of: summaries) { _, new in follow(new) }
+            .onChange(of: summaries) { old, new in follow(from: old, new) }
     }
 
     private var spokenValue: String {
@@ -154,8 +154,8 @@ struct RecordWheelView: View {
     }
 
     /// The collections changed (one made, deleted, or moved up by an edit): stay on the one in front, without a turn.
-    private func follow(_ new: [CollectionSummary]) {
-        guard let front = RecordWheel.frontAfterChange(oldFront: frontID, oldIndex: frontIndex, newIDs: new.map(\.id)) else {
+    private func follow(from old: [CollectionSummary], _ new: [CollectionSummary]) {
+        guard let front = RecordWheel.frontAfterChange(oldIDs: old.map(\.id), oldFront: frontID, newIDs: new.map(\.id)) else {
             frontID = nil
             return
         }

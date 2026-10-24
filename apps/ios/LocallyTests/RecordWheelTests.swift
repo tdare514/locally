@@ -94,35 +94,48 @@ struct RecordWheelTests {
 
     @Test func theFrontStaysWhereItWasWhenSomethingElseChanges() {
         let moved = [ids[2], ids[0], ids[1], ids[3], ids[4]]
-        let front = RecordWheel.frontAfterChange(oldFront: ids[1], oldIndex: 1, newIDs: moved)
+        let front = RecordWheel.frontAfterChange(oldIDs: ids, oldFront: ids[1], newIDs: moved)
         #expect(front?.id == ids[1] && front?.index == 2)
     }
 
     @Test func deletingTheFrontAtTheStartPutsItsReplacementInFront() {
-        let front = RecordWheel.frontAfterChange(oldFront: ids[0], oldIndex: 0, newIDs: Array(ids.dropFirst()))
+        let front = RecordWheel.frontAfterChange(oldIDs: ids, oldFront: ids[0], newIDs: Array(ids.dropFirst()))
         #expect(front?.id == ids[1] && front?.index == 0)
     }
 
     @Test func deletingTheFrontAtTheEndPutsTheNewLastInFront() {
-        let front = RecordWheel.frontAfterChange(oldFront: ids[4], oldIndex: 4, newIDs: Array(ids.dropLast()))
+        let front = RecordWheel.frontAfterChange(oldIDs: ids, oldFront: ids[4], newIDs: Array(ids.dropLast()))
         #expect(front?.id == ids[3] && front?.index == 3)
+    }
+
+    @Test func deletingTheLastFrontOfFiveKeepsTheNewLastNotTheFirst() {
+        // The caller path: the old list is what the wheel had, so index 4 of 5 clamps to 3, never wraps to 0.
+        let old = ids
+        let new = Array(ids.dropLast())
+        let front = RecordWheel.frontAfterChange(oldIDs: old, oldFront: old[4], newIDs: new)
+        #expect(front?.index == 3 && front?.id == ids[3])
+        // A front that was past the end of the new list (several deleted at once) clamps too.
+        let two = RecordWheel.frontAfterChange(oldIDs: old, oldFront: old[4], newIDs: [ids[0], ids[1]])
+        #expect(two?.index == 1 && two?.id == ids[1])
+        // A front the old list never held falls back to the first.
+        #expect(RecordWheel.frontAfterChange(oldIDs: old, oldFront: UUID(), newIDs: new)?.index == 0)
     }
 
     @Test func deletingTheFrontInTheMiddlePutsTheNextInFront() {
         var left = ids
         left.remove(at: 2)
-        let front = RecordWheel.frontAfterChange(oldFront: ids[2], oldIndex: 2, newIDs: left)
+        let front = RecordWheel.frontAfterChange(oldIDs: ids, oldFront: ids[2], newIDs: left)
         #expect(front?.id == ids[3] && front?.index == 2)
     }
 
     @Test func deletingThePlayingCollectionWhileItIsInFrontDoesNotLeaveTheQueueBlank() {
         // The playing one is the front one: the wheel still lands on a real collection that exists.
-        let front = RecordWheel.frontAfterChange(oldFront: ids[1], oldIndex: 1, newIDs: [ids[0], ids[2]])
+        let front = RecordWheel.frontAfterChange(oldIDs: ids, oldFront: ids[1], newIDs: [ids[0], ids[2]])
         #expect(front?.id == ids[2])
     }
 
     @Test func deletingDownToNoneLeavesNothingInFront() {
-        #expect(RecordWheel.frontAfterChange(oldFront: ids[0], oldIndex: 0, newIDs: []) == nil)
+        #expect(RecordWheel.frontAfterChange(oldIDs: ids, oldFront: ids[0], newIDs: []) == nil)
     }
 
     @Test func sideACarriesTheExtraTrack() {

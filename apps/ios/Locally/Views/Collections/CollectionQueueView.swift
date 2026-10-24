@@ -39,7 +39,7 @@ struct CollectionQueueHeader: View {
                 if !isEditing {
                     ViewThatFits(in: .horizontal) {
                         HStack(spacing: 16) { playButton(control); editButton }.fixedSize(horizontal: true, vertical: false)
-                        VStack(alignment: .leading, spacing: 0) { playButton(control); editButton }
+                        VStack(alignment: .leading, spacing: 8) { playButton(control); editButton }
                     }
                     .padding(.top, 4)
                 }
@@ -223,6 +223,13 @@ struct CollectionQueueRows: View {
                     .themeFont(.rowSubtitle)
                     .foregroundStyle(Theme.secondaryText)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                if dynamicTypeSize.isAccessibilitySize, let length = TrackLength.format(row.durationSec) {
+                    Text(length)
+                        .themeFont(.meta)
+                        .foregroundStyle(Theme.secondaryText)
+                        .monospacedDigit()
+                        .accessibilityHidden(true)
+                }
                 if wontPlay {
                     Text(Copy.Collections.couldntPlay)
                         .themeFont(.rowSubtitle)
@@ -230,7 +237,8 @@ struct CollectionQueueRows: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            if let length = TrackLength.format(row.durationSec) {
+            // At the accessibility sizes the length goes under the artist, so the title keeps the room (no mid-word breaks).
+            if let length = TrackLength.format(row.durationSec), !dynamicTypeSize.isAccessibilitySize {
                 Text(length)
                     .themeFont(.meta)
                     .foregroundStyle(Theme.secondaryText)

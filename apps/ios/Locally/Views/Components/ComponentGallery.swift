@@ -38,7 +38,7 @@ struct ComponentGallery: View {
         "collections-library", "collections-screen", "collections-queue", "collections-edit", "collections-empty", "collections-queue-ax", "collections-add", "collections-playing", "collections-add-failed", "collections-wont-play", "collections-playlist-guide", "collections-none-here",
         // #352: the record player on the Collections screen, over seeded collections and a player on fakes.
         "collections-player-playing", "collections-player-browsing", "collections-player-paused", "collections-player-vinyl", "collections-player-reduce-motion",
-        "collections-player-ax", "collections-player-narrow", "collections-player-empty", "collections-player-wont-play", "collections-player-many", "collections-player-ax-lower", "collections-player-narrow-lower"]
+        "collections-player-ax", "collections-player-narrow", "collections-player-empty", "collections-player-wont-play", "collections-player-many", "collections-player-ax-lower", "collections-player-ax-controls", "collections-player-narrow-lower"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -249,8 +249,10 @@ struct ComponentGallery: View {
             CollectionsPlayerGallery(vinyl: true)
         case "collections-player-reduce-motion":
             CollectionsPlayerGallery(reduceMotion: true)
-        case "collections-player-ax-lower":
+        case "collections-player-ax-controls":
             CollectionsPlayerGallery(scrollsTo: CollectionsPlayerView.nowPlayingID)
+        case "collections-player-ax-lower":
+            CollectionsPlayerGallery(scrollsTo: CollectionsPlayerView.queueID)
         case "collections-player-narrow-lower":
             CollectionsPlayerGallery(scrollsTo: CollectionsPlayerView.nowPlayingID).frame(width: 320)
         case "collections-player-narrow":
