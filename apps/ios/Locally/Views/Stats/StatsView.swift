@@ -29,7 +29,7 @@ struct StatsTab: View {
 }
 
 /// The Stats page, in the iPhone's "glass groups" language (#160): the Mac's approved page (#145)
-/// ported to a column. Top to bottom: the title, a one-line digest, the period picker and stepper,
+/// ported to a column. Top to bottom: the title, a one-line digest, the period row (arrows either side of the period pill),
 /// the Tracks / Albums / Artists switch, the five-sleeve fan, then everyone ranked from number one
 /// as a list or as the sorted grid. The backdrop takes its colours from the cover of number one.
 struct StatsView: View {
@@ -208,9 +208,12 @@ struct StatsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 6)
                 }
-                periodPicker
-                    .frame(maxWidth: .infinity)
-                if model.showsStepper { stepper }
+                periodRow
+                    .task {
+                        guard openPeriodOnAppear else { return }
+                        try? await Task.sleep(for: .seconds(1.5))
+                        periodOpen = true
+                    }
                 tabPicker
                     .frame(maxWidth: .infinity)
             }
@@ -285,30 +288,42 @@ struct StatsView: View {
         palette.map { ArtworkBackdrop.color(hex: $0.primary) } ?? Theme.accent
     }
 
-    private var periodPicker: some View {
-        StatsPeriodPill(current: model.period.kind, tint: tint, isPresented: $periodOpen) { model.selectKind($0) }
-            .task {
-                guard openPeriodOnAppear else { return }
-                try? await Task.sleep(for: .seconds(1.5))
-                periodOpen = true
-            }
+    private var periodPill: some View {
+        StatsPeriodPill(
+            current: model.period.kind,
+            title: Copy.Stats.periodLabel(model.period),
+            detail: Copy.Stats.periodDetail(model.period, range: model.range, today: model.today),
+            tint: tint, isPresented: $periodOpen
+        ) { model.selectKind($0) }
     }
 
-    private var stepper: some View {
-        HStack(spacing: 4) {
-            stepButton(.chevronRight, mirrored: true, label: Copy.Stats.previousLabel(model.period.kind), enabled: model.canStepBack) { model.stepBack() }
-            VStack(spacing: 2) {
-                Text(Copy.Stats.periodLabel(model.period))
-                    .font(.system(.headline, weight: .semibold))
-                    .foregroundStyle(Theme.primaryText)
-                Text(Copy.Stats.periodDetail(model.period, range: model.range, today: model.today))
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.secondaryText)
+    private var backButton: some View {
+        stepButton(.chevronRight, mirrored: true, label: Copy.Stats.previousLabel(model.period.kind), enabled: model.canStepBack) { model.stepBack() }
+    }
+
+    private var forwardButton: some View {
+        stepButton(.chevronRight, label: Copy.Stats.nextLabel(model.period.kind), enabled: model.canStepForward) { model.stepForward() }
+    }
+
+    /// One row: ‹ [ This week ⌄ ] ›. The dates sit in the pill as its second line. At the largest text
+    /// sizes the arrows drop below the pill, side by side.
+    @ViewBuilder
+    private var periodRow: some View {
+        if model.showsStepper {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    backButton
+                    periodPill
+                    forwardButton
+                }
+                VStack(spacing: 10) {
+                    periodPill
+                    HStack(spacing: 24) { backButton; forwardButton }
+                }
             }
-            .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity)
-            .accessibilityElement(children: .combine)
-            stepButton(.chevronRight, label: Copy.Stats.nextLabel(model.period.kind), enabled: model.canStepForward) { model.stepForward() }
+        } else {
+            periodPill.frame(maxWidth: .infinity)
         }
     }
 

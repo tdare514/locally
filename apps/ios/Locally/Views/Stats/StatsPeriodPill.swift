@@ -4,6 +4,9 @@ import SwiftUI
 /// cover's colour, that opens a glass pop-up of large rows. Choosing a row closes it.
 struct StatsPeriodPill: View {
     let current: StatsPeriodKind
+    /// The period's name ("This week", "Last month") and its dates ("18 to 24 Oct"), shown together in the pill.
+    let title: String
+    let detail: String
     let tint: Color
     @Binding var isPresented: Bool
     let onSelect: (StatsPeriodKind) -> Void
@@ -12,23 +15,28 @@ struct StatsPeriodPill: View {
     /// A pop-up is its own hierarchy: it takes the page's text size, held at the largest non-accessibility size so the five rows fit the screen.
     @Environment(\.dynamicTypeSize) private var typeSize
 
-    private var currentLabel: String {
-        Copy.Stats.periodOptions.first { $0.kind == current }?.label ?? ""
-    }
 
     var body: some View {
         Button {
             isPresented = true
         } label: {
             HStack(spacing: 8) {
-                Text(currentLabel)
-                    .contentTransition(.opacity)
+                VStack(spacing: 1) {
+                    Text(title)
+                        .font(Theme.ScaledFont.subheadline.weight(.semibold))
+                        .contentTransition(.opacity)
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(Color.white.opacity(0.85))
+                        .contentTransition(.opacity)
+                }
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 Image(systemName: "chevron.down")
                     .font(.caption.weight(.bold))
                     .rotationEffect(.degrees(isPresented && !reduceMotion ? 180 : 0))
                     .accessibilityHidden(true)
             }
-            .font(Theme.ScaledFont.subheadline.weight(.semibold))
             .foregroundStyle(Color.white)
             .padding(.horizontal, 18)
             .padding(.vertical, 8)
@@ -46,9 +54,9 @@ struct StatsPeriodPill: View {
         }
         .buttonStyle(.plain)
         .animation(reduceMotion ? nil : Theme.StatsPopup.ease, value: isPresented)
-        .animation(reduceMotion ? nil : Theme.StatsPopup.ease, value: current)
+        .animation(reduceMotion ? nil : Theme.StatsPopup.ease, value: title)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(Copy.Stats.periodPillLabel), \(currentLabel)")
+        .accessibilityLabel("\(Copy.Stats.periodPillLabel), \(title), \(detail)")
         .accessibilityAddTraits(.isButton)
         .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
             StatsPeriodPopup(current: current, tint: tint) { kind in
