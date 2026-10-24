@@ -1,6 +1,6 @@
 import { and, asc, eq, gt, inArray, isNull, lt, min, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { authCodes, files, pendingDeletes, playCounts, playDays, rateLimits, releases, spotifyLinkRequests } from "../../db/schema";
+import { authCodes, files, pendingDeletes, playCounts, playDays, playEvents, rateLimits, releases, spotifyLinkRequests } from "../../db/schema";
 import { PLAY_DAY_RETENTION_DAYS, utcDay } from "../../shared/days";
 import type { FileStore } from "../files/FileStore";
 import { listUserKeys, userStoragePrefix } from "../files/ReleaseFilesService";
@@ -32,6 +32,10 @@ export interface CleanupResult {
   deletedPlayDays: number;
   /** `play_days` rows more than 400 days before today's UTC date (retention). */
   expiredPlayDays: number;
+  /** `play_events` rows of tombstoned releases past the same retention (#368). */
+  deletedPlayEvents: number;
+  /** `play_events` rows whose `started_at` is more than 400 days ago (retention, #368). */
+  expiredPlayEvents: number;
   deletedAuthCodes: number;
   deletedRateLimits: number;
   /** `spotify_link_requests` rows past their 10-minute expiry. */
@@ -139,6 +143,18 @@ export class CleanupService {
       drained += page.drained;
       failed += page.failed;
       if (rows.length < CLEANUP_PAGE_SIZE) return drained;
+    }
+  }
+
+  /** The same rowid paging for `play_events`. */
+  private async deletePlayEventsPaged(where: SQL | undefined): Promise<number> {
+    let deleted = 0;
+    for (;;) {
+      const result = await this.db.run(
+        sql`delete from play_events where rowid in (select rowid from play_events where ${where} limit ${CLEANUP_PAGE_SIZE})`
+      );
+      deleted += result.rowsAffected;
+      if (result.rowsAffected < CLEANUP_PAGE_SIZE) return deleted;
     }
   }
 
@@ -355,6 +371,21 @@ export class CleanupService {
       lt(playDays.day, utcDay(this.now(), -PLAY_DAY_RETENTION_DAYS))
     );
 
+    const staleTombstonePlayEvents = await this.deletePlayEventsPaged(
+      inArray(
+        playEvents.releaseId,
+        this.db
+          .select({ id: releases.id })
+          .from(releases)
+          .where(and(eq(releases.deleted, true), lt(releases.serverUpdatedAt, cutoff)))
+      )
+    );
+
+    // Retention: events that started more than 400 days ago, live or not.
+    const expiredPlayEvents = await this.deletePlayEventsPaged(
+      lt(playEvents.startedAt, this.now() - PLAY_DAY_RETENTION_DAYS * 24 * 60 * 60 * 1000)
+    );
+
     let deletedAuthCodes = 0;
     for (;;) {
       const expiredCodes = await this.db
@@ -395,6 +426,8 @@ export class CleanupService {
       deletedPlayCounts: stalePlayCounts.length,
       deletedPlayDays: staleTombstonePlayDays,
       expiredPlayDays,
+      deletedPlayEvents: staleTombstonePlayEvents,
+      expiredPlayEvents,
       deletedAuthCodes,
       deletedRateLimits: staleRateLimits.length,
       deletedSpotifyLinkRequests: staleLinkRequests.length,

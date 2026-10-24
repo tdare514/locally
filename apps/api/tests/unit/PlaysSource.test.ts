@@ -89,8 +89,8 @@ describe("play counts by source (#340)", () => {
     await push([{ releaseId, trackId: track, count: 4, source: "locally" }], otherDeviceId);
 
     const res = await summary();
-    expect(res.allTime).toEqual([{ trackId: track, releaseId, plays: 9, devicePlays: 5, bySource: { spotify: 3, locally: 6 } }]);
-    expect(res.tracks).toEqual([{ trackId: track, releaseId, plays: 5, devicePlays: 5, lastPlayedDay: DAY, bySource: { spotify: 3, locally: 2 } }]);
+    expect(res.allTime).toEqual([{ trackId: track, releaseId, plays: 9, devicePlays: 5, bySource: { spotify: 3, locally: 6 }, lastPlayedAt: null, listenedMs: 0, events: 0 }]);
+    expect(res.tracks).toEqual([{ trackId: track, releaseId, plays: 5, devicePlays: 5, lastPlayedDay: DAY, bySource: { spotify: 3, locally: 2 }, lastPlayedAt: null, listenedMs: 0, events: 0 }]);
 
     const rel = await services.plays.forRelease(userId, releaseId, deviceId);
     expect(rel!.tracks).toHaveLength(1);

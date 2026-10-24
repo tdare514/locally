@@ -22,6 +22,7 @@ import * as collectionRoute from "../../src/app/v1/collections/[id]/route";
 import * as releasesListRoute from "../../src/app/v1/releases/route";
 import * as releaseRoute from "../../src/app/v1/releases/[id]/route";
 import * as playsRoute from "../../src/app/v1/plays/route";
+import * as playEventsRoute from "../../src/app/v1/plays/events/route";
 import * as playsSummaryRoute from "../../src/app/v1/plays/summary/route";
 import * as releasePlaysRoute from "../../src/app/v1/releases/[id]/plays/route";
 import * as filesRoute from "../../src/app/v1/releases/[id]/files/route";
@@ -248,11 +249,38 @@ describe("cross-user isolation", () => {
     const aliceSummary = await summaryAs(alice.token);
     expect(aliceSummary.status).toBe(200);
     expect(await aliceSummary.json()).toEqual({
-      tracks: [{ trackId: track.id, releaseId: record.id, plays: 2, devicePlays: 2, lastPlayedDay: today, bySource: { spotify: 2, locally: 0 } }],
-      allTime: [{ trackId: track.id, releaseId: record.id, plays: 5, devicePlays: 5, bySource: { spotify: 5, locally: 0 } }],
+      tracks: [{ trackId: track.id, releaseId: record.id, plays: 2, devicePlays: 2, lastPlayedDay: today, bySource: { spotify: 2, locally: 0 }, lastPlayedAt: null, listenedMs: 0, events: 0 }],
+      allTime: [{ trackId: track.id, releaseId: record.id, plays: 5, devicePlays: 5, bySource: { spotify: 5, locally: 0 }, lastPlayedAt: null, listenedMs: 0, events: 0 }],
       nextCursor: null,
     });
     expect((await playsSummaryRoute.GET(new Request(summaryUrl))).status).toBe(401);
+
+    // PUT/GET /v1/plays/events (#368): Alice's event is hers alone. Bob's push for her release is ignored,
+    // his read is empty, and his push of her event id (against his own release) changes nothing of hers.
+    const eventId = crypto.randomUUID();
+    const startedAt = Date.now() - 60_000;
+    const aliceEvent = { id: eventId, releaseId: record.id, trackId: track.id, source: "locally", startedAt, day: today, listenedMs: 30_000 };
+    const alicePush = await playEventsRoute.PUT(jsonRequest("http://localhost/v1/plays/events", "PUT", { events: [aliceEvent] }, alice.token));
+    expect(await alicePush.json()).toEqual({ accepted: 1, ignored: 0 });
+    const bobPush = await playEventsRoute.PUT(
+      jsonRequest("http://localhost/v1/plays/events", "PUT", { events: [{ ...aliceEvent, id: crypto.randomUUID(), listenedMs: 99 }] }, bob.token)
+    );
+    expect(await bobPush.json()).toEqual({ accepted: 0, ignored: 1 });
+    const bobSameId = await playEventsRoute.PUT(
+      jsonRequest("http://localhost/v1/plays/events", "PUT", { events: [{ ...aliceEvent, listenedMs: 99 }] }, bob.token)
+    );
+    expect(await bobSameId.json()).toEqual({ accepted: 0, ignored: 1 });
+    const eventsUrl = `http://localhost/v1/plays/events?from=${startedAt - 1000}&to=${startedAt + 1000}`;
+    const eventsAs = (token?: string) =>
+      playEventsRoute.GET(new Request(eventsUrl, token ? { headers: { authorization: `Bearer ${token}` } } : undefined));
+    expect(await (await eventsAs(bob.token)).json()).toEqual({ events: [], nextCursor: null });
+    const aliceEvents = await (await eventsAs(alice.token)).json();
+    expect(aliceEvents.events).toHaveLength(1);
+    expect(aliceEvents.events[0]).toMatchObject({ id: eventId, listenedMs: 30_000 });
+    expect((await eventsAs()).status).toBe(401);
+    expect(
+      (await playEventsRoute.PUT(jsonRequest("http://localhost/v1/plays/events", "PUT", { events: [aliceEvent] }))).status
+    ).toBe(401);
 
     // GET /v1/shares: Bob sees nothing of Alice's share in either list; Alice's own share is unrevoked.
     for (const role of ["sent", "received"]) {
