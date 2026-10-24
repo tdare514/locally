@@ -62,6 +62,11 @@ struct SongPageView: View {
         }
         .foregroundStyle(Theme.primaryText)
         .task { await start() }
+        .onChange(of: playback?.wontPlay(trackID) ?? false) { old, new in
+            if new && !old {
+                AccessibilityNotification.Announcement("\(Copy.Collections.couldntPlay). \(Copy.Collections.tryAgain)").post()
+            }
+        }
         .sheet(item: $addTarget) { target in
             if let collectionsModel {
                 AddToCollectionSheet(model: collectionsModel, items: target.items) { addTarget = nil }
@@ -120,6 +125,9 @@ struct SongPageView: View {
                 .frame(maxWidth: .infinity)
             SongActionRow(actions: actions(model), tint: tint)
                 .padding(.top, 8)
+            if model.canPlay, playback?.wontPlay(trackID) == true {
+                playbackFailure
+            }
             if !model.canEdit {
                 Text(Copy.SongPage.editOnMac)
                     .font(Theme.ScaledFont.caption)
@@ -130,6 +138,19 @@ struct SongPageView: View {
         .padding(.horizontal, Theme.SongPage.pageGutter)
         .padding(.top, 16)
         .padding(.bottom, 28)
+    }
+
+    /// The file is missing or will not decode: the collection page's wording and Try again, in plain text on the wash.
+    private var playbackFailure: some View {
+        VStack(spacing: 8) {
+            Text(Copy.Collections.couldntPlay)
+                .font(Theme.ScaledFont.subheadline)
+                .foregroundStyle(Theme.danger)
+                .multilineTextAlignment(.center)
+            Button(Copy.Collections.tryAgain) { playback?.play(release: release, startingAt: trackID) }
+                .buttonStyle(CollectionPillButtonStyle())
+        }
+        .padding(.top, 4)
     }
 
     // MARK: Actions
@@ -218,9 +239,12 @@ struct SongPageView: View {
                 Spacer(minLength: 0)
             }
             .accessibilityElement(children: .combine)
-            Text(model.lastPlayedText.map(Copy.SongPage.lastPlayedLine) ?? Copy.SongPage.neverPlayed)
-                .font(Theme.ScaledFont.subheadline)
-                .foregroundStyle(Theme.secondaryText)
+            // An unknown date with plays on record leaves the line out rather than saying "Not played yet".
+            if let line = model.lastPlayedText.map(Copy.SongPage.lastPlayedLine) ?? (model.neverPlayed ? Copy.SongPage.neverPlayed : nil) {
+                Text(line)
+                    .font(Theme.ScaledFont.subheadline)
+                    .foregroundStyle(Theme.secondaryText)
+            }
             SongPeriodBars(periods: model.periods, tint: tint)
         }
     }

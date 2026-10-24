@@ -4,7 +4,7 @@ import SwiftUI
 /// #365: the real song page over a sample song (track 3 of 10 on disc 1 of 2, 124 plays, two collections) in the
 /// in-memory library, with the player on fakes. Nothing here signs in or syncs.
 struct SongPageGallery: View {
-    static let names = ["song-page", "song-page-bottom", "song-page-adopted", "song-page-ax3", "song-page-ax5", "song-page-narrow", "song-page-signed-out", "song-page-paused"]
+    static let names = ["song-page", "song-page-bottom", "song-page-adopted", "song-page-ax3", "song-page-ax5", "song-page-narrow", "song-page-signed-out", "song-page-paused", "song-page-missing", "song-page-wont-play"]
 
     /// The phone-held song and the details-only one, over the stats gallery's covers.
     private static let releaseID = UUID(uuidString: "00000000-0000-0000-0000-0000000005a1")!
@@ -41,7 +41,9 @@ struct SongPageGallery: View {
         self.name = name
         let adopted = name == "song-page-adopted"
         let release = Self.song(adopted: adopted)
-        let setup = CollectionsGallery.playingSetup(seed: false, extra: [release], extraCovers: Self.covers())
+        let setup = CollectionsGallery.playingSetup(
+            missingTrack: name == "song-page-missing" ? Self.trackID : nil, corruptFirstPlay: name == "song-page-wont-play",
+            seed: false, extra: [release], extraCovers: Self.covers())
         let other = StatsGallery.releases
         let stamp = Date()
         func make(_ name: String, _ items: [CollectionItem]) -> MusicCollection {
@@ -53,7 +55,9 @@ struct SongPageGallery: View {
         setup.model.reload()
         _built = State(initialValue: (setup.container, setup.model, setup.playback, release, track))
         let stats: PlayStatsReading = name == "song-page-signed-out" ? GalleryPlayStats(.signedOut) : SongGalleryStats(releaseID: release.id, trackID: track)
-        _loader = State(initialValue: SongPageLoader(stats: stats) { _, _ in SongFileFacts(size: 8_400_000, duration: nil) })
+        _loader = State(initialValue: SongPageLoader(
+            stats: stats, readFile: { _, _ in SongFileFacts(size: 8_400_000, duration: nil) },
+            allTimePlays: { _, _ in name == "song-page-signed-out" ? nil : 124 }))
     }
 
     var body: some View {
@@ -77,8 +81,8 @@ struct SongPageGallery: View {
     }
 }
 
-/// Plays that differ by range, as the real service's would: today 0, this week 12, this month 31, this year 96,
-/// everything 124, last played yesterday.
+/// Plays that differ by range, as the real service's would: today 0, this week 12, this month 31, this year 96
+/// (everything, 124, comes from the per-release read), last played yesterday.
 @MainActor
 private final class SongGalleryStats: PlayStatsReading {
     let releaseID: UUID
@@ -91,14 +95,14 @@ private final class SongGalleryStats: PlayStatsReading {
     func summary(from: String, to: String, force: Bool) async -> PlayStatsRead {
         let today = PlayPeriods.localDayString(Date(), calendar: .current)
         let firstDay = PlayPeriods.isoFirstDay(fromAppleFirstWeekday: Calendar.current.firstWeekday)
-        let counts: [(StatsPeriodKind, Int)] = [(.today, 0), (.week, 12), (.month, 31), (.year, 96), (.all, 124)]
+        let counts: [(StatsPeriodKind, Int)] = [(.today, 0), (.week, 12), (.month, 31), (.year, 96)]
         let kind = counts.first { PlayPeriods.selectionRange(PeriodSelection(kind: $0.0, back: 0), today: today, firstDay: firstDay) == DayRange(from: from, to: to) }
         let yesterday = PlayPeriods.addDays(today, -1)
         func row(_ plays: Int, day: String?) -> PlayCount {
             PlayCount(trackId: trackID.uuidString.lowercased(), releaseId: releaseID.uuidString.lowercased(), plays: plays, lastPlayedDay: day)
         }
         let plays = counts.first { $0.0 == kind?.0 }?.1 ?? 0
-        return .ok(PlaysSummary(tracks: plays > 0 ? [row(plays, day: yesterday)] : [], allTime: [row(124, day: nil)]))
+        return .ok(PlaysSummary(tracks: plays > 0 ? [row(plays, day: yesterday)] : [], allTime: []))
     }
 }
 #endif

@@ -14,10 +14,11 @@ struct SongPlays: Equatable, Sendable {
     /// Shortest period first; a period whose read failed is left out, never shown as zero.
     var byPeriod: [Period]
 
-    /// The plays of one track from one read per period. The all-time read carries the total; without it there is
-    /// nothing to show (nil). A track counts only under the release it was counted for; ids match case-insensitively.
-    static func make(trackID: UUID, releaseID: UUID, reads: [StatsPeriodKind: PlaysSummary]) -> SongPlays? {
-        guard let all = reads[.all] else { return nil }
+    /// The plays of one track: the all-time `total` (from the per-release plays read) and one ranged read per shorter
+    /// period. A period whose read failed is left out. A track counts only under the release it was counted for; ids
+    /// match case-insensitively. The last played day is the latest in the ranged reads, so it is nil when the
+    /// 400-day buckets hold none (even with a positive total).
+    static func make(trackID: UUID, releaseID: UUID, total: Int, reads: [StatsPeriodKind: PlaysSummary]) -> SongPlays {
         let track = trackID.uuidString.lowercased()
         let release = releaseID.uuidString.lowercased()
         func mine(_ counts: [PlayCount]) -> [PlayCount] {
@@ -25,13 +26,13 @@ struct SongPlays: Equatable, Sendable {
         }
         var periods: [Period] = []
         var lastDay: String?
-        for kind in StatsPeriodKind.allCases {
+        for kind in StatsPeriodKind.allCases where kind != .all {
             guard let summary = reads[kind] else { continue }
-            let rows = mine(kind == .all ? summary.allTime : summary.tracks)
+            let rows = mine(summary.tracks)
             periods.append(Period(kind: kind, plays: rows.map(\.plays).max() ?? 0))
-            for day in mine(summary.tracks).compactMap(\.lastPlayedDay) where day > (lastDay ?? "") { lastDay = day }
+            for day in rows.compactMap(\.lastPlayedDay) where day > (lastDay ?? "") { lastDay = day }
         }
-        let total = periods.first { $0.kind == .all }?.plays ?? 0
+        periods.append(Period(kind: .all, plays: total))
         return SongPlays(total: total, lastPlayedDay: lastDay, byPeriod: periods)
     }
 }
@@ -79,6 +80,8 @@ struct SongPageModel: Equatable, Sendable {
     let isAdopted: Bool
 
     /// Only a song whose file is on this phone can be edited here (adopted songs are details only until #285/#332).
+    /// Played never: the plays were read and the total is 0. An unknown date with a positive total is not this.
+    var neverPlayed: Bool { playsTotal == 0 && lastPlayedText == nil }
     var canEdit: Bool { !isAdopted }
     var canPlay: Bool { !isAdopted }
     /// A song of the user's own can be shared; the file is not on the server for an adopted one.

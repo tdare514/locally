@@ -1351,8 +1351,14 @@ private struct PlayerGallery: View {
 @MainActor private final class GalleryEngine: PlaybackEngine {
     var onProgress: ((Double, Double?) -> Void)?
     private var continuation: CheckedContinuation<PlaybackEnd, Never>?
+    /// The first play ends as a corrupt file would (the song page's "won't play" frame); later ones play.
+    var failsFirstPlay = false
     func play(url: URL) async -> PlaybackEnd {
-        await withCheckedContinuation { continuation in
+        if failsFirstPlay {
+            failsFirstPlay = false
+            return .failed
+        }
+        return await withCheckedContinuation { continuation in
             self.continuation = continuation
             onProgress?(70, 200)
         }
@@ -1438,11 +1444,13 @@ enum CollectionsGallery {
     }
 
     /// `extra` releases and their covers join the library (the song page's sample song, #365).
-    static func playingSetup(missingFirst: Bool = false, seed: Bool = true, many: Int = 0, single: Bool = false, extra: [Release] = [], extraCovers: [UUID: Data] = [:]) -> (container: AppContainer, model: CollectionsModel, playback: PlaybackService) {
+    static func playingSetup(missingFirst: Bool = false, missingTrack: UUID? = nil, corruptFirstPlay: Bool = false, seed: Bool = true, many: Int = 0, single: Bool = false, extra: [Release] = [], extraCovers: [UUID: Data] = [:]) -> (container: AppContainer, model: CollectionsModel, playback: PlaybackService) {
         let (container, model) = container(seed: seed, many: many, single: single, extra: extra, extraCovers: extraCovers)
         let firstPlayable = model.collection(queueID).flatMap { model.playQueue(of: $0).first?.trackID }
+        let engine = GalleryEngine()
+        engine.failsFirstPlay = corruptFirstPlay
         let playback = PlaybackService(
-            engine: GalleryEngine(), access: missingFirst ? GalleryAccess(missing: firstPlayable) : GalleryAccess(), session: GallerySession(),
+            engine: engine, access: missingFirst ? GalleryAccess(missing: firstPlayable) : GalleryAccess(missing: missingTrack), session: GallerySession(),
             nowPlaying: GalleryNowPlaying(), remote: GalleryRemote(), coverData: { _ in nil }
         )
         return (container, model, playback)

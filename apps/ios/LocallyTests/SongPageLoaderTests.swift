@@ -19,9 +19,11 @@ struct SongPageLoaderTests {
         PlayCount(trackId: trackID.uuidString.lowercased(), releaseId: releaseID.uuidString.lowercased(), plays: plays, lastPlayedDay: day)
     }
 
-    @Test func playsAndLastPlayedComeFromTheRangedSummary() async {
-        let stats = FakePlayStats(result: .ok(PlaysSummary(tracks: [Self.count(3, day: "2025-10-23")], allTime: [Self.count(9, day: nil)])))
-        let loader = SongPageLoader(stats: stats)
+    private static func total(_ value: Int?) -> (Release, UUID) async -> Int? { { _, _ in value } }
+
+    @Test func playsAndLastPlayedComeFromTheRangedSummaryAndTheTotalFromTheReleaseRead() async {
+        let stats = FakePlayStats(result: .ok(PlaysSummary(tracks: [Self.count(3, day: "2025-10-23")], allTime: [Self.count(999, day: nil)])))
+        let loader = SongPageLoader(stats: stats, allTimePlays: Self.total(9))
         await loader.load(release: Self.release(), trackID: Self.trackID)
         let day: String = "2025-10-23"
         #expect(loader.plays?.total == 9)
@@ -29,36 +31,86 @@ struct SongPageLoaderTests {
         #expect(loader.plays?.byPeriod.count == 5)
     }
 
-    @Test func eachReadUsesTheCacheAndIsNeverForced() async {
+    @Test func onlyFourRangedReadsAreMadeEachCachedAndNeverForced() async {
         let stats = FakePlayStats()
-        let loader = SongPageLoader(stats: stats)
+        let loader = SongPageLoader(stats: stats, allTimePlays: Self.total(1))
         await loader.load(release: Self.release(), trackID: Self.trackID)
-        #expect(stats.calls.count == 5)
+        #expect(stats.calls.count == 4)
+        #expect(Set(stats.calls.map { "\($0.from)/\($0.to)" }).count == 4)
         #expect(stats.calls.allSatisfy { !$0.force })
     }
 
     @Test func signedOutHidesThePlays() async {
-        let loader = SongPageLoader(stats: FakePlayStats(result: .signedOut))
+        let loader = SongPageLoader(stats: FakePlayStats(result: .signedOut), allTimePlays: Self.total(9))
         await loader.load(release: Self.release(), trackID: Self.trackID)
         #expect(loader.plays == nil)
         let page = SongPageModel(release: Self.release(), trackID: Self.trackID, plays: loader.plays)
         #expect(page?.playsTotal == nil)
     }
 
-    @Test func offlineOrBusyHidesThePlaysToo() async {
+    @Test func aFailedReleaseReadHidesThePlays() async {
+        let loader = SongPageLoader(stats: FakePlayStats(), allTimePlays: Self.total(nil))
+        await loader.load(release: Self.release(), trackID: Self.trackID)
+        #expect(loader.plays == nil)
+    }
+
+    @Test func aFailedOrBusyRangedReadLeavesThatPeriodOutButKeepsTheTotal() async {
         for result in [PlayStatsRead.failed, .busy] {
-            let loader = SongPageLoader(stats: FakePlayStats(result: result))
+            let loader = SongPageLoader(stats: FakePlayStats(result: result), allTimePlays: Self.total(4))
             await loader.load(release: Self.release(), trackID: Self.trackID)
-            #expect(loader.plays == nil)
+            #expect(loader.plays?.total == 4)
+            #expect(loader.plays?.byPeriod.map(\.kind) == [.all])
         }
+    }
+
+    @Test func theTotalIsThisTracksFromTheReleasePlaysRead() async {
+        let api = FakeSyncApi()
+        let other = UUID().uuidString
+        api.releasePlaysResult = .success(SyncReleasePlays(tracks: [
+            SyncTrackPlays(trackId: Self.trackID.uuidString.lowercased(), total: 7, devices: []),
+            SyncTrackPlays(trackId: other, total: 50, devices: []),
+        ]))
+        let mine = await SongPageLoader.allTimeTotal(api: api, isSignedIn: true, release: Self.release(), trackID: Self.trackID)
+        #expect(mine == 7)
+        #expect(api.releasePlaysCalls == [Self.releaseID.uuidString])
+        let none = await SongPageLoader.allTimeTotal(api: api, isSignedIn: true, release: Self.release(), trackID: UUID())
+        #expect(none == 0)
+        let signedOut = await SongPageLoader.allTimeTotal(api: api, isSignedIn: false, release: Self.release(), trackID: Self.trackID)
+        #expect(signedOut == nil)
+        api.releasePlaysResult = .failure(SyncApiError.network("offline"))
+        let offline = await SongPageLoader.allTimeTotal(api: api, isSignedIn: true, release: Self.release(), trackID: Self.trackID)
+        #expect(offline == nil)
+    }
+
+    @Test func aFileOutsideTheConnectedFolderHasNoUrlToRead() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("song-page-\(UUID().uuidString)", isDirectory: true)
+        let folder = root.appendingPathComponent("Spotify", isDirectory: true)
+        try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+        let outside = root.appendingPathComponent("secret.m4a")
+        try Data([1]).write(to: outside)
+        let inside = folder.appendingPathComponent("a.m4a")
+        try Data([1]).write(to: inside)
+
+        func track(_ path: String) -> Track { Track(id: Self.trackID, title: "t", trackNumber: 1, filePath: path, originalName: "a.m4a") }
+        // An absolute path that exists outside the folder passes the resolver unchanged, so the check must catch it.
+        #expect(ReleaseCoordinator.containedFileURL(for: track(outside.path), in: folder) == nil)
+        let dotted = folder.path + "/../secret.m4a"
+        #expect(ReleaseCoordinator.containedFileURL(for: track(dotted), in: folder) == nil)
+        let found = ReleaseCoordinator.containedFileURL(for: track(inside.path), in: folder)
+        #expect(found?.lastPathComponent == "a.m4a")
+        // A gone file is looked up by name inside the folder.
+        let moved = ReleaseCoordinator.containedFileURL(for: track("/old/place/a.m4a"), in: folder)
+        #expect(moved?.deletingLastPathComponent().standardizedFileURL.path == folder.standardizedFileURL.path)
     }
 
     @Test func theFileIsReadForAPhoneSongAndNeverForAnAdoptedOne() async {
         var reads = 0
-        let loader = SongPageLoader(stats: nil) { _, _ in
+        let loader = SongPageLoader(stats: nil, readFile: { _, _ in
             reads += 1
             return SongFileFacts(size: 8_400_000, duration: 65)
-        }
+        })
         await loader.load(release: Self.release(adopted: true), trackID: Self.trackID)
         #expect(reads == 0)
         #expect(loader.fileSize == nil)

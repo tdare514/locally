@@ -213,26 +213,35 @@ struct SongPageModelTests {
         let reads: [StatsPeriodKind: PlaysSummary] = [
             .week: PlaysSummary(tracks: [Self.count(2, day: "2025-10-22")], allTime: []),
             .year: PlaysSummary(tracks: [Self.count(9, day: "2025-10-23")], allTime: []),
-            .all: PlaysSummary(tracks: [Self.count(9, day: "2025-10-23")], allTime: [Self.count(40, day: nil)]),
         ]
-        let plays = SongPlays.make(trackID: Self.trackID, releaseID: Self.releaseID, reads: reads)
+        let plays = SongPlays.make(trackID: Self.trackID, releaseID: Self.releaseID, total: 40, reads: reads)
         let day: String = "2025-10-23"
-        #expect(plays?.lastPlayedDay == day)
-        #expect(plays?.total == 40)
-        #expect(plays?.byPeriod.map(\.plays) == [2, 9, 40])
+        #expect(plays.lastPlayedDay == day)
+        #expect(plays.total == 40)
+        #expect(plays.byPeriod.map(\.plays) == [2, 9, 40])
     }
 
     @Test func otherTracksAndOtherReleasesDoNotCount() {
         let reads: [StatsPeriodKind: PlaysSummary] = [
-            .all: PlaysSummary(tracks: [], allTime: [Self.count(5, day: nil, track: UUID()), Self.count(7, day: nil, release: UUID())]),
+            .week: PlaysSummary(tracks: [Self.count(5, day: "2025-10-22", track: UUID()), Self.count(7, day: "2025-10-23", release: UUID())], allTime: []),
         ]
-        let plays = SongPlays.make(trackID: Self.trackID, releaseID: Self.releaseID, reads: reads)
-        #expect(plays?.total == 0)
-        #expect(plays?.lastPlayedDay == nil)
+        let plays = SongPlays.make(trackID: Self.trackID, releaseID: Self.releaseID, total: 0, reads: reads)
+        #expect(plays.byPeriod.map(\.plays) == [0, 0])
+        #expect(plays.lastPlayedDay == nil)
     }
 
-    @Test func withoutTheAllTimeReadThereIsNothingToShow() {
-        let reads: [StatsPeriodKind: PlaysSummary] = [.week: PlaysSummary(tracks: [Self.count(2, day: "2025-10-22")], allTime: [])]
-        #expect(SongPlays.make(trackID: Self.trackID, releaseID: Self.releaseID, reads: reads) == nil)
+    @Test func aPositiveTotalWithNoKnownDateOmitsLastPlayedInsteadOfSayingNotPlayedYet() {
+        let plays = SongPlays.make(trackID: Self.trackID, releaseID: Self.releaseID, total: 8, reads: [.year: PlaysSummary(tracks: [], allTime: [])])
+        let model = Self.model(Self.release(), plays: plays)
+        #expect(model.playsTotal == 8)
+        #expect(model.lastPlayedText == nil)
+        #expect(model.neverPlayed == false)
+    }
+
+    @Test func aZeroTotalIsNotPlayedYet() {
+        let plays = SongPlays.make(trackID: Self.trackID, releaseID: Self.releaseID, total: 0, reads: [:])
+        let model = Self.model(Self.release(), plays: plays)
+        #expect(model.neverPlayed == true)
+        #expect(Self.model(Self.release(), plays: nil).neverPlayed == false)
     }
 }

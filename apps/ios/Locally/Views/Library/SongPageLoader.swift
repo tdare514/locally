@@ -7,14 +7,14 @@ struct SongFileFacts: Equatable, Sendable {
 }
 
 /// Reads what the song page shows that is not in the library index (#365): the plays through the play stats
-/// service and the file's size and length. The plays use the service's cache and request budget (never forced), so
-/// opening the page costs at most five cached reads. Signed out, offline or busy leaves the plays nil and the page
-/// hides that group.
+/// service and the file's size and length. The four ranged plays use the service's cache and request budget (never
+/// forced); the all-time total comes from the per-release plays read, so the heaviest summary read is not made. Signed
+/// out or offline leaves the plays nil and the page hides that group.
 @MainActor
 @Observable
 final class SongPageLoader {
-    /// The five reads, shortest period first, as the Stats tab asks for them.
-    static let periods: [StatsPeriodKind] = StatsPeriodKind.allCases
+    /// The four ranged reads, shortest period first, as the Stats tab asks for them (all time is not among them).
+    static let periods: [StatsPeriodKind] = StatsPeriodKind.allCases.filter { $0 != .all }
 
     private(set) var plays: SongPlays?
     private(set) var fileSize: Int64?
@@ -24,19 +24,34 @@ final class SongPageLoader {
 
     @ObservationIgnored private let stats: PlayStatsReading?
     @ObservationIgnored private let readFile: ((Release, Track) async -> SongFileFacts)?
+    /// The track's all-time plays from `GET /v1/releases/:id/plays`; nil when signed out or the read failed.
+    @ObservationIgnored private let allTimePlays: ((Release, UUID) async -> Int?)?
 
-    init(stats: PlayStatsReading?, readFile: ((Release, Track) async -> SongFileFacts)? = nil) {
+    init(stats: PlayStatsReading?, readFile: ((Release, Track) async -> SongFileFacts)? = nil,
+         allTimePlays: ((Release, UUID) async -> Int?)? = nil) {
         self.stats = stats
         self.readFile = readFile
+        self.allTimePlays = allTimePlays
+    }
+
+    /// The all-time total of one track from the sync API's per-release plays read (what `ReleaseDetailViewModel.loadPlays`
+    /// reads); a track the server lists no plays for has none.
+    static func allTimeTotal(api: SyncApi, isSignedIn: Bool, release: Release, trackID: UUID) async -> Int? {
+        guard isSignedIn, let result = try? await api.releasePlays(releaseId: release.id.uuidString) else { return nil }
+        let id = trackID.uuidString.lowercased()
+        return result.tracks.filter { $0.trackId.lowercased() == id }.map(\.total).max() ?? 0
     }
 
     /// The production loader: plays from the container's service, the file read inside the Spotify folder's access.
     convenience init(container: AppContainer) {
         let coordinator = container.coordinator
-        self.init(stats: container.playStats) { release, track in
+        let api = container.syncApi
+        let account = container.syncAccount
+        self.init(stats: container.playStats, readFile: { release, track in
             var only = release
             only.tracks = [track]
-            let facts: SongFileFacts? = try? await coordinator.withTrackFiles(of: only) { files in
+            let facts: SongFileFacts? = try? await coordinator.withContainedTrackFiles(of: only) { files in
+                // A path outside the connected folder has no url: no stat, no length read.
                 guard let url = files.first?.url else { return SongFileFacts() }
                 // The stat and the length read stay off the main thread.
                 let size: Int64? = await Task.detached(priority: .utility) {
@@ -46,7 +61,9 @@ final class SongPageLoader {
                 return SongFileFacts(size: size, duration: duration)
             }
             return facts ?? SongFileFacts()
-        }
+        }, allTimePlays: { release, trackID in
+            await Self.allTimeTotal(api: api, isSignedIn: account.deviceToken != nil, release: release, trackID: trackID)
+        })
     }
 
     func load(release: Release, trackID: UUID, now: Date = Date(), calendar: Calendar = .current) async {
@@ -56,7 +73,7 @@ final class SongPageLoader {
     }
 
     private func loadPlays(release: Release, trackID: UUID, now: Date, calendar: Calendar) async {
-        guard let stats else { plays = nil; return }
+        guard let stats, let allTimePlays else { plays = nil; return }
         let today = PlayPeriods.localDayString(now, calendar: calendar)
         let firstDay = PlayPeriods.isoFirstDay(fromAppleFirstWeekday: calendar.firstWeekday)
         self.today = today
@@ -76,7 +93,10 @@ final class SongPageLoader {
                 }
             }
         }
-        plays = signedOut ? nil : SongPlays.make(trackID: trackID, releaseID: release.id, reads: reads)
+        // Without the all-time total (signed out, offline) there is nothing honest to show.
+        if signedOut { plays = nil; return }
+        guard let total = await allTimePlays(release, trackID) else { plays = nil; return }
+        plays = SongPlays.make(trackID: trackID, releaseID: release.id, total: total, reads: reads)
     }
 
     private func loadFile(release: Release, trackID: UUID) async {
