@@ -367,7 +367,8 @@ struct ComponentGallery: View {
             IconsGallery.release().dynamicTypeSize(.accessibility3)
         case "share-sheet":
             ShareGallery.sheet()
-        case "queue-toast-next", "queue-toast-added", "queue-toast-left-out", "queue-toast-ax3", "queue-toast-long-ax5", "queue-toast-left-out-ax5":
+        case "queue-toast-next", "queue-toast-added", "queue-toast-left-out", "queue-toast-ax3", "queue-toast-long-ax5", "queue-toast-left-out-ax5",
+            "track-menu-release", "track-menu-release-ax3", "track-menu-library", "track-menu-stats":
             TrackActionsGallery(name: name)
         case "share-sheet-link":
             ShareGallery.sheet(link: true)
@@ -774,7 +775,7 @@ private struct RootBannerGallery: View {
     }
 }
 
-private struct IconsLibrary: View {
+struct IconsLibrary: View {
     let openTray: Bool
     @State private var tab = RootView.Tab.library
     @State private var importKind: ImportKind?

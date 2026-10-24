@@ -18,12 +18,17 @@ struct ReleaseDetailView: View {
     let release: Release
     /// DEBUG screenshots open the page already in edit mode.
     var startsEditing = false
+    /// With `startsEditing`, the song to scroll to once the page is in edit mode (#364).
+    var scrollsToTrackID: UUID?
     /// The track the release was opened from (#362): scrolled into view and washed once per push.
     var highlightTrackID: UUID?
     /// DEBUG screenshots hold the wash at full strength instead of fading it.
     var holdsHighlight = false
     @State private var highlight: Double = 0
     @State private var didHighlight = false
+    /// A song the long-press menu's Edit asked to scroll to; cleared once the page has scrolled there.
+    @State private var editScrollTrackID: UUID?
+    @Environment(\.openURL) private var openURL
     /// How far the wash reaches past the row's text; less at large text so it stays inside the screen edge.
     private var washBleed: CGFloat { dynamicTypeSize.isAccessibilitySize ? 4 : min(8, Theme.Immersive.recordRowSideInset / 2) }
     @AccessibilityFocusState private var focusedTrackID: UUID?
@@ -67,7 +72,10 @@ struct ReleaseDetailView: View {
                 let made = ReleaseDetailViewModel(release: release, coordinator: container.coordinator, coverStore: container.coverStore, syncApi: container.syncApi, isSignedIn: { container.syncAccount.deviceToken != nil })
                 coverImage = made.coverData.flatMap(UIImage.init(data:))
                 coverImageData = made.coverData
-                if startsEditing { made.beginEditing() }
+                if startsEditing {
+                    made.beginEditing()
+                    editScrollTrackID = scrollsToTrackID
+                }
                 model = made
                 collectionsModel = container.makeCollectionsModel()
             }
@@ -128,6 +136,7 @@ struct ReleaseDetailView: View {
             .scrollContentBackground(.hidden)
             .task { await highlightTrack(in: model, proxy: proxy) }
             .onDisappear { clearHighlight() }
+            .task(id: editScrollTrackID) { await scrollToEditedTrack(in: model, proxy: proxy) }
             }
         }
         .navigationTitle("")
@@ -384,16 +393,7 @@ struct ReleaseDetailView: View {
             .overlay(alignment: .bottom) {
                 if index != last { Rectangle().fill(Theme.Track.separatorTint).frame(height: 1) }
             }
-            .contextMenu {
-                Button(Copy.Collections.addToCollection, systemImage: "text.badge.plus") {
-                    addTarget = AddToCollectionTarget(items: [.track(releaseId: model.releaseId, trackId: row.id)])
-                }
-                if model.canShareTracks {
-                    Button(Copy.Share.shareThisSong, systemImage: "square.and.arrow.up") {
-                        shareTarget = ShareTarget(trackId: row.id, subject: model.kind == .single ? model.title : row.title)
-                    }
-                }
-            }
+            .trackActions(trackActions(for: row, in: model))
             .swipeActions(edge: .trailing) {
                 Button {
                     addTarget = AddToCollectionTarget(items: [.track(releaseId: model.releaseId, trackId: row.id)])
@@ -401,16 +401,6 @@ struct ReleaseDetailView: View {
                     Label(Copy.Collections.addToCollection, systemImage: "text.badge.plus")
                 }
                 .tint(Theme.accent)
-            }
-            .accessibilityActions {
-                Button(Copy.Collections.addToCollection) {
-                    addTarget = AddToCollectionTarget(items: [.track(releaseId: model.releaseId, trackId: row.id)])
-                }
-                if model.canShareTracks {
-                    Button(Copy.Share.shareThisSong) {
-                        shareTarget = ShareTarget(trackId: row.id, subject: model.kind == .single ? model.title : row.title)
-                    }
-                }
             }
             .clearRow(top: 0, bottom: 0)
         }
@@ -427,6 +417,39 @@ struct ReleaseDetailView: View {
         if model.isAdopted { adoptedNote.clearRow(top: 8, bottom: 0) }
         if model.kind == .album { playlistGuide(model).clearRow(top: 8, bottom: 0) }
         viewMessages(model)
+    }
+
+    /// The long-press menu of a song row (#364). No Go to album: this is the album.
+    private func trackActions(for row: ReleaseDetailViewModel.TrackRow, in model: ReleaseDetailViewModel) -> TrackActions {
+        let releaseId = model.releaseId
+        var actions = TrackActions(target: .track(releaseId: releaseId, trackId: row.id), release: model.savedRelease)
+        actions.addToCollection = { addTarget = AddToCollectionTarget(items: [.track(releaseId: releaseId, trackId: row.id)]) }
+        if model.canShareTracks {
+            actions.share = { shareTarget = ShareTarget(trackId: row.id, subject: model.kind == .single ? model.title : row.title) }
+        }
+        if !model.isAdopted {
+            actions.edit = {
+                model.beginEditing()
+                editScrollTrackID = row.id
+            }
+        }
+        if let url = ArtistLink.url(forName: ArtistNames.splitArtistFeaturing(model.savedRelease.artist).artist) {
+            actions.goToArtist = { openURL(url) }
+        }
+        return actions
+    }
+
+    /// After Edit on a song: once the edit layout has settled, scrolls that song to the middle.
+    private func scrollToEditedTrack(in model: ReleaseDetailViewModel, proxy: ScrollViewProxy) async {
+        guard let id = editScrollTrackID, model.isEditing else { return }
+        try? await Task.sleep(for: .milliseconds(350))
+        guard !Task.isCancelled else { return }
+        if reduceMotion {
+            proxy.scrollTo(id, anchor: .center)
+        } else {
+            withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.3)) { proxy.scrollTo(id, anchor: .center) }
+        }
+        editScrollTrackID = nil
     }
 
     /// Once the push has settled: scrolls the opened-from track to the middle, washes it in, holds, and

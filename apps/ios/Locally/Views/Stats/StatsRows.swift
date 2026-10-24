@@ -28,6 +28,8 @@ struct StatsList: View {
     let ownerOf: (StatItem) -> UUID?
     let label: String
     let onOpen: (StatItem) -> Void
+    /// The long-press menu of an item (#364); nil for an item with none (an artist).
+    var actions: (StatItem) -> TrackActions? = { _ in nil }
 
     var body: some View {
         GlassCard {
@@ -35,6 +37,7 @@ struct StatsList: View {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     if index > 0 { GlassDivider() }
                     StatsRow(item: item, sort: sort, today: today, round: round, owner: ownerOf(item), cache: cache) { onOpen(item) }
+                        .trackActions(actions(item))
                 }
             }
         }
@@ -160,6 +163,8 @@ struct StatsSea: View {
     let ownerOf: (StatItem) -> UUID?
     let label: String
     let onOpen: (StatItem) -> Void
+    /// The long-press menu of an item (#364); nil for an item with none (an artist).
+    var actions: (StatItem) -> TrackActions? = { _ in nil }
 
     @Environment(\.dynamicTypeSize) private var typeSize
 
@@ -182,6 +187,7 @@ struct StatsSea: View {
             ) {
                 ForEach(items) { item in
                     StatsTile(item: item, round: round, sort: sort, owner: ownerOf(item), cache: cache) { onOpen(item) }
+                        .trackActions(actions(item))
                 }
             }
         }

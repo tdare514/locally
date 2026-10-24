@@ -221,6 +221,9 @@ struct LibraryView: View {
             .navigationDestination(for: ReleaseTrackRoute.self) { route in
                 ReleaseDetailView(release: route.release, highlightTrackID: route.trackId)
             }
+            .navigationDestination(for: ReleaseEditRoute.self) { route in
+                ReleaseDetailView(release: route.release, startsEditing: true, scrollsToTrackID: route.trackId)
+            }
             .navigationDestination(for: ArtistRoute.self) { route in
                 ArtistPageView(route: route)
             }
@@ -637,6 +640,14 @@ struct LibraryView: View {
         }
     }
 
+    /// The sheets the rows' and tiles' long-press menu raises (#364).
+    @State private var trackSheets = TrackActionSheets()
+
+    /// The long-press menu of a release's row or tile (#364).
+    private func releaseActions(_ release: Release) -> TrackActions {
+        trackSheets.actions(for: .release(release.id), release: release, goToAlbum: false) { path.append($0) }
+    }
+
     /// Rows in a translucent panel over the sky, separated by a 1 pt `panelStroke`.
     private func listPanel(_ items: [Release]) -> some View {
         let shape = RoundedRectangle(cornerRadius: Theme.Library.listPanelCornerRadius, style: .continuous)
@@ -646,6 +657,7 @@ struct LibraryView: View {
                     .buttonStyle(PressAwareStyle(rowHighlight: true, onPress: { didPress(release) }))
                     .onAppear { visibleIDs.insert(release.id) }
                     .onDisappear { visibleIDs.remove(release.id) }
+                    .trackActions(releaseActions(release))
 
                 if index < items.count - 1 {
                     Rectangle().fill(Theme.Immersive.panelStroke).frame(height: 1)
@@ -655,6 +667,7 @@ struct LibraryView: View {
         .background(shape.fill(Theme.Immersive.panelFill))
         .clipShape(shape)
         .overlay(shape.stroke(Theme.Immersive.panelStroke, lineWidth: 1))
+        .trackActionSheets(trackSheets)
     }
 
     /// The size the grid uses at this text size (see `CoverSize.forGrid`).
@@ -670,8 +683,10 @@ struct LibraryView: View {
                     .buttonStyle(PressAwareStyle(rowHighlight: false, onPress: { didPress(release) }))
                     .onAppear { visibleIDs.insert(release.id) }
                     .onDisappear { visibleIDs.remove(release.id) }
+                    .trackActions(releaseActions(release))
             }
         }
+        .trackActionSheets(trackSheets)
     }
 
     private func tile(for release: Release) -> some View {

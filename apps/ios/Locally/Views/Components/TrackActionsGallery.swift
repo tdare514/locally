@@ -4,21 +4,35 @@ import SwiftUI
 /// #364: the queue toast over the release page with the mini player, for `-componentGallery queue-toast-*`.
 /// The player runs on fakes, so no audio session or file is touched.
 struct TrackActionsGallery: View {
-    static let names = ["queue-toast-next", "queue-toast-added", "queue-toast-left-out", "queue-toast-ax3", "queue-toast-long-ax5", "queue-toast-left-out-ax5"]
+    static let names = [
+        "queue-toast-next", "queue-toast-added", "queue-toast-left-out", "queue-toast-ax3", "queue-toast-long-ax5", "queue-toast-left-out-ax5",
+        // #364 part B: the long-press menu's places. A UI test long-presses a row; the player runs on fakes so Play next shows its toast.
+        "track-menu-release", "track-menu-release-ax3", "track-menu-library", "track-menu-stats",
+    ]
+
+    enum Scene { case toast, releasePage, library, stats }
 
     enum Kind { case next, added, leftOut }
     var kind: Kind
     var large = false
     var ax5 = false
     var longTitle = false
+    var scene = Scene.toast
 
     init(name: String) {
+        switch name {
+        case "track-menu-release", "track-menu-release-ax3": scene = .releasePage
+        case "track-menu-library": scene = .library
+        case "track-menu-stats": scene = .stats
+        default: break
+        }
+        if scene == .library { UserDefaults.standard.set(LibraryLayout.covers.rawValue, forKey: LibraryViewPrefs.layoutKey) }
         switch name {
         case "queue-toast-added": kind = .added
         case "queue-toast-left-out": kind = .leftOut
         default: kind = .next
         }
-        large = name == "queue-toast-ax3"
+        large = name == "queue-toast-ax3" || name == "track-menu-release-ax3"
         ax5 = name.hasSuffix("-ax5")
         longTitle = name == "queue-toast-long-ax5"
         if longTitle { kind = .added }
@@ -42,11 +56,22 @@ struct TrackActionsGallery: View {
     var body: some View {
         IconsGallery.environment(
             TabView {
-                NavigationStack { ReleaseDetailView(release: playing) }
-                    .miniPlayerInset()
-                    .tabItem { Label(Copy.Library.title, image: "Icon/Library") }
-                Color.clear
-                    .tabItem { Label(Copy.Stats.tabLabel, image: "Icon/Stats") }
+                switch scene {
+                case .toast, .releasePage:
+                    NavigationStack { ReleaseDetailView(release: playing) }
+                        .miniPlayerInset()
+                        .tabItem { Label(Copy.Library.title, image: "Icon/Library") }
+                    Color.clear
+                        .tabItem { Label(Copy.Stats.tabLabel, image: "Icon/Stats") }
+                case .library:
+                    IconsLibrary(openTray: false)
+                        .miniPlayerInset()
+                        .tabItem { Label(Copy.Library.title, image: "Icon/Library") }
+                case .stats:
+                    StatsGallery.statsView(.week)
+                        .miniPlayerInset()
+                        .tabItem { Label(Copy.Stats.tabLabel, image: "Icon/Stats") }
+                }
             }
             .miniPlayerAccessory(playback)
             .environment(\.playback, playback)
@@ -59,6 +84,7 @@ struct TrackActionsGallery: View {
             toast.autoHides = false
             playback.play(release: playing, startingAt: playing.tracks[1].id)
             try? await Task.sleep(for: .milliseconds(500))
+            guard scene == .toast else { return }
             let cover = FileCoverStore().load(other.id)
             switch kind {
             case .added where longTitle:
