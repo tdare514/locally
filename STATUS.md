@@ -67,7 +67,7 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 - Share extension ("Send to Locally") with an app-group inbox, plus a Documents-folder inbox
 - StoreKit one-time purchase wired up but gates no feature yet
 - Library is the home tab, split into Singles and Albums sections with counts
-- Play in Locally (#336, step 1 of #324): the track number on the release page is a play button, a mini player sits above the tab bar, and playback continues in the background with lock-screen controls, from the files in the Spotify folder; no play counting yet (#337)
+- Play in Locally (#336, step 1 of #324): the track number on the release page is a play button (a release opened from a track, a Stats track or the mini player, scrolls to that track, which glows for a moment in the cover's colour with a small cue at its leading edge, #362), a mini player sits above the tab bar, and playback continues in the background with lock-screen controls, from the files in the Spotify folder; no play counting yet (#337)
 - iPhone counts plays in Locally (#337, step 2 of #324): a play counts after `min(30 s, 90% of the track)`, kept on the phone with per-day buckets and pushed to `PUT /v1/plays` on reconcile with `source: "locally"` (needs #340); Stats say "Plays in Spotify and in Locally"; the player's queue now holds items from any release (for Collections, #339)
 - Import Single/Album share one layout; empty Tracks uses `TrackListSilhouette` (1 or 3 rows);
   2+ tracks show a long-press reorder hint and `.onMove` without an Edit button (#6, #17)
