@@ -17,6 +17,13 @@ struct ReleaseDetailView: View {
     let release: Release
     /// DEBUG screenshots open the page already in edit mode.
     var startsEditing = false
+    /// The track the release was opened from (#362): scrolled into view and washed once per push.
+    var highlightTrackID: UUID?
+    /// DEBUG screenshots hold the wash at full strength instead of fading it.
+    var holdsHighlight = false
+    @State private var highlight: Double = 0
+    @State private var didHighlight = false
+    @AccessibilityFocusState private var focusedTrackID: UUID?
 
     @State private var model: ReleaseDetailViewModel?
     @State private var isPresentingFileImporter = false
@@ -73,6 +80,7 @@ struct ReleaseDetailView: View {
             ArtworkBackdrop(palette: palette)
             .ignoresSafeArea()
 
+            ScrollViewReader { proxy in
             List {
                 Section {
                     hero(model)
@@ -115,6 +123,8 @@ struct ReleaseDetailView: View {
             .listSectionSpacing(.custom(Theme.Spacing.editorSectionGap))
             .environment(\.defaultMinListRowHeight, 0)
             .scrollContentBackground(.hidden)
+            .task { await highlightTrack(in: model, proxy: proxy) }
+            }
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
@@ -356,8 +366,19 @@ struct ReleaseDetailView: View {
                 plays: model.playTotal(for: row),
                 time: TrackLength.format(seconds),
                 timeSpoken: TrackLength.spoken(seconds),
-                play: playControl(for: row.id, in: model.savedRelease)
+                play: playControl(for: row.id, in: model.savedRelease),
+                highlight: row.id == highlightTrackID ? highlight : 0
             )
+            .background {
+                if row.id == highlightTrackID {
+                    RoundedRectangle(cornerRadius: Theme.Track.highlightCornerRadius)
+                        .fill(Theme.accent.opacity(Theme.Track.highlightOpacity))
+                        .opacity(highlight)
+                        .padding(.horizontal, -8)
+                }
+            }
+            .id(row.id)
+            .accessibilityFocused($focusedTrackID, equals: row.id)
             .overlay(alignment: .bottom) {
                 if index != last { Rectangle().fill(Theme.Track.separatorTint).frame(height: 1) }
             }
@@ -404,6 +425,25 @@ struct ReleaseDetailView: View {
         if model.isAdopted { adoptedNote.clearRow(top: 8, bottom: 0) }
         if model.kind == .album { playlistGuide(model).clearRow(top: 8, bottom: 0) }
         viewMessages(model)
+    }
+
+    /// Once the push has settled: scrolls the opened-from track to the middle, washes it in, holds, and
+    /// fades it out. Opacity only; Reduce Motion jumps the scroll. Plays once per push.
+    private func highlightTrack(in model: ReleaseDetailViewModel, proxy: ScrollViewProxy) async {
+        guard let id = highlightTrackID, !didHighlight, !model.isEditing, model.trackRows.contains(where: { $0.id == id }) else { return }
+        didHighlight = true
+        try? await Task.sleep(for: .seconds(Theme.Track.highlightDelay))
+        guard !Task.isCancelled else { return }
+        if reduceMotion {
+            proxy.scrollTo(id, anchor: .center)
+        } else {
+            withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.3)) { proxy.scrollTo(id, anchor: .center) }
+        }
+        focusedTrackID = id
+        withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: Theme.Track.highlightFadeIn)) { highlight = 1 }
+        guard !holdsHighlight else { return }
+        try? await Task.sleep(for: .seconds(Theme.Track.highlightFadeIn + Theme.Track.highlightHold))
+        withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: Theme.Track.highlightFadeOut)) { highlight = 0 }
     }
 
     /// The row's play button (#336), or nil when the release can't play here (an adopted one).

@@ -109,6 +109,9 @@ struct StatsView: View {
             .navigationDestination(for: Release.self) { release in
                 ReleaseDetailView(release: release)
             }
+            .navigationDestination(for: ReleaseTrackRoute.self) { route in
+                ReleaseDetailView(release: route.release, highlightTrackID: route.trackId)
+            }
             .navigationDestination(for: ArtistRoute.self) { route in
                 ArtistPageView(route: route)
             }
@@ -476,7 +479,9 @@ struct StatsView: View {
     private func open(_ item: StatItem) {
         model.open(
             item,
-            openRelease: { path.append($0) },
+            openRelease: { release in
+                if let trackId = item.trackId { path.append(ReleaseTrackRoute(release: release, trackId: trackId)) } else { path.append(release) }
+            },
             openArtist: { path.append(ArtistRoute(key: $0)) }
         )
     }

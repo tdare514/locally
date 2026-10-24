@@ -579,6 +579,14 @@ enum Theme {
         /// The hairline between rows (`.track-list > .track-row` border).
         static let separatorOpacity: Double = 0.07
         static var separatorTint: Color { .white.opacity(separatorOpacity) }
+        /// The wash behind the track a release was opened from (#362): the accent at this opacity.
+        static let highlightOpacity: Double = 0.12
+        static let highlightCornerRadius: CGFloat = 10
+        /// Seconds: the wait for the push to settle, the fade in, the hold, the fade out.
+        static let highlightDelay: Double = 0.35
+        static let highlightFadeIn: Double = 0.3
+        static let highlightHold: Double = 1.2
+        static let highlightFadeOut: Double = 1.2
     }
 
     /// Opaque black tab and navigation bars, so a bright cover scrolling

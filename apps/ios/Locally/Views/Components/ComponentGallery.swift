@@ -34,6 +34,8 @@ struct ComponentGallery: View {
         // #183: sharing. The share sheet, its Link option and result, the friends tray, "Shared by you".
         "share-sheet", "share-sheet-link", "share-sheet-result", "share-sheet-signed-out", "share-sheet-large-text",
         "devices-tray-friends", "devices-tray-friends-large-text", "shared-by-you", "shared-by-you-large-text", "release-share-blocked",
+        // #362: a release opened from one of its tracks, the row mid-highlight.
+        "release-track-highlight", "stats-open-track",
         // #350: collections in List view over seeded sample collections.
         "collections-library", "collections-screen", "collections-queue", "collections-edit", "collections-empty", "collections-queue-ax", "collections-add", "collections-playing", "collections-add-failed", "collections-wont-play", "collections-playlist-guide", "collections-none-here",
         // #352: the record player on the Collections screen, over seeded collections and a player on fakes.
@@ -57,7 +59,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("collections-") || name.hasPrefix("player-") || name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || name.hasPrefix("share") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "root-banner", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save", "release-share-blocked"].contains(name)
+        name.hasPrefix("collections-") || name.hasPrefix("player-") || name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || name.hasPrefix("share") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "root-banner", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save", "release-share-blocked", "release-track-highlight"].contains(name)
     }
 
     var body: some View {
@@ -326,6 +328,10 @@ struct ComponentGallery: View {
             IconsGallery.devices(pending: 2, open: true, friends: 3)
         case "devices-tray-friends-large-text":
             IconsGallery.devices(pending: 0, open: true, friends: 3).dynamicTypeSize(.accessibility3)
+        case "release-track-highlight":
+            IconsGallery.highlightedRelease()
+        case "stats-open-track":
+            IconsGallery.environment(StatsGallery.page(.week), IconsGallery.container())
         case "release-share-blocked":
             IconsGallery.release(sharedFrom: SharedFrom(shareId: UUID().uuidString.lowercased(), allowReshare: false))
         case "shared-by-you":
@@ -1133,6 +1139,14 @@ extension IconsGallery {
     /// An artist's page, as pushed from the library.
     static func artistPage(name: String) -> some View {
         environment(NavigationStack { ArtistPageView(route: ArtistRoute(key: ArtistNames.artistKey(name))) }, artistsContainer())
+    }
+
+    /// Tidelines opened from its third track (#362), the wash held at full strength.
+    static func highlightedRelease() -> some View {
+        let container = artistsContainer()
+        let release = artistsLibrarySeed.releases.first { $0.title == "Tidelines" } ?? StatsGallery.releases[0]
+        let track = release.tracks.indices.contains(2) ? release.tracks[2] : release.tracks[0]
+        return environment(NavigationStack { ReleaseDetailView(release: release, highlightTrackID: track.id, holdsHighlight: true) }, container)
     }
 
     /// The album Tidelines in view mode: a track featuring Mira Valdane, linked.
