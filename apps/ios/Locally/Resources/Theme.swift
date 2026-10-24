@@ -611,3 +611,20 @@ enum Theme {
         UINavigationBar.appearance().compactAppearance = nav
     }
 }
+
+extension Theme {
+    /// #366: the collection builder's sizes.
+    enum Builder {
+        static let sleeve: CGFloat = 176
+        static let sleeveLarge: CGFloat = 244
+        static let sleeveAccessibility: CGFloat = 220
+        static let thumb: CGFloat = 56
+        static let stripThumb: CGFloat = 52
+        static let stripOverlap: CGFloat = 22
+        static let rowRadius: CGFloat = 20
+        static let rowMinHeight: CGFloat = 68
+        static let control: CGFloat = 44
+        static let mosaicSide: CGFloat = 400
+        static let ease = Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.4)
+    }
+}

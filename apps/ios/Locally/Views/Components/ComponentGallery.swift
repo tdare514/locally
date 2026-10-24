@@ -39,6 +39,8 @@ struct ComponentGallery: View {
         // #352: the record player on the Collections screen, over seeded collections and a player on fakes.
         "collections-player-playing", "collections-player-browsing", "collections-player-paused", "collections-player-vinyl", "collections-player-reduce-motion",
         "collections-player-ax", "collections-player-narrow", "collections-player-empty", "collections-player-wont-play", "collections-player-many", "collections-player-ax-lower", "collections-player-ax-controls", "collections-player-narrow-lower"]
+        // #366: the collection builder prototypes.
+        + CollectionBuilderGallery.names
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -61,7 +63,9 @@ struct ComponentGallery: View {
     }
 
     var body: some View {
-        if name.hasPrefix("import-record-") || name.hasPrefix("import-sent-") {
+        if name.hasPrefix("builder-") {
+            CollectionBuilderGallery(name: name)
+        } else if name.hasPrefix("import-record-") || name.hasPrefix("import-sent-") {
             ImportRecordGallery(name: name).preferredColorScheme(.dark)
         } else if name.hasPrefix("import-") {
             ZStack {

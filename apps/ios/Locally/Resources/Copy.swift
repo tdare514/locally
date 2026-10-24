@@ -937,3 +937,35 @@ private extension String {
     /// "Appears on 3 tracks" as "appears on 3 tracks".
     var lowercasedFirst: String { prefix(1).lowercased() + dropFirst() }
 }
+
+extension Copy {
+    /// #366: the collection builder (prototype strings; the owner picks a variant before it ships).
+    enum CollectionBuilder {
+        static let newTitle = "New collection"
+        static let addMusicTitle = "Add music"
+        static func addTo(_ name: String) -> String { "Add to \(name)" }
+        static let namePlaceholder = "Name it"
+        static let nameHint = "Give it a name, then pick the music."
+        static let next = "Next"
+        static let done = "Done"
+        static let close = "Close"
+        static let searchPlaceholder = "Search your library"
+        static let clearSearch = "Clear search"
+        static let songs = "Songs"
+        static let releases = "Releases"
+        static let nothingPicked = "Pick some music"
+        static let inCollection = "Already in this collection"
+        static let added = "Added"
+        static func add(_ title: String) -> String { "Add \(title)" }
+        static func songCount(_ count: Int) -> String { count == 1 ? "1 song" : "\(count) songs" }
+        static func newSongCount(_ count: Int) -> String { count == 1 ? "1 new song" : "\(count) new songs" }
+        static func minutes(_ seconds: Double) -> String {
+            let total = max(1, Int((seconds / 60).rounded()))
+            return total >= 60 ? "\(total / 60) hr \(total % 60) min" : "\(total) min"
+        }
+        static func summary(_ count: String, seconds: Double?) -> String {
+            guard let seconds, seconds > 0 else { return count }
+            return "\(count) \u{00B7} \(minutes(seconds))"
+        }
+    }
+}
