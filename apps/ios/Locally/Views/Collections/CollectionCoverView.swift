@@ -30,6 +30,9 @@ struct CollectionCoverView: View {
             }
     }
 
+    /// The rule for what a collection's cover shows: one cover until there are four, then the first four as a 2x2.
+    static func tiles<T>(_ covers: [T]) -> [T] { covers.count >= 4 ? Array(covers.prefix(4)) : Array(covers.prefix(1)) }
+
     @ViewBuilder
     private var art: some View {
         if images.count >= 4 {

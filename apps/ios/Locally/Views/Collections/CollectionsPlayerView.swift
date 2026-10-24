@@ -10,7 +10,8 @@ struct CollectionsPlayerView: View {
     /// "Edit collection": opens the collection's page in edit mode.
     var onEdit: (UUID) -> Void
     var onNew: () -> Void
-    var onAddTracks: () -> Void
+    /// "Add music" on an empty collection: opens the builder on that collection.
+    var onAddMusic: (UUID) -> Void
 
     @Environment(\.playback) private var playback
     @Environment(\.appContainer) private var container
@@ -28,14 +29,14 @@ struct CollectionsPlayerView: View {
 
     init(
         model: CollectionsModel, mode: Binding<CollectionsViewMode>, record: Binding<SpinningRecord>, startsOn playingID: UUID?,
-        onEdit: @escaping (UUID) -> Void, onNew: @escaping () -> Void, onAddTracks: @escaping () -> Void
+        onEdit: @escaping (UUID) -> Void, onNew: @escaping () -> Void, onAddMusic: @escaping (UUID) -> Void
     ) {
         self.model = model
         _mode = mode
         _record = record
         self.onEdit = onEdit
         self.onNew = onNew
-        self.onAddTracks = onAddTracks
+        self.onAddMusic = onAddMusic
         _frontID = State(initialValue: playingID.flatMap { id in model.collections.contains { $0.id == id } ? id : nil } ?? model.collections.first?.id)
     }
 
@@ -126,7 +127,7 @@ struct CollectionsPlayerView: View {
                 if let front {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         CollectionQueueHeader(model: model, collection: front, showsCover: false, showsLength: true) { onEdit(front.id) }
-                        CollectionQueueRows(model: model, collection: front, layout: .page, isGuideOpen: $isGuideOpen, onAddTracks: onAddTracks)
+                        CollectionQueueRows(model: model, collection: front, layout: .page, isGuideOpen: $isGuideOpen, onAddMusic: { onAddMusic(front.id) })
                     }
                     .padding(.horizontal, Theme.Spacing.listPagePadding)
                     .padding(.top, 24)

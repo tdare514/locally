@@ -16,6 +16,8 @@ struct CollectionQueueHeader: View {
     var isEditing = false
     /// "Edit collection": the player's way into the edit mode that the collection page opens from its toolbar.
     var onEdit: (() -> Void)?
+    /// "Add music": the collection page's way into the builder (#366), styled like "Edit collection".
+    var onAddMusic: (() -> Void)?
     @Environment(\.playback) private var playback
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -34,7 +36,7 @@ struct CollectionQueueHeader: View {
             Text(countLine(tracks: tracks, seconds: summary?.playableSeconds))
                 .themeFont(.meta)
                 .foregroundStyle(Theme.secondaryText)
-            if !isEditing { editButton }
+            if !isEditing { editButton; addMusicButton }
         }
         Group {
             if showsCover {
@@ -75,6 +77,21 @@ struct CollectionQueueHeader: View {
         }
     }
 
+    @ViewBuilder
+    private var addMusicButton: some View {
+        if let onAddMusic {
+            Button(action: onAddMusic) {
+                Text(Copy.CollectionBuilder.addMusicTitle)
+                    .themeFont(.body)
+                    .foregroundStyle(Theme.primaryText)
+                    .underline()
+                    .frame(minHeight: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("collection-add-music")
+        }
+    }
+
     private func countLine(tracks: Int, seconds: Double?) -> String {
         let length = showsLength ? RecordWheel.durationLabel(seconds) : ""
         return length.isEmpty ? Copy.Collections.trackCount(tracks) : "\(Copy.Collections.trackCount(tracks)), \(length)"
@@ -90,7 +107,8 @@ struct CollectionQueueRows: View {
     let collection: MusicCollection
     var layout: CollectionQueueLayout = .list
     @Binding var isGuideOpen: Bool
-    var onAddTracks: () -> Void
+    /// "Add music" in the empty state: opens the builder on this collection.
+    var onAddMusic: () -> Void
 
     static let guideID = "playlist-guide"
 
@@ -121,7 +139,7 @@ struct CollectionQueueRows: View {
                     .themeFont(.body)
                     .foregroundStyle(Theme.secondaryText)
                     .multilineTextAlignment(.center)
-                Button(action: onAddTracks) { Text(Copy.Collections.addTracks) }
+                Button(action: onAddMusic) { Text(Copy.CollectionBuilder.addMusicTitle) }
                     .buttonStyle(CollectionPillButtonStyle())
             }
             .frame(maxWidth: .infinity)

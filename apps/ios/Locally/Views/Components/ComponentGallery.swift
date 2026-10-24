@@ -45,6 +45,8 @@ struct ComponentGallery: View {
         "player-bright", "player-ax3",
         // #361: the one-size Stats grid and the one-line artist rows. Each name takes "-320" (a 320 pt screen) and "-ax3" (accessibility3): see `StatsCreditGallery`.
         "stats-361-grid-tracks", "stats-361-grid-tracks-bright", "stats-361-grid-albums", "stats-361-grid-artists", "stats-361-stats-row", "stats-361-track-row", "stats-361-artist-row"]
+        // #366: the collection builder over the seeded library.
+        + CollectionBuilderGallery.names
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -67,7 +69,9 @@ struct ComponentGallery: View {
     }
 
     var body: some View {
-        if name.hasPrefix("import-record-") || name.hasPrefix("import-sent-") {
+        if name.hasPrefix("builder-") {
+            CollectionBuilderGallery(name: name)
+        } else if name.hasPrefix("import-record-") || name.hasPrefix("import-sent-") {
             ImportRecordGallery(name: name).preferredColorScheme(.dark)
         } else if name.hasPrefix("import-") {
             ZStack {
@@ -1432,7 +1436,7 @@ enum CollectionsGallery {
     /// A collection of only the Mac-only release: the playlist guide has nothing to add.
     static let noneHereID = UUID(uuidString: "00000000-0000-0000-0000-0000000000c2")!
 
-    private static func container(seed: Bool, many: Int = 0, single: Bool = false, bright: Bool = false, extra: [Release] = [], extraCovers: [UUID: Data] = [:]) -> (AppContainer, CollectionsModel) {
+    static func container(seed: Bool, many: Int = 0, single: Bool = false, bright: Bool = false, extra: [Release] = [], extraCovers: [UUID: Data] = [:]) -> (AppContainer, CollectionsModel) {
         // `bright`: every cover is yellow and orange, so the sky and the card's wash come from a light cover.
         let covers = bright
             ? Dictionary(uniqueKeysWithValues: StatsGallery.releases.map { ($0.id, SampleArtwork.cover([.systemYellow, .systemOrange], size: 360).pngData() ?? Data()) })
@@ -1500,7 +1504,7 @@ enum CollectionsGallery {
 
     static func queue(editing: Bool = false, guideOpen: Bool = false, id: UUID = queueID) -> some View {
         let (container, model) = container(seed: true)
-        return IconsGallery.environment(NavigationStack { CollectionDetailView(model: model, id: id, startsEditing: editing, startsGuideOpen: guideOpen) {} }, container)
+        return IconsGallery.environment(NavigationStack { CollectionDetailView(model: model, id: id, startsEditing: editing, startsGuideOpen: guideOpen) }, container)
     }
 
     static func addSheet(saveFails: Bool = false) -> some View {
@@ -1594,7 +1598,7 @@ private struct CollectionsPlayingGallery: View {
     }
     var body: some View {
         IconsGallery.environment(
-            NavigationStack { CollectionDetailView(model: built.model, id: CollectionsGallery.queueID) {} }
+            NavigationStack { CollectionDetailView(model: built.model, id: CollectionsGallery.queueID) }
                 .environment(\.playback, built.playback),
             built.container
         )

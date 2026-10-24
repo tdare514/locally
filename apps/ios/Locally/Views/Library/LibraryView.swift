@@ -237,13 +237,13 @@ struct LibraryView: View {
                 if let collections {
                     CollectionsView(
                         model: collections, onOpen: { path.append(CollectionRoute(id: $0)) },
-                        onEdit: { path.append(CollectionRoute(id: $0, startsEditing: true)) }, onAddTracks: { path = NavigationPath() }
+                        onEdit: { path.append(CollectionRoute(id: $0, startsEditing: true)) }
                     )
                 }
             }
             .navigationDestination(for: CollectionRoute.self) { route in
                 if let collections {
-                    CollectionDetailView(model: collections, id: route.id, startsEditing: route.startsEditing) { path = NavigationPath() }
+                    CollectionDetailView(model: collections, id: route.id, startsEditing: route.startsEditing)
                 }
             }
             // `.onAppear` (not `.task`) so returning from `ReleaseDetailView`
