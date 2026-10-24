@@ -15,6 +15,8 @@ final class CollectionsModel {
 
     /// Newest change first.
     private(set) var collections: [MusicCollection] = []
+    /// One per collection, in the same order, computed once per read so the record player's wheel never works them out per frame (#352).
+    private(set) var summaries: [CollectionSummary] = []
     private(set) var releases: [UUID: Release] = [:]
     /// False until the local store has been read once, so the screen can show placeholders for that moment.
     private(set) var isLoaded = false
@@ -35,12 +37,22 @@ final class CollectionsModel {
         do {
             collections = try store.all().sorted { $0.updatedAt != $1.updatedAt ? $0.updatedAt > $1.updatedAt : $0.id.uuidString < $1.id.uuidString }
             releases = Dictionary(try library.all().map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            summaries = collections.map(summary(of:))
             readFailure = nil
         } catch {
             readFailure = error.localizedDescription
         }
         isLoaded = true
     }
+
+    private func summary(of collection: MusicCollection) -> CollectionSummary {
+        CollectionSummary(
+            id: collection.id, name: collection.name, tracks: trackCount(of: collection),
+            coverReleaseIDs: coverReleaseIDs(of: collection), playableSeconds: playableDuration(of: collection)
+        )
+    }
+
+    func summary(_ id: UUID) -> CollectionSummary? { summaries.first { $0.id == id } }
 
     func collection(_ id: UUID) -> MusicCollection? { collections.first { $0.id == id } }
 
@@ -164,6 +176,16 @@ final class CollectionsModel {
         hook?.collectionChanged(collection.id)
         reload()
     }
+}
+
+/// What a wheel row and the player's captions show about a collection (#352).
+struct CollectionSummary: Equatable, Identifiable {
+    let id: UUID
+    let name: String
+    let tracks: Int
+    let coverReleaseIDs: [UUID]
+    /// Seconds in the tracks this phone can play; nil when none has a known length.
+    let playableSeconds: Double?
 }
 
 /// The spoken state of the Play / Pause pill and of a queue row, from the same state as their glyphs.
