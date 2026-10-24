@@ -63,7 +63,8 @@ cd apps/ios
 xcodegen generate
 xcodebuild -project Locally.xcodeproj -target Locally -sdk iphonesimulator \
   -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
-xcodebuild test -scheme Locally -destination 'platform=iOS Simulator,name=<device>'
+xcodebuild test -scheme Locally -destination 'platform=iOS Simulator,name=<device>' \
+  -only-testing:LocallyTests/<TestClass>   # one -only-testing per class you touched; drop it for the full suite
 # UI tests (XCTest, over the component gallery's seeded data) run on demand, not in CI:
 xcodebuild test -scheme LocallyUITests -destination 'platform=iOS Simulator,name=<device>'
 ```
@@ -74,5 +75,14 @@ Device builds for the owner's phone use `-configuration Release`: a Debug build 
 
 ## Before pushing
 
-Build with `xcodebuild` (required by the root `CLAUDE.md`); if a simulator is available, also run
-`xcodebuild test` above.
+Build with `xcodebuild` (required by the root `CLAUDE.md`). If a simulator is available, also run
+`xcodebuild test` above with `-only-testing:` for the test classes that cover what you changed.
+CI (`.github/workflows/ios.yml`) runs the full suite on every pull request,
+so don't repeat it locally, except:
+
+- to reproduce a CI failure;
+- for a change that moves, renames or re-tags library files, changes `spec/sync.md` or
+  `spec/metadata.md`, or migrates the index. Run the full suite locally before that pull request.
+
+Several sessions share one Mac, and a full suite or simulator run per session slows them all.
+Check with the simulator only when the change is visible.
