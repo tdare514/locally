@@ -12,7 +12,7 @@ import { getMoveProblem, readJournal, setMoveProblem, writeJournal } from "../..
 import { AdoptService } from "../../../src/server/adopt/AdoptService";
 import { ReleaseService } from "../../../src/server/releases/ReleaseService";
 import { NodeFileSystem } from "../../../src/server/fs/NodeFileSystem";
-import { runLibraryMove, trackLibraryWrite } from "../../../src/server/library/writeActivity";
+import { runLibraryMove, setRecoveryGate, trackLibraryWrite } from "../../../src/server/library/writeActivity";
 
 let services: Services;
 let homeDir: string;
@@ -75,6 +75,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  setRecoveryGate(null);
   setMoveProblem(null);
   delete process.env.LOCALLY_DEMO;
   if (envConfig === undefined) delete process.env.LOCALLY_CONFIG_DIR;
@@ -431,5 +432,38 @@ describe("move journal and recovery (#335)", () => {
       path.join(lib, "Artist", "Album", "02.mp3"),
     ]);
     expect((await settings.get()).libraryDir).toBe(lib);
+  });
+
+  it("a write started while recovery is pending is refused when recovery ends unclear, and writes nothing", async () => {
+    let settle!: () => void;
+    setRecoveryGate(new Promise<void>((r) => (settle = r)));
+    let ran = false;
+    const write = trackLibraryWrite(async () => {
+      ran = true;
+    });
+    const outcome = write.then(() => "ok", (e: Error) => e.message);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(ran).toBe(false);
+    setMoveProblem("unclear");
+    settle();
+    expect(await outcome).toMatch(/finishing a library move/);
+    expect(ran).toBe(false);
+  });
+
+  it("a failed index repair during recovery is unclear: journal kept, writes refused", async () => {
+    await seed();
+    const dest = path.join(homeDir, "Locally");
+    await writeJournal(configDir, { from: lib, to: dest, mode: "rename", phase: "moving", toCreated: true });
+    const failing = {
+      list: (d: string) => repo.list(d),
+      find: (d: string, id: string) => repo.find(d, id),
+      remove: (d: string, id: string) => repo.remove(d, id),
+      upsert: async () => {
+        throw new Error("disk full");
+      },
+    };
+    expect(await recoverLibraryMove({ settings, library: failing as never, dataDir: configDir })).toBe("unclear");
+    expect(await readJournal(configDir)).not.toBeNull();
+    await expect(trackLibraryWrite(async () => 1)).rejects.toThrow(/finishing a library move/);
   });
 });

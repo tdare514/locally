@@ -2,6 +2,7 @@ import { FileSettingsStore } from "./config/FileSettingsStore";
 import type { SettingsStore } from "./config/SettingsStore";
 import { settingsDir } from "./config/paths";
 import { recoverLibraryMove } from "./library/LibraryMover";
+import { setRecoveryGate } from "./library/writeActivity";
 import type { Settings } from "../shared/types";
 import { JsonLibraryRepository } from "./storage/JsonLibraryRepository";
 import type { LibraryRepository } from "./storage/LibraryRepository";
@@ -82,6 +83,7 @@ function buildServices(): Services {
     library: new JsonLibraryRepository(),
     dataDir: settingsDir(),
   }).catch((err) => console.warn("Library move recovery failed:", err));
+  setRecoveryGate(moveRecovery);
   const settings: SettingsStore = new GatedSettingsStore(rawSettings, moveRecovery);
   const library = new JsonLibraryRepository();
   // LOCALLY_FFMPEG is set by the Electron shell to a bundled binary; never user input.
