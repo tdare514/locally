@@ -54,6 +54,8 @@ final class CollectionBuilderUITests: XCTestCase {
         XCTAssertTrue(name.waitForExistence(timeout: 10))
         name.tap()
         name.typeText("Road trip\n")
+        XCTAssertTrue(app.textFields["Collection name"].exists, "the name field keeps its label once text is typed")
+        XCTAssertTrue(app.textFields["Search your library"].exists, "the search field is found by its label")
 
         for title in ["Afterglow", "Kitchen Radio", "Cold Coffee"] { pick(title) }
         XCTAssertTrue(app.staticTexts["builder-summary"].label.hasPrefix("3 songs"), app.staticTexts["builder-summary"].label)

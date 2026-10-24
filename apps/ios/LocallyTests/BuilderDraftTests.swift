@@ -156,4 +156,65 @@ struct BuilderDraftTests {
         let releases: [String] = draft.releaseMatches.map(\.title)
         #expect(releases == ["Low Tide"])
     }
+
+    @Test func aDraftOneAwayFromFullTakesOnePickAndRefusesTheNext() {
+        let draft = BuilderDraft(releases: [Self.heldAlbum, Self.single], name: "Mix", limit: 1)
+        draft.toggle(song(Self.heldAlbum, 0))
+        let picked: Int = draft.picks.count
+        #expect(picked == 1)
+        draft.toggle(song(Self.single))
+        let after: Int = draft.picks.count
+        #expect(after == 1)
+        #expect(draft.isFull)
+    }
+
+    @Test func oneAwayFromFullAcceptsOneThenRefuses() {
+        let draft = BuilderDraft(releases: [Self.heldAlbum, Self.single], name: "Mix", limit: 2)
+        draft.toggle(song(Self.heldAlbum, 0))
+        let left: Int = draft.remaining
+        #expect(left == 1)
+        draft.toggle(song(Self.single))
+        let picked: Int = draft.picks.count
+        #expect(picked == 2)
+        draft.toggle(song(Self.heldAlbum, 1))
+        let after: Int = draft.picks.count
+        #expect(after == 2)
+    }
+
+    @Test func aFullDraftRefusesButStillDropsAPick() {
+        let draft = BuilderDraft(releases: [Self.heldAlbum, Self.single], name: "Mix", limit: 1)
+        draft.toggle(whole(Self.single))
+        draft.toggle(whole(Self.heldAlbum))
+        let expected: [BuilderPick] = [whole(Self.single)]
+        #expect(draft.picks == expected)
+        draft.toggle(whole(Self.single))
+        #expect(draft.picks.isEmpty)
+    }
+
+    @Test func remainingCountsExistingItemsAndAReleaseIsOneItem() {
+        let existing: [CollectionItem] = [.release(Self.single.id)]
+        let draft = BuilderDraft(releases: [Self.heldAlbum, Self.single], name: "Mix", existing: existing, limit: 4)
+        let start: Int = draft.remaining
+        #expect(start == 3)
+        draft.toggle(whole(Self.heldAlbum))
+        let afterRelease: Int = draft.remaining
+        #expect(afterRelease == 2)
+        #expect(draft.songCount == 2)
+    }
+
+    @Test func aWholeReleaseTapFitsWhenItFreesItsPickedSongs() {
+        let draft = BuilderDraft(releases: [Self.heldAlbum], name: "Mix", limit: 2)
+        draft.toggle(song(Self.heldAlbum, 0))
+        draft.toggle(song(Self.heldAlbum, 1))
+        draft.toggle(whole(Self.heldAlbum))
+        let expected: [BuilderPick] = [whole(Self.heldAlbum)]
+        #expect(draft.picks == expected)
+    }
+
+    @Test func anEmptyQueryReturnsEverySongInOrder() {
+        let draft = draft()
+        let titles: [String] = draft.songMatches.map(\.track.title)
+        let expected: [String] = ["One", "Two", "Kitchen Radio", "Low Light"]
+        #expect(titles == expected)
+    }
 }

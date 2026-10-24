@@ -5,7 +5,7 @@ import SwiftUI
 /// "Harbour Sessions"), plus the two UI-test hosts. Nothing here signs in or syncs.
 struct CollectionBuilderGallery: View {
     static let names = [
-        "builder-empty", "builder-picks", "builder-search", "builder-add-music", "builder-ax3", "builder-ax5", "builder-narrow",
+        "builder-empty", "builder-picks", "builder-search", "builder-add-music", "builder-ax3", "builder-ax5", "builder-narrow", "builder-full",
         "builder-new-flow", "builder-add-music-flow",
     ]
 
@@ -48,6 +48,14 @@ struct CollectionBuilderGallery: View {
     private var threeSongs: [BuilderPick] { [song(1)] + harbour }
     private var withRelease: [BuilderPick] { [song(1)] + harbour + [BuilderPick(releaseID: StatsGallery.releases[7].id)] }
 
+    /// A draft whose limit is exactly its picks, so it is full.
+    private var fullDraft: BuilderDraft {
+        let releases = CollectionBuilderView.makeDraft(model: model, addingTo: nil).releases
+        let draft = BuilderDraft(releases: releases, name: "Rainy Sunday", limit: withRelease.count)
+        for pick in withRelease { draft.toggle(pick) }
+        return draft
+    }
+
     private func builder(_ draft: BuilderDraft, addingTo: UUID? = nil) -> some View {
         CollectionBuilderView(model: model, addingTo: addingTo, draft: draft, autofocuses: false) { _ in }
     }
@@ -73,6 +81,8 @@ struct CollectionBuilderGallery: View {
             builder(draft(picks: withRelease)).dynamicTypeSize(.accessibility5)
         case "builder-narrow":
             builder(draft(picks: withRelease)).frame(width: 320)
+        case "builder-full":
+            builder(fullDraft)
         case "builder-new-flow":
             BuilderFlowHost(model: model)
         case "builder-add-music-flow":

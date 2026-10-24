@@ -68,9 +68,10 @@ final class BuilderArt {
     }
 }
 
-/// Up to four covers as one square: one whole, two halves, one tall and two stacked, or a 2x2 (the first-four rule of `CollectionCoverView`).
+/// The covers as one square by the saved collection's rule (`CollectionCoverView.tiles`): one whole, or a 2x2 of four.
 enum BuilderMosaic {
     static func image(_ covers: [UIImage]) -> UIImage? {
+        let covers = CollectionCoverView.tiles(covers)
         guard !covers.isEmpty else { return nil }
         let side = Theme.Builder.mosaicSide
         let format = UIGraphicsImageRendererFormat()
@@ -78,11 +79,10 @@ enum BuilderMosaic {
         return UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).image { context in
             let half = side / 2
             let rects: [CGRect]
-            switch covers.count {
-            case 1: rects = [CGRect(x: 0, y: 0, width: side, height: side)]
-            case 2: rects = [CGRect(x: 0, y: 0, width: half, height: side), CGRect(x: half, y: 0, width: half, height: side)]
-            case 3: rects = [CGRect(x: 0, y: 0, width: half, height: side), CGRect(x: half, y: 0, width: half, height: half), CGRect(x: half, y: half, width: half, height: half)]
-            default: rects = [CGRect(x: 0, y: 0, width: half, height: half), CGRect(x: half, y: 0, width: half, height: half), CGRect(x: 0, y: half, width: half, height: half), CGRect(x: half, y: half, width: half, height: half)]
+            if covers.count == 1 {
+                rects = [CGRect(x: 0, y: 0, width: side, height: side)]
+            } else {
+                rects = [CGRect(x: 0, y: 0, width: half, height: half), CGRect(x: half, y: 0, width: half, height: half), CGRect(x: 0, y: half, width: half, height: half), CGRect(x: half, y: half, width: half, height: half)]
             }
             for (image, rect) in zip(covers, rects) {
                 context.cgContext.saveGState()
@@ -117,6 +117,8 @@ struct CollectionBuilderView: View {
     @State private var palette: AmbientPalette?
     @State private var isConfirmingDiscard = false
     @State private var saveFailed = false
+    /// The save would have dropped picks, so nothing was saved.
+    @State private var saveShort = false
     @FocusState private var nameFocused: Bool
 
     @Environment(\.dismiss) private var dismiss
@@ -142,6 +144,7 @@ struct CollectionBuilderView: View {
     private var large: Bool { dynamicTypeSize.isAccessibilitySize }
     private var pad: CGFloat { Theme.Spacing.pagePadding }
     private var title: String { draft.isNew ? Copy.CollectionBuilder.newTitle : Copy.CollectionBuilder.addMusicTitle }
+    private var failureTitle: String { draft.isNew ? Copy.Collections.createFailed : Copy.Collections.addFailed(to: draft.name) }
     private var glow: [Color] { Theme.coverGlowColors(palette) }
     private var tint: Color { glow.first ?? Theme.accent }
 
@@ -155,6 +158,15 @@ struct CollectionBuilderView: View {
                         .padding(.top, large ? 14 : 4)
                         .padding(.bottom, 16)
                     picksBar.padding(.horizontal, pad)
+                    if draft.isFull {
+                        Text(Copy.CollectionBuilder.full)
+                            .font(Theme.ScaledFont.caption)
+                            .foregroundStyle(Theme.secondaryText)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, pad)
+                            .padding(.top, 2)
+                            .accessibilityIdentifier("builder-full")
+                    }
                     library
                 }
                 .padding(.bottom, 12)
@@ -176,13 +188,15 @@ struct CollectionBuilderView: View {
             try? await Task.sleep(for: .milliseconds(450))
             nameFocused = true
         }
-        .confirmationDialog(Copy.CollectionBuilder.discardTitle, isPresented: $isConfirmingDiscard, titleVisibility: .visible) {
+        .confirmationDialog(draft.isNew ? Copy.CollectionBuilder.discardTitle : Copy.CollectionBuilder.discardAdditionsTitle, isPresented: $isConfirmingDiscard, titleVisibility: .visible) {
             Button(Copy.CollectionBuilder.discard, role: .destructive) { dismiss() }
             Button(Copy.CollectionBuilder.keepEditing, role: .cancel) {}
         }
-        .alert(Copy.Collections.createFailed, isPresented: $saveFailed) {
-            Button(Copy.Collections.tryAgain) { finish() }
-            Button(Copy.Collections.cancel, role: .cancel) {}
+        .alert(failureTitle, isPresented: $saveFailed) {
+            if !saveShort { Button(Copy.Collections.tryAgain) { finish() } }
+            Button(saveShort ? Copy.CollectionBuilder.ok : Copy.Collections.cancel, role: .cancel) {}
+        } message: {
+            if saveShort { Text(Copy.CollectionBuilder.notAllSaved) }
         }
     }
 
@@ -336,21 +350,34 @@ struct CollectionBuilderView: View {
     /// that fails keeps the builder open.
     private func finish() {
         guard draft.canFinish else { return }
+        saveShort = false
+        let items = draft.items
         do {
             let id: UUID?
             if let collectionID {
-                try model.add(draft.items, to: collectionID)
+                // Everything picked must land: check before saving, and again against what was added.
+                let held = model.collection(collectionID)?.items ?? []
+                guard CollectionEdit.appended(held, items).added == items.count else { return failShort() }
+                let added = try model.add(items, to: collectionID)
+                guard added == items.count else { return failShort() }
                 id = collectionID
             } else {
-                id = try model.create(name: draft.name, items: draft.items)
+                guard CollectionEdit.appended([], items).added == items.count else { return failShort() }
+                id = try model.create(name: draft.name, items: items)
             }
             guard let id else { return }
             dismiss()
             onDone(id)
         } catch {
             saveFailed = true
-            AccessibilityNotification.Announcement("\(Copy.Collections.createFailed) \(Copy.Collections.tryAgain)").post()
+            AccessibilityNotification.Announcement("\(failureTitle) \(Copy.Collections.tryAgain)").post()
         }
+    }
+
+    private func failShort() {
+        saveShort = true
+        saveFailed = true
+        AccessibilityNotification.Announcement("\(failureTitle) \(Copy.CollectionBuilder.notAllSaved)").post()
     }
 }
 
@@ -415,6 +442,7 @@ private struct BuilderSleeve: View {
         @Bindable var draft = draft
         if draft.isNew {
             TextField("", text: $draft.name, prompt: Text(Copy.CollectionBuilder.namePlaceholder).foregroundColor(.white.opacity(0.7)), axis: .vertical)
+                .accessibilityLabel(Copy.CollectionBuilder.nameLabel)
                 .lineLimit(1...3)
                 .focused(focused)
                 .submitLabel(.done)
@@ -691,6 +719,7 @@ private struct BuilderSearchPill: View {
                 .foregroundStyle(Theme.primaryText)
                 .submitLabel(.search)
                 .autocorrectionDisabled()
+                .accessibilityLabel(Copy.CollectionBuilder.searchLabel)
                 .accessibilityIdentifier("builder-search")
             if !text.isEmpty {
                 Button { text = "" } label: {

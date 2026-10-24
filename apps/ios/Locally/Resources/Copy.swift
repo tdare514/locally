@@ -1026,6 +1026,14 @@ extension Copy {
         static let done = "Done"
         static let close = "Close"
         static let searchPlaceholder = "Search your library"
+        /// The fields' spoken names, which stay once text is typed over the placeholder.
+        static let nameLabel = "Collection name"
+        static let searchLabel = searchPlaceholder
+        /// The quiet line under the summary when no more fits.
+        static let full = "A collection holds up to 1,000 songs and releases."
+        static let notAllSaved = "Not everything fits in this collection, so nothing was saved. Remove a pick and try again."
+        static let ok = "OK"
+        static let discardAdditionsTitle = "Discard these additions?"
         static let clearSearch = "Clear search"
         static let songs = "Songs"
         static let releases = "Releases"

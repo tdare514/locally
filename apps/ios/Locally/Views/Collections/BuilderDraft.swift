@@ -47,11 +47,21 @@ final class BuilderDraft {
     var name: String
     var query = ""
     private(set) var picks: [BuilderPick]
+    /// How many items a collection holds at most; every item the collection already holds counts, known or not.
+    let limit: Int
+    private let existingCount: Int
+    /// Every song in library order with its normalized "title artist", worked out once (`releases` never changes).
+    private let songIndex: [(release: Release, track: Track, haystack: String)]
 
-    init(releases: [Release], name: String = "", existing: [CollectionItem]? = nil, picks: [BuilderPick] = []) {
+    init(releases: [Release], name: String = "", existing: [CollectionItem]? = nil, picks: [BuilderPick] = [], limit: Int = MusicCollection.maxItems) {
         self.releases = releases
         self.isNew = existing == nil
+        self.limit = limit
+        self.existingCount = existing?.count ?? 0
         self.existing = (existing ?? []).compactMap(BuilderPick.init)
+        self.songIndex = releases.flatMap { release in
+            release.tracks.map { (release: release, track: $0, haystack: LibrarySearch.normalize("\($0.title) \(release.artist)")) }
+        }
         self.name = name
         self.picks = picks
     }
@@ -107,12 +117,21 @@ final class BuilderDraft {
     /// Songs whose title or artist contains every word of the query.
     var songMatches: [(release: Release, track: Track)] {
         let tokens = LibrarySearch.normalize(query).split(separator: " ").map(String.init)
-        return releases.flatMap { release in
-            release.tracks.compactMap { track -> (release: Release, track: Track)? in
-                let haystack = LibrarySearch.normalize("\(track.title) \(release.artist)")
-                return tokens.allSatisfy { haystack.contains($0) } ? (release, track) : nil
-            }
+        if tokens.isEmpty { return songIndex.map { ($0.release, $0.track) } }
+        return songIndex.compactMap { entry in
+            tokens.allSatisfy { entry.haystack.contains($0) } ? (entry.release, entry.track) : nil
         }
+    }
+
+    /// How many more items the collection takes: its limit less what it holds and what is picked (a release or a song is one item).
+    var remaining: Int { max(0, limit - existingCount - picks.count) }
+
+    var isFull: Bool { remaining == 0 }
+
+    /// Whether a tap on this unpicked row would fit: a release also frees the songs of it that are picked.
+    private func fits(_ pick: BuilderPick) -> Bool {
+        let freed = pick.trackID == nil ? picks.filter { $0.releaseID == pick.releaseID }.count : 0
+        return existingCount + picks.count - freed + 1 <= limit
     }
 
     /// The first four different releases among what the collection holds and what is picked: the sleeve's mosaic.
@@ -127,12 +146,13 @@ final class BuilderDraft {
 
     // MARK: Editing
 
-    /// A tap. An existing item or a song of a picked release does nothing; a release replaces its picked songs.
+    /// A tap. An existing item, a song of a picked release, or an unpicked row once the collection is full does nothing; a release replaces its picked songs.
     func toggle(_ pick: BuilderPick) {
         switch state(of: pick) {
         case .existing, .viaRelease: return
         case .on: picks.removeAll { $0 == pick }
         case .off:
+            guard fits(pick) else { return }
             if pick.trackID == nil { picks.removeAll { $0.releaseID == pick.releaseID } }
             picks.append(pick)
         }
