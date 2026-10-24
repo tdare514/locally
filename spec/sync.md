@@ -484,14 +484,16 @@ Named mixtapes of releases and tracks in the owner's order (plan `docs/plans/339
   track item from a release that is also a release item is allowed.
 - **Limits:** `name` 1 to 100 characters after trimming (stored trimmed), no control characters; at most 1,000 items; at most
   1,000 live collections per user (a new live one beyond answers 409 `{ "error": "too_many_collections" }`; tombstoned ones
-  don't count); the 1 MiB body cap.
+  don't count; the count is read before the write, so creations at the same instant can pass it by a few); the 1 MiB body cap.
 - **Versions** come from the same per-user counter as releases (`user_counters`). `GET` pages the collections table with
   the releases rules: at most `limit` rows and 2 MiB, `hasMore`, `nextVersion` as the last row's version while more remain,
   otherwise the user's counter.
 - **A deleted release leaves its collections:**
   - When a release is tombstoned (`DELETE`, or a `PUT` with `deleted: true` that wins), the same batch drops that release's
     `release` and `track` items from each of the user's live collections that has them, and bumps that collection's
-    `version`, `updatedAt` (now) and `serverUpdatedAt`, next to the revoking of its shares.
+    `version`, `updatedAt` (now) and `serverUpdatedAt`, next to the revoking of its shares. A collection written in the same
+    instant, after that batch read its list, still loses the item but keeps its version (no version is ever shared); clients
+    already hide items whose release is gone, and that collection's next `PUT` drops the item for good.
   - A collection `PUT` drops items that name one of the user's tombstoned releases, in the same batch as the write, and
     `pruned` is how many it dropped. A client with `pruned > 0` pulls that collection rather than keep its own copy. Items naming a
     release the server doesn't know yet are kept.

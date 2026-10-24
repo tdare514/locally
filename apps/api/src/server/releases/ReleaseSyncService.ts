@@ -76,8 +76,9 @@ export class ReleaseSyncService {
   /**
    * Drop a tombstoned release's items from the user's live collections (#339), in the same batch, after the release
    * write. Each collection already naming it gets its own counter bump (versions stay unique); a final catch-all pass
-   * (no bump of its own, so a quiet delete leaves no version gap) covers one that named it only after `collectionIds`
-   * was read; in that rare race it shares the last version used. Each update acts only if the release ended deleted.
+   * covers one that named it only after `collectionIds` was read. The catch-all keeps that row's version (no bump, so
+   * a quiet delete leaves no gap, and no version is ever shared); the next PUT of that collection drops the item too.
+   * Each update acts only if the release ended deleted.
    */
   private pruneCollectionsOf(userId: string, releaseId: string, at: number, collectionIds: string[]) {
     return [
@@ -85,7 +86,7 @@ export class ReleaseSyncService {
         this.bumpVersion(userId),
         pruneCollectionsOfRelease(this.db, userId, releaseId, at, this.currentVersion(userId), id),
       ]),
-      pruneCollectionsOfRelease(this.db, userId, releaseId, at, this.currentVersion(userId)),
+      pruneCollectionsOfRelease(this.db, userId, releaseId, at, null),
     ];
   }
 

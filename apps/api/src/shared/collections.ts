@@ -10,7 +10,6 @@ export const MAX_UNKNOWN_ITEM_BYTES = 1024;
 
 const isoDateSchema = z.string().datetime({ offset: true, message: "Must be an ISO 8601 timestamp" });
 const unknownKindPattern = /^[a-z][a-z0-9-]{0,15}$/;
-// eslint-disable-next-line no-control-regex
 const controlChars = /[\u0000-\u001f\u007f-\u009f]/;
 
 const releaseItemSchema = z.object({ kind: z.literal("release"), releaseId: uuidSchema }).strict();

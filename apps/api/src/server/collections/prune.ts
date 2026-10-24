@@ -31,9 +31,11 @@ export async function liveCollectionIdsNaming(db: Db, userId: string, releaseId:
 
 /**
  * Drop `releaseId`'s items from the user's live collections (one collection when `collectionId` is given, else all
- * of them), bumping `version`, `updatedAt` and `serverUpdatedAt`. Only acts if the release is tombstoned by then.
+ * of them), setting `updatedAt` and `serverUpdatedAt`, and `version` when one is given. Only acts if the release is
+ * tombstoned by then. With `version` null (the catch-all) the row keeps its version, so no two rows ever share one:
+ * clients already hide items whose release is gone, and the next PUT of that collection drops the item for good.
  */
-export function pruneCollectionsOfRelease(db: Db, userId: string, releaseId: string, at: number, version: SQL<number>, collectionId?: string) {
+export function pruneCollectionsOfRelease(db: Db, userId: string, releaseId: string, at: number, version: SQL<number> | null, collectionId?: string) {
   const match = sql`json_extract(value, '$.releaseId') = ${releaseId}`;
   return db
     .update(collections)
@@ -41,7 +43,7 @@ export function pruneCollectionsOfRelease(db: Db, userId: string, releaseId: str
       record: sql`json_set(${collections.record}, '$.items', json(${itemsWithout(match)}), '$.updatedAt', ${new Date(at).toISOString()})`,
       updatedAt: at,
       serverUpdatedAt: at,
-      version,
+      ...(version ? { version } : {}),
     })
     .where(
       and(
