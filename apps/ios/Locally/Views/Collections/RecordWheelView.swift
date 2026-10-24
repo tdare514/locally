@@ -124,7 +124,7 @@ struct RecordWheelView: View {
                     onSelect: { index in settle(RecordWheel.turnTarget(index, from: position, summaries.count), duration: Theme.Immersive.wheelTapDuration) }
                 )
             }
-            .gesture(drag)
+            .gesture(drag, isEnabled: summaries.count > 1)
             // The accent notch marks the front.
             Capsule()
                 .fill(Theme.accent)

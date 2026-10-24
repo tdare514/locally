@@ -81,4 +81,29 @@ final class CollectionsPlayerUITests: XCTestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         XCTAssertLessThan(title.frame.maxY, height, "now playing starts below the first screen")
     }
+
+    /// A drag that starts on the now playing panel scrolls the page; it is plain page content.
+    func testDragOnNowPlayingScrollsThePage() {
+        XCTAssertTrue(wheel.waitForExistence(timeout: 15))
+        let title = app.staticTexts["Paper Moon (feat. Okoro)"].firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        let top = title.frame.minY
+        for _ in 0..<3 where title.frame.minY > top - 50 {
+            let start = title.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -200)), withVelocity: .slow, thenHoldForDuration: 0)
+            sleep(1)
+        }
+        XCTAssertLessThan(title.frame.minY, top - 50, "the page did not scroll")
+    }
+
+    /// With one collection the wheel has nothing to turn, so a drag on the cover column scrolls the page (#363).
+    func testDragOnTheCoversScrollsThePageWithOneCollection() {
+        app.terminate()
+        app.launchArguments = ["-componentGallery", "collections-player-single"]
+        app.launch()
+        XCTAssertTrue(wheel.waitForExistence(timeout: 15))
+        let top = wheel.frame.minY
+        for _ in 0..<3 where wheel.frame.minY > top - 50 { drag(fromX: 0.7, y: 0.7, rise: 0.5) }
+        XCTAssertLessThan(wheel.frame.minY, top - 50, "the page did not scroll")
+    }
 }

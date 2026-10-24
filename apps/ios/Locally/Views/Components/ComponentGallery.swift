@@ -40,7 +40,7 @@ struct ComponentGallery: View {
         "collections-library", "collections-screen", "collections-queue", "collections-edit", "collections-empty", "collections-queue-ax", "collections-add", "collections-playing", "collections-add-failed", "collections-wont-play", "collections-playlist-guide", "collections-none-here",
         // #352: the record player on the Collections screen, over seeded collections and a player on fakes.
         "collections-player-playing", "collections-player-browsing", "collections-player-paused", "collections-player-vinyl", "collections-player-reduce-motion",
-        "collections-player-ax", "collections-player-narrow", "collections-player-empty", "collections-player-wont-play", "collections-player-many", "collections-player-ax-lower", "collections-player-ax-controls", "collections-player-narrow-lower"]
+        "collections-player-ax", "collections-player-narrow", "collections-player-empty", "collections-player-wont-play", "collections-player-many", "collections-player-single", "collections-player-ax-lower", "collections-player-ax-controls", "collections-player-narrow-lower"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -281,6 +281,8 @@ struct ComponentGallery: View {
             CollectionsPlayerGallery(seed: false, playing: false)
         case "collections-player-wont-play":
             CollectionsPlayerGallery(scrollsTo: CollectionsPlayerView.queueID, missingFirst: true)
+        case "collections-player-single":
+            CollectionsPlayerGallery(single: true)
         case "collections-player-many":
             CollectionsPlayerGallery(many: 200)
         case "collections-wont-play":
@@ -1372,7 +1374,7 @@ enum CollectionsGallery {
     /// A collection of only the Mac-only release: the playlist guide has nothing to add.
     static let noneHereID = UUID(uuidString: "00000000-0000-0000-0000-0000000000c2")!
 
-    private static func container(seed: Bool, many: Int = 0) -> (AppContainer, CollectionsModel) {
+    private static func container(seed: Bool, many: Int = 0, single: Bool = false) -> (AppContainer, CollectionsModel) {
         let container = IconsGallery.container(releases: StatsGallery.releases + [macOnly])
         if seed {
             let r = StatsGallery.releases
@@ -1387,7 +1389,7 @@ enum CollectionsGallery {
                 make(UUID(), "Someday", [], 180),
                 make(noneHereID, "From the Mac", [.release(macOnly.id)], 240),
             ]
-            for collection in collections { try? container.collections.upsert(collection) }
+            for collection in (single ? Array(collections.prefix(1)) : collections) { try? container.collections.upsert(collection) }
             // The record player's 200-collection frame: the same few releases, shuffled into many names.
             for n in 0..<many {
                 try? container.collections.upsert(make(UUID(), "Collection \(n + 1)", [.release(r[n % r.count].id)], 300 + Double(n)))
@@ -1398,8 +1400,8 @@ enum CollectionsGallery {
         return (container, model)
     }
 
-    static func playingSetup(missingFirst: Bool = false, seed: Bool = true, many: Int = 0) -> (container: AppContainer, model: CollectionsModel, playback: PlaybackService) {
-        let (container, model) = container(seed: seed, many: many)
+    static func playingSetup(missingFirst: Bool = false, seed: Bool = true, many: Int = 0, single: Bool = false) -> (container: AppContainer, model: CollectionsModel, playback: PlaybackService) {
+        let (container, model) = container(seed: seed, many: many, single: single)
         let firstPlayable = model.collection(queueID).flatMap { model.playQueue(of: $0).first?.trackID }
         let playback = PlaybackService(
             engine: GalleryEngine(), access: missingFirst ? GalleryAccess(missing: firstPlayable) : GalleryAccess(), session: GallerySession(),
@@ -1459,9 +1461,11 @@ private struct CollectionsPlayerGallery: View {
     var vinyl = false
     var missingFirst = false
     var many = 0
+    /// Only the first collection, so the wheel has nothing to turn (#363).
+    var single = false
     @State private var built: (container: AppContainer, model: CollectionsModel, playback: PlaybackService)
 
-    init(reduceMotion: Bool = false, scrollsTo: String? = nil, seed: Bool = true, playing: Bool = true, paused: Bool = false, browsing: Bool = false, vinyl: Bool = false, missingFirst: Bool = false, many: Int = 0) {
+    init(reduceMotion: Bool = false, scrollsTo: String? = nil, seed: Bool = true, playing: Bool = true, paused: Bool = false, browsing: Bool = false, vinyl: Bool = false, missingFirst: Bool = false, many: Int = 0, single: Bool = false) {
         self.seed = seed
         self.playing = playing
         self.paused = paused
@@ -1469,11 +1473,12 @@ private struct CollectionsPlayerGallery: View {
         self.vinyl = vinyl
         self.missingFirst = missingFirst
         self.many = many
+        self.single = single
         UserDefaults.standard.set(reduceMotion, forKey: WheelMotion.debugReduceMotionKey)
         UserDefaults.standard.set(scrollsTo ?? "", forKey: CollectionsPlayerView.debugScrollKey)
         UserDefaults.standard.set(vinyl ? SpinningRecord.vinyl.rawValue : SpinningRecord.picture.rawValue, forKey: CollectionsViewPrefs.recordKey)
         UserDefaults.standard.set(CollectionsViewMode.player.rawValue, forKey: CollectionsViewPrefs.viewKey)
-        _built = State(initialValue: CollectionsGallery.playingSetup(missingFirst: missingFirst, seed: seed, many: many))
+        _built = State(initialValue: CollectionsGallery.playingSetup(missingFirst: missingFirst, seed: seed, many: many, single: single))
     }
 
     var body: some View {
