@@ -454,7 +454,11 @@ final class FakeSyncApi: SyncApi {
         return try meResult.get()
     }
 
+    /// When set, thrown by `revokeDevice` (an offline sign-out).
+    var revokeDeviceError: Error?
+
     func revokeDevice(_ id: String) async throws {
+        if let revokeDeviceError { throw revokeDeviceError }
         revokedDeviceIds.append(id)
     }
 
@@ -613,9 +617,13 @@ final class FakeSyncApi: SyncApi {
     private(set) var putPlaysCalls: [[SyncPlayCount]] = []
     var putPlaysResults: [Result<SyncPlaysPutResult, Error>] = []
 
+    /// Awaited inside `putPlays` after the call is recorded, with the call's index, to hold a request open.
+    var putPlaysGate: ((Int) async -> Void)?
+
     func putPlays(_ counts: [SyncPlayCount]) async throws -> SyncPlaysPutResult {
         let index = putPlaysCalls.count
         putPlaysCalls.append(counts)
+        await putPlaysGate?(index)
         if index < putPlaysResults.count { return try putPlaysResults[index].get() }
         return SyncPlaysPutResult(accepted: counts.count, ignored: 0)
     }

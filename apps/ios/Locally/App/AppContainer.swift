@@ -145,7 +145,7 @@ final class AppContainer {
             deviceName: { SyncDeviceName.current() },
             shareCovers: ShareCoverCache.standard(),
             playCounts: playCounts,
-            installIds: SecKeychainInstallIdStore()
+            installIds: FileInstallIdStore.standard()
         )
         let container = AppContainer(
             folder: folder,

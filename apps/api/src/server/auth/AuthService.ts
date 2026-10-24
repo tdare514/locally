@@ -230,7 +230,7 @@ export class AuthService {
 
   /**
    * One UPDATE ... RETURNING is the whole step, so it is atomic: the row is picked and changed
-   * in a single statement whose WHERE repeats the preconditions (this user, this platform, still
+   * in a single statement whose WHERE repeats the preconditions (this user, this platform, and for a Mac still
    * revoked). Two verifies racing for the same row cannot both revive it, since the loser no
    * longer matches `revoked_at IS NOT NULL`. The new token hash replaces the old one, so the old
    * token stops working at once. The row keeps its install ID, or gains `installId`.
@@ -243,10 +243,14 @@ export class AuthService {
     tokenHash: string,
     now: number
   ): Promise<string | null> {
+    // An iPhone that signed out offline never revoked its row, so it is still active: the same install
+    // ID on the same user's iPhone takes it over (the new token replaces the old, which dies at once).
+    // A Mac is taken back only once revoked (#337).
+    const revokedOnly = platform === "ios" ? undefined : isNotNull(devices.revokedAt);
     const candidate = this.db
       .select({ id: devices.id })
       .from(devices)
-      .where(and(eq(devices.userId, userId), eq(devices.platform, platform), match, isNotNull(devices.revokedAt)))
+      .where(and(eq(devices.userId, userId), eq(devices.platform, platform), match, revokedOnly))
       .orderBy(desc(devices.lastSeenAt), desc(devices.createdAt), asc(devices.id))
       .limit(1);
 
@@ -263,7 +267,7 @@ export class AuthService {
           eq(devices.id, candidate),
           eq(devices.userId, userId),
           eq(devices.platform, platform),
-          isNotNull(devices.revokedAt)
+          revokedOnly
         )
       )
       .returning({ id: devices.id });

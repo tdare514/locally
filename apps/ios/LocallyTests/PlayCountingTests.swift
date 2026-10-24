@@ -338,3 +338,72 @@ struct SignInBodyTests {
         #expect(!String(decoding: plain, as: UTF8.self).contains("installId"))
     }
 }
+
+struct FileInstallIdStoreTests {
+    @Test func theIdIsMadeOnceKeptAcrossLaunchesAndNewAfterAWipe() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("install-id")
+        let first = FileInstallIdStore(url: url).installId()
+        // Same launch and a relaunch (a new store over the same file) agree.
+        #expect(FileInstallIdStore(url: url).installId() == first)
+        // A reinstall removes the app's files: a new id, never the old one.
+        try FileManager.default.removeItem(at: url)
+        let second = FileInstallIdStore(url: url).installId()
+        #expect(second != first)
+        #expect(FileInstallIdStore(url: url).installId() == second)
+    }
+}
+
+extension SyncEngineTests {
+    @Test func aSignOutWhoseRevocationFailsStillSendsTheSameInstallIdAtTheNextSignIn() async throws {
+        let ids = InMemoryInstallIdStore()
+        let h = makeHarness(installIds: ids)
+        try await h.engine.verify(email: "toby@example.com", code: "123456")
+        h.api.revokeDeviceError = SyncApiError.network("offline")
+        await h.engine.signOut()
+        #expect(h.api.revokedDeviceIds.isEmpty)
+        try await h.engine.verify(email: "toby@example.com", code: "123456")
+        let sent = h.api.verifyCalls.map(\.installId)
+        #expect(sent.count == 2)
+        #expect(sent[0] != nil && sent[0] == sent[1])
+    }
+
+    @Test func aPushSuspendedAcrossASignOutAndAnotherSignInMarksNothing() async throws {
+        let library = InMemoryLibraryStore()
+        var release = Release(kind: .single, title: "T", artist: "A", folderPath: "/lib", tracks: [])
+        release.syncedUpdatedAt = release.updatedAt
+        try library.upsert(release)
+        let store = FilePlayCountStore(url: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true).appendingPathComponent("plays.json"))
+        store.increment(releaseId: release.id, trackId: UUID(), at: Date())
+        let h = makeHarness(library: library, playCounts: store)
+
+        // Request 0 (account A) is held open; account B's own push (request 1) fails.
+        var release0: CheckedContinuation<Void, Never>?
+        var reached: CheckedContinuation<Void, Never>?
+        h.api.putPlaysGate = { index in
+            guard index == 0 else { return }
+            await withCheckedContinuation { cont in
+                release0 = cont
+                reached?.resume()
+            }
+        }
+        h.api.putPlaysResults = [.success(SyncPlaysPutResult(accepted: 1, ignored: 0)), .failure(SyncApiError.network("offline"))]
+        let push = Task { await h.engine.pushPlays() }
+        await withCheckedContinuation { cont in
+            reached = cont
+            if release0 != nil { cont.resume() }
+        }
+
+        await h.engine.signOut()
+        try await h.engine.verify(email: "bee@example.com", code: "123456")
+        #expect(h.api.putPlaysCalls.count == 2)
+        #expect(store.pending().count == 1)
+
+        release0?.resume()
+        await push.value
+        // A's late success must not mark B's counts as pushed, and nothing more went out.
+        #expect(store.pending().count == 1)
+        #expect(h.api.putPlaysCalls.count == 2)
+    }
+}

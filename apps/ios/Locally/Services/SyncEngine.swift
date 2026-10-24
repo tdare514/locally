@@ -132,6 +132,9 @@ final class SyncEngine: ReleaseSyncHook {
     /// The phone's own play counts (#337); nil in tests that don't count.
     private let playCounts: PlayCountStoring?
     private let installIds: InstallIdStoring?
+    /// Bumps at sign-in, sign-out and account deletion: a play push that started under another value
+    /// marks nothing and sends nothing more (the Mac's `pushedEpoch`).
+    private var sessionEpoch = 0
 
     let status: SyncStatus
 
@@ -254,6 +257,7 @@ final class SyncEngine: ReleaseSyncHook {
         try account.save(email: result.email, deviceToken: result.token, deviceId: result.deviceId)
         account.deviceName = result.deviceName
         account.userId = result.userId
+        sessionEpoch += 1
         // Another account's shares never carry over (its persisted ids stay under its own key).
         resetShareState(persisted: false)
         status.signedIn = true
@@ -311,6 +315,7 @@ final class SyncEngine: ReleaseSyncHook {
         // signing back in does not offer a share again whose release is still here; deleting the account
         // forgets them.
         resetShareState(persisted: forgetShares)
+        sessionEpoch += 1
         account.clear()
         // A failure here would let queued work go out under the next account,
         // or leave markers that stop a new account re-pushing everything, so
@@ -741,7 +746,8 @@ final class SyncEngine: ReleaseSyncHook {
     /// service still ignores (a release deleted there) is marked pushed like the rest.
     func pushPlays() async {
         guard let playCounts else { return }
-        while isSignedIn {
+        let epoch = sessionEpoch
+        while isSignedIn, epoch == sessionEpoch {
             guard let releases = localReleases() else { return }
             let live = Set(releases.filter { $0.syncedUpdatedAt != nil }.map(\.id))
             let batch = playCounts.pending(liveReleases: live, maxEntries: Self.playsBatchEntries, maxDayRows: Self.playsBatchDayRows)
@@ -752,8 +758,8 @@ final class SyncEngine: ReleaseSyncHook {
                 Self.log.error("Pushing play counts failed: \(String(describing: error), privacy: .public)")
                 return
             }
-            // A sign-out while the request was in flight has cleared the markers for the next account.
-            guard isSignedIn else { return }
+            // A sign-out or sign-in while the request was in flight: it belongs to another session.
+            guard isSignedIn, epoch == sessionEpoch else { return }
             playCounts.markPushed(batch)
         }
     }
