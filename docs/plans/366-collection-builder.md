@@ -1,6 +1,6 @@
 # 366: build a collection on one screen (plan, two variants)
 
-Status: prototype only. The owner picks a variant before anything ships. The prototype is
+Status: built (24 Oct) as variant 1b, see "Built (24 Oct)" at the end. The prototype below is history. The prototype is
 `apps/ios/Locally/Views/Collections/CollectionBuilderVariants.swift` (DEBUG, over the gallery's
 sample library, including one adopted details-only release). Gallery names start `builder-`.
 
@@ -118,3 +118,14 @@ Do not touch: sync code, apps/api, apps/web, spec/, RecordWheelView.swift
 Verify: cd apps/ios && xcodegen generate && xcodebuild test -scheme Locally (plus the on-demand LocallyUITests scheme for the new builder test)
 Done when: New collection opens the chosen builder; a collection of three songs is made without leaving it; Add music on a collection's page uses the same picker; the DEBUG variants file is reduced to the chosen variant
 ```
+
+## Built (24 Oct)
+
+Variant 1b shipped; the prototype file is gone.
+
+- `Views/Collections/CollectionBuilderView.swift` (the screen, `BuilderMosaic`, the `.collectionBuilder` presenter) and `BuilderDraft.swift` (the pure model: picks, toggle rules, summary, Done).
+- Every "New collection" in `CollectionsView` (header button, empty state, the record player's +) presents the builder as a full-screen cover and opens the new collection on Done; the name alert is gone from there.
+- "Add music" on the collection's page (an underlined text action in the header, like "Edit collection") and in the empty state (also in the record player's empty queue); Done calls `add(_:to:)`.
+- Tests: `BuilderDraftTests` (Swift Testing), `CollectionBuilderUITests` (a new collection of three songs from the Collections screen; Add music adds two). Gallery cases `builder-*`, screenshots in `docs/design-previews/366/`.
+- Deliberate leftover: `AddToCollectionSheet`'s own "New collection" still asks for a name in an alert, because it makes a collection holding the long-pressed song.
+- Not on a phone, not with VoiceOver.
