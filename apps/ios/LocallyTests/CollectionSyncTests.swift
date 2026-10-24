@@ -238,6 +238,41 @@ struct CollectionSyncTests {
         #expect(try h.outbox.collectionEntries().isEmpty)
     }
 
+    @Test func a409AfterAnEditMadeInFlightKeepsTheEntryForcesNothingAndTheNextReconcileSendsTheEdit() async throws {
+        let h = makeHarness()
+        let c = collection("Before", updatedAt: t0)
+        try queue(h, c)
+        var suspended: CheckedContinuation<Void, Never>?
+        h.api.onPutCollection = { await withCheckedContinuation { suspended = $0 } }
+
+        let drain = Task { await h.engine.drainOutbox() }
+        while suspended == nil { await Task.yield() }
+        // The edit lands while the put is in flight, and the server holds a copy newer than the one being sent
+        // (but older than the edit), so the put answers 409.
+        var edited = c
+        edited.name = "After"
+        edited.updatedAt = t0.addingTimeInterval(10)
+        try h.collections.upsert(edited)
+        try h.outbox.enqueueCollection(c.id, .push)
+        var theirs = SyncCollection(c)
+        theirs.name = "Theirs"
+        theirs.updatedAt = t0.addingTimeInterval(5)
+        h.api.seedCollection(theirs)
+        h.api.onPutCollection = nil
+        suspended?.resume()
+        await drain.value
+
+        #expect(h.api.collectionPutCalls.first?.name == "Before")
+        #expect(try h.outbox.collectionEntries().count == 1)
+        // Nothing was forced: the local edit is still the stored copy.
+        #expect(try h.collections.get(c.id)?.name == "After")
+
+        await h.engine.reconcile()
+        #expect(h.api.collectionPutCalls.last?.name == "After")
+        #expect(h.api.storedCollection(c.id.uuidString.lowercased())?.name == "After")
+        #expect(try h.outbox.collectionEntries().isEmpty)
+    }
+
     // MARK: Pull
 
     @Test func aRecordThatCannotBeStoredStopsThePullAndKeepsTheCursor() async throws {

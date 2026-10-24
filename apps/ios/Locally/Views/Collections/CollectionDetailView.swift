@@ -16,6 +16,13 @@ struct CollectionDetailView: View {
     @State private var isRenaming = false
     @State private var renameText = ""
     @State private var isConfirmingDelete = false
+    /// An edit that did not save: what to say, and what Try again repeats.
+    @State private var editFailure: EditFailure?
+
+    private struct EditFailure {
+        let message: String
+        let retry: () -> Void
+    }
 
     /// `startsEditing` opens the screen in edit mode (the debug gallery's screenshots).
     init(model: CollectionsModel, id: UUID, startsEditing: Bool = false, onAddTracks: @escaping () -> Void) {
@@ -50,13 +57,13 @@ struct CollectionDetailView: View {
         }
         .environment(\.editMode, $editMode)
         .task { model.reload() }
+        .onChange(of: playback?.missingTrackIDs ?? []) { old, new in announceNewlyMissing(old: old, new: new) }
         .nameAlert(Copy.Collections.renameTitle, action: Copy.Collections.save, isPresented: $isRenaming, text: $renameText) { name in
-            model.rename(id, to: name)
+            attempt(Copy.Collections.renameFailed) { try model.rename(id, to: name) }
         }
         .confirmationDialog(Copy.Collections.deleteTitle, isPresented: $isConfirmingDelete, titleVisibility: .visible) {
             Button(Copy.Collections.delete, role: .destructive) {
-                model.delete(id)
-                dismiss()
+                deleteCollection()
             }
             Button(Copy.Collections.cancel, role: .cancel) {}
         } message: {
@@ -71,6 +78,9 @@ struct CollectionDetailView: View {
             header(collection, rows: rows)
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
+            if let editFailure {
+                editFailureRow(editFailure)
+            }
             if editMode.isEditing {
                 editSection(collection, visible: visible)
             } else {
@@ -80,6 +90,41 @@ struct CollectionDetailView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, 44)
+    }
+
+    // MARK: Edits that can fail
+
+    /// Runs an edit; when it can't be saved the page says so inline, VoiceOver hears it, and Try again repeats it.
+    private func attempt(_ message: String, _ action: @escaping () throws -> Void) {
+        do {
+            try action()
+            editFailure = nil
+        } catch {
+            editFailure = EditFailure(message: message) { attempt(message, action) }
+            AccessibilityNotification.Announcement("\(message) \(Copy.Collections.tryAgain)").post()
+        }
+    }
+
+    /// A failed delete keeps the page open.
+    private func deleteCollection() {
+        attempt(Copy.Collections.deleteFailed) {
+            try model.delete(id)
+            dismiss()
+        }
+    }
+
+    private func editFailureRow(_ failure: EditFailure) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(failure.message)
+                .themeFont(.body)
+                .foregroundStyle(Theme.danger)
+            Button(Copy.Collections.tryAgain, action: failure.retry)
+                .buttonStyle(CollectionPillButtonStyle())
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
+        .listRowBackground(Theme.Immersive.panelFill)
+        .accessibilityElement(children: .contain)
     }
 
     // MARK: Playing
@@ -112,6 +157,13 @@ struct CollectionDetailView: View {
         return queue.items[queue.index] == QueueItem(releaseId: row.releaseID, trackId: row.trackID)
     }
 
+    /// Announces a track of this collection that has just failed to play, once.
+    private func announceNewlyMissing(old: Set<UUID>, new: Set<UUID>) {
+        let held = Set(model.collection(id).map { model.rows(of: $0) }?.filter(\.isHeld).map(\.trackID) ?? [])
+        guard !new.subtracting(old).isDisjoint(with: held) else { return }
+        AccessibilityNotification.Announcement("\(Copy.Collections.couldntPlay). \(Copy.Collections.tryAgain)").post()
+    }
+
     private func tapRow(_ row: CollectionQueue.Row, playablePosition: Int, nowPlaying: Bool) {
         if nowPlaying { playback?.togglePlayPause() } else { start(at: playablePosition) }
     }
@@ -129,9 +181,10 @@ struct CollectionDetailView: View {
                     .foregroundStyle(Theme.secondaryText)
                 if !editMode.isEditing {
                     Button(action: togglePlay) {
-                        Label(isPlayingThis && isPlaying ? Copy.Collections.pause : Copy.Collections.play,
+                        Label(CollectionPlayState.pillLabel(isCurrentQueue: isPlayingThis, isPlaying: isPlaying),
                               systemImage: isPlayingThis && isPlaying ? "pause.fill" : "play.fill")
                     }
+                    .accessibilityLabel(CollectionPlayState.pillLabel(isCurrentQueue: isPlayingThis, isPlaying: isPlaying))
                     .buttonStyle(CollectionPillButtonStyle())
                     .disabled(playQueue.isEmpty)
                     .padding(.top, 4)
@@ -187,13 +240,21 @@ struct CollectionDetailView: View {
     @ViewBuilder
     private func queueRow(_ row: CollectionQueue.Row, number: Int, playablePosition: Int?) -> some View {
         let nowPlaying = isNowPlaying(playablePosition: playablePosition, row)
-        if let playablePosition {
+        if let playablePosition, playback?.missingTrackIDs.contains(row.trackID) == true {
+            VStack(alignment: .leading, spacing: 8) {
+                queueRowContent(row, number: number, nowPlaying: false, wontPlay: true)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(row.title), \(row.artist), \(Copy.Collections.couldntPlay)")
+                Button(Copy.Collections.tryAgain) { start(at: playablePosition) }
+                    .buttonStyle(CollectionPillButtonStyle())
+            }
+        } else if let playablePosition {
             Button { tapRow(row, playablePosition: playablePosition, nowPlaying: nowPlaying) } label: {
                 queueRowContent(row, number: number, nowPlaying: nowPlaying)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(Copy.Collections.playRow("\(row.title), \(row.artist)"))
-            .accessibilityValue([nowPlaying ? Copy.Collections.nowPlaying : nil, TrackLength.spoken(row.durationSec)].compactMap { $0 }.joined(separator: ", "))
+            .accessibilityLabel(Copy.Collections.playRow([row.title, row.artist, TrackLength.spoken(row.durationSec)].compactMap { $0 }.joined(separator: ", ")))
+            .accessibilityValue(CollectionPlayState.rowValue(isCurrentRow: nowPlaying, isPlaying: isPlaying))
             .accessibilityAddTraits(nowPlaying ? .isSelected : [])
         } else {
             queueRowContent(row, number: number, nowPlaying: false)
@@ -203,7 +264,7 @@ struct CollectionDetailView: View {
         }
     }
 
-    private func queueRowContent(_ row: CollectionQueue.Row, number: Int, nowPlaying: Bool) -> some View {
+    private func queueRowContent(_ row: CollectionQueue.Row, number: Int, nowPlaying: Bool, wontPlay: Bool = false) -> some View {
         HStack(spacing: 12) {
             Group {
                 if nowPlaying {
@@ -227,6 +288,11 @@ struct CollectionDetailView: View {
                     .themeFont(.rowSubtitle)
                     .foregroundStyle(Theme.secondaryText)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                if wontPlay {
+                    Text(Copy.Collections.couldntPlay)
+                        .themeFont(.rowSubtitle)
+                        .foregroundStyle(Theme.danger)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if let length = TrackLength.format(row.durationSec) {
@@ -252,12 +318,21 @@ struct CollectionDetailView: View {
             ForEach(Array(visible.map { collection.items[$0] }.enumerated()), id: \.element) { position, item in
                 editRow(item)
                     .listRowBackground(Theme.Immersive.panelFill)
-                    .accessibilityAction(named: Copy.Collections.moveUp) { model.move(id, position: position, by: -1) }
-                    .accessibilityAction(named: Copy.Collections.moveDown) { model.move(id, position: position, by: 1) }
+                    .accessibilityAction(named: Copy.Collections.moveUp) { attempt(Copy.Collections.moveFailed) { try model.move(id, position: position, by: -1) } }
+                    .accessibilityAction(named: Copy.Collections.moveDown) { attempt(Copy.Collections.moveFailed) { try model.move(id, position: position, by: 1) } }
             }
-            .onMove { source, destination in model.move(id, from: source, to: destination) }
+            .onMove { source, destination in
+                attempt(Copy.Collections.moveFailed) { try model.move(id, from: source, to: destination) }
+            }
             .onDelete { offsets in
-                for position in offsets.sorted(by: >) { model.remove(id, position: position) }
+                // Highest first, and what is done is dropped, so Try again never removes a shifted neighbour.
+                var remaining = offsets.sorted(by: >)
+                attempt(Copy.Collections.removeFailed) {
+                    while let position = remaining.first {
+                        try model.remove(id, position: position)
+                        remaining.removeFirst()
+                    }
+                }
             }
         } header: {
             Text(Copy.Collections.itemsHeading)

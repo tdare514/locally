@@ -578,8 +578,8 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
             surface(Copy.Sync.libraryUnreadable(error.localizedDescription), error: error)
             return
         }
+        let sentRevision = collection.updatedAt
         do {
-            let sentRevision = collection.updatedAt
             let result = try await api.putCollection(SyncCollection(collection))
             account.collectionsRouteSeen = true
             // An edit made while the put was in flight is a newer revision: keep the entry so the next drain sends it.
@@ -598,10 +598,26 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
                 await pullCollections()
             }
         } catch SyncApiError.conflict {
-            // The server's copy is newer: last writer wins on the whole record, so drop ours and take theirs.
+            // The server's copy is newer than the one sent. An edit made while the put was in flight is newer still:
+            // keep the entry and force nothing, so the next reconcile sends it and the server decides again.
+            let current: MusicCollection?
+            do {
+                current = try collections.get(id)
+            } catch {
+                Self.log.info("Collection unreadable after its 409; the entry stays queued.")
+                return
+            }
+            if let current, current.updatedAt != sentRevision {
+                Self.log.info("Collection edited while its put was in flight; the newer edit stays queued after the 409.")
+                return
+            }
+            // Still the copy that was sent: last writer wins on the whole record, so drop ours and take theirs.
+            // (A collection deleted meanwhile has its own delete entry: drop the put, don't bring it back.)
             try? outbox.removeCollection(id, ifOperation: .push)
-            forcedCollectionIds.insert(id)
-            await pullCollections()
+            if current != nil {
+                forcedCollectionIds.insert(id)
+                await pullCollections()
+            }
         } catch SyncApiError.notFound {
             Self.log.info("Collections unavailable: the sync server doesn't have the route yet.")
         } catch SyncApiError.rateLimited {

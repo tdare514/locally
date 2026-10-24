@@ -13,7 +13,10 @@ struct CollectionsLibraryRow: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
             : AnyLayout(HStackLayout(spacing: 8))
         layout {
-            if model.collections.isEmpty {
+            if let failure = model.readFailure {
+                // Not "no collections": the store could not be read.
+                ReadFailureView(message: failure, compact: true) { model.reload() }
+            } else if model.collections.isEmpty {
                 if model.isLoaded {
                     Text(Copy.Collections.emptyLine)
                         .themeFont(.meta)

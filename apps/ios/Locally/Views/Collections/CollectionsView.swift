@@ -209,9 +209,38 @@ struct CollectionRow: View {
 /// The collections could not be read: the reason and Try again, in place of the empty state.
 struct ReadFailureView: View {
     let message: String
+    /// The slim form for a row (the Library's Collections row): the line and Try again side by side.
+    var compact = false
     var onRetry: () -> Void
 
     var body: some View {
+        if compact {
+            compactBody
+        } else {
+            fullBody
+        }
+    }
+
+    private var compactBody: some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(Copy.Collections.readFailed)
+                    .themeFont(.meta)
+                    .foregroundStyle(Theme.primaryText)
+                Text(message)
+                    .themeFont(.meta)
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: onRetry) { Text(Copy.Collections.tryAgain) }
+                .buttonStyle(CollectionPillButtonStyle())
+        }
+        .accessibilityElement(children: .contain)
+        .onAppear { AccessibilityNotification.Announcement("\(Copy.Collections.readFailed) \(Copy.Collections.tryAgain)").post() }
+    }
+
+    private var fullBody: some View {
         VStack(spacing: 16) {
             Text(Copy.Collections.readFailed)
                 .themeFont(.body)

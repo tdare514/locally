@@ -228,25 +228,64 @@ struct CollectionsModelTests {
         let created = try #require(try s.store.get(id)).updatedAt
         #expect(try s.model.add([.track(releaseId: s.release.id, trackId: s.release.tracks[0].id), .release(s.release.id)], to: id) == 2)
         #expect(try s.model.add([.release(s.release.id)], to: id) == 0)
-        #expect(s.model.rename(id, to: "Mixtape"))
-        #expect(!s.model.rename(id, to: ""))
-        s.model.move(id, position: 1, by: -1)
+        #expect(try s.model.rename(id, to: "Mixtape"))
+        #expect(try !s.model.rename(id, to: ""))
+        try s.model.move(id, position: 1, by: -1)
         let saved = try #require(try s.store.get(id))
         #expect(saved.name == "Mixtape")
         #expect(saved.items == [.release(s.release.id), .track(releaseId: s.release.id, trackId: s.release.tracks[0].id)])
         #expect(saved.updatedAt > created)
         #expect(s.hook.changed.count == 4)
-        s.model.remove(id, position: 0)
+        try s.model.remove(id, position: 0)
         #expect(try s.store.get(id)?.items.count == 1)
     }
 
     @Test func deleteRemovesAndQueuesATombstone() throws {
         let s = try setup()
         let id = try #require(try s.model.create(name: "Mix"))
-        s.model.delete(id)
+        try s.model.delete(id)
         #expect(try s.store.get(id) == nil)
         #expect(s.hook.deleted == [id])
         #expect(s.model.collections.isEmpty)
+    }
+
+    @Test func everyEditThrowsWhenTheStoreCannotSaveAndChangesNothing() throws {
+        let s = try setup()
+        let a = CollectionItem.release(s.release.id)
+        let b = CollectionItem.track(releaseId: s.release.id, trackId: s.release.tracks[0].id)
+        let id = try #require(try s.model.create(name: "Mix", items: [a, b]))
+        s.hook.reset()
+        let before = try #require(try s.store.get(id))
+        let failure = CocoaError(.fileWriteUnknown)
+
+        s.store.upsertError = failure
+        #expect(throws: (any Error).self) { try s.model.rename(id, to: "Other") }
+        s.store.upsertError = failure
+        #expect(throws: (any Error).self) { try s.model.move(id, position: 1, by: -1) }
+        s.store.upsertError = failure
+        #expect(throws: (any Error).self) { try s.model.move(id, from: [0], to: 2) }
+        s.store.upsertError = failure
+        #expect(throws: (any Error).self) { try s.model.remove(id, position: 0) }
+        s.store.deleteError = failure
+        #expect(throws: (any Error).self) { try s.model.delete(id) }
+
+        #expect(s.model.failure != nil)
+        #expect(try s.store.get(id) == before)
+        #expect(s.hook.changed.isEmpty)
+        #expect(s.hook.deleted.isEmpty)
+        // Try again works once the store does.
+        try s.model.delete(id)
+        #expect(s.hook.deleted == [id])
+    }
+
+    @Test func thePlayPillAndRowsSpeakTheSameStateAsTheirGlyphs() {
+        #expect(CollectionPlayState.pillLabel(isCurrentQueue: false, isPlaying: true) == Copy.Collections.play)
+        #expect(CollectionPlayState.pillLabel(isCurrentQueue: true, isPlaying: false) == Copy.Collections.play)
+        #expect(CollectionPlayState.pillLabel(isCurrentQueue: true, isPlaying: true) == Copy.Collections.pause)
+        #expect(CollectionPlayState.rowValue(isCurrentRow: true, isPlaying: true) == "Playing")
+        #expect(CollectionPlayState.rowValue(isCurrentRow: true, isPlaying: false) == "Paused")
+        #expect(CollectionPlayState.rowValue(isCurrentRow: false, isPlaying: true).isEmpty)
+        #expect(CollectionPlayState.rowValue(isCurrentRow: false, isPlaying: false).isEmpty)
     }
 
     @Test func aFailedSaveThrowsAndQueuesNothing() throws {

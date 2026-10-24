@@ -90,10 +90,12 @@ final class CollectionsModel {
         return made.id
     }
 
+    /// `false` for a name that isn't valid. Throws when it can't be saved.
     @discardableResult
-    func rename(_ id: UUID, to name: String) -> Bool {
+    func rename(_ id: UUID, to name: String) throws -> Bool {
         guard let name = MusicCollection.validName(name) else { return false }
-        return (try? change(id) { $0.name = name }) != nil
+        try change(id) { $0.name = name }
+        return true
     }
 
     /// Adds `items`; returns how many went in (an item already there is skipped). Throws when it can't be saved.
@@ -108,33 +110,35 @@ final class CollectionsModel {
         return added
     }
 
-    func move(_ id: UUID, from source: IndexSet, to destination: Int) {
-        _ = try? change(id) { collection in
+    /// The edits below throw when they can't be saved, so the screen can say so and offer Try again.
+    func move(_ id: UUID, from source: IndexSet, to destination: Int) throws {
+        try change(id) { collection in
             collection.items = CollectionEdit.moved(collection.items, visible: CollectionEdit.visible(collection.items, releases: releases), from: source, to: destination)
         }
     }
 
     /// VoiceOver's "Move up" / "Move down" (`step` -1 / +1) on the visible entry at `position`.
-    func move(_ id: UUID, position: Int, by step: Int) {
-        _ = try? change(id) { collection in
+    func move(_ id: UUID, position: Int, by step: Int) throws {
+        try change(id) { collection in
             collection.items = CollectionEdit.moved(collection.items, visible: CollectionEdit.visible(collection.items, releases: releases), position: position, by: step)
         }
     }
 
-    func remove(_ id: UUID, position: Int) {
-        _ = try? change(id) { collection in
+    func remove(_ id: UUID, position: Int) throws {
+        try change(id) { collection in
             collection.items = CollectionEdit.removed(collection.items, visible: CollectionEdit.visible(collection.items, releases: releases), position: position)
         }
     }
 
-    func delete(_ id: UUID) {
+    func delete(_ id: UUID) throws {
         do {
             try store.delete(id: id)
-            hook?.collectionDeleted(id)
-            failure = nil
         } catch {
             failure = error.localizedDescription
+            throw error
         }
+        hook?.collectionDeleted(id)
+        failure = nil
         reload()
     }
 
@@ -159,6 +163,20 @@ final class CollectionsModel {
         failure = nil
         hook?.collectionChanged(collection.id)
         reload()
+    }
+}
+
+/// The spoken state of the Play / Pause pill and of a queue row, from the same state as their glyphs.
+enum CollectionPlayState {
+    /// "Pause" only when pressing the pill would pause this collection; otherwise "Play" (start or resume).
+    static func pillLabel(isCurrentQueue: Bool, isPlaying: Bool) -> String {
+        isCurrentQueue && isPlaying ? Copy.Collections.pause : Copy.Collections.play
+    }
+
+    /// "Playing" / "Paused" on the current row only; nothing on any other.
+    static func rowValue(isCurrentRow: Bool, isPlaying: Bool) -> String {
+        guard isCurrentRow else { return "" }
+        return isPlaying ? Copy.Collections.playing : Copy.Collections.paused
     }
 }
 

@@ -38,17 +38,24 @@ struct AddToCollectionSheet: View {
                     if let failure {
                         failureRow(failure)
                     }
-                    Button {
-                        newName = ""
-                        isNaming = true
-                    } label: {
-                        Label(Copy.Collections.newCollection, systemImage: "plus")
-                            .themeFont(.rowTitle)
-                            .foregroundStyle(Theme.accent)
-                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    if let readFailure = model.readFailure {
+                        // Not an empty list: the collections could not be read.
+                        ReadFailureView(message: readFailure) { model.reload() }
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                    } else {
+                        Button {
+                            newName = ""
+                            isNaming = true
+                        } label: {
+                            Label(Copy.Collections.newCollection, systemImage: "plus")
+                                .themeFont(.rowTitle)
+                                .foregroundStyle(Theme.accent)
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        }
+                        .listRowBackground(Theme.Immersive.panelFill)
                     }
-                    .listRowBackground(Theme.Immersive.panelFill)
-                    ForEach(model.collections) { collection in
+                    ForEach(model.readFailure == nil ? model.collections : []) { collection in
                         Button {
                             add(to: collection)
                         } label: {

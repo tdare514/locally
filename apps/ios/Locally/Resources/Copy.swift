@@ -374,6 +374,15 @@ enum Copy {
         static let pause = "Pause"
         static func playRow(_ title: String) -> String { "Play \(title)" }
         static let nowPlaying = "Now playing"
+        static let playing = "Playing"
+        static let paused = "Paused"
+        /// A queue row whose file wouldn't play (the plan's "States and wording").
+        static let couldntPlay = "Couldn't play this track"
+        /// Edits that did not save, on the collection's page (the plan gives no wording; this is the executor's).
+        static let renameFailed = "Couldn't rename the collection."
+        static let moveFailed = "Couldn't change the order."
+        static let removeFailed = "Couldn't remove that from the collection."
+        static let deleteFailed = "Couldn't delete the collection."
         static func added(_ count: Int, to name: String) -> String {
             count == 0 ? "Already in \(name)" : "Added to \(name)"
         }

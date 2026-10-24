@@ -169,7 +169,15 @@ final class InMemoryCollectionStore: CollectionStore {
         }
         storage[collection.id] = collection
     }
-    func delete(id: UUID) throws { storage.removeValue(forKey: id) }
+    /// Thrown by the next `delete` only, then cleared.
+    var deleteError: Error?
+    func delete(id: UUID) throws {
+        if let deleteError {
+            self.deleteError = nil
+            throw deleteError
+        }
+        storage.removeValue(forKey: id)
+    }
 }
 
 /// Records what the collections UI told the sync engine.
