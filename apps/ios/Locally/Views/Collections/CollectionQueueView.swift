@@ -37,24 +37,9 @@ struct CollectionQueueHeader: View {
                     .themeFont(.meta)
                     .foregroundStyle(Theme.secondaryText)
                 if !isEditing {
-                    HStack(spacing: 16) {
-                        Button(action: control.togglePlay) {
-                            Label(CollectionPlayState.pillLabel(isCurrentQueue: control.isPlayingThis, isPlaying: control.isPlaying),
-                                  systemImage: control.isPlayingNow ? "pause.fill" : "play.fill")
-                        }
-                        .accessibilityLabel(CollectionPlayState.pillLabel(isCurrentQueue: control.isPlayingThis, isPlaying: control.isPlaying))
-                        .buttonStyle(CollectionPillButtonStyle())
-                        .disabled(control.playQueue.isEmpty)
-                        if let onEdit {
-                            Button(action: onEdit) {
-                                Text(Copy.Collections.editCollection)
-                                    .themeFont(.body)
-                                    .foregroundStyle(Theme.primaryText)
-                                    .underline()
-                                    .frame(minHeight: 44)
-                            }
-                            .buttonStyle(.plain)
-                        }
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 16) { playButton(control); editButton }.fixedSize(horizontal: true, vertical: false)
+                        VStack(alignment: .leading, spacing: 0) { playButton(control); editButton }
                     }
                     .padding(.top, 4)
                 }
@@ -63,6 +48,32 @@ struct CollectionQueueHeader: View {
         }
         .padding(.vertical, 8)
         .onChange(of: playback?.wontPlayTrackIDs ?? []) { old, new in control.announceNewlyMissing(old: old, new: new) }
+    }
+
+    /// Play / Pause keeps its words on one line; the row of buttons drops to a column when they don't fit side by side.
+    private func playButton(_ control: CollectionPlayControl) -> some View {
+        Button(action: control.togglePlay) {
+            Label(CollectionPlayState.pillLabel(isCurrentQueue: control.isPlayingThis, isPlaying: control.isPlaying),
+                  systemImage: control.isPlayingNow ? "pause.fill" : "play.fill")
+        }
+        .accessibilityLabel(CollectionPlayState.pillLabel(isCurrentQueue: control.isPlayingThis, isPlaying: control.isPlaying))
+        .buttonStyle(CollectionPillButtonStyle())
+        .disabled(control.playQueue.isEmpty)
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    @ViewBuilder
+    private var editButton: some View {
+        if let onEdit {
+            Button(action: onEdit) {
+                Text(Copy.Collections.editCollection)
+                    .themeFont(.body)
+                    .foregroundStyle(Theme.primaryText)
+                    .underline()
+                    .frame(minHeight: 44)
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private func countLine(tracks: Int, seconds: Double?) -> String {

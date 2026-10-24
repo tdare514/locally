@@ -115,6 +115,16 @@ enum RecordWheel {
         start - translation / pitch
     }
 
+    /// Which collection is in front after the collections change (one deleted, made or moved): the same one when it is
+    /// still there; otherwise its replacement at the same place, or the new last one when the last was deleted. Nil with
+    /// none left. The playing collection does not matter: the wheel follows what is in front.
+    static func frontAfterChange(oldFront: UUID?, oldIndex: Int, newIDs: [UUID]) -> (index: Int, id: UUID)? {
+        guard !newIDs.isEmpty else { return nil }
+        if let oldFront, let index = newIDs.firstIndex(of: oldFront) { return (index, oldFront) }
+        let index = min(max(oldIndex, 0), newIDs.count - 1)
+        return (index, newIDs[index])
+    }
+
     // MARK: Captions
 
     /// "1 hr 56 min", "24 min", "2 hr" (whole minutes, rounded); empty when there is no length.

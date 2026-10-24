@@ -155,14 +155,18 @@ struct RecordWheelView: View {
 
     /// The collections changed (one made, deleted, or moved up by an edit): stay on the one in front, without a turn.
     private func follow(_ new: [CollectionSummary]) {
-        guard !new.isEmpty else { return }
-        let index = frontID.flatMap { id in new.firstIndex { $0.id == id } } ?? min(frontIndex, new.count - 1)
+        guard let front = RecordWheel.frontAfterChange(oldFront: frontID, oldIndex: frontIndex, newIDs: new.map(\.id)) else {
+            frontID = nil
+            return
+        }
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
-            position = Double(index)
-            target = index
+            position = Double(front.index)
+            target = front.index
         }
+        // Set it outright: a replacement at the same index would not change `target`, so its observer would not fire.
+        frontID = front.id
     }
 }
 
@@ -229,15 +233,9 @@ private struct WheelRowView: View {
                         .foregroundStyle(Theme.primaryText)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                    HStack(spacing: 6) {
-                        if let tag {
-                            Circle().fill(Theme.accent).frame(width: 6, height: 6)
-                            Text(tag).foregroundStyle(Theme.Tint.accentText)
-                        }
-                        Text(Copy.Collections.trackCount(summary.tracks)).foregroundStyle(Theme.secondaryText)
-                    }
-                    .themeFont(.meta)
-                    .lineLimit(1)
+                    caption
+                        .themeFont(.meta)
+                        .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -246,5 +244,24 @@ private struct WheelRowView: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+    }
+
+    /// "● Playing  8 tracks" on one line, or the state above the count when the room is short (a narrow screen), so
+    /// neither is cut: only the name may end in an ellipsis.
+    @ViewBuilder
+    private var caption: some View {
+        let count = Text(Copy.Collections.trackCount(summary.tracks)).foregroundStyle(Theme.secondaryText)
+        if let tag {
+            let state = HStack(spacing: 6) {
+                Circle().fill(Theme.accent).frame(width: 6, height: 6)
+                Text(tag).foregroundStyle(Theme.Tint.accentText)
+            }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 6) { state; count }.fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 0) { state; count }.fixedSize(horizontal: true, vertical: false)
+            }
+        } else {
+            count
+        }
     }
 }

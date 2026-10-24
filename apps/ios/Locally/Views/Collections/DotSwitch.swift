@@ -27,7 +27,7 @@ struct DotSwitch<Value: Hashable>: View {
                             .opacity(chosen ? 1 : 0)
                     }
                     .padding(.horizontal, 6)
-                    .frame(minHeight: 44)
+                    .frame(minWidth: 44, minHeight: 44)
                     .contentShape(.rect)
                 }
                 .buttonStyle(.plain)

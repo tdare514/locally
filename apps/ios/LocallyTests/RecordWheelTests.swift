@@ -90,6 +90,41 @@ struct RecordWheelTests {
         #expect(RecordWheel.spokenValue(name: "Gym", tracks: 1, totalSec: nil, state: nil, front: 4, count: 24) == "Gym, 1 track, 5 of 24")
     }
 
+    private let ids = (0..<5).map { _ in UUID() }
+
+    @Test func theFrontStaysWhereItWasWhenSomethingElseChanges() {
+        let moved = [ids[2], ids[0], ids[1], ids[3], ids[4]]
+        let front = RecordWheel.frontAfterChange(oldFront: ids[1], oldIndex: 1, newIDs: moved)
+        #expect(front?.id == ids[1] && front?.index == 2)
+    }
+
+    @Test func deletingTheFrontAtTheStartPutsItsReplacementInFront() {
+        let front = RecordWheel.frontAfterChange(oldFront: ids[0], oldIndex: 0, newIDs: Array(ids.dropFirst()))
+        #expect(front?.id == ids[1] && front?.index == 0)
+    }
+
+    @Test func deletingTheFrontAtTheEndPutsTheNewLastInFront() {
+        let front = RecordWheel.frontAfterChange(oldFront: ids[4], oldIndex: 4, newIDs: Array(ids.dropLast()))
+        #expect(front?.id == ids[3] && front?.index == 3)
+    }
+
+    @Test func deletingTheFrontInTheMiddlePutsTheNextInFront() {
+        var left = ids
+        left.remove(at: 2)
+        let front = RecordWheel.frontAfterChange(oldFront: ids[2], oldIndex: 2, newIDs: left)
+        #expect(front?.id == ids[3] && front?.index == 2)
+    }
+
+    @Test func deletingThePlayingCollectionWhileItIsInFrontDoesNotLeaveTheQueueBlank() {
+        // The playing one is the front one: the wheel still lands on a real collection that exists.
+        let front = RecordWheel.frontAfterChange(oldFront: ids[1], oldIndex: 1, newIDs: [ids[0], ids[2]])
+        #expect(front?.id == ids[2])
+    }
+
+    @Test func deletingDownToNoneLeavesNothingInFront() {
+        #expect(RecordWheel.frontAfterChange(oldFront: ids[0], oldIndex: 0, newIDs: []) == nil)
+    }
+
     @Test func sideACarriesTheExtraTrack() {
         #expect(CollectionQueue.sideACount(27) == 14)
         #expect(CollectionQueue.sideACount(4) == 2)

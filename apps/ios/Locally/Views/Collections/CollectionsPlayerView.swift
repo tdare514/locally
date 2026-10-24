@@ -58,6 +58,13 @@ struct CollectionsPlayerView: View {
     }
 
     static let queueID = "front-queue"
+    static let nowPlayingID = "now-playing"
+    static let scrollSpace = "collections-player-scroll"
+
+    /// The scroll view's visible height as the wheel sees it: the window's, the scroll view being the page.
+    static func visibleHeight(of proxy: GeometryProxy) -> CGFloat {
+        proxy.bounds(of: .named(scrollSpace))?.height ?? .infinity
+    }
     #if DEBUG
     static let debugScrollKey = "debugPlayerScrollToQueue"
     #endif
@@ -111,6 +118,7 @@ struct CollectionsPlayerView: View {
                 )
                 .padding(.horizontal, Theme.Spacing.listPagePadding)
                 .padding(.top, 20)
+                .id(Self.nowPlayingID)
 
                 if let front {
                     LazyVStack(alignment: .leading, spacing: 0) {
@@ -124,6 +132,7 @@ struct CollectionsPlayerView: View {
             }
             .padding(.bottom, 24)
         }
+        .coordinateSpace(name: Self.scrollSpace)
         .background {
             ArtworkBackdrop(palette: palette ?? .neutral)
                 .environment(\.isTabSelected, isTabSelected && isScreenShowing)
@@ -133,9 +142,9 @@ struct CollectionsPlayerView: View {
         #if DEBUG
         .task {
             // Debug gallery only: bring the queue into view (the won't-play frame).
-            guard UserDefaults.standard.bool(forKey: Self.debugScrollKey) else { return }
+            guard let target = UserDefaults.standard.string(forKey: Self.debugScrollKey), !target.isEmpty else { return }
             try? await Task.sleep(for: .milliseconds(600))
-            withAnimation(nil) { proxy.scrollTo(Self.queueID, anchor: .top) }
+            withAnimation(nil) { proxy.scrollTo(target, anchor: .top) }
         }
         #endif
         }
@@ -175,14 +184,13 @@ struct CollectionsPlayerView: View {
 }
 
 extension View {
-    /// Tells `isInView` whether this view is on screen in its scroll view (iOS 18 and later; on iOS 17 it stays true,
-    /// and the screen's appearing and disappearing still pause the motion).
-    @ViewBuilder
+    /// Tells `isInView` whether this view is on screen in its scroll view. `onGeometryChange` (back-deployed to iOS 16)
+    /// reduces the frame to one Bool, so only an in / out change reaches the state, never every scroll tick. It
+    /// compares the view's frame with the scroll view's visible bounds (the whole frame when it isn't in one).
     func trackingScrollVisibility(_ isInView: Binding<Bool>) -> some View {
-        if #available(iOS 18, *) {
-            onScrollVisibilityChange(threshold: 0.01) { isInView.wrappedValue = $0 }
-        } else {
-            self
-        }
+        onGeometryChange(for: Bool.self) { proxy in
+            let frame = proxy.frame(in: .named(CollectionsPlayerView.scrollSpace))
+            return frame.maxY > 0 && frame.minY < CollectionsPlayerView.visibleHeight(of: proxy)
+        } action: { isInView.wrappedValue = $0 }
     }
 }

@@ -38,7 +38,7 @@ struct ComponentGallery: View {
         "collections-library", "collections-screen", "collections-queue", "collections-edit", "collections-empty", "collections-queue-ax", "collections-add", "collections-playing", "collections-add-failed", "collections-wont-play", "collections-playlist-guide", "collections-none-here",
         // #352: the record player on the Collections screen, over seeded collections and a player on fakes.
         "collections-player-playing", "collections-player-browsing", "collections-player-paused", "collections-player-vinyl", "collections-player-reduce-motion",
-        "collections-player-ax", "collections-player-narrow", "collections-player-empty", "collections-player-wont-play", "collections-player-many"]
+        "collections-player-ax", "collections-player-narrow", "collections-player-empty", "collections-player-wont-play", "collections-player-many", "collections-player-ax-lower", "collections-player-narrow-lower"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -249,12 +249,16 @@ struct ComponentGallery: View {
             CollectionsPlayerGallery(vinyl: true)
         case "collections-player-reduce-motion":
             CollectionsPlayerGallery(reduceMotion: true)
+        case "collections-player-ax-lower":
+            CollectionsPlayerGallery(scrollsTo: CollectionsPlayerView.nowPlayingID)
+        case "collections-player-narrow-lower":
+            CollectionsPlayerGallery(scrollsTo: CollectionsPlayerView.nowPlayingID).frame(width: 320)
         case "collections-player-narrow":
             CollectionsPlayerGallery().frame(width: 320)
         case "collections-player-empty":
             CollectionsPlayerGallery(seed: false, playing: false)
         case "collections-player-wont-play":
-            CollectionsPlayerGallery(scrollsToQueue: true, missingFirst: true)
+            CollectionsPlayerGallery(scrollsTo: CollectionsPlayerView.queueID, missingFirst: true)
         case "collections-player-many":
             CollectionsPlayerGallery(many: 200)
         case "collections-wont-play":
@@ -1402,7 +1406,7 @@ private struct CollectionsPlayerGallery: View {
     var many = 0
     @State private var built: (container: AppContainer, model: CollectionsModel, playback: PlaybackService)
 
-    init(reduceMotion: Bool = false, scrollsToQueue: Bool = false, seed: Bool = true, playing: Bool = true, paused: Bool = false, browsing: Bool = false, vinyl: Bool = false, missingFirst: Bool = false, many: Int = 0) {
+    init(reduceMotion: Bool = false, scrollsTo: String? = nil, seed: Bool = true, playing: Bool = true, paused: Bool = false, browsing: Bool = false, vinyl: Bool = false, missingFirst: Bool = false, many: Int = 0) {
         self.seed = seed
         self.playing = playing
         self.paused = paused
@@ -1411,7 +1415,7 @@ private struct CollectionsPlayerGallery: View {
         self.missingFirst = missingFirst
         self.many = many
         UserDefaults.standard.set(reduceMotion, forKey: WheelMotion.debugReduceMotionKey)
-        UserDefaults.standard.set(scrollsToQueue, forKey: CollectionsPlayerView.debugScrollKey)
+        UserDefaults.standard.set(scrollsTo ?? "", forKey: CollectionsPlayerView.debugScrollKey)
         UserDefaults.standard.set(vinyl ? SpinningRecord.vinyl.rawValue : SpinningRecord.picture.rawValue, forKey: CollectionsViewPrefs.recordKey)
         UserDefaults.standard.set(CollectionsViewMode.player.rawValue, forKey: CollectionsViewPrefs.viewKey)
         _built = State(initialValue: CollectionsGallery.playingSetup(missingFirst: missingFirst, seed: seed, many: many))
