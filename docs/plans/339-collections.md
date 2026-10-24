@@ -10,7 +10,7 @@
   adds an optional key to the record.
 - **The look is a record player** (chosen from the variants below):
   - The Collections page has a **record wheel** on the left: each collection is a row (a small record with its cover as the
-    label, then the name and track count) riding the right half of a dial whose hub sits on the window's left edge. The front
+    label, then the name and track count; later made a picture disc, see "The look") riding the right half of a dial whose hub sits on the window's left edge. The front
     row is biggest and points at the turntable; the others shrink and fade as they go round. It scrolls, drags and swipes,
     snaps to each row, and turns endlessly, so 24 collections or 200 feel the same. No full covers on the wheel: the cover
     shows once, over the turntable (owner, 23 Oct).
@@ -178,8 +178,9 @@ Recorded on #339 (comment of 23 Oct).
   - `mac-record-player.png` (on the playing collection), `mac-record-player-browsing.png` (looking at another while one plays),
     `phone-record-player.png` and `phone-record-player-browsing.png` are the chosen direction.
   - `*-spines`, `*-crate`, `*-ledge`, `*-turntable` and `*-plain` are the variants explored on the way, kept for the record.
-- **The wheel:** rows on the right half of a dial whose hub sits on the left edge. A row is a small record (72 on the Mac, 46
-  on the iPhone) with the collection's first cover as its label, then the name (20 / 15, white) and "27 tracks, 1 hr 56 min"
+- **The wheel:** rows on the right half of a dial whose hub sits on the left edge. A row is a small picture disc (72 on the Mac,
+  52 on the iPhone): the collection's first cover printed edge to edge, faint grooves over it and a centre hole (owner, 23 Oct;
+  only these small records, the big spinning record keeps black vinyl with the track's cover as its label), then the name (20 / 15, white) and "27 tracks, 1 hr 56 min"
   on the dark page, never over artwork. Each step round is 0.87 of the last. Rows follow the dial's curve but stay level,
   reading left to right (owner, 23 Oct), and fade past about 50° from the front, so about seven show at once. The playing collection's record turns and its row says "Playing" or
   "Paused" in the accent colour. The hub shows "5 of 24", ▲ and ▼ (Mac) and a + for a new collection, all 44 buttons. A thin
