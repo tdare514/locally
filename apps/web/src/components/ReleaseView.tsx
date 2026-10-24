@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Release, UpdateReleaseMeta } from "../shared/types";
 import {
   coverUrl,
@@ -34,10 +34,12 @@ import ShareControl from "./ShareControl";
 import { deleteSharedLine } from "../lib/share-copy";
 import { RESHARE_REFUSED } from "../shared/shares";
 import ReleaseBar, { BarConfirm, useBarConfirm } from "./ReleaseBar";
+import { PLAY_COUNTED_EVENT } from "./Player";
+import { buildReleaseQueue, currentItem, itemKey, playerStore, usePlayerSelector } from "../lib/play-queue";
 import { libraryWidthClass } from "../lib/library-view-prefs";
 import { useLibraryWidth } from "../lib/use-library-width";
 import { usePaneWidth } from "../lib/use-element-size";
-import { BAR_MIN_HEIGHT, barPadding, detailsBesideSleeve } from "../lib/page-layout";
+import { detailsBesideSleeve } from "../lib/page-layout";
 import ArtistCombobox from "./ArtistCombobox";
 import type { ArtistEntry } from "../lib/artist-index";
 import FeaturingRow from "./FeaturingRow";
@@ -296,7 +298,25 @@ export default function ReleaseView({
   const [width] = useLibraryWidth();
   const pageRef = useRef<HTMLDivElement>(null);
   const paneWidth = usePaneWidth(pageRef, !loading && release !== null);
-  const [barHeight, setBarHeight] = useState(BAR_MIN_HEIGHT);
+
+  // Selectors, not the whole state: the position ticks four times a second and this page must not render on it.
+  const isPlaying = usePlayerSelector((s) => s.playing);
+  const currentKey = usePlayerSelector((s) => itemKey(currentItem(s.queue)));
+  // Rows that can play: every track whose file is there. The demo has no files.
+  const playableKeys = useMemo(
+    () => new Set(IS_DEMO || !release ? [] : release.tracks.filter((t) => !t.missing).map((t) => t.id)),
+    [release],
+  );
+  function handleTogglePlay(trackId: string) {
+    if (!release) return;
+    // The row that is playing pauses (or resumes); any other row starts the release's queue at that track.
+    if (currentKey === `${release.id}/${trackId}`) {
+      playerStore.toggle();
+      return;
+    }
+    const queue = buildReleaseQueue(release, trackId);
+    if (queue) playerStore.start(queue);
+  }
 
   const artworkUrl = release?.coverPath ? coverUrl(release.id, release.updatedAt) : null;
   const palette = useArtworkPalette(artworkUrl);
@@ -359,9 +379,19 @@ export default function ReleaseView({
     };
   }, [isAdopted]);
 
+  const [playsRefresh, setPlaysRefresh] = useState(0);
   useEffect(() => {
-    // One request per release page open (ReleaseView is remounted per release), never per row or
-    // render, and no polling. A failure just leaves the counts off the page.
+    // A play counted by Locally's own player (#338) on this release: read the totals again.
+    const onCounted = (e: Event) => {
+      if ((e as CustomEvent<{ releaseId: string }>).detail?.releaseId === releaseId) setPlaysRefresh((n) => n + 1);
+    };
+    window.addEventListener(PLAY_COUNTED_EVENT, onCounted);
+    return () => window.removeEventListener(PLAY_COUNTED_EVENT, onCounted);
+  }, [releaseId]);
+
+  useEffect(() => {
+    // One request per release page open (ReleaseView is remounted per release), plus one after each play
+    // Locally's player counts here; never per row or render, and no polling. A failure just leaves the counts off the page.
     if (IS_DEMO) return;
     let cancelled = false;
     getReleasePlays(releaseId)
@@ -372,7 +402,7 @@ export default function ReleaseView({
     return () => {
       cancelled = true;
     };
-  }, [releaseId]);
+  }, [releaseId, playsRefresh]);
 
   useEffect(() => {
     // The first read can come back empty while the server fills its cache in the background, and
@@ -535,7 +565,7 @@ export default function ReleaseView({
     // bar's anchor sits at the pane's bottom edge and the bar stays 24 above it at the end of the scroll.
     <ArtistNavProvider value={artistNavHere}>
     <div ref={pageRef} className={`flex min-h-[calc(100%+1.5rem)] flex-col -mb-6 md:min-h-[calc(100%+2.5rem)] md:-mb-10 lg:min-h-[calc(100%+4rem)] lg:-mb-16 ${libraryWidthClass(width)}`}>
-      <div className="flex flex-1 flex-col gap-12" style={{ paddingBottom: barPadding(barHeight) }}>
+      <div className="flex flex-1 flex-col gap-12">
       <AmbientBackdrop palette={palette} />
       {!isAdopted && <SpotifySourceBanner onOpenSettings={onOpenSettings} onToast={onToast} />}
 
@@ -659,6 +689,16 @@ export default function ReleaseView({
             releaseArtist={artistShown}
             linkArtists={linkedArtist}
             plays={plays}
+            player={
+              playableKeys.size > 0
+                ? {
+                    playableKeys,
+                    currentKey: currentKey?.startsWith(`${release.id}/`) ? currentKey.slice(release.id.length + 1) : null,
+                    playing: isPlaying,
+                    onToggle: handleTogglePlay,
+                  }
+                : undefined
+            }
             playlists={playlists}
             onOpenPlaylist={handleOpenPlaylist}
             renderShare={
@@ -714,7 +754,6 @@ export default function ReleaseView({
       <ReleaseBar
         label="Release actions"
         tint={palette?.primary}
-        onHeight={setBarHeight}
         left={
           isAdopted ? (
             confirmingRemove ? (

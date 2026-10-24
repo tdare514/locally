@@ -3,7 +3,7 @@ import type { PlaysSummaryAllTime, PlaysSummaryResponse, PlaysSummaryTrack } fro
 import type { SettingsStore } from "../config/SettingsStore";
 import type { LibraryRepository } from "../storage/LibraryRepository";
 import type { SyncApiFactory } from "../sync/SyncEngine";
-import type { PlayCounts, PlayCountStore } from "./PlayCountStore";
+import { entrySources, totalCount, totalDays, type PlayCounts, type PlayCountStore } from "./PlayCountStore";
 import { RETENTION_DAYS, localDay, parseDay } from "./playDays";
 import { readServerSummary, type ServerPlaysSummary } from "./serverSummary";
 
@@ -59,8 +59,10 @@ export function buildPlaysSummary(
   for (const trackId in counts.tracks) {
     const entry = counts.tracks[trackId];
     if (!liveReleaseIds.has(entry.releaseId)) continue;
-    if (entry.count > 0) allTime.push({ trackId, releaseId: entry.releaseId, plays: entry.count });
-    const days = entry.days;
+    // The plays of every source added together: the app shows one total per track (#338).
+    const total = totalCount(entry);
+    if (total > 0) allTime.push({ trackId, releaseId: entry.releaseId, plays: total });
+    const days = totalDays(entry);
     if (!days) continue;
     let plays = 0;
     let lastPlayedDay = "";
@@ -109,9 +111,11 @@ export function mergeServerSummary(
     if (theirs?.devicePlays !== undefined) {
       thisMacInRange = theirs.devicePlays;
     } else if (entry && theirs) {
-      for (const day in entry.days) {
-        if (day < range.from || day > range.to) continue;
-        thisMacInRange += entry.pushedDays?.[day] ?? (inSync ? 0 : entry.days[day]);
+      for (const { counts: own } of entrySources(entry)) {
+        for (const day in own.days) {
+          if (day < range.from || day > range.to) continue;
+          thisMacInRange += own.pushedDays?.[day] ?? (inSync ? 0 : own.days[day]);
+        }
       }
       // A marker for a day the Mac no longer holds (compacted days go from both) can't be summed above.
     }
@@ -132,9 +136,10 @@ export function mergeServerSummary(
       theirs?.devicePlays !== undefined
         ? theirs.devicePlays
         : entry
-          ? inSync
-            ? entry.pushed
-            : Math.max(entry.pushed, entry.count)
+          ? entrySources(entry).reduce(
+              (sum, { counts: own }) => sum + (inSync ? own.pushed : Math.max(own.pushed, own.count)),
+              0,
+            )
           : 0;
     const plays = (mine?.plays ?? 0) + Math.max(0, (theirs?.plays ?? 0) - thisMacAllTime);
     if (plays > 0) allTime.push({ trackId, releaseId: (mine ?? theirs)!.releaseId, plays });

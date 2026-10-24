@@ -26,6 +26,8 @@ export const PlayEntrySchema = z
     releaseId: z.uuid(),
     trackId: z.uuid(),
     count: z.number().int().min(0).max(MAX_PLAY_COUNT),
+    /** Where the plays were counted (#338). Absent means "spotify"; the Mac sends it for Locally plays only. */
+    source: z.enum(["spotify", "locally"]).optional(),
     days: z
       .array(PlayDaySchema)
       .max(MAX_PLAY_DAYS_PER_ENTRY)

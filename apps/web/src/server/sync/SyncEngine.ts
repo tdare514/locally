@@ -715,7 +715,9 @@ export class SyncEngine implements ReleaseSyncHooks {
         }
         if (!hasDays) continue;
         try {
-          result = await api.pushPlays(batch.map((e) => ({ releaseId: e.releaseId, trackId: e.trackId, count: e.count })));
+          result = await api.pushPlays(
+            batch.map((e) => ({ releaseId: e.releaseId, trackId: e.trackId, count: e.count, ...(e.source ? { source: e.source } : {}) })),
+          );
           sentDays = false;
         } catch (retryErr) {
           if (permanentPlayRejection(retryErr) === null) throw retryErr;
@@ -728,7 +730,8 @@ export class SyncEngine implements ReleaseSyncHooks {
       const days = sentDays
         ? Object.fromEntries(batch.filter((e) => e.days).map((e) => [e.trackId, Object.fromEntries(e.days!.map((d) => [d.day, d.count]))]))
         : undefined;
-      await store.markPushed(Object.fromEntries(batch.map((e) => [e.trackId, e.count])), epoch, days);
+      // A batch holds one source (batchPlayEntries), so one marker pass covers it.
+      await store.markPushed(Object.fromEntries(batch.map((e) => [e.trackId, e.count])), epoch, days, batch[0]?.source ?? "spotify");
       // A service summary read before this push must not be merged with markers read after it.
       invalidateServerSummary();
     }

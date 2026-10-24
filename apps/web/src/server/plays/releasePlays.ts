@@ -1,7 +1,7 @@
 import type { ReleasePlaysResponse, TrackPlays, TrackPlaysDevice } from "../../shared/types";
 import type { SettingsStore } from "../config/SettingsStore";
 import type { SyncApiFactory } from "../sync/SyncEngine";
-import type { PlayCountEntry, PlayCounts, PlayCountStore } from "./PlayCountStore";
+import { entrySources, totalCount, type PlayCounts, type PlayCountStore, type SourceCounts } from "./PlayCountStore";
 import {
   MAX_PLAY_DAYS_PER_ENTRY,
   MAX_PLAY_DAYS_PER_REQUEST,
@@ -16,7 +16,7 @@ import {
  * The days of `entry` whose local value is above what the service accepted (`pushedDays`, a missing
  * day counting as 0), oldest first, each as its absolute value (#202).
  */
-function changedDays(entry: PlayCountEntry): PlayDay[] {
+function changedDays(entry: SourceCounts): PlayDay[] {
   const changed: PlayDay[] = [];
   for (const day of Object.keys(entry.days ?? {}).sort()) {
     const count = entry.days![day];
@@ -36,19 +36,24 @@ function changedDays(entry: PlayCountEntry): PlayDay[] {
 export function pendingPlayEntries(counts: PlayCounts): PlayEntry[] {
   const pending: PlayEntry[] = [];
   for (const [trackId, entry] of Object.entries(counts.tracks)) {
-    const days = changedDays(entry);
-    if (entry.count <= entry.pushed && days.length === 0) continue;
-    const chunks: PlayDay[][] = [];
-    for (let i = 0; i < days.length; i += MAX_PLAY_DAYS_PER_ENTRY) chunks.push(days.slice(i, i + MAX_PLAY_DAYS_PER_ENTRY));
-    if (chunks.length === 0) chunks.push([]);
-    for (const chunk of chunks) {
-      const parsed = PlayEntrySchema.safeParse({
-        releaseId: entry.releaseId,
-        trackId,
-        count: entry.count,
-        ...(chunk.length > 0 ? { days: chunk } : {}),
-      });
-      if (parsed.success) pending.push(parsed.data);
+    // One entry per (track, source). Spotify's go out with no `source` field, exactly as before sources
+    // existed, so they stay valid against a service that does not know the field (#338).
+    for (const { source, counts: own } of entrySources(entry)) {
+      const days = changedDays(own);
+      if (own.count <= own.pushed && days.length === 0) continue;
+      const chunks: PlayDay[][] = [];
+      for (let i = 0; i < days.length; i += MAX_PLAY_DAYS_PER_ENTRY) chunks.push(days.slice(i, i + MAX_PLAY_DAYS_PER_ENTRY));
+      if (chunks.length === 0) chunks.push([]);
+      for (const chunk of chunks) {
+        const parsed = PlayEntrySchema.safeParse({
+          releaseId: entry.releaseId,
+          trackId,
+          count: own.count,
+          ...(source === "locally" ? { source } : {}),
+          ...(chunk.length > 0 ? { days: chunk } : {}),
+        });
+        if (parsed.success) pending.push(parsed.data);
+      }
     }
   }
   return pending;
@@ -57,20 +62,22 @@ export function pendingPlayEntries(counts: PlayCounts): PlayEntry[] {
 /**
  * Splits entries into requests of at most {@link MAX_PLAY_ENTRIES} entries and
  * {@link MAX_PLAY_DAYS_PER_REQUEST} day rows. An entry goes in the first request with room that does
- * not already hold its track, so the pieces of a split track land in different requests.
+ * not already hold its track, so the pieces of a split track land in different requests. A request
+ * holds one source only, so a service that refuses `source` costs the Locally entries and nothing else (#338).
  */
 export function batchPlayEntries(entries: PlayEntry[]): PlayEntry[][] {
-  const batches: { entries: PlayEntry[]; tracks: Set<string>; days: number }[] = [];
+  const batches: { source: string; entries: PlayEntry[]; tracks: Set<string>; days: number }[] = [];
   for (const entry of entries) {
     const days = entry.days?.length ?? 0;
     let batch = batches.find(
       (b) =>
+        b.source === (entry.source ?? "spotify") &&
         b.entries.length < MAX_PLAY_ENTRIES &&
         b.days + days <= MAX_PLAY_DAYS_PER_REQUEST &&
         !b.tracks.has(entry.trackId),
     );
     if (!batch) {
-      batch = { entries: [], tracks: new Set(), days: 0 };
+      batch = { source: entry.source ?? "spotify", entries: [], tracks: new Set(), days: 0 };
       batches.push(batch);
     }
     batch.entries.push(entry);
@@ -104,7 +111,7 @@ export function mergeReleasePlays(
 ): ReleasePlaysResponse {
   const localByTrack = new Map<string, number>();
   for (const [trackId, entry] of Object.entries(local.tracks)) {
-    if (entry.releaseId === releaseId) localByTrack.set(trackId, entry.count);
+    if (entry.releaseId === releaseId) localByTrack.set(trackId, totalCount(entry));
   }
 
   const thisMacNames = new Set<string>(deviceName ? [deviceName] : []);

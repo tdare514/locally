@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { watchEscape } from "../lib/escape-watch";
-import { BAR_CLEARANCE } from "../lib/page-layout";
 
 /** The nearest ancestor that scrolls vertically (the app's main pane). */
 function scrollingAncestor(el: HTMLElement): HTMLElement | null {
@@ -25,7 +24,7 @@ interface ReleaseBarProps {
   /** The main action, at the right end of the last line. Give it `btn-save btn-save-lit`. */
   main: ReactNode;
   /** The bar's measured height, so the page can keep its content clear of it. */
-  onHeight: (height: number) => void;
+  onHeight?: (height: number) => void;
   /** Accessible name of the bar's region. */
   label: string;
 }
@@ -37,9 +36,9 @@ interface ReleaseBarProps {
  * to a second line when the pane is narrow or a confirm is long, the main action keeping the right
  * end of the last line. Faked glass on the dock's base, no live blur. Nothing in it animates on load.
  *
- * It takes no room itself (a zero-height sticky anchor); the page pads its content by the height
- * reported through `onHeight` (see `barPadding`), and the pane's `scroll-padding-bottom` is set here
- * so a focused row scrolls clear of it. Tab order is the DOM order: left, status, secondary, main.
+ * It takes no room itself (a zero-height sticky anchor); it brings a spacer of `--bottom-bars-h` (this bar, the mini
+ * player and some air) before the anchor so the page's content ends clear of both, and the same variable is the pane's
+ * `scroll-padding-bottom` (globals.css), so a focused row scrolls clear of them. Tab order is the DOM order: left, status, secondary, main.
  */
 // A sticky offset counts from the scroll container's content edge, inside its padding, so the 24 above the
 // pane's bottom is 24 minus AppShell's bottom padding (p-6 md:p-10 lg:p-16): 0, -16 and -40.
@@ -54,22 +53,30 @@ export default function ReleaseBar({ tint, left, status, beforeMain, main, onHei
     const bar = barRef.current;
     if (!bar) return;
     const pane = scrollingAncestor(bar);
-    const before = pane?.style.scrollPaddingBottom ?? "";
+    // The mini player (#338) floats above this bar: publish the bar's height plus a 12 px gap on the pane's parent.
+    const stage = pane?.parentElement ?? null;
     const measure = () => {
       const height = bar.getBoundingClientRect().height;
-      onHeightRef.current(height);
-      if (pane) pane.style.scrollPaddingBottom = `${Math.ceil(height) + BAR_CLEARANCE}px`;
+      onHeightRef.current?.(height);
+      stage?.style.setProperty("--release-bar-h", `${Math.ceil(height) + 12}px`);
+      stage?.style.setProperty("--no-bar", "0");
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(bar);
     return () => {
       observer.disconnect();
-      if (pane) pane.style.scrollPaddingBottom = before;
+      stage?.style.removeProperty("--release-bar-h");
+      stage?.style.removeProperty("--no-bar");
     };
   }, []);
 
   return (
+    <>
+    {/* Room for this bar and the mini player (#338): `--bottom-bars-h` on the pane. It comes before the bar's anchor and
+        inside the page's container (the bar is its last child), so the content ends clear of both and the anchor, which a
+        sticky box can only hold back, still ends the page at the pane's bottom edge. */}
+    <div aria-hidden style={{ height: "var(--bottom-bars-h, 0px)" }} />
     <div className="pointer-events-none sticky bottom-0 z-20 h-0 md:-bottom-4 lg:-bottom-10">
       <div
         ref={barRef}
@@ -86,6 +93,7 @@ export default function ReleaseBar({ tint, left, status, beforeMain, main, onHei
         </div>
       </div>
     </div>
+    </>
   );
 }
 

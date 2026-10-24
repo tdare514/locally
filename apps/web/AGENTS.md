@@ -36,6 +36,9 @@ src/server/
     ReleaseService.ts         # import/update/replaceCover/delete/get/list — the core domain logic
     InspectService.ts         # POST /api/inspect: read tags off uploads without storing them
     ReleaseSyncHooks.ts       # interface: post-mutation callbacks so SyncEngine can push; wired via setSyncHooks()
+    TrackAudio.ts             # the audio route's file lookup (#338): realpath inside the library (or the adopted Spotify folder), Range parsing, streaming
+  plays/
+    LocallyNowPlaying.ts      # which track Locally's own player is playing (#338), in memory, lapses after 15 s; PlayTracker ignores a Spotify read of it
   adopt/
     AdoptScanner.ts          # walks the adopt roots read only and proposes releases (#247)
     AdoptService.ts          # scan/proposal/adopt in place: releases with adopted:true, covers copied to app data (#248)

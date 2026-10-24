@@ -91,14 +91,14 @@ describe("lastPlayedLabel", () => {
 
 describe("counting and numbers", () => {
   it("says what is counted, and on this Mac only", () => {
-    expect(countingLine(true, "2026-10-15", TODAY)).toBe("Counted on this Mac since 15 Oct.");
-    expect(countingLine(true, "2025-11-02", TODAY)).toBe("Counted on this Mac since 2 Nov 2025.");
+    expect(countingLine(true, "2026-10-15", TODAY)).toBe("Plays in Spotify and in Locally, counted on this Mac since 15 Oct.");
+    expect(countingLine(true, "2025-11-02", TODAY)).toBe("Plays in Spotify and in Locally, counted on this Mac since 2 Nov 2025.");
     expect(countingLine(false, null, TODAY)).toBe("Play counting is off.");
-    expect(countingLine(true, null, TODAY)).toBe("Counting plays on this Mac.");
+    expect(countingLine(true, null, TODAY)).toBe("Plays in Spotify and in Locally, counted on this Mac.");
   });
   it("says one total across devices once other devices' plays are in", () => {
-    expect(countingLine(true, "2026-10-15", TODAY, true)).toBe("Collected across all your devices.");
-    expect(countingLine(true, null, TODAY, true)).toBe("Collected across all your devices.");
+    expect(countingLine(true, "2026-10-15", TODAY, true)).toBe("Plays in Spotify and in Locally, collected across all your devices.");
+    expect(countingLine(true, null, TODAY, true)).toBe("Plays in Spotify and in Locally, collected across all your devices.");
     expect(countingLine(false, null, TODAY, true)).toBe("Play counting is off on this Mac.");
   });
   it("formats counts", () => {

@@ -244,3 +244,43 @@ export function CalendarIcon(props: SVGProps<SVGSVGElement>) {
     </IconBase>
   );
 }
+
+/** Player (#338): play, a filled triangle. */
+export function PlayIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props} fill="currentColor" strokeWidth={1.5}>
+      <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" />
+    </IconBase>
+  );
+}
+
+/** Player (#338): pause, two filled bars. */
+export function PauseIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props} fill="currentColor" strokeWidth={1.5}>
+      <rect x="6.5" y="5" width="3.8" height="14" rx="1" />
+      <rect x="13.7" y="5" width="3.8" height="14" rx="1" />
+    </IconBase>
+  );
+}
+
+/** Player (#338): next track, a filled triangle against a bar. */
+export function NextTrackIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props} fill="currentColor" strokeWidth={1.5}>
+      <path d="M5 6.2v11.6a.8.8 0 0 0 1.25.66l8.4-5.8a.8.8 0 0 0 0-1.32l-8.4-5.8A.8.8 0 0 0 5 6.2Z" />
+      <rect x="16.5" y="5" width="2.8" height="14" rx="1" />
+    </IconBase>
+  );
+}
+
+/** The now-playing glyph (#338) on the playing row: three bars of fixed, different heights. Static, never animated. */
+export function NowPlayingIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props} fill="currentColor" strokeWidth={0}>
+      <rect x="4" y="11" width="4" height="9" rx="1.2" />
+      <rect x="10" y="5" width="4" height="15" rx="1.2" />
+      <rect x="16" y="9" width="4" height="11" rx="1.2" />
+    </IconBase>
+  );
+}

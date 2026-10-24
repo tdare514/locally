@@ -491,3 +491,23 @@ export async function moveLibrary(destination: string): Promise<LibraryMoveResul
   });
   return handle<LibraryMoveResult>(res);
 }
+
+/** A play in Locally's own player counted by the window (#338); the server adds it to plays.json as source "locally". */
+export async function postLocallyPlay(releaseId: string, trackId: string): Promise<void> {
+  const res = await fetch("/api/plays/locally", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ releaseId, trackId }),
+  });
+  await handle<{ ok: true }>(res);
+}
+
+/** Tell the server which track Locally is playing (null: none), so the Spotify tracker ignores a read of the same track (#338). */
+export async function putLocallyNowPlaying(trackId: string | null): Promise<void> {
+  const res = await fetch("/api/plays/locally", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ trackId }),
+  });
+  await handle<{ ok: true }>(res);
+}

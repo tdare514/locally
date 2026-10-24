@@ -32,6 +32,7 @@ import {
   type BackStack,
 } from "../lib/back-stack";
 import Toast, { type ToastMessage } from "./Toast";
+import Player from "./Player";
 
 export type View =
   | { type: "library" }
@@ -492,6 +493,12 @@ export default function AppShell() {
               onLibraryChanged={refreshLibrary}
             />
           )}
+          {/* Room for the mini player (#338) on a page with no release bar; a page with one gets its room, bar and player
+              together, from the bar itself (`--bottom-bars-h`, globals.css). 0 high when no player shows. */}
+          <div
+            aria-hidden
+            style={{ height: "calc((var(--mini-player-h, 0px) + min(36px, var(--mini-player-h, 0px))) * var(--no-bar, 1))" }}
+          />
         </main>
         </ArtistNavProvider>
         {/* The back button's wrapper has no `left`: an absolute box with left auto starts at the pane's
@@ -507,6 +514,9 @@ export default function AppShell() {
         {/* One overlay layer above the pane's chrome (Back, the tray button) for floating panels that must
             not be clipped by or stacked inside the pane, such as the Share popover. The sidebar stays above. */}
         <div id="overlay-root" className="pointer-events-none fixed inset-0 z-30" />
+        {/* The player (#338): its one <audio> lives here so playback survives page changes, and its mini bar
+            floats above the release bar on every page while a queue exists. The demo has no files to play. */}
+        {!IS_DEMO && <Player releases={library?.releases ?? []} onOpenRelease={(id) => pushTo({ type: "release", id })} />}
         {!IS_DEMO && (
           <div className="absolute right-4 top-4 z-20 md:right-6 md:top-6">
             <PhoneInbox
