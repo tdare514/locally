@@ -9,8 +9,8 @@
 - **Rules come later.** The first build is hand-picked only. "Everything by Okoro" or "added this month" is a later step that
   adds an optional key to the record.
 - **The look is a record player** (chosen from the variants below):
-  - The Collections page has a **record wheel** on the left: each collection is a row (a small record with its cover as the
-    label, then the name and track count; later made a picture disc, see "The look") riding the right half of a dial whose hub sits on the window's left edge. The front
+  - The Collections page has a **record wheel** on the left: each collection is a row (the vinyl's paper sleeve, a small
+    square of its cover, then the name and track count) riding the right half of a dial whose hub sits on the window's left edge. The front
     row is biggest and points at the turntable; the others shrink and fade as they go round. It scrolls, drags and swipes,
     snaps to each row, and turns endlessly, so 24 collections or 200 feel the same. No full covers on the wheel: the cover
     shows once, over the turntable (owner, 23 Oct).
@@ -176,24 +176,25 @@ Recorded on #339 (comment of 23 Oct).
 
 - **The prototype** (private): https://claude.ai/artifact/2J5qUxPQRrXSFa1jyzuRx7. **Screenshots:** `docs/design-previews/339/`.
   - `mac-record-player.png` (on the playing collection), `mac-record-player-browsing.png` (looking at another while one plays),
-    `mac-record-player-vinyl.png` (the Black vinyl choice), `phone-record-player.png` and `phone-record-player-browsing.png`
+    `mac-record-player-vinyl.png` and `phone-record-player-vinyl.png` (the Black vinyl choice), `phone-record-player.png` and `phone-record-player-browsing.png`
     are the chosen direction.
   - `*-spines`, `*-crate`, `*-ledge`, `*-turntable` and `*-plain` are the variants explored on the way, kept for the record.
-- **The wheel:** rows on the right half of a dial whose hub sits on the left edge. A row is a small picture disc (72 on the Mac,
-  52 on the iPhone): the collection's first cover printed edge to edge, faint grooves over it and a centre hole (owner, 23 Oct;
-  only these small records, the big spinning record keeps black vinyl with the track's cover as its label), then the name (20 / 15, white) and "27 tracks, 1 hr 56 min"
+- **The wheel:** rows on the right half of a dial whose hub sits on the left edge. A row is the vinyl's paper sleeve (64 on the
+  Mac, 48 on the iPhone): a square of the collection's first cover with a printed edge and a faint sheen (owner, 23 Oct), then
+  the name (20 / 15, white) and "27 tracks, 1 hr 56 min"
   on the dark page, never over artwork. Each step round is 0.87 of the last. Rows follow the dial's curve but stay level,
-  reading left to right (owner, 23 Oct), and fade past about 50° from the front, so about seven show at once. The playing collection's record turns and its row says "Playing" or
-  "Paused" in the accent colour. The hub shows "5 of 24", ▲ and ▼ (Mac) and a + for a new collection, all 44 buttons. A thin
+  reading left to right (owner, 23 Oct), and fade past about 50° from the front, so about seven show at once. The playing collection's row says "Playing" or "Paused" in the
+  accent colour (sleeves don't turn; only the big record does). The hub shows "5 of 24", ▲ and ▼ (Mac) and a + for a new collection, all 44 buttons. A thin
   ring and an accent notch point at the turntable.
 - **The turntable (Mac):** a deck in the app's glass, the platter seen at an angle (a circle flattened to an ellipse, no 3D library),
   a tonearm that swings onto the record when it plays, the hovering cover (above), and now playing on the deck's right (on the
   iPhone, under it), with "Back to {name}" while browsing.
-- **A Records switch** (Picture disc / Black vinyl) sits beside Record player / List, remembered per device (owner, 23 Oct):
-  picture disc is the default; black vinyl shows the rows' records as vinyl with the cover as a small label. Changing it
-  redraws only the wheel.
-- **The iPhone's record:** the wheel's hub is the playing record (the hub's radius, its label the current track's cover,
-  a dark platter rim), turning at 33⅓ rpm while playing and still when paused. The count and + sit under the wheel. Under it, now playing, with the previous, play and next buttons centred (owner, 23 Oct).
+- **The spinning record** (the iPhone's hub record and the Mac's platter) is a **picture disc** by default: the current track's
+  cover printed edge to edge, faint grooves and a centre hole over it, turning with the art (owner, 23 Oct). A **Spinning
+  record** switch (Picture disc / Black vinyl) beside Record player / List, remembered per device, turns it back into black
+  vinyl with the cover as its centre label. The switch changes the record in place; nothing remounts.
+- **The iPhone's record:** the wheel's hub is the playing record (the hub's radius, the spinning record above, a dark platter
+  rim), turning at 33⅓ rpm while playing and still when paused. The count and + sit under the wheel. Under it, now playing, with the previous, play and next buttons centred (owner, 23 Oct).
 - **The queue:** Side A and Side B columns on the Mac (one column on the iPhone); the current track carries the #324
   now-playing glyph in the accent colour.
 - **Colour:** the page takes the front record's cover colours, as the release page does.
