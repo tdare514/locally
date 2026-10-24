@@ -229,6 +229,27 @@ struct ComponentGallery: View {
             IconsGallery.featuringRelease(editing: true)
         case "collections-library":
             CollectionsGallery.library()
+        // #360: the Library header over the seeded collections, in covers view at each size and in list view.
+        case "library-covers-small":
+            CollectionsGallery.library(layout: .covers, size: .small)
+        case "library-covers-medium":
+            CollectionsGallery.library(layout: .covers, size: .medium)
+        case "library-covers-large":
+            CollectionsGallery.library(layout: .covers, size: .large)
+        case "library-covers-small-ax3":
+            CollectionsGallery.library(layout: .covers, size: .small).dynamicTypeSize(.accessibility3)
+        case "library-covers-large-ax3":
+            CollectionsGallery.library(layout: .covers, size: .large).dynamicTypeSize(.accessibility3)
+        case "library-list-ax3":
+            CollectionsGallery.library().dynamicTypeSize(.accessibility3)
+        case "library-covers-no-collections":
+            CollectionsGallery.library(layout: .covers, size: .medium, seed: false)
+        // A sky from a bright yellow and orange cover: the tinted thumb, the white icons and the card's words keep their contrast.
+        case "library-covers-bright-sky":
+            CollectionsGallery.library(layout: .covers, size: .medium, bright: true)
+        // The Collections card as it looks pressed.
+        case "collections-card-pressed":
+            CollectionsGallery.cardPressed()
         case "collections-screen":
             CollectionsGallery.screen()
         case "collections-empty":
@@ -1384,8 +1405,12 @@ enum CollectionsGallery {
     /// A collection of only the Mac-only release: the playlist guide has nothing to add.
     static let noneHereID = UUID(uuidString: "00000000-0000-0000-0000-0000000000c2")!
 
-    private static func container(seed: Bool, many: Int = 0, single: Bool = false) -> (AppContainer, CollectionsModel) {
-        let container = IconsGallery.container(releases: StatsGallery.releases + [macOnly])
+    private static func container(seed: Bool, many: Int = 0, single: Bool = false, bright: Bool = false) -> (AppContainer, CollectionsModel) {
+        // `bright`: every cover is yellow and orange, so the sky and the card's wash come from a light cover.
+        let covers = bright
+            ? Dictionary(uniqueKeysWithValues: StatsGallery.releases.map { ($0.id, SampleArtwork.cover([.systemYellow, .systemOrange], size: 360).pngData() ?? Data()) })
+            : StatsGallery.covers
+        let container = IconsGallery.container(releases: StatsGallery.releases + [macOnly], covers: covers)
         if seed {
             let r = StatsGallery.releases
             let stamp = Date()
@@ -1420,10 +1445,22 @@ enum CollectionsGallery {
         return (container, model, playback)
     }
 
-    static func library() -> some View {
-        UserDefaults.standard.set(LibraryLayout.list.rawValue, forKey: LibraryViewPrefs.layoutKey)
-        let (container, _) = container(seed: true)
+    static func library(layout: LibraryLayout = .list, size: CoverSize = .default, seed: Bool = true, bright: Bool = false) -> some View {
+        UserDefaults.standard.set(layout.rawValue, forKey: LibraryViewPrefs.layoutKey)
+        UserDefaults.standard.set(size.rawValue, forKey: LibraryViewPrefs.coverSizeKey)
+        let (container, _) = container(seed: seed, bright: bright)
         return IconsGallery.environment(IconsLibrary(openTray: false), container)
+    }
+
+    /// The Collections card on its own, drawn as pressed.
+    static func cardPressed() -> some View {
+        let (container, model) = container(seed: true)
+        return IconsGallery.environment(
+            ZStack {
+                Theme.background.ignoresSafeArea()
+                CollectionsLibraryCard(model: model, onOpen: {}, posedPressed: true).padding(16)
+            },
+            container)
     }
 
     static func screen(seed: Bool = true) -> some View {

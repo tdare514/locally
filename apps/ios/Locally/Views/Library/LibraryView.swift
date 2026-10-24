@@ -37,6 +37,7 @@ struct LibraryView: View {
     @AppStorage(LibraryViewPrefs.singlesCollapsedKey) private var singlesCollapsed = false
     @AppStorage(LibraryViewPrefs.albumsCollapsedKey) private var albumsCollapsed = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var layoutThumbSpace
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Icon and button sizes, scaling with Dynamic Type (#226).
     @ScaledMetric(relativeTo: .body) private var scaledToggleIconSize = Theme.Library.toggleIconSize
@@ -71,10 +72,7 @@ struct LibraryView: View {
     @State private var path = NavigationPath()
     /// The collections (#350): the row under the title, the Collections screen and a collection's queue share it.
     @State private var collections: CollectionsModel?
-    @State private var isNamingCollection = false
-    @State private var newCollectionName = ""
     /// A New collection whose save failed: an alert says so and offers the name again.
-    @State private var collectionCreateFailed = false
 
     /// A release's cover identity: a replaced cover bumps `updatedAt`.
     private struct CoverKey: Hashable {
@@ -116,6 +114,16 @@ struct LibraryView: View {
 
     private var skyPalette: AmbientPalette {
         skyKey.flatMap { palettes[$0] } ?? .neutral
+    }
+
+    /// The header controls' tint: the sky cover's glow colour, lifted to a minimum brightness so the glass thumbs show on a dark
+    /// cover; the accent with no cover (as the Import record's switch).
+    private var controlsTint: Color {
+        let palette = skyPalette
+        let glow = Theme.coverGlowColors(palette == .neutral ? nil : palette)[0]
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0
+        guard palette != .neutral, UIColor(glow).getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: nil) else { return glow }
+        return Color(hue: hue, saturation: saturation, brightness: max(brightness, Theme.Library.controlsTintMinBrightness))
     }
 
     private func openRequestedRelease() {
@@ -229,18 +237,6 @@ struct LibraryView: View {
                     CollectionDetailView(model: collections, id: route.id, startsEditing: route.startsEditing) { path = NavigationPath() }
                 }
             }
-            .nameAlert(Copy.Collections.nameTitle, action: Copy.Collections.create, isPresented: $isNamingCollection, text: $newCollectionName) { name in
-                do {
-                    if let id = try collections?.create(name: name) { path.append(CollectionRoute(id: id)) }
-                } catch {
-                    newCollectionName = name
-                    collectionCreateFailed = true
-                }
-            }
-            .alert(Copy.Collections.createFailed, isPresented: $collectionCreateFailed) {
-                Button(Copy.Collections.tryAgain) { isNamingCollection = true }
-                Button(Copy.Collections.cancel, role: .cancel) { newCollectionName = "" }
-            }
             // `.onAppear` (not `.task`) so returning from `ReleaseDetailView`
             // after a save/delete re-reads the store and reflects it here.
             .onAppear {
@@ -256,10 +252,6 @@ struct LibraryView: View {
                 guard let name else { return }
                 query = name
                 librarySearchRequest = nil
-            }
-            .stickyFooter(isPresented: !releases.isEmpty) {
-                Button(Copy.Library.addASong) { startImport(nil) }
-                    .buttonStyle(PrimaryPillButtonStyle())
             }
             // While the tray is open the library behind it is out of VoiceOver's reach.
             .accessibilityHidden(tray.isOpen)
@@ -324,14 +316,10 @@ struct LibraryView: View {
             devicesButton.offset(y: -2)
         }
         if let collections {
-            CollectionsLibraryRow(
-                model: collections,
-                onOpen: { path.append(CollectionsRoute()) },
-                onNew: {
-                    newCollectionName = ""
-                    isNamingCollection = true
-                }
-            )
+            CollectionsLibraryCard(model: collections, onOpen: { path.append(CollectionsRoute()) })
+        } else if container != nil {
+            // Holds the card's height until the model exists, so the header does not pop in.
+            CollectionsLibraryCard.placeholder
         }
         searchField
         controls
@@ -495,7 +483,7 @@ struct LibraryView: View {
         .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
     }
 
-    /// The list / covers toggle and, in covers view, the three-step size control.
+    /// The list / covers toggle and, in covers view, the size slider at the right end.
     private var controls: some View {
         // Side by side while they fit; at large text sizes the size control, then the sort, drop under the toggle.
         ViewThatFits(in: .horizontal) {
@@ -529,25 +517,16 @@ struct LibraryView: View {
             layoutButton(.covers, systemImage: "square.grid.2x2", label: Copy.Library.layoutCovers)
             layoutButton(.artists, icon: .person, label: Copy.Library.layoutArtists)
         }
-        .padding(2)
-        .background(Capsule().fill(Theme.Immersive.panelFill))
-        .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
+        .padding(.horizontal, 3)
+        .background { GlowGlass().clipShape(Capsule()) }
+        .overlay { GlowRim() }
+        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: layout)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Copy.Library.layoutLabel)
     }
 
     private var sizeControl: some View {
-        SegmentedPill(
-            options: [
-                (CoverSize.compact, Copy.Library.sizeSmall),
-                (CoverSize.medium, Copy.Library.sizeMedium),
-                (CoverSize.large, Copy.Library.sizeLarge),
-            ],
-            selection: $coverSize,
-            isCompact: true
-        )
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(Copy.Library.coverSizeLabel)
+        CoverSizeSlider(selection: $coverSize, tint: controlsTint)
     }
 
     /// The sort menu (#288): the Mac's four options with a check on the current one.
@@ -559,13 +538,14 @@ struct LibraryView: View {
                 }
             }
         } label: {
+            let side = max(toggleButtonSize, Theme.Import.kindSwitchMinTarget)
             Image(systemName: "arrow.up.arrow.down")
                 .font(.system(size: toggleIconSize, weight: .semibold))
-                .foregroundStyle(Theme.secondaryText)
-                .frame(width: toggleButtonSize, height: toggleButtonSize - 4)
-                .background(Capsule().fill(Theme.Immersive.panelFill))
-                .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
-                .contentShape(Capsule())
+                .foregroundStyle(Color.white.opacity(0.85))
+                .frame(width: side, height: side)
+                .background { GlowGlass().clipShape(Circle()) }
+                .overlay { GlowRim(round: true) }
+                .contentShape(Circle())
         }
         .accessibilityLabel(Copy.Library.sortLabel(Copy.Library.sortName(sort)))
     }
@@ -590,9 +570,15 @@ struct LibraryView: View {
             layout = value
         } label: {
             glyph()
-                .foregroundStyle(selected ? Theme.onAccent : Theme.secondaryText)
-                .frame(width: toggleButtonSize, height: toggleButtonSize - 8)
-                .background { if selected { Capsule().fill(Theme.accent) } }
+                .foregroundStyle(Color.white.opacity(selected ? 1 : 0.55))
+                .frame(width: max(toggleButtonSize, Theme.Import.kindSwitchMinTarget), height: max(toggleButtonSize, Theme.Import.kindSwitchMinTarget))
+                .background {
+                    if selected {
+                        TintedGlassThumb(shape: Capsule(), tint: controlsTint)
+                            .padding(.vertical, Theme.Library.toggleThumbInset)
+                            .matchedGeometryEffect(id: "layoutThumb", in: layoutThumbSpace)
+                    }
+                }
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -671,10 +657,13 @@ struct LibraryView: View {
         .overlay(shape.stroke(Theme.Immersive.panelStroke, lineWidth: 1))
     }
 
+    /// The size the grid uses at this text size (see `CoverSize.forGrid`).
+    private var gridSize: CoverSize { coverSize.forGrid(dynamicTypeSize) }
+
     private func coverGrid(_ items: [Release]) -> some View {
         LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: coverSize.tileMinWidth), spacing: coverSize.tileGap)],
-            spacing: coverSize.tileGap
+            columns: [GridItem(.adaptive(minimum: gridSize.tileMinWidth), spacing: gridSize.tileGap, alignment: .top)],
+            spacing: gridSize.tileGap
         ) {
             ForEach(items) { release in
                 NavigationLink(value: release) { tile(for: release) }
@@ -695,11 +684,13 @@ struct LibraryView: View {
                 Text(release.title)
                     .themeFont(.rowTitle)
                     .foregroundStyle(Theme.primaryText)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                Text(subtitle(for: release))
-                    .themeFont(.rowSubtitle)
-                    .foregroundStyle(Theme.secondaryText)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize && gridSize != .small ? nil : 1)
+                if gridSize.showsSubtitle {
+                    Text(subtitle(for: release))
+                        .themeFont(.rowSubtitle)
+                        .foregroundStyle(Theme.secondaryText)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                }
             }
         }
         .contentShape(Rectangle())
