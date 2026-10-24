@@ -96,3 +96,17 @@ Do not touch: sync, tag writing, RecordWheelView.swift
 Verify: xcodebuild test; gallery screenshots at 390 pt, AX3 and adopted
 Done when: tapping a song's title opens its page with every field above, in the chosen variant
 ```
+
+## Built, pass 1 (24 Oct)
+
+Variant a4 is built as the real page: `SongPageView` (`Views/Library/`), over the pure `SongPageModel` and `SongPlays`
+(`Domain/`), `MusicCollection.containing(releaseId:trackId:in:)` and the `SongPageLoader` (plays through
+`SyncPlayStatsService`'s cache, never forced; file size read inside the Spotify folder's access, off the main thread).
+The record is the play control through `SpinningSleeve`, extracted from `CollectionSleeveView` with its behaviour kept.
+Actions: Collection (`AddToCollectionSheet`), Play next (the long-press menu's queueing and toast), Share (the release
+page's `ShareSheet` for one song; left out for an adopted song or one received from a share) and Edit (an `onEdit`
+closure the host passes; nil hides it). Signed out or offline hides the Plays group.
+
+**Pass 2 (not built yet): the entry points.** The title tap on the release page, "Song info" in the long-press menu and a
+Stats row, once the other branch editing `ReleaseDetailView`, `LibraryView`, `StatsRows` and `StatsView` lands. Until then
+the page is reachable only from the debug gallery (`song-page*`). Screenshots: `docs/design-previews/365/`.

@@ -945,3 +945,9 @@ Previews: `docs/design-previews/339-ios/` (`player-<case>.png`, from the gallery
 - **Text size.** The wheel's art and captions (the rows, the count) stop growing at `xxxLarge`; now playing and the queue scale fully and wrap at the accessibility sizes.
 - **VoiceOver.** The wheel is one adjustable element, "Collections", valued "Late drives, 27 tracks, 1 hr 56 min, playing, 1 of 24"; increment and decrement turn it; the default action plays the front collection or pauses it (the hint says which). The count, the + and the controls are separate elements.
 - **The wash.** The page takes the front collection's first cover colours through `ArtworkBackdrop` (the library sky's palette and caps), cross-fading as the wheel turns (none under Reduce Motion); it drifts only by the `BackdropMotion` rules. A 45 % black scrim (`playerScrimOpacity`) keeps grey text at 4.5:1 on a pale cover. No blur or material.
+
+## The song page (iPhone, #365)
+
+- **Hero:** the cover's colours wash the page; the cover is a playable sleeve (`SpinningSleeve`, shared with the collection page) whose disc turns only while this song plays; then the title, the linked artist line and four bare actions (glyph over label, nothing behind them; pressed they go full white with a soft glow in the cover's colour). At AX sizes the actions are a 2 x 2 grid and their labels stop growing at AX3.
+- **Details panel:** one opaque near-black panel (`Theme.SongPage.panelFill`) with 28 pt continuous top corners, a 1 pt highlight and a grabber, rising over the wash. Plays (bars in the cover's lifted brighter colour), In collections (tiny sleeves), On the album and File as hairline rows. No glass cards, house sans fonts only.
+- **Adopted songs:** the sleeve is dimmed and inert, Edit and Share are left out and a quiet line says "Edit it on your Mac". Screenshots in `docs/design-previews/365/`.
