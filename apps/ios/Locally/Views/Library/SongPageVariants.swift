@@ -98,6 +98,7 @@ struct SongPageGallery: View {
             case "c": SongPageC(sample: sample, scrollsToEnd: toEnd)
             case "a2": SongPageA2(sample: sample, scrollsToEnd: toEnd, style: .circles, startsPlaying: true, pinnedTurn: 40)
             case "a3": SongPageA2(sample: sample, scrollsToEnd: toEnd, style: .bar, startsPlaying: true, pinnedTurn: 40)
+            case "a4": SongPageA4(sample: sample, scrollsToEnd: toEnd, startsPlaying: true, pinnedTurn: 40)
             default: SongPageA(sample: sample, scrollsToEnd: toEnd)
             }
         }
@@ -828,6 +829,216 @@ struct SongPageA2: View {
                 PeriodBars(sample: sample)
             }
             .padding(18)
+        }
+    }
+}
+
+// MARK: - A4: Actions on the wash, details on their own panel
+
+/// A glyph over a label with nothing behind it. Pressed, both go to full white and a soft glow blooms behind the glyph.
+private struct SongBareActionStyle: ButtonStyle {
+    let action: SongAction
+    let tint: Color
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    private var ease: Animation { .timingCurve(0.16, 1, 0.3, 1, duration: 0.35) }
+
+    func makeBody(configuration: Configuration) -> some View {
+        let pressed = configuration.isPressed
+        VStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .fill(tint)
+                    .frame(width: 30, height: 30)
+                    .blur(radius: 18)
+                    .opacity(pressed ? 0.45 : 0)
+                    .scaleEffect(pressed || reduceMotion ? 1 : 0.6)
+                Image(systemName: action.icon)
+                    .font(.system(size: 24, weight: .regular))
+                    .foregroundStyle(Color.white.opacity(pressed ? 1 : 0.92))
+            }
+            .frame(height: 28)
+            Text(action.caption)
+                .font(Theme.ScaledFont.caption)
+                .foregroundStyle(Color.white.opacity(pressed ? 1 : 0.72))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, minHeight: typeSize.isAccessibilitySize ? 44 : 56)
+        .frame(minWidth: 64)
+        .contentShape(Rectangle())
+        .animation(ease, value: pressed)
+    }
+}
+
+private struct SongBareRow: View {
+    let sample: SongPageSample
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    var body: some View {
+        let tint = Theme.coverGlowColors(sample.palette).first ?? Theme.accent
+        let items = songActions(for: sample)
+        Group {
+            if typeSize.isAccessibilitySize {
+                LazyVGrid(columns: [GridItem(.flexible(), alignment: .top), GridItem(.flexible(), alignment: .top)], spacing: 16) {
+                    ForEach(items) { item in button(item, tint: tint) }
+                }
+            } else {
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(items) { item in button(item, tint: tint) }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func button(_ item: SongAction, tint: Color) -> some View {
+        Button {} label: { Text(item.caption) }
+            .buttonStyle(SongBareActionStyle(action: item, tint: tint))
+            .accessibilityLabel(item.caption)
+    }
+}
+
+/// The details surface: opaque near-black, 28 pt continuous top corners, a 1 pt highlight that follows the curve.
+private struct SongDetailsPanelBackground: View {
+    private var shape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(topLeadingRadius: 28, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: 28, style: .continuous)
+    }
+
+    var body: some View {
+        shape
+            .fill(Color(red: 0.03, green: 0.03, blue: 0.04))
+            .overlay {
+                shape.strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                    .mask(LinearGradient(stops: [.init(color: .white, location: 0), .init(color: .white, location: 0.02), .init(color: .clear, location: 0.12)], startPoint: .top, endPoint: .bottom))
+            }
+            .overlay(alignment: .top) {
+                Capsule().fill(Color.white.opacity(0.18)).frame(width: 36, height: 5).padding(.top, 10).accessibilityHidden(true)
+            }
+            .ignoresSafeArea(edges: .bottom)
+    }
+}
+
+struct SongPageA4: View {
+    fileprivate let sample: SongPageSample
+    var scrollsToEnd = false
+    var pinnedTurn: Double?
+    @State private var playing: Bool
+
+    fileprivate init(sample: SongPageSample, scrollsToEnd: Bool = false, startsPlaying: Bool = false, pinnedTurn: Double? = nil) {
+        self.sample = sample
+        self.scrollsToEnd = scrollsToEnd
+        self.pinnedTurn = pinnedTurn
+        _playing = State(initialValue: startsPlaying && sample.isOnPhone)
+    }
+
+    var body: some View {
+        ZStack {
+            ArtworkBackdrop(palette: sample.palette)
+            ScrollView {
+                VStack(spacing: 0) {
+                    hero
+                    panel
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .ignoresSafeArea(edges: .bottom)
+            .defaultScrollAnchor(scrollsToEnd ? .bottom : .top)
+        }
+        .foregroundStyle(Theme.primaryText)
+    }
+
+    private var hero: some View {
+        VStack(spacing: 12) {
+            PlayableSleeve(sample: sample, playing: $playing, pinnedTurn: pinnedTurn)
+                .padding(.bottom, 4)
+            Text(sample.title)
+                .font(Theme.ScaledFont.largeTitle)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            SongArtistLine(sample: sample)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+            SongBareRow(sample: sample)
+                .padding(.top, 8)
+            if !sample.isOnPhone {
+                Text(SongActionCopy.editOnMacLine)
+                    .font(Theme.ScaledFont.caption)
+                    .foregroundStyle(Theme.secondaryText)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(.horizontal, Theme.SongPage.pageGutter)
+        .padding(.top, 16)
+        .padding(.bottom, 28)
+    }
+
+    private var panel: some View {
+        VStack(alignment: .leading, spacing: 32) {
+            group(Copy.SongPage.plays) { plays }
+            group(Copy.SongPage.inCollections) { CollectionSleeves(sample: sample) }
+            group(Copy.SongPage.onTheAlbum) {
+                rows([
+                    (Copy.SongPage.album, sample.album),
+                    (Copy.SongPage.track, Copy.SongPage.ofTotal(sample.trackNumber, sample.trackCount)),
+                    (Copy.SongPage.disc, Copy.SongPage.ofTotal(sample.discNumber, sample.discCount)),
+                    (Copy.SongPage.genre, sample.genre),
+                    (Copy.SongPage.released, sample.released),
+                    (Copy.SongPage.length, sample.length),
+                ])
+            }
+            group(Copy.SongPage.file) {
+                rows([
+                    (Copy.SongPage.fileName, sample.fileName),
+                    (Copy.SongPage.format, sample.format),
+                    (Copy.SongPage.size, sample.size ?? Copy.SongPage.sizeUnknown),
+                    (Copy.SongPage.livesOn, sample.location),
+                ])
+            }
+        }
+        .padding(.horizontal, Theme.SongPage.pageGutter)
+        .padding(.top, 36)
+        .padding(.bottom, 48)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background { SongDetailsPanelBackground() }
+    }
+
+    private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(Theme.ScaledFont.caption)
+                .foregroundStyle(Theme.secondaryText)
+                .accessibilityAddTraits(.isHeader)
+            content()
+        }
+    }
+
+    private func rows(_ items: [(String, String)]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(items.enumerated()), id: \.offset) { index, row in
+                if index > 0 { Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1).accessibilityHidden(true) }
+                FactRow(label: row.0, value: row.1)
+            }
+        }
+    }
+
+    private var plays: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(sample.playsTotal)")
+                    .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                    .monospacedDigit()
+                Text(Copy.SongPage.playsUnit)
+                    .font(Theme.ScaledFont.subheadline)
+                    .foregroundStyle(Theme.secondaryText)
+                Spacer(minLength: 0)
+            }
+            .accessibilityElement(children: .combine)
+            Text("\(Copy.SongPage.lastPlayed) \(sample.lastPlayed.map { $0.lowercased() } ?? Copy.SongPage.neverPlayed)")
+                .font(Theme.ScaledFont.subheadline)
+                .foregroundStyle(Theme.secondaryText)
+            PeriodBars(sample: sample)
         }
     }
 }

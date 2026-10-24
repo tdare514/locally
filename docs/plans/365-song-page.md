@@ -32,6 +32,8 @@ saying why; the file size reads "Only on your Mac".
   - **a2, Glass circles** (recommended): four 56 pt glass circles with captions under them. `a2-top.png`, `a2-bottom.png`, `a2-ax3.png` (2 x 2 grid), `a2-adopted.png`
   - **a3, One glass bar**: one content-hugging 52 pt capsule with hairline-separated segments; rows in one glass panel at AX3. `a3-top.png`, `a3-ax3.png`
 - Adopted: the sleeve is dimmed and disabled ("Paper Moon, only on your Mac"), Edit is removed, and "Edit it on your Mac" sits under the actions.
+- **a4, Actions on the wash** (round 3, owner: "buttons that are just like a part of the screen ... a whole other section right below"): Collection, Play next, Share, Edit are bare 24 pt glyphs with labels straight on the cover wash, with no shape, rim or fill; pressed, they go full white and a soft glow in the cover's accent blooms behind the glyph. Plays, In collections, On the album and File sit on their own opaque near-black panel with 28 pt rounded top corners, a 1 pt highlight and a grabber line, rising over the bottom of the wash; no glass cards inside, hairlines between rows. AX3 makes the actions a 2 x 2 grid.
+  - Screenshots: `a4-top.png`, `a4-bottom.png`, `a4-ax3.png`, `a4-adopted.png` (gallery `song-a4`, `song-a4-bottom`, `song-a4-ax3`, `song-a4-adopted`).
 
 ## Where each field comes from
 
