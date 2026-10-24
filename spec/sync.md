@@ -175,6 +175,9 @@ sync at runtime.
 | GET `/v1/releases?sinceVersion=N&limit=N` | `limit` (optional, integer, 1 to 200; above 200 clamps to 200, below 1 or non-integer is a 400 like a bad `sinceVersion`; default 200) | `{ releases: [record + version], nextVersion, hasMore }` (tombstones included). Releases come back in ascending `version` order, at most `limit` of them, and the page stops early once its serialized records reach 2 MiB; a page always holds at least one release when any exist (a single record is at most 1 MiB by the PUT body cap, so one always fits under Vercel's 4.5 MB response limit). `hasMore: true` means more releases exist above the last one returned, and `nextVersion` is then the `version` of the last release in this page; `hasMore: false` means the page reached the end, and `nextVersion` is the user's counter, exactly as today (it can be above the last row's version, because a rewritten release moves to a new version and its old number disappears). In both cases `nextVersion` is the value to send as `sinceVersion` next, and it never runs ahead of a release this response left out (the #28 invariant). |
 | PUT `/v1/releases/:id` | the record (at most 500 tracks) | `{ version }`; 409 if the stored `updatedAt` is newer; stored files the record no longer references are deleted |
 | DELETE `/v1/releases/:id` | | tombstone; `{ version }` |
+| GET `/v1/collections?sinceVersion=N&limit=N` | `limit` as for releases (1 to 200, default 200) | `{ collections: [record + version + serverUpdatedAt], nextVersion, hasMore }`, tombstones included, with exactly the paging rules of `GET /v1/releases`; see "Collections" |
+| PUT `/v1/collections/:id` | the collection record (at most 1,000 items) | `{ version, pruned }`; 409 if the stored `updatedAt` is newer; 409 `too_many_collections` for a new live one beyond 1,000 |
+| DELETE `/v1/collections/:id` | | tombstone; `{ version }` |
 | POST `/v1/releases/:id/files` | `{ files: [{ name, bytes, contentType }] }` | `{ uploads: [{ name, url, method, headers }] }`; enforces quota, 200 MB per file, and that `contentType` matches the name's extension; for an adopted release (`source: "adopted"`) only the record's cover name is accepted, any other name is a 400 |
 | GET `/v1/releases/:id/files/:name` | | `{ url, expiresAt }` download URL |
 | GET `/v1/files/missing` | | `{ releases: [{ id, missing: [names], recordUpdatedAt }], checkedAt, truncated? }`; the caller's live releases with files that are not stored; `truncated` is `true` only when a cap cut the check short; see "Missing files" |
@@ -445,6 +448,61 @@ route. Plan: `docs/plans/119-missing-files.md`.
   self-heals its own library's releases the same way (#218): on reconcile, at most every 6 hours, or
   at once when `/v1/me` reports a newer `resyncRequestedAt`, it asks `GET /v1/files/missing` and
   sends the listed files again. The Resync button on the Mac heals at once.
+
+## Collections (#339)
+
+Named mixtapes of releases and tracks in the owner's order (plan `docs/plans/339-collections.md`). Fixtures:
+`spec/fixtures/collections/` (`valid.json`; `missing-track.json`, a track id its release lacks, valid on the wire;
+`unknown-kind.json`, stored unchanged; `invalid-known-item.json`, a 400).
+
+```json
+{
+  "syncVersion": 1,
+  "id": "9c1e2f40-6b3a-4d7e-8a51-2f0c9d4b7e13",
+  "name": "Late drives",
+  "items": [
+    { "kind": "release", "releaseId": "3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90" },
+    { "kind": "track", "releaseId": "7a0d4c52-1e3b-4f68-8a9d-2c5b7e1f4a63", "trackId": "c41e8b27-6d95-4a30-b1f2-9e7a3c5d8f04" }
+  ],
+  "origin": "mac",
+  "originDevice": "Toby's MacBook",
+  "createdAt": "2026-10-23T20:00:00Z",
+  "updatedAt": "2026-10-23T20:00:00Z",
+  "deleted": false
+}
+```
+
+- **Routes:** `GET /v1/collections`, `PUT /v1/collections/:id` (reply `{ version, pruned }`) and
+  `DELETE /v1/collections/:id` (a tombstone; reply `{ version }`), in the API table above. The body `id` must equal the URL id.
+- **Ownership:** a collection id belongs to the user that first wrote it. Another user's id answers 404 on every route.
+- **Tombstones keep no items:** a tombstone (a `DELETE`, or a `PUT` with `deleted: true`) is stored and returned with `items: []`.
+- **Last writer wins on the whole record,** as for releases: 409 when the stored `updatedAt` is newer (an equal one is
+  accepted, so a retry is idempotent). The client pulls and re-applies. No merge is attempted.
+- **Item kinds:** `release` is `{ kind, releaseId }` and `track` is `{ kind, releaseId, trackId }`, both strict: a
+  malformed known item (a missing or extra key, a bad UUID) is a 400. Any other `kind` matching `^[a-z][a-z0-9-]{0,15}$`,
+  as an object of at most 1 KiB of JSON, is stored and returned unchanged. A `kind` that doesn't match is a 400.
+- **Duplicates:** the same `release` item twice, or the same `track` item (same release and track) twice, is a 400. A
+  track item from a release that is also a release item is allowed.
+- **Limits:** `name` 1 to 100 characters after trimming (stored trimmed), no control characters; at most 1,000 items; at most
+  1,000 live collections per user (a new live one beyond answers 409 `{ "error": "too_many_collections" }`; tombstoned ones
+  don't count; the count is read before the write, so creations at the same instant can pass it by a few); a record of at most 256 KiB
+  of JSON (over that is a 400); at most 1,200 collection writes (PUT and DELETE) per user per hour, past that a 429, which
+  clients skip quietly and retry next reconcile; the 1 MiB body cap.
+- **Versions** come from the same per-user counter as releases (`user_counters`). `GET` pages the collections table with
+  the releases rules: at most `limit` rows and 2 MiB, `hasMore`, `nextVersion` as the last row's version while more remain,
+  otherwise the user's counter.
+- **A deleted release leaves its collections:**
+  - When a release is tombstoned (`DELETE`, or a `PUT` with `deleted: true` that wins), the same batch drops that release's
+    `release` and `track` items from each of the user's live collections that has them, and bumps that collection's
+    `version`, `updatedAt` (now) and `serverUpdatedAt`, next to the revoking of its shares. A collection written in the same
+    instant, after that batch read its list, still loses the item but keeps its version (no version is ever shared); clients
+    already hide items whose release is gone, and that collection's next `PUT` drops the item for good.
+  - A collection `PUT` drops items that name one of the user's tombstoned releases, in the same batch as the write, and
+    `pruned` is how many it dropped. A client with `pruned > 0` pulls that collection rather than keep its own copy. Items naming a
+    release the server doesn't know yet are kept.
+- **Account deletion** removes the user's collections in the deletion transaction.
+- **Effect on clients:** none until they call these routes. A 404 for `/v1/collections` means an older API, skipped quietly.
+  Release records, plays and shares don't change.
 
 ## Storage and providers
 

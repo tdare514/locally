@@ -1,6 +1,6 @@
 import type { Db } from "../../db/client";
 import { eq, inArray } from "drizzle-orm";
-import { authCodes, devices, files, pendingDeletes, playCounts, playDays, releases, shareDownloads, shareLinks, shareRecipients, shares, spotifyLinkRequests, spotifyLinks, userCounters, users } from "../../db/schema";
+import { authCodes, collections, devices, files, pendingDeletes, playCounts, playDays, releases, shareDownloads, shareLinks, shareRecipients, shares, spotifyLinkRequests, spotifyLinks, userCounters, users } from "../../db/schema";
 import { shareTreeIds } from "../shares/tree";
 import { NotFoundError, ValidationError } from "../../shared/errors";
 import { emailSchema } from "../../shared/types";
@@ -38,6 +38,7 @@ export class AccountService {
       this.db.delete(playDays).where(eq(playDays.userId, userId)),
       this.db.delete(spotifyLinks).where(eq(spotifyLinks.userId, userId)),
       this.db.delete(spotifyLinkRequests).where(eq(spotifyLinkRequests.userId, userId)),
+      this.db.delete(collections).where(eq(collections.userId, userId)),
       this.db.delete(authCodes).where(eq(authCodes.email, email)),
       this.db.delete(users).where(eq(users.id, userId)),
     ] as const;

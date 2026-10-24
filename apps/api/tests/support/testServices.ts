@@ -13,6 +13,7 @@ import { PlaysService } from "../../src/server/plays/PlaysService";
 import { QuotaService } from "../../src/server/quota/QuotaService";
 import { ShareService } from "../../src/server/shares/ShareService";
 import { InMemoryRateLimiter } from "../../src/server/ratelimit/InMemoryRateLimiter";
+import { CollectionSyncService } from "../../src/server/collections/CollectionSyncService";
 import { ReleaseSyncService } from "../../src/server/releases/ReleaseSyncService";
 
 /**
@@ -76,6 +77,7 @@ export async function createTestServices(): Promise<TestServices> {
     auth: new AuthService(db, mailer, "test-auth-pepper", "test-token-pepper"),
     account: new AccountService(db),
     releases: new ReleaseSyncService(db),
+    collections: new CollectionSyncService(db),
     plays: new PlaysService(db),
     quota,
     files: new ReleaseFilesService(db, fileStore, quota),
@@ -99,6 +101,7 @@ export async function createTestServices(): Promise<TestServices> {
       resyncRequestByDevice: new InMemoryRateLimiter(6, 60 * 60 * 1000),
       resyncRequestByUser: new InMemoryRateLimiter(24, 60 * 60 * 1000),
       playsSummary: new InMemoryRateLimiter(1000, 60 * 60 * 1000),
+      collectionWrites: new InMemoryRateLimiter(10_000, 60 * 60 * 1000),
       spotifyLink: new InMemoryRateLimiter(10, 60 * 60 * 1000),
       // Generous here; the share rate-limit tests swap in the real limits (60, 30, 60, 300).
       shareCreate: new InMemoryRateLimiter(1000, 60 * 60 * 1000),

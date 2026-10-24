@@ -3,6 +3,7 @@ import type { Db } from "../../db/client";
 import { releases, shares, userCounters } from "../../db/schema";
 import { ConflictError, NotFoundError } from "../../shared/errors";
 import type { ReleaseRecord, ReleaseRecordWithVersion } from "../../shared/types";
+import { liveCollectionIdsNaming, pruneCollectionsOfRelease } from "../collections/prune";
 
 export interface ListSinceResult {
   releases: ReleaseRecordWithVersion[];
@@ -70,6 +71,23 @@ export class ReleaseSyncService {
           sql`EXISTS (SELECT 1 FROM releases WHERE id = ${releaseId} AND user_id = ${userId} AND deleted = 1)`
         )
       );
+  }
+
+  /**
+   * Drop a tombstoned release's items from the user's live collections (#339), in the same batch, after the release
+   * write. Each collection already naming it gets its own counter bump (versions stay unique); a final catch-all pass
+   * covers one that named it only after `collectionIds` was read. The catch-all keeps that row's version (no bump, so
+   * a quiet delete leaves no gap, and no version is ever shared); the next PUT of that collection drops the item too.
+   * Each update acts only if the release ended deleted.
+   */
+  private pruneCollectionsOf(userId: string, releaseId: string, at: number, collectionIds: string[]) {
+    return [
+      ...collectionIds.flatMap((id) => [
+        this.bumpVersion(userId),
+        pruneCollectionsOfRelease(this.db, userId, releaseId, at, this.currentVersion(userId), id),
+      ]),
+      pruneCollectionsOfRelease(this.db, userId, releaseId, at, null),
+    ];
   }
 
   private toRecordWithVersion(row: ReleaseRow): ReleaseRecordWithVersion {
@@ -158,6 +176,7 @@ export class ReleaseSyncService {
     // checks are repeated in the write's WHERE, so a concurrent write that
     // lands between the read above and this batch can't be overwritten.
     const version = this.currentVersion(userId);
+    const collectionIds = record.deleted ? await liveCollectionIdsNaming(this.db, userId, releaseId) : [];
     const [, written] = await this.db.batch([
       this.bumpVersion(userId),
       this.db
@@ -177,7 +196,7 @@ export class ReleaseSyncService {
           setWhere: and(eq(releases.userId, userId), lte(releases.updatedAt, updatedAtMs)),
         })
         .returning({ version: releases.version }),
-      ...(record.deleted ? [this.revokeSharesOf(userId, releaseId, now)] : []),
+      ...(record.deleted ? [this.revokeSharesOf(userId, releaseId, now), ...this.pruneCollectionsOf(userId, releaseId, now, collectionIds)] : []),
     ]);
 
     if (!written[0]) {
@@ -200,6 +219,7 @@ export class ReleaseSyncService {
     }
 
     const now = this.now();
+    const collectionIds = await liveCollectionIdsNaming(this.db, userId, releaseId);
     const tombstoned: ReleaseRecord = { ...existing.record, deleted: true, updatedAt: new Date(now).toISOString() };
     const [, written] = await this.db.batch([
       this.bumpVersion(userId),
@@ -209,6 +229,7 @@ export class ReleaseSyncService {
         .where(and(eq(releases.id, releaseId), eq(releases.userId, userId)))
         .returning({ version: releases.version }),
       this.revokeSharesOf(userId, releaseId, now),
+      ...this.pruneCollectionsOf(userId, releaseId, now, collectionIds),
     ]);
 
     if (!written[0]) {

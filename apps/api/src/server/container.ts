@@ -3,6 +3,7 @@ import { assertMigrated, createDb, migrateDb, type Db } from "../db/client";
 import { loadEnv } from "./config/env";
 import { AccountService } from "./account/AccountService";
 import { AuthService } from "./auth/AuthService";
+import { CollectionSyncService } from "./collections/CollectionSyncService";
 import { ReleaseSyncService } from "./releases/ReleaseSyncService";
 import { PlaysService } from "./plays/PlaysService";
 import { QuotaService } from "./quota/QuotaService";
@@ -29,6 +30,7 @@ export interface Services {
   auth: AuthService;
   account: AccountService;
   releases: ReleaseSyncService;
+  collections: CollectionSyncService;
   plays: PlaysService;
   quota: QuotaService;
   files: ReleaseFilesService;
@@ -60,6 +62,7 @@ export interface Services {
     resyncRequestByUser: RateLimiter;
     /** `GET /v1/plays/summary`, keyed by user id. */
     playsSummary: RateLimiter;
+    collectionWrites: RateLimiter;
     /** `POST /v1/spotify/link`, keyed by user id (#305). */
     spotifyLink: RateLimiter;
     /** `POST /v1/shares` and `POST /v1/shares/:id/reshare`, keyed by user id (#181). */
@@ -98,6 +101,7 @@ async function buildServices(): Promise<Services> {
     auth: new AuthService(db, mailer, env.authPepper, env.tokenPepper),
     account: new AccountService(db),
     releases: new ReleaseSyncService(db),
+    collections: new CollectionSyncService(db),
     plays: new PlaysService(db),
     quota,
     files: new ReleaseFilesService(db, fileStore, quota),
@@ -129,6 +133,8 @@ async function buildServices(): Promise<Services> {
       resyncRequestByUser: new DbRateLimiter(db, 24, 60 * 60 * 1000, "resync-request:user"),
       // 600 plays-summary reads per user, per hour (#267), shared by the Mac (200) and the iPhone (200).
       playsSummary: new DbRateLimiter(db, 600, 60 * 60 * 1000, "plays-summary:user"),
+      // 1,200 collection writes (PUT and DELETE) per user, per hour (#348).
+      collectionWrites: new DbRateLimiter(db, 1200, 60 * 60 * 1000, "collection-writes:user"),
       // 10 link starts per user, per hour (#305).
       spotifyLink: new DbRateLimiter(db, 10, 60 * 60 * 1000, "spotify-link:user"),
       // Sharing (#181): 60 creates or reshares and 30 link claims per user, per hour; public pages 60 per IP
