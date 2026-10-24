@@ -139,7 +139,7 @@ private struct StatsRow: View {
                 .font(.system(.subheadline, weight: .semibold))
                 .monospacedDigit()
                 .foregroundStyle(Theme.primaryText)
-            if showsLastPlayed || stacked {
+            if (showsLastPlayed || stacked), item.lastPlayedDay?.isEmpty == false {
                 Text(Copy.Stats.lastPlayedLabel(item.lastPlayedDay, today: today))
                     .font(.footnote)
                     .foregroundStyle(Theme.secondaryText)
@@ -203,19 +203,17 @@ private struct StatsTile: View {
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 8) {
-                StatsCoverView(owner: owner, cache: cache, round: round, cornerRadius: 4)
-                    .aspectRatio(1, contentMode: .fit)
-                    .overlay { chip("\(item.rank)", corner: .topLeading) }
-                    .shadow(color: .black.opacity(0.55), radius: 8, y: 6)
+                sleeve
                 VStack(alignment: .leading, spacing: 1) {
                     Text(item.title)
                         .font(.system(.footnote, weight: .semibold))
                         .foregroundStyle(StatsStyle.nameColor(item.medal))
                         .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
-                    Text(Copy.Stats.figure(item, sort: sort))
-                        .font(.system(.footnote, weight: .semibold))
+                    (Text(Copy.Stats.playsNumber(item.plays)).fontWeight(.semibold)
+                        + Text(Copy.Stats.playsWord(item.plays)).foregroundStyle(playsColor.opacity(Theme.Stats.playsWordOpacity)))
+                        .font(.footnote)
                         .monospacedDigit()
-                        .foregroundStyle(Theme.primaryText)
+                        .foregroundStyle(playsColor)
                         .lineLimit(1)
                 }
             }
@@ -227,7 +225,53 @@ private struct StatsTile: View {
         .accessibilityLabel("\(item.rank), \(item.title), \(Copy.Stats.figure(item, sort: sort)), \(item.subtitle)")
     }
 
-    /// The rank over a cover: white on a dark pill. On a round cover the chips sit
+    /// The number is strong and the word soft; ranks 1 to 3 take the medal's colour (the name's, which holds 4.5:1).
+    private var playsColor: Color { item.medal == nil ? Theme.primaryText : StatsStyle.nameColor(item.medal) }
+
+    /// The cover as a sleeve: a top-edge highlight, a drop shadow and, for the medals, a disc peeking from the right.
+    private var sleeve: some View {
+        let shape = round ? AnyShape(Circle()) : AnyShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        return StatsCoverView(owner: owner, cache: cache, round: round, cornerRadius: 4)
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                shape.stroke(
+                    LinearGradient(stops: [.init(color: .white.opacity(Theme.Stats.tileEdgeTop), location: 0), .init(color: .clear, location: 0.5)],
+                                   startPoint: .top, endPoint: .bottom),
+                    lineWidth: 2)
+                    .clipShape(shape)
+                    .allowsHitTesting(false)
+            }
+            .overlay { chip("\(item.rank)", corner: .topLeading) }
+            .background { disc }
+            .compositingGroup()
+            .shadow(color: .black.opacity(Theme.Stats.tileShadow), radius: Theme.Stats.tileShadowRadius, y: Theme.Stats.tileShadowY)
+    }
+
+    /// A thin record edge behind the cover, in the fan's medal metals.
+    @ViewBuilder
+    private var disc: some View {
+        if let colors = discColors {
+            GeometryReader { geo in
+                Circle()
+                    .fill(AngularGradient(colors: colors + [colors[0]], center: .center))
+                    .overlay { Circle().strokeBorder(.white.opacity(0.35), lineWidth: 0.5) }
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .offset(x: geo.size.width * Theme.Stats.tileDiscPeek)
+            }
+            .accessibilityHidden(true)
+        }
+    }
+
+    private var discColors: [Color]? {
+        switch item.medal {
+        case .gold: return [Theme.Stats.gold, Theme.Stats.goldRim, Color(red: 0.49, green: 0.34, blue: 0.04), Theme.Stats.goldRim]
+        case .silver: return [Theme.Stats.silver, Theme.Stats.silverRim, Color(red: 0.36, green: 0.40, blue: 0.45), Theme.Stats.silverRim]
+        case .bronze: return [Theme.Stats.bronze, Theme.Stats.bronzeRim, Color(red: 0.42, green: 0.20, blue: 0.07), Theme.Stats.bronzeRim]
+        case nil: return nil
+        }
+    }
+
+    /// The rank over a cover: white on dark glass. On a round cover the chips sit
     /// inside the circle, a share in from the corner, as on the Mac.
     private func chip(_ text: String, corner: Alignment) -> some View {
         GeometryReader { geo in
@@ -237,7 +281,13 @@ private struct StatsTile: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 6)
                 .frame(minHeight: 20)
-                .background(Capsule().fill(Color.black.opacity(0.68)))
+                .background {
+                    ZStack {
+                        Capsule().fill(Color.black.opacity(Theme.Stats.chipBase))
+                        GlowGlass().clipShape(Capsule())
+                        GlowRim()
+                    }
+                }
                 .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 .padding(round ? geo.size.width * 0.09 : 6)
                 .frame(width: geo.size.width, height: geo.size.height, alignment: corner)

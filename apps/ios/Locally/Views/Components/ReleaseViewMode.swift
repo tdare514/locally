@@ -210,7 +210,7 @@ struct ReleaseTrackRow: View {
                         .truncationMode(.tail)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if !accessible {
-                        Text(plays.map(String.init) ?? "")
+                        Text(plays.map { $0.formatted() } ?? "")
                             .accessibilityLabel(plays.map(Copy.Detail.playCount) ?? "")
                             .frame(width: columns.plays, alignment: .trailing)
                         Text(time ?? "")

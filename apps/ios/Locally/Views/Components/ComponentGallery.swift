@@ -44,7 +44,7 @@ struct ComponentGallery: View {
         // #363: the cover-tinted glass controls, a bright cover in front, and accessibility3 text.
         "player-bright", "player-ax3",
         // #361: the one-size Stats grid and the one-line artist rows. Each name takes "-320" (a 320 pt screen) and "-ax3" (accessibility3): see `StatsCreditGallery`.
-        "stats-361-grid-tracks", "stats-361-grid-albums", "stats-361-grid-artists", "stats-361-stats-row", "stats-361-track-row", "stats-361-artist-row"]
+        "stats-361-grid-tracks", "stats-361-grid-tracks-bright", "stats-361-grid-albums", "stats-361-grid-artists", "stats-361-stats-row", "stats-361-track-row", "stats-361-artist-row"]
 
     let name: String
     @State private var title = "Midnight Drive"

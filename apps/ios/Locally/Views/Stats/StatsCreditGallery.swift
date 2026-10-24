@@ -2,13 +2,14 @@
 import SwiftUI
 
 /// #361: the Stats grid and the artist rows for screenshots. The name is `stats-361-<what>` with an
-/// optional `-320` (a 320 pt screen) and `-ax3` (accessibility3). The rows all carry one artist and
+/// optional `-bright` (a pale cover at rank 1, so the page wash is pale), `-320` (a 320 pt screen) and `-ax3` (accessibility3). The rows all carry one artist and
 /// two features: "Mira Valdane, feat. Okoro & Juniper Hale".
 struct StatsCreditGallery: View {
     let name: String
 
     private var base: String {
         name.replacingOccurrences(of: "-320", with: "").replacingOccurrences(of: "-ax3", with: "")
+            .replacingOccurrences(of: "-bright", with: "")
     }
 
     var body: some View {
@@ -51,10 +52,15 @@ struct StatsCreditGallery: View {
             item.medal = [Medal.gold, .silver, .bronze][safe: i]
             return item
         }
-        let covers = StatsGallery.covers
+        var covers = StatsGallery.covers
+        var palette: AmbientPalette?
+        if name.contains("-bright"), let first = releases.first, let data = SampleArtwork.bright.pngData() {
+            covers[first.id] = data
+            palette = ArtworkPalette.palette(forCover: data)
+        }
         let ids = Dictionary(uniqueKeysWithValues: items.compactMap { item in item.releaseId.map { (item.id, $0) } })
         return ZStack {
-            StudioBackdrop()
+            if let palette { Theme.background.ignoresSafeArea(); ArtworkBackdrop(palette: palette) } else { StudioBackdrop() }
             GeometryReader { geo in
                 ScrollView {
                     StatsSea(items: items, width: geo.size.width - 32, round: kind == .artists, cache: StatsCoverCache(loader: { covers[$0] }),

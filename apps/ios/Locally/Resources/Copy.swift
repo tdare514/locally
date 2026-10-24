@@ -881,6 +881,10 @@ enum Copy {
             n == 1 ? "1 play" : "\(formatCount(n)) plays"
         }
 
+        /// The two halves of `playsCount`, so a number can be set strong and its word soft: "1,204" and " plays".
+        static func playsNumber(_ n: Int) -> String { formatCount(n) }
+        static func playsWord(_ n: Int) -> String { n == 1 ? " play" : " plays" }
+
         /// "Today", "Last week", "3 months ago": the name of a period on the control.
         static func periodLabel(_ selection: PeriodSelection) -> String {
             let back = selection.back
