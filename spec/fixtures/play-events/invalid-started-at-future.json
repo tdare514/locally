@@ -1,0 +1,13 @@
+{
+  "events": [
+    {
+      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+      "releaseId": "3f2a6c1e-8b7d-4e5a-9c1d-2a4b6c8d0e1f",
+      "trackId": "a1b2c3d4-0001-4a5b-8c9d-0123456789ab",
+      "source": "locally",
+      "startedAt": 4102444800000,
+      "day": "2100-01-01",
+      "listenedMs": 214000
+    }
+  ]
+}

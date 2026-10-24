@@ -1,0 +1,35 @@
+{
+  "events": [
+    {
+      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+      "releaseId": "3f2a6c1e-8b7d-4e5a-9c1d-2a4b6c8d0e1f",
+      "trackId": "a1b2c3d4-0001-4a5b-8c9d-0123456789ab",
+      "source": "locally",
+      "startedAt": 1792841234567,
+      "day": "2026-10-24",
+      "listenedMs": 214000,
+      "device": {
+        "id": "d1e2f3a4-5b6c-4d7e-8f90-a1b2c3d4e5f6",
+        "name": "Tom's iPhone",
+        "platform": "ios",
+        "current": true
+      }
+    },
+    {
+      "id": "9b2d4f1a-3c5e-4a7b-8d9f-1e2a3b4c5d6e",
+      "releaseId": "3f2a6c1e-8b7d-4e5a-9c1d-2a4b6c8d0e1f",
+      "trackId": "a1b2c3d4-0002-4a5b-8c9d-0123456789ab",
+      "source": "spotify",
+      "startedAt": 1792841634567,
+      "day": "2026-10-24",
+      "listenedMs": 187000,
+      "device": {
+        "id": "d1e2f3a4-5b6c-4d7e-8f90-a1b2c3d4e5f6",
+        "name": "Tom's iPhone",
+        "platform": "ios",
+        "current": true
+      }
+    }
+  ],
+  "nextCursor": "MTc5Mjg0MTYzNDU2NzoyYjlkNGYxYQ"
+}

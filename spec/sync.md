@@ -377,7 +377,7 @@ the shipped web and iOS clients are unaffected. The Mac app pushing and displayi
 - **`GET /v1/plays/summary?from=YYYY-MM-DD&to=YYYY-MM-DD[&cursor=<trackId>]`.** Device-token auth,
   scoped to the caller's user and their live (non-tombstoned) releases. Both dates are real
   dates, `from <= to`, at most 400 days inclusive, and `to` is no later than tomorrow (UTC);
-  anything else is a 400. Rate limit 60 requests per hour per user (429). Response:
+  anything else is a 400. Rate limit 600 requests per hour per user (429). Response:
   `{ tracks: [{ trackId, releaseId, plays, devicePlays, lastPlayedDay }], allTime: [{ trackId, releaseId, plays, devicePlays }], nextCursor }`.
   `tracks` sums the day buckets in the range over all the user's devices (revoked ones too);
   `lastPlayedDay` is the latest such day with a count above 0; tracks with no plays in the range
@@ -406,6 +406,116 @@ the shipped web and iOS clients are unaffected. The Mac app pushing and displayi
   record). The API and the web client test them. Bodies with `days` are in
   `spec/fixtures/plays-days/`: the API and the web client (#202) both test them, so a shipped Mac's
   strict schema isn't asked to accept a field it doesn't know.
+
+## Play events (#368)
+
+A play event records when one counted play started, how long it was heard, its source and its
+device. Counts and day buckets stay exactly as they are: the server never derives counts from
+events, and events never change counts. Events are personal data: only the account's own device
+tokens read or write them.
+
+### `PUT /v1/plays/events`
+
+Device-token auth. Body:
+
+```jsonc
+{ "events": [
+  { "id": "uuid",              // string, UUID v4, client-generated, unique per account
+    "releaseId": "uuid",        // string, UUID
+    "trackId": "uuid",          // string, UUID
+    "source": "locally",        // "spotify" | "locally"; required (no legacy default)
+    "startedAt": 1792841234567, // integer, epoch milliseconds, when the play's session began
+    "day": "2026-10-24",        // string, strict YYYY-MM-DD, the client's local date of startedAt
+    "listenedMs": 214000 }      // integer 0..86_400_000, audible time in the session so far
+] }
+```
+
+- **Strict body.** An unknown key at any level is a 400, and so is `deviceId`: the device is always
+  the token's. A missing key, a wrong type or a non-integer number is a 400.
+- **Batches:** 1 to 500 events per request; anything else is a 400.
+- **`startedAt`:** later than server now + 24 h is a 400 for the whole request (clock skew, nothing
+  applied). Older than 400 days: that event is silently dropped, as day buckets are. A past
+  `startedAt` is not a 400.
+- **`day`:** a real date (2026-02-30 is a 400), not later than UTC tomorrow (the day bucket rule).
+  The server never converts it.
+- **Upsert per (account, `id`).**
+  - A new `id` inserts.
+  - A known `id` from the same device updates only `listenedMs = max(stored, sent)` and
+    `updatedAt`. The other fields are fixed by the first write.
+  - A known `id` from another device, or one whose fixed fields differ, changes nothing and counts
+    in `ignored`.
+- **Releases.** An event whose `releaseId` is not a live (non-tombstoned) release of this user
+  counts in `ignored` (as for counts); the rest of the batch applies. `trackId` is not checked
+  against the record.
+- **Reply:** `{ "accepted": number, "ignored": number }`, both integers >= 0.
+- **Rate limit:** `playEvents`, 120 requests per hour per user (429 beyond).
+
+### `GET /v1/plays/events?from=<ms>&to=<ms>[&cursor=<string>]`
+
+Device-token auth.
+
+- **Window.** `from` and `to` are epoch millisecond integers, `from <= to`, `to - from` at most
+  400 days; anything else is a 400. It matches `from <= startedAt < to`.
+- **Reply:**
+
+  ```jsonc
+  { "events": [
+      { "id": "uuid", "releaseId": "uuid", "trackId": "uuid",
+        "source": "spotify" | "locally",
+        "startedAt": 1792841234567,   // integer, epoch ms
+        "day": "2026-10-24",          // YYYY-MM-DD
+        "listenedMs": 214000,         // integer 0..86_400_000
+        "device": { "id": "uuid", "name": "string", "platform": "string", "current": true } } ],
+    "nextCursor": "string" | null }
+  ```
+
+- **Order and paging.** Newest first (`startedAt` descending, then `id`), at most 500 events per
+  page. `nextCursor` is an opaque string when more follow (pass it as `cursor`), else null.
+- **`device`** is the stored device row, listed even when revoked; `current` is true for the
+  requesting device.
+- **Releases.** Events of a tombstoned release are never served.
+- **Rate limit:** `playsSummary`, shared with the summary (600 per hour per user).
+
+### Summary: three additive fields
+
+Each `tracks[]` entry of `GET /v1/plays/summary` gains:
+
+- `lastPlayedAt`: integer (epoch ms) | null. The latest `startedAt` among the track's events whose
+  `day` is in the window; null when it has none.
+- `listenedMs`: integer >= 0. The sum of those events' `listenedMs`.
+- `events`: integer >= 0. How many those events are.
+
+Each `allTime[]` entry gains the same three fields over all retained events.
+
+**Minutes for a track over a window:** `listenedMs / 60000 + max(0, plays - events) x length`. That
+is real time where events exist and the #367 estimate for older plays. Albums and artists sum their
+tracks. The number is shown as plain minutes, with no "about" marker for the estimated part.
+
+### Retention, deletion and privacy
+
+- Events are kept 400 days: the daily cleanup deletes events whose `startedAt` is older than 400
+  days, and those of releases tombstoned 30+ days ago (the release's file schedule).
+- Deleting the account deletes its events at once (a database trigger on the user row backs this
+  up).
+- Shares (#183) never expose plays or events.
+- There is no cross-account read path. Another account's event id is a separate row, never visible.
+
+### Effect on clients (#368)
+
+- **Shipped clients.** They ignore the new summary fields: the Mac's summary schema is a plain
+  `z.object` that strips unknown keys, and the iPhone's `Decodable` ignores them. They never call
+  the new routes.
+- **Clients that don't push events** are unaffected: counts, day buckets, `PUT /v1/plays` and the
+  summary's existing fields are unchanged.
+- **Clients that push events** (the Mac and iPhone, later issues) write one event at the moment they
+  add 1 to a count, and send `source` on every event.
+
+### Fixtures
+
+`spec/fixtures/play-events/` holds `valid-push.json` and `invalid-*.json` (example `PUT` bodies),
+and `valid-events-page.json`, `valid-events-last-page.json` and `valid-summary-with-events.json`
+(example server replies). The API tests the bodies; each client parses the replies through its real
+HTTP client. The 501-event batch is built inside each test.
 
 ## Missing files
 
