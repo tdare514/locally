@@ -24,6 +24,7 @@ import {
   type CollectionRow,
 } from "../lib/collections";
 import { coverUrl } from "../lib/api-client";
+import { useArtworkPalette } from "../lib/use-artwork-palette";
 import { formatLength } from "../lib/adopt-review";
 import { normalizeSearchText } from "../lib/library-sections";
 import { playerStore, usePlayerSelector, usePlayerState } from "../lib/play-queue";
@@ -36,6 +37,7 @@ import {
   type CollectionsViewMode,
   type SpinningRecord,
 } from "../lib/record-player";
+import AmbientBackdrop from "./AmbientBackdrop";
 import { useCollections } from "./CollectionsContext";
 import CollectionSleeve from "./CollectionSleeve";
 import RecordSleeve from "./RecordSleeve";
@@ -174,7 +176,7 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
           )}
         />
       ) : (
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,min(24rem,40%))_minmax(0,1fr)]">
           <section aria-label="Your collections" className="flex min-w-0 flex-col gap-3">
             <div className="relative">
               <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
@@ -261,7 +263,7 @@ function Switch<T extends string>({
 /** Quiet placeholders in the final shapes while the store is first read: no spinner. */
 function Placeholders() {
   return (
-    <div aria-busy="true" aria-label="Loading collections" className="grid gap-8 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+    <div aria-busy="true" aria-label="Loading collections" className="grid gap-8 lg:grid-cols-[minmax(0,min(24rem,40%))_minmax(0,1fr)]">
       <div className="flex flex-col gap-1">
         {[0, 1, 2].map((i) => (
           <div key={i} className="flex min-h-14 items-center gap-3 p-2">
@@ -320,6 +322,8 @@ function QueuePanel({
   const firstCover = collectionCoverIds(collection.items, releases)[0];
   const firstRelease = firstCover ? releases.find((r) => r.id === firstCover) : undefined;
   const labelUrl = firstRelease ? coverUrl(firstRelease.id, firstRelease.updatedAt) : null;
+  // The release page's cover-colour wash, from the collection's first cover (not under the record player's deck).
+  const palette = useArtworkPalette(deck ? null : labelUrl);
 
   function commitName() {
     const clean = cleanCollectionName(name);
@@ -334,7 +338,13 @@ function QueuePanel({
   const empty = collection.items.length === 0;
   return (
     <section aria-label={collection.name} className="flex min-w-0 flex-col gap-5">
-      <div className={`flex flex-wrap gap-x-8 gap-y-5 ${deck ? "items-center" : "items-end"}`}>
+      {!deck && (
+        <>
+          <AmbientBackdrop palette={palette} />
+          <div aria-hidden className="st-scrim" />
+        </>
+      )}
+      <div className={`flex gap-x-8 gap-y-5 ${deck ? "flex-wrap items-center" : "flex-col items-start"}`}>
         {!deck && (
           <RecordSleeve labelUrl={labelUrl} spin={0} turning={queueOfThis && playing}>
             {editing ? (
@@ -354,7 +364,7 @@ function QueuePanel({
             )}
           </RecordSleeve>
         )}
-        <div className="min-w-0 flex-1">
+        <div className="w-full min-w-0">
           {editing ? (
             <input
               type="text"
@@ -372,7 +382,7 @@ function QueuePanel({
               className="min-h-11 w-full rounded-[12px] bg-elevated px-3 text-2xl font-bold tracking-[-0.02em] text-text outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
           ) : (
-            <h2 className={`truncate font-bold tracking-[-0.02em] text-text ${deck ? "text-xl" : "text-3xl"}`}>{collection.name}</h2>
+            <h2 className={`font-bold tracking-[-0.02em] text-text ${deck ? "truncate text-xl" : "break-words text-3xl [text-wrap:balance]"}`}>{collection.name}</h2>
           )}
           <p className="mt-1 text-sm text-text-muted">
             {trackCountLabel(totals.tracks)}

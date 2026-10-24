@@ -281,7 +281,8 @@ body {
   pointer-events: none;
   opacity: 0;
   background: linear-gradient(105deg, transparent 38%, rgb(255 255 255 / 0.22) 50%, transparent 62%);
-  animation: cover-press-sweep 760ms cubic-bezier(0.16, 1, 0.3, 1);
+  /* Eased in and out like the button shimmer below; the expo-out would cross the face too fast. */
+  animation: cover-press-sweep 760ms cubic-bezier(0.45, 0, 0.55, 1);
 }
 
 /* The sleeve: a printed cardboard square with a faint edge highlight. */
