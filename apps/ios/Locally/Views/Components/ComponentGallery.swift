@@ -155,6 +155,10 @@ struct ComponentGallery: View {
             StatsGallery.page(.quiet)
         case "stats-signed-out":
             StatsGallery.page(.signedOut)
+        case "stats-signed-out-ax3":
+            StatsGallery.page(.signedOut).dynamicTypeSize(.accessibility3)
+        case "stats-week-scrolled-ax3":
+            StatsGallery.page(.week).dynamicTypeSize(.accessibility3).defaultScrollAnchor(.bottom)
         case "stats-large-text":
             StatsGallery.page(.week).dynamicTypeSize(.accessibility2)
         case "release-tracks":

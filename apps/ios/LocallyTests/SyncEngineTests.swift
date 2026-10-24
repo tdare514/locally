@@ -60,7 +60,8 @@ struct SyncEngineTests {
         defaults: UserDefaults = UserDefaults(suiteName: UUID().uuidString)!,
         coverStore: FakeCoverStore = FakeCoverStore(),
         now: @escaping () -> Date = { Date() },
-        playCounts: PlayCountStoring? = nil
+        playCounts: PlayCountStoring? = nil,
+        installIds: InstallIdStoring? = nil
     ) -> Harness {
         let folderDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let folder = FakeSpotifyFolder(directory: folderDir)
@@ -82,7 +83,7 @@ struct SyncEngineTests {
             resolvedAccount = InMemorySyncAccountStore()
             resolvedAccount.save(email: "toby@example.com", deviceToken: "test-token", deviceId: "device-1")
         }
-        let engine = SyncEngine(api: api, account: resolvedAccount, library: library, coordinator: coordinator, coverStore: coverStore, outbox: outbox, now: now, deviceName: { "Toby's iPhone" }, defaults: defaults, playCounts: playCounts)
+        let engine = SyncEngine(api: api, account: resolvedAccount, library: library, coordinator: coordinator, coverStore: coverStore, outbox: outbox, now: now, deviceName: { "Toby's iPhone" }, defaults: defaults, playCounts: playCounts, installIds: installIds)
         return Harness(coordinator: coordinator, folder: folder, library: library, tagWriter: tagWriter, coverStore: coverStore, api: api, account: resolvedAccount, outbox: outbox, engine: engine, defaults: defaults)
     }
 

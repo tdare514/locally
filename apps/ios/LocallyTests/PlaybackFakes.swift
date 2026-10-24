@@ -88,7 +88,7 @@ final class FakeRemoteCommands: RemoteCommandRegistrar {
 final class FakePlayCounts: PlayCountStoring {
     private(set) var increments: [QueueItem] = []
     func increment(releaseId: UUID, trackId: UUID, at date: Date) { increments.append(QueueItem(releaseId: releaseId, trackId: trackId)) }
-    func pending(maxEntries: Int, maxDayRows: Int) -> [SyncPlayCount] { [] }
+    func pending(liveReleases: Set<UUID>?, maxEntries: Int, maxDayRows: Int) -> [SyncPlayCount] { [] }
     func markPushed(_ sent: [SyncPlayCount]) {}
     func clearPushedMarkers() {}
     func count(releaseId: UUID, trackId: UUID) -> Int { increments.filter { $0.releaseId == releaseId && $0.trackId == trackId }.count }

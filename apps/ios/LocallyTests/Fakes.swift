@@ -384,7 +384,7 @@ final class FakeReleaseSyncHook: ReleaseSyncHook {
 /// "upload missing files" behaviour `SyncEngine.push` relies on.
 final class FakeSyncApi: SyncApi {
     private(set) var requestCodeCalls: [String] = []
-    private(set) var verifyCalls: [(email: String, code: String, deviceName: String, platform: String)] = []
+    private(set) var verifyCalls: [(email: String, code: String, deviceName: String, platform: String, installId: String?)] = []
     var verifyResult: Result<SyncVerifyResult, Error> = .success(
         SyncVerifyResult(token: "test-token", userId: "user-1", email: "test@example.com", deviceId: "device-1", deviceName: "Test Device")
     )
@@ -443,8 +443,8 @@ final class FakeSyncApi: SyncApi {
         requestCodeCalls.append(email)
     }
 
-    func verify(email: String, code: String, deviceName: String, platform: String) async throws -> SyncVerifyResult {
-        verifyCalls.append((email, code, deviceName, platform))
+    func verify(email: String, code: String, deviceName: String, platform: String, installId: String?) async throws -> SyncVerifyResult {
+        verifyCalls.append((email, code, deviceName, platform, installId))
         return try verifyResult.get()
     }
 

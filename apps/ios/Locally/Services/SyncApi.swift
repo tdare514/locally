@@ -46,6 +46,16 @@ struct SyncMissingFiles: Decodable, Equatable {
     var releases: [SyncMissingRelease]
 }
 
+/// The body of `POST /v1/auth/verify`. `installId` is this phone's stable id (#337); the service revives
+/// the same iPhone device by it. Absent when none is sent.
+struct SyncVerifyRequest: Codable, Equatable {
+    var email: String
+    var code: String
+    var deviceName: String
+    var platform: String
+    var installId: String?
+}
+
 /// `GET /v1/releases/:id/plays`: Spotify play counts per track, split by device.
 /// The phone only shows these; it never adds counts (#108).
 struct SyncReleasePlays: Decodable, Equatable {
@@ -167,7 +177,7 @@ enum SyncApiError: LocalizedError, Equatable {
 /// use `FakeSyncApi` (`LocallyTests/Fakes.swift`).
 protocol SyncApi {
     func requestCode(email: String) async throws
-    func verify(email: String, code: String, deviceName: String, platform: String) async throws -> SyncVerifyResult
+    func verify(email: String, code: String, deviceName: String, platform: String, installId: String?) async throws -> SyncVerifyResult
     func me() async throws -> SyncMeResult
     func revokeDevice(_ id: String) async throws
     /// `DELETE /v1/me`. `email` must be the account's own email (the
@@ -249,13 +259,9 @@ final class HttpSyncApi: SyncApi {
         _ = try await send(path: "/v1/auth/code", method: "POST", body: ["email": email], authorized: false)
     }
 
-    func verify(email: String, code: String, deviceName: String, platform: String) async throws -> SyncVerifyResult {
-        let data = try await send(
-            path: "/v1/auth/verify",
-            method: "POST",
-            body: ["email": email, "code": code, "deviceName": deviceName, "platform": platform],
-            authorized: false
-        )
+    func verify(email: String, code: String, deviceName: String, platform: String, installId: String?) async throws -> SyncVerifyResult {
+        let body = try JSONEncoder().encode(SyncVerifyRequest(email: email, code: code, deviceName: deviceName, platform: platform, installId: installId))
+        let data = try await send(path: "/v1/auth/verify", method: "POST", bodyData: body, authorized: false)
         struct Response: Decodable {
             struct User: Decodable { let id: String; let email: String }
             struct Device: Decodable { let id: String; let name: String }

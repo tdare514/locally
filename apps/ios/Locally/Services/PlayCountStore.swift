@@ -10,14 +10,21 @@ protocol PlayCountStoring: AnyObject {
     /// Adds one play of the track on the phone's local calendar day of `date`.
     func increment(releaseId: UUID, trackId: UUID, at date: Date)
     /// The counts and days ahead of what was pushed: at most `maxEntries` entries and `maxDayRows`
-    /// day rows in all, in a stable order. Empty when everything is pushed.
-    func pending(maxEntries: Int, maxDayRows: Int) -> [SyncPlayCount]
+    /// day rows in all, in a stable order. Only releases in `liveReleases` are included (nil means
+    /// all); the others stay pending until they are live on the service.
+    func pending(liveReleases: Set<UUID>?, maxEntries: Int, maxDayRows: Int) -> [SyncPlayCount]
     /// Records that `sent` reached the service: only what was sent is marked, so a play counted
     /// while the request was in flight stays pending.
     func markPushed(_ sent: [SyncPlayCount])
     /// Forgets what was pushed (sign-out, account deletion). The counts stay.
     func clearPushedMarkers()
     func count(releaseId: UUID, trackId: UUID) -> Int
+}
+
+extension PlayCountStoring {
+    func pending(liveReleases: Set<UUID>? = nil, maxEntries: Int = 500, maxDayRows: Int = 2000) -> [SyncPlayCount] {
+        pending(liveReleases: liveReleases, maxEntries: maxEntries, maxDayRows: maxDayRows)
+    }
 }
 
 /// The wire form of one `PUT /v1/plays` entry (`spec/sync.md` "Play counts").
@@ -136,7 +143,7 @@ final class FilePlayCountStore: PlayCountStoring {
         entry.count += 1
         entry.days[dayString(date), default: 0] += 1
         entries[key] = entry
-        prune(today: date)
+        prune(today: dayString(date))
         save()
     }
 
@@ -144,11 +151,12 @@ final class FilePlayCountStore: PlayCountStoring {
         entries[Key(releaseId: releaseId, trackId: trackId)]?.count ?? 0
     }
 
-    func pending(maxEntries: Int, maxDayRows: Int) -> [SyncPlayCount] {
+    func pending(liveReleases: Set<UUID>?, maxEntries: Int, maxDayRows: Int) -> [SyncPlayCount] {
         var result: [SyncPlayCount] = []
         var rows = 0
         let ordered = entries.values.sorted { ($0.releaseId.uuidString, $0.trackId.uuidString) < ($1.releaseId.uuidString, $1.trackId.uuidString) }
         for entry in ordered {
+            if let liveReleases, !liveReleases.contains(entry.releaseId) { continue }
             let ahead = entry.days.filter { $0.value > (entry.pushedDays[$0.key] ?? 0) }
                 .map { SyncPlayDay(day: $0.key, count: $0.value) }
                 .sorted { $0.day < $1.day }
@@ -175,24 +183,24 @@ final class FilePlayCountStore: PlayCountStoring {
 
     func clearPushedMarkers() {
         for key in Array(entries.keys) {
-            entries[key]?.pushedCount = 0
-            entries[key]?.pushedDays = [:]
+            guard var entry = entries[key] else { continue }
+            entry.pushedCount = 0
+            entry.pushedDays = [:]
+            entries[key] = entry
         }
         save()
     }
 
     // MARK: Days and disk
 
-    /// The phone's local calendar date as `YYYY-MM-DD`.
+    /// The phone's local calendar date as Gregorian `YYYY-MM-DD`, whatever the user's calendar.
     func dayString(_ date: Date) -> String {
-        let c = calendar.dateComponents([.year, .month, .day], from: date)
-        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+        PlayPeriods.localDayString(date, calendar: calendar)
     }
 
-    /// Drops day buckets (and their markers) older than the 400 days ending today.
-    private func prune(today: Date) {
-        guard let first = calendar.date(byAdding: .day, value: -(Self.keepDays - 1), to: today) else { return }
-        let cutoff = dayString(first)
+    /// Drops day buckets (and their markers) older than the 400 days ending `today`.
+    private func prune(today: String) {
+        let cutoff = PlayPeriods.addDays(today, -(Self.keepDays - 1))
         for key in Array(entries.keys) {
             guard var entry = entries[key] else { continue }
             entry.days = entry.days.filter { $0.key >= cutoff }
@@ -202,8 +210,8 @@ final class FilePlayCountStore: PlayCountStoring {
     }
 
     private func save() {
-        let file = File(tracks: entries.values.sorted { ($0.releaseId.uuidString, $0.trackId.uuidString) < ($1.releaseId.uuidString, $1.trackId.uuidString) })
-        guard let data = try? JSONEncoder().encode(file) else { return }
+        let sorted = entries.values.sorted { ($0.releaseId.uuidString, $0.trackId.uuidString) < ($1.releaseId.uuidString, $1.trackId.uuidString) }
+        guard let data = try? JSONEncoder().encode(File(tracks: sorted)) else { return }
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? data.write(to: url, options: .atomic)
     }

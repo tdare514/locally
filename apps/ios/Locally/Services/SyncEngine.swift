@@ -131,6 +131,7 @@ final class SyncEngine: ReleaseSyncHook {
     private let shareCovers: ShareCoverCache?
     /// The phone's own play counts (#337); nil in tests that don't count.
     private let playCounts: PlayCountStoring?
+    private let installIds: InstallIdStoring?
 
     let status: SyncStatus
 
@@ -165,10 +166,12 @@ final class SyncEngine: ReleaseSyncHook {
         deviceName: @escaping () -> String,
         defaults: UserDefaults = .standard,
         shareCovers: ShareCoverCache? = nil,
-        playCounts: PlayCountStoring? = nil
+        playCounts: PlayCountStoring? = nil,
+        installIds: InstallIdStoring? = nil
     ) {
         self.defaults = defaults
         self.playCounts = playCounts
+        self.installIds = installIds
         self.shareCovers = shareCovers
         self.api = api
         self.account = account
@@ -247,7 +250,7 @@ final class SyncEngine: ReleaseSyncHook {
     /// immediately reconciles once, which back-fills every release this
     /// device hasn't pushed yet (see `reconcile`).
     func verify(email: String, code: String) async throws {
-        let result = try await api.verify(email: email, code: code, deviceName: deviceName(), platform: "ios")
+        let result = try await api.verify(email: email, code: code, deviceName: deviceName(), platform: "ios", installId: installIds?.installId().uuidString.lowercased())
         try account.save(email: result.email, deviceToken: result.token, deviceId: result.deviceId)
         account.deviceName = result.deviceName
         account.userId = result.userId
@@ -315,7 +318,7 @@ final class SyncEngine: ReleaseSyncHook {
         var cleanupFailure: Error?
         do { try outbox.removeAll() } catch { cleanupFailure = error }
         do { try library.clearSyncMarkers() } catch { cleanupFailure = error }
-        // The counts stay; only what was pushed is forgotten, so a new account is sent them all (#337).
+        // The counts stay (#337); only what was pushed is forgotten.
         playCounts?.clearPushedMarkers()
         status.signedIn = false
         status.email = nil
@@ -731,14 +734,17 @@ final class SyncEngine: ReleaseSyncHook {
     static let playsBatchEntries = 500
     static let playsBatchDayRows = 2000
 
-    /// Sends the counts and days ahead of what was pushed (#337), at most 500 entries per request.
-    /// A failure leaves the rest pending for the next reconcile and is not shown: counts are
-    /// absolute, so nothing is lost by waiting. An entry the service ignores (its release is not
-    /// live there) is marked pushed like the rest; the next play of that track sends the count again.
-    private func pushPlays() async {
+    /// Sends the counts and days ahead of what was pushed (#337), at most 500 entries per request, for
+    /// releases the service has (a successful upload or pull set `syncedUpdatedAt`). Plays of a release
+    /// that is not live there yet stay pending and go out on a later reconcile. A failure leaves the
+    /// rest pending and is not shown: counts are absolute, so nothing is lost by waiting. An entry the
+    /// service still ignores (a release deleted there) is marked pushed like the rest.
+    func pushPlays() async {
         guard let playCounts else { return }
         while isSignedIn {
-            let batch = playCounts.pending(maxEntries: Self.playsBatchEntries, maxDayRows: Self.playsBatchDayRows)
+            guard let releases = localReleases() else { return }
+            let live = Set(releases.filter { $0.syncedUpdatedAt != nil }.map(\.id))
+            let batch = playCounts.pending(liveReleases: live, maxEntries: Self.playsBatchEntries, maxDayRows: Self.playsBatchDayRows)
             if batch.isEmpty { return }
             do {
                 try await api.putPlays(batch)

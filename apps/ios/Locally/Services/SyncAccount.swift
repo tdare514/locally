@@ -164,6 +164,55 @@ final class UserDefaultsSyncAccountStore: SyncAccountStore {
     }
 }
 
+/// This phone's stable install id (#337), sent as `installId` at sign-in so the service gives a phone that
+/// signs out and in again its old device back, and its pushed play counts are not summed twice.
+protocol InstallIdStoring: AnyObject {
+    /// Made once, then the same on every call.
+    func installId() -> UUID
+}
+
+/// Production: one generic password item that survives sign-outs and reinstalls on this phone and
+/// never migrates to another device (`AfterFirstUnlockThisDeviceOnly`).
+final class SecKeychainInstallIdStore: InstallIdStoring {
+    private let service = "com.tdare.locally.sync"
+    private let account = "installId"
+    private var cached: UUID?
+
+    func installId() -> UUID {
+        if let cached { return cached }
+        if let stored = load() {
+            cached = stored
+            return stored
+        }
+        let made = UUID()
+        var query = baseQuery()
+        query[kSecValueData as String] = Data(made.uuidString.utf8)
+        query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        // If the Keychain refuses, the id lasts for this launch only: the worst case is a new device.
+        _ = SecItemAdd(query as CFDictionary, nil)
+        cached = made
+        return made
+    }
+
+    private func load() -> UUID? {
+        var query = baseQuery()
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data,
+              let text = String(data: data, encoding: .utf8) else { return nil }
+        return UUID(uuidString: text)
+    }
+
+    private func baseQuery() -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+    }
+}
+
 /// Errors from `KeychainTokenStore.save`, surfaced to the caller instead of
 /// being swallowed, since a lost device token means a silent sign-out.
 enum KeychainTokenStoreError: LocalizedError, Equatable {

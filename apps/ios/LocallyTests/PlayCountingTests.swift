@@ -100,7 +100,7 @@ struct PlayCountStoreTests {
         store.increment(releaseId: release, trackId: track, at: date("2026-10-24T05:00:00Z"))
         store.increment(releaseId: release, trackId: track, at: date("2026-10-24T20:00:00Z"))
         #expect(store.count(releaseId: release, trackId: track) == 3)
-        let pending = store.pending(maxEntries: 500, maxDayRows: 2000)
+        let pending = store.pending()
         #expect(pending == [SyncPlayCount(releaseId: release, trackId: track, count: 3, days: [SyncPlayDay(day: "2026-10-23", count: 2), SyncPlayDay(day: "2026-10-24", count: 1)])])
     }
 
@@ -108,7 +108,7 @@ struct PlayCountStoreTests {
         let store = FilePlayCountStore(url: tempFile(), calendar: calendar)
         store.increment(releaseId: release, trackId: track, at: date("2025-01-01T20:00:00Z"))
         store.increment(releaseId: release, trackId: track, at: date("2026-10-24T20:00:00Z"))
-        let entry = store.pending(maxEntries: 500, maxDayRows: 2000).first
+        let entry = store.pending().first
         #expect(entry?.count == 2)
         #expect(entry?.days == [SyncPlayDay(day: "2026-10-24", count: 1)])
     }
@@ -118,40 +118,54 @@ struct PlayCountStoreTests {
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let store = FilePlayCountStore(url: url, calendar: calendar)
         store.increment(releaseId: release, trackId: track, at: date("2026-10-24T20:00:00Z"))
-        store.markPushed(store.pending(maxEntries: 500, maxDayRows: 2000))
+        store.markPushed(store.pending())
         let reopened = FilePlayCountStore(url: url, calendar: calendar)
         #expect(reopened.count(releaseId: release, trackId: track) == 1)
-        #expect(reopened.pending(maxEntries: 500, maxDayRows: 2000).isEmpty)
+        #expect(reopened.pending().isEmpty)
     }
 
     @Test func onlyWhatIsAheadOfThePushIsPending() {
         let store = FilePlayCountStore(url: tempFile(), calendar: calendar)
         store.increment(releaseId: release, trackId: track, at: date("2026-10-23T20:00:00Z"))
-        let sent = store.pending(maxEntries: 500, maxDayRows: 2000)
+        let sent = store.pending()
         // A play counted while the request was in flight stays pending.
         store.increment(releaseId: release, trackId: track, at: date("2026-10-24T20:00:00Z"))
         store.markPushed(sent)
-        let rest = store.pending(maxEntries: 500, maxDayRows: 2000)
+        let rest = store.pending()
         #expect(rest == [SyncPlayCount(releaseId: release, trackId: track, count: 2, days: [SyncPlayDay(day: "2026-10-24", count: 1)])])
         store.markPushed(rest)
-        #expect(store.pending(maxEntries: 500, maxDayRows: 2000).isEmpty)
+        #expect(store.pending().isEmpty)
     }
 
     @Test func clearingTheMarkersKeepsTheCountsAndMakesEverythingPendingAgain() {
         let store = FilePlayCountStore(url: tempFile(), calendar: calendar)
         store.increment(releaseId: release, trackId: track, at: date("2026-10-24T20:00:00Z"))
-        store.markPushed(store.pending(maxEntries: 500, maxDayRows: 2000))
+        store.markPushed(store.pending())
         store.clearPushedMarkers()
         #expect(store.count(releaseId: release, trackId: track) == 1)
-        #expect(store.pending(maxEntries: 500, maxDayRows: 2000).count == 1)
+        #expect(store.pending().count == 1)
     }
 
     @Test func aRequestHoldsAtMost500EntriesAnd2000DayRows() {
         let store = FilePlayCountStore(url: tempFile(), calendar: calendar)
         for _ in 0..<1200 { store.increment(releaseId: UUID(), trackId: UUID(), at: date("2026-10-24T20:00:00Z")) }
-        #expect(store.pending(maxEntries: 500, maxDayRows: 2000).count == 500)
+        #expect(store.pending().count == 500)
         // One day row per entry here, so 3 rows allow 3 entries.
         #expect(store.pending(maxEntries: 500, maxDayRows: 3).count == 3)
+    }
+
+    @Test func dayKeysAreGregorianUnderOtherCalendars() {
+        let instant = date("2026-10-24T20:00:00Z")
+        for identifier in [Calendar.Identifier.buddhist, .japanese, .islamicUmmAlQura, .gregorian] {
+            var other = Calendar(identifier: identifier)
+            other.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+            let store = FilePlayCountStore(url: tempFile(), calendar: other)
+            store.increment(releaseId: release, trackId: track, at: date("2025-01-01T20:00:00Z"))
+            store.increment(releaseId: release, trackId: track, at: instant)
+            let entry = store.pending().first
+            #expect(entry?.days == [SyncPlayDay(day: "2026-10-24", count: 1)], "\(identifier)")
+            #expect(entry?.count == 2, "\(identifier)")
+        }
     }
 
     @Test func theLiteralPutBodyDecodesAndEncodesBack() throws {
@@ -178,18 +192,32 @@ struct PlayCountStoreTests {
 }
 
 extension SyncEngineTests {
-    private func counts(_ n: Int, store: FilePlayCountStore) {
-        for _ in 0..<n { store.increment(releaseId: UUID(), trackId: UUID(), at: Date()) }
-    }
-
     private func tempStore() -> FilePlayCountStore {
         FilePlayCountStore(url: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true).appendingPathComponent("plays.json"))
     }
 
+    /// A library of `n` releases the service already has (pushed, so `syncedUpdatedAt` is set).
+    private func syncedLibrary(_ n: Int, synced: Bool = true) -> (InMemoryLibraryStore, [UUID]) {
+        let library = InMemoryLibraryStore()
+        var ids: [UUID] = []
+        for _ in 0..<n {
+            var release = Release(kind: .single, title: "T", artist: "A", folderPath: "/lib", tracks: [])
+            if synced { release.syncedUpdatedAt = release.updatedAt }
+            try? library.upsert(release)
+            ids.append(release.id)
+        }
+        return (library, ids)
+    }
+
+    private func counts(_ n: Int, releases: [UUID], store: FilePlayCountStore) {
+        for i in 0..<n { store.increment(releaseId: releases[i % releases.count], trackId: UUID(), at: Date()) }
+    }
+
     @Test func reconcilePushesPlaysInBatchesOf500AndNothingTwice() async {
         let store = tempStore()
-        counts(1200, store: store)
-        let h = makeHarness(playCounts: store)
+        let (library, ids) = syncedLibrary(12)
+        counts(1200, releases: ids, store: store)
+        let h = makeHarness(library: library, playCounts: store)
         await h.engine.reconcile()
         #expect(h.api.putPlaysCalls.map(\.count) == [500, 500, 200])
         #expect(h.api.putPlaysCalls.flatMap { $0 }.allSatisfy { $0.source == "locally" })
@@ -199,41 +227,114 @@ extension SyncEngineTests {
 
     @Test func aFailedPushStaysPendingAndGoesOutNextTime() async {
         let store = tempStore()
-        counts(3, store: store)
-        let h = makeHarness(playCounts: store)
+        let (library, ids) = syncedLibrary(1)
+        counts(3, releases: ids, store: store)
+        let h = makeHarness(library: library, playCounts: store)
         h.api.putPlaysResults = [.failure(SyncApiError.network("offline"))]
         await h.engine.reconcile()
         #expect(h.api.putPlaysCalls.count == 1)
-        #expect(store.pending(maxEntries: 500, maxDayRows: 2000).count == 3)
+        #expect(store.pending().count == 3)
         await h.engine.reconcile()
         #expect(h.api.putPlaysCalls.count == 2)
         #expect(h.api.putPlaysCalls[1].count == 3)
-        #expect(store.pending(maxEntries: 500, maxDayRows: 2000).isEmpty)
+        #expect(store.pending().isEmpty)
+    }
+
+    @Test func playsOfAReleaseNotYetOnTheServiceStayPendingUntilItIs() async throws {
+        let store = tempStore()
+        let (library, ids) = syncedLibrary(1, synced: false)
+        let track = UUID()
+        store.increment(releaseId: ids[0], trackId: track, at: Date())
+        store.increment(releaseId: ids[0], trackId: track, at: Date())
+        let h = makeHarness(library: library, playCounts: store)
+        // Not uploaded: the push sends nothing and the plays stay pending.
+        await h.engine.pushPlays()
+        #expect(h.api.putPlaysCalls.isEmpty)
+        #expect(store.pending().count == 1)
+        // Uploaded: the next push sends them with their days.
+        var release = try #require(try library.all().first)
+        release.syncedUpdatedAt = release.updatedAt
+        try library.upsert(release)
+        await h.engine.pushPlays()
+        #expect(h.api.putPlaysCalls.count == 1)
+        let sent = try #require(h.api.putPlaysCalls.first?.first)
+        #expect(sent.count == 2)
+        #expect(sent.days?.map(\.count) == [2])
+        #expect(store.pending().isEmpty)
     }
 
     @Test func signOutKeepsTheCountsAndClearsTheMarkers() async {
         let store = tempStore()
-        let release = UUID()
+        let (library, ids) = syncedLibrary(1)
         let track = UUID()
-        store.increment(releaseId: release, trackId: track, at: Date())
-        let h = makeHarness(playCounts: store)
+        store.increment(releaseId: ids[0], trackId: track, at: Date())
+        let h = makeHarness(library: library, playCounts: store)
         await h.engine.reconcile()
-        #expect(store.pending(maxEntries: 500, maxDayRows: 2000).isEmpty)
+        #expect(store.pending().isEmpty)
         await h.engine.signOut()
-        #expect(store.count(releaseId: release, trackId: track) == 1)
-        #expect(store.pending(maxEntries: 500, maxDayRows: 2000).count == 1)
+        #expect(store.count(releaseId: ids[0], trackId: track) == 1)
+        #expect(store.pending().count == 1)
     }
 
     @Test func deletingTheAccountKeepsTheCountsAndClearsTheMarkers() async {
         let store = tempStore()
-        let release = UUID()
+        let (library, ids) = syncedLibrary(1)
         let track = UUID()
-        store.increment(releaseId: release, trackId: track, at: Date())
-        let h = makeHarness(playCounts: store)
+        store.increment(releaseId: ids[0], trackId: track, at: Date())
+        let h = makeHarness(library: library, playCounts: store)
         await h.engine.reconcile()
         let deleted = await h.engine.deleteAccount()
         #expect(deleted)
-        #expect(store.count(releaseId: release, trackId: track) == 1)
-        #expect(store.pending(maxEntries: 500, maxDayRows: 2000).count == 1)
+        #expect(store.count(releaseId: ids[0], trackId: track) == 1)
+        #expect(store.pending().count == 1)
+    }
+}
+
+/// An in-memory install id: made on first use, then the same.
+final class InMemoryInstallIdStore: InstallIdStoring {
+    private var stored: UUID?
+    private(set) var created = 0
+    func installId() -> UUID {
+        if let stored { return stored }
+        created += 1
+        let made = UUID()
+        stored = made
+        return made
+    }
+}
+
+extension SyncEngineTests {
+    @Test func theInstallIdIsMadeOnceAndSentAtEverySignIn() async throws {
+        let ids = InMemoryInstallIdStore()
+        let account = InMemorySyncAccountStore()
+        let h = makeHarness(api: FakeSyncApi(), account: account, installIds: ids)
+        try await h.engine.verify(email: "toby@example.com", code: "123456")
+        await h.engine.signOut()
+        try await h.engine.verify(email: "toby@example.com", code: "123456")
+        let sent = h.api.verifyCalls.map(\.installId)
+        #expect(sent.count == 2)
+        #expect(sent[0] != nil)
+        #expect(sent[0] == sent[1])
+        #expect(sent[0] == ids.installId().uuidString.lowercased())
+        #expect(ids.created == 1)
+    }
+
+    @Test func aSignInWithoutAnInstallIdStoreSendsNone() async throws {
+        let h = makeHarness()
+        try await h.engine.verify(email: "toby@example.com", code: "123456")
+        #expect(h.api.verifyCalls.first?.installId == nil)
+    }
+}
+
+struct SignInBodyTests {
+    @Test func theLiteralSignInBodyWithAnInstallIdDecodesAndEncodesBack() throws {
+        let literal = #"{"email":"toby@example.com","code":"123456","deviceName":"Toby's iPhone","platform":"ios","installId":"0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"}"#
+        let body = try JSONDecoder().decode(SyncVerifyRequest.self, from: Data(literal.utf8))
+        #expect(body == SyncVerifyRequest(email: "toby@example.com", code: "123456", deviceName: "Toby's iPhone", platform: "ios", installId: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"))
+        let encoded = try JSONEncoder().encode(body)
+        #expect(try JSONSerialization.jsonObject(with: encoded) as? NSDictionary == JSONSerialization.jsonObject(with: Data(literal.utf8)) as? NSDictionary)
+        // Without an id the key is left out.
+        let plain = try JSONEncoder().encode(SyncVerifyRequest(email: "a@b.c", code: "1", deviceName: "d", platform: "ios", installId: nil))
+        #expect(!String(decoding: plain, as: UTF8.self).contains("installId"))
     }
 }
