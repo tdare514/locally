@@ -32,8 +32,9 @@ final class SongPageUITests: XCTestCase {
 
     func testTappingASongsTitleOnTheReleasePageOpensTheSongPage() {
         let app = launch("track-menu-release")
-        let title = app.staticTexts["track-title-2"]
-        XCTAssertTrue(waitHittable(title, timeout: 20), "no title on track 2")
+        let title = app.buttons["track-title-2"]
+        XCTAssertTrue(waitHittable(title, timeout: 20), "no title button on track 2")
+        XCTAssertEqual(title.label, "Orange Streetlight")
         title.tap()
         assertSongPage(app, title: "Orange Streetlight")
         attach("song-page-from-title")
@@ -101,8 +102,8 @@ final class SongPageUITests: XCTestCase {
 
     func testEditOnTheSongPageOpensTheReleaseInEditModeAtThatSong() {
         let app = launch("track-menu-release")
-        let title = app.staticTexts["track-title-2"]
-        XCTAssertTrue(waitHittable(title, timeout: 20), "no title on track 2")
+        let title = app.buttons["track-title-2"]
+        XCTAssertTrue(waitHittable(title, timeout: 20), "no title button on track 2")
         title.tap()
         let edit = app.buttons["Edit"].firstMatch
         XCTAssertTrue(waitHittable(edit, timeout: 10), "no Edit on the song page")
@@ -111,5 +112,53 @@ final class SongPageUITests: XCTestCase {
         let field = app.textFields.matching(NSPredicate(format: "value == %@", "Orange Streetlight")).firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 5), "no edit field for the song")
         XCTAssertTrue(waitHittable(field), "the song's edit field is not on screen")
+    }
+
+    /// Edit, save, back: the song page and the next Edit read the saved release, not the one the page was pushed with.
+    func testASavedEditShowsOnTheSongPageAndInTheNextEdit() {
+        let app = launch("song-page-edit-save")
+        let title = app.buttons["track-title-2"]
+        XCTAssertTrue(waitHittable(title, timeout: 20), "no title button on track 2")
+        title.tap()
+        let marker = "Renamed"
+        openEdit(app)
+        let field = app.textFields["Title"].firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "no release title field")
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.5)).tap()
+        field.typeText(" \(marker)")
+        app.keyboards.buttons["Done"].firstMatch.tap()
+        let save = app.buttons["Save changes"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5), "no Save changes")
+        save.tap()
+        let confirm = app.buttons["Save"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "no review sheet")
+        confirm.tap()
+        XCTAssertTrue(waitGone(app.buttons["Save changes"]), "still in edit mode")
+        // Back to the song page: its Album row shows the new title.
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let albumRow = app.buttons["song-row-album"]
+        XCTAssertTrue(albumRow.waitForExistence(timeout: 10), "did not return to the song page")
+        let renamed = NSPredicate(format: "label CONTAINS %@", marker)
+        XCTAssertTrue(XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: renamed, object: albumRow)], timeout: 8) == .completed,
+                      "the song page still shows the old title: \(albumRow.label)")
+        attach("song-page-after-edit")
+        // Edit again: the field holds the saved title.
+        openEdit(app)
+        let again = app.textFields["Title"].firstMatch
+        XCTAssertTrue(again.waitForExistence(timeout: 10), "no release title field on the second edit")
+        let value = (again.value as? String) ?? ""
+        XCTAssertTrue(value.contains(marker), "the second edit shows the old title: \(value)")
+    }
+
+    private func openEdit(_ app: XCUIApplication) {
+        let edit = app.buttons["Edit"].firstMatch
+        XCTAssertTrue(waitHittable(edit, timeout: 10), "no Edit on the song page")
+        edit.tap()
+        XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5), "the release is not in edit mode")
+    }
+
+    private func waitGone(_ element: XCUIElement, timeout: TimeInterval = 10) -> Bool {
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: element)
+        return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
     }
 }

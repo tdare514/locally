@@ -114,7 +114,7 @@ struct TrackActionsGallery: View {
 
 /// A release page in a path-driven stack with the Library's song routes (#365), so the title tap, Song info, Edit and the
 /// Album row work in the gallery as in the app.
-private struct ReleaseGalleryStack: View {
+struct ReleaseGalleryStack: View {
     let release: Release
     @State private var path = NavigationPath()
 

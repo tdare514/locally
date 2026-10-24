@@ -30,7 +30,7 @@ struct ComponentGallery: View {
         // #226: the library search box with a typed query, and the crop sheet's Square / Original pill.
         "icons-library-search", "crop-sheet", "devices-header-narrow",
         // #221: the Release date row. The import case is `import-record-date`.
-        "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save",
+        "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save", "song-page-edit-save",
         // #183: sharing. The share sheet, its Link option and result, the friends tray, "Shared by you".
         "share-sheet", "share-sheet-link", "share-sheet-result", "share-sheet-signed-out", "share-sheet-large-text",
         "devices-tray-friends", "devices-tray-friends-large-text", "shared-by-you", "shared-by-you-large-text", "release-share-blocked",
@@ -225,6 +225,8 @@ struct ComponentGallery: View {
             ReleaseDateFieldGallery(text: "17 September 2024").frame(width: 300)
         case "release-date-save":
             IconsGallery.saveableDateRelease()
+        case "song-page-edit-save":
+            IconsGallery.saveableSongRelease()
         case "release-featuring-view":
             IconsGallery.featuringRelease()
         case "release-featuring-edit":
@@ -747,6 +749,21 @@ enum IconsGallery {
         release.releaseDate = "2024-05-17"
         let container = container(releases: [release], covers: [:], folder: GalleryFolder(directory: dir), tagWriter: GalleryTagWriter())
         return environment(NavigationStack { ReleaseDetailView(release: release, startsEditing: true) }, container)
+    }
+
+    /// `song-page-edit-save`: an album's release page in the song-route stack, over scratch files and a tag writer that
+    /// writes nothing, so a UI test can open a song page, Edit, save and come back (#365).
+    static func saveableSongRelease() -> some View {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("gallery-song-save", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let tracks = ["Headlights", "Orange Streetlight"].enumerated().map { index, name -> Track in
+            let file = dir.appendingPathComponent("\(name).mp3")
+            try? Data([0xFF, 0xFB, 1, 2, 3, 4]).write(to: file)
+            return Track(title: name, trackNumber: index + 1, filePath: file.path, originalName: "\(name).mp3", durationSec: 214)
+        }
+        let release = Release(kind: .album, title: "Night Bus", artist: "Neon Harbor", year: "2024", genre: "Synthwave", folderPath: dir.path, tracks: tracks)
+        let container = container(releases: [release], covers: [:], folder: GalleryFolder(directory: dir), tagWriter: GalleryTagWriter())
+        return environment(ReleaseGalleryStack(release: release), container)
     }
 
     /// An album's release page, with its cover (Edit) and the playlist guide (Copy).

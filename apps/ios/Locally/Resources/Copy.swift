@@ -999,6 +999,7 @@ extension Copy {
         static let goToAlbum = "Go to album"
         static let goToArtist = "Go to artist"
         static let songInfo = "Song info"
+        static let opensSongPage = "Opens the song page"
 
         static let playingNow = "Playing now"
         static let playingNext = "Playing next"

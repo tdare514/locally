@@ -206,13 +206,7 @@ struct ReleaseTrackRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 // Plays and time sit on the title's line, so the artist line below runs the full width.
                 HStack(alignment: .firstTextBaseline, spacing: Theme.Track.spacing) {
-                    Text(title)
-                        .foregroundStyle(Theme.primaryText)
-                        .font(.system(size: titleSize, weight: .semibold))
-                        .lineLimit(accessible ? nil : 1)
-                        .truncationMode(.tail)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .accessibilityIdentifier("track-title-\(number)")
+                    titleLabel(accessible: accessible)
                     if !accessible {
                         Text(plays.map { $0.formatted() } ?? "")
                             .accessibilityLabel(plays.map(Copy.Detail.playCount) ?? "")
@@ -222,8 +216,6 @@ struct ReleaseTrackRow: View {
                             .frame(width: columns.time, alignment: .trailing)
                     }
                 }
-                .contentShape(Rectangle())
-                .onTapGesture { onOpenSong?() }
                 // View mode only (#288): "A, feat. B & C", every name its own link, on one line (#361).
                 ArtistLineText(
                     main: credit.artist, featuring: credit.featuring, linkMain: artist != Copy.Detail.unknownArtist,
@@ -249,6 +241,27 @@ struct ReleaseTrackRow: View {
         // The artist line holds links, which a combined element would swallow.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("track-row-\(number)")
+    }
+
+    /// The title, a plain button that opens the song page when the row has one (the artist links stay outside it).
+    @ViewBuilder
+    private func titleLabel(accessible: Bool) -> some View {
+        let label = Text(title)
+            .foregroundStyle(Theme.primaryText)
+            .font(.system(size: titleSize, weight: .semibold))
+            .lineLimit(accessible ? nil : 1)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        if let onOpenSong {
+            Button(action: onOpenSong) { label }
+                .buttonStyle(.plain)
+                .accessibilityLabel(title)
+                .accessibilityHint(Copy.TrackActions.opensSongPage)
+                .accessibilityIdentifier("track-title-\(number)")
+        } else {
+            label.accessibilityIdentifier("track-title-\(number)")
+        }
     }
 
     /// The number, or with a play control the same number as a 44 pt button (it reaches into the row's

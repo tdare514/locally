@@ -11,17 +11,26 @@ struct ReleaseEditRoute: Hashable {
 }
 
 /// A song's page (#365), pushed from a release page's title, "Song info" in the long-press menu, or a Stats track.
+/// It carries ids only: the page reads the current release when it shows, so an edit made from the page is never
+/// undone by a stale copy.
 struct SongRoute: Hashable {
-    let release: Release
+    let releaseId: UUID
     let trackId: UUID
 
+    init(releaseId: UUID, trackId: UUID) {
+        self.releaseId = releaseId
+        self.trackId = trackId
+    }
+
+    init(release: Release, trackId: UUID) { self.init(releaseId: release.id, trackId: trackId) }
+
     /// Edit on the song page: the release in edit mode at this song; nil for an adopted song.
-    var editRoute: ReleaseEditRoute? {
+    func editRoute(for release: Release) -> ReleaseEditRoute? {
         TrackActionRules.canEdit(release) ? ReleaseEditRoute(release: release, trackId: trackId) : nil
     }
 
     /// The song page's Album row: the release, scrolled to and lighting this song.
-    var albumRoute: ReleaseTrackRoute { ReleaseTrackRoute(release: release, trackId: trackId) }
+    func albumRoute(for release: Release) -> ReleaseTrackRoute { ReleaseTrackRoute(release: release, trackId: trackId) }
 }
 
 private struct OpenSongKey: EnvironmentKey {
@@ -43,13 +52,36 @@ struct SongPageDestination: View {
     let route: SongRoute
     let open: (any Hashable) -> Void
     @Environment(\.playback) private var playback
+    @Environment(\.appContainer) private var container
+    @Environment(\.dismiss) private var dismiss
+    /// Bumped each time the page appears (including coming back from Edit), so the release is read again.
+    @State private var reads = 0
+
+    /// The release as the library holds it now; nil when it, or the song, is gone.
+    private func current() -> Release? {
+        guard let release = (try? container?.library.all())?.first(where: { $0.id == route.releaseId }),
+              release.tracks.contains(where: { $0.id == route.trackId }) else { return nil }
+        return release
+    }
 
     var body: some View {
-        SongPageView(
-            release: route.release, trackID: route.trackId,
-            onEdit: route.editRoute.map { edit in { open(edit) } },
-            onOpenCollection: { playback?.openCollectionRequest = $0 },
-            onOpenAlbum: { open(route.albumRoute) })
+        let _ = reads
+        Group {
+            if let release = current() {
+                SongPageView(
+                    release: release, trackID: route.trackId,
+                    onEdit: route.editRoute(for: release).map { edit in { open(edit) } },
+                    onOpenCollection: { playback?.openCollectionRequest = $0 },
+                    onOpenAlbum: { open(route.albumRoute(for: release)) })
+            } else {
+                // Deleted elsewhere: the plain empty page the release page shows, and the stack pops.
+                Color.clear
+            }
+        }
+        .onAppear {
+            reads += 1
+            if current() == nil { dismiss() }
+        }
     }
 }
 
