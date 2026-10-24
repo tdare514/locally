@@ -19,6 +19,9 @@
   - **Browsing never stops the music.** The record keeps spinning while you turn the wheel to look at other collections; the
     deck's controls stay on what's playing, with "Back to {name}" to turn the wheel home.
   - Under them, the **queue** lists the front collection's tracks, Side A then Side B. Tapping one plays that collection from there.
+  - **On the iPhone** the record player steps into the background (owner, 23 Oct): the playing record turns in the wheel's
+    hub on the left edge with the current track's cover as its label, the rows orbit it, and there is no deck and no
+    hovering cover. The "Playing" row is how you see what's on. The wheel is larger, so fewer rows show and you scroll more.
   - The record player replaces the per-collection styles in the issue (Shelf, Tape, pocket player). Tape and the pocket
     player can come back later as other objects on the wheel.
 - **Where it lives:** the top of the Library on both apps, as a slim row of the collections' records and "New collection".
@@ -157,8 +160,9 @@ Recorded on #339 (comment of 23 Oct).
   deletes, retried each reconcile like releases.
 - **Sync:** the same order and rules as the Mac.
 - **Library:** the same slim row at the top of the Library tab.
-- **The Collections screen:** the half wheel on the left edge, the turntable to its right with the platter running off the
-  screen edge, now playing and the queue below, and the List view with a search field.
+- **The Collections screen:** the half wheel across the screen with the playing record turning in its hub (no deck, no
+  hovering cover), now playing and the queue below, and the List view with a search field. Rows show the name and track
+  count; the length is in the List view and VoiceOver.
   - **Gestures:** a vertical drag that starts on the wheel turns it, like the system's picker wheels inside a scrolling form;
     the page scrolls from anywhere else. Tapping the row above or below turns to it, so no drag is ever needed. (Codex
     suggested horizontal swipes; the owner asked to scroll the left side with a finger, so the wheel keeps the vertical drag.)
@@ -171,8 +175,8 @@ Recorded on #339 (comment of 23 Oct).
 ## The look (both apps; details go into `docs/design.md` in the design steps)
 
 - **The prototype** (private): https://claude.ai/artifact/2J5qUxPQRrXSFa1jyzuRx7. **Screenshots:** `docs/design-previews/339/`.
-  - `mac-record-player.png` (on the playing collection), `mac-record-player-browsing.png` (looking at another while one plays)
-    and `phone-record-player.png` are the chosen direction.
+  - `mac-record-player.png` (on the playing collection), `mac-record-player-browsing.png` (looking at another while one plays),
+    `phone-record-player.png` and `phone-record-player-browsing.png` are the chosen direction.
   - `*-spines`, `*-crate`, `*-ledge`, `*-turntable` and `*-plain` are the variants explored on the way, kept for the record.
 - **The wheel:** rows on the right half of a dial whose hub sits on the left edge. A row is a small record (72 on the Mac, 46
   on the iPhone) with the collection's first cover as its label, then the name (20 / 15, white) and "27 tracks, 1 hr 56 min"
@@ -180,9 +184,11 @@ Recorded on #339 (comment of 23 Oct).
   reading left to right (owner, 23 Oct), and fade past about 50° from the front, so about seven show at once. The playing collection's record turns and its row says "Playing" or
   "Paused" in the accent colour. The hub shows "5 of 24", ▲ and ▼ (Mac) and a + for a new collection, all 44 buttons. A thin
   ring and an accent notch point at the turntable.
-- **The turntable:** a deck in the app's glass, the platter seen at an angle (a circle flattened to an ellipse, no 3D library),
+- **The turntable (Mac):** a deck in the app's glass, the platter seen at an angle (a circle flattened to an ellipse, no 3D library),
   a tonearm that swings onto the record when it plays, the hovering cover (above), and now playing on the deck's right (on the
   iPhone, under it), with "Back to {name}" while browsing.
+- **The iPhone's record:** the wheel's hub is the playing record (the hub's radius, its label the current track's cover,
+  a dark platter rim), turning at 33⅓ rpm while playing and still when paused. The count and + sit under the wheel.
 - **The queue:** Side A and Side B columns on the Mac (one column on the iPhone); the current track carries the #324
   now-playing glyph in the accent colour.
 - **Colour:** the page takes the front record's cover colours, as the release page does.
@@ -197,6 +203,13 @@ Recorded on #339 (comment of 23 Oct).
   - The spin, the wheel and the record rows pause when the page is hidden or scrolled out of view, on both apps, and in Low
     Power Mode on the iPhone.
 - **Reduce Motion:** the wheel jumps from record to record, nothing spins, and the cover appears without rising.
+- **Steady while browsing** (acceptance criteria, Codex round 2): turning the wheel, pausing, skipping and switching
+  collections update the deck in place. The record never remounts or restarts its turn, and keyboard focus stays on the
+  control that was pressed (a queue row that re-renders gets focus back).
+- **Hit areas:** every row keeps a 44 pt tap area however small its art is scaled, and the hovering cover's Play button is
+  44 pt tall.
+- **One source for state:** the visible "Playing" / "Paused" and every accessible label come from the same player state, so
+  VoiceOver says "paused" when it is.
 - **Accessibility:**
   - The wheel is one focusable control (a listbox with `aria-activedescendant` on the Mac). Its keys act only when the wheel
     itself has focus, so Enter on a nearby button never starts playback. On the iPhone it is a VoiceOver adjustable element:
