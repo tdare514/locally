@@ -59,41 +59,53 @@ struct TrackActions {
     }
 }
 
+/// Which halves of the menu a row gets: a row whose tap target is a separate button (Stats) puts the
+/// VoiceOver actions on that button and keeps the long-press menu on the row.
+enum TrackActionsPart { case both, menu, accessibility }
+
 private struct TrackActionsModifier: ViewModifier {
     let actions: TrackActions
+    var part: TrackActionsPart = .both
     @Environment(\.playback) private var playback
     @Environment(\.queueToast) private var toast
     @Environment(\.appContainer) private var container
 
+    @ViewBuilder
     func body(content: Content) -> some View {
-        content
-            .contextMenu {
-                // The icon row: a ControlGroup at the top of a context menu draws as a row of icons.
-                ControlGroup {
-                    Button(Copy.TrackActions.playNext, systemImage: "text.line.first.and.arrowtriangle.forward") { queue(next: true) }
-                    Button(Copy.TrackActions.addToQueue, systemImage: "text.line.last.and.arrowtriangle.forward") { queue(next: false) }
-                    if let add = actions.addToCollection {
-                        Button(Copy.TrackActions.addToCollection, systemImage: "text.badge.plus", action: add)
-                    }
-                    if let share = actions.share {
-                        Button(Copy.TrackActions.share, systemImage: "square.and.arrow.up", action: share)
-                    }
-                }
-                if let edit = actions.edit { Button(Copy.TrackActions.edit, systemImage: "pencil", action: edit) }
-                if let go = actions.goToAlbum { Button(Copy.TrackActions.goToAlbum, systemImage: "square.stack", action: go) }
-                if let go = actions.goToArtist { Button(Copy.TrackActions.goToArtist, systemImage: "person.crop.circle", action: go) }
-                if let info = actions.songInfo { Button(Copy.TrackActions.songInfo, systemImage: "info.circle", action: info) }
+        switch part {
+        case .both: content.contextMenu { menu }.accessibilityActions { voiceOver }
+        case .menu: content.contextMenu { menu }
+        case .accessibility: content.accessibilityActions { voiceOver }
+        }
+    }
+
+    @ViewBuilder private var menu: some View {
+        // The icon row: a ControlGroup at the top of a context menu draws as a row of icons.
+        ControlGroup {
+            Button(Copy.TrackActions.playNext, systemImage: "text.line.first.and.arrowtriangle.forward") { queue(next: true) }
+            Button(Copy.TrackActions.addToQueue, systemImage: "text.line.last.and.arrowtriangle.forward") { queue(next: false) }
+            if let add = actions.addToCollection {
+                Button(Copy.TrackActions.addToCollection, systemImage: "text.badge.plus", action: add)
             }
-            .accessibilityActions {
-                Button(Copy.TrackActions.playNext) { queue(next: true) }
-                Button(Copy.TrackActions.addToQueue) { queue(next: false) }
-                if let add = actions.addToCollection { Button(Copy.TrackActions.addToCollection, action: add) }
-                if let share = actions.share { Button(Copy.TrackActions.share, action: share) }
-                if let edit = actions.edit { Button(Copy.TrackActions.edit, action: edit) }
-                if let go = actions.goToAlbum { Button(Copy.TrackActions.goToAlbum, action: go) }
-                if let go = actions.goToArtist { Button(Copy.TrackActions.goToArtist, action: go) }
-                if let info = actions.songInfo { Button(Copy.TrackActions.songInfo, action: info) }
+            if let share = actions.share {
+                Button(Copy.TrackActions.share, systemImage: "square.and.arrow.up", action: share)
             }
+        }
+        if let edit = actions.edit { Button(Copy.TrackActions.edit, systemImage: "pencil", action: edit) }
+        if let go = actions.goToAlbum { Button(Copy.TrackActions.goToAlbum, systemImage: "square.stack", action: go) }
+        if let go = actions.goToArtist { Button(Copy.TrackActions.goToArtist, systemImage: "person.crop.circle", action: go) }
+        if let info = actions.songInfo { Button(Copy.TrackActions.songInfo, systemImage: "info.circle", action: info) }
+    }
+
+    @ViewBuilder private var voiceOver: some View {
+        Button(Copy.TrackActions.playNext) { queue(next: true) }
+        Button(Copy.TrackActions.addToQueue) { queue(next: false) }
+        if let add = actions.addToCollection { Button(Copy.TrackActions.addToCollection, action: add) }
+        if let share = actions.share { Button(Copy.TrackActions.share, action: share) }
+        if let edit = actions.edit { Button(Copy.TrackActions.edit, action: edit) }
+        if let go = actions.goToAlbum { Button(Copy.TrackActions.goToAlbum, action: go) }
+        if let go = actions.goToArtist { Button(Copy.TrackActions.goToArtist, action: go) }
+        if let info = actions.songInfo { Button(Copy.TrackActions.songInfo, action: info) }
     }
 
     private func queue(next: Bool) {
@@ -105,15 +117,15 @@ private struct TrackActionsModifier: ViewModifier {
 
 extension View {
     /// Adds the long-press menu and the VoiceOver actions for `actions`.
-    func trackActions(_ actions: TrackActions) -> some View {
-        modifier(TrackActionsModifier(actions: actions))
+    func trackActions(_ actions: TrackActions, part: TrackActionsPart = .both) -> some View {
+        modifier(TrackActionsModifier(actions: actions, part: part))
     }
 }
 
 extension View {
     /// Same, for a row whose release may not be loaded: no release, no menu.
     @ViewBuilder
-    func trackActions(_ actions: TrackActions?) -> some View {
-        if let actions { trackActions(actions) } else { self }
+    func trackActions(_ actions: TrackActions?, part: TrackActionsPart = .both) -> some View {
+        if let actions { trackActions(actions, part: part) } else { self }
     }
 }
