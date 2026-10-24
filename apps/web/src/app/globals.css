@@ -3012,25 +3012,26 @@ body {
   position: absolute;
   left: 0;
   top: 0;
-  display: flex;
-  align-items: center;
-  gap: 14px;
   width: 330px;
-  /* Rows stay level: they follow the dial's curve but never tilt (owner, 23 Oct). */
-  transform-origin: 32px 50%;
+  /* The hit box: a constant 44 px that only moves (never scaled), so a turn costs no layout. */
+  height: 44px;
   visibility: hidden;
   opacity: 0;
   will-change: transform, opacity;
 }
-/* A 44 px hit area however small the row is scaled: --k is the row's scale, set with its place. */
-.rp-row::after {
-  content: "";
+/* The visible art and text: 64 px high, centred on the hit box, scaled by the layout loop. Rows stay level: they follow
+   the dial's curve but never tilt (owner, 23 Oct). */
+.rp-row-in {
   position: absolute;
   left: 0;
-  right: 0;
   top: 50%;
-  height: max(100%, calc(44px / var(--k, 1)));
-  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 330px;
+  margin-top: -32px;
+  transform-origin: 32px 50%;
+  will-change: transform;
 }
 .rp-sleeve {
   position: relative;
@@ -3105,19 +3106,33 @@ body {
 /* The turntable: the app's fake glass, the platter seen at an angle (a circle flattened to an ellipse). */
 .rp-scene {
   --cx: 40%;
+  /* The deck's scale: 1 from 520 px of room up, smaller below it (the stage is drawn 520 px wide and scaled to fit). */
+  --s: 1;
   position: relative;
   isolation: isolate;
   height: 470px;
 }
+/* The decorative parts (deck, platter, record, hovering cover, tonearm) live in one stage drawn at its full size and
+   scaled by a transform, so nothing overflows however narrow the room is. Now playing sits outside it, at full size. */
+.rp-stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(100% / var(--s));
+  height: 470px;
+  transform: scale(var(--s));
+  transform-origin: 0 0;
+}
 @container (max-width: 820px) {
   .rp-scene {
     --cx: 50%;
-    height: 640px;
+    --s: clamp(0.35, tan(atan2(100cqw, 520px)), 1);
+    height: calc(194px + 446px * var(--s));
   }
   .rp-now {
     left: 4px !important;
     right: 4px !important;
-    top: 446px !important;
+    top: calc(446px * var(--s)) !important;
   }
 }
 .rp-deck-top {
@@ -3332,7 +3347,7 @@ body {
   left: 8px;
   right: 8px;
   bottom: 8px;
-  height: 44px;
+  height: calc(44px / var(--s));
   padding: 0 12px;
   border-radius: 9999px;
   display: flex;
@@ -3340,7 +3355,7 @@ body {
   justify-content: center;
   gap: 8px;
   min-width: 0;
-  font-size: 14px;
+  font-size: calc(14px / var(--s));
   font-weight: 600;
   color: var(--text);
   background: var(--card);

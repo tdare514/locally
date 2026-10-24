@@ -73,7 +73,7 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
     <div className="flex flex-col gap-6 pb-16">
       <div className="flex flex-wrap items-end justify-between gap-4 pr-[calc(var(--tray-size)+0.75rem)] lg:pr-0">
         <div>
-          <p className="text-sm font-semibold text-accent">Your music</p>
+          <p className="-ml-2.5 inline-block rounded-full bg-bg px-2.5 py-0.5 text-sm font-semibold text-accent">Your music</p>
           <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">Collections</h1>
           {loaded && collections.length > 0 && (
             <div className="rp-switches mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-text-muted">
@@ -483,6 +483,7 @@ function Queue({
     setAnnouncement(fresh ? `${COULDNT_PLAY_TRACK}: ${fresh.title}` : "");
   }
   const { a, b } = splitSides(entries);
+  const rowButtons = useRef(new Map<string, HTMLButtonElement>());
   function playFrom(e: Entry) {
     if (isCurrentRow(playerQueue, collection.id, e.position, { releaseId: e.release.id, trackId: e.trackId })) {
       playerStore.toggle();
@@ -493,7 +494,11 @@ function Queue({
   }
   function tryAgain(e: Entry) {
     const queue = e.position === null ? null : buildCollectionQueueAt(collection, releases, e.position);
-    if (queue) playerStore.start(queue);
+    // Starting clears the failure marks, which unmounts this Try again button: focus goes to the track's own row first.
+    if (queue) {
+      rowButtons.current.get(e.key)?.focus();
+      playerStore.start(queue);
+    }
   }
   const side = (label: string, list: Entry[]) =>
     list.length === 0 ? null : (
@@ -506,6 +511,10 @@ function Queue({
               <li key={e.key} className="flex items-center gap-1">
                 <button
                   type="button"
+                  ref={(el) => {
+                    if (el) rowButtons.current.set(e.key, el);
+                    else rowButtons.current.delete(e.key);
+                  }}
                   disabled={!e.playable}
                   onClick={() => playFrom(e)}
                   aria-label={`${isCurrent && playing ? "Pause" : "Play"} ${e.title}${e.playable ? "" : ", file missing"}${e.failed ? `, ${COULDNT_PLAY_TRACK}` : ""}`}

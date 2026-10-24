@@ -10,6 +10,7 @@ import {
   fadeOpacity,
   findByPrefix,
   frontIndex,
+  keyTarget,
   loadSpinningRecord,
   loadViewMode,
   nextTyped,
@@ -230,5 +231,20 @@ describe("the per-device choices", () => {
     vi.stubGlobal("window", undefined);
     expect(loadSpinningRecord()).toBe("picture");
     expect(() => saveViewMode("list")).not.toThrow();
+  });
+});
+
+describe("the keyboard's logical selection", () => {
+  it("plays the third-next collection after three Down keys, whatever the animation has reached", () => {
+    const n = 10;
+    let target = 2; // the wheel sits on row 2; its animation (pos) has not moved at all
+    for (let k = 0; k < 3; k++) target = keyTarget("ArrowDown", target, n) ?? target;
+    expect(frontIndex(target, n)).toBe(5);
+  });
+  it("wraps, and Home and End take the shortest way", () => {
+    expect(frontIndex(keyTarget("ArrowUp", 0, 4)!, 4)).toBe(3);
+    expect(frontIndex(keyTarget("End", 1, 4)!, 4)).toBe(3);
+    expect(frontIndex(keyTarget("Home", 3, 4)!, 4)).toBe(0);
+    expect(keyTarget("a", 0, 4)).toBeNull();
   });
 });

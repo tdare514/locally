@@ -18,6 +18,7 @@ import {
   easeToward,
   findByPrefix,
   frontIndex,
+  keyTarget,
   nextTyped,
   rowCaption,
   rowLabel,
@@ -35,6 +36,8 @@ import NoCover from "./NoCover";
 
 /** Rows kept in the DOM round the front (the dial shows about seven; the rest is slack for a fast turn). */
 const MOUNT_STEPS = 8;
+/** A row's hit box height in px: constant however far round the dial the row sits. */
+const ROW_HIT = 44;
 const PREVIEW_DELAY_MS = 60;
 const SNAP_AFTER_SCROLL_MS = 140;
 
@@ -80,6 +83,8 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
   const target = useRef(initial);
   const [front, setFront] = useState(initial);
   const frontRef = useRef(initial);
+  // The logical selection: changes at once on every key (and every other turn); the animation only chases it.
+  const [selected, setSelected] = useState(initial);
   const [previewId, setPreviewId] = useState<string | null>(shown[initial]?.id ?? null);
 
   const listRef = useRef<HTMLDivElement>(null);
@@ -113,10 +118,12 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
       if (!pose) continue;
       next.add(c.id);
       el.style.visibility = "visible";
-      el.style.transform = `translate(${pose.x - g.base / 2}px, ${cy + pose.y - g.base / 2}px) scale(${pose.scale})`;
+      // The row element keeps a fixed 44 px hit box and only moves; the visible art and text (its first child) scale.
+      el.style.transform = `translate(${pose.x - g.base / 2}px, ${cy + pose.y - ROW_HIT / 2}px)`;
       el.style.opacity = String(pose.opacity);
       el.style.zIndex = String(pose.z);
-      el.style.setProperty("--k", pose.scale.toFixed(3));
+      const face = el.firstElementChild as HTMLElement | null;
+      if (face) face.style.transform = `scale(${pose.scale})`;
     }
     for (const id of lit.current) {
       if (next.has(id)) continue;
@@ -147,6 +154,15 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
     frame.current = (t) => {
       const dt = lastT.current ? t - lastT.current : 16;
       lastT.current = t;
+      if (!live.current) {
+        // The wheel went out of view (or the page was hidden) mid-turn: settle at once.
+        pos.current = target.current;
+        layout();
+        syncFront();
+        raf.current = 0;
+        lastT.current = 0;
+        return;
+      }
       pos.current = easeToward(pos.current, target.current, Math.min(dt, 64));
       layout();
       syncFront();
@@ -161,6 +177,7 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
   const turnTo = useCallback(
     (t: number) => {
       target.current = t;
+      setSelected(frontIndex(t, shownRef.current.length));
       if (reducedMotion() || !live.current) {
         if (raf.current) cancelAnimationFrame(raf.current);
         raf.current = 0;
@@ -199,6 +216,7 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
     pos.current = target.current = i;
     frontRef.current = i;
     setFront(i);
+    setSelected(i);
     layout();
   }, [idsKey, n, layout]);
 
@@ -234,39 +252,60 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
     return () => ro.disconnect();
   }, [layout, n]);
 
-  // Pause the wheel and the spin while the page is hidden or the record player is scrolled out of view.
+  // The wheel and the deck are watched apart: at the stacked width one can be on screen while the other is not. The wheel's
+  // turn pauses (a running one settles at once) when the wheel is out of view or the page hidden; the record's spin
+  // pauses when the deck is out of view or the page hidden.
+  const sceneRef = useRef<HTMLElement>(null);
+  const wheelRef = useRef<HTMLDivElement>(null);
+  const hasWheel = n > 0;
   useEffect(() => {
     let visible = !document.hidden;
-    let inView = true;
+    let wheelIn = true;
+    let deckIn = true;
     const apply = () => {
-      live.current = visible && inView;
-      setIsLive(live.current);
+      const wheelLive = visible && wheelIn;
+      live.current = wheelLive;
+      if (!wheelLive && raf.current) {
+        cancelAnimationFrame(raf.current);
+        raf.current = 0;
+        lastT.current = 0;
+        pos.current = target.current;
+        layout();
+        syncFront();
+      }
+      setIsLive(visible && deckIn);
     };
     const onVis = () => {
       visible = !document.hidden;
       apply();
     };
     document.addEventListener("visibilitychange", onVis);
-    let io: IntersectionObserver | null = null;
-    if (rootRef.current && typeof IntersectionObserver !== "undefined") {
-      io = new IntersectionObserver((entries) => {
-        inView = entries[entries.length - 1].isIntersecting;
-        apply();
-      });
-      io.observe(rootRef.current);
+    const ios: IntersectionObserver[] = [];
+    if (typeof IntersectionObserver !== "undefined") {
+      const watch = (el: Element | null, set: (v: boolean) => void) => {
+        if (!el) return;
+        const io = new IntersectionObserver((entries) => {
+          set(entries[entries.length - 1].isIntersecting);
+          apply();
+        });
+        io.observe(el);
+        ios.push(io);
+      };
+      watch(wheelRef.current, (v) => (wheelIn = v));
+      watch(sceneRef.current, (v) => (deckIn = v));
     }
     return () => {
       document.removeEventListener("visibilitychange", onVis);
-      io?.disconnect();
+      for (const io of ios) io.disconnect();
     };
-  }, []);
+  }, [hasWheel, layout, syncFront]);
 
   // ---- input -------------------------------------------------------------------------------
   const snapTimer = useRef(0);
   const snap = useCallback(() => turnTo(Math.round(target.current)), [turnTo]);
 
   const playFront = useCallback(() => {
-    const c = shownRef.current[frontRef.current];
+    const c = shownRef.current[frontIndex(target.current, shownRef.current.length)];
     if (!c) return;
     const q = playerStore.getState().queue;
     if (q && q.context.kind === "collection" && q.context.id === c.id) {
@@ -320,7 +359,7 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
     if (!d.id) return;
     const i = shownRef.current.findIndex((c) => c.id === d.id);
     if (i < 0) return;
-    if (i === frontRef.current) playFront();
+    if (i === frontIndex(target.current, shownRef.current.length)) playFront();
     else turnToIndex(i);
   };
 
@@ -335,13 +374,9 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
       turnTo(t);
       e.preventDefault();
     };
+    const step = keyTarget(e.key, at, count);
+    if (step !== null) return go(step);
     switch (e.key) {
-      case "ArrowDown": return go(at + 1);
-      case "ArrowUp": return go(at - 1);
-      case "PageDown": return go(at + 5);
-      case "PageUp": return go(at - 5);
-      case "Home": return go(turnTarget(0, at, count));
-      case "End": return go(turnTarget(count - 1, at, count));
       case "Enter":
         e.preventDefault();
         return playFront();
@@ -353,7 +388,7 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
     if (e.key === " " && !active) return; // a space only continues a word
     typed.current = { text: nextTyped(typed.current.text, typed.current.at, e.key.toLowerCase(), now), at: now };
     const names = shownRef.current.map((c) => normalizeSearchText(c.name));
-    const hit = findByPrefix(names, normalizeSearchText(typed.current.text), frontRef.current);
+    const hit = findByPrefix(names, normalizeSearchText(typed.current.text), frontIndex(at, count));
     if (hit !== null) go(turnTarget(hit, at, count));
     else e.preventDefault();
   };
@@ -361,6 +396,7 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
   // ---- the player's state for the wheel's rows and the deck -----------------------------------
   const rowState: "playing" | "paused" = playing ? "playing" : "paused";
   const frontCollection = shown[front] ?? null;
+  const selectedCollection = shown[selected] ?? frontCollection;
   const coverIds = preview ? collectionCoverIds(preview.items, releases) : [];
   const washRelease = coverIds.length > 0 ? releases.find((r) => r.id === coverIds[0]) : undefined;
   const palette = useArtworkPalette(washRelease ? coverUrl(washRelease.id, washRelease.updatedAt) : null);
@@ -387,7 +423,7 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
           {n === 0 ? (
             <p className="mt-4 text-sm text-text-muted">No collection matches “{query.trim()}”.</p>
           ) : (
-            <div className="rp-wheel">
+            <div ref={wheelRef} className="rp-wheel">
               <div className="rp-ring" aria-hidden="true" />
               <div className="rp-notch" aria-hidden="true" />
               <div
@@ -395,7 +431,7 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
                 tabIndex={0}
                 role="listbox"
                 aria-label="Your collections. Up and down arrows turn the wheel, Enter plays the one in front, or type a name."
-                aria-activedescendant={frontCollection ? `rp-opt-${frontCollection.id}` : undefined}
+                aria-activedescendant={selectedCollection ? `rp-opt-${selectedCollection.id}` : undefined}
                 className="rp-list"
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
@@ -413,6 +449,7 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
                       index={i}
                       count={n}
                       isFront={i === front}
+                      isSelected={i === selected}
                       state={nowId === c.id ? rowState : null}
                       register={register}
                     />
@@ -440,6 +477,7 @@ export default function RecordPlayerView({ collections, releases, selectedId, re
         </div>
         <div className="rp-right">
           <Deck
+            sceneRef={sceneRef}
             preview={preview}
             collections={collections}
             releases={releases}
@@ -470,6 +508,7 @@ const WheelRow = memo(function WheelRow({
   index,
   count,
   isFront,
+  isSelected,
   state,
   register,
 }: {
@@ -478,6 +517,7 @@ const WheelRow = memo(function WheelRow({
   index: number;
   count: number;
   isFront: boolean;
+  isSelected: boolean;
   state: "playing" | "paused" | null;
   register: (id: string, el: HTMLElement | null) => void;
 }) {
@@ -487,7 +527,7 @@ const WheelRow = memo(function WheelRow({
       ref={(el) => register(collection.id, el)}
       id={`rp-opt-${collection.id}`}
       role="option"
-      aria-selected={isFront}
+      aria-selected={isSelected}
       aria-label={rowLabel(collection.name, totals.tracks, state)}
       aria-posinset={index + 1}
       aria-setsize={count}
@@ -495,6 +535,7 @@ const WheelRow = memo(function WheelRow({
       data-front={isFront ? "true" : "false"}
       className="rp-row"
     >
+      <span className="rp-row-in">
       <span className="rp-sleeve">
         <CollectionSleeve items={collection.items} releases={releases} single className="size-full rounded-none!" />
       </span>
@@ -510,6 +551,7 @@ const WheelRow = memo(function WheelRow({
           <span>{rowCaption(totals.tracks, totals.seconds)}</span>
         </small>
       </span>
+      </span>
     </div>
   );
 });
@@ -519,6 +561,7 @@ const WheelRow = memo(function WheelRow({
  * a turn of the wheel or a new collection changes a class, a style value or a text, never the elements.
  */
 function Deck({
+  sceneRef,
   preview,
   collections,
   releases,
@@ -527,6 +570,7 @@ function Deck({
   nowInList,
   hasQueue,
 }: {
+  sceneRef: React.RefObject<HTMLElement | null>;
   preview: CollectionRecord | null;
   collections: CollectionRecord[];
   releases: Release[];
@@ -593,7 +637,8 @@ function Deck({
   const picture = record === "picture" && art !== null;
 
   return (
-    <section className="rp-scene" aria-label="Record player" data-state={hasQueue ? state : "idle"}>
+    <section ref={sceneRef} className="rp-scene" aria-label="Record player" data-state={hasQueue ? state : "idle"}>
+      <div className="rp-stage">
       <div className="rp-deck-top glass-fake" aria-hidden="true" />
       <div className="rp-deck-front" aria-hidden="true">
         <i className="rp-knob" style={{ right: 64 }} />
@@ -638,6 +683,7 @@ function Deck({
       </div>
       <div className="rp-arm" aria-hidden="true">
         <div className="rp-rod" />
+      </div>
       </div>
       <div className="rp-now">
         {item ? (

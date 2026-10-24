@@ -93,6 +93,23 @@ export function windowIndexes(pos: number, n: number, steps: number = MAX_STEPS 
 /** The index in front when the wheel is at `pos`. */
 export const frontIndex = (pos: number, n: number): number => (n > 0 ? mod(Math.round(pos), n) : 0);
 
+/**
+ * Where a navigation key sends the wheel, from the logical target `at` (an integer, the wheel's own unwrapped count), or
+ * null for a key that does not navigate. The logical target changes at once on every key; the animation only chases it,
+ * so Enter plays `frontIndex(target, n)`, never whatever the animation has reached.
+ */
+export function keyTarget(key: string, at: number, n: number): number | null {
+  switch (key) {
+    case "ArrowDown": return at + 1;
+    case "ArrowUp": return at - 1;
+    case "PageDown": return at + 5;
+    case "PageUp": return at - 5;
+    case "Home": return turnTarget(0, at, n);
+    case "End": return turnTarget(n - 1, at, n);
+    default: return null;
+  }
+}
+
 /** The target (an integer in the wheel's own, unwrapped count) that brings row `i` to the front by the shortest way. */
 export function turnTarget(i: number, from: number, n: number): number {
   const at = Math.round(from);
