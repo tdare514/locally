@@ -434,8 +434,8 @@ Device-token auth. Body:
   the token's. A missing key, a wrong type or a non-integer number is a 400.
 - **Batches:** 1 to 500 events per request; anything else is a 400.
 - **`startedAt`:** later than server now + 24 h is a 400 for the whole request (clock skew, nothing
-  applied). Older than 400 days: that event is silently dropped, as day buckets are. A past
-  `startedAt` is not a 400.
+  applied). Older than 400 days: that event is dropped without an error, as day buckets are, and
+  counts in `ignored`. A past `startedAt` is not a 400.
 - **`day`:** a real date (2026-02-30 is a 400), not later than UTC tomorrow (the day bucket rule).
   The server never converts it.
 - **Upsert per (account, `id`).**
@@ -482,8 +482,8 @@ Each `tracks[]` entry of `GET /v1/plays/summary` gains:
 
 - `lastPlayedAt`: integer (epoch ms) | null. The latest `startedAt` among the track's events whose
   `day` is in the window; null when it has none.
-- `listenedMs`: integer >= 0. The sum of those events' `listenedMs`.
-- `events`: integer >= 0. How many those events are.
+- `listenedMs`: integer >= 0. The sum of those events' `listenedMs`; 0 when it has none.
+- `events`: integer >= 0. How many those events are; 0 when it has none.
 
 Each `allTime[]` entry gains the same three fields over all retained events.
 
