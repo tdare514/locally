@@ -12,6 +12,7 @@ struct ReleaseDetailView: View {
     @Environment(\.playback) private var playback
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .headline) private var tracksHeadingSize: CGFloat = 17
 
     let release: Release
@@ -23,6 +24,8 @@ struct ReleaseDetailView: View {
     var holdsHighlight = false
     @State private var highlight: Double = 0
     @State private var didHighlight = false
+    /// How far the wash reaches past the row's text; less at large text so it stays inside the screen edge.
+    private var washBleed: CGFloat { dynamicTypeSize.isAccessibilitySize ? 4 : min(8, Theme.Immersive.recordRowSideInset / 2) }
     @AccessibilityFocusState private var focusedTrackID: UUID?
 
     @State private var model: ReleaseDetailViewModel?
@@ -374,10 +377,12 @@ struct ReleaseDetailView: View {
                     RoundedRectangle(cornerRadius: Theme.Track.highlightCornerRadius)
                         .fill(Theme.accent.opacity(Theme.Track.highlightOpacity))
                         .opacity(highlight)
-                        .padding(.horizontal, -8)
+                        .padding(.horizontal, -washBleed)
+                        .padding(.vertical, -4)
                 }
             }
             .id(row.id)
+            .accessibilityValue(row.id == highlightTrackID && highlight > 0 ? Copy.Detail.trackHighlighted : "")
             .accessibilityFocused($focusedTrackID, equals: row.id)
             .overlay(alignment: .bottom) {
                 if index != last { Rectangle().fill(Theme.Track.separatorTint).frame(height: 1) }
@@ -431,9 +436,9 @@ struct ReleaseDetailView: View {
     /// fades it out. Opacity only; Reduce Motion jumps the scroll. Plays once per push.
     private func highlightTrack(in model: ReleaseDetailViewModel, proxy: ScrollViewProxy) async {
         guard let id = highlightTrackID, !didHighlight, !model.isEditing, model.trackRows.contains(where: { $0.id == id }) else { return }
-        didHighlight = true
         try? await Task.sleep(for: .seconds(Theme.Track.highlightDelay))
         guard !Task.isCancelled else { return }
+        didHighlight = true
         if reduceMotion {
             proxy.scrollTo(id, anchor: .center)
         } else {
@@ -443,6 +448,7 @@ struct ReleaseDetailView: View {
         withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: Theme.Track.highlightFadeIn)) { highlight = 1 }
         guard !holdsHighlight else { return }
         try? await Task.sleep(for: .seconds(Theme.Track.highlightFadeIn + Theme.Track.highlightHold))
+        guard !Task.isCancelled else { return }
         withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: Theme.Track.highlightFadeOut)) { highlight = 0 }
     }
 

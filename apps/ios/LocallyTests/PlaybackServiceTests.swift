@@ -470,6 +470,37 @@ struct PlaybackServiceTests {
         #expect(counting.openReleaseRequest == single.id)
     }
 
+    @Test func openingAReleaseContextAsksForTheTrackThatIsPlaying() async {
+        let r = release()
+        service.play(release: r, startingAt: id(r, 2))
+        await settle()
+        service.openContext()
+        #expect(service.openReleaseRequest == r.id)
+        #expect(service.openReleaseTrackRequest == id(r, 2))
+    }
+
+    @Test func aPlayingItemFromAnotherReleaseGivesNoTrackRequest() async {
+        let r = release()
+        let other = release()
+        let items = [QueueItem(releaseId: other.id, trackId: id(other, 1))]
+        service.play(items: items, releases: [other], context: .release(r.id))
+        await settle()
+        service.openContext()
+        #expect(service.openReleaseRequest == r.id)
+        #expect(service.openReleaseTrackRequest == nil)
+    }
+
+    @Test func aCollectionContextLeavesTheTrackRequestNil() async {
+        let a = release()
+        let b = release()
+        let items = [QueueItem(releaseId: a.id, trackId: id(a, 1)), QueueItem(releaseId: b.id, trackId: id(b, 2))]
+        service.play(items: items, releases: [a, b], context: QueueContext(kind: .collection, id: UUID()))
+        await settle()
+        service.openContext()
+        #expect(service.openReleaseRequest == nil)
+        #expect(service.openReleaseTrackRequest == nil)
+    }
+
     @Test func startingAtAnIndexPlaysThatItemAndKeepsTheOrderAroundIt() async {
         let r = release()
         let gone = QueueItem(releaseId: UUID(), trackId: UUID())
