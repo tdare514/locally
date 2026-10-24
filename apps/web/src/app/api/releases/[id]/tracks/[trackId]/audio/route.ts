@@ -33,15 +33,16 @@ export async function GET(request: NextRequest, { params }: Params) {
     };
     const range = parseByteRange(request.headers.get("range"), file.size);
     if (range === "invalid") {
+      await file.handle.close().catch(() => undefined);
       return new NextResponse(null, { status: 416, headers: { ...headers, "Content-Range": `bytes */${file.size}` } });
     }
     if (range === null) {
-      return new NextResponse(streamFile(file.realPath, null), {
+      return new NextResponse(streamFile(file.handle, null), {
         status: 200,
         headers: { ...headers, "Content-Length": String(file.size) },
       });
     }
-    return new NextResponse(streamFile(file.realPath, range), {
+    return new NextResponse(streamFile(file.handle, range), {
       status: 206,
       headers: {
         ...headers,

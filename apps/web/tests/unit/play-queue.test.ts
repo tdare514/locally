@@ -142,4 +142,35 @@ describe("the Mac player queue (#338)", () => {
   it("words the scrubber as 'm:ss of m:ss'", () => {
     expect(scrubberText(62, 200)).toBe("1:02 of 3:20");
   });
+
+  describe("an item that will not play", () => {
+    it("moves on to the next item and marks the failed one unavailable", () => {
+      const store = createPlayerStore();
+      store.start(buildReleaseQueue(withCover, "a1")!);
+      store.fail("r1/a1");
+      expect(store.getState()).toMatchObject({ playing: true, queue: { index: 1 }, unavailable: ["r1/a1"] });
+      // The same failure reported twice (the play() rejection and the error event) skips once.
+      store.fail("r1/a1");
+      expect(store.getState().queue?.index).toBe(1);
+    });
+
+    it("stops with the mark showing when the last item fails, and a retry leaves no phantom playback", () => {
+      const store = createPlayerStore();
+      store.start(buildReleaseQueue(withCover, "a2")!);
+      store.fail("r1/a2");
+      expect(store.getState()).toMatchObject({ playing: false, queue: { index: 1 }, unavailable: ["r1/a2"] });
+      store.toggle(); // retry
+      expect(store.getState()).toMatchObject({ playing: true, unavailable: [] });
+      store.fail("r1/a2"); // still unsupported
+      expect(store.getState()).toMatchObject({ playing: false, unavailable: ["r1/a2"] });
+    });
+
+    it("ignores a failure reported for an item that is no longer current", () => {
+      const store = createPlayerStore();
+      store.start(buildReleaseQueue(withCover, "a1")!);
+      store.next();
+      store.fail("r1/a1");
+      expect(store.getState()).toMatchObject({ playing: true, queue: { index: 1 }, unavailable: [] });
+    });
+  });
 });

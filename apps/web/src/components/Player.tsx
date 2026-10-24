@@ -9,7 +9,9 @@ import {
   audioUrl,
   currentItem,
   describeItem,
+  COULDNT_PLAY,
   formatClock,
+  itemKey as keyOf,
   mediaMetadataFor,
   openContext,
   playerStore,
@@ -93,10 +95,14 @@ export default function Player({ releases, onOpenRelease }: PlayerProps) {
     const audio = audioRef.current;
     if (!audio || !url) return;
     if (state.playing) {
+      // An element whose file failed to load stays failed until it is loaded again: a retry starts with that.
+      if (audio.error) audio.load();
+      const key = keyOf(currentItem(playerStore.getState().queue));
       audio.play().catch((err: unknown) => {
-        // A track change interrupts the pending play, and an unreadable file is skipped by `onError`.
-        // Only the browser refusing to start (no user gesture yet) leaves the player paused.
-        if (err instanceof DOMException && err.name === "NotAllowedError") playerStore.setPlaying(false);
+        if (!(err instanceof DOMException)) return;
+        // Autoplay blocked: wait for a click. A track change interrupting a pending play is not a failure.
+        if (err.name === "NotAllowedError") playerStore.setPlaying(false);
+        else if (err.name !== "AbortError" && key) playerStore.fail(key);
       });
     } else {
       audio.pause();
@@ -178,18 +184,25 @@ export default function Player({ releases, onOpenRelease }: PlayerProps) {
     };
   }, [goPrevious, seek]);
 
-  // Publish the bar's height (64 plus a 12 px gap) for the pane's bottom room (`--bottom-bars-h`).
+  // Publish the bar's measured height plus a 12 px gap for the pane's bottom room (`--bottom-bars-h`).
   const showing = Boolean(state.queue && info);
+  const barRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!showing) return;
+    const bar = barRef.current;
     const stage = overlayRef.current?.parentElement;
-    stage?.style.setProperty("--mini-player-h", "76px");
+    if (!showing || !bar || !stage) return;
+    const publish = () => stage.style.setProperty("--mini-player-h", `${Math.ceil(bar.getBoundingClientRect().height) + 12}px`);
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(bar);
     return () => {
-      stage?.style.removeProperty("--mini-player-h");
+      observer.disconnect();
+      stage.style.removeProperty("--mini-player-h");
     };
   }, [showing]);
 
   const tint = palette?.primary;
+  const failed = item !== null && state.unavailable.includes(keyOf(item) ?? "");
   const duration = state.durationSec;
 
   return (
@@ -215,8 +228,11 @@ export default function Player({ releases, onOpenRelease }: PlayerProps) {
           playerStore.setPlaying(false);
         }}
         onEnded={() => playerStore.next()}
-        // A file that will not load (gone, or a format this engine cannot play) is skipped.
-        onError={() => playerStore.next()}
+        // A file that will not load (gone, or a format this engine cannot play) is marked, then skipped past.
+        onError={() => {
+          const key = keyOf(currentItem(playerStore.getState().queue));
+          if (key) playerStore.fail(key);
+        }}
       />
       {state.queue && info && (
         // The overlay takes the pane's left padding (the rail, and the card while it is pinned), so the bar lines up
@@ -228,6 +244,7 @@ export default function Player({ releases, onOpenRelease }: PlayerProps) {
           className="px-8"
         >
           <div
+            ref={barRef}
             role="region"
             aria-label="Player"
             style={tint ? ({ "--btn-tint": tint } as CSSProperties) : undefined}
@@ -249,7 +266,13 @@ export default function Player({ releases, onOpenRelease }: PlayerProps) {
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold text-text">{info.title}</span>
-                <span className="block truncate text-[13px] text-text-muted">{info.artist}</span>
+                {failed ? (
+                  <span role="status" className="block truncate text-[13px] text-text-muted">
+                    {COULDNT_PLAY}
+                  </span>
+                ) : (
+                  <span className="block truncate text-[13px] text-text-muted">{info.artist}</span>
+                )}
               </span>
             </button>
             <div className="flex shrink-0 items-center gap-1">

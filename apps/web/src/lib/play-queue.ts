@@ -129,11 +129,16 @@ export interface PlayerState {
   playing: boolean;
   positionSec: number;
   durationSec: number;
+  /** Items ("releaseId/trackId") whose file would not play, until they are tried again. */
+  unavailable: readonly string[];
 }
+
+/** What the bar says about an item that would not play. */
+export const COULDNT_PLAY = "Couldn't play this file";
 
 /** A small external store: the queue and what the one audio element reports. Pure state, no audio. */
 export function createPlayerStore() {
-  let state: PlayerState = { queue: null, playing: false, positionSec: 0, durationSec: 0 };
+  let state: PlayerState = { queue: null, playing: false, positionSec: 0, durationSec: 0, unavailable: [] };
   const listeners = new Set<() => void>();
   const set = (patch: Partial<PlayerState>) => {
     state = { ...state, ...patch };
@@ -147,13 +152,36 @@ export function createPlayerStore() {
     },
     /** Start a queue and play it from its index. */
     start(queue: PlayQueue) {
-      set({ queue, playing: true, positionSec: 0, durationSec: 0 });
+      set({ queue, playing: true, positionSec: 0, durationSec: 0, unavailable: [] });
     },
     setPlaying(playing: boolean) {
       if (state.queue && state.playing !== playing) set({ playing });
     },
     toggle() {
-      if (state.queue) set({ playing: !state.playing });
+      const { queue } = state;
+      if (!queue) return;
+      // Pressing play on an item that would not play tries it again.
+      const key = itemKey(currentItem(queue));
+      if (!state.playing && key && state.unavailable.includes(key)) {
+        set({ playing: true, unavailable: state.unavailable.filter((k) => k !== key) });
+        return;
+      }
+      set({ playing: !state.playing });
+    },
+    /**
+     * The current item's file will not play (an unsupported file, a failed load): mark it unavailable and move on to
+     * the next item, or, at the end, stop with the mark showing. `key` is the item the failure was seen on, so a second
+     * report of the same failure (the `play()` rejection and the `error` event) skips only once.
+     */
+    fail(key: string) {
+      const { queue } = state;
+      if (!queue || itemKey(currentItem(queue)) !== key || state.unavailable.includes(key)) return;
+      const unavailable = [...state.unavailable, key];
+      if (queue.index + 1 < queue.items.length) {
+        set({ queue: { ...queue, index: queue.index + 1 }, playing: true, positionSec: 0, durationSec: 0, unavailable });
+      } else {
+        set({ playing: false, positionSec: 0, unavailable });
+      }
     },
     /** Go to the next item. After the last one playback stops with the queue kept, on that item. */
     next() {
@@ -172,7 +200,7 @@ export function createPlayerStore() {
       if (positionSec !== state.positionSec || durationSec !== state.durationSec) set({ positionSec, durationSec });
     },
     clear() {
-      set({ queue: null, playing: false, positionSec: 0, durationSec: 0 });
+      set({ queue: null, playing: false, positionSec: 0, durationSec: 0, unavailable: [] });
     },
   };
 }

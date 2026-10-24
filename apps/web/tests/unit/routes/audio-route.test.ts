@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Release, Settings } from "../../../src/shared/types";
 import type { Services } from "../../../src/server/container";
 import { ReleaseLayout } from "../../../src/server/releases/ReleaseLayout";
+import { resolveTrackAudio } from "../../../src/server/releases/TrackAudio";
 
 let services: Services;
 vi.mock("../../../src/server/container", () => ({ getServices: () => services }));
@@ -139,5 +140,47 @@ describe("GET /api/releases/[id]/tracks/[trackId]/audio", () => {
   it("403s in the demo", async () => {
     process.env.LOCALLY_DEMO = "1";
     expect((await call("r1", "t1")).status).toBe(403);
+  });
+
+  describe("a swap between the containment check and the open (#338)", () => {
+    const file = () => path.join(lib, "A", "T", "01 - T.mp3");
+    const resolve = (beforeOpen: () => Promise<void>) =>
+      resolveTrackAudio(new ReleaseLayout(), lib, [], releases[0], "t1", { beforeOpen });
+
+    it("serves the file when nothing is swapped, and closes nothing it did not open", async () => {
+      const found = await resolve(async () => undefined);
+      expect(found.size).toBe(1000);
+      await found.handle.close();
+    });
+
+    it("404s when the file becomes a symlink pointing out", async () => {
+      await expect(
+        resolve(async () => {
+          await fs.rm(file());
+          await fs.symlink(path.join(root, "secret.mp3"), file());
+        }),
+      ).rejects.toThrow(/not available/);
+    });
+
+    it("404s when a folder above it becomes a symlink to a folder outside", async () => {
+      const outside = path.join(root, "outside");
+      await fs.mkdir(outside);
+      await fs.writeFile(path.join(outside, "01 - T.mp3"), "secret bytes");
+      await expect(
+        resolve(async () => {
+          await fs.rename(path.join(lib, "A", "T"), path.join(lib, "A", "T-moved"));
+          await fs.symlink(outside, path.join(lib, "A", "T"));
+        }),
+      ).rejects.toThrow(/not available/);
+    });
+
+    it("404s when the file is replaced by another file (a different inode)", async () => {
+      await expect(
+        resolve(async () => {
+          await fs.writeFile(path.join(lib, "A", "T", "new.mp3"), "other");
+          await fs.rename(path.join(lib, "A", "T", "new.mp3"), file());
+        }),
+      ).rejects.toThrow(/not available/);
+    });
   });
 });

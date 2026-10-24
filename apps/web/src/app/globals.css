@@ -1581,6 +1581,10 @@ body {
       min(36px, var(--release-bar-h, 0px) + var(--mini-player-h, 0px))
   );
 }
+/* A focused control scrolls clear of the release bar and the mini player on every page, with or without a bar (#338). */
+.sb-stage > main {
+  scroll-padding-bottom: var(--bottom-bars-h, 0px);
+}
 .sb[data-pinned="true"] ~ .sb-stage {
   padding-left: 368px;
 }

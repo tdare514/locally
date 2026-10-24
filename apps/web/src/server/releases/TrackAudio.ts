@@ -1,4 +1,4 @@
-import { createReadStream } from "node:fs";
+import { constants } from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -20,10 +20,15 @@ const CONTENT_TYPES: Record<string, string> = {
 };
 
 export interface TrackAudioFile {
-  /** The real path, symlinks resolved: what is opened. */
-  realPath: string;
+  /** The open file, checked to be the one that passed the containment check. The caller streams it and closes it. */
+  handle: fsp.FileHandle;
   size: number;
   contentType: string;
+}
+
+/** For tests: runs between the containment check and the open, where a swap would be a race. */
+export interface TrackAudioHooks {
+  beforeOpen?: () => Promise<void>;
 }
 
 export type ByteRange = { start: number; end: number };
@@ -56,6 +61,7 @@ export async function resolveTrackAudio(
   adoptRoots: readonly string[],
   release: Release | null,
   trackId: string,
+  hooks: TrackAudioHooks = {},
 ): Promise<TrackAudioFile> {
   if (!release) throw new NotFoundError("Release not found");
   const track = release.tracks.find((t) => t.id === trackId);
@@ -84,9 +90,27 @@ export async function resolveTrackAudio(
   }
   if (!bases.some((base) => strictlyBeneath(base, realFile))) throw new NotFoundError(NOT_FOUND);
 
-  const stat = await fsp.stat(realFile).catch(() => null);
-  if (!stat || !stat.isFile()) throw new NotFoundError(NOT_FOUND);
-  return { realPath: realFile, size: stat.size, contentType };
+  const checked = await fsp.stat(realFile).catch(() => null);
+  if (!checked || !checked.isFile()) throw new NotFoundError(NOT_FOUND);
+
+  await hooks.beforeOpen?.();
+
+  // Open once, without following a symlink at the end, then check the open file is the one that was checked. A swap of
+  // the file or of a folder above it between the check and here shows up as another dev/ino. Nothing opens by path again.
+  let handle: fsp.FileHandle;
+  try {
+    handle = await fsp.open(realFile, constants.O_RDONLY | constants.O_NOFOLLOW);
+  } catch {
+    throw new NotFoundError(NOT_FOUND);
+  }
+  try {
+    const opened = await handle.stat();
+    if (!opened.isFile() || opened.dev !== checked.dev || opened.ino !== checked.ino) throw new NotFoundError(NOT_FOUND);
+    return { handle, size: opened.size, contentType };
+  } catch (err) {
+    await handle.close().catch(() => undefined);
+    throw err;
+  }
 }
 
 /**
@@ -113,8 +137,9 @@ export function parseByteRange(header: string | null, size: number): ByteRange |
   return { start, end };
 }
 
-/** A web stream over `range` of the file, so it is never read whole. A cancelled request closes the file. */
-export function streamFile(realPath: string, range: ByteRange | null): ReadableStream<Uint8Array> {
-  const node = createReadStream(realPath, range ? { start: range.start, end: range.end } : undefined);
+/** A web stream over `range` of the open file, so it is never read whole. The stream closes the handle when it ends,
+ * fails or is cancelled. */
+export function streamFile(handle: fsp.FileHandle, range: ByteRange | null): ReadableStream<Uint8Array> {
+  const node = handle.createReadStream({ ...(range ? { start: range.start, end: range.end } : {}), autoClose: true });
   return Readable.toWeb(node) as ReadableStream<Uint8Array>;
 }
