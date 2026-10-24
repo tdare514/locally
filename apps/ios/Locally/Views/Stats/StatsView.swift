@@ -391,9 +391,9 @@ struct StatsView: View {
                     )
                 } else {
                     StatsSea(
-                        items: items, width: room, round: model.tab == .artists, cache: cache,
+                        items: model.listed, sort: model.sort, width: room, round: model.tab == .artists, cache: cache,
                         ownerOf: { model.coverOwner(of: $0) },
-                        label: "\(Copy.Stats.yourHeading(noun)), in rank order", onOpen: open
+                        label: "\(Copy.Stats.yourHeading(noun)), \(sortPhrase)", onOpen: open
                     )
                 }
             }
@@ -422,12 +422,12 @@ struct StatsView: View {
     private var listControls: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 12) {
-                if model.layout == .list { sortMenu }
+                sortMenu
                 Spacer(minLength: 0)
                 layoutPill
             }
             VStack(alignment: .leading, spacing: 12) {
-                if model.layout == .list { sortMenu }
+                sortMenu
                 layoutPill
             }
         }

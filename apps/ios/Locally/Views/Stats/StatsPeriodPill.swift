@@ -12,7 +12,7 @@ struct StatsPeriodPill: View {
     let onSelect: (StatsPeriodKind) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// A pop-up is its own hierarchy: it takes the page's text size, held at the largest non-accessibility size so the five rows fit the screen.
+    /// From the accessibility sizes up the choices open as a sheet, not the popover.
     @Environment(\.dynamicTypeSize) private var typeSize
 
 
@@ -58,15 +58,57 @@ struct StatsPeriodPill: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(Copy.Stats.periodPillLabel), \(title), \(detail)")
         .accessibilityAddTraits(.isButton)
-        .popover(isPresented: $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
-            StatsPeriodPopup(current: current, tint: tint) { kind in
-                withAnimation(reduceMotion ? nil : Theme.StatsPopup.ease) { isPresented = false }
-                onSelect(kind)
-            }
-            .dynamicTypeSize(min(typeSize, .xxxLarge))
-            .presentationCompactAdaptation(.popover)
-            .presentationBackground { StatsPopupBackground(tint: tint) }
+        .popover(isPresented: typeSize.isAccessibilitySize ? .constant(false) : $isPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
+            StatsPeriodPopup(current: current, tint: tint) { choose($0) }
+                .presentationCompactAdaptation(.popover)
+                .presentationBackground { StatsPopupBackground(tint: tint) }
         }
+        .sheet(isPresented: typeSize.isAccessibilitySize ? $isPresented : .constant(false)) {
+            StatsPeriodSheet(current: current, tint: tint, onClose: { isPresented = false }) { choose($0) }
+                .presentationDetents([.medium, .large])
+                .presentationBackground { StatsPopupBackground(tint: tint) }
+        }
+    }
+
+    private func choose(_ kind: StatsPeriodKind) {
+        withAnimation(reduceMotion ? nil : Theme.StatsPopup.ease) { isPresented = false }
+        onSelect(kind)
+    }
+}
+
+/// At accessibility text sizes the choices open as a sheet: the same large glass rows, scrollable.
+struct StatsPeriodSheet: View {
+    let current: StatsPeriodKind
+    let tint: Color
+    let onClose: () -> Void
+    let onSelect: (StatsPeriodKind) -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 6) {
+                ForEach(Copy.Stats.periodOptions, id: \.kind) { option in
+                    StatsPeriodRow(label: option.label, chosen: option.kind == current, tint: tint) { onSelect(option.kind) }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 56)
+            .padding(.bottom, 24)
+        }
+        .overlay(alignment: .topTrailing) {
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(.title3, weight: .bold))
+                    .foregroundStyle(Color.red)
+                    .frame(width: Theme.Stats.minTarget, height: Theme.Stats.minTarget)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close")
+            .padding(8)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Copy.Stats.periodPopupLabel)
+        .sensoryFeedback(.selection, trigger: current)
     }
 }
 

@@ -4,30 +4,31 @@ import SwiftUI
 /// #367: the Stats page with the period pill closed and open, and the minutes sort, over the
 /// same sample plays as `StatsGallery`.
 enum StatsPopupGallery {
-    static let names = ["stats-period-closed", "stats-period-open", "stats-sort-minutes", "stats-period-ax3"]
+    static let names = ["stats-period-closed", "stats-period-open", "stats-sort-minutes", "stats-period-ax3", "stats-period-sheet-ax5", "stats-grid-minutes"]
 
     @MainActor
     static func page(_ name: String) -> some View {
-        let open = name == "stats-period-open" || name == "stats-period-ax3"
-        let minutes = name == "stats-sort-minutes"
+        let open = name == "stats-period-open" || name == "stats-period-sheet-ax5"
+        let minutes = name == "stats-sort-minutes" || name == "stats-grid-minutes"
         return TabView {
-            view(open: open, minutes: minutes)
+            view(open: open, minutes: minutes, grid: name == "stats-grid-minutes")
                 .tabItem { Label(Copy.Stats.tabLabel, image: "Icon/Stats") }
         }
         .tint(Theme.accent)
         .environment(FolderStatus(isConnected: true))
         .environment(PurchaseStatus(isFullUnlocked: false))
         .environment(SyncStatus())
-        .dynamicTypeSize(name == "stats-period-ax3" ? .accessibility3 : .large)
+        .dynamicTypeSize(name == "stats-period-ax3" ? .accessibility3 : (name == "stats-period-sheet-ax5" ? .accessibility5 : .large))
     }
 
     @MainActor
-    private static func view(open: Bool, minutes: Bool) -> some View {
+    private static func view(open: Bool, minutes: Bool, grid: Bool = false) -> some View {
         let suite = "gallery.stats.popup"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
         defaults.set(StatsPeriodKind.week.rawValue, forKey: StatsViewModel.periodKey)
         if minutes { defaults.set(StatsSort.minutes.rawValue, forKey: StatsViewModel.sortKey) }
+        if grid { defaults.set(StatsLayout.grid.rawValue, forKey: StatsViewModel.layoutKey) }
         let releases = StatsGallery.releases
         let covers = StatsGallery.covers
         var counts: [PlayCount] = []

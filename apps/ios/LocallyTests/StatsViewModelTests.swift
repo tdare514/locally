@@ -151,6 +151,21 @@ struct StatsViewModelTests {
         #expect(m.model.listed.map(\.title) == ["Long", "Solo", "Unknown"])
     }
 
+    @Test func gridItemsFollowTheMinutesSortAndTilesSpeakMinutes() async {
+        let long = Track(id: u(21), title: "Long", trackNumber: 1, filePath: "l.mp3", originalName: "l.mp3", durationSec: 300)
+        let album = Release(id: u(3), kind: .single, title: "Mix", artist: "Okoro", coverPath: "/c/3", folderPath: "/lib/3", tracks: [long])
+        let other = Release(id: u(4), kind: .single, title: "Solo", artist: "Okoro", coverPath: "/c/4", folderPath: "/lib/4", tracks: [track(13, "Solo")])
+        let counts = [count(3, 21, 4), count(4, 13, 2)]
+        let m = make(summary(tracks: counts, allTime: counts), library: [album, other])
+        await m.model.read()
+        m.model.selectLayout(.grid)
+        m.model.selectSort(.minutes)
+        let first = m.model.listed.first
+        #expect(first?.title == "Long")
+        #expect(first.map { Copy.Stats.figure($0, sort: .minutes) } == "20 min")
+        #expect(first.map { Copy.Stats.figure($0, sort: .plays) } == Copy.Stats.playsCount(4))
+    }
+
     @Test func minutesSortIsRemembered() {
         let m = make(.failed)
         m.model.selectSort(.minutes)
