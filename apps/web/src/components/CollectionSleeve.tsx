@@ -13,11 +13,14 @@ export default function CollectionSleeve({
   items,
   releases,
   className = "size-12",
+  single = false,
 }: {
   items: readonly CollectionItem[];
   releases: readonly Release[];
   /** The size and radius; the sleeve fills it. */
   className?: string;
+  /** The record player's paper sleeve: the first cover alone, never the 2x2. */
+  single?: boolean;
 }) {
   const ids = collectionCoverIds(items, releases);
   const cover = (id: string) => {
@@ -28,7 +31,7 @@ export default function CollectionSleeve({
     <span aria-hidden="true" className={`relative block shrink-0 overflow-hidden rounded-[8px] bg-card ${className}`}>
       {ids.length === 0 ? (
         <NoCover className="size-full" />
-      ) : ids.length === 1 ? (
+      ) : single || ids.length === 1 ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={cover(ids[0])} alt="" loading="lazy" className="size-full object-cover" />
       ) : (

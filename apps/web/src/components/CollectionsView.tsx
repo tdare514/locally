@@ -8,6 +8,8 @@ import {
   buildCollectionQueue,
   buildCollectionQueueAt,
   isCurrentRow,
+  isFailedRow,
+  COULDNT_PLAY_TRACK,
   rowQueuePositions,
   collectionPlaylistGuide,
   collectionRows,
@@ -436,6 +438,8 @@ interface Entry {
   title: string;
   durationSec: number | null;
   playable: boolean;
+  /** The player marked this track as one it could not play. */
+  failed: boolean;
   /** Position in the collection's built queue; null when the file is missing. */
   position: number | null;
 }
@@ -454,7 +458,8 @@ function Queue({
   /** Side A and Side B next to each other (the record player's queue) instead of one under the other. */
   sides?: boolean;
 }) {
-  const playerQueue = usePlayerState().queue;
+  const playerState = usePlayerState();
+  const playerQueue = playerState.queue;
   const positions = rowQueuePositions(rows);
   const entries: Entry[] = rows.flatMap((row, r) =>
     row.tracks.map((t, i) => ({
@@ -465,14 +470,28 @@ function Queue({
       title: t.title.trim() || "Untitled",
       durationSec: t.durationSec,
       playable: !t.missing,
+      failed: isFailedRow(playerState.queue, playerState.unavailable, collection.id, positions[r][i], { releaseId: row.release.id, trackId: t.id }),
     })),
   );
+  // A failure is announced once, when it appears (state adjusted while rendering, the way React documents it).
+  const failedKeys = entries.filter((e) => e.failed).map((e) => e.key);
+  const [seenFailed, setSeenFailed] = useState<string[]>([]);
+  const [announcement, setAnnouncement] = useState("");
+  if (failedKeys.join("|") !== seenFailed.join("|")) {
+    setSeenFailed(failedKeys);
+    const fresh = entries.find((e) => e.failed && !seenFailed.includes(e.key));
+    setAnnouncement(fresh ? `${COULDNT_PLAY_TRACK}: ${fresh.title}` : "");
+  }
   const { a, b } = splitSides(entries);
   function playFrom(e: Entry) {
     if (isCurrentRow(playerQueue, collection.id, e.position, { releaseId: e.release.id, trackId: e.trackId })) {
       playerStore.toggle();
       return;
     }
+    const queue = e.position === null ? null : buildCollectionQueueAt(collection, releases, e.position);
+    if (queue) playerStore.start(queue);
+  }
+  function tryAgain(e: Entry) {
     const queue = e.position === null ? null : buildCollectionQueueAt(collection, releases, e.position);
     if (queue) playerStore.start(queue);
   }
@@ -484,13 +503,13 @@ function Queue({
           {list.map((e) => {
             const isCurrent = isCurrentRow(playerQueue, collection.id, e.position, { releaseId: e.release.id, trackId: e.trackId });
             return (
-              <li key={e.key}>
+              <li key={e.key} className="flex items-center gap-1">
                 <button
                   type="button"
                   disabled={!e.playable}
                   onClick={() => playFrom(e)}
-                  aria-label={`${isCurrent && playing ? "Pause" : "Play"} ${e.title}${e.playable ? "" : ", file missing"}`}
-                  className="flex min-h-14 w-full items-center gap-3 rounded-[14px] p-2 text-left outline-none hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+                  aria-label={`${isCurrent && playing ? "Pause" : "Play"} ${e.title}${e.playable ? "" : ", file missing"}${e.failed ? `, ${COULDNT_PLAY_TRACK}` : ""}`}
+                  className="flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-[14px] p-2 text-left outline-none hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
                 >
                   <span className="relative block size-10 shrink-0 overflow-hidden rounded-[6px] bg-card">
                     {e.release.coverPath ? (
@@ -502,7 +521,11 @@ function Queue({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className={`block truncate text-[15px] font-semibold ${isCurrent ? "text-accent" : "text-text"}`}>{e.title}</span>
-                    <span className="block truncate text-[13px] text-text-muted">{e.release.artist}</span>
+                    {e.failed ? (
+                      <span className="block truncate text-[13px] text-danger">{COULDNT_PLAY_TRACK}</span>
+                    ) : (
+                      <span className="block truncate text-[13px] text-text-muted">{e.release.artist}</span>
+                    )}
                   </span>
                   {isCurrent && (playing ? <PauseIcon className="size-4 text-accent" /> : <NowPlayingIcon className="size-4 text-accent" />)}
                   {!isCurrent && e.playable && <PlayIcon className="size-4 text-text-dim" />}
@@ -510,6 +533,15 @@ function Queue({
                     {e.playable ? (e.durationSec !== null ? formatLength(e.durationSec) : "") : "Missing"}
                   </span>
                 </button>
+                {e.failed && (
+                  <button
+                    type="button"
+                    onClick={() => tryAgain(e)}
+                    className="min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold text-text outline-none ring-1 ring-inset ring-white/20 hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    Try again
+                  </button>
+                )}
               </li>
             );
           })}
@@ -519,6 +551,9 @@ function Queue({
   if (entries.length === 0) return null;
   return (
     <div className={sides ? "grid gap-x-10 md:grid-cols-2" : "flex flex-col"}>
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {announcement}
+      </div>
       {side("Side A", a)}
       {side("Side B", b)}
     </div>

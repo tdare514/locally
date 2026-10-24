@@ -11,7 +11,7 @@ import {
 } from "../lib/collections";
 import { coverUrl } from "../lib/api-client";
 import { normalizeSearchText } from "../lib/library-sections";
-import { currentItem, describeItem, itemKey, playerStore, usePlayerSelector } from "../lib/play-queue";
+import { currentItem, describeItem, itemKey, playerStore, previousAction, usePlayerSelector } from "../lib/play-queue";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
 import {
   WHEEL,
@@ -496,7 +496,7 @@ const WheelRow = memo(function WheelRow({
       className="rp-row"
     >
       <span className="rp-sleeve">
-        <CollectionSleeve items={collection.items} releases={releases} className="size-full rounded-none!" />
+        <CollectionSleeve items={collection.items} releases={releases} single className="size-full rounded-none!" />
       </span>
       <span className="rp-text">
         <b>{collection.name}</b>
@@ -628,10 +628,10 @@ function Deck({
             </div>
           ) : (
             <div key={`pre:${preview.id}`} className="rp-float">
-              <CollectionSleeve items={preview.items} releases={releases} className="size-full rounded-none!" />
+              <CollectionSleeve items={preview.items} releases={releases} single className="size-full rounded-none!" />
               <button type="button" disabled={!canPlay} onClick={startPreview} aria-label={`Play ${preview.name}`} className="rp-float-play">
                 <PlayIcon className="size-4 shrink-0" />
-                <span className="truncate">Play {preview.name}</span>
+                <span>Play</span>
               </button>
             </div>
           ))}
@@ -654,10 +654,13 @@ function Deck({
           <button
             type="button"
             aria-label="Previous track"
-            aria-disabled={!hasQueue || position <= 0}
+            aria-disabled={!hasQueue}
             className="rp-round"
             onClick={() => {
-              if (position > 0) playerStore.back();
+              const { queue, positionSec } = playerStore.getState();
+              if (!queue) return;
+              if (previousAction(queue, positionSec) === "restart") playerStore.seek(0);
+              else playerStore.back();
             }}
           >
             <NextTrackIcon className="size-5 -scale-x-100" />
