@@ -615,15 +615,15 @@ enum Theme {
 extension Theme {
     /// The queue toast (#364): a glass capsule tinted by the cover, floating above the mini player.
     enum QueueToast {
-        static let thumbSide: CGFloat = 40
-        static let minHeight: CGFloat = 56
+        static let thumbSide: CGFloat = 32
+        static let minHeight: CGFloat = 44
         static let displaySeconds: Double = 2.5
         /// VoiceOver users get longer to hear and act on it.
         static let voiceOverSeconds: Double = 6
         static let duration: Double = 0.45
         static let rise: CGFloat = 18
         /// Dark base under the tint: text stays above 4.5:1 whatever the cover.
-        static let baseOpacity: Double = 0.78
+        static let baseOpacity: Double = 0.7
         static let tintOpacity: Double = 0.34
         static let shadowOpacity: Double = 0.35
     }

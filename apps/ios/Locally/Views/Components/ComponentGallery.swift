@@ -326,7 +326,7 @@ struct ComponentGallery: View {
             IconsGallery.release().dynamicTypeSize(.accessibility3)
         case "share-sheet":
             ShareGallery.sheet()
-        case "queue-toast-next", "queue-toast-added", "queue-toast-left-out", "queue-toast-ax3":
+        case "queue-toast-next", "queue-toast-added", "queue-toast-left-out", "queue-toast-ax3", "queue-toast-long-ax5", "queue-toast-left-out-ax5":
             TrackActionsGallery(name: name)
         case "share-sheet-link":
             ShareGallery.sheet(link: true)
