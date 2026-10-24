@@ -137,6 +137,21 @@ describe("GET /api/releases/[id]/tracks/[trackId]/audio", () => {
     expect((await call("mixed", "t1")).status).toBe(404);
   });
 
+  it("serves from the new folder after a completed library move, and refuses a record still on the old one", async () => {
+    // What a completed move leaves: files in the new folder, the index rewritten to it, `libraryDir` switched.
+    const moved = path.join(root, "moved-lib");
+    await fs.mkdir(path.join(moved, "A", "T"), { recursive: true });
+    await fs.copyFile(path.join(lib, "A", "T", "01 - T.mp3"), path.join(moved, "A", "T", "01 - T.mp3"));
+    const file = path.join(moved, "A", "T", "01 - T.mp3");
+    releases.push(release({ id: "moved" }, file), release({ id: "stale" }, path.join(lib, "A", "T", "01 - T.mp3")));
+    settingsValue = { ...settingsValue, libraryDir: moved } as Settings;
+    const res = await call("moved", "t1");
+    expect(res.status).toBe(200);
+    expect(Buffer.from(await res.arrayBuffer()).equals(BYTES)).toBe(true);
+    // A record that still points at the old folder is outside the new library now.
+    expect((await call("stale", "t1")).status).toBe(404);
+  });
+
   it("403s in the demo", async () => {
     process.env.LOCALLY_DEMO = "1";
     expect((await call("r1", "t1")).status).toBe(403);

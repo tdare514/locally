@@ -490,6 +490,7 @@ export async function moveLibrary(destination: string): Promise<LibraryMoveResul
     body: JSON.stringify({ destination }),
   });
   return handle<LibraryMoveResult>(res);
+}
 
 /** A play in Locally's own player counted by the window (#338); the server adds it to plays.json as source "locally". */
 export async function postLocallyPlay(releaseId: string, trackId: string): Promise<void> {
