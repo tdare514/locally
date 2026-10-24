@@ -292,6 +292,7 @@ export async function moveLibrary(deps: MoveLibraryDeps, destination: unknown): 
     } catch (err) {
       const errors = await rollbackMove(deps, journal, renamed);
       if (errors.length > 0) {
+        setMoveProblem(MOVE_PROBLEM_MESSAGE);
         throw new PublicError(
           `Couldn't move your library, and couldn't fully undo it (${errors.join("; ")}). Nothing was deleted from ${from}. Please contact support. First error: ${err instanceof Error ? err.message : String(err)}`
         );
@@ -334,11 +335,19 @@ export async function recoverLibraryMove(deps: Pick<MoveLibraryDeps, "settings" 
     const cur = path.resolve((await deps.settings.get()).libraryDir);
     const at = cur === from ? "from" : cur === to ? "to" : "other";
     if (at === "other") return unclear("settings name neither folder");
-    const fromEx = await isDir(from);
+    const fromDir = await isDir(from);
+    const fromEmpty = fromDir && (await isEmptyDir(from));
     const toEx = await isDir(to);
+    const toHas = toEx && !(await isEmptyDir(to));
+    // In rename mode an empty `from` is just a folder something recreated: it holds no library.
+    const fromEx = j.mode === "rename" ? fromDir && !fromEmpty : fromDir;
     const done = async (outcome: RecoveryOutcome): Promise<RecoveryOutcome> => {
       await clearJournal(deps.dataDir);
       return outcome;
+    };
+    // Every index entry back under `from`, before the journal goes. Idempotent: only paths inside `to` change.
+    const repairIndex = async (): Promise<void> => {
+      await rewriteIndex(deps, from, to, from);
     };
     const finishForward = async (removeOld: boolean): Promise<RecoveryOutcome> => {
       await rewriteIndex(deps, to, from, to);
@@ -349,9 +358,14 @@ export async function recoverLibraryMove(deps: Pick<MoveLibraryDeps, "settings" 
     };
 
     if (j.mode === "rename") {
-      if (!fromEx && toEx) return finishForward(false);
-      if (fromEx && at === "from" && (!toEx || (await isEmptyDir(to)))) {
-        // The rename never happened. Only an empty folder this move made is removed.
+      if ((!fromDir && toEx) || (toHas && fromEmpty)) {
+        const out = await finishForward(false);
+        if (fromEmpty) await fs.rmdir(from).catch(() => undefined);
+        return out;
+      }
+      if (fromDir && at === "from" && !toHas) {
+        // The rename never happened, or was undone. Put every path back under `from`; remove only an empty folder this move made.
+        await repairIndex();
         if (toEx && j.toCreated) await fs.rmdir(to);
         return done("rolled-back");
       }
@@ -370,9 +384,13 @@ export async function recoverLibraryMove(deps: Pick<MoveLibraryDeps, "settings" 
     }
     if (!fromEx) return unclear("the old folder is missing and settings still name it");
     if (j.phase !== "moving" && toEx && (await treeMatches(from, to))) return finishForward(true);
-    if (!toEx) return done("rolled-back");
+    if (!toEx) {
+      await repairIndex();
+      return done("rolled-back");
+    }
     if (!j.toCreated) return unclear("a partial copy sits in a folder this move did not create");
     await fs.rm(to, { recursive: true, force: true });
+    await repairIndex();
     return done("rolled-back");
   } catch (err) {
     return unclear(err instanceof Error ? err.message : String(err));

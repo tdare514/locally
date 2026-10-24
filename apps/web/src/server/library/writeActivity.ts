@@ -1,4 +1,5 @@
 import { ValidationError } from "../../shared/errors";
+import { getMoveProblem } from "./LibraryMoveJournal";
 
 /** Raised by a move that cannot start because a write is running (answered 409). */
 export class LibraryBusyError extends Error {
@@ -24,6 +25,8 @@ function state(): Activity {
 export async function trackLibraryWrite<T>(fn: () => Promise<T>): Promise<T> {
   const s = state();
   if (s.moving) throw new ValidationError("Locally is moving your library. Try again in a moment.");
+  // A move that did not finish and could not be sorted out: nothing may write until it is (#335).
+  if (getMoveProblem() !== null) throw new ValidationError("Locally is finishing a library move. Try again in a moment.");
   s.active++;
   try {
     return await fn();

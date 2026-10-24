@@ -8,7 +8,7 @@ import type { Release, Settings } from "../../../src/shared/types";
 import { FileSettingsStore } from "../../../src/server/config/FileSettingsStore";
 import { JsonLibraryRepository } from "../../../src/server/storage/JsonLibraryRepository";
 import { moveLibrary, recoverLibraryMove } from "../../../src/server/library/LibraryMover";
-import { getMoveProblem, readJournal, writeJournal } from "../../../src/server/library/LibraryMoveJournal";
+import { getMoveProblem, readJournal, setMoveProblem, writeJournal } from "../../../src/server/library/LibraryMoveJournal";
 import { AdoptService } from "../../../src/server/adopt/AdoptService";
 import { ReleaseService } from "../../../src/server/releases/ReleaseService";
 import { NodeFileSystem } from "../../../src/server/fs/NodeFileSystem";
@@ -75,6 +75,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  setMoveProblem(null);
   delete process.env.LOCALLY_DEMO;
   if (envConfig === undefined) delete process.env.LOCALLY_CONFIG_DIR;
   else process.env.LOCALLY_CONFIG_DIR = envConfig;
@@ -377,5 +378,58 @@ describe("move journal and recovery (#335)", () => {
     expect(await readJournal(configDir)).toBeNull();
     expect(getMoveProblem()).toBeNull();
     expect((await repo.list(dest))[0].tracks[0].filePath).toBe(path.join(dest, "Artist", "Album", "01.mp3"));
+  });
+
+  it("a settings save between the rename and the switch does not recreate `from`; recovery finishes", async () => {
+    await seed();
+    const dest = path.join(homeDir, "Locally");
+    await writeJournal(configDir, { from: lib, to: dest, mode: "rename", phase: "moved", toCreated: true });
+    await fs.rename(lib, dest);
+    // a token refresh saves settings that still name `from`
+    await settings.set({ ...(await settings.get()), trackPlays: true });
+    await expect(fs.stat(lib)).rejects.toThrow();
+    expect(await recoverLibraryMove(deps())).toBe("finished");
+    expect(getMoveProblem()).toBeNull();
+    expect((await settings.get()).libraryDir).toBe(dest);
+  });
+
+  it("an empty `from` that something recreated counts as absent in rename mode", async () => {
+    await seed();
+    const dest = path.join(homeDir, "Locally");
+    await writeJournal(configDir, { from: lib, to: dest, mode: "rename", phase: "moved", toCreated: true });
+    await fs.rename(lib, dest);
+    await fs.mkdir(lib);
+    expect(await recoverLibraryMove(deps())).toBe("finished");
+    expect((await settings.get()).libraryDir).toBe(dest);
+  });
+
+  it("refuses an import and an adopt while an unclear journal is unresolved", async () => {
+    await seed();
+    const dest = path.join(homeDir, "Locally");
+    await fs.mkdir(dest);
+    await fs.writeFile(path.join(dest, "partial.mp3"), "x");
+    await writeJournal(configDir, { from: lib, to: dest, mode: "copy", phase: "moving", toCreated: false });
+    expect(await recoverLibraryMove(deps())).toBe("unclear");
+    const releases = new ReleaseService(settings, repo, {} as never, {} as never, new NodeFileSystem());
+    await expect(releases.import({ kind: "single", tracks: [] } as never, null, [])).rejects.toThrow(/finishing a library move/);
+    const adopt = new AdoptService({ settings, library: repo, fs: new NodeFileSystem(), proposals: { load: async () => null, save: async () => undefined } } as never);
+    await expect(adopt.adopt(["k"])).rejects.toThrow(/finishing a library move/);
+  });
+
+  it("repairs a half-rebased index after a rename back, then clears the journal", async () => {
+    const r = await seed();
+    const dest = path.join(homeDir, "Locally");
+    await writeJournal(configDir, { from: lib, to: dest, mode: "rename", phase: "moved", toCreated: true });
+    // one track's path was rebased to `to`, then the folder went back
+    const half = { ...r, tracks: [{ ...r.tracks[0], filePath: path.join(dest, "Artist", "Album", "01.mp3") }, r.tracks[1]] };
+    await repo.upsert(lib, half);
+    expect(await recoverLibraryMove(deps())).toBe("rolled-back");
+    expect(await readJournal(configDir)).toBeNull();
+    const [out] = await repo.list(lib);
+    expect(out.tracks.map((t) => t.filePath)).toEqual([
+      path.join(lib, "Artist", "Album", "01.mp3"),
+      path.join(lib, "Artist", "Album", "02.mp3"),
+    ]);
+    expect((await settings.get()).libraryDir).toBe(lib);
   });
 });
