@@ -718,3 +718,32 @@ extension Theme {
         static let shadowOpacity: Double = 0.35
     }
 }
+
+extension Theme {
+    /// The song page (#365).
+    enum SongPage {
+        static let sleeveHero: CGFloat = 200
+        static let sleeveMini: CGFloat = 52
+        static let barHeight: CGFloat = 8
+        static let pageGutter: CGFloat = 16
+        /// The details panel: opaque near-black, so nothing of the wash shows through the rows.
+        static let panelFill = Color(red: 0.03, green: 0.03, blue: 0.04)
+        static let panelCornerRadius: CGFloat = 28
+        static let panelHighlightOpacity: Double = 0.10
+        static let grabberWidth: CGFloat = 36
+        static let grabberHeight: CGFloat = 5
+        static let grabberOpacity: Double = 0.18
+        static let hairlineOpacity: Double = 0.08
+        /// An action: the glyph and label at rest, the glow behind the glyph while pressed.
+        static let actionGlyphSize: CGFloat = 24
+        static let actionGlyphOpacity: Double = 0.92
+        static let actionLabelOpacity: Double = 0.72
+        static let actionMinWidth: CGFloat = 64
+        static let actionMinHeight: CGFloat = 56
+        /// Targets stay at 44 pt at the accessibility sizes.
+        static let actionMinHeightLarge: CGFloat = 44
+        static let actionGlowOpacity: Double = 0.45
+        static let actionGlowRadius: CGFloat = 18
+        static let ease = Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.35)
+    }
+}
