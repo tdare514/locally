@@ -180,8 +180,13 @@ enum Copy {
         static let sizeSmall = "Small"
         static let sizeMedium = "Medium"
         static let sizeLarge = "Large"
-        /// The sticky-footer button that switches to the Add a song tab.
-        static let addASong = "Add a song"
+        static func coverSizeName(_ size: CoverSize) -> String {
+            switch size {
+            case .small: return sizeSmall
+            case .medium: return sizeMedium
+            case .large: return sizeLarge
+            }
+        }
 
         /// The empty library doubles as onboarding: it explains what Locally
         /// does (files go from here into Spotify) and offers the first import.

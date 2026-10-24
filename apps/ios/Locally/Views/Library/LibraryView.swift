@@ -257,10 +257,6 @@ struct LibraryView: View {
                 query = name
                 librarySearchRequest = nil
             }
-            .stickyFooter(isPresented: !releases.isEmpty) {
-                Button(Copy.Library.addASong) { startImport(nil) }
-                    .buttonStyle(PrimaryPillButtonStyle())
-            }
             // While the tray is open the library behind it is out of VoiceOver's reach.
             .accessibilityHidden(tray.isOpen)
             .overlayPreferenceValue(DevicesTrayAnchorKey.self) { anchor in
@@ -324,14 +320,7 @@ struct LibraryView: View {
             devicesButton.offset(y: -2)
         }
         if let collections {
-            CollectionsLibraryRow(
-                model: collections,
-                onOpen: { path.append(CollectionsRoute()) },
-                onNew: {
-                    newCollectionName = ""
-                    isNamingCollection = true
-                }
-            )
+            CollectionsLibraryCard(model: collections, onOpen: { path.append(CollectionsRoute()) })
         }
         searchField
         controls
@@ -495,7 +484,7 @@ struct LibraryView: View {
         .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
     }
 
-    /// The list / covers toggle and, in covers view, the three-step size control.
+    /// The list / covers toggle and, in covers view, the size slider at the right end.
     private var controls: some View {
         // Side by side while they fit; at large text sizes the size control, then the sort, drop under the toggle.
         ViewThatFits(in: .horizontal) {
@@ -537,17 +526,7 @@ struct LibraryView: View {
     }
 
     private var sizeControl: some View {
-        SegmentedPill(
-            options: [
-                (CoverSize.compact, Copy.Library.sizeSmall),
-                (CoverSize.medium, Copy.Library.sizeMedium),
-                (CoverSize.large, Copy.Library.sizeLarge),
-            ],
-            selection: $coverSize,
-            isCompact: true
-        )
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(Copy.Library.coverSizeLabel)
+        CoverSizeSlider(selection: $coverSize)
     }
 
     /// The sort menu (#288): the Mac's four options with a check on the current one.
@@ -671,10 +650,15 @@ struct LibraryView: View {
         .overlay(shape.stroke(Theme.Immersive.panelStroke, lineWidth: 1))
     }
 
+    /// The size the grid uses: at the accessibility text sizes Small steps up to Medium, so a title is not cut to a few letters.
+    private var gridSize: CoverSize {
+        dynamicTypeSize.isAccessibilitySize && coverSize == .small ? .medium : coverSize
+    }
+
     private func coverGrid(_ items: [Release]) -> some View {
         LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: coverSize.tileMinWidth), spacing: coverSize.tileGap)],
-            spacing: coverSize.tileGap
+            columns: [GridItem(.adaptive(minimum: gridSize.tileMinWidth), spacing: gridSize.tileGap)],
+            spacing: gridSize.tileGap
         ) {
             ForEach(items) { release in
                 NavigationLink(value: release) { tile(for: release) }
@@ -695,11 +679,13 @@ struct LibraryView: View {
                 Text(release.title)
                     .themeFont(.rowTitle)
                     .foregroundStyle(Theme.primaryText)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                Text(subtitle(for: release))
-                    .themeFont(.rowSubtitle)
-                    .foregroundStyle(Theme.secondaryText)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize && gridSize != .small ? nil : 1)
+                if gridSize.showsSubtitle {
+                    Text(subtitle(for: release))
+                        .themeFont(.rowSubtitle)
+                        .foregroundStyle(Theme.secondaryText)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                }
             }
         }
         .contentShape(Rectangle())

@@ -225,6 +225,21 @@ struct ComponentGallery: View {
             IconsGallery.featuringRelease(editing: true)
         case "collections-library":
             CollectionsGallery.library()
+        // #360: the Library header over the seeded collections, in covers view at each size and in list view.
+        case "library-covers-small":
+            CollectionsGallery.library(layout: .covers, size: .small)
+        case "library-covers-medium":
+            CollectionsGallery.library(layout: .covers, size: .medium)
+        case "library-covers-large":
+            CollectionsGallery.library(layout: .covers, size: .large)
+        case "library-covers-small-ax3":
+            CollectionsGallery.library(layout: .covers, size: .small).dynamicTypeSize(.accessibility3)
+        case "library-covers-large-ax3":
+            CollectionsGallery.library(layout: .covers, size: .large).dynamicTypeSize(.accessibility3)
+        case "library-list-ax3":
+            CollectionsGallery.library().dynamicTypeSize(.accessibility3)
+        case "library-covers-no-collections":
+            CollectionsGallery.library(layout: .covers, size: .medium, seed: false)
         case "collections-screen":
             CollectionsGallery.screen()
         case "collections-empty":
@@ -1416,9 +1431,10 @@ enum CollectionsGallery {
         return (container, model, playback)
     }
 
-    static func library() -> some View {
-        UserDefaults.standard.set(LibraryLayout.list.rawValue, forKey: LibraryViewPrefs.layoutKey)
-        let (container, _) = container(seed: true)
+    static func library(layout: LibraryLayout = .list, size: CoverSize = .default, seed: Bool = true) -> some View {
+        UserDefaults.standard.set(layout.rawValue, forKey: LibraryViewPrefs.layoutKey)
+        UserDefaults.standard.set(size.rawValue, forKey: LibraryViewPrefs.coverSizeKey)
+        let (container, _) = container(seed: seed)
         return IconsGallery.environment(IconsLibrary(openTray: false), container)
     }
 

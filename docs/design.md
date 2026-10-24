@@ -433,10 +433,19 @@ eyebrows still apply to those labels.
     10 pt below the title and artist (`fieldsMetaGap`). Theme.swift has no hover fill, so the
     web's 7 % and 10 % fills are not written here.
   - *Library cover view*: a grid of covers kept in Singles and Albums, in three sizes with minimum
-    tile widths of 96, 150 and 300 pt and gaps of 12, 16 and 20 pt (`Theme.Library.tileMinWidth`,
-    `tileGap`); with the list page padding that gives 3, 2 and 1 columns on a 402 pt phone. Tiles
+    tile widths of 60, 96 and 150 pt and gaps of 8, 12 and 16 pt (`Theme.Library.tileMinWidth`,
+    `tileGap`); with the list page padding that gives 5, 3 and 2 columns on a 390 or 402 pt phone
+    (#360: Large is the old Medium, Medium the old Small, and the new Small shows the title only; the old
+    1-across size is gone, and the choice moved to the key `locally.library.coverSize2`, migrated once
+    from the old key; a fresh install starts on Large). The size control is `CoverSizeSlider` at the
+    right end of the layout row, covers view only: a thin track with three detents, a round glass thumb,
+    a dense-grid glyph at the left and a bigger one at the right, a 44 pt hit height, a selection haptic
+    per detent, adjustable for VoiceOver ("Cover size, Medium"). Tiles
     have radius 8. A pressed tile grows to 1.03 with a shadow (radius 10, 35 %, y 4) over 0.15 s.
     List rows sit in a radius 16 panel, and the divider between Singles and Albums is white at 7 %.
+    The Library has no "Add a song" footer (the Import tab does that). Collections is a glass card
+    (`CollectionsLibraryCard`, at least 80 pt tall) under the header with the first three collections'
+    covers fanned out of its left edge; one tap opens the Collections screen, which holds "New collection".
   - *Library sky*: an `ArtworkBackdrop` fixed behind the library, coloured by the cover last
     pressed or else the first cover on screen. A pressed cover stops colouring it after 120 pt of
     scroll (`pressedSkyReleaseDistance`). As the library scrolls, the two glows turn 28 and 22

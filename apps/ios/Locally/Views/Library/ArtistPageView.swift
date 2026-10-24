@@ -162,8 +162,8 @@ struct ArtistPageView: View {
         LazyVGrid(
             columns: stacked
                 ? [GridItem(.flexible())]
-                : [GridItem(.adaptive(minimum: CoverSize.medium.tileMinWidth), spacing: CoverSize.medium.tileGap)],
-            spacing: CoverSize.medium.tileGap
+                : [GridItem(.adaptive(minimum: CoverSize.large.tileMinWidth), spacing: CoverSize.large.tileGap)],
+            spacing: CoverSize.large.tileGap
         ) {
             ForEach(releases) { release in
                 NavigationLink(value: release) {

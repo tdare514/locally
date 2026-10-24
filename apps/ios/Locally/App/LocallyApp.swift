@@ -10,6 +10,7 @@ struct LocallyApp: App {
 
     init() {
         Theme.applyChrome()
+        LibraryViewPrefs.migrateCoverSize()
     }
 
     var body: some Scene {
