@@ -173,6 +173,11 @@ enum CollectionPlayState {
         isCurrentQueue && isPlaying ? Copy.Collections.pause : Copy.Collections.play
     }
 
+    /// "Pause {detail}" only on the current row while it plays; otherwise "Play {detail}".
+    static func rowLabel(_ detail: String, isCurrentRow: Bool, isPlaying: Bool) -> String {
+        isCurrentRow && isPlaying ? Copy.Collections.pauseRow(detail) : Copy.Collections.playRow(detail)
+    }
+
     /// "Playing" / "Paused" on the current row only; nothing on any other.
     static func rowValue(isCurrentRow: Bool, isPlaying: Bool) -> String {
         guard isCurrentRow else { return "" }

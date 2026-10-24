@@ -57,7 +57,7 @@ struct CollectionDetailView: View {
         }
         .environment(\.editMode, $editMode)
         .task { model.reload() }
-        .onChange(of: playback?.missingTrackIDs ?? []) { old, new in announceNewlyMissing(old: old, new: new) }
+        .onChange(of: playback?.wontPlayTrackIDs ?? []) { old, new in announceNewlyMissing(old: old, new: new) }
         .nameAlert(Copy.Collections.renameTitle, action: Copy.Collections.save, isPresented: $isRenaming, text: $renameText) { name in
             attempt(Copy.Collections.renameFailed) { try model.rename(id, to: name) }
         }
@@ -240,20 +240,22 @@ struct CollectionDetailView: View {
     @ViewBuilder
     private func queueRow(_ row: CollectionQueue.Row, number: Int, playablePosition: Int?) -> some View {
         let nowPlaying = isNowPlaying(playablePosition: playablePosition, row)
-        if let playablePosition, playback?.missingTrackIDs.contains(row.trackID) == true {
+        if let playablePosition, playback?.wontPlay(row.trackID) == true {
             VStack(alignment: .leading, spacing: 8) {
                 queueRowContent(row, number: number, nowPlaying: false, wontPlay: true)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("\(row.title), \(row.artist), \(Copy.Collections.couldntPlay)")
                 Button(Copy.Collections.tryAgain) { start(at: playablePosition) }
                     .buttonStyle(CollectionPillButtonStyle())
+                    // Under the title: past the number column and its gap.
+                    .padding(.leading, Self.numberColumnInset)
             }
         } else if let playablePosition {
             Button { tapRow(row, playablePosition: playablePosition, nowPlaying: nowPlaying) } label: {
                 queueRowContent(row, number: number, nowPlaying: nowPlaying)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(Copy.Collections.playRow([row.title, row.artist, TrackLength.spoken(row.durationSec)].compactMap { $0 }.joined(separator: ", ")))
+            .accessibilityLabel(CollectionPlayState.rowLabel([row.title, row.artist, TrackLength.spoken(row.durationSec)].compactMap { $0 }.joined(separator: ", "), isCurrentRow: nowPlaying, isPlaying: isPlaying))
             .accessibilityValue(CollectionPlayState.rowValue(isCurrentRow: nowPlaying, isPlaying: isPlaying))
             .accessibilityAddTraits(nowPlaying ? .isSelected : [])
         } else {
@@ -263,6 +265,9 @@ struct CollectionDetailView: View {
                 .accessibilityValue(TrackLength.spoken(row.durationSec) ?? "")
         }
     }
+
+    /// The queue row's number column (minWidth 24) plus its 12 gap: where the title starts.
+    private static let numberColumnInset: CGFloat = 36
 
     private func queueRowContent(_ row: CollectionQueue.Row, number: Int, nowPlaying: Bool, wontPlay: Bool = false) -> some View {
         HStack(spacing: 12) {

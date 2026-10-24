@@ -373,6 +373,7 @@ enum Copy {
         static let play = "Play"
         static let pause = "Pause"
         static func playRow(_ title: String) -> String { "Play \(title)" }
+        static func pauseRow(_ title: String) -> String { "Pause \(title)" }
         static let nowPlaying = "Now playing"
         static let playing = "Playing"
         static let paused = "Paused"

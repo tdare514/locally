@@ -130,6 +130,11 @@ final class PlaybackService {
     private(set) var duration: Double?
     /// Tracks whose file was gone when their turn came; the rows show "File missing".
     private(set) var missingTrackIDs: Set<UUID> = []
+    /// Tracks the engine could not decode (a corrupt file); apart from `missingTrackIDs`, which means "File missing".
+    private(set) var failedTrackIDs: Set<UUID> = []
+    /// Missing or corrupt: what the collection page calls "Couldn't play this track".
+    var wontPlayTrackIDs: Set<UUID> { missingTrackIDs.union(failedTrackIDs) }
+    func wontPlay(_ trackID: UUID) -> Bool { missingTrackIDs.contains(trackID) || failedTrackIDs.contains(trackID) }
     /// Set when the audio session could not start; shown briefly where the mini player would be.
     private(set) var startError: String?
     /// Counts every start error, so the root can announce each one once, even a repeat of the same text.
@@ -273,6 +278,7 @@ final class PlaybackService {
         let first = playable[start]
         endRun()
         missingTrackIDs.remove(first.trackId)
+        failedTrackIDs.remove(first.trackId)
         do {
             try session.activate()
         } catch {
@@ -489,6 +495,7 @@ final class PlaybackService {
                     return .failed
                 }
                 missingTrackIDs.remove(track.id)
+                failedTrackIDs.remove(track.id)
                 // Wait in a loop: every wake-up rechecks the intent, the run and cancellation, so a
                 // `resume()` followed at once by a `pause()` (or headphones out) never reaches the engine.
                 var announcedPaused = false
@@ -510,7 +517,9 @@ final class PlaybackService {
                 isPlaying = true
                 itemLoaded = true
                 publish()
-                return await engine.play(url: url)
+                let end = await engine.play(url: url)
+                if end == .failed, !Task.isCancelled, token == runToken { failedTrackIDs.insert(track.id) }
+                return end
             }
             return end
         } catch {

@@ -118,6 +118,17 @@ struct PlaybackServiceTests {
         #expect(access.opened == access.closed + Array(access.isOpen))
     }
 
+    @Test func aCorruptFileIsRecordedAsFailedNotMissingAndTheQueueMovesOn() async {
+        let r = release()
+        service.play(release: r, startingAt: id(r, 1))
+        await settle()
+        engine.end(.failed)
+        await settle()
+        #expect(service.failedTrackIDs == [id(r, 1)])
+        #expect(service.missingTrackIDs.isEmpty)
+        #expect(service.currentTrack?.trackNumber == 2)
+    }
+
     @Test func anUnreachableFolderSkipsTheItemToo() async {
         let r = release()
         access.unreachable = [id(r, 1)]
