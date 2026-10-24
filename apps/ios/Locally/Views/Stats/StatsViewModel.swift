@@ -10,7 +10,7 @@ enum StatsLayout: String {
 }
 
 enum StatsSort: String {
-    case plays, name, recent
+    case plays, name, recent, minutes
 }
 
 /// What the Stats page shows (#204).
@@ -161,6 +161,11 @@ final class StatsViewModel {
             return items.sorted {
                 let c = $0.title.compare($1.title, options: [.caseInsensitive, .diacriticInsensitive], range: nil, locale: Locale(identifier: "en"))
                 return c == .orderedSame ? $0.rank < $1.rank : c == .orderedAscending
+            }
+        case .minutes:
+            return items.sorted { a, b in
+                if a.seconds == b.seconds { return a.rank < b.rank }
+                return a.seconds > b.seconds
             }
         case .recent:
             return items.sorted { a, b in
