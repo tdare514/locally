@@ -366,6 +366,10 @@ enum Theme {
         /// The kind switch: each option's minimum tap height, and the black under its thumb's tint.
         static let kindSwitchMinTarget: CGFloat = 44
         static let kindThumbBase: Double = 0.35
+        /// A stacked kind switch is a rounded track, not a capsule, so its thumb stays inside; the thumb is
+        /// concentric, inset by the track's padding.
+        static let kindSwitchStackCorner: CGFloat = 22
+        static let kindSwitchPadding: CGFloat = 3
         /// Send scrolls the record back to the sleeve over this long (docs/design.md "Make a record").
         static let sendScrollDuration: Double = 0.35
         /// Then waits this long for the scroll to settle; skipped with Reduce Motion.

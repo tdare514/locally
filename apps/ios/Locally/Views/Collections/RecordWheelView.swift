@@ -29,7 +29,11 @@ struct RecordWheelView: View {
     @State private var target: Int
     @State private var dragStart: Double?
 
-    static let height: CGFloat = 400
+    static let height: CGFloat = 340
+    /// The cover rows' column: from just left of the sleeves to the trailing edge, a little taller than the rows. Only this
+    /// turns the wheel; the hub and the space around it scroll the page.
+    private static let columnLeading: CGFloat = 120
+    private static let columnHeight: CGFloat = 300
     private static let pitch = WheelGeometry.phone.row
     private static let ringRadius: CGFloat = 214
     private static let trailingMargin: CGFloat = 16
@@ -66,10 +70,8 @@ struct RecordWheelView: View {
         Color.clear
             .frame(maxWidth: .infinity)
             .frame(height: Self.height)
-            .overlay(alignment: .leading) { GeometryReader { proxy in dial(width: proxy.size.width) } }
+            .overlay(alignment: .leading) { GeometryReader { proxy in dial(width: proxy.size.width).frame(width: proxy.size.width, height: proxy.size.height, alignment: .leading) } }
             .clipped()
-            .contentShape(.rect)
-            .simultaneousGesture(drag)
             .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             .sensoryFeedback(.selection, trigger: target)
             .accessibilityElement(children: .ignore)
@@ -104,18 +106,40 @@ struct RecordWheelView: View {
         )
     }
 
+    /// The ring is cut by the wheel's frame at ±height/2; this dissolves its last ~18 degrees there instead.
+    private static var ringFade: some View {
+        let half = height / 2
+        let clear = (ringRadius - half) / (ringRadius * 2)
+        let solid = (ringRadius - ringRadius * sin(asin(half / ringRadius) - 18 * .pi / 180)) / (ringRadius * 2)
+        return LinearGradient(
+            stops: [
+                .init(color: .clear, location: clear), .init(color: .black, location: solid),
+                .init(color: .black, location: 1 - solid), .init(color: .clear, location: 1 - clear),
+            ],
+            startPoint: .top, endPoint: .bottom
+        )
+    }
+
     private func dial(width: CGFloat) -> some View {
         ZStack(alignment: .leading) {
             Circle()
                 .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
                 .frame(width: Self.ringRadius * 2, height: Self.ringRadius * 2)
+                .mask { Self.ringFade }
                 .offset(x: -Self.ringRadius)
             HubRecordView(releaseID: hubReleaseID, style: style, isSpinning: spins)
                 .offset(x: -Theme.Immersive.hubRadius)
-            WheelRows(
-                position: position, summaries: summaries, playingID: playingID, isPlaying: isPlaying, width: width,
-                onSelect: { index in settle(RecordWheel.turnTarget(index, from: position, summaries.count), duration: Theme.Immersive.wheelTapDuration) }
-            )
+            ZStack(alignment: .leading) {
+                Color.clear
+                    .frame(width: max(0, width - Self.columnLeading), height: Self.columnHeight)
+                    .contentShape(.rect)
+                    .offset(x: Self.columnLeading)
+                WheelRows(
+                    position: position, summaries: summaries, playingID: playingID, isPlaying: isPlaying, width: width,
+                    onSelect: { index in settle(RecordWheel.turnTarget(index, from: position, summaries.count), duration: Theme.Immersive.wheelTapDuration) }
+                )
+            }
+            .gesture(drag, isEnabled: summaries.count > 1)
             // The accent notch marks the front.
             Capsule()
                 .fill(Theme.accent)

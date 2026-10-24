@@ -76,6 +76,9 @@ struct CollectionsPlayerView: View {
         palette = await Task.detached(priority: .utility) { ArtworkPalette.palette(forCover: store.load(id)) }.value
     }
 
+    /// The cover's colour for the controls: the same palette as the backdrop, else the accent.
+    private var tint: Color { palette.map { Theme.coverGlowColors($0)[0] } ?? Theme.accent }
+
     private var frontIndex: Int { frontID.flatMap { id in model.summaries.firstIndex { $0.id == id } } ?? 0 }
 
     var body: some View {
@@ -94,7 +97,7 @@ struct CollectionsPlayerView: View {
                         .themeFont(.pageTitle)
                         .foregroundStyle(Theme.primaryText)
                         .accessibilityAddTraits(.isHeader)
-                    CollectionsModeSwitches(mode: $mode, record: $record)
+                    CollectionsModeSwitches(mode: $mode, record: $record, tint: tint)
                 }
                 .padding(.horizontal, Theme.Spacing.listPagePadding)
                 .padding(.top, 12)
@@ -114,7 +117,7 @@ struct CollectionsPlayerView: View {
                 CollectionNowPlayingView(
                     playback: playback, sourceName: playingID.flatMap { model.summary($0)?.name },
                     backTo: playingID.flatMap { $0 == frontID ? nil : model.summary($0)?.name },
-                    onBack: { frontID = playingID }
+                    tint: tint, onBack: { frontID = playingID }
                 )
                 .padding(.horizontal, Theme.Spacing.listPagePadding)
                 .padding(.top, 20)
@@ -172,8 +175,8 @@ struct CollectionsPlayerView: View {
                 LocallyIcon(.plus, size: 22, relativeTo: .body)
                     .foregroundStyle(Theme.primaryText)
                     .frame(width: 44, height: 44)
-                    .background(Circle().fill(Theme.Immersive.panelFill))
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.22), lineWidth: 1))
+                    .background { GlowGlass().clipShape(Circle()) }
+                    .overlay { GlowRim(round: true) }
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)

@@ -14,6 +14,8 @@ final class CollectionsPlayerUITests: XCTestCase {
     }
 
     private var wheel: XCUIElement { app.descendants(matching: .any).matching(identifier: "collections-wheel").firstMatch }
+    /// The front collection's name: the wheel's value up to its first comma (the rest, "playing" or "paused", can change).
+    private var frontName: String { (wheel.value as? String ?? "").components(separatedBy: ",").first ?? "" }
     private var queueTitle: XCUIElement { app.staticTexts["collection-queue-title"] }
 
     /// XCUITest can't send VoiceOver's increment to a button-like element, so this turns the wheel by a swipe: the
@@ -27,22 +29,81 @@ final class CollectionsPlayerUITests: XCTestCase {
         XCTAssertNotEqual(queueTitle.label, "Late drives")
     }
 
-    func testDragOnTheWheelTurnsItAndDragBelowScrollsThePage() {
+    /// Drags up from a point on the wheel's band (offsets as fractions of its width and height) by `rise` of its height.
+    private func drag(fromX x: CGFloat, y: CGFloat, rise: CGFloat) {
+        let start = wheel.coordinate(withNormalizedOffset: CGVector(dx: x, dy: y))
+        let end = wheel.coordinate(withNormalizedOffset: CGVector(dx: x, dy: y - rise))
+        start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0)
+        sleep(1)
+    }
+
+    /// Drags up from the point until the page has moved, up to three tries: a simulator under load sometimes drops a drag.
+    private func scrollPage(fromX x: CGFloat, y: CGFloat, top: CGFloat) {
+        for _ in 0..<3 where wheel.frame.minY > top - 50 { drag(fromX: x, y: y, rise: 0.5) }
+    }
+
+    /// The wheel's band is 340 pt tall; its cover rows are the column from 120 pt in (about 0.31 of the width) across the
+    /// middle 300 pt. A drag there turns the wheel and leaves the page where it is (#363).
+    func testDragOnTheCoversTurnsTheWheelAndThePageStays() {
         XCTAssertTrue(wheel.waitForExistence(timeout: 15))
         let before = wheel.value as? String
         let top = wheel.frame.minY
-        // A drag that starts on the wheel turns it and leaves the page where it is.
-        let start = wheel.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.7))
-        let end = wheel.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.2))
-        start.press(forDuration: 0.1, thenDragTo: end)
-        sleep(1)
-        XCTAssertNotEqual(wheel.value as? String, before, "the wheel did not turn")
+        drag(fromX: 0.7, y: 0.7, rise: 0.5)
         XCTAssertEqual(wheel.frame.minY, top, accuracy: 1, "the page scrolled")
-        // A drag that starts below the wheel scrolls the page.
-        let low = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95))
-        let high = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
-        low.press(forDuration: 0.1, thenDragTo: high)
-        sleep(1)
+        XCTAssertNotEqual(wheel.value as? String, before, "the wheel did not turn")
+    }
+
+    /// A drag that starts on the hub scrolls the page, and the wheel keeps its front.
+    func testDragOnTheHubScrollsThePage() {
+        XCTAssertTrue(wheel.waitForExistence(timeout: 15))
+        let before = frontName
+        let top = wheel.frame.minY
+        scrollPage(fromX: 0.1, y: 0.5, top: top)
+        XCTAssertLessThan(wheel.frame.minY, top - 50, "the page did not scroll")
+        XCTAssertEqual(frontName, before, "the wheel turned")
+    }
+
+    /// A drag that starts in the empty space above the arc scrolls the page, and the wheel keeps its front.
+    func testDragInTheEmptySpaceScrollsThePage() {
+        XCTAssertTrue(wheel.waitForExistence(timeout: 15))
+        let before = frontName
+        let top = wheel.frame.minY
+        scrollPage(fromX: 0.8, y: 0.03, top: top)
+        XCTAssertLessThan(wheel.frame.minY, top - 50, "the page did not scroll")
+        XCTAssertEqual(frontName, before, "the wheel turned")
+    }
+
+    /// The top of now playing is on the first screen of a 390 x 844 phone (#363).
+    func testNowPlayingStartsOnTheFirstScreen() {
+        XCTAssertTrue(wheel.waitForExistence(timeout: 15))
+        let height = app.windows.firstMatch.frame.height
+        let title = app.staticTexts["Paper Moon (feat. Okoro)"].firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        XCTAssertLessThan(title.frame.maxY, height, "now playing starts below the first screen")
+    }
+
+    /// A drag that starts on the now playing panel scrolls the page; it is plain page content.
+    func testDragOnNowPlayingScrollsThePage() {
+        XCTAssertTrue(wheel.waitForExistence(timeout: 15))
+        let title = app.staticTexts["Paper Moon (feat. Okoro)"].firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        let top = title.frame.minY
+        for _ in 0..<3 where title.frame.minY > top - 50 {
+            let start = title.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -200)), withVelocity: .slow, thenHoldForDuration: 0)
+            sleep(1)
+        }
+        XCTAssertLessThan(title.frame.minY, top - 50, "the page did not scroll")
+    }
+
+    /// With one collection the wheel has nothing to turn, so a drag on the cover column scrolls the page (#363).
+    func testDragOnTheCoversScrollsThePageWithOneCollection() {
+        app.terminate()
+        app.launchArguments = ["-componentGallery", "collections-player-single"]
+        app.launch()
+        XCTAssertTrue(wheel.waitForExistence(timeout: 15))
+        let top = wheel.frame.minY
+        for _ in 0..<3 where wheel.frame.minY > top - 50 { drag(fromX: 0.7, y: 0.7, rise: 0.5) }
         XCTAssertLessThan(wheel.frame.minY, top - 50, "the page did not scroll")
     }
 }

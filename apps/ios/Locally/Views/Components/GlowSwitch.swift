@@ -20,6 +20,9 @@ struct GlowSwitch<Value: Hashable>: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private static var fade: CGFloat { 14 }
+    private static var padding: CGFloat { Theme.Import.kindSwitchPadding }
+    private static var stackCorner: CGFloat { Theme.Import.kindSwitchStackCorner }
+    private static var thumbCorner: CGFloat { stackCorner - padding }
 
     var body: some View {
         Group {
@@ -27,18 +30,28 @@ struct GlowSwitch<Value: Hashable>: View {
             case .stack:
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 0) { optionButtons(fill: false) }
+                        .padding(Self.padding)
+                        .background { GlowGlass().clipShape(Capsule()) }
+                        .overlay { GlowRim() }
+                    // A tall capsule's ends are round by half its width, so a column gets a bounded corner.
                     VStack(spacing: 0) { optionButtons(fill: true) }
+                        .padding(Self.padding)
+                        .background { GlowGlass().clipShape(RoundedRectangle(cornerRadius: Self.stackCorner, style: .continuous)) }
+                        .overlay { GlowRim(corner: Self.stackCorner) }
                 }
             case .scroll:
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 0) { optionButtons(fill: false) }
+                        .padding(Self.padding)
+                        .background { GlowGlass().clipShape(Capsule()) }
+                        .overlay { GlowRim() }
                     scroller
+                        .padding(Self.padding)
+                        .background { GlowGlass().clipShape(Capsule()) }
+                        .overlay { GlowRim() }
                 }
             }
         }
-        .padding(3)
-        .background { GlowGlass().clipShape(Capsule()) }
-        .overlay { GlowRim() }
         .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: selection)
         .sensoryFeedback(.selection, trigger: selection)
         .opacity(isEnabled ? 1 : 0.5)
@@ -88,9 +101,9 @@ struct GlowSwitch<Value: Hashable>: View {
                 .padding(.vertical, 8)
                 // A 44 pt tap target at every text size.
                 .frame(maxWidth: fill ? .infinity : nil, minHeight: Theme.Import.kindSwitchMinTarget)
-                .contentShape(Capsule())
+                .contentShape(optionShape(fill: fill))
                 .background {
-                    if chosen { thumb.matchedGeometryEffect(id: "thumb", in: thumbSpace) }
+                    if chosen { thumb(fill: fill).matchedGeometryEffect(id: "thumb", in: thumbSpace) }
                 }
             }
             .buttonStyle(.plain)
@@ -100,12 +113,19 @@ struct GlowSwitch<Value: Hashable>: View {
         }
     }
 
-    private var thumb: some View {
+    /// The thumb's and tap area's shape: a capsule in a row, a concentric rounded rectangle in the column.
+    private func optionShape(fill: Bool) -> AnyShape {
+        fill ? AnyShape(RoundedRectangle(cornerRadius: Self.thumbCorner, style: .continuous)) : AnyShape(Capsule())
+    }
+
+    private func thumb(fill: Bool) -> some View {
+        let shape = optionShape(fill: fill)
         // A dark base under the tint keeps the white label at 4.5:1 or better on a bright colour.
-        Capsule()
+        return shape
             .fill(Color.black.opacity(Theme.Import.kindThumbBase))
-            .overlay(Capsule().fill(tint.opacity(0.55)))
-            .overlay(Capsule().strokeBorder(Color.white.opacity(0.35), lineWidth: 1))
+            .overlay(shape.fill(tint.opacity(0.55)))
+            // AnyShape is not insettable: a 2 pt stroke clipped to the shape is a 1 pt inside border.
+            .overlay(shape.stroke(Color.white.opacity(0.35), lineWidth: 2).clipShape(shape))
             .shadow(color: tint.opacity(0.5), radius: 8)
     }
 }
