@@ -3,10 +3,10 @@ import XCTest
 /// The song page's three entry points and its Edit and Album links (#365), over the component gallery's seeded data
 /// (DEBUG builds). On demand, like the other UI tests.
 final class SongPageUITests: XCTestCase {
-    private func launch(_ name: String) -> XCUIApplication {
+    private func launch(_ name: String, extraArguments: [String] = []) -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchArguments = ["-componentGallery", name]
+        app.launchArguments = ["-componentGallery", name] + extraArguments
         app.launch()
         return app
     }
@@ -35,9 +35,32 @@ final class SongPageUITests: XCTestCase {
         let title = app.buttons["track-title-2"]
         XCTAssertTrue(waitHittable(title, timeout: 20), "no title button on track 2")
         XCTAssertEqual(title.label, "Orange Streetlight")
-        title.tap()
+        XCTAssertGreaterThanOrEqual(title.frame.height, 44, "the song page target is under 44 pt")
+        attach("release-rows")
+        title.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.25)).tap()
         assertSongPage(app, title: "Orange Streetlight")
         attach("song-page-from-title")
+    }
+
+    func testTheSongRowTargetStaysAtLeast44PointsAtAnAccessibilitySize() {
+        let app = launch("track-menu-release", extraArguments: ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityL"])
+        let title = app.buttons["track-title-2"]
+        XCTAssertTrue(waitHittable(title, timeout: 20), "no title button on track 2")
+        XCTAssertGreaterThanOrEqual(title.frame.height, 44, "the song page target is under 44 pt")
+        attach("release-rows-ax")
+        title.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.25)).tap()
+        assertSongPage(app, title: "Orange Streetlight")
+    }
+
+    func testAnArtistLinkOnAReleaseRowStillOpensTheArtist() {
+        let app = launch("track-menu-release")
+        let row = app.descendants(matching: .any)["track-row-2"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 20), "no track-row-2")
+        let link = row.links.firstMatch
+        XCTAssertTrue(link.waitForExistence(timeout: 5), "no artist link in row 2")
+        link.tap()
+        attach("artist-from-row-link")
+        XCTAssertFalse(app.buttons["song-row-album"].waitForExistence(timeout: 3), "the song page opened instead of the artist")
     }
 
     func testSongInfoInTheLongPressMenuOpensTheSongPage() {
@@ -104,7 +127,7 @@ final class SongPageUITests: XCTestCase {
         let app = launch("track-menu-release")
         let title = app.buttons["track-title-2"]
         XCTAssertTrue(waitHittable(title, timeout: 20), "no title button on track 2")
-        title.tap()
+        title.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.25)).tap()
         let edit = app.buttons["Edit"].firstMatch
         XCTAssertTrue(waitHittable(edit, timeout: 10), "no Edit on the song page")
         edit.tap()
@@ -119,7 +142,7 @@ final class SongPageUITests: XCTestCase {
         let app = launch("song-page-edit-save")
         let title = app.buttons["track-title-2"]
         XCTAssertTrue(waitHittable(title, timeout: 20), "no title button on track 2")
-        title.tap()
+        title.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.25)).tap()
         let marker = "Renamed"
         openEdit(app)
         let field = app.textFields["Title"].firstMatch

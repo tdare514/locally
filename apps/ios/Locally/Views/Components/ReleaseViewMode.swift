@@ -189,8 +189,8 @@ struct ReleaseTrackRow: View {
     var play: TrackPlayControl?
     /// 0 to 1: how far the number has turned white (#362). Opacity only.
     var highlight: Double = 0
-    /// A tap on the title line opens the song's page (#365); the number stays the play button and the artist
-    /// line keeps its links. Nil where no stack shows songs.
+    /// A tap anywhere on the row opens the song's page (#365), through a clear button behind it, as on Stats; the
+    /// number stays the play button and the artist names stay links. Nil where no stack shows songs.
     var onOpenSong: (() -> Void)?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -211,9 +211,11 @@ struct ReleaseTrackRow: View {
                         Text(plays.map { $0.formatted() } ?? "")
                             .accessibilityLabel(plays.map(Copy.Detail.playCount) ?? "")
                             .frame(width: columns.plays, alignment: .trailing)
+                            .allowsHitTesting(onOpenSong == nil)
                         Text(time ?? "")
                             .accessibilityLabel(timeSpoken ?? time ?? "")
                             .frame(width: columns.time, alignment: .trailing)
+                            .allowsHitTesting(onOpenSong == nil)
                     }
                 }
                 // View mode only (#288): "A, feat. B & C", every name its own link, on one line (#361).
@@ -225,12 +227,14 @@ struct ReleaseTrackRow: View {
                     Text(Copy.Playback.fileMissing)
                         .font(.system(size: artistSize))
                         .foregroundStyle(Theme.textDim)
+                        .allowsHitTesting(onOpenSong == nil)
                 }
                 if accessible, let line = TrackRowLine.playsAndTime(plays: plays, time: time) {
                     Text(line)
                         .font(.system(size: artistSize).monospacedDigit())
                         .foregroundStyle(Theme.secondaryText)
                         .accessibilityLabel(TrackRowLine.playsAndTime(plays: plays, time: timeSpoken ?? time) ?? line)
+                        .allowsHitTesting(onOpenSong == nil)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -238,12 +242,21 @@ struct ReleaseTrackRow: View {
         .font(.system(size: numberSize).monospacedDigit())
         .foregroundStyle(Theme.secondaryText)
         .frame(minHeight: Theme.Track.minHeight)
+        .background {
+            if let onOpenSong {
+                Button(action: onOpenSong) { Color.clear.contentShape(Rectangle()) }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(title)
+                    .accessibilityHint(Copy.TrackActions.opensSongPage)
+                    .accessibilityIdentifier("track-title-\(number)")
+            }
+        }
         // The artist line holds links, which a combined element would swallow.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("track-row-\(number)")
     }
 
-    /// The title, a plain button that opens the song page when the row has one (the artist links stay outside it).
+    /// The title text. With a song page the row's clear button behind it takes the tap and speaks for it.
     @ViewBuilder
     private func titleLabel(accessible: Bool) -> some View {
         let label = Text(title)
@@ -252,13 +265,10 @@ struct ReleaseTrackRow: View {
             .lineLimit(accessible ? nil : 1)
             .truncationMode(.tail)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        if let onOpenSong {
-            Button(action: onOpenSong) { label }
-                .buttonStyle(.plain)
-                .accessibilityLabel(title)
-                .accessibilityHint(Copy.TrackActions.opensSongPage)
-                .accessibilityIdentifier("track-title-\(number)")
+        if onOpenSong != nil {
+            label
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         } else {
             label.accessibilityIdentifier("track-title-\(number)")
         }
