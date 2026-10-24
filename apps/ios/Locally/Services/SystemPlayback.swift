@@ -185,10 +185,10 @@ final class SystemRemoteCommands: RemoteCommandRegistrar {
 
 extension PlaybackService {
     /// The app's player over the connected Spotify folder; the cover for the lock screen comes from `coverStore`.
-    static func production(folder: SpotifyFolderAccess, coverStore: CoverStore, playCounts: PlayCountStoring? = nil) -> PlaybackService {
+    static func production(folder: SpotifyFolderAccess, coverStore: CoverStore, playCounts: PlayCountStoring? = nil, playEvents: PlayEventStoring? = nil) -> PlaybackService {
         PlaybackService(
             engine: AVQueuePlayerEngine(), access: SpotifyPlaybackFileAccess(folder: folder), session: SystemPlaybackSession(),
-            nowPlaying: SystemNowPlayingPublisher(), remote: SystemRemoteCommands(), coverData: { coverStore.load($0.id) }, playCounts: playCounts
+            nowPlaying: SystemNowPlayingPublisher(), remote: SystemRemoteCommands(), coverData: { coverStore.load($0.id) }, playCounts: playCounts, playEvents: playEvents
         )
     }
 }

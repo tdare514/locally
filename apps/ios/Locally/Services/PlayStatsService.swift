@@ -211,10 +211,16 @@ final class SyncPlayStatsService: PlayStatsReading {
             // while it was in flight may have fetched another account's page: drop it all.
             guard key.identity == identity else { return identityChanged() }
             tracks += page.tracks.map {
-                PlayCount(trackId: $0.trackId, releaseId: $0.releaseId, plays: $0.plays, lastPlayedDay: $0.lastPlayedDay)
+                PlayCount(
+                    trackId: $0.trackId, releaseId: $0.releaseId, plays: $0.plays, lastPlayedDay: $0.lastPlayedDay,
+                    lastPlayedAt: $0.lastPlayedAt, listenedMs: $0.listenedMs, events: $0.events
+                )
             }
             allTime += page.allTime.map {
-                PlayCount(trackId: $0.trackId, releaseId: $0.releaseId, plays: $0.plays, lastPlayedDay: nil)
+                PlayCount(
+                    trackId: $0.trackId, releaseId: $0.releaseId, plays: $0.plays, lastPlayedDay: nil,
+                    lastPlayedAt: $0.lastPlayedAt, listenedMs: $0.listenedMs, events: $0.events
+                )
             }
             guard let next = page.nextCursor else { break }
             cursor = next

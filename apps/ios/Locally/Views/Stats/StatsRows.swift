@@ -139,7 +139,7 @@ private struct StatsRow: View {
 
     private var buttonLabel: String {
         let base = "\(item.rank), \(plainTitle), \(Copy.Stats.figure(item, sort: sort))"
-        let played = Copy.Stats.lastPlayedLabel(item.lastPlayedDay, today: today)
+        let played = Copy.Stats.lastPlayedLabel(item, today: today)
         return artistCredit == nil ? "\(base), \(item.subtitle), \(played)" : "\(base), \(played)"
     }
 
@@ -149,8 +149,8 @@ private struct StatsRow: View {
                 .font(.system(.subheadline, weight: .semibold))
                 .monospacedDigit()
                 .foregroundStyle(Theme.primaryText)
-            if (showsLastPlayed || stacked), item.lastPlayedDay?.isEmpty == false {
-                Text(Copy.Stats.lastPlayedLabel(item.lastPlayedDay, today: today))
+            if (showsLastPlayed || stacked), item.lastPlayedAt != nil || item.lastPlayedDay?.isEmpty == false {
+                Text(Copy.Stats.lastPlayedLabel(item, today: today))
                     .font(.footnote)
                     .foregroundStyle(Theme.secondaryText)
             }
