@@ -6,7 +6,7 @@ import SwiftUI
 struct ComponentGallery: View {
     static let names = ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "sleeve-bright", "sleeve-dark", "backdrop-a", "backdrop-b", "inline-field", "cover-sheet",
         // #160: the studio backdrop and the real Settings with sample sync state.
-        "studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "migration-banner",
+        "studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "migration-banner", "root-banner",
         // #205: the release page's tracks panel (the shared `TrackRow`, preset rows).
         "release-tracks",
         // Kind switch and cover glow buttons, on the studio backdrop.
@@ -50,7 +50,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || name.hasPrefix("share") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save", "release-share-blocked"].contains(name)
+        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || name.hasPrefix("share") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "root-banner", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save", "release-share-blocked"].contains(name)
     }
 
     var body: some View {
@@ -125,6 +125,8 @@ struct ComponentGallery: View {
             }
         case "studio-backdrop":
             StudioBackdrop()
+        case "root-banner":
+            RootBannerGallery()
         case "migration-banner":
             VStack { MigrationNoticeBanner(text: Copy.Settings.songsMoved(count: 12), onDismiss: {}); Spacer() }
         case "settings-signed-in":
@@ -616,6 +618,24 @@ enum IconsGallery {
         release.sharedFrom = sharedFrom
         if noCover { release.coverPath = nil }
         return environment(NavigationStack { ReleaseDetailView(release: release, startsEditing: editing) }, container)
+    }
+}
+
+/// The real `RootView` with the "moved N songs" banner showing and one song waiting from the Mac, so
+/// the Library's cloud button is on screen under it.
+private struct RootBannerGallery: View {
+    @State private var container: AppContainer = {
+        let container = IconsGallery.container()
+        let now = Date()
+        container.syncStatus.pendingFromMac = [SyncRecord(
+            id: "gallery-0", kind: "single", title: "Night Bus to Nowhere", artist: "Neon Harbor",
+            tracks: [SyncTrack(id: "t0", title: "Night Bus to Nowhere", trackNumber: 1, file: "t0.m4a", bytes: 0, durationSec: nil)],
+            origin: "mac", originDevice: "Gallery", createdAt: now, updatedAt: now)]
+        return container
+    }()
+
+    var body: some View {
+        IconsGallery.environment(RootView(demoNotice: Copy.Settings.songsMoved(count: 12)), container)
     }
 }
 

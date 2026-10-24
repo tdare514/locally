@@ -98,6 +98,7 @@ struct BrandFolderTests {
         let folder = makeFolder()
         let library = InMemoryLibraryStore()
         let defaults = makeDefaults()
+        let journal = InMemoryMigrationJournalStore()
         let release = try seedLegacy(["one.mp3", "two.mp3"], in: folder, library: library)
         try Data([9]).write(to: folder.directory.appendingPathComponent("untracked.mp3"))
         let synced = folder.directory.appendingPathComponent("Synced files", isDirectory: true)
@@ -109,7 +110,7 @@ struct BrandFolderTests {
         try Data([9]).write(to: folder.directory.appendingPathComponent("ad.mp3"))
 
         let coordinator = makeCoordinator(folder: folder, library: library)
-        let moved = await coordinator.migrateIntoBrandFolder(defaults: defaults)
+        let moved = await coordinator.migrateIntoBrandFolder(defaults: defaults, journal: journal)
 
         #expect(moved == 2)
         let stored = try #require(try library.all().first { $0.id == release.id })
@@ -128,16 +129,17 @@ struct BrandFolderTests {
         let folder = makeFolder()
         let library = InMemoryLibraryStore()
         let defaults = makeDefaults()
+        let journal = InMemoryMigrationJournalStore()
         _ = try seedLegacy(["one.mp3"], in: folder, library: library)
         let coordinator = makeCoordinator(folder: folder, library: library)
-        #expect(await coordinator.migrateIntoBrandFolder(defaults: defaults) == 1)
-        #expect(await coordinator.migrateIntoBrandFolder(defaults: defaults) == nil)
+        #expect(await coordinator.migrateIntoBrandFolder(defaults: defaults, journal: journal) == 1)
+        #expect(await coordinator.migrateIntoBrandFolder(defaults: defaults, journal: journal) == nil)
         // Even with the flag cleared, a migrated library has nothing left to move.
         defaults.removeObject(forKey: ReleaseCoordinator.brandFolderMigrationKey)
-        #expect(await coordinator.migrateIntoBrandFolder(defaults: defaults) == 0)
+        #expect(await coordinator.migrateIntoBrandFolder(defaults: defaults, journal: journal) == 0)
     }
 
-    @Test func interruptedRunResumesFromTheJournalIncludingACollisionSuffix() async throws {
+    @Test func interruptedRunResumesFromTheJournalFileAfterARestart() async throws {
         let folder = makeFolder()
         let library = InMemoryLibraryStore()
         let defaults = makeDefaults()
@@ -145,32 +147,48 @@ struct BrandFolderTests {
         // A stranger already sits at Locally/one.mp3, so the move of "one" went to "one (2).mp3".
         try FileManager.default.createDirectory(at: brandDir(folder), withIntermediateDirectories: true)
         try Data([7]).write(to: brandDir(folder).appendingPathComponent("one.mp3"))
-        // The run journaled and moved it, then died before saving the index.
-        defaults.set([release.tracks[0].id.uuidString: "\(Brand.folderName)/one (2).mp3"],
-                     forKey: ReleaseCoordinator.brandFolderMigrationJournalKey)
+        let journalURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).json")
+        // The run journaled to disk and moved the file, then died: the index still has the old path.
+        try FileMigrationJournalStore(url: journalURL, legacyDefaults: nil)
+            .save([release.tracks[0].id.uuidString: "\(Brand.folderName)/one (2).mp3"])
         try FileManager.default.moveItem(at: folder.directory.appendingPathComponent("one.mp3"),
                                          to: brandDir(folder).appendingPathComponent("one (2).mp3"))
+        #expect(!defaults.bool(forKey: ReleaseCoordinator.brandFolderMigrationKey))
+        // "Restart": a fresh store instance over the same file.
+        let restarted = FileMigrationJournalStore(url: journalURL, legacyDefaults: nil)
         let coordinator = makeCoordinator(folder: folder, library: library)
-        _ = await coordinator.migrateIntoBrandFolder(defaults: defaults)
+        let moved = await coordinator.migrateIntoBrandFolder(defaults: defaults, journal: restarted)
+        #expect(moved == 2)
         let stored = try #require(try library.all().first { $0.id == release.id })
         #expect(stored.tracks[0].filePath.hasSuffix("/\(Brand.folderName)/one (2).mp3"))
         #expect(stored.tracks[1].filePath.contains("/\(Brand.folderName)/two"))
         for track in stored.tracks { #expect(FileManager.default.fileExists(atPath: track.filePath)) }
         #expect(try Data(contentsOf: brandDir(folder).appendingPathComponent("one.mp3")) == Data([7]))
         #expect(defaults.bool(forKey: ReleaseCoordinator.brandFolderMigrationKey))
+        #expect(!FileManager.default.fileExists(atPath: journalURL.path))
+    }
+
+    @Test func journalFileFoldsInEntriesFromTheOldDefaultsKeyOnce() throws {
+        let defaults = makeDefaults()
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).json")
+        defaults.set(["t1": "\(Brand.folderName)/a.mp3"], forKey: ReleaseCoordinator.brandFolderMigrationJournalKey)
+        let store = FileMigrationJournalStore(url: url, legacyDefaults: defaults)
+        #expect(store.load() == ["t1": "\(Brand.folderName)/a.mp3"])
         #expect(defaults.dictionary(forKey: ReleaseCoordinator.brandFolderMigrationJournalKey) == nil)
+        #expect(FileMigrationJournalStore(url: url, legacyDefaults: nil).load() == ["t1": "\(Brand.folderName)/a.mp3"])
     }
 
     @Test func nameCollisionGetsAUniqueSuffix() async throws {
         let folder = makeFolder()
         let library = InMemoryLibraryStore()
         let defaults = makeDefaults()
+        let journal = InMemoryMigrationJournalStore()
         let release = try seedLegacy(["one.mp3"], in: folder, library: library)
         try FileManager.default.createDirectory(at: brandDir(folder), withIntermediateDirectories: true)
         try Data([7]).write(to: brandDir(folder).appendingPathComponent("one.mp3"))
         // The tracked file is the top-level one (its stored path exists), so the brand copy is a stranger.
         let coordinator = makeCoordinator(folder: folder, library: library)
-        _ = await coordinator.migrateIntoBrandFolder(defaults: defaults)
+        _ = await coordinator.migrateIntoBrandFolder(defaults: defaults, journal: journal)
         let stored = try #require(try library.all().first { $0.id == release.id })
         #expect(stored.tracks[0].filePath.hasSuffix("/\(Brand.folderName)/one (2).mp3"))
         #expect(try Data(contentsOf: brandDir(folder).appendingPathComponent("one.mp3")) == Data([7]))
@@ -181,18 +199,19 @@ struct BrandFolderTests {
         let folder = makeFolder()
         let library = InMemoryLibraryStore()
         let defaults = makeDefaults()
+        let journal = InMemoryMigrationJournalStore()
         _ = try seedLegacy(["one.mp3"], in: folder, library: library)
         let coordinator = makeCoordinator(folder: folder, library: library)
         folder.disconnect()
-        #expect(await coordinator.migrateIntoBrandFolder(defaults: defaults) == nil)
+        #expect(await coordinator.migrateIntoBrandFolder(defaults: defaults, journal: journal) == nil)
         #expect(!defaults.bool(forKey: ReleaseCoordinator.brandFolderMigrationKey))
         // A failing move (a plain file squats on the brand folder's name) leaves it unset too.
         try folder.connect(url: folder.directory)
         try Data([1]).write(to: brandDir(folder))
-        #expect(await coordinator.migrateIntoBrandFolder(defaults: defaults) == nil)
+        #expect(await coordinator.migrateIntoBrandFolder(defaults: defaults, journal: journal) == nil)
         #expect(!defaults.bool(forKey: ReleaseCoordinator.brandFolderMigrationKey))
         try FileManager.default.removeItem(at: brandDir(folder))
-        #expect(await coordinator.migrateIntoBrandFolder(defaults: defaults) == 1)
+        #expect(await coordinator.migrateIntoBrandFolder(defaults: defaults, journal: journal) == 1)
         #expect(defaults.bool(forKey: ReleaseCoordinator.brandFolderMigrationKey))
     }
 
@@ -200,6 +219,7 @@ struct BrandFolderTests {
         let folder = makeFolder()
         let library = InMemoryLibraryStore()
         let defaults = makeDefaults()
+        let journal = InMemoryMigrationJournalStore()
         try FileManager.default.createDirectory(at: brandDir(folder), withIntermediateDirectories: true)
         let owned = brandDir(folder).appendingPathComponent("same.mp3")
         try Data([5]).write(to: owned)
@@ -211,7 +231,7 @@ struct BrandFolderTests {
         try library.upsert(a)
         try library.upsert(b)
         let coordinator = makeCoordinator(folder: folder, library: library)
-        let moved = await coordinator.migrateIntoBrandFolder(defaults: defaults)
+        let moved = await coordinator.migrateIntoBrandFolder(defaults: defaults, journal: journal)
         #expect(moved == 0)
         let storedA = try #require(try library.all().first { $0.id == a.id })
         let storedB = try #require(try library.all().first { $0.id == b.id })

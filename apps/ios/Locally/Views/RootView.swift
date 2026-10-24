@@ -35,6 +35,21 @@ struct RootView: View {
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            // In the layout above the tabs, not over them: the Library's cloud button sits at the
+            // very top and must stay reachable.
+            if let migrationNotice {
+                MigrationNoticeBanner(text: migrationNotice) { self.migrationNotice = nil }
+                    .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+            }
+            tabsOrOnboarding
+        }
+        .background(Theme.background)
+        .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.35), value: migrationNotice)
+    }
+
+    @ViewBuilder
+    private var tabsOrOnboarding: some View {
         Group {
             if !folderStatus.isConnected || !hasFinishedOnboarding {
                 OnboardingView { hasFinishedOnboarding = true }
@@ -65,13 +80,6 @@ struct RootView: View {
             }
         }
         .background(Theme.background)
-        .overlay(alignment: .top) {
-            if let migrationNotice {
-                MigrationNoticeBanner(text: migrationNotice) { self.migrationNotice = nil }
-                    .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
-            }
-        }
-        .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.35), value: migrationNotice)
         .task(id: folderStatus.isConnected) {
             guard folderStatus.isConnected, let container else { return }
             if let moved = await container.coordinator.migrateIntoBrandFolder(), moved > 0 {
@@ -118,5 +126,17 @@ struct MigrationNoticeBanner: View {
         .padding(.horizontal, Theme.Spacing.pagePadding)
         .accessibilityLabel(text)
         .accessibilityHint(Copy.Settings.dismissHint)
+        .accessibilityAction(named: Copy.Settings.dismissAction, onDismiss)
+        .padding(.top, 8)
     }
 }
+
+#if DEBUG
+extension RootView {
+    /// DEBUG only: the app's tabs with the "moved N songs" banner already showing (gallery `root-banner`).
+    init(demoNotice: String?) {
+        self.init()
+        _migrationNotice = State(initialValue: demoNotice)
+    }
+}
+#endif

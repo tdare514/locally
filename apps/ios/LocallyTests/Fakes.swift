@@ -722,3 +722,11 @@ final class FakePlayStats: PlayStatsReading {
         return result
     }
 }
+
+/// In-memory `MigrationJournalStore`: nothing touches Application Support.
+final class InMemoryMigrationJournalStore: MigrationJournalStore {
+    private var journal: [String: String] = [:]
+    func load() -> [String: String] { journal }
+    func save(_ journal: [String: String]) throws { self.journal = journal }
+    func clear() { journal = [:] }
+}

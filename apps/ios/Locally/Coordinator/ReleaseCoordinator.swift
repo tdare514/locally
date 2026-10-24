@@ -806,7 +806,7 @@ final class ReleaseCoordinator {
     /// the index tracks. Each move is journaled (track id to destination) before it happens, so a
     /// run cut short between the move and the index save resumes by pointing the track at exactly
     /// that destination; no file is ever claimed by guessing its name.
-    func migrateIntoBrandFolder(defaults: UserDefaults = .standard) async -> Int? {
+    func migrateIntoBrandFolder(defaults: UserDefaults = .standard, journal journalStore: MigrationJournalStore = FileMigrationJournalStore()) async -> Int? {
         guard !defaults.bool(forKey: Self.brandFolderMigrationKey) else { return nil }
         guard let releases = try? library.all() else { return nil }
         let fm = FileManager.default
@@ -830,7 +830,7 @@ final class ReleaseCoordinator {
                     for index in updated.tracks.indices {
                         let track = updated.tracks[index]
                         let key = track.id.uuidString
-                        var journal = defaults.dictionary(forKey: Self.brandFolderMigrationJournalKey) as? [String: String] ?? [:]
+                        var journal = journalStore.load()
                         if let relative = journal[key] {
                             // A move was started for this track. If its destination exists and nobody
                             // else owns it, the move finished and only the index is behind.
@@ -841,14 +841,14 @@ final class ReleaseCoordinator {
                                 updated.tracks[index].filePath = dest.path
                                 if save() {
                                     journal.removeValue(forKey: key)
-                                    defaults.set(journal, forKey: Self.brandFolderMigrationJournalKey)
+                                    try? journalStore.save(journal)
                                     movedThisRun += 1
                                 } else { allDone = false }
                                 continue
                             }
                             // Not moved (the run died before it): forget the entry and move normally.
                             journal.removeValue(forKey: key)
-                            defaults.set(journal, forKey: Self.brandFolderMigrationJournalKey)
+                            try? journalStore.save(journal)
                         }
                         let name = (track.filePath as NSString).lastPathComponent
                         guard ReleaseLayout.isPlainFileName(name) else { continue }
@@ -859,13 +859,14 @@ final class ReleaseCoordinator {
                         do {
                             let dest = Self.uniqueDestination(in: try Self.brandFolder(in: folderURL), fileName: name)
                             journal[key] = Brand.folderName + "/" + dest.lastPathComponent
-                            defaults.set(journal, forKey: Self.brandFolderMigrationJournalKey)
+                            // Durable before the move; if it can't be stored the file stays put.
+                            try journalStore.save(journal)
                             try fm.moveItem(at: source, to: dest)
                             claimed.insert(dest.resolvingSymlinksInPath().path)
                             updated.tracks[index].filePath = dest.path
                             if save() {
                                 journal.removeValue(forKey: key)
-                                defaults.set(journal, forKey: Self.brandFolderMigrationJournalKey)
+                                try? journalStore.save(journal)
                                 movedThisRun += 1
                             } else { allDone = false }
                         } catch {
@@ -884,7 +885,7 @@ final class ReleaseCoordinator {
         }
         defaults.set(true, forKey: Self.brandFolderMigrationKey)
         defaults.removeObject(forKey: Self.brandFolderMigrationCountKey)
-        defaults.removeObject(forKey: Self.brandFolderMigrationJournalKey)
+        journalStore.clear()
         return total
     }
 

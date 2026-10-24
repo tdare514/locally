@@ -411,6 +411,7 @@ enum Copy {
         static let folderKeeps = "Locally keeps your music in the \(Brand.folderName) folder inside Spotify's folder."
         /// The one-time line after the move into the brand folder.
         static let dismissHint = "Double-tap to dismiss"
+        static let dismissAction = "Dismiss"
         static func songsMoved(count: Int) -> String {
             "\(Brand.folderName) moved \(count) \(count == 1 ? "song" : "songs") into its own \(Brand.folderName) folder in Spotify."
         }
