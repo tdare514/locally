@@ -138,8 +138,10 @@ enum Theme {
         static let tileCornerRadius: CGFloat = 8
         // The cover size slider (#360) and the Collections card.
         /// The slider's width with its two glyphs, the hit height, the thumb's size, the track's thickness and the snap duration.
-        static let sizeSliderWidth: CGFloat = 150
+        static let sizeSliderWidth: CGFloat = 128
         static let sizeSliderHeight: CGFloat = 44
+        /// The least brightness (HSB) the header controls' tint gets, so the glass thumbs show on a navy sky.
+        static let controlsTintMinBrightness: CGFloat = 0.70
         static let sizeSliderThumb: CGFloat = 28
         /// The glass track's thickness, the thumb's largest size and the detent dots' size and opacity.
         static let sizeSliderTrack: CGFloat = 18

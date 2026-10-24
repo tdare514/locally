@@ -116,10 +116,14 @@ struct LibraryView: View {
         skyKey.flatMap { palettes[$0] } ?? .neutral
     }
 
-    /// The header controls' tint: the sky cover's glow colour, the accent with no cover (as the Import record's switch).
+    /// The header controls' tint: the sky cover's glow colour, lifted to a minimum brightness so the glass thumbs show on a dark
+    /// cover; the accent with no cover (as the Import record's switch).
     private var controlsTint: Color {
         let palette = skyPalette
-        return Theme.coverGlowColors(palette == .neutral ? nil : palette)[0]
+        let glow = Theme.coverGlowColors(palette == .neutral ? nil : palette)[0]
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0
+        guard palette != .neutral, UIColor(glow).getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: nil) else { return glow }
+        return Color(hue: hue, saturation: saturation, brightness: max(brightness, Theme.Library.controlsTintMinBrightness))
     }
 
     private func openRequestedRelease() {
@@ -653,10 +657,8 @@ struct LibraryView: View {
         .overlay(shape.stroke(Theme.Immersive.panelStroke, lineWidth: 1))
     }
 
-    /// The size the grid uses: at the accessibility text sizes Small steps up to Medium, so a title is not cut to a few letters.
-    private var gridSize: CoverSize {
-        dynamicTypeSize.isAccessibilitySize && coverSize == .small ? .medium : coverSize
-    }
+    /// The size the grid uses at this text size (see `CoverSize.forGrid`).
+    private var gridSize: CoverSize { coverSize.forGrid(dynamicTypeSize) }
 
     private func coverGrid(_ items: [Release]) -> some View {
         LazyVGrid(

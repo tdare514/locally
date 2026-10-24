@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 /// How the library home lays out releases: rows in a panel, a cover grid, or the artists A to Z
 /// (#288). Mirrors the web's `LibraryLayout`. Values stored before `artists` existed still load.
@@ -39,6 +39,14 @@ enum CoverSize: Int, CaseIterable {
     /// The detent `step` places along, stopping at the ends.
     func stepped(by step: Int) -> CoverSize {
         CoverSize(rawValue: min(max(rawValue + step, 0), CoverSize.allCases.count - 1)) ?? self
+    }
+
+    /// The size the grid uses at a text size: from AX3 Small and Medium both use Large (two across), so a title is not cut to a few
+    /// letters; at AX1 and AX2 Small steps up to Medium; other sizes are unchanged.
+    func forGrid(_ textSize: DynamicTypeSize) -> CoverSize {
+        if textSize >= .accessibility3 { return self == .large ? self : .large }
+        if textSize.isAccessibilitySize && self == .small { return .medium }
+        return self
     }
 
     /// Minimum tile width for the adaptive grid.

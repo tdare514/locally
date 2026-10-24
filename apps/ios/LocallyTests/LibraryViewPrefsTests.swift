@@ -85,6 +85,18 @@ import Testing
         #expect(CoverSize.nearest(fraction: 7) == .large)
     }
 
+    @Test func gridSizeStepsUpAtAccessibilitySizes() {
+        #expect(CoverSize.small.forGrid(.large) == .small)
+        #expect(CoverSize.small.forGrid(.xxxLarge) == .small)
+        #expect(CoverSize.medium.forGrid(.accessibility2) == .medium)
+        #expect(CoverSize.small.forGrid(.accessibility1) == .medium)
+        #expect(CoverSize.small.forGrid(.accessibility2) == .medium)
+        #expect(CoverSize.small.forGrid(.accessibility3) == .large)
+        #expect(CoverSize.medium.forGrid(.accessibility3) == .large)
+        #expect(CoverSize.medium.forGrid(.accessibility5) == .large)
+        #expect(CoverSize.large.forGrid(.accessibility5) == .large)
+    }
+
     @Test func voiceOverSteppingStopsAtTheEnds() {
         #expect(CoverSize.small.stepped(by: 1) == .medium)
         #expect(CoverSize.medium.stepped(by: 1) == .large)
