@@ -98,9 +98,11 @@ export class CollectionSyncService {
   /**
    * Create or update a collection. A write whose `updatedAt` is older than the stored one is a 409; an equal one is
    * accepted (idempotent retry), as for releases. A new live collection beyond the per-user cap is a 409
-   * `too_many_collections`. Items naming this user's tombstoned releases are dropped in the same batch and counted.
+   * `too_many_collections`. A tombstone (`deleted: true`) is stored with `items: []`. Items naming this user's tombstoned releases are dropped in the same batch and counted.
    */
-  async upsert(userId: string, collectionId: string, record: CollectionRecord): Promise<CollectionUpsertResult> {
+  async upsert(userId: string, collectionId: string, sent: CollectionRecord): Promise<CollectionUpsertResult> {
+    // A tombstone keeps no items.
+    const record: CollectionRecord = sent.deleted ? { ...sent, items: [] } : sent;
     const [existing] = await this.db.select().from(collections).where(eq(collections.id, collectionId));
     if (existing && existing.userId !== userId) {
       throw new NotFoundError("Collection not found");
@@ -159,7 +161,7 @@ export class CollectionSyncService {
     }
 
     const now = this.now();
-    const tombstoned: CollectionRecord = { ...existing.record, deleted: true, updatedAt: new Date(now).toISOString() };
+    const tombstoned: CollectionRecord = { ...existing.record, items: [], deleted: true, updatedAt: new Date(now).toISOString() };
     const [, written] = await this.db.batch([
       this.bumpVersion(userId),
       this.db

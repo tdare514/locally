@@ -475,6 +475,7 @@ Named mixtapes of releases and tracks in the owner's order (plan `docs/plans/339
 - **Routes:** `GET /v1/collections`, `PUT /v1/collections/:id` (reply `{ version, pruned }`) and
   `DELETE /v1/collections/:id` (a tombstone; reply `{ version }`), in the API table above. The body `id` must equal the URL id.
 - **Ownership:** a collection id belongs to the user that first wrote it. Another user's id answers 404 on every route.
+- **Tombstones keep no items:** a tombstone (a `DELETE`, or a `PUT` with `deleted: true`) is stored and returned with `items: []`.
 - **Last writer wins on the whole record,** as for releases: 409 when the stored `updatedAt` is newer (an equal one is
   accepted, so a retry is idempotent). The client pulls and re-applies. No merge is attempted.
 - **Item kinds:** `release` is `{ kind, releaseId }` and `track` is `{ kind, releaseId, trackId }`, both strict: a
@@ -484,7 +485,9 @@ Named mixtapes of releases and tracks in the owner's order (plan `docs/plans/339
   track item from a release that is also a release item is allowed.
 - **Limits:** `name` 1 to 100 characters after trimming (stored trimmed), no control characters; at most 1,000 items; at most
   1,000 live collections per user (a new live one beyond answers 409 `{ "error": "too_many_collections" }`; tombstoned ones
-  don't count; the count is read before the write, so creations at the same instant can pass it by a few); the 1 MiB body cap.
+  don't count; the count is read before the write, so creations at the same instant can pass it by a few); a record of at most 256 KiB
+  of JSON (over that is a 400); at most 1,200 collection writes (PUT and DELETE) per user per hour, past that a 429, which
+  clients skip quietly and retry next reconcile; the 1 MiB body cap.
 - **Versions** come from the same per-user counter as releases (`user_counters`). `GET` pages the collections table with
   the releases rules: at most `limit` rows and 2 MiB, `hasMore`, `nextVersion` as the last row's version while more remain,
   otherwise the user's counter.

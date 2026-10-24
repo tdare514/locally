@@ -5,7 +5,7 @@ import { parseJsonBody, parseParam } from "../../../../server/http/validation";
 import { withObservability } from "../../../../server/http/observe";
 import { collectionRecordSchema } from "../../../../shared/collections";
 import { uuidSchema } from "../../../../shared/types";
-import { ValidationError } from "../../../../shared/errors";
+import { RateLimitError, ValidationError } from "../../../../shared/errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +17,9 @@ interface Params {
 export const PUT = withObservability("/v1/collections/[id]", async (request, obs, { params }: Params) => {
   const services = await getServices();
   const { user } = await requireAuth(request, services.auth, obs);
+  if (!(await services.rateLimiters.collectionWrites.consume(user.id))) {
+    throw new RateLimitError("Too many collection writes. Try again later.");
+  }
   const { id } = await params;
   const collectionId = parseParam(id, uuidSchema);
 
@@ -32,6 +35,9 @@ export const PUT = withObservability("/v1/collections/[id]", async (request, obs
 export const DELETE = withObservability("/v1/collections/[id]", async (request, obs, { params }: Params) => {
   const services = await getServices();
   const { user } = await requireAuth(request, services.auth, obs);
+  if (!(await services.rateLimiters.collectionWrites.consume(user.id))) {
+    throw new RateLimitError("Too many collection writes. Try again later.");
+  }
   const { id } = await params;
   const collectionId = parseParam(id, uuidSchema);
 

@@ -5,6 +5,8 @@ import { platformSchema, uuidSchema } from "./types";
 
 export const MAX_COLLECTION_ITEMS = 1000;
 export const MAX_LIVE_COLLECTIONS = 1000;
+/** A whole record, as JSON, is at most this many bytes. */
+export const MAX_COLLECTION_BYTES = 256 * 1024;
 /** An item of a kind this API doesn't know is stored unchanged up to this many bytes of JSON. */
 export const MAX_UNKNOWN_ITEM_BYTES = 1024;
 
@@ -69,6 +71,9 @@ export const collectionRecordSchema = z
       }
       seen.add(key);
     });
+    if (Buffer.byteLength(JSON.stringify(record), "utf8") > MAX_COLLECTION_BYTES) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Collection is over 256 KiB" });
+    }
   });
 
 export type CollectionRecord = z.infer<typeof collectionRecordSchema>;

@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { collections } from "../../src/db/schema";
 import { createTestServices, type TestServices } from "../support/testServices";
+import { InMemoryRateLimiter } from "../../src/server/ratelimit/InMemoryRateLimiter";
 import { makeReleaseRecord } from "../support/fixtures";
 
 let testServices: TestServices;
@@ -264,7 +265,7 @@ describe("collections API", () => {
     await put(u.token, c);
     await del(u.token, c.id);
     await deleteRelease(u.token, r.id);
-    expect(await itemsOf(u.token, c.id)).toEqual([releaseItem(r.id)]);
+    expect(await itemsOf(u.token, c.id)).toEqual([]) // a tombstone keeps no items (#348);
   });
 
   it("a collection PUT drops items of tombstoned releases, keeps unknown ones, and reports pruned", async () => {
@@ -311,4 +312,48 @@ describe("collections API", () => {
     expect(res.deletedDevices).toBe(1);
     expect(await testServices.db.select().from(collections).where(eq(collections.userId, u.userId))).toEqual([]);
   });
+  it("stores tombstones with no items, from a PUT with deleted:true and from a DELETE", async () => {
+    const u = await newUser();
+    const sent = makeCollection([releaseItem(crypto.randomUUID()), { kind: "mix", note: "x" }], { deleted: true });
+    expect(await (await put(u.token, sent)).json()).toEqual({ version: 1, pruned: 0 });
+    expect(await itemsOf(u.token, sent.id)).toEqual([]);
+
+    const live = makeCollection([releaseItem(crypto.randomUUID())]);
+    await put(u.token, live);
+    expect(await itemsOf(u.token, live.id)).toHaveLength(1);
+    expect((await del(u.token, live.id)).status).toBe(200);
+    expect(await itemsOf(u.token, live.id)).toEqual([]);
+  });
+
+  it("refuses a record over 256 KiB and accepts one just under", async () => {
+    const u = await newUser();
+    const pad = (n: number): Item[] => Array.from({ length: n }, (_, i) => ({ kind: "pad", d: `${i}`.padEnd(1000, "x") }));
+    const over = makeCollection(pad(300));
+    expect(Buffer.byteLength(JSON.stringify(over))).toBeGreaterThan(256 * 1024);
+    expect((await put(u.token, over)).status).toBe(400);
+    const under = makeCollection(pad(250));
+    expect(Buffer.byteLength(JSON.stringify(under))).toBeLessThan(256 * 1024);
+    expect((await put(u.token, under)).status).toBe(200);
+    const tracks = makeCollection(Array.from({ length: 1000 }, () => trackItem(crypto.randomUUID(), crypto.randomUUID())));
+    expect((await put(u.token, tracks)).status).toBe(200);
+  });
+
+  it("rate limits collection writes per user: PUT and DELETE give 429, GET stays 200", async () => {
+    const u = await newUser();
+    const other = await newUser();
+    const original = testServices.rateLimiters.collectionWrites;
+    testServices.rateLimiters.collectionWrites = new InMemoryRateLimiter(2, 60_000);
+    try {
+      const c = makeCollection();
+      expect((await put(u.token, c)).status).toBe(200);
+      expect((await put(u.token, c)).status).toBe(200);
+      expect((await put(u.token, c)).status).toBe(429);
+      expect((await del(u.token, c.id)).status).toBe(429);
+      expect((await list(u.token)).status).toBe(200);
+      expect((await put(other.token, makeCollection())).status).toBe(200);
+    } finally {
+      testServices.rateLimiters.collectionWrites = original;
+    }
+  });
+
 });
