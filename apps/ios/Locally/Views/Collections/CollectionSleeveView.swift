@@ -38,7 +38,8 @@ struct CollectionSleeveView: View {
     var body: some View {
         if side >= Theme.Immersive.sleeveSizeCompact {
             content(side: Self.fittedSide(side, availableWidth: availableWidth))
-                .frame(maxWidth: .infinity)
+                // Report the offered width, not the child's, so a narrow row shrinks the sleeve.
+                .frame(minWidth: 0, maxWidth: .infinity)
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { availableWidth = $0 }
         } else {
             content(side: side)
