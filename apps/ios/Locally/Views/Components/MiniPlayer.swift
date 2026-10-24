@@ -166,6 +166,8 @@ struct MiniPlayerInset: ViewModifier {
 
     private func inset(_ content: Content, showing: Bool, inAccessory: Bool) -> some View {
         content
+            // The queue toast (#364) sits on the content, so it floats above the bar this inset holds.
+            .queueToastHost()
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if let playback, let message = playback.startError {
                     MiniPlayerNotice(message: message)

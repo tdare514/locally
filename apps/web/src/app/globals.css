@@ -189,6 +189,32 @@ body {
   transition: translate 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
   animation: record-out 900ms 150ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
 }
+/* The collection page (#369): the sleeve is sized from its column (.coll-sleeve-box is the container), cover plus the
+   peeking half-disc staying within 90% of it. */
+.coll-sleeve-box {
+  container-type: inline-size;
+  width: 100%;
+  min-width: 0;
+}
+.record-fluid {
+  --sleeve: min(228px, 60cqi);
+  padding-right: calc(var(--sleeve) / 2);
+}
+/* The collection page's two columns: the list stacks above the detail when the detail column would fall under ~300px. */
+.coll-wrap {
+  container-type: inline-size;
+}
+.coll-grid {
+  display: grid;
+  gap: 2rem;
+}
+@media (min-width: 1024px) {
+  @container (min-width: 560px) {
+    .coll-grid {
+      grid-template-columns: minmax(0, min(24rem, 40%)) minmax(0, 1fr);
+    }
+  }
+}
 .record:hover .record-disc {
   translate: 14px -50%;
 }
@@ -261,6 +287,28 @@ body {
 }
 .record-spin {
   animation: record-spin 1400ms 280ms cubic-bezier(0.25, 0.1, 0.15, 1) backwards;
+}
+/* The collection page (#369): the record turns while the collection plays and holds its angle when paused
+   (animation-play-state, so it resumes from where it stopped). */
+.record-turn {
+  animation: record-turn 7s linear infinite;
+  animation-play-state: paused;
+}
+.record-turn[data-turning="true"] {
+  animation-play-state: running;
+}
+/* The press signal on a collection's cover (#369): one soft sweep of light, keyed so each click replays it. */
+.cover-play {
+  isolation: isolate;
+}
+.cover-press {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(105deg, transparent 38%, rgb(255 255 255 / 0.22) 50%, transparent 62%);
+  /* Eased in and out like the button shimmer below; the expo-out would cross the face too fast. */
+  animation: cover-press-sweep 760ms cubic-bezier(0.45, 0, 0.55, 1);
 }
 
 /* The sleeve: a printed cardboard square with a faint edge highlight. */
@@ -466,6 +514,29 @@ body {
 @keyframes record-spin {
   to {
     rotate: 540deg;
+  }
+}
+@keyframes record-turn {
+  to {
+    rotate: 360deg;
+  }
+}
+@keyframes cover-press-sweep {
+  0% {
+    translate: -110% 0;
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    translate: 110% 0;
+    opacity: 0;
+  }
+}
+@keyframes cover-press-flash {
+  40% {
+    opacity: 1;
   }
 }
 @keyframes cover-in {
@@ -1797,12 +1868,19 @@ body {
   .record-disc,
   .record-disc.record-pressed,
   .record-spin,
+  .record-turn,
   .cover-in,
   .ambient-sky-paint {
     animation: none;
   }
   .record:hover .record-disc {
     translate: 0 -50%;
+  }
+  /* A brief brightening instead of the sweep. */
+  .cover-press {
+    translate: none;
+    background: rgb(255 255 255 / 0.14);
+    animation: cover-press-flash 400ms ease-out;
   }
   .shelf-cover,
   .artist-stack,

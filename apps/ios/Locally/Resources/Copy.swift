@@ -971,3 +971,32 @@ extension Copy.Stats {
         sort == .minutes ? minutesLabel(seconds: item.seconds) : playsCount(item.plays)
     }
 }
+
+/// Long-press actions on songs and releases, and the toast that confirms a queue action (#364).
+extension Copy {
+    enum TrackActions {
+        static let playNext = "Play next"
+        static let addToQueue = "Add to queue"
+        static let addToCollection = "Add to collection"
+        static let share = "Share"
+        static let edit = "Edit"
+        static let goToAlbum = "Go to album"
+        static let goToArtist = "Go to artist"
+        static let songInfo = "Song info"
+
+        static let playingNow = "Playing now"
+        static let playingNext = "Playing next"
+        static let addedToQueue = "Added to queue"
+        /// The second line: the song's title, or how many songs.
+        static func songCount(_ count: Int) -> String { count == 1 ? "1 song" : "\(count) songs" }
+        /// "3 songs only play on your Mac": adopted, details-only songs have no files on this phone.
+        static func onlyOnMac(_ count: Int) -> String {
+            count == 1 ? "1 song only plays on your Mac" : "\(count) songs only play on your Mac"
+        }
+        /// The second line when some songs joined and some had to be left out.
+        static func someOnlyOnMac(added: Int, leftOut: Int) -> String {
+            "\(songCount(added)) added, \(leftOut) only \(leftOut == 1 ? "plays" : "play") on your Mac"
+        }
+        static let toastHint = "Double tap to dismiss"
+    }
+}
