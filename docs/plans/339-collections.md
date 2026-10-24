@@ -176,8 +176,8 @@ Recorded on #339 (comment of 23 Oct).
   - `*-spines`, `*-crate`, `*-ledge`, `*-turntable` and `*-plain` are the variants explored on the way, kept for the record.
 - **The wheel:** rows on the right half of a dial whose hub sits on the left edge. A row is a small record (72 on the Mac, 46
   on the iPhone) with the collection's first cover as its label, then the name (20 / 15, white) and "27 tracks, 1 hr 56 min"
-  on the dark page, never over artwork. Each step round is 0.87 of the last, rows lean a little with the dial and fade past
-  about 60° from the front, so about nine show at once. The playing collection's record turns and its row says "Playing" or
+  on the dark page, never over artwork. Each step round is 0.87 of the last. Rows follow the dial's curve but stay level,
+  reading left to right (owner, 23 Oct), and fade past about 50° from the front, so about seven show at once. The playing collection's record turns and its row says "Playing" or
   "Paused" in the accent colour. The hub shows "5 of 24", ▲ and ▼ (Mac) and a + for a new collection, all 44 buttons. A thin
   ring and an accent notch point at the turntable.
 - **The turntable:** a deck in the app's glass, the platter seen at an angle (a circle flattened to an ellipse, no 3D library),
