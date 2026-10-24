@@ -25,12 +25,21 @@ import { formatLength } from "../lib/adopt-review";
 import { normalizeSearchText } from "../lib/library-sections";
 import { playerStore, usePlayerSelector, usePlayerState } from "../lib/play-queue";
 import { nearestSlot } from "../lib/track-order";
+import {
+  loadSpinningRecord,
+  loadViewMode,
+  saveSpinningRecord,
+  saveViewMode,
+  type CollectionsViewMode,
+  type SpinningRecord,
+} from "../lib/record-player";
 import { useCollections } from "./CollectionsContext";
 import CollectionSleeve from "./CollectionSleeve";
 import { NowPlayingIcon, PauseIcon, PlayIcon, PlusIcon, SearchIcon, XIcon } from "./Icons";
 import NewCollectionForm from "./NewCollectionForm";
 import NoCover from "./NoCover";
 import PlaylistGuide from "./PlaylistGuide";
+import RecordPlayerView from "./RecordPlayerView";
 import Popover, { MENU_ITEM } from "./Popover";
 import { BarConfirm } from "./ReleaseBar";
 
@@ -43,11 +52,16 @@ interface Props {
   onAddTracks: () => void;
 }
 
-/** The Collections page in List view (#349): the collections on the left, the chosen one's queue (Side A, Side B) on the right. */
+/**
+ * The Collections page (#349, #351): the record player (a wheel, a turntable and the queue) or the List view (the
+ * collections on the left, the chosen one's queue on the right), by a switch remembered on this Mac.
+ */
 export default function CollectionsView({ releases, selectedId, onSelect, onAddTracks }: Props) {
   const api = useCollections();
   const [query, setQuery] = useState("");
   const [making, setMaking] = useState(false);
+  const [mode, setMode] = useState<CollectionsViewMode>(() => loadViewMode());
+  const [record, setRecord] = useState<SpinningRecord>(() => loadSpinningRecord());
   if (!api) return null;
   const { collections, loaded, failed } = api;
   const selected = collections.find((c) => c.id === selectedId) ?? collections[0] ?? null;
@@ -59,6 +73,34 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
         <div>
           <p className="text-sm font-semibold text-accent">Your music</p>
           <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">Collections</h1>
+          {loaded && collections.length > 0 && (
+            <div className="rp-switches mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-text-muted">
+              <Switch
+                label="Show as"
+                value={mode}
+                options={[
+                  ["player", "Record player"],
+                  ["list", "List"],
+                ]}
+                onChange={(v) => {
+                  setMode(v);
+                  saveViewMode(v);
+                }}
+              />
+              <Switch
+                label="Spinning record"
+                value={record}
+                options={[
+                  ["picture", "Picture disc"],
+                  ["vinyl", "Black vinyl"],
+                ]}
+                onChange={(v) => {
+                  setRecord(v);
+                  saveSpinningRecord(v);
+                }}
+              />
+            </div>
+          )}
         </div>
         <button type="button" onClick={() => setMaking((m) => !m)} aria-expanded={making} className="btn-ink min-h-11">
           <PlusIcon className="h-4 w-4" />
@@ -106,6 +148,25 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
             </button>
           )}
         </div>
+      ) : mode === "player" ? (
+        <RecordPlayerView
+          collections={collections}
+          releases={releases}
+          selectedId={selectedId}
+          record={record}
+          onNew={() => setMaking(true)}
+          renderQueue={(c) => (
+            <QueuePanel
+              key={c.id}
+              deck
+              collection={c}
+              releases={releases}
+              onGone={(nextId) => nextId && onSelect(nextId)}
+              nextId={collections.find((x) => x.id !== c.id)?.id ?? null}
+              onAddTracks={onAddTracks}
+            />
+          )}
+        />
       ) : (
         <div className="grid gap-8 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
           <section aria-label="Your collections" className="flex min-w-0 flex-col gap-3">
@@ -165,6 +226,32 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
   );
 }
 
+/** A two-option switch: words, and a dot under the chosen one (the app's `.btn-seg`). */
+function Switch<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: [T, string][];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div role="group" aria-label={label} className="btn-seg">
+      <span aria-hidden className="btn-seg-dot">
+        <span />
+      </span>
+      {options.map(([v, text]) => (
+        <button key={v} type="button" onClick={() => onChange(v)} aria-pressed={value === v} className="btn-seg-opt min-h-11 px-3">
+          {text}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** Quiet placeholders in the final shapes while the store is first read: no spinner. */
 function Placeholders() {
   return (
@@ -195,12 +282,15 @@ function QueuePanel({
   nextId,
   onGone,
   onAddTracks,
+  deck = false,
 }: {
   collection: CollectionRecord;
   releases: Release[];
   nextId: string | null;
   onGone: (nextId: string | null) => void;
   onAddTracks: () => void;
+  /** Under the record player's deck (#351): no sleeve (the hovering cover is the picture), the queue as two columns. */
+  deck?: boolean;
 }) {
   const api = useCollections()!;
   const [editing, setEditing] = useState(false);
@@ -239,7 +329,7 @@ function QueuePanel({
   return (
     <section aria-label={collection.name} className="flex min-w-0 flex-col gap-5">
       <div className="flex flex-wrap items-center gap-4">
-        <CollectionSleeve items={collection.items} releases={releases} className="size-24" />
+        {!deck && <CollectionSleeve items={collection.items} releases={releases} className="size-24" />}
         <div className="min-w-0 flex-1">
           {editing ? (
             <input
@@ -258,7 +348,7 @@ function QueuePanel({
               className="min-h-11 w-full rounded-[12px] bg-elevated px-3 text-2xl font-bold tracking-[-0.02em] text-text outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
           ) : (
-            <h2 className="truncate text-2xl font-bold tracking-[-0.02em] text-text">{collection.name}</h2>
+            <h2 className={`truncate font-bold tracking-[-0.02em] text-text ${deck ? "text-xl" : "text-2xl"}`}>{collection.name}</h2>
           )}
           <p className="mt-1 text-sm text-text-muted">
             {trackCountLabel(totals.tracks)}
@@ -324,7 +414,7 @@ function QueuePanel({
       ) : editing ? (
         <EditList collection={collection} rows={rows} />
       ) : (
-        <Queue collection={collection} rows={rows} releases={releases} playing={queueOfThis && playing} />
+        <Queue collection={collection} rows={rows} releases={releases} playing={queueOfThis && playing} sides={deck} />
       )}
 
       {!empty && !editing && (
@@ -355,11 +445,14 @@ function Queue({
   rows,
   releases,
   playing,
+  sides = false,
 }: {
   collection: CollectionRecord;
   rows: CollectionRow[];
   releases: Release[];
   playing: boolean;
+  /** Side A and Side B next to each other (the record player's queue) instead of one under the other. */
+  sides?: boolean;
 }) {
   const playerQueue = usePlayerState().queue;
   const positions = rowQueuePositions(rows);
@@ -425,7 +518,7 @@ function Queue({
     );
   if (entries.length === 0) return null;
   return (
-    <div className="flex flex-col">
+    <div className={sides ? "grid gap-x-10 md:grid-cols-2" : "flex flex-col"}>
       {side("Side A", a)}
       {side("Side B", b)}
     </div>

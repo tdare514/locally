@@ -2848,3 +2848,628 @@ body {
   from { transform: scaleX(0.02); }
   to { transform: scaleX(0.9); }
 }
+
+/* ===== Collections: the record player (#351, docs/design.md "Collections: record player (Mac)") ===========
+   The page's one motion file entry. Motion budget, and nothing else moves: the wheel turning and snapping (a
+   requestAnimationFrame loop that runs only during a turn, setting transform and opacity on the rows near the front),
+   the record onto the platter (rp-onto) and the tonearm's swing, the hovering cover rising in (rp-rise), and the record
+   spinning (rp-turn) at 33 1/3 rpm. Only transform and opacity animate, on the house easing. Nothing that moves has
+   a backdrop-filter. Reduce Motion: the wheel jumps (in the component), nothing spins, the cover just appears. */
+.rp-root {
+  --rp-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+.rp-switches .btn-seg-dot {
+  transition: none;
+}
+.rp-switches .btn-seg + .btn-seg {
+  padding-left: 1.25rem;
+  border-left: 1px solid rgb(255 255 255 / 0.16);
+  border-radius: 0;
+}
+.rp-grid {
+  container-type: inline-size;
+  margin-top: 0.5rem;
+}
+.rp-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+@container (min-width: 900px) {
+  .rp-cols {
+    grid-template-columns: 430px minmax(0, 1fr);
+  }
+  .rp-right {
+    margin-top: 5.5rem;
+  }
+}
+.rp-right {
+  container-type: inline-size;
+  min-width: 0;
+}
+.rp-queue {
+  margin-top: 1.5rem;
+}
+
+/* The wheel: rows ride the right half of a dial whose hub sits on the left edge. */
+.rp-wheel {
+  position: relative;
+  isolation: isolate;
+  height: 600px;
+  width: 430px;
+  max-width: 100%;
+  margin-top: 0.5rem;
+  overflow: hidden;
+  border-radius: 12px;
+}
+@media (min-width: 768px) {
+  .rp-wheel {
+    margin-left: -2rem;
+  }
+}
+.rp-list {
+  position: absolute;
+  inset: 0;
+  outline: none;
+  touch-action: none;
+  cursor: grab;
+}
+.rp-list:active {
+  cursor: grabbing;
+}
+.rp-list:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  border-radius: 12px;
+}
+.rp-ring {
+  position: absolute;
+  left: -18px;
+  top: 50%;
+  width: 476px;
+  height: 476px;
+  translate: -50% -50%;
+  border-radius: 9999px;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+}
+.rp-notch {
+  position: absolute;
+  left: 124px;
+  top: calc(50% - 1.5px);
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 70%, transparent);
+  pointer-events: none;
+}
+.rp-hub {
+  position: absolute;
+  z-index: 150;
+  left: -18px;
+  top: 50%;
+  width: 300px;
+  height: 300px;
+  translate: -50% -50%;
+  padding-right: 24px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  background: radial-gradient(circle at 70% 50%, #1b1b1b, #0c0c0c 75%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.12),
+    inset 0 1px 0 rgb(255 255 255 / 0.1);
+}
+.rp-hub-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.rp-cnt {
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.rp-cnt b {
+  display: block;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.rp-hub-btn,
+.rp-round {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 9999px;
+  color: var(--text-muted);
+  outline: none;
+}
+.rp-hub-btn:hover,
+.rp-round:hover {
+  color: var(--text);
+  background: rgb(255 255 255 / 0.06);
+}
+.rp-hub-btn:focus-visible,
+.rp-round:focus-visible,
+.rp-float-play:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.rp-hub-plus {
+  color: var(--text);
+  background: rgb(255 255 255 / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.18);
+}
+.rp-row {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 330px;
+  /* Rows stay level: they follow the dial's curve but never tilt (owner, 23 Oct). */
+  transform-origin: 32px 50%;
+  visibility: hidden;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+/* A 44 px hit area however small the row is scaled: --k is the row's scale, set with its place. */
+.rp-row::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: max(100%, calc(44px / var(--k, 1)));
+  transform: translateY(-50%);
+}
+.rp-sleeve {
+  position: relative;
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--card);
+  box-shadow:
+    0 12px 20px -12px rgb(0 0 0 / 0.95),
+    0 2px 6px -2px rgb(0 0 0 / 0.6),
+    inset 0 0 0 1px rgb(255 255 255 / 0.12);
+}
+.rp-sleeve::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.1), transparent 42%);
+}
+.rp-text {
+  min-width: 0;
+}
+.rp-text b {
+  display: block;
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 20px;
+  line-height: 1.2;
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.82);
+}
+.rp-text small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.rp-row[data-front="true"] .rp-text b {
+  color: var(--text);
+  font-weight: 700;
+}
+.rp-row[data-front="true"] .rp-text small {
+  color: var(--text-soft);
+}
+/* "Playing" / "Paused" in the accent colour, on the page's black so it always reads (a wash can't dim it). */
+.rp-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px 1px 6px;
+  border-radius: 9999px;
+  background: var(--bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+.rp-state i {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--accent);
+}
+.rp-state em {
+  font-style: normal;
+}
+
+/* The turntable: the app's fake glass, the platter seen at an angle (a circle flattened to an ellipse). */
+.rp-scene {
+  --cx: 40%;
+  position: relative;
+  isolation: isolate;
+  height: 470px;
+}
+@container (max-width: 820px) {
+  .rp-scene {
+    --cx: 50%;
+    height: 640px;
+  }
+  .rp-now {
+    left: 4px !important;
+    right: 4px !important;
+    top: 446px !important;
+  }
+}
+.rp-deck-top {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 120px;
+  height: 250px;
+  border-radius: 22px 22px 6px 6px;
+  background: linear-gradient(to bottom, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0.025)), rgb(14 14 18 / 0.88);
+}
+.rp-deck-front {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 370px;
+  height: 50px;
+  border-radius: 0 0 14px 14px;
+  background: linear-gradient(to bottom, #0d0d0d, #050505);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.08),
+    0 30px 50px -20px rgb(0 0 0 / 0.9);
+}
+.rp-knob {
+  position: absolute;
+  top: 15px;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 40% 35%, #444, #111 70%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+}
+.rp-shadow {
+  position: absolute;
+  left: var(--cx);
+  top: 214px;
+  width: 160px;
+  height: 60px;
+  margin-left: -80px;
+  border-radius: 9999px;
+  background: rgb(0 0 0 / 0.55);
+  filter: blur(18px);
+}
+.rp-platter {
+  position: absolute;
+  left: var(--cx);
+  top: 168px;
+  width: 380px;
+  height: 380px;
+  margin-left: -190px;
+  transform: scaleY(0.4);
+  transform-origin: 50% 0;
+}
+.rp-rim {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  transform: translateY(26px);
+  background: linear-gradient(90deg, #6d6d6d, #d4d4d4 35%, #8a8a8a 60%, #c9c9c9 85%, #5e5e5e);
+}
+.rp-mat {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: #0b0b0b;
+}
+.rp-vinyl {
+  position: absolute;
+  inset: 10px;
+  border-radius: 9999px;
+}
+.rp-vinyl.rp-swap {
+  animation: rp-onto 600ms var(--rp-ease) both;
+}
+/* The record: black vinyl with the track's cover as its label, or a picture disc (the cover edge to edge). One element,
+   switched in place by data-picture; only this face turns. */
+.rp-face {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle, transparent 0 63%, rgb(0 0 0 / 0.35) 63.5% 64.5%, transparent 65%),
+    radial-gradient(circle, transparent 0 80%, rgb(0 0 0 / 0.35) 80.5% 81.5%, transparent 82%),
+    repeating-radial-gradient(circle, rgb(255 255 255 / 0.04) 0 1px, transparent 1px 3px), #111;
+  box-shadow:
+    0 24px 48px -18px rgb(0 0 0 / 0.85),
+    inset 0 0 0 1px rgb(255 255 255 / 0.07);
+  animation: rp-turn 1.8s linear infinite;
+  will-change: transform;
+}
+.rp-face[data-picture="true"] {
+  background:
+    radial-gradient(circle, transparent 0 64%, rgb(0 0 0 / 0.28) 64.5% 65.5%, transparent 66%),
+    repeating-radial-gradient(circle, rgb(255 255 255 / 0.07) 0 1px, transparent 1px 3px),
+    radial-gradient(circle, transparent 0 66%, rgb(0 0 0 / 0.22) 100%),
+    var(--art) center / cover;
+  box-shadow:
+    0 10px 20px -10px rgb(0 0 0 / 0.9),
+    inset 0 0 0 1px rgb(255 255 255 / 0.14);
+}
+.rp-label {
+  position: absolute;
+  inset: 32%;
+  border-radius: 9999px;
+  background-color: #050505;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 0 0 3px rgb(0 0 0 / 0.5);
+}
+.rp-label::after {
+  content: "";
+  position: absolute;
+  inset: 46%;
+  border-radius: 9999px;
+  background: var(--bg);
+}
+.rp-face[data-picture="true"] .rp-label {
+  display: none;
+}
+.rp-hole {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6%;
+  height: 6%;
+  translate: -50% -50%;
+  border-radius: 9999px;
+  background: var(--bg);
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.45);
+}
+.rp-face[data-picture="true"] .rp-hole {
+  display: block;
+}
+/* Light catching the grooves: it stays put while the record turns, like a real reflection. */
+.rp-glint {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: conic-gradient(from 20deg, transparent 0 8%, rgb(255 255 255 / 0.1) 13%, transparent 20% 52%, rgb(255 255 255 / 0.07) 62%, transparent 70%);
+  mask: radial-gradient(circle, transparent 0 34%, #000 34.5%);
+}
+/* Still when paused, when nothing is on the platter, when the page is hidden or the deck is out of view. */
+.rp-scene[data-state="paused"] .rp-face,
+.rp-scene[data-state="idle"] .rp-face,
+.rp-root[data-live="false"] .rp-face {
+  animation-play-state: paused;
+}
+
+/* The collection in front hovers over the record. */
+.rp-float-slot {
+  position: absolute;
+  left: var(--cx);
+  top: 34px;
+  width: 156px;
+  height: 156px;
+  margin-left: -78px;
+}
+.rp-float {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--card);
+  box-shadow:
+    0 40px 50px -24px rgb(0 0 0 / 0.95),
+    inset 0 0 0 1px rgb(255 255 255 / 0.14);
+  animation: rp-rise 420ms var(--rp-ease) both;
+}
+.rp-float > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.rp-tag {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.2);
+}
+.rp-tag i {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--accent);
+}
+.rp-tag em {
+  font-style: normal;
+}
+.rp-float-play {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--card);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.22),
+    inset 0 1px 0 rgb(255 255 255 / 0.14);
+  outline: none;
+}
+.rp-float-play:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* The tonearm swings onto the record while something is on the platter (and stays there when paused). */
+.rp-arm {
+  position: absolute;
+  left: calc(var(--cx) + 214px);
+  top: 160px;
+  width: 34px;
+  height: 34px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 40% 35%, #4a4a4a, #141414 70%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+}
+.rp-rod {
+  position: absolute;
+  left: 15px;
+  top: 17px;
+  width: 5px;
+  height: 150px;
+  border-radius: 3px;
+  transform-origin: 2.5px 0;
+  transform: rotate(14deg);
+  background: linear-gradient(90deg, #8d8d8d, #e6e6e6 45%, #7a7a7a);
+  transition: transform 900ms var(--rp-ease);
+}
+.rp-rod::after {
+  content: "";
+  position: absolute;
+  left: -5px;
+  bottom: -14px;
+  width: 15px;
+  height: 20px;
+  border-radius: 2px;
+  background: #1a1a1a;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.15);
+}
+.rp-scene[data-state="playing"] .rp-rod,
+.rp-scene[data-state="paused"] .rp-rod {
+  transform: rotate(46deg);
+}
+
+/* Now playing sits on the deck's right, where a real deck keeps its controls. */
+.rp-now {
+  position: absolute;
+  left: calc(var(--cx) + 268px);
+  right: 22px;
+  top: 160px;
+}
+.rp-k {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.rp-title {
+  margin: 4px 0 0;
+  font-size: 20px;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.rp-artist {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+.rp-prog {
+  margin-top: 14px;
+  height: 3px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.18);
+}
+.rp-prog i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--text);
+  transform-origin: left;
+}
+.rp-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+.rp-round {
+  color: var(--text);
+  background: rgb(255 255 255 / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16);
+}
+.rp-main {
+  width: 52px;
+  height: 52px;
+  box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 0.5);
+}
+.rp-round[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@keyframes rp-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes rp-onto {
+  from {
+    transform: translateX(-38%) scale(0.86);
+    opacity: 0;
+  }
+}
+@keyframes rp-rise {
+  from {
+    transform: translateY(40px) scale(0.92);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-face,
+  .rp-float,
+  .rp-vinyl.rp-swap {
+    animation: none;
+  }
+  .rp-rod {
+    transition: none;
+  }
+}
