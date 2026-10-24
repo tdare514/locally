@@ -14,11 +14,14 @@ interface RecordSleeveProps {
    * uses it to restart the disc's beat for a new cover, and to land the disc in the sleeve at once
    * when input skips the beat. */
   discKey?: string;
+  /** The collection page (#369): true turns the record, false holds it at its angle. Leave it out and the disc
+   * only spins after a save, as on the release page. */
+  turning?: boolean;
 }
 
 /** A record peeking out of its sleeve, the hero of the release page (#112). The disc is
  * decoration only; the sleeve (children) is the interactive cover picker. */
-export default function RecordSleeve({ children, labelUrl, spin, discKey }: RecordSleeveProps) {
+export default function RecordSleeve({ children, labelUrl, spin, discKey, turning }: RecordSleeveProps) {
   return (
     <div className="record relative w-fit pr-[92px] sm:pr-[116px]">
       {/* Keyed by `spin` so each save restarts the press and the spin. */}
@@ -27,7 +30,7 @@ export default function RecordSleeve({ children, labelUrl, spin, discKey }: Reco
         aria-hidden
         className={`record-disc size-[184px] sm:size-[228px] ${spin > 0 ? "record-pressed" : ""}`}
       >
-        <div className={`record-face ${spin > 0 ? "record-spin" : ""}`}>
+        <div className={`record-face ${spin > 0 ? "record-spin" : ""} ${turning === undefined ? "" : "record-turn"}`} data-turning={turning}>
           <div
             className={`record-label ${labelUrl ? "" : "record-label-bare"}`}
             style={labelUrl ? { backgroundImage: `url("${labelUrl}")` } : undefined}

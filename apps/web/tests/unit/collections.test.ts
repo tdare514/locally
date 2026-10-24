@@ -1,6 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { Queue } from "../../src/components/CollectionsView";
+import { createPlayerStore } from "../../src/lib/play-queue";
 import {
   addItems,
   buildCollectionQueue,
@@ -16,9 +20,9 @@ import {
   moveAnnouncement,
   moveRow,
   removeAt,
-  splitSides,
+  pressCollectionCover,
 } from "../../src/lib/collections";
-import { cleanCollectionName, validateItems, type CollectionItem } from "../../src/shared/collections";
+import { cleanCollectionName, validateItems, type CollectionItem, type CollectionRecord } from "../../src/shared/collections";
 import type { Release, Track } from "../../src/shared/types";
 
 const FIXTURES = path.resolve(__dirname, "../../../../spec/fixtures/collections");
@@ -85,11 +89,7 @@ describe("buildCollectionQueue", () => {
   });
 });
 
-describe("sides, covers and totals", () => {
-  it("splits in half with the extra track on Side A", () => {
-    expect(splitSides([1, 2, 3, 4, 5])).toEqual({ a: [1, 2, 3], b: [4, 5] });
-    expect(splitSides([1])).toEqual({ a: [1], b: [] });
-  });
+describe("covers and totals", () => {
   it("the sleeve takes the first four different covers", () => {
     const rels = ["1", "2", "3", "4", "5"].map((n) => release(`0000000${n}-0000-4000-8000-000000000000`, [track("t", 1)]));
     const items = [...rels, rels[0]].map((r) => ({ kind: "release", releaseId: r.id }));
@@ -220,5 +220,46 @@ describe("collectionPlaylistGuide (#353)", () => {
   it("words the left-out line", () => {
     expect(COLLECTIONS_COPY.leftOutOfGuide(2, "Mac")).toBe("2 tracks aren't on this Mac.");
     expect(COLLECTIONS_COPY.leftOutOfGuide(1, "Mac")).toBe("1 track isn't on this Mac.");
+  });
+});
+
+describe("the cover is the play control (#369)", () => {
+  const col = { id: "col", items: [{ kind: "release", releaseId: R1 }] as CollectionItem[] };
+  it("starts from the top, then pauses, then resumes", () => {
+    const store = createPlayerStore();
+    expect(pressCollectionCover(store, col, [rel1, rel2], false)).toBe("started");
+    expect(store.getState().playing).toBe(true);
+    expect(store.getState().queue?.context).toEqual({ kind: "collection", id: "col" });
+    expect(pressCollectionCover(store, col, [rel1, rel2], false)).toBe("paused");
+    expect(store.getState().playing).toBe(false);
+    expect(pressCollectionCover(store, col, [rel1, rel2], false)).toBe("resumed");
+    expect(store.getState().playing).toBe(true);
+  });
+  it("starts this collection when something else is playing", () => {
+    const store = createPlayerStore();
+    store.start(buildCollectionQueue({ id: "other", items: col.items }, [rel1])!);
+    expect(pressCollectionCover(store, col, [rel1], false)).toBe("started");
+    expect(store.getState().queue?.context).toEqual({ kind: "collection", id: "col" });
+  });
+  it("does nothing in edit mode, or when nothing can play", () => {
+    const store = createPlayerStore();
+    expect(pressCollectionCover(store, col, [rel1], true)).toBeNull();
+    expect(store.getState().queue).toBeNull();
+    expect(pressCollectionCover(store, col, [], false)).toBeNull();
+    expect(store.getState().queue).toBeNull();
+  });
+});
+
+describe("the queue is one list (#369)", () => {
+  it("renders every track in order with no Side headings", () => {
+    const items: CollectionItem[] = [{ kind: "release", releaseId: R1 }, { kind: "track", releaseId: R2, trackId: T2 }];
+    const col = { id: "col", name: "Mix", items, createdAt: "", updatedAt: "" } as unknown as CollectionRecord;
+    const rows = collectionRows(items, [rel1, rel2]);
+    const html = renderToStaticMarkup(createElement(Queue, { collection: col, rows, releases: [rel1, rel2], playing: false }));
+    expect(html).not.toMatch(/Side [AB]/);
+    expect(html).not.toContain("<h3");
+    expect(html.match(/<ol/g)).toHaveLength(1);
+    expect(html.match(/<li/g)).toHaveLength(5); // four playable rows and the missing file, dimmed
+    expect(html.indexOf(">c<")).toBeLessThan(html.indexOf(`>${T2}<`));
   });
 });

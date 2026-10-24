@@ -18,7 +18,8 @@ import {
   moveAnnouncement,
   moveRow,
   removeAt,
-  splitSides,
+  pressCollectionCover,
+  collectionCoverIds,
   trackCountLabel,
   type CollectionRow,
 } from "../lib/collections";
@@ -37,6 +38,7 @@ import {
 } from "../lib/record-player";
 import { useCollections } from "./CollectionsContext";
 import CollectionSleeve from "./CollectionSleeve";
+import RecordSleeve from "./RecordSleeve";
 import { NowPlayingIcon, PauseIcon, PlayIcon, PlusIcon, SearchIcon, XIcon } from "./Icons";
 import NewCollectionForm from "./NewCollectionForm";
 import NoCover from "./NoCover";
@@ -293,7 +295,7 @@ function QueuePanel({
   nextId: string | null;
   onGone: (nextId: string | null) => void;
   onAddTracks: () => void;
-  /** Under the record player's deck (#351): no sleeve (the hovering cover is the picture), the queue as two columns. */
+  /** Under the record player's deck (#351): no sleeve (the hovering cover is the picture, and the deck has its own transport). */
   deck?: boolean;
 }) {
   const api = useCollections()!;
@@ -310,14 +312,14 @@ function QueuePanel({
   const queueOfThis = context === `collection:${collection.id}`;
   const canPlay = buildCollectionQueue(collection, releases) !== null;
 
-  function play() {
-    if (queueOfThis) {
-      playerStore.toggle();
-      return;
-    }
-    const queue = buildCollectionQueue(collection, releases);
-    if (queue) playerStore.start(queue);
+  const [pressed, setPressed] = useState(0);
+  function pressCover() {
+    if (pressCollectionCover(playerStore, collection, releases, editing) !== null) setPressed((n) => n + 1);
   }
+  const coverLabel = `${queueOfThis ? (playing ? "Pause" : "Resume") : "Play"} ${collection.name}`;
+  const firstCover = collectionCoverIds(collection.items, releases)[0];
+  const firstRelease = firstCover ? releases.find((r) => r.id === firstCover) : undefined;
+  const labelUrl = firstRelease ? coverUrl(firstRelease.id, firstRelease.updatedAt) : null;
 
   function commitName() {
     const clean = cleanCollectionName(name);
@@ -332,8 +334,26 @@ function QueuePanel({
   const empty = collection.items.length === 0;
   return (
     <section aria-label={collection.name} className="flex min-w-0 flex-col gap-5">
-      <div className="flex flex-wrap items-center gap-4">
-        {!deck && <CollectionSleeve items={collection.items} releases={releases} className="size-24" />}
+      <div className={`flex flex-wrap gap-x-8 gap-y-5 ${deck ? "items-center" : "items-end"}`}>
+        {!deck && (
+          <RecordSleeve labelUrl={labelUrl} spin={0} turning={queueOfThis && playing}>
+            {editing ? (
+              <CollectionSleeve items={collection.items} releases={releases} className="size-[184px] sm:size-[228px]" />
+            ) : (
+              <button
+                type="button"
+                onClick={pressCover}
+                disabled={!canPlay}
+                aria-label={coverLabel}
+                title={canPlay ? undefined : COLLECTIONS_COPY.noneHere}
+                className="cover-play relative block overflow-hidden rounded-[8px] outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <CollectionSleeve items={collection.items} releases={releases} className="size-[184px] sm:size-[228px]" />
+                {pressed > 0 && <span key={pressed} aria-hidden="true" className="cover-press" />}
+              </button>
+            )}
+          </RecordSleeve>
+        )}
         <div className="min-w-0 flex-1">
           {editing ? (
             <input
@@ -352,7 +372,7 @@ function QueuePanel({
               className="min-h-11 w-full rounded-[12px] bg-elevated px-3 text-2xl font-bold tracking-[-0.02em] text-text outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
           ) : (
-            <h2 className={`truncate font-bold tracking-[-0.02em] text-text ${deck ? "text-xl" : "text-2xl"}`}>{collection.name}</h2>
+            <h2 className={`truncate font-bold tracking-[-0.02em] text-text ${deck ? "text-xl" : "text-3xl"}`}>{collection.name}</h2>
           )}
           <p className="mt-1 text-sm text-text-muted">
             {trackCountLabel(totals.tracks)}
@@ -360,9 +380,6 @@ function QueuePanel({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={play} disabled={!canPlay} className="btn-save btn-save-lit min-h-11">
-            {queueOfThis && playing ? "Pause" : "Play"}
-          </button>
           <button
             type="button"
             onClick={() => {
@@ -418,7 +435,7 @@ function QueuePanel({
       ) : editing ? (
         <EditList collection={collection} rows={rows} />
       ) : (
-        <Queue collection={collection} rows={rows} releases={releases} playing={queueOfThis && playing} sides={deck} />
+        <Queue collection={collection} rows={rows} releases={releases} playing={queueOfThis && playing} />
       )}
 
       {!empty && !editing && (
@@ -446,19 +463,16 @@ interface Entry {
   position: number | null;
 }
 
-function Queue({
+export function Queue({
   collection,
   rows,
   releases,
   playing,
-  sides = false,
 }: {
   collection: CollectionRecord;
   rows: CollectionRow[];
   releases: Release[];
   playing: boolean;
-  /** Side A and Side B next to each other (the record player's queue) instead of one under the other. */
-  sides?: boolean;
 }) {
   const playerState = usePlayerState();
   const playerQueue = playerState.queue;
@@ -484,7 +498,6 @@ function Queue({
     const fresh = entries.find((e) => e.failed && !seenFailed.includes(e.key));
     setAnnouncement(fresh ? `${COULDNT_PLAY_TRACK}: ${fresh.title}` : "");
   }
-  const { a, b } = splitSides(entries);
   const rowButtons = useRef(new Map<string, HTMLButtonElement>());
   function playFrom(e: Entry) {
     if (isCurrentRow(playerQueue, collection.id, e.position, { releaseId: e.release.id, trackId: e.trackId })) {
@@ -502,12 +515,9 @@ function Queue({
       playerStore.start(queue);
     }
   }
-  const side = (label: string, list: Entry[]) =>
-    list.length === 0 ? null : (
-      <div className="flex flex-col gap-1">
-        <h3 className="px-2 pb-1 pt-3 text-sm font-medium text-text-muted">{label}</h3>
+  const list = (
         <ol className="flex flex-col">
-          {list.map((e) => {
+          {entries.map((e) => {
             const isCurrent = isCurrentRow(playerQueue, collection.id, e.position, { releaseId: e.release.id, trackId: e.trackId });
             return (
               <li key={e.key} className="@container flex flex-wrap items-center gap-1">
@@ -557,16 +567,14 @@ function Queue({
             );
           })}
         </ol>
-      </div>
-    );
+  );
   if (entries.length === 0) return null;
   return (
-    <div className={sides ? "grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-x-10" : "flex flex-col"}>
+    <div className="flex flex-col">
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
         {announcement}
       </div>
-      {side("Side A", a)}
-      {side("Side B", b)}
+      {list}
     </div>
   );
 }
