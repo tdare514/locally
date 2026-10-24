@@ -163,6 +163,16 @@ struct ReleaseTrackHeader: View {
     }
 }
 
+/// What a view-mode row needs to play its track (#336). Nil on a row that can't play (an adopted release).
+struct TrackPlayControl {
+    /// This row's track is the one in the player.
+    var isCurrent: Bool
+    var isPlaying: Bool
+    /// Its file was gone when its turn came.
+    var isMissing: Bool
+    var action: () -> Void
+}
+
 /// A track in view mode: the number, the title over the artist, then plays and time (tabular,
 /// right-aligned). At the accessibility sizes plays and time move under the title as one line.
 struct ReleaseTrackRow: View {
@@ -174,6 +184,8 @@ struct ReleaseTrackRow: View {
     let plays: Int?
     let time: String?
     let timeSpoken: String?
+    /// Set where the track can play: the number becomes a 44 pt play button.
+    var play: TrackPlayControl?
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var titleSize: CGFloat = 16
@@ -184,11 +196,7 @@ struct ReleaseTrackRow: View {
     var body: some View {
         let accessible = dynamicTypeSize.isAccessibilitySize
         HStack(alignment: .firstTextBaseline, spacing: Theme.Track.spacing) {
-            Text("\(number)")
-                .font(.system(size: numberSize).monospacedDigit())
-                .foregroundStyle(Theme.textDim)
-                .frame(width: accessible ? nil : columns.number, alignment: .leading)
-                .fixedSize(horizontal: accessible, vertical: false)
+            numberCell(accessible: accessible)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .foregroundStyle(Theme.primaryText)
@@ -200,6 +208,11 @@ struct ReleaseTrackRow: View {
                     main: credit.artist, featuring: credit.featuring, linkMain: artist != Copy.Detail.unknownArtist,
                     font: .system(size: artistSize), mainColor: Theme.secondaryText, dimColor: Theme.secondaryText
                 )
+                if play?.isMissing == true {
+                    Text(Copy.Playback.fileMissing)
+                        .font(.system(size: artistSize))
+                        .foregroundStyle(Theme.textDim)
+                }
                 if accessible, let line = TrackRowLine.playsAndTime(plays: plays, time: time) {
                     Text(line)
                         .font(.system(size: artistSize).monospacedDigit())
@@ -223,6 +236,53 @@ struct ReleaseTrackRow: View {
         // The artist line holds links, which a combined element would swallow.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("track-row-\(number)")
+    }
+
+    /// The number, or with a play control the same number as a 44 pt button (it reaches into the row's
+    /// inset and the gap before the title, so the column keeps its width). The current track shows a
+    /// static `waveform` in the accent colour while it plays, and a `play.fill` in the accent while paused.
+    @ViewBuilder
+    private func numberCell(accessible: Bool) -> some View {
+        if let play {
+            let hit = Theme.Track.discMenuHitSize
+            let reach = accessible ? 0 : max(0, (hit - columns.number) / 2)
+            let playing = play.isCurrent && play.isPlaying
+            Button(action: play.action) {
+                Group {
+                    if playing {
+                        Image(systemName: "waveform")
+                            .font(.system(size: numberSize, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                    } else if play.isCurrent {
+                        // Paused on this row: a quiet play glyph says where a tap goes. The rest of the row
+                        // is not a play target because the artist names in it are links (#288).
+                        Image(systemName: "play.fill")
+                            .font(.system(size: numberSize - 2, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                    } else {
+                        Text("\(number)")
+                            .font(.system(size: numberSize).monospacedDigit())
+                            .foregroundStyle(Theme.textDim)
+                    }
+                }
+                .accessibilityHidden(true)
+                .padding(.leading, reach)
+                .frame(minWidth: hit, maxWidth: accessible ? nil : hit, minHeight: hit, alignment: .leading)
+                .fixedSize()
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, -reach)
+            .padding(.trailing, -reach)
+            .accessibilityLabel(playing ? Copy.Playback.pause(title) : Copy.Playback.play(title))
+            .accessibilityIdentifier("track-play-\(number)")
+        } else {
+            Text("\(number)")
+                .font(.system(size: numberSize).monospacedDigit())
+                .foregroundStyle(Theme.textDim)
+                .frame(width: accessible ? nil : columns.number, alignment: .leading)
+                .fixedSize(horizontal: accessible, vertical: false)
+        }
     }
 
     private var credit: (artist: String, featuring: [String]) {

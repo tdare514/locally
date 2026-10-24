@@ -40,6 +40,9 @@ targets:
         UISupportsDocumentBrowser: false
         LSSupportsOpeningDocumentsInPlace: true
         UIFileSharingEnabled: true
+        # Playback in Locally continues on the lock screen and in the background (#336).
+        UIBackgroundModes:
+          - audio
         NSPhotoLibraryUsageDescription: "Pick a cover image for your songs."
         # The Sent card asks whether Spotify is installed (canOpenURL) before offering Open in Spotify.
         LSApplicationQueriesSchemes:

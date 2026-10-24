@@ -11,6 +11,8 @@ struct ComponentGallery: View {
         "release-tracks",
         // Kind switch and cover glow buttons, on the studio backdrop.
         "controls",
+        // #336: the release page with a row playing under the mini player, at the default size and at accessibility3, and the bar paused.
+        "player-release", "player-release-ax3", "player-mini-paused",
         // #226: Dynamic Type checks of screens that need no sample data.
         "library-empty", "onboarding", "paywall",
         // #204: the real Stats page over sample plays.
@@ -50,7 +52,7 @@ struct ComponentGallery: View {
 
     /// The #160 screens draw their own backdrop.
     private var drawsOwnBackdrop: Bool {
-        name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || name.hasPrefix("share") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "root-banner", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save", "release-share-blocked"].contains(name)
+        name.hasPrefix("player-") || name.hasPrefix("stats-") || name.hasPrefix("icons-") || name.hasPrefix("devices-") || name.hasPrefix("share") || ["studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "root-banner", "release-tracks", "controls", "paywall", "onboarding", "library-empty", "crop-sheet", "release-featuring-view", "release-featuring-edit", "featuring-fields-ax", "artists-view", "artist-page", "artist-page-featured", "artist-page-bottom", "library-sort-menu", "release-links", "release-date-edit", "release-date-view", "release-date-sheet", "release-date-invalid", "release-date-xxxl", "release-date-ax", "release-date-ax5", "release-date-narrow", "release-date-save", "release-share-blocked"].contains(name)
     }
 
     var body: some View {
@@ -243,6 +245,12 @@ struct ComponentGallery: View {
             IconsGallery.release(noCover: true)
         case "release-edit-nocover":
             IconsGallery.release(noCover: true, editing: true)
+        case "player-release":
+            PlayerGallery(paused: false)
+        case "player-release-ax3":
+            PlayerGallery(paused: false).dynamicTypeSize(.accessibility3)
+        case "player-mini-paused":
+            PlayerGallery(paused: true, showsLibrary: true)
         case "release-view-large-text":
             IconsGallery.release().dynamicTypeSize(.accessibility3)
         case "release-view-large-text-bottom":
@@ -514,6 +522,7 @@ enum IconsGallery {
     static func environment<V: View>(_ view: V, _ container: AppContainer) -> some View {
         view
             .environment(\.appContainer, container)
+            .environment(\.playback, container.playback)
             .environment(FolderStatus(isConnected: true))
             .environment(PurchaseStatus(isFullUnlocked: false))
             .environment(container.syncStatus)
@@ -1142,5 +1151,94 @@ enum ShareGallery {
             },
             container)
     }
+}
+
+/// #336: the real release page (or Library) in a tab bar, with the mini player over a player that has
+/// one track playing. The player runs on fakes, so no audio session or file is touched.
+private struct PlayerGallery: View {
+    let paused: Bool
+    var showsLibrary = false
+
+    @State private var container = IconsGallery.container()
+    @State private var playback = PlaybackService(
+        engine: GalleryEngine(), access: GalleryAccess(), session: GallerySession(),
+        nowPlaying: GalleryNowPlaying(), remote: GalleryRemote(), coverData: { FileCoverStore().load($0.id) }
+    )
+    @State private var selected = RootView.Tab.library
+    @State private var importKind: ImportKind?
+    @State private var search: String?
+
+    private var release: Release {
+        var release = StatsGallery.releases[0]
+        release.year = "2025"
+        return release
+    }
+
+    var body: some View {
+        IconsGallery.environment(
+            TabView(selection: $selected) {
+                Group {
+                    if showsLibrary {
+                        LibraryView(selectedTab: $selected, requestedImportKind: $importKind, librarySearchRequest: $search)
+                    } else {
+                        NavigationStack { ReleaseDetailView(release: release) }
+                    }
+                }
+                .miniPlayerInset()
+                .tabItem { Label(Copy.Library.title, image: "Icon/Library") }
+                .tag(RootView.Tab.library)
+                Color.clear
+                    .tabItem { Label(Copy.Stats.tabLabel, image: "Icon/Stats") }
+                    .tag(RootView.Tab.stats)
+            }
+            .miniPlayerAccessory(playback)
+            .environment(\.playback, playback),
+            container
+        )
+        .task {
+            playback.play(release: release, startingAt: release.tracks[1].id)
+            try? await Task.sleep(for: .milliseconds(400))
+            if paused { playback.pause() }
+        }
+    }
+}
+
+@MainActor private final class GalleryEngine: PlaybackEngine {
+    var onProgress: ((Double, Double?) -> Void)?
+    private var continuation: CheckedContinuation<PlaybackEnd, Never>?
+    func play(url: URL) async -> PlaybackEnd {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            onProgress?(70, 200)
+        }
+    }
+    func pause() {}
+    func resume() {}
+    func seek(to seconds: Double) {}
+    func stop() {
+        continuation?.resume(returning: .stopped)
+        continuation = nil
+    }
+}
+
+private struct GalleryAccess: PlaybackFileAccess {
+    func withFile<T>(for track: Track, _ body: (URL?) async -> T) async throws -> T {
+        await body(URL(fileURLWithPath: "/tmp/gallery.mp3"))
+    }
+}
+
+@MainActor private final class GallerySession: PlaybackSession {
+    var onInterruption: ((InterruptionEvent) -> Void)?
+    var onRouteChange: ((RouteChangeEvent) -> Void)?
+    func activate() throws {}
+    func deactivate() {}
+}
+
+@MainActor private final class GalleryNowPlaying: NowPlayingPublisher {
+    func publish(_ info: NowPlayingInfo?) {}
+}
+
+@MainActor private final class GalleryRemote: RemoteCommandRegistrar {
+    func register(_ handler: @escaping (RemoteCommand) -> Void) {}
 }
 #endif
