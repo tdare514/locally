@@ -352,4 +352,30 @@ describe("move journal and recovery (#335)", () => {
     // and a new move is refused while the journal is there
     expect((await POST(post(path.join(homeDir, "Other")))).status).toBe(400);
   });
+
+  it("rename: settings already at `to`, phase switched, finishes with no problem", async () => {
+    await seed();
+    const dest = path.join(homeDir, "Locally");
+    await fs.rename(lib, dest);
+    await settings.update((s) => ({ ...s, libraryDir: dest }));
+    await writeJournal(configDir, { from: lib, to: dest, mode: "rename", phase: "switched", toCreated: true });
+    expect(await recoverLibraryMove(deps())).toBe("finished");
+    expect(await readJournal(configDir)).toBeNull();
+    expect(getMoveProblem()).toBeNull();
+    expect((await settings.get()).libraryDir).toBe(dest);
+    expect((await repo.list(dest))[0].folderPath).toBe(path.join(dest, "Artist", "Album"));
+  });
+
+  it("copy: settings already at `to`, phase switched, finishes with no problem", async () => {
+    await seed();
+    const dest = path.join(homeDir, "Locally");
+    await fs.cp(lib, dest, { recursive: true });
+    await settings.update((s) => ({ ...s, libraryDir: dest }));
+    await writeJournal(configDir, { from: lib, to: dest, mode: "copy", phase: "switched", toCreated: true });
+    expect(await recoverLibraryMove(deps())).toBe("finished");
+    await expect(fs.stat(lib)).rejects.toThrow();
+    expect(await readJournal(configDir)).toBeNull();
+    expect(getMoveProblem()).toBeNull();
+    expect((await repo.list(dest))[0].tracks[0].filePath).toBe(path.join(dest, "Artist", "Album", "01.mp3"));
+  });
 });

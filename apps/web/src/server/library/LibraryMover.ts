@@ -342,7 +342,8 @@ export async function recoverLibraryMove(deps: Pick<MoveLibraryDeps, "settings" 
     };
     const finishForward = async (removeOld: boolean): Promise<RecoveryOutcome> => {
       await rewriteIndex(deps, to, from, to);
-      if (!(await switchSettings(deps, from, to))) return unclear("settings changed during recovery");
+      // Settings already name `to` when the crash came after the switch: nothing to switch.
+      if (at !== "to" && !(await switchSettings(deps, from, to))) return unclear("settings changed during recovery");
       if (removeOld && fromEx) await fs.rm(from, { recursive: true, force: true });
       return done("finished");
     };
@@ -359,6 +360,7 @@ export async function recoverLibraryMove(deps: Pick<MoveLibraryDeps, "settings" 
 
     // copy mode
     if (at === "to") {
+      if (toEx) await rewriteIndex(deps, to, from, to);
       if (!fromEx) return done("finished");
       if (toEx && (await treeMatches(from, to))) {
         await fs.rm(from, { recursive: true, force: true });
