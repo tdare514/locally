@@ -230,7 +230,7 @@ private struct BuilderSleeve: View {
             RecordSleeve(cover: draft.mosaic, size: size, showsAddCaption: false) {}
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
-            ZStack(alignment: hasArt ? .bottom : .center) {
+            ZStack(alignment: .bottom) {
                 LinearGradient(colors: [.clear, .black.opacity(hasArt ? 0.8 : 0)], startPoint: .center, endPoint: .bottom)
                 nameText
                     .font(.system(.title2, design: .rounded, weight: .bold))
@@ -615,8 +615,12 @@ struct BuilderOneScreen: View {
         .safeAreaInset(edge: .bottom) {
             BuilderDonePill(draft: draft, label: Copy.CollectionBuilder.done, isEnabled: !draft.isNew || MusicCollection.validName(draft.name) != nil, action: onDone)
                 .padding(.horizontal, Theme.Spacing.pagePadding)
-                .padding(.top, 8)
+                .padding(.top, 16)
                 .padding(.bottom, 6)
+                .background {
+                LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black.opacity(0.97), location: 0.3), .init(color: .black.opacity(0.97), location: 1)], startPoint: .top, endPoint: .bottom)
+                    .ignoresSafeArea()
+            }
         }
         .sensoryFeedback(.selection, trigger: draft.picks)
     }
@@ -718,7 +722,7 @@ struct BuilderPickerSheet: View {
             .padding(.top, 10)
             .padding(.bottom, 6)
             .background {
-                LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black.opacity(0.88), location: 0.25), .init(color: .black.opacity(0.88), location: 1)], startPoint: .top, endPoint: .bottom)
+                LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black.opacity(0.97), location: 0.16), .init(color: .black.opacity(0.97), location: 1)], startPoint: .top, endPoint: .bottom)
                     .ignoresSafeArea()
             }
         }
@@ -748,11 +752,14 @@ struct BuilderPickerSheet: View {
 private struct BuilderTwoStepFlow: View {
     @State var draft: BuilderDraft
     @State var showsPicker: Bool
+    var size: DynamicTypeSize = .large
 
     var body: some View {
         BuilderNameStep(draft: draft) { showsPicker = true }
+            .dynamicTypeSize(size)
             .sheet(isPresented: $showsPicker) {
                 BuilderPickerSheet(draft: draft) { showsPicker = false }
+                    .dynamicTypeSize(size)
                     .presentationDragIndicator(.visible)
                     .presentationBackground(Theme.background)
             }
@@ -818,7 +825,7 @@ struct CollectionBuilderGallery: View {
             case "builder-2-search":
                 BuilderTwoStepFlow(draft: draft(picks: Self.threePicks, query: "night"), showsPicker: true)
             case "builder-2-ax3":
-                BuilderTwoStepFlow(draft: draft(picks: Self.threePicks), showsPicker: true).dynamicTypeSize(.accessibility3)
+                BuilderTwoStepFlow(draft: draft(picks: Self.threePicks), showsPicker: true, size: .accessibility3)
             case "builder-2-add-music":
                 AddMusicOverCollection(draft: addMusicDraft())
             default:
