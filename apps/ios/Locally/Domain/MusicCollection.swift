@@ -280,8 +280,15 @@ enum CollectionQueue {
         return (all.filter(\.isHeld).map(\.title), all.filter { !$0.isHeld }.count)
     }
 
-    /// Side A and Side B (display only, #352): the queue split in half, the extra track on Side A. This is how many rows Side A holds.
-    static func sideACount(_ rowCount: Int) -> Int { (rowCount + 1) / 2 }
+    /// The queue as one plain list in the collection's order (#369, no Side A / Side B): each row's 1-based number, and its
+    /// place among the playable ones (where a tap starts Play from), nil for a row this phone has no file for.
+    static func numbered(_ rows: [Row]) -> [(row: Row, number: Int, playablePosition: Int?)] {
+        var held = 0
+        return rows.enumerated().map { index, row in
+            defer { if row.isHeld { held += 1 } }
+            return (row, index + 1, row.isHeld ? held : nil)
+        }
+    }
 
     static func playOrder(_ tracks: [Track]) -> [Track] {
         tracks.sorted {

@@ -149,7 +149,7 @@ private struct CoverGlowClouds: View {
 /// One soft white diagonal band that sweeps left to right over 0.6 s each time `pressed` turns
 /// on, and is off screen the rest of the time. Only its offset animates. Held at the middle
 /// when `pinned`.
-private struct CoverGlowShimmer: View {
+struct CoverGlowShimmer: View {
     let pressed: Bool
     let pinned: Bool
     let enabled: Bool

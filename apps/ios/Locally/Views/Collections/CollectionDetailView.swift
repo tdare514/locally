@@ -79,7 +79,7 @@ struct CollectionDetailView: View {
         let visible = model.visibleItems(of: collection)
         return ScrollViewReader { proxy in
         List {
-            CollectionQueueHeader(model: model, collection: collection, isEditing: editMode.isEditing)
+            CollectionQueueHeader(model: model, collection: collection, showsLength: true, isEditing: editMode.isEditing)
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
             if let editFailure {

@@ -237,6 +237,18 @@ struct ComponentGallery: View {
             CollectionsGallery.addSheet()
         case "collections-add-failed":
             CollectionsGallery.addSheet(saveFails: true)
+        case "collection-page-idle":
+            CollectionPageGallery(.idle)
+        case "collection-page-playing":
+            CollectionPageGallery(.playing)
+        case "collection-page-paused":
+            CollectionPageGallery(.paused)
+        case "collection-page-editing":
+            CollectionPageGallery(.idle, editing: true)
+        case "collection-page-ax3":
+            CollectionPageGallery(.playing).dynamicTypeSize(.accessibility3)
+        case "collections-player-queue":
+            CollectionsPlayerGallery(scrollsTo: CollectionsPlayerView.queueID)
         case "collections-playing":
             CollectionsPlayingGallery()
         case "collections-player-playing", "collections-player-ax":

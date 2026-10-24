@@ -190,11 +190,6 @@ struct CollectionSummary: Equatable, Identifiable {
 
 /// The spoken state of the Play / Pause pill and of a queue row, from the same state as their glyphs.
 enum CollectionPlayState {
-    /// "Pause" only when pressing the pill would pause this collection; otherwise "Play" (start or resume).
-    static func pillLabel(isCurrentQueue: Bool, isPlaying: Bool) -> String {
-        isCurrentQueue && isPlaying ? Copy.Collections.pause : Copy.Collections.play
-    }
-
     /// "Pause {detail}" only on the current row while it plays; otherwise "Play {detail}".
     static func rowLabel(_ detail: String, isCurrentRow: Bool, isPlaying: Bool) -> String {
         isCurrentRow && isPlaying ? Copy.Collections.pauseRow(detail) : Copy.Collections.playRow(detail)

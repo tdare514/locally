@@ -1,5 +1,27 @@
 import SwiftUI
 
+/// What a tap on the collection's cover does (#369): nothing in edit mode or when this phone holds none of the tracks;
+/// otherwise start from the top, pause, or resume. Pure, so the page and the tests share it.
+enum CollectionSleeveAction: Equatable {
+    case inert, start, pause, resume
+
+    static func resolve(isEditing: Bool, canPlay: Bool, isPlayingThis: Bool, isPlaying: Bool) -> CollectionSleeveAction {
+        guard !isEditing, canPlay else { return .inert }
+        guard isPlayingThis else { return .start }
+        return isPlaying ? .pause : .resume
+    }
+
+    /// "Play Late drives" / "Pause Late drives" / "Resume Late drives"; when nothing can play, why.
+    func label(name: String, canPlay: Bool) -> String {
+        switch self {
+        case .start: Copy.Collections.playRow(name)
+        case .pause: Copy.Collections.pauseRow(name)
+        case .resume: Copy.Collections.resumeRow(name)
+        case .inert: canPlay ? name : "\(name), \(Copy.Collections.nonePlayable)"
+        }
+    }
+}
+
 /// Playing a collection from its page or from the record player (#350, #352): what the Play pill, a queue row and the
 /// player's labels read and do, in one place so both screens agree. A plain value over the model and the player.
 @MainActor
@@ -15,6 +37,10 @@ struct CollectionPlayControl {
     var isPlaying: Bool { playback?.isPlaying ?? false }
     /// This collection is the one playing right now (not paused).
     var isPlayingNow: Bool { isPlayingThis && isPlaying }
+
+    func sleeveAction(isEditing: Bool) -> CollectionSleeveAction {
+        CollectionSleeveAction.resolve(isEditing: isEditing, canPlay: !playQueue.isEmpty, isPlayingThis: isPlayingThis, isPlaying: isPlaying)
+    }
 
     /// Play starts the queue; Pause / Play on the collection that is already playing.
     func togglePlay() {
