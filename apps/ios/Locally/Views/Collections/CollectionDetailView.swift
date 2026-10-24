@@ -94,20 +94,24 @@ struct CollectionDetailView: View {
             } else {
                 queueSection(collection, rows: rows)
                 if !rows.isEmpty { playlistGuide(collection) }
+                #if DEBUG
                 if startsGuideOpen {
                     // Debug gallery only: the end of the list, so the open guide can be scrolled into view.
                     Color.clear.frame(height: 1).id(Self.endID).listRowBackground(Color.clear).listRowSeparator(.hidden)
                 }
+                #endif
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, 44)
         .task {
+            #if DEBUG
             // The gallery's open-guide frame: bring the guide into view (the guide starts closed otherwise).
             guard startsGuideOpen else { return }
             try? await Task.sleep(for: .milliseconds(600))
             withAnimation(nil) { proxy.scrollTo(Self.endID, anchor: .bottom) }
+            #endif
         }
         }
     }
