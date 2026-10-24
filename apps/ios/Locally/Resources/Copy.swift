@@ -453,7 +453,7 @@ enum Copy {
         static let trackHighlighted = "highlighted"
         /// Under a track row: its total Spotify plays across devices.
         static func playCount(_ count: Int) -> String {
-            count == 1 ? "1 play" : "\(count) plays"
+            count == 1 ? "1 play" : "\(count.formatted()) plays"
         }
         /// Page and track details (#296): "Album · 5 tracks", "Year 2025", "Genre Rap".
         static func metaLine(kind: String, tracks: Int) -> String {
