@@ -35,7 +35,10 @@ struct ComponentGallery: View {
         "share-sheet", "share-sheet-link", "share-sheet-result", "share-sheet-signed-out", "share-sheet-large-text",
         "devices-tray-friends", "devices-tray-friends-large-text", "shared-by-you", "shared-by-you-large-text", "release-share-blocked",
         // #350: collections in List view over seeded sample collections.
-        "collections-library", "collections-screen", "collections-queue", "collections-edit", "collections-empty", "collections-queue-ax", "collections-add", "collections-playing", "collections-add-failed", "collections-wont-play", "collections-playlist-guide", "collections-none-here"]
+        "collections-library", "collections-screen", "collections-queue", "collections-edit", "collections-empty", "collections-queue-ax", "collections-add", "collections-playing", "collections-add-failed", "collections-wont-play", "collections-playlist-guide", "collections-none-here",
+        // #352: the record player on the Collections screen, over seeded collections and a player on fakes.
+        "collections-player-playing", "collections-player-browsing", "collections-player-paused", "collections-player-vinyl", "collections-player-reduce-motion",
+        "collections-player-ax", "collections-player-narrow", "collections-player-empty", "collections-player-wont-play", "collections-player-many"]
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -236,6 +239,24 @@ struct ComponentGallery: View {
             CollectionsGallery.addSheet(saveFails: true)
         case "collections-playing":
             CollectionsPlayingGallery()
+        case "collections-player-playing", "collections-player-ax":
+            CollectionsPlayerGallery()
+        case "collections-player-browsing":
+            CollectionsPlayerGallery(browsing: true)
+        case "collections-player-paused":
+            CollectionsPlayerGallery(paused: true)
+        case "collections-player-vinyl":
+            CollectionsPlayerGallery(vinyl: true)
+        case "collections-player-reduce-motion":
+            CollectionsPlayerGallery(reduceMotion: true)
+        case "collections-player-narrow":
+            CollectionsPlayerGallery().frame(width: 320)
+        case "collections-player-empty":
+            CollectionsPlayerGallery(seed: false, playing: false)
+        case "collections-player-wont-play":
+            CollectionsPlayerGallery(missingFirst: true)
+        case "collections-player-many":
+            CollectionsPlayerGallery(many: 200)
         case "collections-wont-play":
             CollectionsPlayingGallery(missingFirst: true)
         case "icons-tabs-library", "icons-library-list":
@@ -1292,7 +1313,7 @@ enum CollectionsGallery {
     /// A collection of only the Mac-only release: the playlist guide has nothing to add.
     static let noneHereID = UUID(uuidString: "00000000-0000-0000-0000-0000000000c2")!
 
-    private static func container(seed: Bool) -> (AppContainer, CollectionsModel) {
+    private static func container(seed: Bool, many: Int = 0) -> (AppContainer, CollectionsModel) {
         let container = IconsGallery.container(releases: StatsGallery.releases + [macOnly])
         if seed {
             let r = StatsGallery.releases
@@ -1308,14 +1329,18 @@ enum CollectionsGallery {
                 make(noneHereID, "From the Mac", [.release(macOnly.id)], 240),
             ]
             for collection in collections { try? container.collections.upsert(collection) }
+            // The record player's 200-collection frame: the same few releases, shuffled into many names.
+            for n in 0..<many {
+                try? container.collections.upsert(make(UUID(), "Collection \(n + 1)", [.release(r[n % r.count].id)], 300 + Double(n)))
+            }
         }
         let model = container.makeCollectionsModel()
         model.reload()
         return (container, model)
     }
 
-    static func playingSetup(missingFirst: Bool = false) -> (container: AppContainer, model: CollectionsModel, playback: PlaybackService) {
-        let (container, model) = container(seed: true)
+    static func playingSetup(missingFirst: Bool = false, seed: Bool = true, many: Int = 0) -> (container: AppContainer, model: CollectionsModel, playback: PlaybackService) {
+        let (container, model) = container(seed: seed, many: many)
         let firstPlayable = model.collection(queueID).flatMap { model.playQueue(of: $0).first?.trackID }
         let playback = PlaybackService(
             engine: GalleryEngine(), access: missingFirst ? GalleryAccess(missing: firstPlayable) : GalleryAccess(), session: GallerySession(),
@@ -1363,6 +1388,54 @@ private struct FailingCollectionStore: CollectionStore {
     func get(_ id: UUID) throws -> MusicCollection? { try base.get(id) }
     func upsert(_ collection: MusicCollection) throws { throw CocoaError(.fileWriteUnknown) }
     func delete(id: UUID) throws { throw CocoaError(.fileWriteUnknown) }
+}
+
+/// #352: the Collections screen as a record player over a player on fakes.
+private struct CollectionsPlayerGallery: View {
+    var seed = true
+    var playing = true
+    var paused = false
+    /// The wheel is turned to another collection than the playing one.
+    var browsing = false
+    var vinyl = false
+    var missingFirst = false
+    var many = 0
+    @State private var built: (container: AppContainer, model: CollectionsModel, playback: PlaybackService)
+
+    init(reduceMotion: Bool = false, seed: Bool = true, playing: Bool = true, paused: Bool = false, browsing: Bool = false, vinyl: Bool = false, missingFirst: Bool = false, many: Int = 0) {
+        self.seed = seed
+        self.playing = playing
+        self.paused = paused
+        self.browsing = browsing
+        self.vinyl = vinyl
+        self.missingFirst = missingFirst
+        self.many = many
+        UserDefaults.standard.set(reduceMotion, forKey: WheelMotion.debugReduceMotionKey)
+        UserDefaults.standard.set(vinyl ? SpinningRecord.vinyl.rawValue : SpinningRecord.picture.rawValue, forKey: CollectionsViewPrefs.recordKey)
+        UserDefaults.standard.set(CollectionsViewMode.player.rawValue, forKey: CollectionsViewPrefs.viewKey)
+        _built = State(initialValue: CollectionsGallery.playingSetup(missingFirst: missingFirst, seed: seed, many: many))
+    }
+
+    var body: some View {
+        IconsGallery.environment(
+            NavigationStack { CollectionsView(model: built.model, onOpen: { _ in }, startsOn: browsing ? built.model.collections.dropFirst(3).first?.id : nil) }
+                .environment(\.playback, built.playback),
+            built.container
+        )
+        .task {
+            guard playing else { return }
+            let queue = built.model.collection(CollectionsGallery.queueID).map { built.model.playQueue(of: $0) } ?? []
+            let releases = Set(queue.map(\.releaseID)).compactMap { built.model.releases[$0] }
+            built.playback.play(
+                items: queue.map { QueueItem(releaseId: $0.releaseID, trackId: $0.trackID) }, releases: releases,
+                context: QueueContext(kind: .collection, id: CollectionsGallery.queueID), startingAt: missingFirst ? 0 : 2
+            )
+            if paused {
+                try? await Task.sleep(for: .milliseconds(400))
+                built.playback.togglePlayPause()
+            }
+        }
+    }
 }
 
 /// A collection page whose player (on fakes) is playing the collection's second playable track.

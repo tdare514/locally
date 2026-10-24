@@ -210,12 +210,15 @@ struct LibraryView: View {
             }
             .navigationDestination(for: CollectionsRoute.self) { _ in
                 if let collections {
-                    CollectionsView(model: collections) { path.append(CollectionRoute(id: $0)) }
+                    CollectionsView(
+                        model: collections, onOpen: { path.append(CollectionRoute(id: $0)) },
+                        onEdit: { path.append(CollectionRoute(id: $0, startsEditing: true)) }, onAddTracks: { path = NavigationPath() }
+                    )
                 }
             }
             .navigationDestination(for: CollectionRoute.self) { route in
                 if let collections {
-                    CollectionDetailView(model: collections, id: route.id) { path = NavigationPath() }
+                    CollectionDetailView(model: collections, id: route.id, startsEditing: route.startsEditing) { path = NavigationPath() }
                 }
             }
             .nameAlert(Copy.Collections.nameTitle, action: Copy.Collections.create, isPresented: $isNamingCollection, text: $newCollectionName) { name in
