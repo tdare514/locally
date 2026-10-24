@@ -71,10 +71,12 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
 
   return (
     <div className="flex flex-col gap-6 pb-16">
-      <div className="flex flex-wrap items-end justify-between gap-4 pr-[calc(var(--tray-size)+0.75rem)] lg:pr-0">
-        <div>
-          <p className="-ml-2.5 inline-block rounded-full bg-bg px-2.5 py-0.5 text-sm font-semibold text-accent">Your music</p>
-          <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">Collections</h1>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0 max-w-full">
+          <div className="pr-[calc(var(--tray-size)+0.75rem)] lg:pr-0">
+            <p className="-ml-2.5 inline-block rounded-full bg-bg px-2.5 py-0.5 text-sm font-semibold text-accent">Your music</p>
+            <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">Collections</h1>
+          </div>
           {loaded && collections.length > 0 && (
             <div className="rp-switches mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-text-muted">
               <Switch

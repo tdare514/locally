@@ -2866,6 +2866,24 @@ body {
   border-left: 1px solid rgb(255 255 255 / 0.16);
   border-radius: 0;
 }
+/* Narrow: the groups wrap, so the second one drops its divider and padding, and each group stays inside the pane:
+   its two options share the width and a long label wraps in two lines rather than run off the edge. */
+@media (max-width: 639px) {
+  .rp-switches .btn-seg {
+    max-width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .rp-switches .btn-seg-opt {
+    padding-inline: 0.5rem;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.15;
+  }
+  .rp-switches .btn-seg + .btn-seg {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
 .rp-grid {
   container-type: inline-size;
   margin-top: 0.5rem;
@@ -3092,7 +3110,8 @@ body {
 }
 .rp-text b {
   display: block;
-  max-width: 230px;
+  /* The front row is the right-most: its text starts about 224 px into the 430 px wheel, so 196 px ends inside it. */
+  max-width: 196px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
