@@ -36,8 +36,7 @@ struct StatsList: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     if index > 0 { GlassDivider() }
-                    StatsRow(item: item, sort: sort, today: today, round: round, owner: ownerOf(item), cache: cache) { onOpen(item) }
-                        .trackActions(actions(item))
+                    StatsRow(item: item, sort: sort, today: today, round: round, owner: ownerOf(item), cache: cache, actions: actions(item)) { onOpen(item) }
                 }
             }
         }
@@ -53,6 +52,8 @@ private struct StatsRow: View {
     let round: Bool
     let owner: UUID?
     let cache: StatsCoverCache
+    /// The long-press menu (#364): on the row; its VoiceOver actions sit on the labelled button.
+    let actions: TrackActions?
     let action: () -> Void
 
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -127,7 +128,9 @@ private struct StatsRow: View {
             Button(action: action) { Color.clear.contentShape(Rectangle()) }
                 .buttonStyle(SoftPressStyle())
                 .accessibilityLabel(buttonLabel)
+                .trackActions(actions, part: .accessibility)
         }
+        .trackActions(actions, part: .menu)
     }
 
     private var buttonLabel: String {

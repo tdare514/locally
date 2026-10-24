@@ -368,7 +368,8 @@ struct ComponentGallery: View {
         case "share-sheet":
             ShareGallery.sheet()
         case "queue-toast-next", "queue-toast-added", "queue-toast-left-out", "queue-toast-ax3", "queue-toast-long-ax5", "queue-toast-left-out-ax5",
-            "track-menu-release", "track-menu-release-ax3", "track-menu-library", "track-menu-stats":
+            "track-menu-release", "track-menu-release-ax3", "track-menu-library", "track-menu-stats",
+            "track-menu-edit-scroll", "track-menu-edit-scroll-ax3":
             TrackActionsGallery(name: name)
         case "share-sheet-link":
             ShareGallery.sheet(link: true)

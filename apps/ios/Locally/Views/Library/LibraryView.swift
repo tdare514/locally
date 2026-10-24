@@ -211,6 +211,9 @@ struct LibraryView: View {
                 // A send that finished (or a retry inside a reconcile) has added a release.
                 load()
             }
+            // One host for the whole screen, so Singles and Albums never present the same request twice (#364), on the
+            // Library's own collections model so its card follows a collection made from the menu.
+            .trackActionSheets(trackSheets, collections: collections)
             .task(id: skyKey) { await ensurePalette(for: skyKey) }
             // No bar on the home screen (the header carries the title); pushed
             // release pages set their own.
@@ -667,7 +670,6 @@ struct LibraryView: View {
         .background(shape.fill(Theme.Immersive.panelFill))
         .clipShape(shape)
         .overlay(shape.stroke(Theme.Immersive.panelStroke, lineWidth: 1))
-        .trackActionSheets(trackSheets)
     }
 
     /// The size the grid uses at this text size (see `CoverSize.forGrid`).
@@ -686,7 +688,6 @@ struct LibraryView: View {
                     .trackActions(releaseActions(release))
             }
         }
-        .trackActionSheets(trackSheets)
     }
 
     private func tile(for release: Release) -> some View {

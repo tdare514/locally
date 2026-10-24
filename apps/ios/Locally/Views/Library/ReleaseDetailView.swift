@@ -118,7 +118,7 @@ struct ReleaseDetailView: View {
                     if model.isEditing && model.trackRows.count >= 2 {
                         reorderHint.panelRow(.middle).transition(.opacity)
                     }
-                    trackRows(model)
+                    trackRows(model, proxy: proxy)
                     if model.hasPlays { playsFootnote.panelRow(.middle) }
                     if model.isAdopted { adoptedNote.panelRow(.middle) }
                     if isAlbum { playlistGuide(model).panelRow(.middle) }
@@ -439,17 +439,23 @@ struct ReleaseDetailView: View {
         return actions
     }
 
-    /// After Edit on a song: once the edit layout has settled, scrolls that song to the middle.
+    /// After Edit on a song: the edit list is long and lazy, so the song's edit row may not exist yet. This scrolls
+    /// to its id without animation to bring the row in; the row's `onAppear` (`didShowEditRow`) then centres it
+    /// and consumes the request. No timer: the row appearing is the signal that the edit rows are ready.
     private func scrollToEditedTrack(in model: ReleaseDetailViewModel, proxy: ScrollViewProxy) async {
         guard let id = editScrollTrackID, model.isEditing else { return }
-        try? await Task.sleep(for: .milliseconds(350))
-        guard !Task.isCancelled else { return }
+        proxy.scrollTo(id, anchor: .center)
+    }
+
+    /// An edit row appeared: if it is the song Edit was chosen on, centres it and clears the request.
+    private func didShowEditRow(_ id: UUID, proxy: ScrollViewProxy) {
+        guard editScrollTrackID == id else { return }
+        editScrollTrackID = nil
         if reduceMotion {
             proxy.scrollTo(id, anchor: .center)
         } else {
             withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.3)) { proxy.scrollTo(id, anchor: .center) }
         }
-        editScrollTrackID = nil
     }
 
     /// Once the push has settled: scrolls the opened-from track to the middle, washes it in, holds, and
@@ -528,7 +534,7 @@ struct ReleaseDetailView: View {
     // Long-press drag via `.onMove` without an Edit-mode toolbar button (iOS 16+).
     // Singles and one-track albums leave move disabled so the gesture doesn't
     // fight the title field.
-    private func trackRows(_ model: ReleaseDetailViewModel) -> some View {
+    private func trackRows(_ model: ReleaseDetailViewModel, proxy: ScrollViewProxy) -> some View {
         let headings = model.discHeadings
         return ForEach(Array(model.trackRows.enumerated()), id: \.element.id) { index, row in
             if headings.indices.contains(index), let disc = headings[index] {
@@ -558,6 +564,7 @@ struct ReleaseDetailView: View {
                 isFirst: index == 0 || (headings.indices.contains(index) && headings[index] != nil),
                 isLast: index == model.trackRows.count - 1 || (headings.indices.contains(index + 1) && headings[index + 1] != nil)
             )
+            .onAppear { didShowEditRow(row.id, proxy: proxy) }
         }
         .onMove(perform: model.isEditing && model.trackRows.count >= 2 ? model.moveTracks : nil)
     }

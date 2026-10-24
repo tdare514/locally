@@ -90,12 +90,15 @@ final class TrackActionSheets {
 
 private struct TrackActionSheetsModifier: ViewModifier {
     @Bindable var sheets: TrackActionSheets
+    /// The screen's own collections model, when it has one (the Library's card then follows a change).
+    var shared: CollectionsModel?
     @Environment(\.appContainer) private var container
-    @State private var collections: CollectionsModel?
+    @State private var own: CollectionsModel?
+    private var collections: CollectionsModel? { shared ?? own }
 
     func body(content: Content) -> some View {
         content
-            .task { if collections == nil { collections = container?.makeCollectionsModel() } }
+            .task { if shared == nil, own == nil { own = container?.makeCollectionsModel() } }
             .sheet(item: $sheets.add) { target in
                 if let collections {
                     AddToCollectionSheet(model: collections, items: target.items) { sheets.add = nil }
@@ -117,7 +120,7 @@ private struct TrackActionSheetsModifier: ViewModifier {
 
 extension View {
     /// Presents the sheets the long-press menu's Add to collection and Share raise.
-    func trackActionSheets(_ sheets: TrackActionSheets) -> some View {
-        modifier(TrackActionSheetsModifier(sheets: sheets))
+    func trackActionSheets(_ sheets: TrackActionSheets, collections: CollectionsModel? = nil) -> some View {
+        modifier(TrackActionSheetsModifier(sheets: sheets, shared: collections))
     }
 }

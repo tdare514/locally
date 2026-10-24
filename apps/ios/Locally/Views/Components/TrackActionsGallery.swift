@@ -8,9 +8,21 @@ struct TrackActionsGallery: View {
         "queue-toast-next", "queue-toast-added", "queue-toast-left-out", "queue-toast-ax3", "queue-toast-long-ax5", "queue-toast-left-out-ax5",
         // #364 part B: the long-press menu's places. A UI test long-presses a row; the player runs on fakes so Play next shows its toast.
         "track-menu-release", "track-menu-release-ax3", "track-menu-library", "track-menu-stats",
+        // An album long enough that its last song starts off screen: Edit on it scrolls to its edit field.
+        "track-menu-edit-scroll", "track-menu-edit-scroll-ax3",
     ]
 
-    enum Scene { case toast, releasePage, library, stats }
+    enum Scene { case toast, releasePage, longAlbum, library, stats }
+
+    /// Fourteen songs, so the last starts off screen at any size.
+    static let longAlbum: Release = {
+        let id = UUID(uuidString: "00000000-0000-0000-0000-000000009000")!
+        let tracks = (1...14).map { n in
+            Track(id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", 9000 + n))!, title: "Song \(n)", trackNumber: n,
+                  filePath: "long-\(n).mp3", originalName: "long-\(n).mp3", durationSec: 200)
+        }
+        return Release(id: id, kind: .album, title: "Long Player", artist: "Mira Valdane", genre: "Indie pop", coverPath: "/cover/long.png", folderPath: "/lib/long", tracks: tracks)
+    }()
 
     enum Kind { case next, added, leftOut }
     var kind: Kind
@@ -22,6 +34,7 @@ struct TrackActionsGallery: View {
     init(name: String) {
         switch name {
         case "track-menu-release", "track-menu-release-ax3": scene = .releasePage
+        case "track-menu-edit-scroll", "track-menu-edit-scroll-ax3": scene = .longAlbum
         case "track-menu-library": scene = .library
         case "track-menu-stats": scene = .stats
         default: break
@@ -32,14 +45,14 @@ struct TrackActionsGallery: View {
         case "queue-toast-left-out": kind = .leftOut
         default: kind = .next
         }
-        large = name == "queue-toast-ax3" || name == "track-menu-release-ax3"
+        large = name == "queue-toast-ax3" || name == "track-menu-release-ax3" || name == "track-menu-edit-scroll-ax3"
         ax5 = name.hasSuffix("-ax5")
         longTitle = name == "queue-toast-long-ax5"
         if longTitle { kind = .added }
         if name == "queue-toast-left-out-ax5" { kind = .leftOut }
     }
 
-    @State private var container = IconsGallery.container()
+    @State private var container = IconsGallery.container(releases: StatsGallery.releases + [TrackActionsGallery.longAlbum])
     @State private var toast = QueueToastCenter()
     @State private var playback = PlaybackService(
         engine: ToastGalleryEngine(), access: ToastGalleryAccess(), session: ToastGallerySession(),
@@ -57,8 +70,8 @@ struct TrackActionsGallery: View {
         IconsGallery.environment(
             TabView {
                 switch scene {
-                case .toast, .releasePage:
-                    NavigationStack { ReleaseDetailView(release: playing) }
+                case .toast, .releasePage, .longAlbum:
+                    NavigationStack { ReleaseDetailView(release: scene == .longAlbum ? Self.longAlbum : playing) }
                         .miniPlayerInset()
                         .tabItem { Label(Copy.Library.title, image: "Icon/Library") }
                     Color.clear
