@@ -716,7 +716,7 @@ export default function ReleaseView({
           className="group rounded-[9px] border border-border bg-card p-5"
         >
           <summary className="flex cursor-pointer list-none items-center gap-2 text-base font-bold tracking-[-0.02em] text-text [&::-webkit-details-marker]:hidden">
-            <ChevronRightIcon className="h-4 w-4 text-text-muted transition-transform group-open:rotate-90" />
+            <ChevronRightIcon className="h-4 w-4 text-text-muted transition-transform motion-reduce:transition-none group-open:rotate-90" />
             Make it a playlist
           </summary>
           <div className="mt-4 flex flex-col gap-3">
@@ -732,7 +732,7 @@ export default function ReleaseView({
               </button>
             </div>
             <p className="text-sm text-text-muted">{playlistSteps(release.title, tracks.length)}</p>
-            <p className="text-xs text-text-dim">{PLAYLIST_FALLBACK}</p>
+            <p className="text-xs text-text-muted">{PLAYLIST_FALLBACK}</p>
           </div>
         </details>
       )}
