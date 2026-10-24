@@ -52,8 +52,8 @@ final class SongPageUITests: XCTestCase {
         assertSongPage(app, title: "Orange Streetlight")
     }
 
-    func testATapOnAStatsTrackRowOpensTheSongPageAndItsAlbumRowOpensTheRelease() {
-        let app = launch("track-menu-stats")
+    /// The ranked list's row for the song (full width), not the fan's sleeve of the same song.
+    private func statsRow(_ app: XCUIApplication) -> XCUIElement? {
         let rows = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Orange Streetlight"))
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 20), "no Stats row")
         var tries = 0
@@ -61,15 +61,33 @@ final class SongPageUITests: XCTestCase {
             app.swipeUp()
             tries += 1
         }
-        guard let row = rows.allElementsBoundByIndex.first(where: { $0.isHittable && $0.frame.width > 300 }) else {
-            return XCTFail("no hittable Stats list row")
-        }
-        // Over the cover: the blank middle of a Stats row does not take a synthesised tap.
-        row.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)).tap()
+        return rows.allElementsBoundByIndex.first(where: { $0.isHittable && $0.frame.width > 300 })
+    }
+
+    /// Over the song's title: after the rank and the cover, left of the numbers (the title text is hidden from
+    /// accessibility, so the row is found by its label and the title by its place).
+    private func overTitle(_ row: XCUIElement) -> XCUICoordinate {
+        row.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.35))
+    }
+
+    func testALongPressOnAStatsTrackRowsTitleStillOpensTheMenu() {
+        let app = launch("track-menu-stats")
+        guard let row = statsRow(app) else { return XCTFail("no hittable Stats list row") }
+        overTitle(row).press(forDuration: 1.2)
+        let goToAlbum = app.buttons["Go to album"]
+        XCTAssertTrue(goToAlbum.waitForExistence(timeout: 5), "the long-press on the title opened no menu")
+        XCTAssertTrue(waitHittable(goToAlbum))
+    }
+
+    func testATapOnAStatsTrackRowOpensTheSongPageAndItsAlbumRowOpensTheRelease() {
+        let app = launch("track-menu-stats")
+        guard let row = statsRow(app) else { return XCTFail("no hittable Stats list row") }
+        // On the title: a tap on the row's text reaches the row's button.
+        overTitle(row).tap()
         let albumRow = app.buttons["song-row-album"]
         XCTAssertTrue(albumRow.waitForExistence(timeout: 10), "the song page did not open")
         // The panel sits under the hero: scroll until its Album row is on screen.
-        tries = 0
+        var tries = 0
         while !albumRow.isHittable && tries < 6 {
             app.swipeUp()
             tries += 1
