@@ -127,19 +127,31 @@ struct ArtistLineText: View {
                 line(level: 0).lineLimit(1)
                 line(level: 1).lineLimit(1)
                 line(level: 2).lineLimit(1)
+                // Last resort: the main name alone, so the ellipsis never lands inside "& N more".
+                line(level: 3).lineLimit(1)
             }
             .fixedSize(horizontal: false, vertical: true)
         }
     }
 
+    /// Level 3 is the main name alone. Only the shortened levels carry the full-names label, so the
+    /// unshortened line keeps its links in the Links rotor untouched.
+    @ViewBuilder
     private func line(level: Int) -> some View {
-        Text(ArtistLink.attributed(
-            credit: .shortened(main: main, featuring: featuring, level: level), linked: linked, linkMain: linkMain,
-            mainColor: mainColor, dimColor: dimColor
+        let credit: ArtistCredit = level >= ArtistCredit.levelCount
+            ? .shortened(main: main, featuring: [], level: 0)
+            : .shortened(main: main, featuring: featuring, level: level)
+        let shortened = level > 0 && !featuring.isEmpty
+        let text = Text(ArtistLink.attributed(
+            credit: credit, linked: linked, linkMain: linkMain, mainColor: mainColor, dimColor: dimColor
         ))
         .font(font)
         .tint(mainColor)
-        .accessibilityLabel(ArtistCredit.spoken(main: main, featuring: featuring))
+        if shortened {
+            text.accessibilityLabel(ArtistCredit.spoken(main: main, featuring: featuring))
+        } else {
+            text
+        }
     }
 }
 

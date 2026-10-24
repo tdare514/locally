@@ -517,6 +517,9 @@ enum Theme {
 
         static let gutter: CGFloat = 16
         static let rowCover: CGFloat = 44
+        /// A Stats list row narrower than this stacks its plays under the name; narrower than `wideRow` it drops the last-played line (#361).
+        static let narrowRow: CGFloat = 350
+        static let wideRow: CGFloat = 430
         static let minTarget: CGFloat = 44
         static let tileMin: CGFloat = 72
         static let tileGap: CGFloat = 12

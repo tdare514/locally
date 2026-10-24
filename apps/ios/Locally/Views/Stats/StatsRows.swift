@@ -55,7 +55,12 @@ private struct StatsRow: View {
     @Environment(\.dynamicTypeSize) private var typeSize
     @ScaledMetric(relativeTo: .body) private var rankWidth: CGFloat = 28
 
-    private var stacked: Bool { typeSize.isAccessibilitySize }
+    /// The room the row has, measured behind it.
+    @State private var rowWidth: CGFloat = 0
+
+    private var stacked: Bool { typeSize.isAccessibilitySize || (rowWidth > 0 && rowWidth < Theme.Stats.narrowRow) }
+    /// The last-played line only shows where the title still has room beside it.
+    private var showsLastPlayed: Bool { rowWidth == 0 || rowWidth >= Theme.Stats.wideRow }
 
     /// A track's title without its "(feat. ...)" (the names move to the artist line); other rows keep theirs.
     private var plainTitle: String {
@@ -108,12 +113,13 @@ private struct StatsRow: View {
             }
             if !stacked {
                 Spacer(minLength: 8)
-                numbers(alignment: .trailing).layoutPriority(1).accessibilityHidden(true)
+                numbers(alignment: .trailing).fixedSize().accessibilityHidden(true)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .frame(minHeight: Theme.Stats.minTarget, alignment: .leading)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
         .background {
             Button(action: action) { Color.clear.contentShape(Rectangle()) }
                 .buttonStyle(SoftPressStyle())
@@ -133,9 +139,11 @@ private struct StatsRow: View {
                 .font(.system(.subheadline, weight: .semibold))
                 .monospacedDigit()
                 .foregroundStyle(Theme.primaryText)
-            Text(Copy.Stats.lastPlayedLabel(item.lastPlayedDay, today: today))
-                .font(.footnote)
-                .foregroundStyle(Theme.secondaryText)
+            if showsLastPlayed || stacked {
+                Text(Copy.Stats.lastPlayedLabel(item.lastPlayedDay, today: today))
+                    .font(.footnote)
+                    .foregroundStyle(Theme.secondaryText)
+            }
         }
     }
 }
