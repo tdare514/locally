@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import type { ReleaseKind } from "../../shared/types";
 import CoverPicker from "../CoverPicker";
 import RecordSleeve from "../RecordSleeve";
@@ -9,7 +8,6 @@ import ArtistCombobox from "../ArtistCombobox";
 import ReleaseBar from "../ReleaseBar";
 import { libraryWidthClass } from "../../lib/library-view-prefs";
 import { useLibraryWidth } from "../../lib/use-library-width";
-import { BAR_MIN_HEIGHT, barPadding } from "../../lib/page-layout";
 import type { ArtistEntry } from "../../lib/artist-index";
 import FeaturingRow from "../FeaturingRow";
 import ReleaseDateField from "../ReleaseDateField";
@@ -113,7 +111,6 @@ export default function ImportRecord({
   artistIndex,
 }: ImportRecordProps) {
   const [width] = useLibraryWidth();
-  const [barHeight, setBarHeight] = useState(BAR_MIN_HEIGHT);
   const trackCount = `${tracks.length} track${tracks.length === 1 ? "" : "s"}`;
   // The wrapper's class is how the beat reaches the disc inside RecordSleeve.
   const stateClass = beat.stage === "playing" ? "imp-beat" : beat.stage === "settled" ? "imp-rest" : "";
@@ -122,10 +119,7 @@ export default function ImportRecord({
     // The bottom margin cancels the pane's own bottom padding (AppShell's p-6 md:p-10 lg:p-16), so the
     // bar's anchor sits at the pane's bottom edge. The bar is outside `imp-page-in`: it never fades in.
     <div className={`flex flex-1 flex-col -mb-6 md:-mb-10 lg:-mb-16 ${libraryWidthClass(width)}`}>
-    <div
-      className="imp-page-in flex flex-1 flex-col gap-12"
-      style={{ paddingBottom: barPadding(barHeight) }}
-    >
+    <div className="imp-page-in flex flex-1 flex-col gap-12">
       <div className="flex flex-col gap-12">
         <header className="flex flex-col gap-8 pt-2 lg:pt-4">
           <div className={stateClass} data-replay={beat.replay ? "true" : undefined}>
@@ -236,7 +230,6 @@ export default function ImportRecord({
     <ReleaseBar
       label="Import actions"
       tint={tint}
-      onHeight={setBarHeight}
       left={
         <button type="button" onClick={onAddTrack} disabled={importing} className="btn-ink">
           <span className="btn-ink-label">Add a track</span>

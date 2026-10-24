@@ -42,6 +42,7 @@ interface PlayerProps {
 export default function Player({ releases, onOpenRelease }: PlayerProps) {
   const state = usePlayerState();
   const audioRef = useRef<HTMLAudioElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const item = currentItem(state.queue);
   const info = useMemo(() => (item ? describeItem(item, releases) : null), [item, releases]);
   const url = item ? audioUrl(item) : undefined;
@@ -177,6 +178,17 @@ export default function Player({ releases, onOpenRelease }: PlayerProps) {
     };
   }, [goPrevious, seek]);
 
+  // Publish the bar's height (64 plus a 12 px gap) for the pane's bottom room (`--bottom-bars-h`).
+  const showing = Boolean(state.queue && info);
+  useEffect(() => {
+    if (!showing) return;
+    const stage = overlayRef.current?.parentElement;
+    stage?.style.setProperty("--mini-player-h", "76px");
+    return () => {
+      stage?.style.removeProperty("--mini-player-h");
+    };
+  }, [showing]);
+
   const tint = palette?.primary;
   const duration = state.durationSec;
 
@@ -210,7 +222,7 @@ export default function Player({ releases, onOpenRelease }: PlayerProps) {
         // The overlay takes the pane's left padding (the rail, and the card while it is pinned), so the bar lines up
         // with the page. It sits above the release bar (its height is published on the pane as --release-bar-h),
         // else 24 px up.
-        <div className="sb-stage-overlay pointer-events-none absolute inset-0 z-20 flex flex-col justify-end">
+        <div ref={overlayRef} className="sb-stage-overlay pointer-events-none absolute inset-0 z-20 flex flex-col justify-end">
         <div
           style={{ paddingBottom: "calc(24px + var(--release-bar-h, 0px))" }}
           className="px-8"
@@ -271,7 +283,12 @@ export default function Player({ releases, onOpenRelease }: PlayerProps) {
                 value={Math.min(Math.floor(state.positionSec), duration > 0 ? Math.floor(duration) : 0)}
                 disabled={!(duration > 0)}
                 onChange={(e) => seek(Number(e.currentTarget.value))}
-                style={{ accentColor: tint ?? "var(--accent)" }}
+                style={
+                  {
+                    "--scrub": `${duration > 0 ? Math.min(100, (state.positionSec / duration) * 100) : 0}%`,
+                    "--scrub-tint": tint ?? "var(--accent)",
+                  } as CSSProperties
+                }
                 className="mini-player-scrub h-8 min-w-0 flex-1 cursor-pointer rounded-md outline-none focus-visible:ring-2 focus-visible:ring-accent"
               />
               <span className="w-10 shrink-0 text-xs tabular-nums text-text-muted">{formatClock(duration)}</span>

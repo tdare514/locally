@@ -25,7 +25,7 @@ interface ReleaseBarProps {
   /** The main action, at the right end of the last line. Give it `btn-save btn-save-lit`. */
   main: ReactNode;
   /** The bar's measured height, so the page can keep its content clear of it. */
-  onHeight: (height: number) => void;
+  onHeight?: (height: number) => void;
   /** Accessible name of the bar's region. */
   label: string;
 }
@@ -59,9 +59,10 @@ export default function ReleaseBar({ tint, left, status, beforeMain, main, onHei
     const stage = pane?.parentElement ?? null;
     const measure = () => {
       const height = bar.getBoundingClientRect().height;
-      onHeightRef.current(height);
+      onHeightRef.current?.(height);
       if (pane) pane.style.scrollPaddingBottom = `${Math.ceil(height) + BAR_CLEARANCE}px`;
       stage?.style.setProperty("--release-bar-h", `${Math.ceil(height) + 12}px`);
+      stage?.style.setProperty("--no-bar", "0");
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -70,10 +71,16 @@ export default function ReleaseBar({ tint, left, status, beforeMain, main, onHei
       observer.disconnect();
       if (pane) pane.style.scrollPaddingBottom = before;
       stage?.style.removeProperty("--release-bar-h");
+      stage?.style.removeProperty("--no-bar");
     };
   }, []);
 
   return (
+    <>
+    {/* Room for this bar and the mini player (#338): `--bottom-bars-h` on the pane. It comes before the bar's anchor and
+        inside the page's container (the bar is its last child), so the content ends clear of both and the anchor, which a
+        sticky box can only hold back, still ends the page at the pane's bottom edge. */}
+    <div aria-hidden style={{ height: "var(--bottom-bars-h, 0px)" }} />
     <div className="pointer-events-none sticky bottom-0 z-20 h-0 md:-bottom-4 lg:-bottom-10">
       <div
         ref={barRef}
@@ -90,6 +97,7 @@ export default function ReleaseBar({ tint, left, status, beforeMain, main, onHei
         </div>
       </div>
     </div>
+    </>
   );
 }
 

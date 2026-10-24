@@ -15,7 +15,7 @@ import { useElementWidth } from "../lib/use-element-size";
 import { trackArtist, trackColumns, trackGridTemplate } from "../lib/track-columns";
 import { formatLength } from "../lib/adopt-review";
 import { adoptDiscAfterMove, discActionsFor, discHeadings, joinPreviousDisc, startDiscAt } from "../shared/discs";
-import DiscMenu from "./DiscMenu";
+import DiscMenu, { DiscNumberButton } from "./DiscMenu";
 import { NowPlayingIcon, PauseIcon, PlayIcon, XIcon } from "./Icons";
 import TrackPlaylistsLine, { type PlaylistRef } from "./TrackPlaylistsLine";
 import TrackFeaturing from "./TrackFeaturing";
@@ -507,7 +507,7 @@ export default function TrackList({
     onChange(next);
   }
 
-  const actionsWidth = (readOnly ? 0 : 32) + (onRemove ? 32 : 0) + (renderShare ? 32 : 0);
+  const actionsWidth = (readOnly ? 0 : 32) + (onRemove ? 32 : 0) + (renderShare ? 32 : 0) + (canEditDiscs ? 32 : 0);
   const gridTemplate = trackGridTemplate(columns, actionsWidth);
 
   return (
@@ -570,13 +570,10 @@ export default function TrackList({
               <span aria-hidden className="track-tile glass-fake glass-frost" />
               <div data-play-cell={player?.playableKeys.has(track.key) ? "" : undefined} className="relative shrink-0">
               {hasDiscActions ? (
-                <DiscMenu
+                <DiscNumberButton
                   number={index + 1}
-                  actions={discActions}
                   open={discMenuKey === track.key}
                   onOpenChange={(open) => setDiscMenuKey(open ? track.key : null)}
-                  onStart={() => applyDiscAction(track.key, startDiscAt(tracks, index))}
-                  onJoin={() => applyDiscAction(track.key, joinPreviousDisc(tracks, index))}
                 />
               ) : (
                 <span data-number className="w-6 shrink-0 text-sm tabular-nums text-white/60">
@@ -662,6 +659,17 @@ export default function TrackList({
               )}
               {actionsWidth > 0 && (
                 <div className="flex justify-end">
+              {hasDiscActions && (
+                <DiscMenu
+                  number={index + 1}
+                  title={track.title.trim() || `track ${index + 1}`}
+                  actions={discActions}
+                  open={discMenuKey === track.key}
+                  onOpenChange={(open) => setDiscMenuKey(open ? track.key : null)}
+                  onStart={() => applyDiscAction(track.key, startDiscAt(tracks, index))}
+                  onJoin={() => applyDiscAction(track.key, joinPreviousDisc(tracks, index))}
+                />
+              )}
               {renderShare?.(track.key, track.title.trim() || `track ${index + 1}`)}
               {!readOnly && (
                 <button

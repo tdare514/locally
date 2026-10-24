@@ -629,7 +629,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
         <fieldset disabled={IS_DEMO} className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
           <div className="flex items-center justify-between gap-4">
             <span id="track-plays-label" className="text-sm text-text-muted">
-              Count my Spotify plays
+              Count my plays
             </span>
             <button
               type="button"
@@ -647,12 +647,12 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
           </div>
           <p className="text-xs text-text-dim">
             {cloudActive
-              ? "Counts a Locally track once it has played 30 seconds in Spotify, on any of your devices, even when this Mac is off."
+              ? "Counts a Locally track once it has played 30 seconds in Spotify or in Locally on this Mac, or in Spotify on any of your devices, even when this Mac is off."
               : otherDevicesOn
-              ? "Counts a Locally track once it has played 30 seconds in Spotify, on any of your devices."
+              ? "Counts a Locally track once it has played 30 seconds in Spotify or in Locally on this Mac, or in Spotify on any of your devices."
               : showOtherDevicesRow
-                ? "Counts a Locally track once it has played 30 seconds in Spotify on this Mac, or on another device while Spotify is open here."
-                : "Counts a Locally track once it has played 30 seconds in Spotify. Plays on your other devices count while Spotify is open on this Mac."}
+                ? "Counts a Locally track once it has played 30 seconds in Spotify or in Locally on this Mac, or in Spotify on another device while Spotify is open here."
+                : "Counts a Locally track once it has played 30 seconds in Spotify or in Locally on this Mac, and plays on your other devices while Spotify is open here."}
           </p>
           {showOtherDevicesRow && (
             <>

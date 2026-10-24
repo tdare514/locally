@@ -11,8 +11,10 @@ export interface DiscActions {
 }
 
 interface DiscMenuProps {
-  /** The row's 1-based number, shown as the button's text. */
+  /** The row's 1-based number, for the menu's name. */
   number: number;
+  /** The track's title, for the trailing button's name: "Move {title} to another disc". */
+  title: string;
   actions: DiscActions;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -20,10 +22,9 @@ interface DiscMenuProps {
   onJoin: () => void;
 }
 
-/** A track's number turned into the handle for its disc menu (#222): the number with a small chevron
- * on hover or focus, and a menu of the two actions that apply ("Start disc N here", "Join disc N").
+/** The disc menu of a track row (#222), as the trailing chevron button and its menu of the two actions that apply ("Start disc N here", "Join disc N").
  * Real menu semantics: arrow keys move, Escape closes and gives focus back, a click outside closes. */
-export default function DiscMenu({ number, actions, open, onOpenChange, onStart, onJoin }: DiscMenuProps) {
+export default function DiscMenu({ number, title, actions, open, onOpenChange, onStart, onJoin }: DiscMenuProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLUListElement>(null);
@@ -48,7 +49,8 @@ export default function DiscMenu({ number, actions, open, onOpenChange, onStart,
     }
     function onPointerDown(e: PointerEvent) {
       const target = e.target as Element | null;
-      if (!target || wrapRef.current?.contains(target)) return;
+      // The number's own button toggles the menu, so a press on it is not "outside".
+      if (!target || wrapRef.current?.contains(target) || target.closest("[data-disc-button]")) return;
       onOpenChangeRef.current(false);
     }
     document.addEventListener("keydown", onKeyDown, true);
@@ -77,30 +79,19 @@ export default function DiscMenu({ number, actions, open, onOpenChange, onStart,
 
   return (
     <div ref={wrapRef} className="relative shrink-0">
+      {/* The pointer's way in (#338): the play button covers the number, so the menu has its own trailing button, quiet
+          like the grip until the row is hovered or has focus. The number stays the keyboard handle. */}
       <button
         ref={buttonRef}
         type="button"
-        data-disc-button
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        aria-label={`Track ${number}, disc options`}
+        aria-label={`Move ${title} to another disc`}
         onClick={() => onOpenChange(!open)}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowDown" && !open) {
-            e.preventDefault();
-            onOpenChange(true);
-          }
-        }}
-        className="group relative flex h-8 w-6 cursor-pointer items-center rounded-md text-sm tabular-nums text-white/60 outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-accent"
+        className="track-affordance flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-white outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
-        <span data-number className="tabular-nums">
-          {number}
-        </span>
-        <ChevronRightIcon
-          aria-hidden
-          className="absolute -right-2 size-3 rotate-90 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none"
-        />
+        <ChevronRightIcon aria-hidden className="size-4 rotate-90" />
       </button>
       {open && (
         <ul
@@ -111,7 +102,7 @@ export default function DiscMenu({ number, actions, open, onOpenChange, onStart,
           onKeyDown={onMenuKeyDown}
           // The track list starts a drag from a bare press; a press in here is not one.
           onPointerDown={(e) => e.stopPropagation()}
-          className="disc-pop glass-fake glass-frost absolute left-0 top-full z-30 isolate mt-1 min-w-44 rounded-2xl p-1.5"
+          className="disc-pop glass-fake glass-frost absolute right-0 top-full z-30 isolate mt-1 min-w-44 rounded-2xl p-1.5"
         >
           {items.map((item) => (
             <li key={item.label} role="none">
@@ -129,5 +120,44 @@ export default function DiscMenu({ number, actions, open, onOpenChange, onStart,
         </ul>
       )}
     </div>
+  );
+}
+
+/**
+ * A track's number as the keyboard handle of its disc menu (#222): Enter, Space or ArrowDown opens the menu that
+ * `DiscMenu` (the trailing button) shows. Right-click on the row opens it too.
+ */
+export function DiscNumberButton({
+  number,
+  open,
+  menuId,
+  onOpenChange,
+}: {
+  number: number;
+  open: boolean;
+  menuId?: string;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-disc-button
+      aria-haspopup="menu"
+      aria-expanded={open}
+      aria-controls={open ? menuId : undefined}
+      aria-label={`Track ${number}, disc options`}
+      onClick={() => onOpenChange(!open)}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowDown" && !open) {
+          e.preventDefault();
+          onOpenChange(true);
+        }
+      }}
+      className="relative flex h-8 w-6 cursor-pointer items-center rounded-md text-sm tabular-nums text-white/60 outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-accent"
+    >
+      <span data-number className="tabular-nums">
+        {number}
+      </span>
+    </button>
   );
 }

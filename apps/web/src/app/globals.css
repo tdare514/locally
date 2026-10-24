@@ -659,16 +659,65 @@ body {
     animation: none;
   }
 }
-/* Denser than the dock's body: this bar floats over the page's text, which must not read through it. */
+/* A solid, cover-tinted backing under the glass edge and highlight: nothing on the page can read through it.
+   --btn-tint is the playing cover's colour (a quiet 16 % of it on near-black); without a cover it is plain. */
 .glass-fake.glass-dock.mini-player {
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.03) 55%),
-    rgb(14 14 18 / 0.96);
+    linear-gradient(180deg, rgb(255 255 255 / 0.1), rgb(255 255 255 / 0.02) 55%),
+    color-mix(in srgb, var(--btn-tint, rgb(14 14 18)) 16%, rgb(14 14 18));
 }
 @media (prefers-reduced-transparency: reduce) {
   .glass-fake.glass-dock.mini-player {
     background: rgb(30 30 34);
   }
+}
+/* The scrubber: a quiet track (white at 20 %), the played part in the cover's colour, a round light thumb. The
+   fill is a hard-stop gradient at --scrub (set from the position), so it works in any engine. */
+.mini-player-scrub {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+.mini-player-scrub::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--scrub-tint, var(--accent)) var(--scrub, 0%),
+    rgb(255 255 255 / 0.2) var(--scrub, 0%)
+  );
+}
+.mini-player-scrub::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.2);
+}
+.mini-player-scrub::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--scrub-tint, var(--accent));
+}
+.mini-player-scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -4px;
+  border-radius: 50%;
+  border: 0;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.5), 0 0 0 2px rgb(0 0 0 / 0.25);
+}
+.mini-player-scrub::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 0;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.5);
+}
+.mini-player-scrub:disabled::-webkit-slider-thumb {
+  opacity: 0.4;
 }
 .mini-player-main {
   background: radial-gradient(120% 120% at 50% 0%, var(--btn-tint, var(--btn-tint-default, rgb(176 212 255 / 0.32))), rgb(255 255 255 / 0.06));
@@ -1522,6 +1571,15 @@ body {
    that starts partway back and settles. */
 .sb-stage {
   padding-left: 64px;
+  /* Room the pane keeps at its end for what floats over its bottom (#338): the release bar and the mini player
+     publish `--release-bar-h` and `--mini-player-h` (each its height plus a 12 px gap) on this element, and
+     there is 36 px of air on top when either shows. The release bar's spacer reads it; AppShell's end-of-pane
+     spacer covers the player alone on pages with no bar (`--no-bar`). */
+  --no-bar: 1; /* 0 while a release bar shows (it brings its own room) */
+  --bottom-bars-h: calc(
+    var(--release-bar-h, 0px) + var(--mini-player-h, 0px) +
+      min(36px, var(--release-bar-h, 0px) + var(--mini-player-h, 0px))
+  );
 }
 .sb[data-pinned="true"] ~ .sb-stage {
   padding-left: 368px;

@@ -33,11 +33,6 @@ import {
 } from "../lib/back-stack";
 import Toast, { type ToastMessage } from "./Toast";
 import Player from "./Player";
-import { usePlayerSelector } from "../lib/play-queue";
-
-/** Bottom padding of the pane while the mini player shows on a page with no release bar: its 64 px, the 24 px
- * under it and some air. */
-const MINI_PLAYER_PANE_PADDING = 120;
 
 export type View =
   | { type: "library" }
@@ -85,8 +80,6 @@ export default function AppShell() {
   const contentReady = useRef(true);
   const [statsShown, setStatsShown] = useState(STATS_PAGE_SIZE);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  // The mini player (#338) floats over the pane's bottom edge; pages without a release bar keep their last content clear of it.
-  const hasQueue = usePlayerSelector((s) => s.queue !== null);
   const nextToastId = useRef(0);
   // The library sky follows the scroll through --pane-progress and --pane-swirl on the sky
   // element (which fills the whole window, under the sidebar too), eased each frame so it twists while scrolling and settles after. Written
@@ -399,8 +392,6 @@ export default function AppShell() {
         <ArtistNavProvider value={{ open: (key) => pushTo({ type: "artist", key }), lockedReason: null }}>
         <main
           ref={mainRef}
-          // The release and import pages pad their own bottom (their bar sticks to the pane's padding edge).
-          style={hasQueue && view.type !== "release" && view.type !== "import" ? { paddingBottom: MINI_PLAYER_PANE_PADDING } : undefined}
           className={`relative isolate h-full overflow-y-auto p-6 md:p-10 lg:p-16 ${
             // Room under the back button where the page's own padding would run into it; at lg
             // the padding already clears it.
@@ -502,6 +493,12 @@ export default function AppShell() {
               onLibraryChanged={refreshLibrary}
             />
           )}
+          {/* Room for the mini player (#338) on a page with no release bar; a page with one gets its room, bar and player
+              together, from the bar itself (`--bottom-bars-h`, globals.css). 0 high when no player shows. */}
+          <div
+            aria-hidden
+            style={{ height: "calc((var(--mini-player-h, 0px) + min(36px, var(--mini-player-h, 0px))) * var(--no-bar, 1))" }}
+          />
         </main>
         </ArtistNavProvider>
         {/* The back button's wrapper has no `left`: an absolute box with left auto starts at the pane's
