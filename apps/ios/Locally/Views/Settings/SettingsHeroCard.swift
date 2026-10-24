@@ -110,6 +110,14 @@ struct SettingsHeroCard: View {
             }
         }
 
+        if syncStatus.signInAgainNotice {
+            Text(Copy.Sync.signInAgain)
+                .font(Theme.ScaledFont.subheadline)
+                .foregroundStyle(Theme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("sign-in-again-notice")
+        }
+
         if let sentTo = syncStatus.codeSentTo {
             Text("\(Copy.Sync.codeSentTo) \(sentTo)")
                 .font(Theme.ScaledFont.caption)

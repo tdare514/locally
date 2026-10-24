@@ -135,6 +135,7 @@ final class AppContainer {
         let syncApi = HttpSyncApi(account: syncAccount)
         let outbox = SwiftDataSyncOutbox(context: modelContainer.mainContext)
         let playCounts = FilePlayCountStore.standard()
+        let installIds = FileInstallIdStore.standard()
         let syncEngine = SyncEngine(
             api: syncApi,
             account: syncAccount,
@@ -145,7 +146,8 @@ final class AppContainer {
             deviceName: { SyncDeviceName.current() },
             shareCovers: ShareCoverCache.standard(),
             playCounts: playCounts,
-            installIds: FileInstallIdStore.standard()
+            installIds: installIds,
+            sessionBinding: FileSessionBindingStore.standard()
         )
         let container = AppContainer(
             folder: folder,

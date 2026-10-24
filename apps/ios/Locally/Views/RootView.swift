@@ -109,7 +109,11 @@ struct RootView: View {
         .onAppear {
             // A returning user with a stored bookmark skips onboarding entirely.
             if folderStatus.isConnected { hasFinishedOnboarding = true }
-            container?.syncEngine.startAutoReconcile()
+            // A token this install did not make is signed out before anything syncs (#337).
+            Task {
+                await container?.syncEngine.enforceBinding()
+                container?.syncEngine.startAutoReconcile()
+            }
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {

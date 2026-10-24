@@ -475,6 +475,8 @@ enum Copy {
     }
 
     enum Sync {
+        /// Shown in Settings and Stats after a session this install did not make was signed out (#337).
+        static let signInAgain = "Sign in again to keep syncing this phone."
         static let cardTitle = "Sync with your Mac"
         static let cardBody = "Keep this phone's library and your Mac's Locally library in step."
         static let emailFieldLabel = "Email"

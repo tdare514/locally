@@ -407,3 +407,92 @@ extension SyncEngineTests {
         #expect(h.api.putPlaysCalls.count == 2)
     }
 }
+
+final class InMemorySessionBinding: SessionBindingStoring {
+    var stored: UUID?
+    init(_ stored: UUID? = nil) { self.stored = stored }
+    func binding() -> UUID? { stored }
+    func bind(_ installId: UUID) { stored = installId }
+}
+
+extension SyncEngineTests {
+    private func boundHarness(binding: UUID?, ids: InMemoryInstallIdStore = InMemoryInstallIdStore()) -> (Harness, FilePlayCountStore, InMemorySessionBinding, UUID, UUID) {
+        let library = InMemoryLibraryStore()
+        var release = Release(kind: .single, title: "T", artist: "A", folderPath: "/lib", tracks: [])
+        release.syncedUpdatedAt = release.updatedAt
+        try? library.upsert(release)
+        let store = FilePlayCountStore(url: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true).appendingPathComponent("plays.json"))
+        let track = UUID()
+        store.increment(releaseId: release.id, trackId: track, at: Date())
+        let sessionBinding = InMemorySessionBinding(binding)
+        let h = makeHarness(library: library, playCounts: store, installIds: ids, sessionBinding: sessionBinding)
+        return (h, store, sessionBinding, release.id, track)
+    }
+
+    @Test func aLegacySessionWithNoBindingIsSignedOutAndPushesNothing() async {
+        let (h, store, _, release, track) = boundHarness(binding: nil)
+        #expect(!h.engine.status.signedIn)
+        await h.engine.reconcile()
+        #expect(h.account.deviceToken == nil)
+        #expect(h.api.putPlaysCalls.isEmpty)
+        #expect(h.api.revokedDeviceIds == ["device-1"])
+        #expect(store.count(releaseId: release, trackId: track) == 1)
+        #expect(h.engine.status.signInAgainNotice)
+        #expect(Copy.Sync.signInAgain == "Sign in again to keep syncing this phone.")
+        // The notice is remembered across launches.
+        let again = makeHarness(defaults: h.defaults, playCounts: store)
+        #expect(again.engine.status.signInAgainNotice)
+    }
+
+    @Test func aTokenThatOutlivedAReinstallIsSignedOutAndPushesNothing() async {
+        // No install-id file (a new id is made) and no binding file, or one for the old install.
+        for old in [nil, UUID()] {
+            let (h, store, _, release, track) = boundHarness(binding: old)
+            await h.engine.enforceBinding()
+            await h.engine.pushPlays()
+            #expect(h.account.deviceToken == nil)
+            #expect(h.api.putPlaysCalls.isEmpty)
+            #expect(store.count(releaseId: release, trackId: track) == 1)
+            #expect(h.engine.status.signInAgainNotice)
+        }
+    }
+
+    @Test func aBoundSessionPushesAsBefore() async {
+        let ids = InMemoryInstallIdStore()
+        let (h, store, _, _, _) = boundHarness(binding: ids.installId(), ids: ids)
+        #expect(h.engine.status.signedIn)
+        await h.engine.reconcile()
+        #expect(h.account.deviceToken != nil)
+        #expect(h.api.putPlaysCalls.count == 1)
+        #expect(store.pending().isEmpty)
+        #expect(!h.engine.status.signInAgainNotice)
+    }
+
+    @Test func signingInAfterTheForcedSignOutWritesTheBindingAndPushesNext() async throws {
+        let ids = InMemoryInstallIdStore()
+        let (h, store, binding, _, _) = boundHarness(binding: nil, ids: ids)
+        await h.engine.reconcile()
+        #expect(h.api.putPlaysCalls.isEmpty)
+        try await h.engine.verify(email: "toby@example.com", code: "123456")
+        #expect(binding.stored == ids.installId())
+        #expect(!h.engine.status.signInAgainNotice)
+        #expect(h.engine.status.signedIn)
+        // The sign-in's own reconcile pushed the counts; a later one finds nothing new.
+        #expect(h.api.putPlaysCalls.count == 1)
+        await h.engine.reconcile()
+        #expect(h.api.putPlaysCalls.count == 1)
+        #expect(store.pending().isEmpty)
+    }
+}
+
+struct FileSessionBindingStoreTests {
+    @Test func theBindingIsWrittenAndReadBack() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = FileSessionBindingStore(url: dir.appendingPathComponent("session-binding"))
+        #expect(store.binding() == nil)
+        let id = UUID()
+        store.bind(id)
+        #expect(FileSessionBindingStore(url: dir.appendingPathComponent("session-binding")).binding() == id)
+    }
+}

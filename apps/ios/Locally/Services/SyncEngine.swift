@@ -69,6 +69,9 @@ final class SyncStatus {
     /// Whether a code was just sent, and to which address — drives the
     /// Settings sign-in form's step (email entry vs. code entry).
     var codeSentTo: String?
+    /// Set when a session from before install ids, or one that outlived a reinstall, was signed out (#337):
+    /// Settings and Stats say to sign in again. Cleared by the next sign-in.
+    var signInAgainNotice = false
 
     init(
         signedIn: Bool = false,
@@ -132,6 +135,7 @@ final class SyncEngine: ReleaseSyncHook {
     /// The phone's own play counts (#337); nil in tests that don't count.
     private let playCounts: PlayCountStoring?
     private let installIds: InstallIdStoring?
+    private let sessionBinding: SessionBindingStoring?
     /// Bumps at sign-in, sign-out and account deletion: a play push that started under another value
     /// marks nothing and sends nothing more (the Mac's `pushedEpoch`).
     private var sessionEpoch = 0
@@ -170,11 +174,13 @@ final class SyncEngine: ReleaseSyncHook {
         defaults: UserDefaults = .standard,
         shareCovers: ShareCoverCache? = nil,
         playCounts: PlayCountStoring? = nil,
-        installIds: InstallIdStoring? = nil
+        installIds: InstallIdStoring? = nil,
+        sessionBinding: SessionBindingStoring? = nil
     ) {
         self.defaults = defaults
         self.playCounts = playCounts
         self.installIds = installIds
+        self.sessionBinding = sessionBinding
         self.shareCovers = shareCovers
         self.api = api
         self.account = account
@@ -187,10 +193,11 @@ final class SyncEngine: ReleaseSyncHook {
         self.reconcileSleep = reconcileSleep
         self.now = now
         self.deviceName = deviceName
-        status.signedIn = account.deviceToken != nil
-        status.email = account.email
-        status.deviceName = account.deviceName
-        if account.deviceToken != nil { restoreSyncQueues() }
+        status.signedIn = isSignedIn
+        status.email = isSignedIn ? account.email : nil
+        status.deviceName = isSignedIn ? account.deviceName : nil
+        status.signInAgainNotice = defaults.bool(forKey: Self.signInAgainKey)
+        if isSignedIn { restoreSyncQueues() }
     }
 
     // MARK: - Persisted queues
@@ -238,7 +245,30 @@ final class SyncEngine: ReleaseSyncHook {
         }
     }
 
-    var isSignedIn: Bool { account.deviceToken != nil }
+    static let signInAgainKey = "com.tdare.locally.sync.signInAgain.v1"
+
+    /// With install ids and a binding store wired (production), a session counts only when it was signed in
+    /// by this install: the binding file holds this install's id. Without them (most tests) it always does.
+    private var isBound: Bool {
+        guard let installIds, let sessionBinding else { return true }
+        return sessionBinding.binding() == installIds.installId()
+    }
+
+    /// Signed in, and by this install: an unbound session pushes and syncs nothing.
+    var isSignedIn: Bool { account.deviceToken != nil && isBound }
+
+    /// Signs out a token this install did not make (#337): a best-effort revoke of the old device with the
+    /// old token, then the local credentials and the pushed markers go (the counts stay), and Settings and
+    /// Stats ask to sign in again. Run at launch and at the start of every reconcile.
+    func enforceBinding() async {
+        guard account.deviceToken != nil, !isBound else { return }
+        if let deviceId = account.deviceId {
+            try? await api.revokeDevice(deviceId)
+        }
+        clearLocalAccountState()
+        defaults.set(true, forKey: Self.signInAgainKey)
+        status.signInAgainNotice = true
+    }
 
     // MARK: - Account
 
@@ -258,6 +288,10 @@ final class SyncEngine: ReleaseSyncHook {
         account.deviceName = result.deviceName
         account.userId = result.userId
         sessionEpoch += 1
+        // This install made the session: bind it, so a later launch knows the token is its own.
+        if let installIds, let sessionBinding { sessionBinding.bind(installIds.installId()) }
+        defaults.removeObject(forKey: Self.signInAgainKey)
+        status.signInAgainNotice = false
         // Another account's shares never carry over (its persisted ids stay under its own key).
         resetShareState(persisted: false)
         status.signedIn = true
@@ -659,6 +693,7 @@ final class SyncEngine: ReleaseSyncHook {
     /// progress rather than queuing a second one — a caller that reconciles
     /// while one is in flight just awaits that same run.
     func reconcile() async {
+        await enforceBinding()
         guard isSignedIn else { return }
         if let existing = reconcileTask {
             await existing.value
