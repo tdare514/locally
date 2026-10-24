@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Orchestrates every end-to-end release flow — import (single or album),
 /// edit in place, and delete — by calling the protocol-backed services in
@@ -810,6 +811,14 @@ final class ReleaseCoordinator {
         guard !defaults.bool(forKey: Self.brandFolderMigrationKey) else { return nil }
         guard let releases = try? library.all() else { return nil }
         let fm = FileManager.default
+        // An unreadable journal may hide a move already made, so do nothing this launch: no moves,
+        // the journal file left as it is, the flag unset. The next launch tries again.
+        var journal: [String: String]
+        do { journal = try journalStore.load() } catch {
+            Logger(subsystem: Bundle.main.bundleIdentifier ?? "Locally", category: "migration")
+                .error("Brand-folder migration paused: the journal can't be read (\(error.localizedDescription, privacy: .public))")
+            return nil
+        }
         var movedThisRun = 0
         var allDone = true
         do {
@@ -830,7 +839,6 @@ final class ReleaseCoordinator {
                     for index in updated.tracks.indices {
                         let track = updated.tracks[index]
                         let key = track.id.uuidString
-                        var journal = journalStore.load()
                         if let relative = journal[key] {
                             // A move was started for this track. If its destination exists and nobody
                             // else owns it, the move finished and only the index is behind.

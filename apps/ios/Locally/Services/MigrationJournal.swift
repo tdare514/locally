@@ -4,7 +4,9 @@ import Foundation
 /// destination's path relative to Spotify's folder, such as "Locally/one (2).mp3". A move is only
 /// safe to start once its entry is durably stored, so `save` must not return before it is.
 protocol MigrationJournalStore {
-    func load() -> [String: String]
+    /// An absent journal is empty; any other read or decode failure throws, because treating an
+    /// unreadable journal as empty would lose track of a move that was already made.
+    func load() throws -> [String: String]
     func save(_ journal: [String: String]) throws
     func clear()
 }
@@ -30,11 +32,13 @@ struct FileMigrationJournalStore: MigrationJournalStore {
         return base.appendingPathComponent("brand-folder-journal.json")
     }
 
-    func load() -> [String: String] {
+    func load() throws -> [String: String] {
         var journal: [String: String] = [:]
-        if let data = try? Data(contentsOf: url),
-           let stored = try? JSONDecoder().decode([String: String].self, from: data) {
-            journal = stored
+        do {
+            let data = try Data(contentsOf: url)
+            journal = try JSONDecoder().decode([String: String].self, from: data)
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile {
+            // No journal yet: nothing is in flight.
         }
         if let legacyDefaults,
            let old = legacyDefaults.dictionary(forKey: legacyKey) as? [String: String] {

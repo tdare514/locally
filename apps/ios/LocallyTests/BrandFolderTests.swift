@@ -173,9 +173,9 @@ struct BrandFolderTests {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).json")
         defaults.set(["t1": "\(Brand.folderName)/a.mp3"], forKey: ReleaseCoordinator.brandFolderMigrationJournalKey)
         let store = FileMigrationJournalStore(url: url, legacyDefaults: defaults)
-        #expect(store.load() == ["t1": "\(Brand.folderName)/a.mp3"])
+        #expect(try store.load() == ["t1": "\(Brand.folderName)/a.mp3"])
         #expect(defaults.dictionary(forKey: ReleaseCoordinator.brandFolderMigrationJournalKey) == nil)
-        #expect(FileMigrationJournalStore(url: url, legacyDefaults: nil).load() == ["t1": "\(Brand.folderName)/a.mp3"])
+        #expect(try FileMigrationJournalStore(url: url, legacyDefaults: nil).load() == ["t1": "\(Brand.folderName)/a.mp3"])
     }
 
     @Test func nameCollisionGetsAUniqueSuffix() async throws {
@@ -238,5 +238,51 @@ struct BrandFolderTests {
         #expect(storedA.tracks[0].filePath == a.tracks[0].filePath)
         #expect(storedB.tracks[0].filePath == owned.path)
         #expect(defaults.bool(forKey: ReleaseCoordinator.brandFolderMigrationKey))
+    }
+
+    /// A run died after moving "one" to the collision destination `Locally/one (2).mp3`.
+    private func seedInterruptedCollision(_ folder: FakeSpotifyFolder, _ library: InMemoryLibraryStore) throws -> Release {
+        let release = try seedLegacy(["one.mp3"], in: folder, library: library)
+        try FileManager.default.createDirectory(at: brandDir(folder), withIntermediateDirectories: true)
+        try Data([7]).write(to: brandDir(folder).appendingPathComponent("one.mp3"))
+        try FileManager.default.moveItem(at: folder.directory.appendingPathComponent("one.mp3"),
+                                         to: brandDir(folder).appendingPathComponent("one (2).mp3"))
+        return release
+    }
+
+    @Test func malformedJournalPausesTheMigrationAndKeepsTheFile() async throws {
+        let folder = makeFolder()
+        let library = InMemoryLibraryStore()
+        let defaults = makeDefaults()
+        let release = try seedInterruptedCollision(folder, library)
+        let journalURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).json")
+        let garbage = Data("{not json".utf8)
+        try garbage.write(to: journalURL)
+        let coordinator = makeCoordinator(folder: folder, library: library)
+        let moved = await coordinator.migrateIntoBrandFolder(defaults: defaults, journal: FileMigrationJournalStore(url: journalURL, legacyDefaults: nil))
+        #expect(moved == nil)
+        #expect(try Data(contentsOf: journalURL) == garbage)
+        #expect(!defaults.bool(forKey: ReleaseCoordinator.brandFolderMigrationKey))
+        let stored = try #require(try library.all().first { $0.id == release.id })
+        #expect(stored.tracks[0].filePath == release.tracks[0].filePath)
+        #expect(FileManager.default.fileExists(atPath: brandDir(folder).appendingPathComponent("one (2).mp3").path))
+    }
+
+    @Test func unreadableJournalPausesTheMigration() async throws {
+        let folder = makeFolder()
+        let library = InMemoryLibraryStore()
+        let defaults = makeDefaults()
+        let release = try seedInterruptedCollision(folder, library)
+        let coordinator = makeCoordinator(folder: folder, library: library)
+        let moved = await coordinator.migrateIntoBrandFolder(defaults: defaults, journal: UnreadableMigrationJournalStore())
+        #expect(moved == nil)
+        #expect(!defaults.bool(forKey: ReleaseCoordinator.brandFolderMigrationKey))
+        let stored = try #require(try library.all().first { $0.id == release.id })
+        #expect(stored.tracks[0].filePath == release.tracks[0].filePath)
+    }
+
+    @Test func missingJournalFileReadsAsEmpty() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).json")
+        #expect(try FileMigrationJournalStore(url: url, legacyDefaults: nil).load().isEmpty)
     }
 }
