@@ -395,6 +395,26 @@ enum Copy {
         static let trackItem = "Track"
         static func countLine(_ count: Int) -> String { count == 1 ? "1 collection" : "\(count) collections" }
         static let libraryRowHint = "Opens your collections"
+        // The record player (#352).
+        static let viewRecordPlayer = "Record player"
+        static let viewList = "List"
+        static let viewSwitchName = "View"
+        static let recordSwitchName = "Spinning record"
+        static let pictureDisc = "Picture disc"
+        static let blackVinyl = "Black vinyl"
+        static func eyebrow(_ count: Int) -> String { "Library \u{00B7} \(countLine(count))" }
+        static let sideA = "Side A"
+        static let sideB = "Side B"
+        static let editCollection = "Edit collection"
+        static let nothingPlaying = "Nothing playing"
+        static let previousTrack = "Previous track"
+        static let nextTrack = "Next track"
+        static func backTo(_ name: String) -> String { "Back to \(name)" }
+        /// "Late drives · track 3 of 27", above the title in now playing.
+        static func nowPlayingEyebrow(collection: String, track: Int, of count: Int) -> String { "\(collection) \u{00B7} track \(track) of \(count)" }
+        static let progressLabel = "Track progress"
+        /// The wheel's "+" under the count.
+        static let newCollectionLabel = "New collection"
     }
 
     enum Playback {

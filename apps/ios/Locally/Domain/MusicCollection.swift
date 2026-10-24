@@ -280,6 +280,9 @@ enum CollectionQueue {
         return (all.filter(\.isHeld).map(\.title), all.filter { !$0.isHeld }.count)
     }
 
+    /// Side A and Side B (display only, #352): the queue split in half, the extra track on Side A. This is how many rows Side A holds.
+    static func sideACount(_ rowCount: Int) -> Int { (rowCount + 1) / 2 }
+
     static func playOrder(_ tracks: [Track]) -> [Track] {
         tracks.sorted {
             ($0.discNumber ?? 1, $0.trackNumber) < ($1.discNumber ?? 1, $1.trackNumber)

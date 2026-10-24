@@ -6,14 +6,26 @@ struct CollectionsRoute: Hashable {}
 /// Pushes one collection's queue.
 struct CollectionRoute: Hashable {
     let id: UUID
+    /// Opens the page in edit mode ("Edit collection" on the record player, #352).
+    var startsEditing = false
 }
 
-/// The Collections screen in List view (#350): a search field, a row per collection, and "New collection". The
-/// record player look is a later step (`docs/plans/339-collections.md`).
+/// The Collections screen (`docs/plans/339-collections.md`): the record player (#352, the default) or the List view
+/// (#350: a search field, a row per collection, and "New collection"). The choice, and Picture disc / Black vinyl, are
+/// remembered per device.
 struct CollectionsView: View {
     let model: CollectionsModel
     var onOpen: (UUID) -> Void
+    /// "Edit collection" on the record player: that collection's page, in edit mode.
+    var onEdit: (UUID) -> Void = { _ in }
+    /// "Add tracks" on an empty collection: leaves for the Library.
+    var onAddTracks: () -> Void = {}
+    /// Opens the wheel on this collection (the debug gallery's browsing frame); otherwise on the playing one.
+    var startsOn: UUID?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.playback) private var playback
+    @AppStorage(CollectionsViewPrefs.viewKey) private var viewRaw = CollectionsViewMode.default.rawValue
+    @AppStorage(CollectionsViewPrefs.recordKey) private var recordRaw = SpinningRecord.default.rawValue
 
     @State private var query = ""
     @State private var isNaming = false
@@ -26,12 +38,61 @@ struct CollectionsView: View {
         return model.collections.filter { $0.name.lowercased().contains(needle) }
     }
 
+    private var mode: Binding<CollectionsViewMode> {
+        Binding(get: { CollectionsViewMode(storedRaw: viewRaw) }, set: { viewRaw = $0.rawValue })
+    }
+
+    private var record: Binding<SpinningRecord> {
+        Binding(get: { SpinningRecord(storedRaw: recordRaw) }, set: { recordRaw = $0.rawValue })
+    }
+
+    /// The record player shows once there are collections to put on the wheel.
+    private var showsPlayer: Bool {
+        mode.wrappedValue == .player && model.isLoaded && model.readFailure == nil && !model.collections.isEmpty
+    }
+
+    /// The collection the player's queue came from: the wheel opens on it.
+    private var playingCollectionID: UUID? {
+        guard let context = playback?.queue?.context, context.kind == .collection else { return nil }
+        return context.id
+    }
+
+    private var hasCollections: Bool { model.isLoaded && model.readFailure == nil && !model.collections.isEmpty }
+
     var body: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
+            if showsPlayer {
+                CollectionsPlayerView(
+                    model: model, mode: mode, record: record, startsOn: startsOn ?? playingCollectionID,
+                    onEdit: onEdit, onNew: { newName = ""; isNaming = true }, onAddTracks: onAddTracks
+                )
+            } else {
+                listScroll
+            }
+        }
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .task { model.reload() }
+        .alert(Copy.Collections.createFailed, isPresented: $createFailed) {
+            Button(Copy.Collections.tryAgain) { isNaming = true }
+            Button(Copy.Collections.cancel, role: .cancel) {}
+        }
+        .nameAlert(Copy.Collections.nameTitle, action: Copy.Collections.create, isPresented: $isNaming, text: $newName) { name in
+            do {
+                if let id = try model.create(name: name) { onOpen(id) }
+            } catch {
+                createFailed = true
+            }
+        }
+    }
+
+    private var listScroll: some View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     header
+                    if hasCollections { CollectionsModeSwitches(mode: mode, record: record) }
                     if !model.isLoaded {
                         loadingRows
                     } else if let failure = model.readFailure {
@@ -59,22 +120,6 @@ struct CollectionsView: View {
                 .padding(.bottom, 24)
             }
             .scrollDismissesKeyboard(.immediately)
-        }
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.hidden, for: .navigationBar)
-        .task { model.reload() }
-        .alert(Copy.Collections.createFailed, isPresented: $createFailed) {
-            Button(Copy.Collections.tryAgain) { isNaming = true }
-            Button(Copy.Collections.cancel, role: .cancel) {}
-        }
-        .nameAlert(Copy.Collections.nameTitle, action: Copy.Collections.create, isPresented: $isNaming, text: $newName) { name in
-            do {
-                if let id = try model.create(name: name) { onOpen(id) }
-            } catch {
-                createFailed = true
-            }
-        }
     }
 
     private var header: some View {

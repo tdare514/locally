@@ -334,6 +334,22 @@ enum Theme {
         static let recentCoverGap: CGFloat = 12
         /// Height the sheet's drag indicator takes above the content.
         static let coverSheetGrabberRoom: CGFloat = 24
+
+        // The Collections record player (#352), the house record easing `.timingCurve(0.16, 1, 0.3, 1)`.
+        /// The wheel snapping to a row after a drag, and turning to a tapped row.
+        static let wheelSnapDuration: Double = 0.45
+        static let wheelTapDuration: Double = 0.55
+        /// The hub record changing between Picture disc and Black vinyl, in place.
+        static let hubStyleDuration: Double = 0.3
+        /// The hub's radius (the dark platter rim included), and the rim's width.
+        static let hubRadius: CGFloat = 154
+        static let hubRimWidth: CGFloat = 8
+        /// The dark scrim over the page's cover wash, so grey text stays at 4.5:1 on a pale cover.
+        static let playerScrimOpacity: Double = 0.45
+        /// The switch's dot fading in under the chosen word.
+        static let wheelTagFadeDuration: Double = 0.2
+        /// The platter's dark rim.
+        static let platterColor = Color(red: 0x0A / 255, green: 0x0A / 255, blue: 0x0A / 255)
     }
 
     /// "Make a record" (#205): the cover beat, the invitation and the glow pill, ported from the
