@@ -176,7 +176,8 @@ Recorded on #339 (comment of 23 Oct).
 
 - **The prototype** (private): https://claude.ai/artifact/2J5qUxPQRrXSFa1jyzuRx7. **Screenshots:** `docs/design-previews/339/`.
   - `mac-record-player.png` (on the playing collection), `mac-record-player-browsing.png` (looking at another while one plays),
-    `phone-record-player.png` and `phone-record-player-browsing.png` are the chosen direction.
+    `mac-record-player-vinyl.png` (the Black vinyl choice), `phone-record-player.png` and `phone-record-player-browsing.png`
+    are the chosen direction.
   - `*-spines`, `*-crate`, `*-ledge`, `*-turntable` and `*-plain` are the variants explored on the way, kept for the record.
 - **The wheel:** rows on the right half of a dial whose hub sits on the left edge. A row is a small picture disc (72 on the Mac,
   52 on the iPhone): the collection's first cover printed edge to edge, faint grooves over it and a centre hole (owner, 23 Oct;
@@ -188,8 +189,11 @@ Recorded on #339 (comment of 23 Oct).
 - **The turntable (Mac):** a deck in the app's glass, the platter seen at an angle (a circle flattened to an ellipse, no 3D library),
   a tonearm that swings onto the record when it plays, the hovering cover (above), and now playing on the deck's right (on the
   iPhone, under it), with "Back to {name}" while browsing.
+- **A Records switch** (Picture disc / Black vinyl) sits beside Record player / List, remembered per device (owner, 23 Oct):
+  picture disc is the default; black vinyl shows the rows' records as vinyl with the cover as a small label. Changing it
+  redraws only the wheel.
 - **The iPhone's record:** the wheel's hub is the playing record (the hub's radius, its label the current track's cover,
-  a dark platter rim), turning at 33⅓ rpm while playing and still when paused. The count and + sit under the wheel.
+  a dark platter rim), turning at 33⅓ rpm while playing and still when paused. The count and + sit under the wheel. Under it, now playing, with the previous, play and next buttons centred (owner, 23 Oct).
 - **The queue:** Side A and Side B columns on the Mac (one column on the iPhone); the current track carries the #324
   now-playing glyph in the accent colour.
 - **Colour:** the page takes the front record's cover colours, as the release page does.
