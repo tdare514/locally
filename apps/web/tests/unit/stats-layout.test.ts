@@ -57,6 +57,31 @@ describe("sortItems", () => {
       expect(titles([...list].reverse())).toEqual(expected);
       expect(titles([list[2], list[4], list[0], list[3], list[1]])).toEqual(expected);
     });
+
+    it("mixed day and timestamp rows form no cycle: all 6 permutations give one order", () => {
+      const A = { ...item(1, "A", "2026-10-24"), lastPlayedAt: new Date("2026-10-20T12:00:00").getTime() };
+      const B = item(2, "B", "2026-10-23");
+      const C = { ...item(3, "C", "2026-10-22"), lastPlayedAt: new Date("2026-10-22T12:00:00").getTime() };
+      const perms = [[A, B, C], [A, C, B], [B, A, C], [B, C, A], [C, A, B], [C, B, A]];
+      for (const p of perms) expect(titles(p)).toEqual(["A", "B", "C"]);
+    });
+
+    it("random mixed rows sort the same for every input permutation", () => {
+      let seed = 7;
+      const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+      for (let round = 0; round < 20; round++) {
+        const rows = Array.from({ length: 7 }, (_, n) => {
+          const day = rnd() < 0.2 ? null : `2026-10-${String(15 + Math.floor(rnd() * 5)).padStart(2, "0")}`;
+          const base = item(n + 1, `r${n}`, day);
+          return rnd() < 0.5 ? { ...base, lastPlayedAt: new Date(2026, 9, 14 + Math.floor(rnd() * 8), Math.floor(rnd() * 24)).getTime() } : base;
+        });
+        const expected = titles(rows);
+        for (let k = 0; k < 10; k++) {
+          const shuffled = [...rows].sort(() => rnd() - 0.5);
+          expect(titles(shuffled)).toEqual(expected);
+        }
+      }
+    });
   });
 
   it("keeps each item's plays rank whatever the order", () => {

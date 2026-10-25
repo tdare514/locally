@@ -126,4 +126,19 @@ describe("PlayTracker writes play events for Spotify plays (#398)", () => {
     expect(list[0].listenedMs).toBeGreaterThan(40_000);
     expect((await counts.get()).tracks.t1.count).toBe(1);
   });
+
+  it("a second outage in the same counted play raises the same event again", async () => {
+    for (let pos = 0; pos <= 40; pos += 5) await tick(playing(pos));
+    await tick({ running: false });
+    for (let pos = 45; pos <= 80; pos += 5) await tick(playing(pos));
+    await tick({ running: false });
+    const afterFirst = (await events.list())[0].listenedMs;
+    expect(afterFirst).toBeGreaterThan(40_000);
+    for (let pos = 85; pos <= 140; pos += 5) await tick(playing(pos));
+    await tick(paused(140));
+    const list = await events.list();
+    expect(list).toHaveLength(1);
+    expect(list[0].listenedMs).toBeGreaterThan(afterFirst);
+    expect((await counts.get()).tracks.t1.count).toBe(1);
+  });
 });

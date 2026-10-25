@@ -11,11 +11,18 @@ export const SORTS: { value: SortKey; label: string }[] = [
   { value: "recent", label: "Recently played" },
 ];
 
+/** Local midnight of a `YYYY-MM-DD`, in ms; null when absent or not a date. */
+function startOfLocalDayMs(day: string | null): number | null {
+  const m = day ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(day) : null;
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime();
+}
+
 /**
  * The list in the chosen order. Rows keep their plays rank under any sort, so a name or recency
- * sort still shows who is on top. Recently played puts the latest play first: by time when both items
- * have one, else by day (on the same day an item with a time sits above one without); items with no
- * known day go last, in rank order, as do ties.
+ * sort still shows who is on top. Recently played puts the latest play first by one key per row: the later
+ * of its time and the start of its day (on the same day an item with a time sits above one without);
+ * items with no known day go last, in rank order, as do ties.
  */
 export function sortItems(items: StatItem[], sort: SortKey): StatItem[] {
   const copy = [...items];
@@ -23,18 +30,14 @@ export function sortItems(items: StatItem[], sort: SortKey): StatItem[] {
     return copy.sort((a, b) => a.title.localeCompare(b.title, "en", { sensitivity: "base" }) || a.rank - b.rank);
   }
   if (sort === "recent") {
+    // One key per row, so the order is total: the later of the play's time and the start of its local day.
+    // A timed play on a day is at or above an untimed one of the same day; rows with neither go last, by rank.
+    const keyOf = (i: StatItem): number => Math.max(i.lastPlayedAt ?? -Infinity, startOfLocalDayMs(i.lastPlayedDay) ?? -Infinity);
+    const keys = new Map(copy.map((i) => [i, keyOf(i)] as const));
     return copy.sort((a, b) => {
-      // Two timestamps decide it, so a morning play sits below an evening one of the same day.
-      if (a.lastPlayedAt != null && b.lastPlayedAt != null && a.lastPlayedAt !== b.lastPlayedAt) return b.lastPlayedAt - a.lastPlayedAt;
-      if (a.lastPlayedDay !== b.lastPlayedDay) {
-        if (a.lastPlayedDay === null) return 1;
-        if (b.lastPlayedDay === null) return -1;
-        return a.lastPlayedDay < b.lastPlayedDay ? 1 : -1;
-      }
-      // The same day: one with a timestamp above one without, else rank.
-      const aHas = a.lastPlayedAt != null;
-      const bHas = b.lastPlayedAt != null;
-      if (aHas !== bHas) return aHas ? -1 : 1;
+      const ka = keys.get(a) as number;
+      const kb = keys.get(b) as number;
+      if (ka !== kb) return ka > kb ? -1 : 1;
       return a.rank - b.rank;
     });
   }

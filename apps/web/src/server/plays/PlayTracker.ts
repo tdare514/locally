@@ -36,7 +36,7 @@ export class PlayTracker {
   /** True while the sync service counts plays online and this Mac stays out of it (#307). */
   private standDown = false;
   /** The counted play whose event is being raised as samples come in (#398); null when none is. */
-  /** The `startedAt` of the restored session `reattach` last looked up, so a track that doesn't resolve isn't looked up every poll. */
+  /** The `startedAt` of the restored session `reattach` failed to resolve, so a track that doesn't resolve isn't looked up every poll. A success is not cached: every outage reattaches again. */
   private reattachTried: number | null = null;
   private eventSession: { trackId: string; releaseId: string; startedAt: number; written: number; latest: number } | null = null;
 
@@ -204,15 +204,17 @@ export class PlayTracker {
   /**
    * The counter restored a counted session (Spotify came back within ten minutes, or the source switched): its play
    * was counted and its event written before, so listening goes on raising that same event. Nothing is counted or
-   * created here; the event is found again by its identity (source, trackId, startedAt). Tried once per session.
+   * created here; the event is found again by its identity (source, trackId, startedAt). A failed lookup is tried once per session.
    */
   private async reattach(spotifyId: string | null): Promise<void> {
     const session = this.counter.session();
     if (!session || !session.counted || session.id !== spotifyId || this.reattachTried === session.startedAt) return;
-    this.reattachTried = session.startedAt;
     const settings: Settings = await this.settings.get();
     const resolved = resolveLocalTrack(session.id, await this.library.list(settings.libraryDir));
-    if (resolved.kind !== "match") return;
+    if (resolved.kind !== "match") {
+      this.reattachTried = session.startedAt;
+      return;
+    }
     const listenedMs = Math.min(session.listenedMs, MAX_EVENT_LISTENED_MS);
     this.eventSession = { trackId: resolved.trackId, releaseId: resolved.releaseId, startedAt: session.startedAt, written: listenedMs, latest: listenedMs };
   }

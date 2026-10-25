@@ -5,6 +5,8 @@ import { emptyPlayCounts, type PlayCounts, type PlayCountStore, type PlaySource,
 import { cleanStoredDays, localDay, pruneDays } from "./playDays";
 
 const FILE_MODE = 0o600;
+const SESSION_KEY_TTL_MS = 2 * 86_400_000;
+const SESSION_KEY_CAP = 2000;
 
 const SourceCountsSchema = z.object({
   count: z.number().int().min(0),
@@ -42,7 +44,15 @@ const PlayCountsSchema = z.object({
     }),
   ),
   daysInSync: z.boolean().optional(),
+  countedSessions: z.unknown().optional(),
 });
+
+function cleanSessions(raw: unknown): Record<string, number> | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(raw)) if (typeof v === "number" && Number.isFinite(v)) out[k] = v;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
 
 /** JSON-file backed {@link PlayCountStore}: `plays.json` next to `settings.json`, owner-only. */
 export class FilePlayCountStore implements PlayCountStore {
@@ -91,11 +101,32 @@ export class FilePlayCountStore implements PlayCountStore {
         ...(locally ? { locally } : {}),
       };
     }
-    return parsed.data.daysInSync ? { version: 1, tracks, daysInSync: true } : { version: 1, tracks };
+    const countedSessions = cleanSessions(parsed.data.countedSessions);
+    return {
+      version: 1,
+      tracks,
+      ...(parsed.data.daysInSync ? { daysInSync: true as const } : {}),
+      ...(countedSessions ? { countedSessions } : {}),
+    };
+  }
+
+  async incrementOnce(trackId: string, releaseId: string, day: string, source: PlaySource, sessionKey: string): Promise<boolean> {
+    let counted = false;
+    await this.mutate((counts) => {
+      if (counts.countedSessions?.[sessionKey] !== undefined) return;
+      this.applyIncrement(counts, trackId, releaseId, day, source);
+      counts.countedSessions = { ...counts.countedSessions, [sessionKey]: this.now() };
+      counted = true;
+    });
+    return counted;
   }
 
   increment(trackId: string, releaseId: string, day: string, source: PlaySource = "spotify"): Promise<void> {
-    return this.mutate((counts) => {
+    return this.mutate((counts) => this.applyIncrement(counts, trackId, releaseId, day, source));
+  }
+
+  private applyIncrement(counts: PlayCounts, trackId: string, releaseId: string, day: string, source: PlaySource): void {
+    {
       const entry = counts.tracks[trackId];
       if (source === "locally") {
         const own = entry?.locally;
@@ -110,7 +141,7 @@ export class FilePlayCountStore implements PlayCountStore {
       counts.tracks[trackId] = entry
         ? { ...entry, releaseId, count: entry.count + 1, days }
         : { releaseId, count: 1, pushed: 0, days };
-    });
+    }
   }
 
   removeRelease(releaseId: string): Promise<void> {
@@ -184,12 +215,25 @@ export class FilePlayCountStore implements PlayCountStore {
 
   private async write(counts: PlayCounts): Promise<void> {
     this.dropOldDays(counts);
+    this.dropOldSessions(counts);
     await fs.mkdir(settingsDir(), { recursive: true, mode: 0o700 });
     const file = playsFilePath();
     const tmp = `${file}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     await fs.writeFile(tmp, JSON.stringify(counts, null, 2), { encoding: "utf-8", mode: FILE_MODE });
     await fs.chmod(tmp, FILE_MODE);
     await fs.rename(tmp, file);
+  }
+
+  /** Session keys older than 2 days go, and at most the newest SESSION_KEY_CAP stay. */
+  private dropOldSessions(counts: PlayCounts): void {
+    if (!counts.countedSessions) return;
+    const cutoff = this.now() - SESSION_KEY_TTL_MS;
+    const kept = Object.entries(counts.countedSessions)
+      .filter(([, at]) => at >= cutoff)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, SESSION_KEY_CAP);
+    if (kept.length > 0) counts.countedSessions = Object.fromEntries(kept);
+    else delete counts.countedSessions;
   }
 
   /** Day buckets older than 400 days go when the file is written; the all-time counts stay. */

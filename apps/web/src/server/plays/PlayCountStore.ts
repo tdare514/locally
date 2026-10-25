@@ -52,6 +52,11 @@ export interface PlayCounts {
   tracks: Record<string, PlayCountEntry>;
   /** True once a days push pass has run to completion since the last reset (#202). Absent means false. */
   daysInSync?: boolean;
+  /**
+   * Sessions counted through `incrementOnce`, key -> when it was counted (epoch ms), so a repeated report of one
+   * session never counts twice (#398). Pruned after 2 days and capped. Absent in older files; nothing else reads it.
+   */
+  countedSessions?: Record<string, number>;
 }
 
 /** Persists per-track play counts counted on this Mac. */
@@ -60,6 +65,9 @@ export interface PlayCountStore {
   /** Add one play for a track: to its all-time count and to the bucket for `day` (`YYYY-MM-DD`, local to the Mac),
    * under `source` (Spotify when omitted). */
   increment(trackId: string, releaseId: string, day: string, source?: PlaySource): Promise<void>;
+  /** Like `increment`, but a no-op when `sessionKey` was already counted. The key and the count are written in one
+   * atomic file write. Returns whether it counted. */
+  incrementOnce(trackId: string, releaseId: string, day: string, source: PlaySource, sessionKey: string): Promise<boolean>;
   /** Drop every entry belonging to a release (it was deleted locally). */
   removeRelease(releaseId: string): Promise<void>;
   /** Changes every time `resetPushed` runs. A push reads it before it sends and hands it back to

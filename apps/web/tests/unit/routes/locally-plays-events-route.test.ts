@@ -84,6 +84,24 @@ describe("/api/plays/locally with startedAt and listenedMs (#398)", () => {
     expect(await events.list()).toHaveLength(1);
   });
 
+  it("a failed markCounted, then a retry, counts once", async () => {
+    const body = { releaseId: R1, trackId: T1, startedAt: now - 300_000, listenedMs: 31_000 };
+    vi.spyOn(events, "markCounted").mockRejectedValueOnce(new Error("disk full"));
+    expect((await POST(req(body))).status).toBe(500);
+    expect((await counts.get()).tracks[T1].locally?.count).toBe(1);
+    expect((await POST(req({ ...body, listenedMs: 60_000 }))).status).toBe(200);
+    expect((await counts.get()).tracks[T1].locally?.count).toBe(1);
+  });
+
+  it("a restart (a new event store over the same file) with the event still uncounted does not count again", async () => {
+    const body = { releaseId: R1, trackId: T1, startedAt: now - 300_000, listenedMs: 31_000 };
+    vi.spyOn(events, "markCounted").mockRejectedValueOnce(new Error("killed"));
+    await POST(req(body));
+    services = { ...services, playEvents: new FilePlayEventStore() } as unknown as Services;
+    expect((await POST(req({ ...body, listenedMs: 60_000 }))).status).toBe(200);
+    expect((await counts.get()).tracks[T1].locally?.count).toBe(1);
+  });
+
   it("another session of the same track is a second event and a second count", async () => {
     await POST(req({ releaseId: R1, trackId: T1, startedAt: now - 600_000, listenedMs: 31_000 }));
     await POST(req({ releaseId: R1, trackId: T1, startedAt: now - 100_000, listenedMs: 31_000 }));

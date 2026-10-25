@@ -64,7 +64,9 @@ export async function POST(request: NextRequest) {
       await serialised(async () => {
         const needsCount = await playEvents.record({ releaseId: release.id, ...key, listenedMs });
         if (needsCount) {
-          await playStore.increment(body.data.trackId, release.id, localDay(Date.now()), "locally");
+          // The count store holds the session key, written with the count in one file write: a failed marker or a
+          // restart between the two writes can't count the session again. The event's `counted` is only a hint.
+          await playStore.incrementOnce(body.data.trackId, release.id, localDay(Date.now()), "locally", `${key.source}:${key.trackId}:${startedAt}`);
           await playEvents.markCounted(key);
         }
       });
