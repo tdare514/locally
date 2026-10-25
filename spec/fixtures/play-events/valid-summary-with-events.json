@@ -1,0 +1,48 @@
+{
+  "tracks": [
+    {
+      "trackId": "a1b2c3d4-0001-4a5b-8c9d-0123456789ab",
+      "releaseId": "3f2a6c1e-8b7d-4e5a-9c1d-2a4b6c8d0e1f",
+      "plays": 4,
+      "devicePlays": 2,
+      "bySource": {
+        "spotify": 1,
+        "locally": 3
+      },
+      "lastPlayedDay": "2026-10-24",
+      "lastPlayedAt": 1792841234567,
+      "listenedMs": 642000,
+      "events": 3
+    },
+    {
+      "trackId": "a1b2c3d4-0002-4a5b-8c9d-0123456789ab",
+      "releaseId": "3f2a6c1e-8b7d-4e5a-9c1d-2a4b6c8d0e1f",
+      "plays": 1,
+      "devicePlays": 0,
+      "bySource": {
+        "spotify": 1,
+        "locally": 0
+      },
+      "lastPlayedDay": "2026-10-20",
+      "lastPlayedAt": null,
+      "listenedMs": 0,
+      "events": 0
+    }
+  ],
+  "allTime": [
+    {
+      "trackId": "a1b2c3d4-0001-4a5b-8c9d-0123456789ab",
+      "releaseId": "3f2a6c1e-8b7d-4e5a-9c1d-2a4b6c8d0e1f",
+      "plays": 9,
+      "devicePlays": 5,
+      "bySource": {
+        "spotify": 2,
+        "locally": 7
+      },
+      "lastPlayedAt": 1792841234567,
+      "listenedMs": 1830000,
+      "events": 8
+    }
+  ],
+  "nextCursor": null
+}
