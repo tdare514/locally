@@ -34,7 +34,13 @@ struct SongPageLoaderTests {
     @Test func onlyFourRangedReadsAreMadeEachCachedAndNeverForced() async {
         let stats = FakePlayStats()
         let loader = SongPageLoader(stats: stats, allTimePlays: Self.total(1))
-        await loader.load(release: Self.release(), trackID: Self.trackID)
+        // A Wednesday mid-month on a Monday-first calendar, so today, the week, the month and the year are four
+        // different ranges (on the first day of a week, today and the week are the same range).
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        calendar.firstWeekday = 2
+        let wednesday = calendar.date(from: DateComponents(year: 2026, month: 10, day: 21, hour: 12))!
+        await loader.load(release: Self.release(), trackID: Self.trackID, now: wednesday, calendar: calendar)
         #expect(stats.calls.count == 4)
         #expect(Set(stats.calls.map { "\($0.from)/\($0.to)" }).count == 4)
         #expect(stats.calls.allSatisfy { !$0.force })
