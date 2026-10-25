@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Release } from "../../../src/shared/types";
 import type { Services } from "../../../src/server/container";
+import { FilePlayCountStore } from "../../../src/server/plays/FilePlayCountStore";
 import { FilePlayEventStore } from "../../../src/server/plays/FilePlayEventStore";
 import { PlayCountSession, type QueueItem } from "../../../src/lib/play-queue";
 import { FakePlayCountStore } from "../FakePlayCountStore";
@@ -91,6 +92,45 @@ describe("/api/plays/locally with startedAt and listenedMs (#398)", () => {
     expect((await counts.get()).tracks[T1].locally?.count).toBe(1);
     expect((await POST(req({ ...body, listenedMs: 60_000 }))).status).toBe(200);
     expect((await counts.get()).tracks[T1].locally?.count).toBe(1);
+  });
+
+  it("a normal play leaves no session key behind", async () => {
+    await POST(req({ releaseId: R1, trackId: T1, startedAt: now - 300_000, listenedMs: 31_000 }));
+    expect((await counts.get()).countedSessions ?? {}).toEqual({});
+  });
+
+  it("with real stores, a failed markCounted keeps the key through 3 and 30 days of other writes, and the retry counts once and releases it", async () => {
+    let clock = Date.now();
+    const open = () => {
+      const c = new FilePlayCountStore(() => clock, "UTC");
+      services = { ...services, playStore: c, playEvents: new FilePlayEventStore(() => clock, "UTC") } as unknown as Services;
+      return c;
+    };
+    const body = { releaseId: R1, trackId: T1, startedAt: clock - 300_000, listenedMs: 31_000 };
+    let store = open();
+    vi.spyOn(services.playEvents, "markCounted").mockRejectedValueOnce(new Error("disk full"));
+    expect((await POST(req(body))).status).toBe(500);
+    for (const days of [3, 30]) {
+      clock += days * 86_400_000;
+      await store.increment("other-track", R1, "2026-01-01", "locally");
+      store = open();
+      expect(Object.keys((await store.get()).countedSessions ?? {})).toHaveLength(1);
+    }
+    expect((await POST(req({ ...body, listenedMs: 60_000 }))).status).toBe(200);
+    const after = await open().get();
+    expect(after.tracks[T1].locally?.count).toBe(1);
+    expect(after.countedSessions).toBeUndefined();
+    expect((await services.playEvents.list())[0].counted).toBe(true);
+  });
+
+  it("an event already counted whose key is still present does not count again, and the key is released", async () => {
+    const body = { releaseId: R1, trackId: T1, startedAt: now - 300_000, listenedMs: 31_000 };
+    vi.spyOn(counts, "releaseSession").mockRejectedValueOnce(new Error("disk full"));
+    expect((await POST(req(body))).status).toBe(500);
+    expect(Object.keys((await counts.get()).countedSessions ?? {})).toHaveLength(1);
+    expect((await POST(req({ ...body, listenedMs: 60_000 }))).status).toBe(200);
+    expect((await counts.get()).tracks[T1].locally?.count).toBe(1);
+    expect((await counts.get()).countedSessions ?? {}).toEqual({});
   });
 
   it("a restart (a new event store over the same file) with the event still uncounted does not count again", async () => {

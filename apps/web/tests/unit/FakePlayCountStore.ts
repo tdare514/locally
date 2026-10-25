@@ -32,6 +32,10 @@ export class FakePlayCountStore implements PlayCountStore {
     return true;
   }
 
+  async releaseSession(sessionKey: string): Promise<void> {
+    if (this.counts.countedSessions) delete this.counts.countedSessions[sessionKey];
+  }
+
   async removeRelease(releaseId: string): Promise<void> {
     for (const [id, entry] of Object.entries(this.counts.tracks)) {
       if (entry.releaseId === releaseId) delete this.counts.tracks[id];

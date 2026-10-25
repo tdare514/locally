@@ -117,9 +117,18 @@ describe("play counts per source (#338)", () => {
     expect(Object.keys(got.countedSessions ?? {}).sort()).toEqual(["locally:t:1", "locally:t:2"]);
   });
 
-  it("prunes session keys older than 2 days", async () => {
-    await new FilePlayCountStore(() => NOW - 3 * 86_400_000, "UTC").incrementOnce(T1, R1, DAY, "locally", "old");
+  it("prunes session keys older than 400 days, and keeps a 399-day-old one", async () => {
+    await new FilePlayCountStore(() => NOW - 401 * 86_400_000, "UTC").incrementOnce(T1, R1, DAY, "locally", "old");
+    await new FilePlayCountStore(() => NOW - 399 * 86_400_000, "UTC").incrementOnce(T1, R1, DAY, "locally", "recent");
     await newStore().incrementOnce(T1, R1, DAY, "locally", "new");
-    expect(Object.keys((await newStore().get()).countedSessions ?? {})).toEqual(["new"]);
+    expect(Object.keys((await newStore().get()).countedSessions ?? {}).sort()).toEqual(["new", "recent"]);
+  });
+
+  it("releaseSession deletes the key, and is a no-op for a missing one", async () => {
+    await newStore().incrementOnce(T1, R1, DAY, "locally", "k");
+    await newStore().releaseSession("missing");
+    expect(Object.keys((await newStore().get()).countedSessions ?? {})).toEqual(["k"]);
+    await newStore().releaseSession("k");
+    expect((await newStore().get()).countedSessions).toBeUndefined();
   });
 });

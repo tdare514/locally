@@ -2,11 +2,13 @@ import fs from "node:fs/promises";
 import { z } from "zod";
 import { playsFilePath, settingsDir } from "../config/paths";
 import { emptyPlayCounts, type PlayCounts, type PlayCountStore, type PlaySource, type SourceCounts } from "./PlayCountStore";
-import { cleanStoredDays, localDay, pruneDays } from "./playDays";
+import { cleanStoredDays, localDay, pruneDays, RETENTION_DAYS } from "./playDays";
 
 const FILE_MODE = 0o600;
-const SESSION_KEY_TTL_MS = 2 * 86_400_000;
-const SESSION_KEY_CAP = 2000;
+/** A session key lives as long as the route accepts a report of its session (400 days), unless it is released first. */
+const SESSION_KEY_TTL_MS = RETENTION_DAYS * 86_400_000;
+/** A backstop only: keys are released within seconds of the counted marker, so the set normally holds a handful. */
+const SESSION_KEY_CAP = 20_000;
 
 const SourceCountsSchema = z.object({
   count: z.number().int().min(0),
@@ -121,6 +123,14 @@ export class FilePlayCountStore implements PlayCountStore {
     return counted;
   }
 
+  async releaseSession(sessionKey: string): Promise<void> {
+    if ((await this.get()).countedSessions?.[sessionKey] === undefined) return;
+    await this.mutate((counts) => {
+      if (!counts.countedSessions) return;
+      delete counts.countedSessions[sessionKey];
+    });
+  }
+
   increment(trackId: string, releaseId: string, day: string, source: PlaySource = "spotify"): Promise<void> {
     return this.mutate((counts) => this.applyIncrement(counts, trackId, releaseId, day, source));
   }
@@ -224,7 +234,10 @@ export class FilePlayCountStore implements PlayCountStore {
     await fs.rename(tmp, file);
   }
 
-  /** Session keys older than 2 days go, and at most the newest SESSION_KEY_CAP stay. */
+  /**
+   * Session keys older than 400 days go (a report can't be that old, so the key can't be needed), and at most the
+   * newest SESSION_KEY_CAP stay. A key not yet released is never dropped sooner: it is what stops a retry counting twice.
+   */
   private dropOldSessions(counts: PlayCounts): void {
     if (!counts.countedSessions) return;
     const cutoff = this.now() - SESSION_KEY_TTL_MS;

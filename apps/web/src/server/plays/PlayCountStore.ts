@@ -54,7 +54,7 @@ export interface PlayCounts {
   daysInSync?: boolean;
   /**
    * Sessions counted through `incrementOnce`, key -> when it was counted (epoch ms), so a repeated report of one
-   * session never counts twice (#398). Pruned after 2 days and capped. Absent in older files; nothing else reads it.
+   * session never counts twice (#398). Removed by `releaseSession` once the event is marked counted; else pruned after 400 days and capped at 20,000. Absent in older files; nothing else reads it.
    */
   countedSessions?: Record<string, number>;
 }
@@ -68,6 +68,8 @@ export interface PlayCountStore {
   /** Like `increment`, but a no-op when `sessionKey` was already counted. The key and the count are written in one
    * atomic file write. Returns whether it counted. */
   incrementOnce(trackId: string, releaseId: string, day: string, source: PlaySource, sessionKey: string): Promise<boolean>;
+  /** Forget a session key once its event is marked counted. One write; a no-op when the key is missing. */
+  releaseSession(sessionKey: string): Promise<void>;
   /** Drop every entry belonging to a release (it was deleted locally). */
   removeRelease(releaseId: string): Promise<void>;
   /** Changes every time `resetPushed` runs. A push reads it before it sends and hands it back to

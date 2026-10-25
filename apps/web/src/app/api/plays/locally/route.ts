@@ -63,12 +63,17 @@ export async function POST(request: NextRequest) {
       const key = { source: "locally" as const, trackId: body.data.trackId, startedAt };
       await serialised(async () => {
         const needsCount = await playEvents.record({ releaseId: release.id, ...key, listenedMs });
+        const sessionKey = `${key.source}:${key.trackId}:${startedAt}`;
         if (needsCount) {
           // The count store holds the session key, written with the count in one file write: a failed marker or a
           // restart between the two writes can't count the session again. The event's `counted` is only a hint.
-          await playStore.incrementOnce(body.data.trackId, release.id, localDay(Date.now()), "locally", `${key.source}:${key.trackId}:${startedAt}`);
+          // The key is kept until the marker is durable, then released; a retry after a failed marker finds it and
+          // only marks and releases.
+          await playStore.incrementOnce(body.data.trackId, release.id, localDay(Date.now()), "locally", sessionKey);
           await playEvents.markCounted(key);
         }
+        // Counted and marked: the key is no longer needed. Also covers a release that failed on an earlier report.
+        await playStore.releaseSession(sessionKey);
       });
       return NextResponse.json({ ok: true });
     }
