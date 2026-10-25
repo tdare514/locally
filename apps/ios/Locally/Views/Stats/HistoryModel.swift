@@ -132,13 +132,21 @@ final class HistoryModel {
         let (from, to) = bounds(0)
         if let cursor = cursors[0] {
             let read = await service.events(from: from, to: to, force: force, cursor: cursor)
-            guard stillCurrent(token) else { return }
+            guard stillCurrent(token) else { return await restart(force: force) }
             apply(read, window: 0, continuing: true)
         } else {
             let read = await service.events(from: from, to: to, force: force, cursor: nil)
-            guard stillCurrent(token) else { return }
+            guard stillCurrent(token) else { return await restart(force: force) }
             apply(read, window: 0, continuing: false)
         }
+    }
+
+    /// A read finished after the session changed and was dropped: nothing else is reading for the new session, so read
+    /// it now (window 0, then the focus). Each restart follows one session change; a signed-out session ends in
+    /// `.signedOut` from the service's answer.
+    private func restart(force: Bool) async {
+        await load(force: force)
+        if focusStartedAt != nil, phase == .ready { await focus() }
     }
 
     /// Continues the oldest unfinished window from its cursor, else reads the 14 days before the oldest read; does
@@ -151,14 +159,14 @@ final class HistoryModel {
         if let index = cursors.keys.min(), let cursor = cursors[index] {
             let (from, to) = bounds(index)
             let read = await service.events(from: from, to: to, force: false, cursor: cursor)
-            guard stillCurrent(token) else { return }
+            guard stillCurrent(token) else { return await restart(force: false) }
             apply(read, window: index, continuing: true)
             return
         }
         let index = windowsRead
         let (from, to) = bounds(index)
         let read = await service.events(from: from, to: to, force: false, cursor: nil)
-        guard stillCurrent(token) else { return }
+        guard stillCurrent(token) else { return await restart(force: false) }
         apply(read, window: index, continuing: false)
     }
 

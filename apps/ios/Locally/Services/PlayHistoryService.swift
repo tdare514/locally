@@ -51,6 +51,7 @@ final class SyncPlayHistoryService: PlayHistoryReading {
     private struct Identity: Hashable {
         var deviceId: String?
         var token: String?
+        var budgetKey: String { "\(deviceId ?? "")|\(token ?? "")" }
     }
 
     private struct Key: Hashable {
@@ -95,15 +96,15 @@ final class SyncPlayHistoryService: PlayHistoryReading {
         guard account.deviceToken != nil else {
             cache.removeAll()
             cachedIdentity = nil
+            budget.ensure(identity: nil)
             return .signedOut
         }
         let session = identity
         if session != cachedIdentity {
             cache.removeAll()
-            // The first read after a launch has no identity yet: keep the saved budget then.
-            if cachedIdentity != nil { budget.resetBudget() }
             cachedIdentity = session
         }
+        budget.ensure(identity: session.budgetKey)
         let key = Key(identity: session, from: Self.ms(from), to: Self.ms(to), cursor: cursor)
         if !force, cursor == nil, let entry = cached(key), now().timeIntervalSince(entry.fetchedAt) < Self.freshSeconds {
             return .ok(entry.events)
@@ -147,6 +148,7 @@ final class SyncPlayHistoryService: PlayHistoryReading {
         if account.deviceToken == nil {
             cache.removeAll()
             cachedIdentity = nil
+            budget.ensure(identity: nil)
             return .signedOut
         }
         return .failed

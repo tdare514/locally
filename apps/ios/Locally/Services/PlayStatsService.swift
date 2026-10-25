@@ -34,8 +34,10 @@ protocol PlayRequestBudget: AnyObject {
     func refundLastRequest()
     /// A 429: no request for the back-off.
     func startBackOff()
-    /// A new account starts with a fresh budget and no back-off.
-    func resetBudget()
+    /// The budget belongs to one account (`identity`, nil when signed out). A real change of account resets the
+    /// per-hour list and the back-off once; the same identity again is a no-op, so whichever service sees the new
+    /// account first resets it and the other cannot erase a back-off the new account has earned since.
+    func ensure(identity: String?)
 }
 
 /// Reads `GET /v1/plays/summary` frugally. The server allows 600 requests an hour per user, shared
@@ -56,6 +58,7 @@ final class SyncPlayStatsService: PlayStatsReading, PlayRequestBudget {
     private struct Identity: Hashable {
         var deviceId: String?
         var token: String?
+        var budgetKey: String { "\(deviceId ?? "")|\(token ?? "")" }
     }
 
     private struct Key: Hashable {
@@ -76,6 +79,8 @@ final class SyncPlayStatsService: PlayStatsReading, PlayRequestBudget {
     /// Oldest first, so the front is the one to drop.
     private var cache: [(key: Key, entry: Entry)] = []
     private var cachedIdentity: Identity?
+    /// Who the budget and back-off belong to (see `ensure(identity:)`).
+    private var budgetIdentity: String?
     private var inFlight: [Key: Task<PlayStatsRead, Never>] = [:]
     private var requestTimes: [Date] = [] { didSet { saveBudget() } }
     private var backOffUntil: Date? { didSet { saveBudget() } }
@@ -118,16 +123,15 @@ final class SyncPlayStatsService: PlayStatsReading, PlayRequestBudget {
         guard account.deviceToken != nil else {
             cache.removeAll()
             cachedIdentity = nil
-            resetBudget()
+            ensure(identity: nil)
             return .signedOut
         }
         let session = identity
         if session != cachedIdentity {
             cache.removeAll()
-            // The first read after a launch has no identity yet: keep the saved budget then.
-            if cachedIdentity != nil { resetBudget() }
             cachedIdentity = session
         }
+        ensure(identity: session.budgetKey)
         let key = Key(identity: session, from: from, to: to)
         if !force, let entry = cached(key), now().timeIntervalSince(entry.fetchedAt) < Self.freshSeconds {
             return .ok(entry.summary)
@@ -175,7 +179,7 @@ final class SyncPlayStatsService: PlayStatsReading, PlayRequestBudget {
         if account.deviceToken == nil {
             cache.removeAll()
             cachedIdentity = nil
-            resetBudget()
+            ensure(identity: nil)
             return .signedOut
         }
         return .failed
@@ -192,9 +196,15 @@ final class SyncPlayStatsService: PlayStatsReading, PlayRequestBudget {
     }
 
     /// A new identity starts with a fresh budget and no back-off: both belong to the account that spent them.
-    func resetBudget() {
-        requestTimes = []
-        backOffUntil = nil
+    /// The first identity after a launch keeps the saved budget.
+    func ensure(identity: String?) {
+        guard identity != budgetIdentity else { return }
+        let first = budgetIdentity == nil
+        budgetIdentity = identity
+        if !first {
+            requestTimes = []
+            backOffUntil = nil
+        }
     }
 
     func refundLastRequest() {

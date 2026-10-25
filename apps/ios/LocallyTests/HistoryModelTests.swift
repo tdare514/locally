@@ -174,6 +174,36 @@ struct HistoryModelTests {
         #expect(model.windowsRead == 1)
     }
 
+    @Test func anAccountChangeDuringAReadReloadsForTheNewAccountWithoutAnotherLoad() async {
+        let fake = FakePlayHistory()
+        fake.holdFirst = true
+        fake.reads = [.ok([event("a0", day: "2026-10-20")]), .ok([event("b0", day: "2026-10-22")])]
+        let model = make(fake)
+        let late = Task { await model.load() }
+        while fake.gate == nil { await Task.yield() }
+        fake.session = "B"
+        fake.release()
+        await late.value
+        #expect(model.phase == .ready)
+        #expect(model.history.days.map(\.day) == ["2026-10-22"])
+        #expect(fake.calls.count == 2) // one restart, no loop
+    }
+
+    @Test func aSignOutDuringAReadEndsSignedOutNotLoading() async {
+        let fake = FakePlayHistory()
+        fake.holdFirst = true
+        fake.reads = [.ok([event("a0", day: "2026-10-20")]), .signedOut]
+        let model = make(fake)
+        let late = Task { await model.load() }
+        while fake.gate == nil { await Task.yield() }
+        fake.session = ""
+        fake.release()
+        await late.value
+        #expect(model.phase == .signedOut)
+        #expect(model.history.days.isEmpty)
+        #expect(fake.calls.count == 2)
+    }
+
     // MARK: Incomplete windows (P2)
 
     @Test func aWindowThatFailedPartWayIsContinuedFromItsCursorBeforeAnyOlderWindow() async {

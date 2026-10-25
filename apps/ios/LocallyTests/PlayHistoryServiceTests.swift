@@ -251,4 +251,47 @@ struct PlayHistoryServiceTests {
         #expect(ids(await read(s)) == ["b"])
         #expect(s.api.playEventsCalls.count == 2)
     }
+
+    // MARK: One budget identity
+
+    private func emptySummary() -> Result<SyncPlaysSummaryPage, Error> {
+        .success(SyncPlaysSummaryPage(tracks: [], allTime: [], nextCursor: nil))
+    }
+
+    private func switchToB(_ s: Setup) {
+        s.account.save(email: "b@example.com", deviceToken: "other", deviceId: "device-2")
+    }
+
+    @Test func aHistoryBackOffForTheNewAccountSurvivesTheStatsServiceSeeingTheSwitch() async {
+        let s = make(script: [page(["a"]), .failure(SyncApiError.rateLimited)])
+        s.api.playsSummaryScript = [emptySummary(), emptySummary()]
+        _ = await read(s)
+        _ = await s.stats.summary(from: "2026-10-01", to: "2026-10-15", force: false)
+        let summaries = s.api.playsSummaryCalls.count
+        switchToB(s)
+        #expect(await read(s) == .busy) // B's 429
+        _ = await s.stats.summary(from: "2026-10-01", to: "2026-10-15", force: false)
+        #expect(s.api.playsSummaryCalls.count == summaries) // B's back-off holds
+    }
+
+    @Test func aStatsBackOffForTheNewAccountSurvivesTheHistoryServiceSeeingTheSwitch() async {
+        let s = make(script: [page(["a"]), page(["b"])])
+        s.api.playsSummaryScript = [emptySummary(), .failure(SyncApiError.rateLimited)]
+        _ = await read(s)
+        _ = await s.stats.summary(from: "2026-10-01", to: "2026-10-15", force: false)
+        switchToB(s)
+        _ = await s.stats.summary(from: "2026-10-01", to: "2026-10-15", force: false) // B's 429
+        let events = s.api.playEventsCalls.count
+        #expect(await read(s) == .busy)
+        #expect(s.api.playEventsCalls.count == events)
+    }
+
+    @Test func switchingBackToTheFirstAccountDoesNotInheritTheSecondsBackOff() async {
+        let s = make(script: [page(["a"]), .failure(SyncApiError.rateLimited), page(["a2"])])
+        _ = await read(s)
+        switchToB(s)
+        #expect(await read(s) == .busy)
+        s.account.save(email: "a@example.com", deviceToken: "token", deviceId: "device-1")
+        #expect(ids(await read(s)) == ["a2"])
+    }
 }
