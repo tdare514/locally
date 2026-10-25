@@ -166,7 +166,7 @@ final class SyncPlayHistoryService: PlayHistoryReading {
             do {
                 page = try await api.playEvents(from: key.from, to: key.to, cursor: cursor)
             } catch SyncApiError.rateLimited {
-                budget.startBackOff()
+                budget.startBackOff(identity: key.identity.budgetKey)
                 return fallback(key, partial: events, cursor: cursor, busy: true)
             } catch SyncApiError.notFound {
                 // An API that predates the route: nothing to show, quietly. Kept like any answer so it is not asked again for 5 minutes.
@@ -175,7 +175,7 @@ final class SyncPlayHistoryService: PlayHistoryReading {
                 return .ok([])
             } catch SyncApiError.unreachable(_, let beforeDelivery) {
                 // Only a failure known to happen before delivery is given back; a timeout or a lost connection may have been counted.
-                if beforeDelivery { budget.refundLastRequest() }
+                if beforeDelivery { budget.refundLastRequest(identity: key.identity.budgetKey) }
                 return fallback(key, partial: events, cursor: cursor, busy: false)
             } catch {
                 return fallback(key, partial: events, cursor: cursor, busy: false)

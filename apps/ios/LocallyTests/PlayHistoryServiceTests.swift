@@ -294,4 +294,44 @@ struct PlayHistoryServiceTests {
         s.account.save(email: "a@example.com", deviceToken: "token", deviceId: "device-1")
         #expect(ids(await read(s)) == ["a2"])
     }
+
+    // MARK: A late error from the old account leaves the new account's budget alone
+
+    private func holdEvents(_ s: Setup, _ latch: Latch) {
+        s.api.playEventsGate = { [api = s.api] in
+            if api.playEventsCalls.count == 1 { await latch.wait() }
+        }
+    }
+
+    private func waitForEvents(_ s: Setup) async {
+        for _ in 0..<2000 where s.api.playEventsCalls.count < 1 { try? await Task.sleep(nanoseconds: 2_000_000) }
+    }
+
+    @Test func aLateTooManyRequestsFromTheOldAccountDoesNotBackOffTheNewOne() async {
+        let s = make(script: [.failure(SyncApiError.rateLimited), page(["b"]), page(["b2"])])
+        let latch = Latch()
+        holdEvents(s, latch)
+        let task = Task { await self.read(s) }
+        await waitForEvents(s)
+        switchToB(s)
+        #expect(ids(await read(s)) == ["b"]) // B's request completes
+        latch.release()
+        _ = await task.value
+        #expect(ids(await read(s, force: true)) == ["b2"]) // no back-off: B's next request is sent
+        #expect(s.api.playEventsCalls.count == 3)
+    }
+
+    @Test func aLateUnreachableFromTheOldAccountDoesNotRefundTheNewOnesRequest() async {
+        let s = make(script: [.failure(SyncApiError.unreachable("offline", beforeDelivery: true)), page(["b"])])
+        let latch = Latch()
+        holdEvents(s, latch)
+        let task = Task { await self.read(s) }
+        await waitForEvents(s)
+        switchToB(s)
+        #expect(ids(await read(s)) == ["b"])
+        #expect(s.defaults.array(forKey: SyncPlayStatsService.requestTimesKey)?.count == 1)
+        latch.release()
+        _ = await task.value
+        #expect(s.defaults.array(forKey: SyncPlayStatsService.requestTimesKey)?.count == 1)
+    }
 }

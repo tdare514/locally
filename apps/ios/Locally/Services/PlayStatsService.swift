@@ -30,10 +30,11 @@ protocol PlayStatsReading: AnyObject {
 protocol PlayRequestBudget: AnyObject {
     /// Whether one more request is allowed now (and, if so, counts it).
     func takeRequest() -> Bool
-    /// Gives back the latest request: it never reached the service.
-    func refundLastRequest()
-    /// A 429: no request for the back-off.
-    func startBackOff()
+    /// Gives back the latest request: it never reached the service. `identity` is the budget key the request was
+    /// charged under; a request that outlived its account (the budget has moved on) is ignored.
+    func refundLastRequest(identity: String?)
+    /// A 429: no request for the back-off. Ignored when `identity` is no longer the budget's account.
+    func startBackOff(identity: String?)
     /// The budget belongs to one account (`identity`, nil when signed out). A real change of account resets the
     /// per-hour list and the back-off once; the same identity again is a no-op, so whichever service sees the new
     /// account first resets it and the other cannot erase a back-off the new account has earned since.
@@ -207,11 +208,13 @@ final class SyncPlayStatsService: PlayStatsReading, PlayRequestBudget {
         }
     }
 
-    func refundLastRequest() {
+    func refundLastRequest(identity: String?) {
+        guard identity == budgetIdentity else { return }
         if !requestTimes.isEmpty { requestTimes.removeLast() }
     }
 
-    func startBackOff() {
+    func startBackOff(identity: String?) {
+        guard identity == budgetIdentity else { return }
         backOffUntil = now().addingTimeInterval(Self.backOffSeconds)
     }
 
@@ -229,11 +232,11 @@ final class SyncPlayStatsService: PlayStatsReading, PlayRequestBudget {
             do {
                 page = try await api.playsSummary(from: key.from, to: key.to, cursor: cursor)
             } catch SyncApiError.rateLimited {
-                backOffUntil = now().addingTimeInterval(Self.backOffSeconds)
+                startBackOff(identity: key.identity.budgetKey)
                 return fallback(key, empty: .busy)
             } catch SyncApiError.unreachable(_, let beforeDelivery) {
                 // Only a failure known to happen before delivery is given back; a timeout may have been counted.
-                if beforeDelivery { refundLastRequest() }
+                if beforeDelivery { refundLastRequest(identity: key.identity.budgetKey) }
                 return fallback(key, empty: .failed)
             } catch {
                 // `.unauthorized` too: the sync engine owns sign-out.
