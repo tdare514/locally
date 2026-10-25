@@ -46,6 +46,11 @@ export function thresholdMs(durationMs: number | null): number {
   return durationMs !== null && durationMs > 0 ? Math.min(MAX_THRESHOLD_MS, 0.9 * durationMs) : MAX_THRESHOLD_MS;
 }
 
+/** True when a sample of the same uri, at `progressMs` and time `at`, is still `prev`'s session (no big seek back, no long gap). */
+export function continuesSession(prev: SessionState, progressMs: number, at: number): boolean {
+  return progressMs >= prev.progressMs - BACKWARD_SEEK_MS && at - prev.at <= SESSION_GAP_MS;
+}
+
 /**
  * One step of the server's counting rule (#303 §5). Pure: `ids` is only read when `needsResolve` is true
  * (null means the uri did not resolve); otherwise the session's own ids are reused.
@@ -64,11 +69,7 @@ export function countSample(prev: SessionState | null, sample: PlayerSample, at:
   const resolved = sameUri ? { releaseId: prev.releaseId, trackId: prev.trackId } : ids;
   if (!resolved) return { next: null, counted: false };
 
-  const sameSession =
-    prev !== null &&
-    sameUri &&
-    sample.progressMs >= prev.progressMs - BACKWARD_SEEK_MS &&
-    at - prev.at <= SESSION_GAP_MS;
+  const sameSession = prev !== null && sameUri && continuesSession(prev, sample.progressMs, at);
   const alreadyCounted = sameSession && prev.counted;
 
   let counted = false;

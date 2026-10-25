@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lt, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { devices, playEvents, releases } from "../../db/schema";
 import { PLAY_DAY_RETENTION_DAYS, utcDay } from "../../shared/days";
@@ -27,9 +27,10 @@ export class PlayEventsService {
    * One upsert statement for `event`, for a caller's own `db.batch` or transaction (the sampler, #396). Inserts
    * only when `releaseId` is a live release of `userId`; on a known (user, id) it updates `listened_ms =
    * max(stored, sent)` and `updated_at` only when the device and every fixed field match. `RETURNING` yields a
-   * row exactly when the event was written, so zero rows means the event was ignored.
+   * row exactly when the event was written, so zero rows means the event was ignored. `guard`, when given, is
+   * ANDed into the insert's `WHERE` (the sampler passes its lease check, so a run that lost its lease writes nothing).
    */
-  upsertStatement(userId: string, deviceId: string, event: PlayEventInput, now: number = this.now()) {
+  upsertStatement(userId: string, deviceId: string, event: PlayEventInput, now: number = this.now(), guard?: SQL) {
     return this.db
       .insert(playEvents)
       .select(
@@ -48,7 +49,7 @@ export class PlayEventsService {
             updatedAt: sql<number>`${now}`.as("updated_at"),
           })
           .from(releases)
-          .where(and(eq(releases.id, event.releaseId), eq(releases.userId, userId), eq(releases.deleted, false)))
+          .where(and(eq(releases.id, event.releaseId), eq(releases.userId, userId), eq(releases.deleted, false), guard))
       )
       .onConflictDoUpdate({
         target: [playEvents.userId, playEvents.id],
