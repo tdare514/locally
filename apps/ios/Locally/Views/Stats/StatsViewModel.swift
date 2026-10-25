@@ -169,10 +169,15 @@ final class StatsViewModel {
             }
         case .recent:
             return items.sorted { a, b in
-                if a.lastPlayedDay == b.lastPlayedDay { return a.rank < b.rank }
-                guard let x = a.lastPlayedDay else { return false }
-                guard let y = b.lastPlayedDay else { return true }
-                return x > y
+                if let x = a.lastPlayedAt, let y = b.lastPlayedAt, x != y { return x > y }
+                if a.lastPlayedDay != b.lastPlayedDay {
+                    guard let x = a.lastPlayedDay else { return false }
+                    guard let y = b.lastPlayedDay else { return true }
+                    return x > y
+                }
+                // Same day: a row with an exact time sorts above one without.
+                if (a.lastPlayedAt != nil) != (b.lastPlayedAt != nil) { return a.lastPlayedAt != nil }
+                return a.rank < b.rank
             }
         }
     }

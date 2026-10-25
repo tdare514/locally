@@ -124,6 +124,25 @@ struct StatsViewModelTests {
         #expect(StatsViewModel.sorted([a, b, c], by: .recent).map(\.id) == ["b", "a", "c"])
     }
 
+    @Test func recentSortUsesTheExactTimeWhenItHasOne() {
+        func item(_ id: String, _ rank: Int, _ day: String?, _ at: Int64?) -> StatItem {
+            var i = StatItem(id: id, rank: rank, title: id, subtitle: "", plays: 1, lastPlayedDay: day)
+            i.lastPlayedAt = at
+            return i
+        }
+        func ids(_ items: [StatItem]) -> [String] { StatsViewModel.sorted(items, by: .recent).map(\.id) }
+        // Same day, two timestamps: the evening play beats the morning one, whatever the rank.
+        #expect(ids([item("am", 1, "2026-10-24", 1000), item("pm", 2, "2026-10-24", 2000)]) == ["pm", "am"])
+        // Same day, one timestamp: the timestamped row first.
+        #expect(ids([item("none", 1, "2026-10-24", nil), item("ts", 2, "2026-10-24", 500)]) == ["ts", "none"])
+        // Different days.
+        #expect(ids([item("old", 1, "2026-10-01", nil), item("new", 2, "2026-10-09", nil)]) == ["new", "old"])
+        // Neither has data: rank.
+        #expect(ids([item("b", 2, nil, nil), item("a", 1, nil, nil)]) == ["a", "b"])
+        // All-time rows: no day, timestamps only; rows without anything last.
+        #expect(ids([item("x", 1, nil, nil), item("early", 2, nil, 10), item("late", 3, nil, 20)]) == ["late", "early", "x"])
+    }
+
     // MARK: Minutes (#367)
 
     @Test func minutesSortPutsLongestListeningFirstAndUnknownLengthLast() {
