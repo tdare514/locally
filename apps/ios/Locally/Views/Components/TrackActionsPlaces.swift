@@ -72,7 +72,8 @@ struct SongPageDestination: View {
                     release: release, trackID: route.trackId,
                     onEdit: route.editRoute(for: release).map { edit in { open(edit) } },
                     onOpenCollection: { playback?.openCollectionRequest = $0 },
-                    onOpenAlbum: { open(route.albumRoute(for: release)) })
+                    onOpenAlbum: { open(route.albumRoute(for: release)) },
+                    onOpenHistory: { open(HistoryRoute(day: $0)) })
             } else {
                 // Deleted elsewhere: the plain empty page the release page shows, and the stack pops.
                 Color.clear

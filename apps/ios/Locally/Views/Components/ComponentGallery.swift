@@ -4,7 +4,7 @@ import SwiftUI
 /// Debug-only harness for deterministic screenshots of the immersive components. Launch the app
 /// with `-componentGallery <name>`; see `LocallyApp`.
 struct ComponentGallery: View {
-    static let names = StatsPopupGallery.names + TrackActionsGallery.names + SongPageGallery.names + HistoryVariantsGallery.names + ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "sleeve-bright", "sleeve-dark", "backdrop-a", "backdrop-b", "inline-field", "cover-sheet",
+    static let names = StatsPopupGallery.names + TrackActionsGallery.names + SongPageGallery.names + HistoryGallery.names + ["sleeve-filled", "sleeve-empty", "sleeve-ceremony", "sleeve-bright", "sleeve-dark", "backdrop-a", "backdrop-b", "inline-field", "cover-sheet",
         // #160: the studio backdrop and the real Settings with sample sync state.
         "studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "migration-banner", "root-banner",
         // #205: the release page's tracks panel (the shared `TrackRow`, preset rows).
@@ -160,8 +160,8 @@ struct ComponentGallery: View {
             Self.settings(signedIn: true)
         case _ where SongPageGallery.names.contains(name):
             SongPageGallery(name: name)
-        case _ where HistoryVariantsGallery.names.contains(name):
-            HistoryVariantsGallery(name: name)
+        case _ where HistoryGallery.names.contains(name):
+            HistoryGallery(name: name)
         case _ where StatsPopupGallery.names.contains(name):
             StatsPopupGallery.page(name)
         case "stats-week":
@@ -631,7 +631,8 @@ enum StatsGallery {
 enum IconsGallery {
     static func container(
         releases: [Release] = StatsGallery.releases, covers: [UUID: Data] = StatsGallery.covers, playStats: PlayStatsReading? = nil,
-        folder: SpotifyFolderAccess = UserDefaultsSpotifyFolder(), tagWriter: TagWriter? = nil
+        folder: SpotifyFolderAccess = UserDefaultsSpotifyFolder(), tagWriter: TagWriter? = nil,
+        playHistory: PlayHistoryReading? = nil
     ) -> AppContainer {
         // swiftlint:disable:next force_try
         let modelContainer = try! ModelStore.open(at: nil)
@@ -650,7 +651,8 @@ enum IconsGallery {
         let container = AppContainer(
             folder: folder, library: library, importer: LocalFileImporter(), coordinator: coordinator, coverStore: coverStore,
             inbox: AppGroupInboxStore(), purchase: StoreKitPurchaseService(), syncAccount: account, syncApi: api, syncEngine: engine,
-            playStats: playStats ?? SyncPlayStatsService(api: api, account: account), modelContainer: modelContainer
+            playStats: playStats ?? SyncPlayStatsService(api: api, account: account), modelContainer: modelContainer,
+            playHistory: playHistory
         )
         for release in releases {
             var release = release

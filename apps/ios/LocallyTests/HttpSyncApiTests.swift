@@ -279,6 +279,52 @@ struct HttpSyncApiTests {
         return try Data(contentsOf: url.appendingPathComponent("spec/fixtures/play-events/\(name)"))
     }
 
+    @Test func theLiteralEventsPageDecodesThroughTheRealClientWithItsCursor() async throws {
+        let (api, _) = makeApi()
+        let fixture = try playEventsFixture("valid-events-page.json")
+        StubURLProtocol.handler = { request in
+            #expect(request.httpMethod == "GET")
+            #expect(request.url?.absoluteString == "https://sync.example.test/v1/plays/events?from=1792800000000&to=1792886400000")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer device-token")
+            return (200, [:], fixture)
+        }
+
+        let page = try await api.playEvents(from: 1_792_800_000_000, to: 1_792_886_400_000, cursor: nil)
+        #expect(page.events.count == 2)
+        #expect(page.nextCursor == "MTc5Mjg0MTYzNDU2NzoyYjlkNGYxYQ")
+        let first = page.events[0]
+        #expect(first.id == "7c9e6679-7425-40de-944b-e07fc1f90ae7")
+        #expect(first.releaseId == UUID(uuidString: "3f2a6c1e-8b7d-4e5a-9c1d-2a4b6c8d0e1f"))
+        #expect(first.trackId == UUID(uuidString: "a1b2c3d4-0001-4a5b-8c9d-0123456789ab"))
+        #expect(first.source == "locally")
+        #expect(first.startedAt == 1_792_841_234_567)
+        #expect(first.day == "2026-10-24")
+        #expect(first.listenedMs == 214_000)
+        #expect(first.device == SyncStoredPlayEvent.Device(id: "d1e2f3a4-5b6c-4d7e-8f90-a1b2c3d4e5f6", name: "Tom's iPhone", platform: "ios", current: true))
+        #expect(page.events[1].source == "spotify")
+        #expect(page.events[1].startedAt == 1_792_841_634_567)
+    }
+
+    @Test func theLiteralLastEventsPageHasNoCursor() async throws {
+        let (api, _) = makeApi()
+        let fixture = try playEventsFixture("valid-events-last-page.json")
+        StubURLProtocol.handler = { _ in (200, [:], fixture) }
+        let page = try await api.playEvents(from: 0, to: 1, cursor: "MTc5Mjg0MTYzNDU2NzoyYjlkNGYxYQ")
+        #expect(page.nextCursor == nil)
+        #expect(StubURLProtocol.lastRequest?.url?.absoluteString.hasSuffix("&cursor=MTc5Mjg0MTYzNDU2NzoyYjlkNGYxYQ") == true)
+    }
+
+    @Test func playEventsEncodesTheCursorAndMaps404And429ToTypedErrors() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { _ in (200, [:], self.jsonData(["events": [], "nextCursor": NSNull()])) }
+        _ = try await api.playEvents(from: 1, to: 2, cursor: "a+b&c=d#e")
+        #expect(StubURLProtocol.lastRequest?.url?.absoluteString.hasSuffix("cursor=a%2Bb%26c%3Dd%23e") == true)
+        StubURLProtocol.handler = { _ in (404, [:], Data()) }
+        await #expect(throws: SyncApiError.notFound) { _ = try await api.playEvents(from: 1, to: 2, cursor: nil) }
+        StubURLProtocol.handler = { _ in (429, [:], Data()) }
+        await #expect(throws: SyncApiError.rateLimited) { _ = try await api.playEvents(from: 1, to: 2, cursor: nil) }
+    }
+
     @Test func theLiteralSummaryWithEventsDecodesTheThreeNewFields() async throws {
         let (api, _) = makeApi()
         let fixture = try playEventsFixture("valid-summary-with-events.json")

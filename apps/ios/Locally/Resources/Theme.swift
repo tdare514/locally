@@ -773,7 +773,7 @@ extension Theme {
 }
 
 extension Theme {
-    /// #399: the play History variants (DEBUG gallery frames for now).
+    /// #399: the play History screen, the owner's variant B (the day strip and the crate).
     enum History {
         static let gutter: CGFloat = 16
         static let minTarget: CGFloat = 44
@@ -786,20 +786,6 @@ extension Theme {
         static let sleeveShadowOpacity: Double = 0.45
         static let sleeveEdgeOpacity: Double = 0.22
 
-        /// Variant a, the liner timeline.
-        static let rowSleeve: CGFloat = 44
-        static let rowVertical: CGFloat = 10
-        static let timeColumn: CGFloat = 66
-        static let spineColumn: CGFloat = 26
-        static let spineWidth: CGFloat = 2
-        static let spineOpacity: Double = 0.18
-        static let dotSize: CGFloat = 12
-        static let dotGlow: CGFloat = 8
-        static let panelRadius: CGFloat = 28
-        static let panelHighlightOpacity: Double = 0.10
-        static let dayGap: CGFloat = 26
-
-        /// Variant b, the day strip and the crate.
         static let stripDays = 14
         static let stripColumn: CGFloat = 44
         static let stripDiscWidth: CGFloat = 30
@@ -809,14 +795,13 @@ extension Theme {
         static let stripGlowRadius: CGFloat = 14
         static let crateGap: CGFloat = 14
         static let crateStagger: CGFloat = 30
+        static let crateSleeveMax: CGFloat = 200
+        static let crateSleeveMaxSingle: CGFloat = 190
+        static let crateRowGap: CGFloat = 22
 
-        /// Variant c, the stacked vinyl.
-        static let fanSleeve: CGFloat = 96
-        static let fanSleeveNarrow: CGFloat = 76
-        static let fanStepRatio: CGFloat = 0.6
-        static let fanTiltDegrees: Double = 6
-        static let fanArc: CGFloat = 4
-        static let fanMaxCount = 7
-        static let listRadius: CGFloat = 28
+        /// The loading shimmer's sleeve shapes.
+        static let skeletonCells = 4
+        static let skeletonFillOpacity: Double = 0.07
+        static let skeletonSweepSeconds: Double = 1.6
     }
 }

@@ -949,6 +949,13 @@ Previews: `docs/design-previews/339-ios/` (`player-<case>.png`, from the gallery
 - **VoiceOver.** The wheel is one adjustable element, "Collections", valued "Late drives, 27 tracks, 1 hr 56 min, playing, 1 of 24"; increment and decrement turn it; the default action plays the front collection or pauses it (the hint says which). The count, the + and the controls are separate elements.
 - **The wash.** The page takes the front collection's first cover colours through `ArtworkBackdrop` (the library sky's palette and caps), cross-fading as the wheel turns (none under Reduce Motion); it drifts only by the `BackdropMotion` rules. A 45 % black scrim (`playerScrimOpacity`) keeps grey text at 4.5:1 on a pale cover. No blur or material.
 
+## History (iPhone, #399)
+
+- **Look:** the owner's variant B, "Day strip and crate". A strip of 14 days (today at the right), each a stack of cover-coloured discs with its weekday and date; the selected day glows in its top cover's colour. Under it the day's heading (Today, Yesterday or the date), the play count, a minutes pill, then a two-column crate of record sleeves, staggered, newest first. A sleeve's disc peeks out in proportion to how much of the song was heard; under it the time, the title and the device. The newest play's cover washes the page.
+- **Behaviour:** tapping a day selects it; tapping a play opens its song page (a song not on this phone opens nothing); scrolling the strip back to its oldest day reads the 14 days before it, to 400 days. At accessibility sizes the crate is one column. Strip days are 44 pt buttons ("Today, Sun, Oct 25, 6 plays, 14 minutes", selected); each sleeve reads "Title, Artist, 3:48 PM, iPhone, full listen".
+- **States:** a loading shimmer of sleeve shapes (still under Reduce Motion), "No plays yet", signed out (asks to sign in as Stats does), offline (the last answer with "Couldn't refresh"), and a 429 ("Try again in a few minutes").
+- **Ways in:** a round glass History button at the Stats title's trailing edge; the song page's "Last played" line (a clear 44 pt button over it, the line looks as before). Screenshots in `docs/design-previews/368-history/`.
+
 ## The song page (iPhone, #365)
 
 - **Hero:** the cover's colours wash the page; the cover is a playable sleeve (`SpinningSleeve`, shared with the collection page) whose disc turns only while this song plays; then the title, the linked artist line and four bare actions (glyph over label, nothing behind them; pressed they go full white with a soft glow in the cover's colour). At AX sizes the actions are a 2 x 2 grid and their labels stop growing at AX3.

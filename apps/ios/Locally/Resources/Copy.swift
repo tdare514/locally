@@ -775,6 +775,72 @@ enum Copy {
         static let deleteWarningLink = "It's shared by link. The link will stop working."
     }
 
+    /// The play History screen (#399).
+    enum History {
+        static let title = "History"
+        /// The Stats header's control.
+        static let entryLabel = "History"
+        static let entryHint = "Shows what you played, day by day"
+        static let loadingLabel = "Loading your plays"
+        static let emptyTitle = "No plays yet"
+        static let emptyBody = "Play a song in Locally and it shows up here, day by day. Plays in Spotify on your Mac show up once it counts them."
+        static let nothingThisDay = "Nothing played this day."
+        static let signedOutTitle = "Your history"
+        static let signedOutBody = "Sign in to see what you played, day by day, on all your devices."
+        static let signedOutAction = "Sign in"
+        static let offline = "Couldn't refresh. Showing your last plays."
+        static let busy = "Try again in a few minutes."
+        static let failed = "Couldn't load your plays. Pull down to try again."
+        static let unknownSong = "Unknown song"
+        static let unknownHint = "This song isn't on this phone"
+        static let openHint = "Opens the song"
+        static let dayHint = "Shows this day"
+        static let spotify = "Spotify (online)"
+        static let fullListen = "Full listen"
+        static let lastPlayedHint = "Opens History on that day"
+        static func heard(_ clock: String) -> String { "Heard \(clock)" }
+        static func playCount(_ count: Int) -> String { count == 1 ? "1 play" : "\(count) plays" }
+        static func minutes(_ minutes: Int) -> String { "\(minutes) min" }
+        static func minutesSpoken(_ minutes: Int) -> String { minutes == 1 ? "1 minute" : "\(minutes) minutes" }
+
+        private static func formatter(_ configure: (DateFormatter) -> Void) -> DateFormatter {
+            let formatter = DateFormatter()
+            formatter.locale = .autoupdatingCurrent
+            configure(formatter)
+            return formatter
+        }
+        private static let timeFormatter = formatter { $0.dateStyle = .none; $0.timeStyle = .short }
+        private static let dateFormatter = formatter { $0.setLocalizedDateFormatFromTemplate("EEEdMMM") }
+        private static let weekdayFormatter = formatter { $0.setLocalizedDateFormatFromTemplate("EEE") }
+
+        /// "3:48 PM".
+        static func time(_ date: Date) -> String { timeFormatter.string(from: date) }
+        /// "Mon, Oct 19" (the device's order).
+        static func date(_ date: Date) -> String { dateFormatter.string(from: date) }
+        /// "Today", "Yesterday" or the date, for the day's heading.
+        static func dayLabel(_ date: Date, calendar: Calendar = .current) -> String {
+            if calendar.isDateInToday(date) { return "Today" }
+            if calendar.isDateInYesterday(date) { return "Yesterday" }
+            return Self.date(date)
+        }
+        /// "Today" or "Mon", for the strip.
+        static func weekday(_ date: Date, calendar: Calendar = .current) -> String {
+            calendar.isDateInToday(date) ? "Today" : weekdayFormatter.string(from: date)
+        }
+        /// The strip button's spoken label: "Mon, Oct 19, 5 plays, 42 minutes" (today and yesterday say so first).
+        static func stripLabel(_ date: Date, plays: Int, minutes: Int, calendar: Calendar = .current) -> String {
+            let word = calendar.isDateInToday(date) ? "Today, " : calendar.isDateInYesterday(date) ? "Yesterday, " : ""
+            let when = word + Self.date(date)
+            return plays == 0 ? "\(when), no plays" : "\(when), \(playCount(plays)), \(minutesSpoken(minutes))"
+        }
+        /// "3:48" for a listened time.
+        static func clock(ms: Int) -> String { String(format: "%d:%02d", ms / 60_000, (ms / 1000) % 60) }
+        /// "Night Bus to Nowhere, Mira Valdane, 3:48 PM, iPhone, full listen".
+        static func spoken(title: String, artist: String?, time: String, device: String, heard: String) -> String {
+            ([title] + (artist.map { [$0] } ?? []) + [time, device, heard]).joined(separator: ", ")
+        }
+    }
+
     /// The Stats tab (#204). The period, digest and date wording ports `apps/web/src/lib/stats-copy.ts`
     /// string for string, so the phone and the Mac say the same thing.
     enum Stats {

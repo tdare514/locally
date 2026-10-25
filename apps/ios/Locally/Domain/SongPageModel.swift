@@ -76,6 +76,8 @@ struct SongPageModel: Equatable, Sendable {
     /// Nil when the plays could not be read (signed out, offline): the Plays group is hidden.
     let playsTotal: Int?
     let lastPlayedText: String?
+    /// The local `YYYY-MM-DD` of the last play, for the line that opens History on that day (#399).
+    let lastPlayedDay: String?
     let periods: [PeriodRow]
     let collections: [CollectionRef]
     let fileName: String
@@ -127,6 +129,8 @@ struct SongPageModel: Equatable, Sendable {
         } else {
             lastPlayedText = plays?.lastPlayedDay.flatMap { Self.lastPlayed($0, today: today, locale: locale) }
         }
+        lastPlayedDay = plays?.lastPlayedAt.map { PlayPeriods.localDayString(Date(timeIntervalSince1970: Double($0) / 1000), calendar: calendar) }
+            ?? plays?.lastPlayedDay
         periods = (plays?.byPeriod ?? []).map { PeriodRow(label: Self.label(of: $0.kind), plays: $0.plays) }
         self.collections = MusicCollection.containing(releaseId: release.id, trackId: trackID, in: collections)
             .map { CollectionRef(id: $0.id, name: $0.name) }

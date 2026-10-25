@@ -24,13 +24,27 @@ protocol PlayStatsReading: AnyObject {
     @MainActor func summary(from: String, to: String, force: Bool) async -> PlayStatsRead
 }
 
+/// The phone's share of the server's per-user request limit, which the summary and the events routes both spend
+/// (`playsSummary`, 600 an hour). `SyncPlayStatsService` keeps it; the History service spends from the same one.
+@MainActor
+protocol PlayRequestBudget: AnyObject {
+    /// Whether one more request is allowed now (and, if so, counts it).
+    func takeRequest() -> Bool
+    /// Gives back the latest request: it never reached the service.
+    func refundLastRequest()
+    /// A 429: no request for the back-off.
+    func startBackOff()
+    /// A new account starts with a fresh budget and no back-off.
+    func resetBudget()
+}
+
 /// Reads `GET /v1/plays/summary` frugally. The server allows 600 requests an hour per user, shared
 /// with the Mac (which keeps itself to 200), so this phone keeps to 200 page requests an hour (a
 /// request that never reached the service, with no HTTP response, is not counted), backs
 /// off 10 minutes after a 429, caches each range for 5 minutes and shares one request between
 /// concurrent callers of the same range.
 @MainActor
-final class SyncPlayStatsService: PlayStatsReading {
+final class SyncPlayStatsService: PlayStatsReading, PlayRequestBudget {
     static let freshSeconds: TimeInterval = 5 * 60
     static let maxCacheEntries = 12
     static let maxPages = 10
@@ -168,7 +182,7 @@ final class SyncPlayStatsService: PlayStatsReading {
     }
 
     /// Whether one more page request is allowed right now (and, if so, counts it).
-    private func takeRequest() -> Bool {
+    func takeRequest() -> Bool {
         let current = now()
         if let until = backOffUntil, current < until { return false }
         requestTimes.removeAll { current.timeIntervalSince($0) >= Self.budgetWindowSeconds }
@@ -178,9 +192,17 @@ final class SyncPlayStatsService: PlayStatsReading {
     }
 
     /// A new identity starts with a fresh budget and no back-off: both belong to the account that spent them.
-    private func resetBudget() {
+    func resetBudget() {
         requestTimes = []
         backOffUntil = nil
+    }
+
+    func refundLastRequest() {
+        if !requestTimes.isEmpty { requestTimes.removeLast() }
+    }
+
+    func startBackOff() {
+        backOffUntil = now().addingTimeInterval(Self.backOffSeconds)
     }
 
     private func load(_ key: Key) async -> PlayStatsRead {
