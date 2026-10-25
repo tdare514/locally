@@ -55,11 +55,18 @@ export default function Player({ releases, onOpenRelease, onOpenCollection }: Pl
 
   const session = useMemo(
     () =>
-      new PlayCountSession((counted: QueueItem) => {
-        postLocallyPlay(counted.releaseId, counted.trackId)
-          .then(() => window.dispatchEvent(new CustomEvent(PLAY_COUNTED_EVENT, { detail: counted })))
-          .catch(() => undefined);
-      }),
+      new PlayCountSession(
+        (counted: QueueItem, played) => {
+          // The session's start and audible ms ride along (#398); the server keeps one event per session.
+          postLocallyPlay(counted.releaseId, counted.trackId, played)
+            .then(() => window.dispatchEvent(new CustomEvent(PLAY_COUNTED_EVENT, { detail: counted })))
+            .catch(() => undefined);
+        },
+        // On pause, skip, finish and every 30 s of listening: the same session again, with more audible time.
+        (counted: QueueItem, played) => {
+          postLocallyPlay(counted.releaseId, counted.trackId, played).catch(() => undefined);
+        },
+      ),
     [],
   );
 
@@ -232,7 +239,12 @@ export default function Player({ releases, onOpenRelease, onOpenCollection }: Pl
           sample(false);
           playerStore.setPlaying(false);
         }}
-        onEnded={() => playerStore.next()}
+        onEnded={() => {
+          // The tail since the last time update counts, then the session ends and its audible time is reported.
+          sample(true);
+          session.sample(null, { at: Date.now(), playing: false, positionSec: 0, durationSec: 0 });
+          playerStore.next();
+        }}
         // A file that will not load (gone, or a format this engine cannot play) is marked, then skipped past.
         onError={() => {
           const key = keyOf(currentItem(playerStore.getState().queue));

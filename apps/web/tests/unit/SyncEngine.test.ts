@@ -27,8 +27,10 @@ import {
 } from "../../src/server/sync/SyncApi";
 import { toSyncRecord, type SyncRecord } from "../../src/server/sync/SyncRecord";
 import type { CollectionsPage } from "../../src/shared/collections";
-import type { PlayEntry } from "../../src/server/plays/playsWire";
+import { playEventsFilePath } from "../../src/server/config/paths";
+import { FilePlayEventStore } from "../../src/server/plays/FilePlayEventStore";
 import { FakePlayCountStore } from "./FakePlayCountStore";
+import type { PlayEntry, PlayEventWire } from "../../src/server/plays/playsWire";
 
 /** In-memory `SettingsStore` fake, mutable so tests can flip sign-in state. */
 class FakeSettingsStore implements SettingsStore {
@@ -261,6 +263,25 @@ class FakeSyncApi implements SyncApi {
     this.order.push("plays");
     await this.afterPlayPush?.();
     return { accepted: counts.length - this.ignoredPerPush, ignored: this.ignoredPerPush };
+  }
+
+  /** Every `pushPlayEvents` request that got through (#398), and how the route answers: 200, or an error status. */
+  eventPushes: PlayEventWire[][] = [];
+  eventsRoute: "ok" | 404 | 429 | 500 = "ok";
+  /** Requests that reached `pushPlayEvents`, accepted or not. */
+  eventAttempts = 0;
+  /** Runs once an events request has been accepted, before the reply returns: an account switch mid-pass. */
+  afterEventPush: (() => Promise<void>) | null = null;
+  async pushPlayEvents(events: PlayEventWire[]) {
+    this.eventAttempts++;
+    if (this.eventsRoute !== "ok") throw new SyncRequestError(`events ${this.eventsRoute}`, this.eventsRoute);
+    this.eventPushes.push(events);
+    await this.afterEventPush?.();
+    return { accepted: events.length, ignored: 0 };
+  }
+
+  async playEvents(): Promise<never> {
+    throw new Error("FakeSyncApi: playEvents is not used by the engine");
   }
 
   async releasePlays() {
@@ -2374,6 +2395,147 @@ describe("SyncEngine", () => {
     it("does not touch plays when no store is wired", async () => {
       await engine.reconcile();
       expect(api.playPushes).toEqual([]);
+    });
+  });
+  describe("play events (#398)", () => {
+    const RELEASE_ID = "3f2a6c1e-8b7d-4e5a-9c1d-2a4b6c8d0e1f";
+    const TRACK_ID = "a1b2c3d4-0001-4a5b-8c9d-0123456789ab";
+    let configRoot: string;
+    let originalConfig: string | undefined;
+    let events: FilePlayEventStore;
+    let eventsEngine: SyncEngine;
+    let eventCounts: FakePlayCountStore;
+    let clockMs = Date.now();
+    const START = Date.now() - 3600_000;
+
+    beforeEach(async () => {
+      originalConfig = process.env.LOCALLY_CONFIG_DIR;
+      configRoot = await fs.mkdtemp(path.join(os.tmpdir(), "sli-sync-events-"));
+      process.env.LOCALLY_CONFIG_DIR = path.join(configRoot, "config");
+      events = new FilePlayEventStore();
+      eventCounts = new FakePlayCountStore();
+      clockMs = Date.now();
+      eventsEngine = new SyncEngine(
+        settingsStore, syncState, releaseService, fsSvc, () => api, () => "Toby's MacBook",
+        eventCounts, () => new Date(clockMs), undefined, null, events,
+      );
+    });
+
+    afterEach(async () => {
+      if (originalConfig === undefined) delete process.env.LOCALLY_CONFIG_DIR;
+      else process.env.LOCALLY_CONFIG_DIR = originalConfig;
+      await fs.rm(configRoot, { recursive: true, force: true });
+    });
+
+    const add = (n: number, listenedMs = 31_000) =>
+      events.record({ releaseId: RELEASE_ID, trackId: TRACK_ID, source: "locally", startedAt: START + n * 1000, listenedMs });
+
+    it("pushes pending events right after the plays push, in the wire shape, and marks them", async () => {
+      await add(1);
+      await eventsEngine.reconcile();
+      expect(api.eventPushes).toHaveLength(1);
+      expect(api.eventPushes[0][0]).toEqual({
+        id: expect.any(String), releaseId: RELEASE_ID, trackId: TRACK_ID, source: "locally",
+        startedAt: START + 1000, day: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), listenedMs: 31_000,
+      });
+      expect((await events.list())[0].pushedListenedMs).toBe(31_000);
+      // Nothing new: nothing sent.
+      await eventsEngine.reconcile();
+      expect(api.eventPushes).toHaveLength(1);
+    });
+
+    it("sends an event again when its listenedMs has grown since it was pushed", async () => {
+      await add(1);
+      await eventsEngine.reconcile();
+      await add(1, 120_000);
+      await eventsEngine.reconcile();
+      expect(api.eventPushes).toHaveLength(2);
+      expect(api.eventPushes[1]).toHaveLength(1);
+      expect(api.eventPushes[1][0].listenedMs).toBe(120_000);
+      expect((await events.list())[0].pushedListenedMs).toBe(120_000);
+    });
+
+    it("sends batches of 500", async () => {
+      // Written straight to the file: adding 1,203 one at a time would rewrite it 1,203 times.
+      const seeded = Array.from({ length: 1203 }, (_, n) => ({
+        id: crypto.randomUUID(), releaseId: RELEASE_ID, trackId: TRACK_ID, source: "locally",
+        startedAt: START + n * 1000, day: "2026-10-24", listenedMs: 31_000, pushedListenedMs: null,
+      }));
+      await fs.mkdir(path.dirname(playEventsFilePath()), { recursive: true });
+      await fs.writeFile(playEventsFilePath(), JSON.stringify({ version: 1, events: seeded }));
+      await eventsEngine.reconcile();
+      expect(api.eventPushes.map((b) => b.length)).toEqual([500, 500, 203]);
+      expect((await events.list()).every((e) => e.pushedListenedMs === 31_000)).toBe(true);
+    });
+
+    it.each([404, 429, 500] as const)("a %i leaves the events pending and adds no error line", async (status) => {
+      await add(1);
+      api.eventsRoute = status;
+      await eventsEngine.reconcile();
+      expect((await events.list())[0].pushedListenedMs).toBeNull();
+      expect((await eventsEngine.status()).lastError).toBeNull();
+      // The service comes back: the next pass sends them.
+      api.eventsRoute = "ok";
+      clockMs += 11 * 60_000; // past the 404/429 back-off
+      await eventsEngine.reconcile();
+      expect((await events.list())[0].pushedListenedMs).toBe(31_000);
+    });
+
+    const switchAccount = async () => {
+      const settings = await settingsStore.get();
+      await settingsStore.set({ ...settings, sync: { ...settings.sync!, deviceToken: "tok-2", email: "other@b.com" } });
+    };
+
+    it("an account switch between the counts push and the events push sends no events and marks none", async () => {
+      await add(1);
+      eventCounts.seed(TRACK_ID, RELEASE_ID, 1);
+      api.afterPlayPush = switchAccount;
+      await eventsEngine.reconcile();
+      expect(api.playPushes).toHaveLength(1);
+      expect(api.eventAttempts).toBe(0);
+      expect((await events.list())[0].pushedListenedMs).toBeNull();
+    });
+
+    it("an account switch between two event batches sends no further batch and marks nothing", async () => {
+      const seeded = Array.from({ length: 600 }, (_, n) => ({
+        id: crypto.randomUUID(), releaseId: RELEASE_ID, trackId: TRACK_ID, source: "locally",
+        startedAt: START + n * 1000, day: "2026-10-24", listenedMs: 31_000, pushedListenedMs: null,
+      }));
+      await fs.mkdir(path.dirname(playEventsFilePath()), { recursive: true });
+      await fs.writeFile(playEventsFilePath(), JSON.stringify({ version: 1, events: seeded }));
+      api.afterEventPush = switchAccount;
+      await eventsEngine.reconcile();
+      expect(api.eventPushes.map((b) => b.length)).toEqual([500]);
+      expect((await events.list()).every((e) => e.pushedListenedMs === null)).toBe(true);
+    });
+
+    it.each([404, 429] as const)("a %i backs the events push off for 10 minutes, then it tries again", async (status) => {
+      await add(1);
+      api.eventsRoute = status;
+      await eventsEngine.reconcile();
+      expect(api.eventAttempts).toBe(1);
+      api.eventsRoute = "ok";
+      clockMs += 9 * 60_000;
+      await eventsEngine.reconcile();
+      expect(api.eventAttempts).toBe(1);
+      clockMs += 61_000;
+      await eventsEngine.reconcile();
+      expect(api.eventAttempts).toBe(2);
+      expect((await events.list())[0].pushedListenedMs).toBe(31_000);
+    });
+
+    it("a 500 does not back off", async () => {
+      await add(1);
+      api.eventsRoute = 500;
+      await eventsEngine.reconcile();
+      await eventsEngine.reconcile();
+      expect(api.eventAttempts).toBe(2);
+    });
+
+    it("does not touch events when no store is wired", async () => {
+      await add(1);
+      await engine.reconcile();
+      expect(api.eventPushes).toEqual([]);
     });
   });
 });

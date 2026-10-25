@@ -22,6 +22,8 @@ import { SyncEngine, type SyncApiFactory } from "./sync/SyncEngine";
 import { LocalFilesIndexDetector } from "./spotify/SpotifySourceDetector";
 import type { SpotifySourceDetector } from "./spotify/SpotifySourceDetector";
 import { FilePlayCountStore } from "./plays/FilePlayCountStore";
+import { FilePlayEventStore } from "./plays/FilePlayEventStore";
+import type { PlayEventStore } from "./plays/PlayEventStore";
 import type { PlayCountStore } from "./plays/PlayCountStore";
 import { OsascriptNowPlaying } from "./plays/OsascriptNowPlaying";
 import { LocallyNowPlaying } from "./plays/LocallyNowPlaying";
@@ -58,6 +60,7 @@ export interface Services {
   spotifyClient: SpotifyClient;
   playlistIndex: PlaylistIndex;
   playStore: PlayCountStore;
+  playEvents: PlayEventStore;
   playTracker: PlayTracker;
   locallyPlaying: LocallyNowPlaying;
   nowPlaying: SwitchingNowPlaying;
@@ -100,8 +103,9 @@ function buildServices(): Services {
   const syncState = new FileSyncStateStore();
   const syncApiFactory: SyncApiFactory = (baseUrl, token) => new HttpSyncApi(baseUrl, token);
   const playStore = new FilePlayCountStore();
+  const playEvents = new FilePlayEventStore();
   const collections = new FileCollectionStore();
-  const syncEngine = new SyncEngine(settings, syncState, releases, fs, syncApiFactory, undefined, playStore, undefined, undefined, collections);
+  const syncEngine = new SyncEngine(settings, syncState, releases, fs, syncApiFactory, undefined, playStore, undefined, undefined, collections, playEvents);
 
   // Late-wire the engine as ReleaseService's sync hooks (see ReleaseSyncHooks
   // for why this can't be a constructor parameter: SyncEngine itself depends
@@ -116,6 +120,9 @@ function buildServices(): Services {
       syncEngine.onDeleted(release);
       playStore.removeRelease(release.id).catch((err) => {
         console.warn("Could not remove play counts for a deleted release:", err instanceof Error ? err.message : err);
+      });
+      playEvents.removeRelease(release.id).catch((err) => {
+        console.warn("Could not remove play events for a deleted release:", err instanceof Error ? err.message : err);
       });
     },
   };
@@ -136,7 +143,7 @@ function buildServices(): Services {
   // Online counting (#307): while the sync service counts this account's plays, the tracker stands down.
   const cloudPlays = new CloudPlays({ settings, apiFactory: syncApiFactory });
   const locallyPlaying = new LocallyNowPlaying();
-  const playTracker = new PlayTracker(nowPlaying, settings, library, playStore, undefined, undefined, undefined, undefined, cloudPlays, locallyPlaying);
+  const playTracker = new PlayTracker(nowPlaying, settings, library, playStore, undefined, undefined, undefined, undefined, cloudPlays, locallyPlaying, playEvents);
   settings
     .get()
     .then((s) => playTracker.setEnabled(s.trackPlays === true))
@@ -159,6 +166,7 @@ function buildServices(): Services {
     spotifyClient,
     playlistIndex: new PlaylistIndex({ client: spotifyClient, store: new FilePlaylistCacheStore(), settings, library }),
     playStore,
+    playEvents,
     playTracker,
     locallyPlaying,
     nowPlaying,

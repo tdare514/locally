@@ -55,6 +55,7 @@ export async function DELETE() {
     await services.syncEngine.forgetFriends();
     // The deleted account held this Mac's pushed play counts; a new account gets them again (#107).
     await services.playStore.resetPushed();
+    await services.playEvents.resetPushed();
 
     const body = toSettingsResponse(updated);
     return NextResponse.json(alreadySignedOut ? { ...body, ok: true, alreadySignedOut: true } : { ...body, ok: true });

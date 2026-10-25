@@ -37,6 +37,7 @@ export async function POST() {
     // Play counts stay on this Mac; only the record of what was pushed goes, so the next account
     // receives them (#107).
     await services.playStore.resetPushed();
+    await services.playEvents.resetPushed();
 
     return NextResponse.json({ ok: true });
   } catch (err) {
