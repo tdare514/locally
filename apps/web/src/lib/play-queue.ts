@@ -143,6 +143,10 @@ export class PlayCountSession {
     if (counted && after) {
       this.reported = { item, startedAt: after.startedAt, listenedMs: after.listenedMs };
       this.report(item, { startedAt: after.startedAt, listenedMs: after.listenedMs });
+    } else if (!this.reported && after && after.counted) {
+      // The counter restored a counted session (a source switch, or a stall that ended within ten minutes): it was
+      // reported when it counted, so reporting picks up its event again. Nothing is counted or reported here.
+      this.reported = { item, startedAt: after.startedAt, listenedMs: after.listenedMs };
     } else if (this.reported && after && after.counted && after.startedAt === this.reported.startedAt) {
       const paused = wasPlaying && !s.playing;
       if (after.listenedMs > this.reported.listenedMs && (paused || after.listenedMs - this.reported.listenedMs >= PROGRESS_STEP_MS)) {

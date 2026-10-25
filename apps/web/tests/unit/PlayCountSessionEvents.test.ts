@@ -70,4 +70,17 @@ describe("PlayCountSession reports the session's start and audible time (#398)",
     expect(s.counted).toEqual([]);
     expect(s.progress).toEqual([]);
   });
+
+  it("a restored counted session keeps raising the same event, with no new count", () => {
+    const s = setup();
+    s.play(0, 40);
+    // The player stops (an outage, a source switch) and the same track resumes where it left off, within ten minutes.
+    s.session.sample(null, { at: s.at() + 1000, playing: false, positionSec: 0, durationSec: 0 });
+    s.progress.length = 0;
+    s.play(41, 120);
+    expect(s.counted).toHaveLength(1);
+    expect(s.progress.length).toBeGreaterThan(0);
+    expect(new Set(s.progress.map((p) => p.startedAt))).toEqual(new Set([1_001_000]));
+    expect(s.progress.at(-1)!.listenedMs).toBeGreaterThan(40_000);
+  });
 });

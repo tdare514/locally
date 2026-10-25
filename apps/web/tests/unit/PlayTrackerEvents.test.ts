@@ -110,4 +110,20 @@ describe("PlayTracker writes play events for Spotify plays (#398)", () => {
     expect(await events.list()).toEqual([]);
     expect((await counts.get()).tracks).toEqual({});
   });
+
+  it("a counted session restored after an outage keeps raising the same event, with no new count or event", async () => {
+    for (let pos = 0; pos <= 40; pos += 5) await tick(playing(pos));
+    await tick({ running: false }); // the outage ends the session; its final time is written
+    const before = (await events.list())[0];
+    expect(before.listenedMs).toBe(40_000);
+    // Spotify is back within ten minutes, where it left off.
+    for (let pos = 45; pos <= 120; pos += 5) await tick(playing(pos));
+    await tick(paused(120));
+    const list = await events.list();
+    expect(list).toHaveLength(1);
+    expect(list[0].id).toBe(before.id);
+    expect(list[0].startedAt).toBe(before.startedAt);
+    expect(list[0].listenedMs).toBeGreaterThan(40_000);
+    expect((await counts.get()).tracks.t1.count).toBe(1);
+  });
 });

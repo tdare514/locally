@@ -36,6 +36,8 @@ export class PlayTracker {
   /** True while the sync service counts plays online and this Mac stays out of it (#307). */
   private standDown = false;
   /** The counted play whose event is being raised as samples come in (#398); null when none is. */
+  /** The `startedAt` of the restored session `reattach` last looked up, so a track that doesn't resolve isn't looked up every poll. */
+  private reattachTried: number | null = null;
   private eventSession: { trackId: string; releaseId: string; startedAt: number; written: number; latest: number } | null = null;
 
   constructor(
@@ -158,6 +160,7 @@ export class PlayTracker {
       }
       const counted = this.counter.push({ at, ...result });
       if (counted) await this.record(counted, at);
+      else if (!this.eventSession && this.events) await this.reattach(result.id);
 
     } catch (err) {
       console.warn("Play tracker poll failed:", err instanceof Error ? err.message : err);
@@ -194,8 +197,24 @@ export class PlayTracker {
     if (!due || open.latest <= open.written) return;
     open.written = open.latest;
     await this.events
-      .record({ releaseId: open.releaseId, trackId: open.trackId, source: "spotify", startedAt: open.startedAt, listenedMs: open.latest })
+      .record({ releaseId: open.releaseId, trackId: open.trackId, source: "spotify", startedAt: open.startedAt, listenedMs: open.latest, counted: true })
       .catch((err) => console.warn("Play tracker could not update a play event:", err instanceof Error ? err.message : err));
+  }
+
+  /**
+   * The counter restored a counted session (Spotify came back within ten minutes, or the source switched): its play
+   * was counted and its event written before, so listening goes on raising that same event. Nothing is counted or
+   * created here; the event is found again by its identity (source, trackId, startedAt). Tried once per session.
+   */
+  private async reattach(spotifyId: string | null): Promise<void> {
+    const session = this.counter.session();
+    if (!session || !session.counted || session.id !== spotifyId || this.reattachTried === session.startedAt) return;
+    this.reattachTried = session.startedAt;
+    const settings: Settings = await this.settings.get();
+    const resolved = resolveLocalTrack(session.id, await this.library.list(settings.libraryDir));
+    if (resolved.kind !== "match") return;
+    const listenedMs = Math.min(session.listenedMs, MAX_EVENT_LISTENED_MS);
+    this.eventSession = { trackId: resolved.trackId, releaseId: resolved.releaseId, startedAt: session.startedAt, written: listenedMs, latest: listenedMs };
   }
 
   private async record(spotifyId: string, at: number): Promise<void> {
@@ -210,7 +229,7 @@ export class PlayTracker {
         const listenedMs = Math.min(session.listenedMs, MAX_EVENT_LISTENED_MS);
         this.eventSession = { trackId: resolved.trackId, releaseId: resolved.releaseId, startedAt: session.startedAt, written: listenedMs, latest: listenedMs };
         await this.events
-          .record({ releaseId: resolved.releaseId, trackId: resolved.trackId, source: "spotify", startedAt: session.startedAt, listenedMs })
+          .record({ releaseId: resolved.releaseId, trackId: resolved.trackId, source: "spotify", startedAt: session.startedAt, listenedMs, counted: true })
           .catch((err) => console.warn("Play tracker could not write a play event:", err instanceof Error ? err.message : err));
       }
     } else if (resolved.kind === "ambiguous" && !this.warnedAmbiguous.has(spotifyId)) {

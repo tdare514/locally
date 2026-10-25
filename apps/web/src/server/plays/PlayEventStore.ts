@@ -21,6 +21,8 @@ export interface PlayEvent {
   listenedMs: number;
   /** The `listenedMs` the sync service accepted; null until the first push. */
   pushedListenedMs: number | null;
+  /** Whether the play's count has been added to `plays.json`. Local only: never sent (`PlayEventWire` leaves it out). */
+  counted: boolean;
 }
 
 /** What a client reports for one session; `record` makes it an event or raises an existing one. */
@@ -30,6 +32,8 @@ export interface PlayEventInput {
   source: PlaySource;
   startedAt: number;
   listenedMs: number;
+  /** True when the caller has already counted this play (the Spotify tracker); false (the default) leaves the count to `markCounted`. */
+  counted?: boolean;
 }
 
 /** An event whose latest `listenedMs` has not reached the sync service. */
@@ -42,9 +46,13 @@ export interface PlayEventStore {
   list(): Promise<PlayEvent[]>;
   /**
    * One event per session, keyed by (source, trackId, startedAt): the first report adds it, later ones raise
-   * `listenedMs` (never lower it). Resolves true when it added a new event, false when it updated one.
+   * `listenedMs` (never lower it). Resolves true when the play still needs counting: the event is new, or an
+   * earlier report left it `counted: false` (the count failed after the event was saved). The caller then
+   * increments the count and calls `markCounted`.
    */
   record(input: PlayEventInput): Promise<boolean>;
+  /** The play's count is in `plays.json`: later reports of this session no longer ask for a count. */
+  markCounted(key: { source: PlaySource; trackId: string; startedAt: number }): Promise<void>;
   /** Drop every event of a release (it was deleted locally). */
   removeRelease(releaseId: string): Promise<void>;
   /** Changes every time `resetPushed` runs, like the counts store's. */

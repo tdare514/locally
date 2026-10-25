@@ -11,6 +11,11 @@ import { splitFeaturing } from "../../lib/artist-names";
 /** The ranked list and the sorted sea under the fan on the Stats page (#145). Each row and each
  * tile is a real button: it opens the release, or for an artist their releases in the Library. */
 
+/** The last-played text of a row: day and time when the play has a time, else the day. It wraps to a second line rather than clip. */
+function lastLabel(item: StatItem, today: string): string {
+  return item.lastPlayedAt !== null ? lastPlayedAtLabel(item.lastPlayedAt, today) : lastPlayedLabel(item.lastPlayedDay, today);
+}
+
 /** What opening an item does, for the tooltip. */
 function openHint(item: StatItem): string {
   return item.releaseId ? "Open release" : "Open artist";
@@ -111,7 +116,9 @@ export function StatsList({
                   {linkArtists && item.subtitle.trim() !== "" ? <ArtistLinks artist={item.subtitle} featuring={trackRows ? splitFeaturing(item.title).featuring : []} /> : item.subtitle}
                 </span>
               </span>
-              <span className="st-row-last truncate text-sm text-text-muted">{item.lastPlayedAt !== null ? lastPlayedAtLabel(item.lastPlayedAt, today) : lastPlayedLabel(item.lastPlayedDay, today)}</span>
+              <span className="st-row-last text-left text-sm text-text-muted" title={lastLabel(item, today)}>
+                {lastLabel(item, today)}
+              </span>
               <span className="st-row-bar flex items-center gap-3">
                 <PlayBar plays={item.plays} max={max} />
               </span>

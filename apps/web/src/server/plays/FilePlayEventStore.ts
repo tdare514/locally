@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import { z } from "zod";
 import { playEventsFilePath, settingsDir } from "../config/paths";
+import type { PlaySource } from "./PlayCountStore";
 import { parseDay, RETENTION_DAYS, localDay } from "./playDays";
 import {
   MAX_EVENT_LISTENED_MS,
@@ -23,6 +24,8 @@ const EventSchema = z.object({
   day: z.string().refine((d) => parseDay(d) !== null),
   listenedMs: z.number().int().min(0).max(MAX_EVENT_LISTENED_MS),
   pushedListenedMs: z.number().int().min(0).max(MAX_EVENT_LISTENED_MS).nullable(),
+  // A file from before the flag held events whose count was taken as done.
+  counted: z.boolean().default(true),
 });
 
 /** JSON-file backed {@link PlayEventStore}: `play-events.json` next to `plays.json`, owner-only. */
@@ -71,7 +74,7 @@ export class FilePlayEventStore implements PlayEventStore {
       );
       if (existing) {
         if (listenedMs > existing.listenedMs) existing.listenedMs = listenedMs;
-        return false;
+        return !existing.counted;
       }
       events.push({
         id: randomUUID(),
@@ -82,9 +85,17 @@ export class FilePlayEventStore implements PlayEventStore {
         day: localDay(input.startedAt, this.timeZone),
         listenedMs,
         pushedListenedMs: null,
+        counted: input.counted ?? false,
       });
-      return true;
+      return !(input.counted ?? false);
     });
+  }
+
+  markCounted(key: { source: PlaySource; trackId: string; startedAt: number }): Promise<void> {
+    return this.mutate((events) => {
+      const event = events.find((e) => e.source === key.source && e.trackId === key.trackId && e.startedAt === key.startedAt);
+      if (event) event.counted = true;
+    }).then(() => undefined);
   }
 
   removeRelease(releaseId: string): Promise<void> {

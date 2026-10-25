@@ -268,9 +268,15 @@ class FakeSyncApi implements SyncApi {
   /** Every `pushPlayEvents` request that got through (#398), and how the route answers: 200, or an error status. */
   eventPushes: PlayEventWire[][] = [];
   eventsRoute: "ok" | 404 | 429 | 500 = "ok";
+  /** Requests that reached `pushPlayEvents`, accepted or not. */
+  eventAttempts = 0;
+  /** Runs once an events request has been accepted, before the reply returns: an account switch mid-pass. */
+  afterEventPush: (() => Promise<void>) | null = null;
   async pushPlayEvents(events: PlayEventWire[]) {
+    this.eventAttempts++;
     if (this.eventsRoute !== "ok") throw new SyncRequestError(`events ${this.eventsRoute}`, this.eventsRoute);
     this.eventPushes.push(events);
+    await this.afterEventPush?.();
     return { accepted: events.length, ignored: 0 };
   }
 
@@ -2398,6 +2404,8 @@ describe("SyncEngine", () => {
     let originalConfig: string | undefined;
     let events: FilePlayEventStore;
     let eventsEngine: SyncEngine;
+    let eventCounts: FakePlayCountStore;
+    let clockMs = Date.now();
     const START = Date.now() - 3600_000;
 
     beforeEach(async () => {
@@ -2405,9 +2413,11 @@ describe("SyncEngine", () => {
       configRoot = await fs.mkdtemp(path.join(os.tmpdir(), "sli-sync-events-"));
       process.env.LOCALLY_CONFIG_DIR = path.join(configRoot, "config");
       events = new FilePlayEventStore();
+      eventCounts = new FakePlayCountStore();
+      clockMs = Date.now();
       eventsEngine = new SyncEngine(
         settingsStore, syncState, releaseService, fsSvc, () => api, () => "Toby's MacBook",
-        new FakePlayCountStore(), undefined, undefined, null, events,
+        eventCounts, () => new Date(clockMs), undefined, null, events,
       );
     });
 
@@ -2466,8 +2476,60 @@ describe("SyncEngine", () => {
       expect((await eventsEngine.status()).lastError).toBeNull();
       // The service comes back: the next pass sends them.
       api.eventsRoute = "ok";
+      clockMs += 11 * 60_000; // past the 404/429 back-off
       await eventsEngine.reconcile();
       expect((await events.list())[0].pushedListenedMs).toBe(31_000);
+    });
+
+    const switchAccount = async () => {
+      const settings = await settingsStore.get();
+      await settingsStore.set({ ...settings, sync: { ...settings.sync!, deviceToken: "tok-2", email: "other@b.com" } });
+    };
+
+    it("an account switch between the counts push and the events push sends no events and marks none", async () => {
+      await add(1);
+      eventCounts.seed(TRACK_ID, RELEASE_ID, 1);
+      api.afterPlayPush = switchAccount;
+      await eventsEngine.reconcile();
+      expect(api.playPushes).toHaveLength(1);
+      expect(api.eventAttempts).toBe(0);
+      expect((await events.list())[0].pushedListenedMs).toBeNull();
+    });
+
+    it("an account switch between two event batches sends no further batch and marks nothing", async () => {
+      const seeded = Array.from({ length: 600 }, (_, n) => ({
+        id: crypto.randomUUID(), releaseId: RELEASE_ID, trackId: TRACK_ID, source: "locally",
+        startedAt: START + n * 1000, day: "2026-10-24", listenedMs: 31_000, pushedListenedMs: null,
+      }));
+      await fs.mkdir(path.dirname(playEventsFilePath()), { recursive: true });
+      await fs.writeFile(playEventsFilePath(), JSON.stringify({ version: 1, events: seeded }));
+      api.afterEventPush = switchAccount;
+      await eventsEngine.reconcile();
+      expect(api.eventPushes.map((b) => b.length)).toEqual([500]);
+      expect((await events.list()).every((e) => e.pushedListenedMs === null)).toBe(true);
+    });
+
+    it.each([404, 429] as const)("a %i backs the events push off for 10 minutes, then it tries again", async (status) => {
+      await add(1);
+      api.eventsRoute = status;
+      await eventsEngine.reconcile();
+      expect(api.eventAttempts).toBe(1);
+      api.eventsRoute = "ok";
+      clockMs += 9 * 60_000;
+      await eventsEngine.reconcile();
+      expect(api.eventAttempts).toBe(1);
+      clockMs += 61_000;
+      await eventsEngine.reconcile();
+      expect(api.eventAttempts).toBe(2);
+      expect((await events.list())[0].pushedListenedMs).toBe(31_000);
+    });
+
+    it("a 500 does not back off", async () => {
+      await add(1);
+      api.eventsRoute = 500;
+      await eventsEngine.reconcile();
+      await eventsEngine.reconcile();
+      expect(api.eventAttempts).toBe(2);
     });
 
     it("does not touch events when no store is wired", async () => {

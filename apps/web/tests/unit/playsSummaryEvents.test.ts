@@ -10,7 +10,7 @@ const counts: PlayCounts = {
   tracks: { t1: { releaseId: "r1", count: 0, pushed: 0, locally: { count: 3, pushed: 0, days: { "2026-10-14": 2, "2026-10-15": 1 } } } },
 };
 const ev = (id: string, startedAt: number, day: string, listenedMs: number, pushedListenedMs: number | null = null, releaseId = "r1"): PlayEvent => ({
-  id, releaseId, trackId: "t1", source: "locally", startedAt, day, listenedMs, pushedListenedMs,
+  id, releaseId, trackId: "t1", source: "locally", startedAt, day, listenedMs, pushedListenedMs, counted: true,
 });
 const A = ev("a", Date.UTC(2026, 9, 14, 9), "2026-10-14", 100_000);
 const B = ev("b", Date.UTC(2026, 9, 15, 20), "2026-10-15", 50_000);

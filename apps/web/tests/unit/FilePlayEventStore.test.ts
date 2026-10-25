@@ -66,6 +66,9 @@ describe("FilePlayEventStore (#398)", () => {
   it("a second report of the same session raises listenedMs and never lowers it", async () => {
     const store = newStore();
     expect(await store.record(input({ listenedMs: 31_000 }))).toBe(true);
+    // Until the count is marked, a report still asks for it.
+    expect(await store.record(input({ listenedMs: 60_000 }))).toBe(true);
+    await store.markCounted({ source: input().source, trackId: input().trackId, startedAt: input().startedAt });
     expect(await store.record(input({ listenedMs: 120_000 }))).toBe(false);
     expect(await store.record(input({ listenedMs: 50_000 }))).toBe(false);
     const events = await store.list();

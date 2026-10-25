@@ -68,6 +68,22 @@ describe("/api/plays/locally with startedAt and listenedMs (#398)", () => {
     expect((await counts.get()).tracks[T1].locally?.count).toBe(1);
   });
 
+  it("a failed increment is counted by the retry exactly once, and a third report does not count again", async () => {
+    const body = { releaseId: R1, trackId: T1, startedAt: now - 300_000, listenedMs: 31_000 };
+    const real = counts.increment.bind(counts);
+    const spy = vi.spyOn(counts, "increment").mockRejectedValueOnce(new Error("disk full"));
+    expect((await POST(req(body))).status).toBe(500);
+    expect((await events.list())[0].counted).toBe(false);
+    expect(Object.keys((await counts.get()).tracks)).toEqual([]);
+    spy.mockImplementation(real);
+    expect((await POST(req({ ...body, listenedMs: 60_000 }))).status).toBe(200);
+    expect((await counts.get()).tracks[T1].locally?.count).toBe(1);
+    expect((await events.list())[0].counted).toBe(true);
+    await POST(req({ ...body, listenedMs: 90_000 }));
+    expect((await counts.get()).tracks[T1].locally?.count).toBe(1);
+    expect(await events.list()).toHaveLength(1);
+  });
+
   it("another session of the same track is a second event and a second count", async () => {
     await POST(req({ releaseId: R1, trackId: T1, startedAt: now - 600_000, listenedMs: 31_000 }));
     await POST(req({ releaseId: R1, trackId: T1, startedAt: now - 100_000, listenedMs: 31_000 }));

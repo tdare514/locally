@@ -13,8 +13,9 @@ export const SORTS: { value: SortKey; label: string }[] = [
 
 /**
  * The list in the chosen order. Rows keep their plays rank under any sort, so a name or recency
- * sort still shows who is on top. Recently played puts the latest day first; items with no known
- * day go last, in rank order, as do ties.
+ * sort still shows who is on top. Recently played puts the latest play first: by time when both items
+ * have one, else by day (on the same day an item with a time sits above one without); items with no
+ * known day go last, in rank order, as do ties.
  */
 export function sortItems(items: StatItem[], sort: SortKey): StatItem[] {
   const copy = [...items];
@@ -23,10 +24,18 @@ export function sortItems(items: StatItem[], sort: SortKey): StatItem[] {
   }
   if (sort === "recent") {
     return copy.sort((a, b) => {
-      if (a.lastPlayedDay === b.lastPlayedDay) return a.rank - b.rank;
-      if (a.lastPlayedDay === null) return 1;
-      if (b.lastPlayedDay === null) return -1;
-      return a.lastPlayedDay < b.lastPlayedDay ? 1 : -1;
+      // Two timestamps decide it, so a morning play sits below an evening one of the same day.
+      if (a.lastPlayedAt != null && b.lastPlayedAt != null && a.lastPlayedAt !== b.lastPlayedAt) return b.lastPlayedAt - a.lastPlayedAt;
+      if (a.lastPlayedDay !== b.lastPlayedDay) {
+        if (a.lastPlayedDay === null) return 1;
+        if (b.lastPlayedDay === null) return -1;
+        return a.lastPlayedDay < b.lastPlayedDay ? 1 : -1;
+      }
+      // The same day: one with a timestamp above one without, else rank.
+      const aHas = a.lastPlayedAt != null;
+      const bHas = b.lastPlayedAt != null;
+      if (aHas !== bHas) return aHas ? -1 : 1;
+      return a.rank - b.rank;
     });
   }
   return copy;
