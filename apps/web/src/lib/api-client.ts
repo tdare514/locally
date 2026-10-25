@@ -494,11 +494,16 @@ export async function moveLibrary(destination: string): Promise<LibraryMoveResul
 }
 
 /** A play in Locally's own player counted by the window (#338); the server adds it to plays.json as source "locally". */
-export async function postLocallyPlay(releaseId: string, trackId: string): Promise<void> {
+export async function postLocallyPlay(
+  releaseId: string,
+  trackId: string,
+  /** The play's session (#398): when it began (epoch ms) and the audible ms so far. Reported again as it grows. */
+  session?: { startedAt: number; listenedMs: number },
+): Promise<void> {
   const res = await fetch("/api/plays/locally", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ releaseId, trackId }),
+    body: JSON.stringify({ releaseId, trackId, ...(session ? { startedAt: session.startedAt, listenedMs: session.listenedMs } : {}) }),
   });
   await handle<{ ok: true }>(res);
 }

@@ -193,6 +193,10 @@ export interface PlaysSummaryTrack {
   releaseId: string;
   plays: number;
   lastPlayedDay: string;
+  /** Play events (#398), over the range: epoch ms of the latest event's start (null or absent: none), the audible ms of the events and how many they are. Absent from a summary with no events. */
+  lastPlayedAt?: number | null;
+  listenedMs?: number;
+  events?: number;
 }
 
 /** One track's all-time plays on this Mac, in GET /api/plays/summary (#200). */
@@ -200,6 +204,10 @@ export interface PlaysSummaryAllTime {
   trackId: string;
   releaseId: string;
   plays: number;
+  /** The same three play-event fields (#398), over all retained events. */
+  lastPlayedAt?: number | null;
+  listenedMs?: number;
+  events?: number;
 }
 
 /** Response shape for GET /api/plays/summary?from=YYYY-MM-DD&to=YYYY-MM-DD: this Mac's plays, live releases only (#200). */

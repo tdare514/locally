@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { devices, playCounts, playDays, samplerLease, spotifyLinks } from "../../src/db/schema";
+import { devices, playCounts, playDays, playEvents, samplerLease, spotifyLinks } from "../../src/db/schema";
 import type { ReleaseRecord } from "../../src/shared/types";
 import { makeReleaseRecord } from "../support/fixtures";
 import {
@@ -13,6 +13,7 @@ import {
   TOKEN_URL,
   type SamplerKit,
 } from "../support/fakeSpotify";
+import { sessionEventId, uuidV5 } from "../../src/server/spotify/PlayEventId";
 import { createTestServices, type TestServices } from "../support/testServices";
 
 const T0 = Date.UTC(2026, 2, 10, 12, 0, 0); // 10 Mar 2026, noon UTC
@@ -217,6 +218,126 @@ describe("SpotifySampler lease", () => {
     const link = await getLink(services.db, userId);
     expect(link.sessionUri).toBeNull();
     expect(link.lastSampleAt).toBeNull();
+  });
+});
+
+describe("SpotifySampler play events (#396)", () => {
+  const events = () => services.db.select().from(playEvents);
+
+  it("writes one event per counted play, with the right fields", async () => {
+    await services.db.update(spotifyLinks).set({ timeZone: "America/Toronto" }).where(eq(spotifyLinks.userId, userId));
+    kit.clock.now = Date.UTC(2026, 2, 10, 3, 30); // 23:30 on 9 Mar in Toronto
+    kit.spotify.answer(PLAYER_URL, playing(URI_A, 40_000, 61_200));
+    expect((await kit.sampler.run()).counted).toBe(1);
+    const [cloud] = await services.db.select().from(devices).where(eq(devices.platform, "cloud"));
+    const startedAt = kit.clock.now - 40_000;
+    const rows = await events();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      id: sessionEventId(userId, release.tracks[0]!.id, startedAt),
+      userId,
+      deviceId: cloud!.id,
+      releaseId: release.id,
+      trackId: release.tracks[0]!.id,
+      source: "spotify",
+      startedAt,
+      day: "2026-03-09",
+      listenedMs: 40_000,
+    });
+    const [day] = await services.db.select().from(playDays);
+    expect(rows[0]!.day).toBe(day!.day);
+  });
+
+  it("writes no event for a sample that does not count", async () => {
+    kit.spotify.answer(PLAYER_URL, playing(URI_A, 20_000, 61_200)); // below the threshold
+    await kit.sampler.run();
+    kit.spotify.answer(PLAYER_URL, playing("spotify:local:Other:Thing:Song:100", 50_000, 100_000)); // unmatched
+    await tick();
+    kit.spotify.answer(PLAYER_URL, playing(URI_B, 40_000, 100_000, false)); // a new session, paused past the threshold
+    await tick();
+    expect(await events()).toHaveLength(0);
+    expect(await services.db.select().from(playCounts)).toHaveLength(0);
+  });
+
+  it("uses the same id when a run that lost its lease is retried, and writes one row", async () => {
+    const trackId = release.tracks[0]!.id;
+    kit.spotify.answer(PLAYER_URL, playing(URI_A, 40_000, 61_200));
+    kit.spotify.onCall = async () => {
+      kit.clock.now += 10_000;
+      await services.db.update(samplerLease).set({ until: kit.clock.now + 50_000 });
+    };
+    expect((await kit.sampler.run()).counted).toBe(1);
+    expect(await events()).toHaveLength(0); // the lost lease wrote nothing
+    expect(await services.db.select().from(playCounts)).toHaveLength(0);
+
+    kit.spotify.onCall = null;
+    kit.clock.now = T0 + 70_000; // the lease has passed; the player moved on by the same amount
+    kit.spotify.answer(PLAYER_URL, playing(URI_A, 100_000, 200_000));
+    expect((await kit.sampler.run()).counted).toBe(1);
+    const rows = await events();
+    expect(rows.map((r) => r.id)).toEqual([sessionEventId(userId, trackId, T0 - 30_000)]);
+    // A sample a few ms off still lands on the same id.
+    expect(sessionEventId(userId, trackId, T0 - 30_000 + 7)).toBe(rows[0]!.id);
+  });
+
+  it("raises listenedMs only in 30 s steps, then writes the final value when the session ends", async () => {
+    const listened = async () => (await events())[0]!.listenedMs;
+    kit.spotify.answer(PLAYER_URL, playing(URI_A, 40_000, 200_000));
+    await kit.sampler.run();
+    expect(await listened()).toBe(40_000);
+    kit.spotify.answer(PLAYER_URL, playing(URI_A, 50_000, 200_000)); // +10 s
+    await tick(10_000);
+    expect(await listened()).toBe(40_000);
+    kit.spotify.answer(PLAYER_URL, playing(URI_A, 75_000, 200_000)); // +35 s since the last write
+    await tick(25_000);
+    expect(await listened()).toBe(75_000);
+    kit.spotify.answer(PLAYER_URL, playing(URI_A, 80_000, 200_000));
+    await tick(5_000);
+    expect(await listened()).toBe(75_000);
+    kit.spotify.answer(PLAYER_URL, playing("spotify:track:abc", 1_000, 200_000)); // the session ends
+    await tick(5_000);
+    const rows = await events();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.listenedMs).toBe(80_000);
+    expect((await services.db.select().from(playCounts))[0]!.count).toBe(1);
+  });
+
+  it("starts a second event for a replay of the same track", async () => {
+    kit.spotify.answer(PLAYER_URL, playing(URI_A, 40_000, 61_200));
+    await kit.sampler.run();
+    kit.spotify.answer(PLAYER_URL, playing(URI_A, 2_000, 61_200)); // restarted: the first session ends
+    await tick();
+    kit.spotify.answer(PLAYER_URL, playing(URI_A, 40_000, 61_200));
+    await tick();
+    const rows = await events();
+    expect(rows).toHaveLength(2);
+    expect(new Set(rows.map((r) => r.id)).size).toBe(2);
+  });
+
+  it("writes no event for another user's release or one that is no longer live", async () => {
+    const other = await newUser("b@example.com");
+    await addRelease(other, {
+      title: "Secret Album",
+      artist: "Zed",
+      tracks: [{ id: crypto.randomUUID(), title: "Secret Song", trackNumber: 1, file: "01.mp3", bytes: 10, durationSec: 100 }],
+    });
+    kit.spotify.answer(PLAYER_URL, playing("spotify:local:Zed:Secret+Album:Secret+Song:100", 60_000, 100_000));
+    await kit.sampler.run();
+    expect(await events()).toHaveLength(0);
+
+    kit.spotify.answer(PLAYER_URL, playing(URI_A, 20_000, 61_200)); // the session starts on the live release
+    await tick();
+    await services.releases.tombstone(userId, release.id);
+    kit.spotify.answer(PLAYER_URL, playing(URI_A, 40_000, 61_200)); // counts by the rule, but the release is gone
+    await tick();
+    expect(await events()).toHaveLength(0);
+    expect(await services.db.select().from(playCounts)).toHaveLength(0);
+  });
+});
+
+describe("play event ids", () => {
+  it("uuidV5 matches the RFC 4122 known vector (DNS namespace, python.org)", () => {
+    expect(uuidV5("python.org", "6ba7b810-9dad-11d1-80b4-00c04fd430c8")).toBe("886313e1-3b8a-5372-9b90-0c9aee199e5d");
   });
 });
 

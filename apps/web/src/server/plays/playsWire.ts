@@ -86,6 +86,10 @@ export const ServerPlaysSummaryPageSchema = z.object({
       /** The calling device's own share of `plays` (#216); absent from an older service. */
       devicePlays: z.number().int().min(0).optional(),
       lastPlayedDay: z.string(),
+      /** Play events (#398): absent from an older service. `lastPlayedAt` is epoch ms; null when the track has no events. */
+      lastPlayedAt: z.number().int().nullable().optional(),
+      listenedMs: z.number().int().min(0).optional(),
+      events: z.number().int().min(0).optional(),
     }),
   ),
   allTime: z.array(
@@ -94,8 +98,39 @@ export const ServerPlaysSummaryPageSchema = z.object({
       releaseId: z.string(),
       plays: z.number().int().min(0),
       devicePlays: z.number().int().min(0).optional(),
+      lastPlayedAt: z.number().int().nullable().optional(),
+      listenedMs: z.number().int().min(0).optional(),
+      events: z.number().int().min(0).optional(),
     }),
   ),
   nextCursor: z.string().nullable(),
 });
 export type ServerPlaysSummaryPage = z.infer<typeof ServerPlaysSummaryPageSchema>;
+
+/** One event of the `PUT /v1/plays/events` body (`spec/sync.md`, "Play events"). Strict: never a `deviceId`. */
+export const PlayEventWireSchema = z
+  .object({
+    id: z.uuid(),
+    releaseId: z.uuid(),
+    trackId: z.uuid(),
+    source: z.enum(["spotify", "locally"]),
+    startedAt: z.number().int().min(0),
+    day: z.string().refine((value) => parseDay(value) !== null, "day must be a real YYYY-MM-DD date"),
+    listenedMs: z.number().int().min(0).max(86_400_000),
+  })
+  .strict();
+export type PlayEventWire = z.infer<typeof PlayEventWireSchema>;
+
+/** Most events in one `PUT /v1/plays/events` body. */
+export const MAX_PLAY_EVENTS_PER_REQUEST = 500;
+
+/** Reply of `GET /v1/plays/events` (one page). Parsed, not trusted: it comes from the network. */
+export const ServerPlayEventsPageSchema = z.object({
+  events: z.array(
+    PlayEventWireSchema.extend({
+      device: z.object({ id: z.string(), name: z.string(), platform: z.string(), current: z.boolean() }),
+    }),
+  ),
+  nextCursor: z.string().nullable(),
+});
+export type ServerPlayEventsPage = z.infer<typeof ServerPlayEventsPageSchema>;

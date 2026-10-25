@@ -159,6 +159,7 @@ beforeEach(() => {
     syncEngine,
     syncState,
     playStore,
+    playEvents: { resetPushed: async () => undefined },
   } as unknown as Services;
 });
 

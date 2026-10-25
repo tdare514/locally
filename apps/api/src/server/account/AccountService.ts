@@ -1,6 +1,6 @@
 import type { Db } from "../../db/client";
 import { eq, inArray } from "drizzle-orm";
-import { authCodes, collections, devices, files, pendingDeletes, playCounts, playDays, releases, shareDownloads, shareLinks, shareRecipients, shares, spotifyLinkRequests, spotifyLinks, userCounters, users } from "../../db/schema";
+import { authCodes, collections, devices, files, pendingDeletes, playCounts, playDays, playEvents, releases, shareDownloads, shareLinks, shareRecipients, shares, spotifyLinkRequests, spotifyLinks, userCounters, users } from "../../db/schema";
 import { shareTreeIds } from "../shares/tree";
 import { NotFoundError, ValidationError } from "../../shared/errors";
 import { emailSchema } from "../../shared/types";
@@ -15,7 +15,7 @@ export interface DeleteAccountResult {
 
 /**
  * Deletes a sync account: every row scoped to it (`devices`, `user_counters`,
- * `releases`, `files`, `shares` (its own and every reshare below them) with their recipients, links and download rows, its `share_recipients` rows, `play_counts`, `play_days`, `spotify_links`, `spotify_link_requests`, `auth_codes`), plus the `users` row itself, in one
+ * `releases`, `files`, `shares` (its own and every reshare below them) with their recipients, links and download rows, its `share_recipients` rows, `play_counts`, `play_days`, `play_events`, `spotify_links`, `spotify_link_requests`, `auth_codes`), plus the `users` row itself, in one
  * transaction — then queues each removed file's storage key in
  * `pending_deletes` so its blob is removed afterward (see
  * `CleanupService.drainPendingDeletes`/`run`). Never deletes a blob inline;
@@ -36,6 +36,7 @@ export class AccountService {
       this.db.delete(files).where(eq(files.userId, userId)).returning({ id: files.id }),
       this.db.delete(playCounts).where(eq(playCounts.userId, userId)),
       this.db.delete(playDays).where(eq(playDays.userId, userId)),
+      this.db.delete(playEvents).where(eq(playEvents.userId, userId)),
       this.db.delete(spotifyLinks).where(eq(spotifyLinks.userId, userId)),
       this.db.delete(spotifyLinkRequests).where(eq(spotifyLinkRequests.userId, userId)),
       this.db.delete(collections).where(eq(collections.userId, userId)),
