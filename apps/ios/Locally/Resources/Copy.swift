@@ -982,6 +982,36 @@ extension Copy.Stats {
         return minutes == 0 ? "\(formatCount(hours)) h" : "\(formatCount(hours)) h \(minutes) min"
     }
 
+    /// "Today at 21:14", "Yesterday at 09:02", "12 Oct at 18:30" (with the year when it is not this one), in the
+    /// phone's locale and time zone (#397). `lowercaseDay` reads "today at 21:14" for the middle of a sentence.
+    static func lastPlayedAtLabel(_ ms: Int64, now: Date = Date(), calendar: Calendar = .current, locale: Locale = .current, lowercaseDay: Bool = false) -> String {
+        let date = Date(timeIntervalSince1970: Double(ms) / 1000)
+        var calendar = calendar
+        calendar.locale = locale
+        func format(_ template: String) -> String {
+            let formatter = DateFormatter()
+            formatter.locale = locale
+            formatter.calendar = calendar
+            formatter.timeZone = calendar.timeZone
+            formatter.setLocalizedDateFormatFromTemplate(template)
+            return formatter.string(from: date)
+        }
+        let time = format("jm")
+        let startToday = calendar.startOfDay(for: now)
+        let startPlayed = calendar.startOfDay(for: date)
+        let daysAgo = calendar.dateComponents([.day], from: startPlayed, to: startToday).day ?? 99
+        if daysAgo <= 0 { return "\(lowercaseDay ? "today" : "Today") at \(time)" }
+        if daysAgo == 1 { return "\(lowercaseDay ? "yesterday" : "Yesterday") at \(time)" }
+        let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
+        return "\(format(sameYear ? "dMMM" : "dMMMy")) at \(time)"
+    }
+
+    /// The "last played" text of a row: the exact time when the service sent one, else the day-level label.
+    static func lastPlayedLabel(_ item: StatItem, today: String, now: Date = Date(), calendar: Calendar = .current, locale: Locale = .current) -> String {
+        if let at = item.lastPlayedAt { return lastPlayedAtLabel(at, now: now, calendar: calendar, locale: locale) }
+        return lastPlayedLabel(item.lastPlayedDay, today: today)
+    }
+
     /// The number a row or tile shows: minutes under the minutes sort, plays under any other.
     static func figure(_ item: StatItem, sort: StatsSort) -> String {
         sort == .minutes ? minutesLabel(seconds: item.seconds) : playsCount(item.plays)

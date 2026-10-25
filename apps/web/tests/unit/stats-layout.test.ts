@@ -3,7 +3,7 @@ import type { StatItem } from "../../src/lib/play-stats";
 import { SEA_TIER_SIZES, STATS_PAGE_SIZE, keepRecent, moreLabel, nextShown, seaTiers, sortItems } from "../../src/lib/stats-layout";
 
 function item(rank: number, title: string, lastPlayedDay: string | null): StatItem {
-  return { id: title, rank, title, subtitle: "Artist", plays: 100 - rank, cover: null, releaseId: "r", lastPlayedDay };
+  return { id: title, rank, title, subtitle: "Artist", plays: 100 - rank, cover: null, releaseId: "r", lastPlayedDay, lastPlayedAt: null, minutes: null };
 }
 
 const items = [
@@ -27,6 +27,61 @@ describe("sortItems", () => {
 
   it("sorts by the latest day first, then rank, with unknown days last", () => {
     expect(sortItems(items, "recent").map((i) => i.title)).toEqual(["alpha", "Bravo", "Delta", "Charlie", "Echo"]);
+  });
+
+  describe("recent order with timestamps", () => {
+    const at = (rank: number, title: string, day: string, hh: number): StatItem => ({
+      ...item(rank, title, day),
+      lastPlayedAt: new Date(`${day}T${String(hh).padStart(2, "0")}:00:00`).getTime(),
+    });
+    const titles = (list: StatItem[]) => sortItems(list, "recent").map((i) => i.title);
+
+    it("an evening play sorts above a morning one of the same day, whatever the rank", () => {
+      expect(titles([at(1, "morning", "2026-10-14", 9), at(2, "evening", "2026-10-14", 21)])).toEqual(["evening", "morning"]);
+    });
+
+    it("on the same day an item with a time sits above one without, then rank breaks ties", () => {
+      const list = [item(1, "noTime1", "2026-10-14"), item(2, "noTime2", "2026-10-14"), at(3, "timed", "2026-10-14", 8)];
+      expect(titles(list)).toEqual(["timed", "noTime1", "noTime2"]);
+    });
+
+    it("a later day wins over an earlier timed play, and no day goes last", () => {
+      const list = [item(1, "none", null), at(2, "old", "2026-10-13", 23), item(3, "newer", "2026-10-14")];
+      expect(titles(list)).toEqual(["newer", "old", "none"]);
+    });
+
+    it("is a consistent order: any input permutation gives the same result", () => {
+      const list = [at(1, "a", "2026-10-14", 9), item(2, "b", "2026-10-14"), at(3, "c", "2026-10-14", 21), item(4, "d", "2026-10-15"), item(5, "e", null)];
+      const expected = titles(list);
+      expect(expected).toEqual(["d", "c", "a", "b", "e"]);
+      expect(titles([...list].reverse())).toEqual(expected);
+      expect(titles([list[2], list[4], list[0], list[3], list[1]])).toEqual(expected);
+    });
+
+    it("mixed day and timestamp rows form no cycle: all 6 permutations give one order", () => {
+      const A = { ...item(1, "A", "2026-10-24"), lastPlayedAt: new Date("2026-10-20T12:00:00").getTime() };
+      const B = item(2, "B", "2026-10-23");
+      const C = { ...item(3, "C", "2026-10-22"), lastPlayedAt: new Date("2026-10-22T12:00:00").getTime() };
+      const perms = [[A, B, C], [A, C, B], [B, A, C], [B, C, A], [C, A, B], [C, B, A]];
+      for (const p of perms) expect(titles(p)).toEqual(["A", "B", "C"]);
+    });
+
+    it("random mixed rows sort the same for every input permutation", () => {
+      let seed = 7;
+      const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+      for (let round = 0; round < 20; round++) {
+        const rows = Array.from({ length: 7 }, (_, n) => {
+          const day = rnd() < 0.2 ? null : `2026-10-${String(15 + Math.floor(rnd() * 5)).padStart(2, "0")}`;
+          const base = item(n + 1, `r${n}`, day);
+          return rnd() < 0.5 ? { ...base, lastPlayedAt: new Date(2026, 9, 14 + Math.floor(rnd() * 8), Math.floor(rnd() * 24)).getTime() } : base;
+        });
+        const expected = titles(rows);
+        for (let k = 0; k < 10; k++) {
+          const shuffled = [...rows].sort(() => rnd() - 0.5);
+          expect(titles(shuffled)).toEqual(expected);
+        }
+      }
+    });
   });
 
   it("keeps each item's plays rank whatever the order", () => {

@@ -67,6 +67,10 @@ export interface StatItem {
   releaseId: string | null;
   /** The latest day (`YYYY-MM-DD`) in the period with a play of it; null when the counts carry no days (all time). */
   lastPlayedDay: string | null;
+  /** Epoch ms the item was last played, from play events (#398); null when none of its plays has one. */
+  lastPlayedAt: number | null;
+  /** Minutes listened in the period (all time on the all-time tab): see {@link trackMinutes}. Null when nothing is known. */
+  minutes: number | null;
 }
 
 export interface PlayStats {
@@ -97,6 +101,43 @@ interface Row {
   cover: StatCover | null;
   releaseId: string | null;
   lastPlayedDay: string | null;
+  lastPlayedAt: number | null;
+  minutes: number | null;
+}
+
+/** The later of two optional instants. */
+function laterAt(a: number | null, b: number | null): number | null {
+  return a === null ? b : b === null ? a : Math.max(a, b);
+}
+
+/**
+ * Minutes for one track over a window (`spec/sync.md`, "Play events"): the audible time of its events plus the #367
+ * estimate (a full length per play) for the plays that have no event. A track with no known length adds 0 for
+ * the estimated part. Shown as plain minutes, with no "about" for the estimate.
+ */
+export function trackMinutes(listenedMs: number, plays: number, events: number, lengthSec: number | null): number {
+  const estimated = Math.max(0, plays - events) * ((lengthSec ?? 0) / 60);
+  return listenedMs / 60000 + estimated;
+}
+
+/**
+ * "Today at 21:14", "Yesterday at 09:02", "12 Oct at 18:30" (the year too when it is not this one): the moment of the
+ * latest play in the browser's locale and time zone. `today` is the page's `YYYY-MM-DD` in that zone, which keeps the
+ * render pure. `locale` and `timeZone` are for tests; the browser's are used when omitted.
+ */
+export function lastPlayedAtLabel(ms: number, today: string, locale?: string, timeZone?: string): string {
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(ms);
+  const time = new Intl.DateTimeFormat(locale, { timeZone, hour: "2-digit", minute: "2-digit" }).format(ms);
+  if (day === today) return `Today at ${time}`;
+  const [y, m, d] = today.split("-").map(Number);
+  if (day === new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10)) return `Yesterday at ${time}`;
+  const date = new Intl.DateTimeFormat(locale, {
+    timeZone,
+    day: "numeric",
+    month: "short",
+    ...(day.slice(0, 4) === today.slice(0, 4) ? {} : { year: "numeric" as const }),
+  }).format(ms);
+  return `${date} at ${time}`;
 }
 
 /** The later of two optional days. */
@@ -136,11 +177,13 @@ interface ArtistTotals {
   /** The first played release with a cover, for when the best one has none. */
   coverFallback: StatCover | null;
   lastPlayedDay: string | null;
+  lastPlayedAt: number | null;
+  minutes: number | null;
 }
 
 /** One track's plays on this Mac: a row of the summary's `tracks` (the chosen period) or `allTime`. */
 export type TrackPlayCount = Pick<PlaysSummaryTrack, "releaseId" | "trackId" | "plays"> &
-  Partial<Pick<PlaysSummaryTrack, "lastPlayedDay">>;
+  Partial<Pick<PlaysSummaryTrack, "lastPlayedDay" | "lastPlayedAt" | "listenedMs" | "events">>;
 
 /**
  * The top `limit` (three by default) tracks, albums (releases, singles included) and artists by plays.
@@ -174,6 +217,8 @@ export function aggregatePlays(
         best: null,
         coverFallback: null,
         lastPlayedDay: null,
+        lastPlayedAt: null,
+        minutes: null,
       });
     }
     const entry = artists.get(key);
@@ -186,6 +231,8 @@ export function aggregatePlays(
     const cover = coverOf(release);
     let releasePlays = 0;
     let releaseLast: string | null = null;
+    let releaseAt: number | null = null;
+    let releaseMinutes = 0;
     for (const track of release.tracks) {
       const entry = counted?.get(track.id);
       const plays = entry?.plays ?? 0;
@@ -193,6 +240,10 @@ export function aggregatePlays(
       releasePlays += plays;
       const lastPlayedDay = entry?.lastPlayedDay || null;
       releaseLast = laterDay(releaseLast, lastPlayedDay);
+      const lastPlayedAt = typeof entry?.lastPlayedAt === "number" ? entry.lastPlayedAt : null;
+      releaseAt = laterAt(releaseAt, lastPlayedAt);
+      const minutes = trackMinutes(entry?.listenedMs ?? 0, plays, entry?.events ?? 0, track.durationSec);
+      releaseMinutes += minutes;
       trackRows.push({
         id: track.id,
         title: track.title || release.title,
@@ -201,6 +252,8 @@ export function aggregatePlays(
         cover,
         releaseId: release.id,
         lastPlayedDay,
+        lastPlayedAt,
+        minutes,
       });
     }
     if (releasePlays === 0) continue;
@@ -214,12 +267,16 @@ export function aggregatePlays(
       cover,
       releaseId: release.id,
       lastPlayedDay: releaseLast,
+      lastPlayedAt: releaseAt,
+      minutes: releaseMinutes,
     });
 
     const artist = artists.get(artistKey(release.artist));
     if (artist) {
       artist.plays += releasePlays;
       artist.lastPlayedDay = laterDay(artist.lastPlayedDay, releaseLast);
+      artist.lastPlayedAt = laterAt(artist.lastPlayedAt, releaseAt);
+      artist.minutes = (artist.minutes ?? 0) + releaseMinutes;
       if (!artist.best || releasePlays > artist.best.plays) {
         artist.best = { plays: releasePlays, release };
       }
@@ -235,6 +292,8 @@ export function aggregatePlays(
     cover: (a.best && coverOf(a.best.release)) ?? a.coverFallback,
     releaseId: null,
     lastPlayedDay: a.lastPlayedDay,
+    lastPlayedAt: a.lastPlayedAt,
+    minutes: a.minutes,
   }));
 
   return {

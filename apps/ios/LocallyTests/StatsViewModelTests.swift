@@ -124,6 +124,71 @@ struct StatsViewModelTests {
         #expect(StatsViewModel.sorted([a, b, c], by: .recent).map(\.id) == ["b", "a", "c"])
     }
 
+    private var utc: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }
+
+    private func recentItem(_ id: String, _ rank: Int, _ day: String?, _ at: Int64?) -> StatItem {
+        var i = StatItem(id: id, rank: rank, title: id, subtitle: "", plays: 1, lastPlayedDay: day)
+        i.lastPlayedAt = at
+        return i
+    }
+
+    private func permutations<T>(_ xs: [T]) -> [[T]] {
+        guard let first = xs.first else { return [[]] }
+        return permutations(Array(xs.dropFirst())).flatMap { rest in
+            (0...rest.count).map { i in var r = rest; r.insert(first, at: i); return r }
+        }
+    }
+
+    /// Oct 20 2026 12:00 UTC and Oct 22 2026 12:00 UTC in ms.
+    private var oct20: Int64 { 1_792_497_600_000 }
+    private var oct22: Int64 { 1_792_670_400_000 }
+    /// Oct 24 2026 00:00 UTC in ms.
+    private var oct24: Int64 { 1_792_800_000_000 }
+
+    @Test func recentSortHasNoCycleAcrossMixedDayAndTimeRows() {
+        let a = recentItem("A", 1, "2026-10-24", oct20)
+        let b = recentItem("B", 2, "2026-10-23", nil)
+        let c = recentItem("C", 3, "2026-10-22", oct22)
+        let perms = permutations([a, b, c])
+        #expect(perms.count == 6)
+        for p in perms {
+            #expect(StatsViewModel.sorted(p, by: .recent, calendar: utc).map(\.id) == ["A", "B", "C"])
+        }
+    }
+
+    @Test func recentSortGivesTheSameOrderForEveryInputPermutation() {
+        let rows = [
+            recentItem("r1", 1, "2026-10-24", oct20),
+            recentItem("r2", 2, "2026-10-24", nil),
+            recentItem("r3", 3, nil, oct22),
+            recentItem("r4", 4, nil, nil),
+            recentItem("r5", 5, "2026-10-22", nil),
+        ]
+        #expect(StatsViewModel.sorted(rows, by: .recent, calendar: utc).map(\.id) == ["r1", "r2", "r3", "r5", "r4"])
+        for p in permutations(rows) {
+            #expect(StatsViewModel.sorted(p, by: .recent, calendar: utc).map(\.id) == ["r1", "r2", "r3", "r5", "r4"])
+        }
+    }
+
+    @Test func recentSortUsesTheExactTimeWhenItHasOne() {
+        func item(_ id: String, _ rank: Int, _ day: String?, _ at: Int64?) -> StatItem { recentItem(id, rank, day, at) }
+        func ids(_ items: [StatItem]) -> [String] { StatsViewModel.sorted(items, by: .recent, calendar: utc).map(\.id) }
+        // Same day, two timestamps: the evening play beats the morning one, whatever the rank.
+        #expect(ids([item("am", 1, "2026-10-24", oct24 + 3_600_000), item("pm", 2, "2026-10-24", oct24 + 7_200_000)]) == ["pm", "am"])
+        // Same day, one timestamp: the timestamped row first.
+        #expect(ids([item("none", 1, "2026-10-24", nil), item("ts", 2, "2026-10-24", oct24 + 500)]) == ["ts", "none"])
+        // Different days.
+        #expect(ids([item("old", 1, "2026-10-01", nil), item("new", 2, "2026-10-09", nil)]) == ["new", "old"])
+        // Neither has data: rank.
+        #expect(ids([item("b", 2, nil, nil), item("a", 1, nil, nil)]) == ["a", "b"])
+        // All-time rows: no day, timestamps only; rows without anything last.
+        #expect(ids([item("x", 1, nil, nil), item("early", 2, nil, 10), item("late", 3, nil, 20)]) == ["late", "early", "x"])
+    }
+
     // MARK: Minutes (#367)
 
     @Test func minutesSortPutsLongestListeningFirstAndUnknownLengthLast() {

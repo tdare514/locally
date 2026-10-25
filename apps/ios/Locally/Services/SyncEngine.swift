@@ -134,6 +134,8 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
     private let shareCovers: ShareCoverCache?
     /// The phone's own play counts (#337); nil in tests that don't count.
     private let playCounts: PlayCountStoring?
+    /// The phone's own play events (#397); nil in tests that don't record them.
+    private let playEvents: PlayEventStoring?
     private let installIds: InstallIdStoring?
     private let sessionBinding: SessionBindingStoring?
     /// Bumps at sign-in, sign-out and account deletion: a play push that started under another value
@@ -179,6 +181,7 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
         defaults: UserDefaults = .standard,
         shareCovers: ShareCoverCache? = nil,
         playCounts: PlayCountStoring? = nil,
+        playEvents: PlayEventStoring? = nil,
         installIds: InstallIdStoring? = nil,
         sessionBinding: SessionBindingStoring? = nil,
         collections: CollectionStore? = nil
@@ -186,6 +189,7 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
         self.collections = collections
         self.defaults = defaults
         self.playCounts = playCounts
+        self.playEvents = playEvents
         self.installIds = installIds
         self.sessionBinding = sessionBinding
         self.shareCovers = shareCovers
@@ -366,6 +370,7 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
         do { try library.clearSyncMarkers() } catch { cleanupFailure = error }
         // The counts stay (#337); only what was pushed is forgotten.
         playCounts?.clearPushedMarkers()
+        playEvents?.clearPushedMarkers()
         status.signedIn = false
         status.email = nil
         status.deviceName = nil
@@ -934,6 +939,7 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
             backfillCollections()
             await drainOutbox()
             await pushPlays()
+            await pushPlayEvents()
             // Retried before the fetch below, not after: a cover download
             // that fails during this run's own `process(_:)` loop is left
             // pending for the *next* `reconcile()` (see
@@ -1015,6 +1021,37 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
             // A sign-out or sign-in while the request was in flight: it belongs to another session.
             guard isSignedIn, epoch == sessionEpoch else { return }
             playCounts.markPushed(batch)
+        }
+    }
+
+    /// Most events in one `PUT /v1/plays/events`.
+    static let playEventsBatch = 500
+    /// How long a 404 (an API without the route yet) or a 429 holds off the next events push.
+    static let playEventsBackOff: TimeInterval = 10 * 60
+    private var playEventsBackOffUntil: Date?
+
+    /// Sends the events not yet pushed, or heard longer since (#397), 500 per request, for releases the
+    /// service has. A 404, a 429 or any other failure leaves them pending and shows nothing: an event is
+    /// sent whole each time, so nothing is lost by waiting. A 404 or 429 also pauses the push for 10 minutes.
+    func pushPlayEvents() async {
+        guard let playEvents else { return }
+        if let until = playEventsBackOffUntil, now() < until { return }
+        let epoch = sessionEpoch
+        while isSignedIn, epoch == sessionEpoch {
+            guard let releases = localReleases() else { return }
+            let live = Set(releases.filter { $0.syncedUpdatedAt != nil }.map(\.id))
+            let batch = playEvents.pending(liveReleases: live, max: Self.playEventsBatch)
+            if batch.isEmpty { return }
+            do {
+                try await api.putPlayEvents(batch)
+            } catch {
+                if case SyncApiError.notFound = error { playEventsBackOffUntil = now().addingTimeInterval(Self.playEventsBackOff) }
+                if case SyncApiError.rateLimited = error { playEventsBackOffUntil = now().addingTimeInterval(Self.playEventsBackOff) }
+                Self.log.error("Pushing play events failed: \(String(describing: error), privacy: .public)")
+                return
+            }
+            guard isSignedIn, epoch == sessionEpoch else { return }
+            playEvents.markPushed(batch)
         }
     }
 

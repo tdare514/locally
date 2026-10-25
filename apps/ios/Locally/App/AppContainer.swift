@@ -69,6 +69,7 @@ final class AppContainer {
         playStats: PlayStatsReading,
         modelContainer: ModelContainer,
         playCounts: PlayCountStoring? = nil,
+        playEvents: PlayEventStoring? = nil,
         collections: CollectionStore? = nil
     ) {
         self.collections = collections ?? SwiftDataCollectionStore(context: modelContainer.mainContext)
@@ -84,7 +85,7 @@ final class AppContainer {
         self.syncEngine = syncEngine
         self.playStats = playStats
         self.modelContainer = modelContainer
-        self.playback = PlaybackService.production(folder: folder, coverStore: coverStore, playCounts: playCounts)
+        self.playback = PlaybackService.production(folder: folder, coverStore: coverStore, playCounts: playCounts, playEvents: playEvents)
         self.folderStatus = FolderStatus(isConnected: folder.isConnected)
         self.purchaseStatus = PurchaseStatus(isFullUnlocked: purchase.isFullUnlocked)
         coordinator.syncHook = syncEngine
@@ -139,6 +140,7 @@ final class AppContainer {
         let syncApi = HttpSyncApi(account: syncAccount)
         let outbox = SwiftDataSyncOutbox(context: modelContainer.mainContext)
         let playCounts = FilePlayCountStore.standard()
+        let playEvents = FilePlayEventStore.standard()
         let installIds = FileInstallIdStore.standard()
         let collections = SwiftDataCollectionStore(context: modelContainer.mainContext)
         let syncEngine = SyncEngine(
@@ -151,6 +153,7 @@ final class AppContainer {
             deviceName: { SyncDeviceName.current() },
             shareCovers: ShareCoverCache.standard(),
             playCounts: playCounts,
+            playEvents: playEvents,
             installIds: installIds,
             sessionBinding: FileSessionBindingStore.standard(),
             collections: collections
@@ -169,6 +172,7 @@ final class AppContainer {
             playStats: SyncPlayStatsService(api: syncApi, account: syncAccount),
             modelContainer: modelContainer,
             playCounts: playCounts,
+            playEvents: playEvents,
             collections: collections
         )
         Task { await container.refreshPurchaseStatus() }

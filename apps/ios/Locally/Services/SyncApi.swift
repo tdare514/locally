@@ -94,6 +94,12 @@ struct SyncPeriodPlays: Decodable, Equatable {
     var releaseId: String
     var plays: Int
     var lastPlayedDay: String?
+    /// Epoch milliseconds of the latest event in the days; nil when none, and absent on an older server (#397).
+    var lastPlayedAt: Int64?
+    /// Audible milliseconds over the days' events; absent on an older server.
+    var listenedMs: Int?
+    /// How many events that is; absent on an older server.
+    var events: Int?
 }
 
 /// One track's plays over all time.
@@ -101,6 +107,10 @@ struct SyncAllTimePlays: Decodable, Equatable {
     var trackId: String
     var releaseId: String
     var plays: Int
+    /// As on `SyncPeriodPlays`, over all retained events (#397).
+    var lastPlayedAt: Int64?
+    var listenedMs: Int?
+    var events: Int?
 }
 
 /// One page of `GET /v1/releases?sinceVersion=N&limit=M`.
@@ -229,6 +239,10 @@ protocol SyncApi {
     /// `PUT /v1/plays` (#337): this device's absolute counts, 1 to 500 entries, each with `source: "locally"`.
     @discardableResult
     func putPlays(_ counts: [SyncPlayCount]) async throws -> SyncPlaysPutResult
+    /// `PUT /v1/plays/events` (#397): 1 to 500 play events, each with `source: "locally"`. Throws `.notFound`
+    /// on an API that predates the route and `.rateLimited` on a 429.
+    @discardableResult
+    func putPlayEvents(_ events: [PlayEvent]) async throws -> SyncPlayEventsPutResult
     /// Downloads `url` to `destination` via `downloadTask(with:)`, so the
     /// file streams straight to disk rather than through memory.
     func downloadFile(from url: URL, to destination: URL) async throws
@@ -496,6 +510,12 @@ final class HttpSyncApi: SyncApi {
         let body = try JSONEncoder.syncApi.encode(SyncPlayCountsBody(counts: counts))
         let data = try await send(path: "/v1/plays", method: "PUT", bodyData: body)
         return try decode(SyncPlaysPutResult.self, from: data)
+    }
+
+    func putPlayEvents(_ events: [PlayEvent]) async throws -> SyncPlayEventsPutResult {
+        let body = try JSONEncoder.syncApi.encode(SyncPlayEventsBody(events: events.map(SyncPlayEvent.init)))
+        let data = try await send(path: "/v1/plays/events", method: "PUT", bodyData: body, statusErrors: [404: .notFound, 429: .rateLimited])
+        return try decode(SyncPlayEventsPutResult.self, from: data)
     }
 
     func downloadFile(from url: URL, to destination: URL) async throws {

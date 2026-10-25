@@ -67,18 +67,21 @@ function putRequest(body: unknown): NextRequest {
 let syncState: FakeSyncStateStore;
 let playTracker: { setEnabled: ReturnType<typeof vi.fn> };
 let playStore: FakePlayCountStore;
+let playEvents: { resetPushed: ReturnType<typeof vi.fn> };
 
 beforeEach(() => {
   settingsValue = { libraryDir: "/tmp/lib", sync: null };
   syncState = new FakeSyncStateStore();
   playTracker = { setEnabled: vi.fn() };
   playStore = new FakePlayCountStore();
+  playEvents = { resetPushed: vi.fn().mockResolvedValue(undefined) };
   forgetFriends = vi.fn().mockResolvedValue(undefined);
   services = {
     settings: new FakeSettingsStore(),
     syncState,
     playTracker,
     playStore,
+    playEvents,
     syncEngine: { forgetFriends },
   } as unknown as Services;
 });
@@ -291,6 +294,7 @@ describe("PUT /api/settings", () => {
 
     expect(saved).toHaveBeenCalledTimes(1);
     expect(reset).toHaveBeenCalledTimes(1);
+    expect(playEvents.resetPushed).toHaveBeenCalledTimes(1); // the play events' pushed marks go too (#398)
     expect(saved.mock.invocationCallOrder[0]).toBeLessThan(reset.mock.invocationCallOrder[0]);
   });
 
