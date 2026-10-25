@@ -787,6 +787,8 @@ extension Theme {
         static let sleeveEdgeOpacity: Double = 0.22
 
         static let stripDays = 14
+        /// The offline and busy notice's near-black backing; white text on it is above 4.5:1 over the brightest wash.
+        static let noticeBackingOpacity: Double = 0.65
         static let stripColumn: CGFloat = 44
         static let stripDiscWidth: CGFloat = 30
         static let stripDiscHeight: CGFloat = 4

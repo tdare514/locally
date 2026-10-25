@@ -15,7 +15,7 @@ struct SongPageView: View {
     /// The Album row opens the release at this song; without it the row is plain.
     var onOpenAlbum: (() -> Void)?
     /// The "Last played" line opens History on that day (`YYYY-MM-DD`, #399); without it the line is plain.
-    var onOpenHistory: ((String) -> Void)?
+    var onOpenHistory: ((String, Int64?) -> Void)?
     /// Opens scrolled to the bottom (the gallery's bottom frame).
     var startsAtEnd = false
 
@@ -32,7 +32,7 @@ struct SongPageView: View {
     @State private var shareTarget: ShareTarget?
 
     init(release: Release, trackID: UUID, onEdit: (() -> Void)? = nil, onOpenCollection: ((UUID) -> Void)? = nil,
-         onOpenAlbum: (() -> Void)? = nil, onOpenHistory: ((String) -> Void)? = nil, loader: SongPageLoader? = nil, collectionsModel: CollectionsModel? = nil, startsAtEnd: Bool = false) {
+         onOpenAlbum: (() -> Void)? = nil, onOpenHistory: ((String, Int64?) -> Void)? = nil, loader: SongPageLoader? = nil, collectionsModel: CollectionsModel? = nil, startsAtEnd: Bool = false) {
         self.release = release
         self.trackID = trackID
         self.onEdit = onEdit
@@ -256,7 +256,7 @@ struct SongPageView: View {
             .accessibilityElement(children: .combine)
             // An unknown date with plays on record leaves the line out rather than saying "Not played yet".
             if let line = model.lastPlayedText.map(Copy.SongPage.lastPlayedLine) ?? (model.neverPlayed ? Copy.SongPage.neverPlayed : nil) {
-                lastPlayedLine(line, day: model.lastPlayedText == nil ? nil : model.lastPlayedDay)
+                lastPlayedLine(line, day: model.lastPlayedText == nil ? nil : model.lastPlayedDay, startedAt: model.lastPlayedAt)
             }
             SongPeriodBars(periods: model.periods, tint: tint)
         }
@@ -265,13 +265,13 @@ struct SongPageView: View {
     /// The line, plain or (with a last played day and a host that shows History) a button to that day. The line keeps
     /// its look and its place: a clear button over it reaches 44 pt tall (as the release page's song title does).
     @ViewBuilder
-    private func lastPlayedLine(_ line: String, day: String?) -> some View {
+    private func lastPlayedLine(_ line: String, day: String?, startedAt: Int64? = nil) -> some View {
         let text = Text(line).font(Theme.ScaledFont.subheadline).foregroundStyle(Theme.secondaryText)
         if let day, let onOpenHistory {
             text
                 .accessibilityHidden(true)
                 .overlay(alignment: .leading) {
-                    Button { onOpenHistory(day) } label: {
+                    Button { onOpenHistory(day, startedAt) } label: {
                         Color.clear
                             .frame(maxWidth: .infinity, minHeight: Theme.History.minTarget)
                             .contentShape(Rectangle())

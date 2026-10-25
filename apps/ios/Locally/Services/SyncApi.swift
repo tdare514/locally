@@ -193,7 +193,9 @@ enum SyncApiError: LocalizedError, Equatable {
     case tooManyCollections
     case network(String)
     /// The request got no HTTP response at all (offline, refused, timed out). Distinct from `.network`, which also covers an HTTP error status, so a caller can tell whether the service was reached.
-    case unreachable(String)
+    /// `beforeDelivery` is true only for failures known to happen before the request left the phone (no network, host not found or
+    /// refused, DNS); a timeout or a lost connection may have reached the service, so it stays false and counts against budgets.
+    case unreachable(String, beforeDelivery: Bool = false)
 
     var errorDescription: String? {
         switch self {
@@ -209,7 +211,7 @@ enum SyncApiError: LocalizedError, Equatable {
             return "The sync server is busy. Try again soon."
         case .tooManyCollections:
             return Copy.Collections.tooMany
-        case .network(let message), .unreachable(let message):
+        case .network(let message), .unreachable(let message, _):
             return message
         }
     }
@@ -734,7 +736,7 @@ final class HttpSyncApi: SyncApi {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            throw SyncApiError.unreachable(error.localizedDescription)
+            throw SyncApiError.unreachable(error.localizedDescription, beforeDelivery: Self.failedBeforeDelivery(error))
         }
 
         guard let http = response as? HTTPURLResponse else {
@@ -743,6 +745,12 @@ final class HttpSyncApi: SyncApi {
         if let typed = statusErrors[http.statusCode] { throw typed }
         try Self.checkStatus(http.statusCode, data: data)
         return data
+    }
+
+    /// Whether a transport error proves the service never saw the request. A timeout or `networkConnectionLost` does not.
+    static func failedBeforeDelivery(_ error: Error) -> Bool {
+        guard let code = (error as? URLError)?.code else { return false }
+        return [.notConnectedToInternet, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed].contains(code)
     }
 
     private func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {

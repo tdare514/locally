@@ -192,15 +192,23 @@ struct PlayStatsServiceTests {
 
     // MARK: - What counts against the budget (#267)
 
-    @Test func requestsThatNeverReachedTheServiceDoNotUseTheBudget() async {
+    @Test func requestsKnownNotToHaveLeftThePhoneDoNotUseTheBudget() async {
         let budget = SyncPlayStatsService.budgetPerHour
-        let s = make(script: [.failure(SyncApiError.unreachable("offline"))])
+        let s = make(script: [.failure(SyncApiError.unreachable("offline", beforeDelivery: true))])
         for _ in 0..<(budget + 5) { #expect(await read(s, force: true) == .failed) }
         #expect(s.api.playsSummaryCalls.count == budget + 5)
         // Not busy: a real read still goes out.
         s.api.playsSummaryScript = [page(1)]
         #expect(await read(s, force: true) == .ok(summary(1)))
         #expect(s.api.playsSummaryCalls.count == budget + 6)
+    }
+
+    @Test func aTimeoutOrLostConnectionMayHaveBeenCountedSoItKeepsTheCharge() async {
+        let budget = SyncPlayStatsService.budgetPerHour
+        let s = make(script: [.failure(SyncApiError.unreachable("timed out"))])
+        for _ in 0..<budget { #expect(await read(s, force: true) == .failed) }
+        #expect(await read(s, force: true) == .busy)
+        #expect(s.api.playsSummaryCalls.count == budget)
     }
 
     @Test func anHttpErrorStatusUsesTheBudget() async {

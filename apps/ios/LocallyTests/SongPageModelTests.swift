@@ -244,4 +244,17 @@ struct SongPageModelTests {
         #expect(model.neverPlayed == true)
         #expect(Self.model(Self.release(), plays: nil).neverPlayed == false)
     }
+
+    /// #399: the model hands History the play's own start, not only this phone's date for it.
+    @Test func lastPlayedCarriesTheStartAlongsideThisPhonesDate() {
+        var phone = Calendar(identifier: .gregorian)
+        phone.timeZone = TimeZone(secondsFromGMT: 3600)!
+        // 23:30 on the 24th in UTC-5 is 05:30 on the 25th in UTC+1.
+        let startedAt: Int64 = 1_761_366_600_000 // 2025-10-25T04:30:00Z
+        let plays = SongPlays(total: 1, lastPlayedDay: nil, lastPlayedAt: startedAt, byPeriod: [])
+        let model = SongPageModel(release: Self.release(), trackID: Self.trackID, plays: plays, today: "2025-10-25", locale: Self.en, now: Date(timeIntervalSince1970: 1_761_400_000), calendar: phone)!
+        #expect(model.lastPlayedAt == startedAt)
+        #expect(model.lastPlayedDay == "2025-10-25")
+        #expect(HistoryRoute(day: model.lastPlayedDay, focusStartedAt: model.lastPlayedAt).focusStartedAt == startedAt)
+    }
 }

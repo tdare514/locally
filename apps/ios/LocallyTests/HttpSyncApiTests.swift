@@ -10,12 +10,18 @@ import Testing
 final class StubURLProtocol: URLProtocol {
     nonisolated(unsafe) static var handler: ((URLRequest) -> (Int, [String: String], Data))?
     nonisolated(unsafe) static var lastRequest: URLRequest?
+    /// When set, every request fails with this transport error instead of getting a response.
+    nonisolated(unsafe) static var failure: URLError.Code?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
         Self.lastRequest = request
+        if let code = Self.failure {
+            client?.urlProtocol(self, didFailWithError: URLError(code))
+            return
+        }
         guard let handler = Self.handler, let url = request.url else {
             client?.urlProtocol(self, didFailWithError: URLError(.unsupportedURL))
             return
@@ -134,6 +140,24 @@ struct HttpSyncApiTests {
         let result = try await api.me()
         #expect(result.deviceId == "device-1")
         #expect(result.quota.limitBytes == 100)
+    }
+
+    /// #399: only a failure known to happen before delivery may be refunded from the request budget.
+    private func unreachableFlag(_ code: URLError.Code) async -> Bool? {
+        StubURLProtocol.failure = code
+        defer { StubURLProtocol.failure = nil }
+        let (api, _) = makeApi()
+        do { _ = try await api.me() } catch SyncApiError.unreachable(_, let beforeDelivery) { return beforeDelivery } catch {}
+        return nil
+    }
+
+    @Test func onlyErrorsBeforeDeliveryAreMarkedAsSuch() async {
+        for code in [URLError.Code.notConnectedToInternet, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed] {
+            #expect(await unreachableFlag(code) == true, "\(code)")
+        }
+        for code in [URLError.Code.timedOut, .networkConnectionLost, .cancelled] {
+            #expect(await unreachableFlag(code) == false, "\(code)")
+        }
     }
 
     // MARK: - Missing files and the resync nudge (#171)

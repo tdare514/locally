@@ -41,7 +41,7 @@ struct PlayHistoryServiceTests {
 
     private func ids(_ read: PlayHistoryRead) -> [String]? {
         switch read {
-        case .ok(let events), .stale(let events, _): return events.map(\.id)
+        case .ok(let events), .stale(let events, _), .partial(let events, _, _): return events.map(\.id)
         default: return nil
         }
     }
@@ -76,14 +76,50 @@ struct PlayHistoryServiceTests {
         #expect(s.api.playEventsCalls.map(\.cursor) == [nil, "c1", "c2"])
     }
 
-    @Test func stopsAtTheTenPageCapKeepingTheNewestEvents() async {
-        // Every page has a cursor: the service reads ten and stops, keeping what it has.
+    @Test func stopsAtTheTenPageCapAndAnswersPartialWithTheCursorLeft() async {
+        // Every page has a cursor: the service reads ten and stops, and says the window is not complete.
         let s = make(script: [page(["x"], cursor: "more")])
         let result = await read(s)
         #expect(s.api.playEventsCalls.count == SyncPlayHistoryService.maxPages)
         #expect(SyncPlayHistoryService.maxPages == 10)
         #expect(ids(result)?.count == 10)
-        if case .ok = result {} else { Issue.record("expected .ok, got \(result)") }
+        guard case .partial(_, let cursor, let busy) = result else { Issue.record("expected .partial, got \(result)"); return }
+        #expect(cursor == "more")
+        #expect(busy == nil)
+    }
+
+    @Test func aCappedWindowIsNotCachedAndContinuingFetchesTheRest() async {
+        let capped = (1...SyncPlayHistoryService.maxPages).map { page(["p\($0)"], cursor: "c\($0)") }
+        let s = make(script: capped + [page(["last"])])
+        let first = await read(s)
+        guard case .partial(_, let cursor, _) = first else { Issue.record("expected .partial, got \(first)"); return }
+        #expect(cursor == "c10")
+        // Continuing starts at that cursor and answers only what follows, as a whole.
+        let rest = await s.service.events(from: Self.from, to: Self.to, force: false, cursor: cursor)
+        #expect(ids(rest) == ["last"])
+        if case .ok = rest {} else { Issue.record("expected .ok, got \(rest)") }
+        #expect(s.api.playEventsCalls.count == SyncPlayHistoryService.maxPages + 1)
+        #expect(s.api.playEventsCalls.last?.cursor == "c10")
+        // Nothing was cached as complete: a plain read goes out again from the first page.
+        _ = await read(s)
+        #expect(s.api.playEventsCalls.count > SyncPlayHistoryService.maxPages + 1)
+        #expect(s.api.playEventsCalls[SyncPlayHistoryService.maxPages + 1].cursor == nil)
+    }
+
+    @Test func aFailureOnPageThreeIsPartialAndARetryResumesFromPageThreesCursor() async {
+        let s = make(script: [page(["a"], cursor: "c1"), page(["b"], cursor: "c2"), .failure(SyncApiError.network("boom"))])
+        let first = await read(s)
+        guard case .partial(let events, let cursor, let busy) = first else { Issue.record("expected .partial, got \(first)"); return }
+        #expect(events.map(\.id) == ["a", "b"])
+        #expect(cursor == "c2") // the cursor page 3 was asked with
+        #expect(busy == false)
+        s.api.playEventsScript = [page(["c"])]
+        let rest = await s.service.events(from: Self.from, to: Self.to, force: false, cursor: cursor)
+        #expect(ids(rest) == ["c"])
+        #expect(s.api.playEventsCalls.last?.cursor == "c2")
+        // The partial answer was not kept as a complete window.
+        _ = await read(s)
+        #expect(s.api.playEventsCalls.last?.cursor == nil)
     }
 
     @Test func aWindowIsCachedForFiveMinutes() async {
@@ -173,8 +209,28 @@ struct PlayHistoryServiceTests {
         #expect(s.api.playEventsCalls.isEmpty)
     }
 
+    @Test func aTimeoutKeepsTheBudgetChargeBecauseTheRequestMayHaveArrived() async {
+        let s = make(script: [page(["a"]), .failure(SyncApiError.unreachable("timed out"))])
+        _ = await read(s)
+        let result = await read(s, force: true)
+        #expect(ids(result) == ["a"])
+        #expect(s.defaults.array(forKey: SyncPlayStatsService.requestTimesKey)?.count == 2)
+    }
+
+    @Test func switchingAccountsDropsTheServicesCache() async {
+        let s = make(script: [page(["a"])])
+        let before = s.service.session
+        _ = await read(s)
+        s.account.save(email: "b@example.com", deviceToken: "other", deviceId: "device-2")
+        #expect(s.service.session != before)
+        // Back to the first account: what it had cached is gone, so this goes to the service again.
+        s.account.save(email: "a@example.com", deviceToken: "token", deviceId: "device-1")
+        _ = await read(s)
+        #expect(s.api.playEventsCalls.count == 2)
+    }
+
     @Test func offlineKeepsTheLastAnswerAndDoesNotSpendTheBudget() async {
-        let s = make(script: [page(["a"]), .failure(SyncApiError.unreachable("offline"))])
+        let s = make(script: [page(["a"]), .failure(SyncApiError.unreachable("offline", beforeDelivery: true))])
         _ = await read(s)
         let result = await read(s, force: true)
         #expect(ids(result) == ["a"])

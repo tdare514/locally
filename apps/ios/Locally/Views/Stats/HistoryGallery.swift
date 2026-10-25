@@ -60,7 +60,7 @@ final class GalleryPlayHistory: PlayHistoryReading {
     private let mode: Mode
     init(_ mode: Mode) { self.mode = mode }
 
-    func events(from: Date, to: Date, force: Bool) async -> PlayHistoryRead {
+    func events(from: Date, to: Date, force: Bool, cursor: String?) async -> PlayHistoryRead {
         let inside = Self.plays.filter { $0.started >= from && $0.started < to }
         switch mode {
         case .plays: return .ok(inside)

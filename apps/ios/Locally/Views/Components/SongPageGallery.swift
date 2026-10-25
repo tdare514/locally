@@ -62,7 +62,7 @@ struct SongPageGallery: View {
 
     var body: some View {
         let page = SongPageView(
-            release: built.release, trackID: built.trackID, onEdit: {}, onOpenCollection: { _ in }, onOpenHistory: { _ in },
+            release: built.release, trackID: built.trackID, onEdit: {}, onOpenCollection: { _ in }, onOpenHistory: { _, _ in },
             loader: loader, collectionsModel: built.model, startsAtEnd: name == "song-page-bottom")
         IconsGallery.environment(
             NavigationStack { page }.environment(\.playback, built.playback),

@@ -2,9 +2,12 @@ import SwiftUI
 import UIKit
 
 /// A push of the History screen onto a navigation stack (#399), the way `SongRoute` pushes a song. `day` is the
-/// `YYYY-MM-DD` to open on; today when nil.
+/// `YYYY-MM-DD` to open on; today when nil. `focusStartedAt` (epoch ms) is the play the screen was opened for: History
+/// opens on the day that play is stored under, which is the playing device's date, and uses `day` (this phone's
+/// date) only when it never finds the play.
 struct HistoryRoute: Hashable {
     var day: String?
+    var focusStartedAt: Int64?
 }
 
 /// History as a stack shows it: builds the model from the app container once it is there.
@@ -26,7 +29,7 @@ struct HistoryDestination: View {
             let store = container.coverStore
             let library = container.library
             built = (
-                HistoryModel(service: container.playHistory, releases: { (try? library.all()) ?? [] }, selected: route.day),
+                HistoryModel(service: container.playHistory, releases: { (try? library.all()) ?? [] }, selected: route.day, focusStartedAt: route.focusStartedAt),
                 HistoryCovers(cache: StatsCoverCache(loader: { store.load($0) })))
         }
     }
@@ -46,6 +49,8 @@ struct HistoryView: View {
     @State private var stripTarget: String?
     /// The day at the strip's leading edge.
     @State private var stripLeading: String?
+    /// The strip days that have appeared on screen, so their covers load as the strip scrolls back (not only the newest 14).
+    @State private var visibleDays = Set<String>()
 
     init(model: HistoryModel, covers: HistoryCovers) {
         _model = State(initialValue: model)
@@ -57,8 +62,7 @@ struct HistoryView: View {
 
     /// Every release the page can draw: the day strip's discs and the selected day's sleeves.
     private var shownReleases: Set<UUID> {
-        var ids = Set<UUID>()
-        for day in model.strip.prefix(Theme.History.stripDays) { day.plays.prefix(Theme.History.stripMaxDiscs).forEach { ids.insert($0.releaseId) } }
+        var ids = model.releaseIds(onDays: visibleDays, discs: Theme.History.stripMaxDiscs)
         model.selectedDay.plays.forEach { ids.insert($0.releaseId) }
         return ids
     }
@@ -80,7 +84,7 @@ struct HistoryView: View {
         .task {
             await model.load()
             model.rebuild()
-            await model.reveal(model.selected)
+            await model.focus()
             stripTarget = model.selected
         }
         .task(id: shownReleases) { await covers.load(shownReleases) }
@@ -116,11 +120,19 @@ struct HistoryView: View {
 
     // MARK: States
 
+    /// On a near-black pill (faked glass), not bare on the wash: white text on it stays above 4.5:1 over the brightest cover colours.
     private var noticeLine: some View {
         Text(model.notice == .busy ? Copy.History.busy : Copy.History.offline)
             .font(.footnote)
-            .foregroundStyle(Theme.secondaryText)
+            .foregroundStyle(Theme.primaryText)
             .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(.black.opacity(Theme.History.noticeBackingOpacity))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.12), lineWidth: 0.5)))
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Theme.History.gutter)
             .accessibilityIdentifier("history-notice")
     }
@@ -179,8 +191,8 @@ struct HistoryView: View {
         let days = Array(model.strip.reversed())
         return ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .bottom, spacing: 2) {
-                    ForEach(days) { day in column(day).id(day.day) }
+                LazyHStack(alignment: .bottom, spacing: 2) {
+                    ForEach(days) { day in column(day).id(day.day).onAppear { visibleDays.insert(day.day) } }
                 }
                 .scrollTargetLayout()
                 .padding(.horizontal, Theme.History.gutter - 2)

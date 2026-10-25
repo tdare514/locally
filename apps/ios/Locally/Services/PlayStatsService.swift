@@ -40,7 +40,7 @@ protocol PlayRequestBudget: AnyObject {
 
 /// Reads `GET /v1/plays/summary` frugally. The server allows 600 requests an hour per user, shared
 /// with the Mac (which keeps itself to 200), so this phone keeps to 200 page requests an hour (a
-/// request that never reached the service, with no HTTP response, is not counted), backs
+/// request that provably never left the phone is not counted; a timeout is), backs
 /// off 10 minutes after a 429, caches each range for 5 minutes and shares one request between
 /// concurrent callers of the same range.
 @MainActor
@@ -221,9 +221,9 @@ final class SyncPlayStatsService: PlayStatsReading, PlayRequestBudget {
             } catch SyncApiError.rateLimited {
                 backOffUntil = now().addingTimeInterval(Self.backOffSeconds)
                 return fallback(key, empty: .busy)
-            } catch SyncApiError.unreachable {
-                // No HTTP response: the service never saw it, so it does not count against the budget.
-                if !requestTimes.isEmpty { requestTimes.removeLast() }
+            } catch SyncApiError.unreachable(_, let beforeDelivery) {
+                // Only a failure known to happen before delivery is given back; a timeout may have been counted.
+                if beforeDelivery { refundLastRequest() }
                 return fallback(key, empty: .failed)
             } catch {
                 // `.unauthorized` too: the sync engine owns sign-out.
