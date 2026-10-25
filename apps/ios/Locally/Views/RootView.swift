@@ -124,6 +124,7 @@ struct RootView: View {
             } else {
                 container?.syncEngine.stopAutoReconcile()
             }
+            if newPhase == .background { container?.playback.flushListened() }
         }
     }
 }

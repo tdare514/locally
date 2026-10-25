@@ -777,6 +777,17 @@ final class FakeSyncApi: SyncApi {
         return SyncPlaysPutResult(accepted: counts.count, ignored: 0)
     }
 
+    /// Every `putPlayEvents` request, in order. `putPlayEventsResults` is consumed in order (empty or spent means success).
+    private(set) var putPlayEventsCalls: [[PlayEvent]] = []
+    var putPlayEventsResults: [Result<SyncPlayEventsPutResult, Error>] = []
+
+    func putPlayEvents(_ events: [PlayEvent]) async throws -> SyncPlayEventsPutResult {
+        let index = putPlayEventsCalls.count
+        putPlayEventsCalls.append(events)
+        if index < putPlayEventsResults.count { return try putPlayEventsResults[index].get() }
+        return SyncPlayEventsPutResult(accepted: events.count, ignored: 0)
+    }
+
     func downloadURL(releaseId: String, fileName: String) async throws -> URL {
         URL(string: "https://fake-storage.example.com/\(releaseId)/\(fileName)")!
     }

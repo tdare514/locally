@@ -176,8 +176,12 @@ final class PlaybackService {
     @ObservationIgnored private let remote: RemoteCommandRegistrar
     @ObservationIgnored private let coverData: (Release) -> Data?
     @ObservationIgnored private let playCounts: PlayCountStoring?
+    @ObservationIgnored private let playEvents: PlayEventStoring?
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private var counter = PlayCounter()
+    /// The play event of the session being heard (#397): its id, the counter session it belongs to, and the
+    /// audible milliseconds so far, written to the store on pause, finish, skip, stop and background.
+    @ObservationIgnored private var activeEvent: (id: UUID, session: Int, listenedMs: Int)?
     @ObservationIgnored private var runner: Task<Void, Never>?
     @ObservationIgnored private var cursor = 0
     @ObservationIgnored private var isSkipping = false
@@ -201,7 +205,7 @@ final class PlaybackService {
     init(
         engine: PlaybackEngine, access: PlaybackFileAccess, session: PlaybackSession,
         nowPlaying: NowPlayingPublisher, remote: RemoteCommandRegistrar, coverData: @escaping (Release) -> Data? = { _ in nil },
-        playCounts: PlayCountStoring? = nil, now: @escaping () -> Date = Date.init
+        playCounts: PlayCountStoring? = nil, playEvents: PlayEventStoring? = nil, now: @escaping () -> Date = Date.init
     ) {
         self.engine = engine
         self.access = access
@@ -210,6 +214,7 @@ final class PlaybackService {
         self.remote = remote
         self.coverData = coverData
         self.playCounts = playCounts
+        self.playEvents = playEvents
         self.now = now
     }
 
@@ -307,6 +312,7 @@ final class PlaybackService {
         wantsToPlay = true
         setUpOnce()
         releases = byID
+        closeEvent()
         counter.reset()
         queue = Queue(items: playable, index: start, context: context)
         cursor = start
@@ -356,6 +362,7 @@ final class PlaybackService {
 
     func pause() {
         guard hasQueue else { return }
+        flushListened()
         wantsToPlay = false
         // An explicit pause also cancels any "resume when the interruption ends".
         resumeAfterInterruption = false
@@ -412,6 +419,7 @@ final class PlaybackService {
 
     /// Ends playback and drops the queue; the mini player goes away.
     func stop() {
+        closeEvent()
         endRun()
         queue = nil
         releases = [:]
@@ -443,6 +451,7 @@ final class PlaybackService {
     func handle(_ event: InterruptionEvent) {
         switch event {
         case .began:
+            flushListened()
             resumeAfterInterruption = wantsToPlay
             wantsToPlay = false
             if isPlaying {
@@ -504,6 +513,7 @@ final class PlaybackService {
     }
 
     private func skip(to index: Int) {
+        closeEvent()
         runToken += 1
         cancelIntentWait()
         cursor = index
@@ -530,10 +540,12 @@ final class PlaybackService {
             guard let track = track(for: queue.items[index]) else { continue }
             elapsed = 0
             duration = track.durationSec
+            closeEvent()
             counter.reset()
             isSkipping = false
             itemLoaded = false
             let end = await playItem(track, token: runToken)
+            closeEvent()
             if Task.isCancelled { return }
             if end == .stopped, !isSkipping { break }
         }
@@ -592,9 +604,30 @@ final class PlaybackService {
         // Nothing counts while the player is meant to be paused, whatever a late tick says.
         let playing = isPlaying && wantsToPlay
         let sample = PlaySample(at: now().timeIntervalSince1970, playing: playing, positionSec: elapsed, durationSec: duration ?? 0)
-        if counter.push(sample), playing {
+        let counted = counter.push(sample)
+        // A jump back starts a new session: the old event keeps what it had heard.
+        if let active = activeEvent, active.session != counter.sessionNumber { closeEvent() }
+        if counted, playing {
             playCounts.increment(releaseId: item.releaseId, trackId: item.trackId, at: now())
+            if let playEvents {
+                let started = Date(timeIntervalSince1970: counter.sessionStart ?? sample.at)
+                let id = playEvents.append(releaseId: item.releaseId, trackId: item.trackId, startedAt: started)
+                activeEvent = (id, counter.sessionNumber, 0)
+            }
         }
+        if let active = activeEvent { activeEvent = (active.id, active.session, Int(counter.listenedSec * 1000)) }
+    }
+
+    /// Writes the audible time of the playing event to the store (pause, finish, skip, stop, app background).
+    func flushListened() {
+        guard let active = activeEvent else { return }
+        playEvents?.updateListened(id: active.id, listenedMs: active.listenedMs)
+    }
+
+    /// Writes the event's time and lets go of it: its session is over.
+    private func closeEvent() {
+        flushListened()
+        activeEvent = nil
     }
 
     private func publish() {

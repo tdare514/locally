@@ -24,7 +24,12 @@ struct PlayCounter {
     static let backwardSeekSec: Double = 3
     static let seekSlackSec: Double = 2
 
-    private var listenedSec: Double = 0
+    /// Audible seconds in the current session: paused time and seeks add nothing (#397).
+    private(set) var listenedSec: Double = 0
+    /// Wall-clock time of the first playing sample of the current session, for a play event's `startedAt`.
+    private(set) var sessionStart: TimeInterval?
+    /// Bumps whenever a session ends (a jump back, `reset()`), so a play event can tell its session is over.
+    private(set) var sessionNumber = 0
     private var counted = false
     private var prev: (at: TimeInterval, positionSec: Double, playing: Bool)?
 
@@ -34,8 +39,11 @@ struct PlayCounter {
             // Back to the start: a new play.
             listenedSec = 0
             counted = false
+            sessionStart = nil
+            sessionNumber += 1
             self.prev = nil
         }
+        if sample.playing, sessionStart == nil { sessionStart = sample.at }
         if sample.playing, let prev, prev.playing {
             let delta = sample.positionSec - prev.positionSec
             let wallGap = sample.at - prev.at
@@ -56,6 +64,8 @@ struct PlayCounter {
     mutating func reset() {
         listenedSec = 0
         counted = false
+        sessionStart = nil
+        sessionNumber += 1
         prev = nil
     }
 }

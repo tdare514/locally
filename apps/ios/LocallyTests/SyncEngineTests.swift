@@ -61,6 +61,7 @@ struct SyncEngineTests {
         coverStore: FakeCoverStore = FakeCoverStore(),
         now: @escaping () -> Date = { Date() },
         playCounts: PlayCountStoring? = nil,
+        playEvents: PlayEventStoring? = nil,
         installIds: InstallIdStoring? = nil,
         sessionBinding: SessionBindingStoring? = nil
     ) -> Harness {
@@ -84,7 +85,7 @@ struct SyncEngineTests {
             resolvedAccount = InMemorySyncAccountStore()
             resolvedAccount.save(email: "toby@example.com", deviceToken: "test-token", deviceId: "device-1")
         }
-        let engine = SyncEngine(api: api, account: resolvedAccount, library: library, coordinator: coordinator, coverStore: coverStore, outbox: outbox, now: now, deviceName: { "Toby's iPhone" }, defaults: defaults, playCounts: playCounts, installIds: installIds, sessionBinding: sessionBinding)
+        let engine = SyncEngine(api: api, account: resolvedAccount, library: library, coordinator: coordinator, coverStore: coverStore, outbox: outbox, now: now, deviceName: { "Toby's iPhone" }, defaults: defaults, playCounts: playCounts, playEvents: playEvents, installIds: installIds, sessionBinding: sessionBinding)
         return Harness(coordinator: coordinator, folder: folder, library: library, tagWriter: tagWriter, coverStore: coverStore, api: api, account: resolvedAccount, outbox: outbox, engine: engine, defaults: defaults)
     }
 

@@ -98,8 +98,13 @@ private final class SongGalleryStats: PlayStatsReading {
         let counts: [(StatsPeriodKind, Int)] = [(.today, 0), (.week, 12), (.month, 31), (.year, 96)]
         let kind = counts.first { PlayPeriods.selectionRange(PeriodSelection(kind: $0.0, back: 0), today: today, firstDay: firstDay) == DayRange(from: from, to: to) }
         let yesterday = PlayPeriods.addDays(today, -1)
+        // Played yesterday at 21:14 (#397), so the panel shows the time.
+        let start = Calendar.current.date(byAdding: .day, value: -1, to: Calendar.current.startOfDay(for: Date())) ?? Date()
+        let playedAt = Int64((start.timeIntervalSince1970 + 21 * 3600 + 14 * 60) * 1000)
         func row(_ plays: Int, day: String?) -> PlayCount {
-            PlayCount(trackId: trackID.uuidString.lowercased(), releaseId: releaseID.uuidString.lowercased(), plays: plays, lastPlayedDay: day)
+            var count = PlayCount(trackId: trackID.uuidString.lowercased(), releaseId: releaseID.uuidString.lowercased(), plays: plays, lastPlayedDay: day)
+            count.lastPlayedAt = playedAt
+            return count
         }
         let plays = counts.first { $0.0 == kind?.0 }?.1 ?? 0
         return .ok(PlaysSummary(tracks: plays > 0 ? [row(plays, day: yesterday)] : [], allTime: []))

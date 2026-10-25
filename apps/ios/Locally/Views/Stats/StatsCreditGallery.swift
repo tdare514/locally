@@ -72,12 +72,18 @@ struct StatsCreditGallery: View {
     }
 
     private var statsRows: some View {
-        let items = [
-            StatItem(id: "a", rank: 1, title: "Headlights (feat. Okoro & Juniper Hale)", subtitle: "Mira Valdane", plays: 1204, lastPlayedDay: nil,
-                     releaseId: UUID(), trackId: UUID(), coverPath: nil, medal: .gold),
-            StatItem(id: "b", rank: 2, title: "Orange Streetlight (feat. Okoro)", subtitle: "Mira Valdane", plays: 31, lastPlayedDay: nil,
-                     releaseId: UUID(), trackId: UUID(), coverPath: nil, medal: nil),
-        ]
+        // Last played with the time (#397): 21:14 today and 09:02 yesterday, in the device's locale.
+        func at(daysAgo: Int, hour: Int, minute: Int) -> Int64 {
+            let day = Calendar.current.date(byAdding: .day, value: -daysAgo, to: Calendar.current.startOfDay(for: Date())) ?? Date()
+            return Int64((day.timeIntervalSince1970 + Double(hour * 3600 + minute * 60)) * 1000)
+        }
+        var first = StatItem(id: "a", rank: 1, title: "Headlights (feat. Okoro & Juniper Hale)", subtitle: "Mira Valdane", plays: 1204, lastPlayedDay: nil,
+                             releaseId: UUID(), trackId: UUID(), coverPath: nil, medal: .gold)
+        first.lastPlayedAt = at(daysAgo: 0, hour: 21, minute: 14)
+        var second = StatItem(id: "b", rank: 2, title: "Orange Streetlight (feat. Okoro)", subtitle: "Mira Valdane", plays: 31, lastPlayedDay: nil,
+                              releaseId: UUID(), trackId: UUID(), coverPath: nil, medal: nil)
+        second.lastPlayedAt = at(daysAgo: 1, hour: 9, minute: 2)
+        let items = [first, second]
         return ZStack {
             StudioBackdrop()
             ScrollView {
