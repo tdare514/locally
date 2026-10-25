@@ -2260,7 +2260,8 @@ body {
 }
 @container (min-width: 480px) {
   .st-row {
-    grid-template-columns: 1.75rem 2.75rem minmax(0, 1fr) 7rem auto;
+    /* The last-played column fits "Yesterday at 09:02 PM" (#398). */
+    grid-template-columns: 1.75rem 2.75rem minmax(0, 1fr) 9.5rem auto;
     column-gap: 1rem;
   }
   .st-row-last {
@@ -2269,7 +2270,7 @@ body {
 }
 @container (min-width: 760px) {
   .st-row {
-    grid-template-columns: 1.75rem 2.75rem minmax(0, 1fr) 7.5rem minmax(6rem, 13rem) 3.5rem;
+    grid-template-columns: 1.75rem 2.75rem minmax(0, 1fr) 10rem minmax(6rem, 13rem) 3.5rem;
   }
   .st-row-bar {
     display: flex;

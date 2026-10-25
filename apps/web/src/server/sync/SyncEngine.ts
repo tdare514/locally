@@ -12,6 +12,7 @@ import { assertReadablePath, assertWritable, isAdoptedCoverPath } from "../adopt
 import type { ReleaseService } from "../releases/ReleaseService";
 import type { ReleaseSyncHooks } from "../releases/ReleaseSyncHooks";
 import type { PlayCountStore } from "../plays/PlayCountStore";
+import { isPendingEvent, MAX_PLAY_EVENTS_PER_PUSH, type PlayEventStore } from "../plays/PlayEventStore";
 import { batchPlayEntries, pendingPlayEntries } from "../plays/releasePlays";
 import { invalidateServerSummary } from "../plays/serverSummary";
 import {
@@ -71,6 +72,8 @@ export const MAX_PULL_PAGES_PER_RECONCILE = 100;
 
 /** The files-missing check (#172) runs at most this often, and only while releases are pending. */
 export const MISSING_CHECK_SPACING_MS = 10 * 60_000;
+/** How long the play-events push waits after a 404 or a 429 (the iPhone does the same, #398). */
+export const PLAY_EVENTS_BACKOFF_MS = 10 * 60_000;
 
 /** The Mac re-sends its own releases' missing files (#218) at most this often, unless nudged or asked. */
 export const SELF_HEAL_SPACING_MS = 6 * 60 * 60_000;
@@ -155,6 +158,8 @@ export class SyncEngine implements ReleaseSyncHooks {
   private loggedPlayRejection = false;
   /** When the files-missing check is next due (#172); null is due now. In memory, so a restart simply checks again. */
   private nextMissingCheckMs: number | null = null;
+  /** Set by a 404 or 429 on the events push: no push for this session until `untilMs`. In memory only. */
+  private eventsBackoff: { key: string | null; untilMs: number } | null = null;
   /** "Resync Mac and phone" was pressed (#218): the next reconcile heals this Mac's releases at once. In memory. */
   private healRequested = false;
   /** After a failed heal attempt, no new attempt before this (a 429 must not be retried every 30 s). In memory. */
@@ -180,7 +185,9 @@ export class SyncEngine implements ReleaseSyncHooks {
     /** Where received shares' covers are kept so the tray's pictures are downloaded once (#182). */
     private readonly coverCacheDir: () => string = () => path.join(settingsDir(), "share-covers"),
     /** This Mac's collections (#349); null in tests that don't care, which skips the collections sync. */
-    private readonly collections: CollectionStore | null = null
+    private readonly collections: CollectionStore | null = null,
+    /** This Mac's play events (#398); null in tests that don't care, which skips the events push. */
+    private readonly playEvents: PlayEventStore | null = null,
   ) {}
 
   /** Set while the service refuses a new collection (it holds 1,000); cleared by the next pass that gets through. */
@@ -622,6 +629,9 @@ export class SyncEngine implements ReleaseSyncHooks {
       // The session this run belongs to, from the same settings that built `api`: work for a host or
       // account left behind meanwhile is dropped, never published.
       const key = this.sessionKeyOf(settings.sync);
+      // The play-events epoch is read at the same moment as `api`, so the credentials and the epoch always
+      // belong to one account, however long the counts push below takes.
+      const eventsEpoch = this.playEvents?.pushedEpoch() ?? 0;
       await this.enterSession();
 
       await this.pullOnce(api);
@@ -650,6 +660,8 @@ export class SyncEngine implements ReleaseSyncHooks {
       // After the releases above, so the service already holds the release each count belongs to
       // (it ignores counts for a release it doesn't have).
       await this.pushPlays(api);
+      // Never throws: events are an extra, and a service without them (404) is not an error.
+      await this.pushPlayEvents(api, key, eventsEpoch);
 
       this.lastError = null;
     } catch (err) {
@@ -828,6 +840,49 @@ export class SyncEngine implements ReleaseSyncHooks {
     // one whose counts went through without days) leaves its days off, so the summary merge keeps
     // subtracting this Mac's local days rather than risk counting a copy the service still holds twice.
     if (!refused && !before.daysInSync && store.pushedEpoch() === epoch) await store.markDaysInSync(epoch);
+  }
+
+  /**
+   * Sends the play events (#398) whose `listenedMs` the service has not seen, 500 to a request, and marks each
+   * batch on success. A 404 (an API from before play events) or a 429 backs the push off for
+   * `PLAY_EVENTS_BACKOFF_MS`, held in memory (the iPhone does the same); any other failure stops the pass. Both
+   * leave the rest pending, with no error line. `key` and `epoch` were read with `api`; the session is checked
+   * again before each request and each marker write, so nothing goes to, or is marked for, another account.
+   */
+  private async pushPlayEvents(api: SyncApi, key: string | null, epoch: number): Promise<void> {
+    const store = this.playEvents;
+    if (!store) return;
+    const nowMs = this.now().getTime();
+    const backoff = this.eventsBackoff;
+    if (backoff && backoff.key === key && backoff.untilMs > nowMs && backoff.untilMs - nowMs <= PLAY_EVENTS_BACKOFF_MS) return;
+    try {
+      if ((await this.enterSession()) !== key || store.pushedEpoch() !== epoch) return;
+      const pending = (await store.list()).filter(isPendingEvent).sort((a, b) => a.startedAt - b.startedAt);
+      for (let i = 0; i < pending.length; i += MAX_PLAY_EVENTS_PER_PUSH) {
+        if ((await this.enterSession()) !== key || store.pushedEpoch() !== epoch) return;
+        const batch = pending.slice(i, i + MAX_PLAY_EVENTS_PER_PUSH);
+        await api.pushPlayEvents(
+          batch.map((e) => ({
+            id: e.id,
+            releaseId: e.releaseId,
+            trackId: e.trackId,
+            source: e.source,
+            startedAt: e.startedAt,
+            day: e.day,
+            listenedMs: e.listenedMs,
+          })),
+        );
+        if ((await this.enterSession()) !== key) return;
+        await store.markPushed(Object.fromEntries(batch.map((e) => [e.id, e.listenedMs])), epoch);
+        // A service summary read before this push must not be merged with markers read after it.
+        invalidateServerSummary();
+      }
+    } catch (err) {
+      if (err instanceof SyncRequestError && (err.status === 404 || err.status === 429)) {
+        this.eventsBackoff = { key, untilMs: this.now().getTime() + PLAY_EVENTS_BACKOFF_MS };
+      }
+      // Left pending: an expired sign-in or a dropped connection tries again next time.
+    }
   }
 
   /**

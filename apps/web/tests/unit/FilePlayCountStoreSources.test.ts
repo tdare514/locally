@@ -103,4 +103,32 @@ describe("play counts per source (#338)", () => {
     const merged = mergeReleasePlays(await store.get(), R1, null);
     expect(merged.tracks[0].total).toBe(2);
   });
+
+  it("incrementOnce counts a session key once, across a new store over the same file, and old files load without the key set", async () => {
+    const old = { version: 1, tracks: { [T1]: { releaseId: R1, count: 1, pushed: 0 } } };
+    await fs.mkdir(path.dirname(playsFilePath()), { recursive: true });
+    await fs.writeFile(playsFilePath(), JSON.stringify(old));
+    expect(await newStore().get()).toEqual(old);
+    expect(await newStore().incrementOnce(T1, R1, DAY, "locally", "locally:t:1")).toBe(true);
+    expect(await newStore().incrementOnce(T1, R1, DAY, "locally", "locally:t:1")).toBe(false);
+    expect(await newStore().incrementOnce(T1, R1, DAY, "locally", "locally:t:2")).toBe(true);
+    const got = await newStore().get();
+    expect(got.tracks[T1].locally?.count).toBe(2);
+    expect(Object.keys(got.countedSessions ?? {}).sort()).toEqual(["locally:t:1", "locally:t:2"]);
+  });
+
+  it("prunes session keys older than 400 days, and keeps a 399-day-old one", async () => {
+    await new FilePlayCountStore(() => NOW - 401 * 86_400_000, "UTC").incrementOnce(T1, R1, DAY, "locally", "old");
+    await new FilePlayCountStore(() => NOW - 399 * 86_400_000, "UTC").incrementOnce(T1, R1, DAY, "locally", "recent");
+    await newStore().incrementOnce(T1, R1, DAY, "locally", "new");
+    expect(Object.keys((await newStore().get()).countedSessions ?? {}).sort()).toEqual(["new", "recent"]);
+  });
+
+  it("releaseSession deletes the key, and is a no-op for a missing one", async () => {
+    await newStore().incrementOnce(T1, R1, DAY, "locally", "k");
+    await newStore().releaseSession("missing");
+    expect(Object.keys((await newStore().get()).countedSessions ?? {})).toEqual(["k"]);
+    await newStore().releaseSession("k");
+    expect((await newStore().get()).countedSessions).toBeUndefined();
+  });
 });

@@ -139,7 +139,7 @@ final class StatsViewModel {
     }
 
     /// The list in the chosen order; rows keep their plays rank under any sort.
-    var listed: [StatItem] { Self.sorted(items, by: sort) }
+    var listed: [StatItem] { Self.sorted(items, by: sort, calendar: calendar) }
 
     var digest: String {
         switch phase {
@@ -153,7 +153,22 @@ final class StatsViewModel {
         }
     }
 
-    static func sorted(_ items: [StatItem], by sort: StatsSort) -> [StatItem] {
+    /// Local midnight of a `YYYY-MM-DD` day in milliseconds, or nil when the string is not a day.
+    static func startOfLocalDayMs(_ day: String?, calendar: Calendar) -> Int64? {
+        guard let day else { return nil }
+        let p = day.split(separator: "-").compactMap { Int($0) }
+        guard p.count == 3 else { return nil }
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = calendar.timeZone
+        guard let date = gregorian.date(from: DateComponents(year: p[0], month: p[1], day: p[2])) else { return nil }
+        return Int64(date.timeIntervalSince1970 * 1000)
+    }
+
+    private static func recencyKey(_ item: StatItem, calendar: Calendar) -> Int64 {
+        max(item.lastPlayedAt ?? Int64.min, startOfLocalDayMs(item.lastPlayedDay, calendar: calendar) ?? Int64.min)
+    }
+
+    static func sorted(_ items: [StatItem], by sort: StatsSort, calendar: Calendar = .current) -> [StatItem] {
         switch sort {
         case .plays:
             return items
@@ -168,11 +183,12 @@ final class StatsViewModel {
                 return a.seconds > b.seconds
             }
         case .recent:
+            // One key per row, so the order is total: the later of the exact time and the start of
+            // the last played day. A timed play on a day beats an untimed one on the same day.
+            let keys = Dictionary(items.map { ($0.id, Self.recencyKey($0, calendar: calendar)) }, uniquingKeysWith: { first, _ in first })
             return items.sorted { a, b in
-                if a.lastPlayedDay == b.lastPlayedDay { return a.rank < b.rank }
-                guard let x = a.lastPlayedDay else { return false }
-                guard let y = b.lastPlayedDay else { return true }
-                return x > y
+                let x = keys[a.id] ?? Int64.min, y = keys[b.id] ?? Int64.min
+                return x != y ? x > y : a.rank < b.rank
             }
         }
     }

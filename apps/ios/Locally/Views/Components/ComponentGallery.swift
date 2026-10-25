@@ -579,8 +579,11 @@ enum StatsGallery {
                 let day = PlayPeriods.localDayString(Date().addingTimeInterval(-86_400 * Double(t.daysAgo)), calendar: .current)
                 let tid = trackID(seed, i).uuidString.lowercased()
                 let rid = id(seed.n).uuidString.lowercased()
-                if !empty { tracks.append(PlayCount(trackId: tid, releaseId: rid, plays: t.plays, lastPlayedDay: day)) }
-                allTime.append(PlayCount(trackId: tid, releaseId: rid, plays: t.plays * 4, lastPlayedDay: nil))
+                // The time of the last play (#397): 21:14 on that day, so a play today reads "Today at 21:14".
+                let startOfDay = Calendar.current.startOfDay(for: Date().addingTimeInterval(-86_400 * Double(t.daysAgo)))
+                let at = Int64((startOfDay.timeIntervalSince1970 + (21 * 60 + 14) * 60) * 1000)
+                if !empty { tracks.append(PlayCount(trackId: tid, releaseId: rid, plays: t.plays, lastPlayedDay: day, lastPlayedAt: at)) }
+                allTime.append(PlayCount(trackId: tid, releaseId: rid, plays: t.plays * 4, lastPlayedDay: nil, lastPlayedAt: at))
             }
         }
         return PlaysSummary(tracks: tracks, allTime: allTime)

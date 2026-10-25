@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { Release, Track } from "../shared/types";
-import { LOCAL_ID_PREFIX, PlayCounter } from "../server/plays/PlayCounter";
+import { LOCAL_ID_PREFIX, PlayCounter, type PlaySession } from "../server/plays/PlayCounter";
 import { coverUrl } from "./api-client";
 import { trackArtist } from "./track-columns";
 
@@ -106,13 +106,28 @@ export function previousAction(queue: PlayQueue, positionSec: number): "restart"
  */
 export class PlayCountSession {
   private readonly counter = new PlayCounter();
+  /** The counted session in progress: what was last reported for it (#398). */
+  private reported: { item: QueueItem; startedAt: number; listenedMs: number } | null = null;
+  private wasPlaying = false;
 
-  constructor(private readonly report: (item: QueueItem) => void) {}
+  /**
+   * `report` gets the item when its play counts, with the session's start and audible ms (#398). `progress`
+   * gets the same item again with a larger `listenedMs`: when the player pauses, when the session ends (a skip, the
+   * track finishing, the queue stopping) and as listening goes on, every `PROGRESS_STEP_MS`.
+   */
+  constructor(
+    private readonly report: (item: QueueItem, session: PlayReport) => void,
+    private readonly progress?: (item: QueueItem, session: PlayReport) => void,
+  ) {}
 
   /** `item` null: nothing is loaded, which ends the session. */
   sample(item: QueueItem | null, s: { at: number; playing: boolean; positionSec: number; durationSec: number }): void {
+    const before = this.counter.session();
+    const wasPlaying = this.wasPlaying;
+    this.wasPlaying = Boolean(item) && s.playing;
     if (!item) {
       this.counter.push({ at: s.at, running: false, state: "stopped", id: null, positionSec: 0, durationMs: 0 });
+      this.finish(before);
       return;
     }
     const counted = this.counter.push({
@@ -123,9 +138,42 @@ export class PlayCountSession {
       positionSec: s.positionSec,
       durationMs: Number.isFinite(s.durationSec) && s.durationSec > 0 ? s.durationSec * 1000 : 0,
     });
-    if (counted) this.report(item);
+    const after = this.counter.session();
+    if (before && this.reported && (!after || after.startedAt !== before.startedAt)) this.finish(before);
+    if (counted && after) {
+      this.reported = { item, startedAt: after.startedAt, listenedMs: after.listenedMs };
+      this.report(item, { startedAt: after.startedAt, listenedMs: after.listenedMs });
+    } else if (!this.reported && after && after.counted) {
+      // The counter restored a counted session (a source switch, or a stall that ended within ten minutes): it was
+      // reported when it counted, so reporting picks up its event again. Nothing is counted or reported here.
+      this.reported = { item, startedAt: after.startedAt, listenedMs: after.listenedMs };
+    } else if (this.reported && after && after.counted && after.startedAt === this.reported.startedAt) {
+      const paused = wasPlaying && !s.playing;
+      if (after.listenedMs > this.reported.listenedMs && (paused || after.listenedMs - this.reported.listenedMs >= PROGRESS_STEP_MS)) {
+        this.reported = { ...this.reported, listenedMs: after.listenedMs };
+        this.progress?.(item, { startedAt: after.startedAt, listenedMs: after.listenedMs });
+      }
+    }
+  }
+
+  /** The counted session `ended` is over: report its audible time once more if it grew since the last report. */
+  private finish(ended: PlaySession | null): void {
+    const last = this.reported;
+    this.reported = null;
+    if (ended && last && ended.startedAt === last.startedAt && ended.listenedMs > last.listenedMs) {
+      this.progress?.(last.item, { startedAt: ended.startedAt, listenedMs: ended.listenedMs });
+    }
   }
 }
+
+/** A counted play's session as the server is told: its start (epoch ms) and the audible ms so far. */
+export interface PlayReport {
+  startedAt: number;
+  listenedMs: number;
+}
+
+/** How much more audible time a playing session gathers before it is reported again. */
+export const PROGRESS_STEP_MS = 30_000;
 
 export interface PlayerState {
   queue: PlayQueue | null;

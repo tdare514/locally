@@ -271,6 +271,85 @@ struct HttpSyncApiTests {
         ))
     }
 
+    // MARK: - Play events (#397): the literal fixtures of spec/fixtures/play-events/ through the real client
+
+    private func playEventsFixture(_ name: String) throws -> Data {
+        var url = URL(fileURLWithPath: #filePath)
+        for _ in 0..<4 { url.deleteLastPathComponent() }
+        return try Data(contentsOf: url.appendingPathComponent("spec/fixtures/play-events/\(name)"))
+    }
+
+    @Test func theLiteralSummaryWithEventsDecodesTheThreeNewFields() async throws {
+        let (api, _) = makeApi()
+        let fixture = try playEventsFixture("valid-summary-with-events.json")
+        StubURLProtocol.handler = { _ in (200, [:], fixture) }
+
+        let page = try await api.playsSummary(from: "2026-10-12", to: "2026-10-25", cursor: nil)
+        #expect(page.tracks.count == 2)
+        #expect(page.tracks[0].lastPlayedAt == 1_792_841_234_567)
+        #expect(page.tracks[0].listenedMs == 642_000)
+        #expect(page.tracks[0].events == 3)
+        #expect(page.tracks[0].lastPlayedDay == "2026-10-24")
+        // A track with no events in the window: lastPlayedAt null, the others zero.
+        #expect(page.tracks[1].lastPlayedAt == nil)
+        #expect(page.tracks[1].listenedMs == 0)
+        #expect(page.tracks[1].events == 0)
+        #expect(page.allTime == [SyncAllTimePlays(
+            trackId: "a1b2c3d4-0001-4a5b-8c9d-0123456789ab", releaseId: "3f2a6c1e-8b7d-4e5a-9c1d-2a4b6c8d0e1f",
+            plays: 9, lastPlayedAt: 1_792_841_234_567, listenedMs: 1_830_000, events: 8
+        )])
+        #expect(page.nextCursor == nil)
+    }
+
+    @Test func anOlderServersSummaryWithoutTheNewFieldsStillDecodes() async throws {
+        let (api, _) = makeApi()
+        StubURLProtocol.handler = { _ in (200, [:], self.jsonData([
+            "tracks": [["trackId": "t-1", "releaseId": "r-1", "plays": 3, "lastPlayedDay": "2026-10-14"]],
+            "allTime": [["trackId": "t-1", "releaseId": "r-1", "plays": 30]],
+        ])) }
+        let page = try await api.playsSummary(from: "2026-10-12", to: "2026-10-15", cursor: nil)
+        #expect(page.tracks[0].lastPlayedAt == nil && page.tracks[0].listenedMs == nil && page.tracks[0].events == nil)
+        #expect(page.allTime[0].lastPlayedAt == nil && page.allTime[0].listenedMs == nil && page.allTime[0].events == nil)
+    }
+
+    @Test func putPlayEventsSendsTheFixtureShapeWithIntegerTimesAndDecodesTheReply() async throws {
+        let (api, _) = makeApi()
+        let literal = try playEventsFixture("valid-push.json")
+        let fixtureEvents = try #require((try JSONSerialization.jsonObject(with: literal) as? [String: Any])?["events"] as? [[String: Any]])
+        let first = try #require(fixtureEvents.first)
+        let event = PlayEvent(
+            id: UUID(uuidString: first["id"] as! String)!, releaseId: UUID(uuidString: first["releaseId"] as! String)!,
+            trackId: UUID(uuidString: first["trackId"] as! String)!, startedAt: first["startedAt"] as! Int64,
+            day: first["day"] as! String, listenedMs: first["listenedMs"] as! Int, pushedListenedMs: nil
+        )
+        nonisolated(unsafe) var sentBody = Data()
+        StubURLProtocol.handler = { request in
+            #expect(request.httpMethod == "PUT")
+            #expect(request.url?.absoluteString == "https://sync.example.test/v1/plays/events")
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer device-token")
+            sentBody = self.bodyData(from: request)
+            return (200, [:], Data(#"{"accepted":1,"ignored":0}"#.utf8))
+        }
+
+        let result = try await api.putPlayEvents([event])
+        #expect(result == SyncPlayEventsPutResult(accepted: 1, ignored: 0))
+        // The first fixture event is a "locally" one: the phone's body for it is exactly the fixture's object.
+        let sent = try #require((try JSONSerialization.jsonObject(with: sentBody) as? [String: Any])?["events"] as? [NSDictionary])
+        #expect(sent == [first as NSDictionary])
+        let text = String(decoding: sentBody, as: UTF8.self)
+        #expect(text.contains(#""startedAt":1792841234567"#))
+        #expect(text.contains(#""listenedMs":214000"#))
+    }
+
+    @Test func putPlayEvents404And429ThrowTheTypedErrors() async throws {
+        let (api, _) = makeApi()
+        let event = PlayEvent(id: UUID(), releaseId: UUID(), trackId: UUID(), startedAt: 1, day: "2026-10-24", listenedMs: 0, pushedListenedMs: nil)
+        StubURLProtocol.handler = { _ in (404, [:], self.jsonData(["error": "not found"])) }
+        await #expect(throws: SyncApiError.notFound) { _ = try await api.putPlayEvents([event]) }
+        StubURLProtocol.handler = { _ in (429, [:], self.jsonData(["error": "slow down"])) }
+        await #expect(throws: SyncApiError.rateLimited) { _ = try await api.putPlayEvents([event]) }
+    }
+
     @Test func playsSummaryAppendsAnEncodedCursor() async throws {
         let (api, _) = makeApi()
         StubURLProtocol.handler = { request in

@@ -7,6 +7,11 @@ struct PlayCount: Equatable {
     var releaseId: String
     var plays: Int
     var lastPlayedDay: String?
+    /// Epoch milliseconds of the latest play event; nil when there is none or the server predates events (#397).
+    var lastPlayedAt: Int64?
+    /// Audible milliseconds of this track's events, and how many events that is; nil from an older server.
+    var listenedMs: Int?
+    var events: Int?
 }
 
 /// The first three ranks get a gold, silver and bronze touch.
@@ -32,6 +37,8 @@ struct StatItem: Identifiable, Equatable {
     var medal: Medal?
     /// Estimated listening time in seconds: plays x each track's length, summed for albums and artists. A track with no known length adds 0 (#367).
     var seconds: Double = 0
+    /// The latest play's time in epoch milliseconds (#397); nil falls back to `lastPlayedDay`.
+    var lastPlayedAt: Int64?
 }
 
 struct PlayStatsResult: Equatable {
@@ -79,6 +86,7 @@ enum PlayStats {
         var trackId: UUID?
         var lastPlayedDay: String?
         var seconds: Double = 0
+        var lastPlayedAt: Int64?
     }
 
     private struct ArtistTotals {
@@ -92,6 +100,18 @@ enum PlayStats {
         var coverFallback: String?
         var lastPlayedDay: String?
         var seconds: Double = 0
+        var lastPlayedAt: Int64?
+    }
+
+    private static func laterAt(_ a: Int64?, _ b: Int64?) -> Int64? {
+        guard let a else { return b }
+        guard let b else { return a }
+        return max(a, b)
+    }
+
+    /// Listening seconds for a track: the events' real time plus the length for each play without an event (#368).
+    static func seconds(plays: Int, listenedMs: Int?, events: Int?, length: Double?) -> Double {
+        Double(max(0, listenedMs ?? 0)) / 1000 + Double(max(0, plays - (events ?? 0))) * max(0, length ?? 0)
     }
 
     private static func laterDay(_ a: String?, _ b: String?) -> String? {
@@ -118,7 +138,7 @@ enum PlayStats {
             StatItem(
                 id: row.id, rank: i + 1, title: row.title, subtitle: row.subtitle, plays: row.plays,
                 lastPlayedDay: row.lastPlayedDay, releaseId: row.releaseId, trackId: row.trackId,
-                coverPath: row.coverPath, medal: medalFor(rank: i + 1), seconds: row.seconds
+                coverPath: row.coverPath, medal: medalFor(rank: i + 1), seconds: row.seconds, lastPlayedAt: row.lastPlayedAt
             )
         }
     }
@@ -160,21 +180,24 @@ enum PlayStats {
             var releasePlays = 0
             var releaseLast: String?
             var releaseSeconds = 0.0
+            var releaseAt: Int64?
             for track in release.tracks {
                 let trackKey = track.id.uuidString.lowercased()
                 let entry = counted?[trackKey]
                 let plays = entry?.plays ?? 0
                 if plays <= 0 { continue }
                 releasePlays += plays
-                let seconds = Double(plays) * max(0, track.durationSec ?? 0)
+                let seconds = seconds(plays: plays, listenedMs: entry?.listenedMs, events: entry?.events, length: track.durationSec)
                 releaseSeconds += seconds
                 let lastPlayedDay = (entry?.lastPlayedDay).flatMap { $0.isEmpty ? nil : $0 }
                 releaseLast = laterDay(releaseLast, lastPlayedDay)
+                releaseAt = laterAt(releaseAt, entry?.lastPlayedAt)
                 trackRows.append(Row(
                     id: trackKey,
                     title: track.title.isEmpty ? release.title : track.title,
                     subtitle: release.artist, plays: plays, coverPath: cover,
-                    releaseId: release.id, trackId: track.id, lastPlayedDay: lastPlayedDay, seconds: seconds
+                    releaseId: release.id, trackId: track.id, lastPlayedDay: lastPlayedDay, seconds: seconds,
+                    lastPlayedAt: entry?.lastPlayedAt
                 ))
             }
             if releasePlays == 0 { continue }
@@ -184,7 +207,7 @@ enum PlayStats {
                 id: releaseKey,
                 title: release.title.isEmpty ? release.artist : release.title,
                 subtitle: release.artist, plays: releasePlays, coverPath: cover,
-                releaseId: release.id, trackId: nil, lastPlayedDay: releaseLast, seconds: releaseSeconds
+                releaseId: release.id, trackId: nil, lastPlayedDay: releaseLast, seconds: releaseSeconds, lastPlayedAt: releaseAt
             ))
 
             let key = artistKey(release.artist)
@@ -192,6 +215,7 @@ enum PlayStats {
                 artist.plays += releasePlays
                 artist.seconds += releaseSeconds
                 artist.lastPlayedDay = laterDay(artist.lastPlayedDay, releaseLast)
+                artist.lastPlayedAt = laterAt(artist.lastPlayedAt, releaseAt)
                 if artist.best == nil || releasePlays > artist.best!.plays {
                     artist.best = (releasePlays, release)
                 }
@@ -208,7 +232,7 @@ enum PlayStats {
                 subtitle: genre.isEmpty ? releaseCountLabel(a.releases) : genre,
                 plays: a.plays,
                 coverPath: a.best.flatMap { coverOf($0.release) } ?? a.coverFallback,
-                releaseId: nil, trackId: nil, lastPlayedDay: a.lastPlayedDay, seconds: a.seconds
+                releaseId: nil, trackId: nil, lastPlayedDay: a.lastPlayedDay, seconds: a.seconds, lastPlayedAt: a.lastPlayedAt
             )
         }
 

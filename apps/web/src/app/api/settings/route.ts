@@ -51,7 +51,10 @@ export async function PUT(request: NextRequest) {
     }
     // After the settings are saved, as sign-out does it: a new host is a new account, and its play
     // counts were never pushed there (#107).
-    if (resetSyncState) await services.playStore.resetPushed();
+    if (resetSyncState) {
+      await services.playStore.resetPushed();
+      await services.playEvents.resetPushed();
+    }
     services.playTracker.setEnabled(settings.trackPlays === true);
     return NextResponse.json(toSettingsResponse(settings, suggestedAdoptRoot(homeDir(), settings.adoptRoots ?? [], probe)));
   } catch (err) {
