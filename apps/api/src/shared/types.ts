@@ -343,10 +343,85 @@ export interface PlaysBySource {
   locally: number;
 }
 
+/** The three summary fields added by play events (#368): over the window for `tracks[]`, all retained events for `allTime[]`. */
+export interface PlayEventTotals {
+  lastPlayedAt: number | null;
+  listenedMs: number;
+  events: number;
+}
+
 /** `bySource` splits `plays` by where they were counted (#340); `plays` is still the sum. */
 export interface PlaysSummaryResponse {
-  tracks: Array<{ trackId: string; releaseId: string; plays: number; devicePlays: number; lastPlayedDay: string; bySource: PlaysBySource }>;
-  allTime: Array<{ trackId: string; releaseId: string; plays: number; devicePlays: number; bySource: PlaysBySource }>;
+  tracks: Array<{ trackId: string; releaseId: string; plays: number; devicePlays: number; lastPlayedDay: string; bySource: PlaysBySource } & PlayEventTotals>;
+  allTime: Array<{ trackId: string; releaseId: string; plays: number; devicePlays: number; bySource: PlaysBySource } & PlayEventTotals>;
+  nextCursor: string | null;
+}
+
+// --- Play events (#368; spec/sync.md "Play events") ---
+
+/** Most events in one `PUT /v1/plays/events` body, and per page of `GET /v1/plays/events`. */
+export const MAX_PLAY_EVENTS = 500;
+/** Longest `listenedMs` of one event: 24 hours. */
+export const MAX_EVENT_LISTENED_MS = 86_400_000;
+/** Longest window of `GET /v1/plays/events`, in days. */
+export const MAX_EVENTS_WINDOW_DAYS = 400;
+
+/** Body of `PUT /v1/plays/events`. Strict at every level: `deviceId` and anything else unknown is refused. */
+export const playEventsRequestSchema = z
+  .object({
+    events: z
+      .array(
+        z
+          .object({
+            id: uuidSchema,
+            releaseId: uuidSchema,
+            trackId: uuidSchema,
+            source: playSourceSchema,
+            startedAt: z.number().int().min(0),
+            day: daySchema,
+            listenedMs: z.number().int().min(0).max(MAX_EVENT_LISTENED_MS),
+          })
+          .strict()
+      )
+      .min(1)
+      .max(MAX_PLAY_EVENTS),
+  })
+  .strict();
+export type PlayEventsRequest = z.infer<typeof playEventsRequestSchema>;
+export type PlayEventInput = PlayEventsRequest["events"][number];
+
+export interface PlayEventsPushResponse {
+  accepted: number;
+  ignored: number;
+}
+
+/** A non-negative integer of epoch milliseconds as plain digits ("", "1.5" and "1e3" are refused). */
+const epochMsParam = z
+  .string()
+  .regex(/^\d{1,15}$/, "Must be an integer of epoch milliseconds")
+  .transform(Number);
+
+/** Query of `GET /v1/plays/events` (the cursor is decoded by `PlayEventsService`). */
+export const playEventsQuerySchema = z.object({
+  from: epochMsParam,
+  to: epochMsParam,
+  cursor: z.string().min(1).max(200).optional(),
+});
+export type PlayEventsQuery = z.infer<typeof playEventsQuerySchema>;
+
+export interface PlayEventRecord {
+  id: string;
+  releaseId: string;
+  trackId: string;
+  source: PlaySource;
+  startedAt: number;
+  day: string;
+  listenedMs: number;
+  device: { id: string; name: string; platform: string; current: boolean };
+}
+
+export interface PlayEventsResponse {
+  events: PlayEventRecord[];
   nextCursor: string | null;
 }
 

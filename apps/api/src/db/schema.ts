@@ -141,6 +141,30 @@ export const playDays = sqliteTable("play_days", {
   userDayIdx: index("play_days_user_day_idx").on(table.userId, table.day),
 }));
 
+/**
+ * One counted play with its start time and audible length (#368; `spec/sync.md`, "Play events"). Keyed per
+ * account, so another account's id is a separate row. Fixed fields never change after the first write;
+ * only `listened_ms` (max-merged) and `updated_at` do. Deleted with the user by a trigger (migration 0013).
+ */
+export const playEvents = sqliteTable("play_events", {
+  userId: text("user_id").notNull(),
+  id: text("id").notNull(),
+  deviceId: text("device_id").notNull(),
+  releaseId: text("release_id").notNull(),
+  trackId: text("track_id").notNull(),
+  source: text("source").notNull(),
+  startedAt: integer("started_at").notNull(),
+  day: text("day").notNull(),
+  listenedMs: integer("listened_ms").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.userId, table.id] }),
+  userStartedIdx: index("play_events_user_started_idx").on(table.userId, table.startedAt),
+  userReleaseIdx: index("play_events_user_release_idx").on(table.userId, table.releaseId),
+  userDayIdx: index("play_events_user_day_idx").on(table.userId, table.day),
+}));
+
 /** Shared-store counters behind `DbRateLimiter` (see `src/server/ratelimit`). */
 export const rateLimits = sqliteTable("rate_limits", {
   key: text("key").primaryKey(),

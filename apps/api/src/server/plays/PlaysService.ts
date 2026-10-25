@@ -1,16 +1,30 @@
-import { and, asc, eq, gt, gte, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, lte, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { devices, playCounts, playDays, releases } from "../../db/schema";
+import { devices, playCounts, playDays, playEvents, releases } from "../../db/schema";
 import { inclusiveDays, PLAY_DAY_RETENTION_DAYS, utcDay } from "../../shared/days";
 import { ValidationError } from "../../shared/errors";
 import {
   PLAYS_SUMMARY_PAGE_SIZE,
   type PlayCountsRequest,
+  type PlayEventTotals,
   type PlayCountsResponse,
   type PlaysSummaryResponse,
   type ReleasePlaysResponse,
   type TrackPlays,
 } from "../../shared/types";
+
+const NO_EVENTS: PlayEventTotals = { lastPlayedAt: null, listenedMs: 0, events: 0 };
+
+function eventTotalsByKey(
+  rows: Array<{ trackId: string; releaseId: string; lastPlayedAt: number; listenedMs: number; events: number }>
+): Map<string, PlayEventTotals> {
+  return new Map(
+    rows.map((r) => [
+      `${r.trackId}/${r.releaseId}`,
+      { lastPlayedAt: Number(r.lastPlayedAt), listenedMs: Number(r.listenedMs), events: Number(r.events) },
+    ])
+  );
+}
 
 /**
  * Per-device play counts (see `spec/sync.md`, "Play counts"). Every query is
@@ -200,7 +214,7 @@ export class PlaysService {
     const lastId = page[page.length - 1]!;
     const pageIds = new Set(page);
 
-    const [allTimeRows, dayRows] = await this.db.batch([
+    const [allTimeRows, dayRows, windowEventRows, allEventRows] = await this.db.batch([
       this.db
         .select({
           trackId: playCounts.trackId,
@@ -240,7 +254,12 @@ export class PlaysService {
         .groupBy(playDays.trackId, playDays.releaseId)
         .having(sql`sum(${playDays.count}) > 0`)
         .orderBy(asc(playDays.trackId), asc(playDays.releaseId)),
+      // Events (#368): per (track, release), those with a `day` in the window, then all retained ones.
+      this.eventTotals(userId, live, cursor, lastId, from, to),
+      this.eventTotals(userId, live, cursor, lastId),
     ]);
+    const windowEvents = eventTotalsByKey(windowEventRows);
+    const allEvents = eventTotalsByKey(allEventRows);
 
     return {
       tracks: dayRows
@@ -252,6 +271,7 @@ export class PlaysService {
           devicePlays: Number(r.devicePlays),
           lastPlayedDay: r.lastPlayedDay,
           bySource: { spotify: Number(r.spotifyPlays), locally: Number(r.locallyPlays) },
+          ...(windowEvents.get(`${r.trackId}/${r.releaseId}`) ?? NO_EVENTS),
         })),
       allTime: allTimeRows.map((r) => ({
         trackId: r.trackId,
@@ -259,8 +279,34 @@ export class PlaysService {
         plays: Number(r.plays),
         devicePlays: Number(r.devicePlays),
         bySource: { spotify: Number(r.spotifyPlays), locally: Number(r.locallyPlays) },
+        ...(allEvents.get(`${r.trackId}/${r.releaseId}`) ?? NO_EVENTS),
       })),
       nextCursor: hasMore ? lastId : null,
     };
+  }
+
+  /** Per (track, release) event totals for live releases of `userId` on one summary page; `from`/`to` limit by `day`. */
+  private eventTotals(userId: string, live: SQL | undefined, cursor: string | undefined, lastId: string, from?: string, to?: string) {
+    return this.db
+      .select({
+        trackId: playEvents.trackId,
+        releaseId: playEvents.releaseId,
+        lastPlayedAt: sql<number>`max(${playEvents.startedAt})`,
+        listenedMs: sql<number>`sum(${playEvents.listenedMs})`,
+        events: sql<number>`count(*)`,
+      })
+      .from(playEvents)
+      .innerJoin(releases, eq(releases.id, playEvents.releaseId))
+      .where(
+        and(
+          eq(playEvents.userId, userId),
+          live,
+          from === undefined ? undefined : gte(playEvents.day, from),
+          to === undefined ? undefined : lte(playEvents.day, to),
+          cursor ? gt(playEvents.trackId, cursor) : undefined,
+          lte(playEvents.trackId, lastId)
+        )
+      )
+      .groupBy(playEvents.trackId, playEvents.releaseId);
   }
 }

@@ -5,6 +5,7 @@ import { AccountService } from "./account/AccountService";
 import { AuthService } from "./auth/AuthService";
 import { CollectionSyncService } from "./collections/CollectionSyncService";
 import { ReleaseSyncService } from "./releases/ReleaseSyncService";
+import { PlayEventsService } from "./plays/PlayEventsService";
 import { PlaysService } from "./plays/PlaysService";
 import { QuotaService } from "./quota/QuotaService";
 import { ShareService } from "./shares/ShareService";
@@ -32,6 +33,7 @@ export interface Services {
   releases: ReleaseSyncService;
   collections: CollectionSyncService;
   plays: PlaysService;
+  playEvents: PlayEventsService;
   quota: QuotaService;
   files: ReleaseFilesService;
   cleanup: CleanupService;
@@ -62,6 +64,8 @@ export interface Services {
     resyncRequestByUser: RateLimiter;
     /** `GET /v1/plays/summary`, keyed by user id. */
     playsSummary: RateLimiter;
+    /** `PUT /v1/plays/events`, keyed by user id (#368). */
+    playEvents: RateLimiter;
     collectionWrites: RateLimiter;
     /** `POST /v1/spotify/link`, keyed by user id (#305). */
     spotifyLink: RateLimiter;
@@ -103,6 +107,7 @@ async function buildServices(): Promise<Services> {
     releases: new ReleaseSyncService(db),
     collections: new CollectionSyncService(db),
     plays: new PlaysService(db),
+    playEvents: new PlayEventsService(db),
     quota,
     files: new ReleaseFilesService(db, fileStore, quota),
     cleanup: new CleanupService(db, fileStore),
@@ -133,6 +138,8 @@ async function buildServices(): Promise<Services> {
       resyncRequestByUser: new DbRateLimiter(db, 24, 60 * 60 * 1000, "resync-request:user"),
       // 600 plays-summary reads per user, per hour (#267), shared by the Mac (200) and the iPhone (200).
       playsSummary: new DbRateLimiter(db, 600, 60 * 60 * 1000, "plays-summary:user"),
+      // 120 play-event pushes per user, per hour (#368).
+      playEvents: new DbRateLimiter(db, 120, 60 * 60 * 1000, "play-events:user"),
       // 1,200 collection writes (PUT and DELETE) per user, per hour (#348).
       collectionWrites: new DbRateLimiter(db, 1200, 60 * 60 * 1000, "collection-writes:user"),
       // 10 link starts per user, per hour (#305).
