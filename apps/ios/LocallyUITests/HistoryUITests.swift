@@ -61,6 +61,11 @@ final class HistoryUITests: XCTestCase {
         play.tap()
         XCTAssertTrue(app.buttons["song-row-album"].waitForExistence(timeout: 10), "the song page did not open")
         attach("song-page-from-history")
+
+        // Back from the song page keeps the day the user picked.
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(waitHittable(yesterday, timeout: 10), "History did not come back")
+        XCTAssertTrue(yesterday.isSelected, "coming back reset the selected day")
     }
 
     func testScrollingTheStripToItsOldestDayLoadsTheFourteenBefore() {

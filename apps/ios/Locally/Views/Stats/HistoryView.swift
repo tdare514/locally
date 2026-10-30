@@ -51,6 +51,8 @@ struct HistoryView: View {
     @State private var stripLeading: String?
     /// The strip days that have appeared on screen, so their covers load as the strip scrolls back (not only the newest 14).
     @State private var visibleDays = Set<String>()
+    /// Set once the opening day is chosen, so coming back from a song page keeps the day the user picked.
+    @State private var didFocus = false
 
     init(model: HistoryModel, covers: HistoryCovers) {
         _model = State(initialValue: model)
@@ -84,6 +86,8 @@ struct HistoryView: View {
         .task {
             await model.load()
             model.rebuild()
+            guard !didFocus else { return }
+            didFocus = true
             await model.focus()
             stripTarget = model.selected
         }
