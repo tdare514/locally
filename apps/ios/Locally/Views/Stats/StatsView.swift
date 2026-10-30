@@ -127,6 +127,9 @@ struct StatsView: View {
             .navigationDestination(for: ArtistRoute.self) { route in
                 ArtistPageView(route: route)
             }
+            .navigationDestination(for: HistoryRoute.self) { route in
+                HistoryDestination(route: route)
+            }
         }
         // Every artist name opens that artist's page (#288); put on the stack so pushed pages inherit it.
         .artistLinks { path.append($0) }
@@ -203,11 +206,15 @@ struct StatsView: View {
 
     @ViewBuilder
     private func content(room: CGFloat) -> some View {
-        Text(Copy.Stats.title)
-            .font(Theme.ScaledFont.largeTitle)
-            .foregroundStyle(Theme.primaryText)
-            .padding(.horizontal, 6)
-            .accessibilityAddTraits(.isHeader)
+        HStack(alignment: .center, spacing: 12) {
+            Text(Copy.Stats.title)
+                .font(Theme.ScaledFont.largeTitle)
+                .foregroundStyle(Theme.primaryText)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 0)
+            if model.phase != .signedOut { historyButton }
+        }
+        .padding(.horizontal, 6)
 
         if model.phase == .signedOut {
             signedOutCard
@@ -346,6 +353,17 @@ struct StatsView: View {
         .buttonStyle(GlowCircleButtonStyle())
         .disabled(!enabled)
         .accessibilityLabel(label)
+    }
+
+    /// The way into History (#399): the stepper's round glass button, at the title's trailing edge.
+    private var historyButton: some View {
+        Button { path.append(HistoryRoute()) } label: {
+            Image(systemName: "clock.arrow.circlepath").font(.system(size: 20, weight: .semibold))
+        }
+        .buttonStyle(GlowCircleButtonStyle())
+        .accessibilityLabel(Copy.History.entryLabel)
+        .accessibilityHint(Copy.History.entryHint)
+        .accessibilityIdentifier("stats-history")
     }
 
     private var tabPicker: some View {

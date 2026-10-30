@@ -113,6 +113,34 @@ struct SyncAllTimePlays: Decodable, Equatable {
     var events: Int?
 }
 
+/// One page of `GET /v1/plays/events` (#399, `spec/sync.md` "Play events"): events newest first, and the cursor
+/// for the next page, or nil on the last.
+struct SyncPlayEventsPage: Decodable, Equatable {
+    var events: [SyncStoredPlayEvent]
+    var nextCursor: String?
+}
+
+/// One event as the service stores it. `startedAt` is epoch milliseconds, `day` the playing device's local
+/// `YYYY-MM-DD`, `source` "spotify" or "locally".
+struct SyncStoredPlayEvent: Decodable, Equatable {
+    struct Device: Decodable, Equatable {
+        var id: String
+        var name: String
+        var platform: String
+        /// True for the requesting device.
+        var current: Bool
+    }
+
+    var id: String
+    var releaseId: UUID
+    var trackId: UUID
+    var source: String
+    var startedAt: Int64
+    var day: String
+    var listenedMs: Int
+    var device: Device
+}
+
 /// One page of `GET /v1/releases?sinceVersion=N&limit=M`.
 ///
 /// `hasMore: true` means more releases exist above `nextVersion`; the caller
@@ -165,7 +193,9 @@ enum SyncApiError: LocalizedError, Equatable {
     case tooManyCollections
     case network(String)
     /// The request got no HTTP response at all (offline, refused, timed out). Distinct from `.network`, which also covers an HTTP error status, so a caller can tell whether the service was reached.
-    case unreachable(String)
+    /// `beforeDelivery` is true only for failures known to happen before the request left the phone (no network, host not found or
+    /// refused, DNS); a timeout or a lost connection may have reached the service, so it stays false and counts against budgets.
+    case unreachable(String, beforeDelivery: Bool = false)
 
     var errorDescription: String? {
         switch self {
@@ -181,7 +211,7 @@ enum SyncApiError: LocalizedError, Equatable {
             return "The sync server is busy. Try again soon."
         case .tooManyCollections:
             return Copy.Collections.tooMany
-        case .network(let message), .unreachable(let message):
+        case .network(let message), .unreachable(let message, _):
             return message
         }
     }
@@ -236,6 +266,10 @@ protocol SyncApi {
     /// plays in the days `from`...`to` (`YYYY-MM-DD`) plus all-time. Throws
     /// `.notFound` on an API that predates the route and `.rateLimited` on a 429.
     func playsSummary(from: String, to: String, cursor: String?) async throws -> SyncPlaysSummaryPage
+    /// `GET /v1/plays/events?from&to[&cursor]` (#399): one page of play events with `from <= startedAt < to` (epoch
+    /// milliseconds, at most 400 days apart), newest first. Throws `.notFound` on an API that predates the route
+    /// and `.rateLimited` on a 429.
+    func playEvents(from: Int64, to: Int64, cursor: String?) async throws -> SyncPlayEventsPage
     /// `PUT /v1/plays` (#337): this device's absolute counts, 1 to 500 entries, each with `source: "locally"`.
     @discardableResult
     func putPlays(_ counts: [SyncPlayCount]) async throws -> SyncPlaysPutResult
@@ -506,6 +540,21 @@ final class HttpSyncApi: SyncApi {
         return try decode(SyncPlaysSummaryPage.self, from: data)
     }
 
+    func playEvents(from: Int64, to: Int64, cursor: String?) async throws -> SyncPlayEventsPage {
+        var query = "from=\(from)&to=\(to)"
+        if let cursor {
+            var allowed = CharacterSet.urlQueryAllowed
+            allowed.remove(charactersIn: "&=+#")
+            query += "&cursor=\(cursor.addingPercentEncoding(withAllowedCharacters: allowed) ?? cursor)"
+        }
+        let data = try await send(
+            path: "/v1/plays/events?\(query)",
+            method: "GET",
+            statusErrors: [404: .notFound, 429: .rateLimited]
+        )
+        return try decode(SyncPlayEventsPage.self, from: data)
+    }
+
     func putPlays(_ counts: [SyncPlayCount]) async throws -> SyncPlaysPutResult {
         let body = try JSONEncoder.syncApi.encode(SyncPlayCountsBody(counts: counts))
         let data = try await send(path: "/v1/plays", method: "PUT", bodyData: body)
@@ -687,7 +736,7 @@ final class HttpSyncApi: SyncApi {
         do {
             (data, response) = try await session.data(for: request)
         } catch {
-            throw SyncApiError.unreachable(error.localizedDescription)
+            throw SyncApiError.unreachable(error.localizedDescription, beforeDelivery: Self.failedBeforeDelivery(error))
         }
 
         guard let http = response as? HTTPURLResponse else {
@@ -696,6 +745,12 @@ final class HttpSyncApi: SyncApi {
         if let typed = statusErrors[http.statusCode] { throw typed }
         try Self.checkStatus(http.statusCode, data: data)
         return data
+    }
+
+    /// Whether a transport error proves the service never saw the request. A timeout or `networkConnectionLost` does not.
+    static func failedBeforeDelivery(_ error: Error) -> Bool {
+        guard let code = (error as? URLError)?.code else { return false }
+        return [.notConnectedToInternet, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed].contains(code)
     }
 
     private func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {

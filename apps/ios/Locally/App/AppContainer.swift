@@ -42,6 +42,8 @@ final class AppContainer {
     let syncEngine: SyncEngine
     /// The Stats tab's source: the plays summary, cached and rate-budgeted (#204).
     let playStats: PlayStatsReading
+    /// The History screen's source: the play events, cached and spending the same request budget (#399).
+    let playHistory: PlayHistoryReading
     let folderStatus: FolderStatus
     let purchaseStatus: PurchaseStatus
     let modelContainer: ModelContainer
@@ -70,7 +72,8 @@ final class AppContainer {
         modelContainer: ModelContainer,
         playCounts: PlayCountStoring? = nil,
         playEvents: PlayEventStoring? = nil,
-        collections: CollectionStore? = nil
+        collections: CollectionStore? = nil,
+        playHistory: PlayHistoryReading? = nil
     ) {
         self.collections = collections ?? SwiftDataCollectionStore(context: modelContainer.mainContext)
         self.folder = folder
@@ -84,6 +87,9 @@ final class AppContainer {
         self.syncApi = syncApi
         self.syncEngine = syncEngine
         self.playStats = playStats
+        self.playHistory = playHistory ?? SyncPlayHistoryService(
+            api: syncApi, account: syncAccount,
+            budget: (playStats as? PlayRequestBudget) ?? SyncPlayStatsService(api: syncApi, account: syncAccount))
         self.modelContainer = modelContainer
         self.playback = PlaybackService.production(folder: folder, coverStore: coverStore, playCounts: playCounts, playEvents: playEvents)
         self.folderStatus = FolderStatus(isConnected: folder.isConnected)

@@ -771,3 +771,39 @@ extension Theme {
         static let ease = Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.35)
     }
 }
+
+extension Theme {
+    /// #399: the play History screen, the owner's variant B (the day strip and the crate).
+    enum History {
+        static let gutter: CGFloat = 16
+        static let minTarget: CGFloat = 44
+        /// A frame narrower than this (or any accessibility text size) moves the time above the title.
+        static let narrowWidth: CGFloat = 350
+        /// The least of a disc that shows past a sleeve, as a fraction of the full peek (a 30 s skip).
+        static let minPeek: CGFloat = 0.1
+        static let sleeveRadiusSmall: CGFloat = 6
+        static let sleeveRadiusLarge: CGFloat = 8
+        static let sleeveShadowOpacity: Double = 0.45
+        static let sleeveEdgeOpacity: Double = 0.22
+
+        static let stripDays = 14
+        /// The offline and busy notice's near-black backing; white text on it is above 4.5:1 over the brightest wash.
+        static let noticeBackingOpacity: Double = 0.65
+        static let stripColumn: CGFloat = 44
+        static let stripDiscWidth: CGFloat = 30
+        static let stripDiscHeight: CGFloat = 4
+        static let stripDiscGap: CGFloat = 1.5
+        static let stripMaxDiscs = 12
+        static let stripGlowRadius: CGFloat = 14
+        static let crateGap: CGFloat = 14
+        static let crateStagger: CGFloat = 30
+        static let crateSleeveMax: CGFloat = 200
+        static let crateSleeveMaxSingle: CGFloat = 190
+        static let crateRowGap: CGFloat = 22
+
+        /// The loading shimmer's sleeve shapes.
+        static let skeletonCells = 4
+        static let skeletonFillOpacity: Double = 0.07
+        static let skeletonSweepSeconds: Double = 1.6
+    }
+}

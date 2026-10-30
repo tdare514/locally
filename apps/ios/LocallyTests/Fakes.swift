@@ -762,6 +762,20 @@ final class FakeSyncApi: SyncApi {
         return try playsSummaryScript[min(index, playsSummaryScript.count - 1)].get()
     }
 
+    /// Scripted `playEvents` outcomes, consumed in order (the last repeats); empty means one empty page.
+    var playEventsScript: [Result<SyncPlayEventsPage, Error>] = []
+    private(set) var playEventsCalls: [(from: Int64, to: Int64, cursor: String?)] = []
+    /// Awaited inside `playEvents` after the call is recorded, to hold a request open.
+    var playEventsGate: (() async -> Void)?
+
+    func playEvents(from: Int64, to: Int64, cursor: String?) async throws -> SyncPlayEventsPage {
+        let index = playEventsCalls.count
+        playEventsCalls.append((from, to, cursor))
+        await playEventsGate?()
+        guard !playEventsScript.isEmpty else { return SyncPlayEventsPage(events: [], nextCursor: nil) }
+        return try playEventsScript[min(index, playEventsScript.count - 1)].get()
+    }
+
     /// Every `putPlays` request, in order. `putPlaysResults` is consumed in order (empty or spent means success).
     private(set) var putPlaysCalls: [[SyncPlayCount]] = []
     var putPlaysResults: [Result<SyncPlaysPutResult, Error>] = []

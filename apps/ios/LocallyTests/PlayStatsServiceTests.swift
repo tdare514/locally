@@ -192,15 +192,23 @@ struct PlayStatsServiceTests {
 
     // MARK: - What counts against the budget (#267)
 
-    @Test func requestsThatNeverReachedTheServiceDoNotUseTheBudget() async {
+    @Test func requestsKnownNotToHaveLeftThePhoneDoNotUseTheBudget() async {
         let budget = SyncPlayStatsService.budgetPerHour
-        let s = make(script: [.failure(SyncApiError.unreachable("offline"))])
+        let s = make(script: [.failure(SyncApiError.unreachable("offline", beforeDelivery: true))])
         for _ in 0..<(budget + 5) { #expect(await read(s, force: true) == .failed) }
         #expect(s.api.playsSummaryCalls.count == budget + 5)
         // Not busy: a real read still goes out.
         s.api.playsSummaryScript = [page(1)]
         #expect(await read(s, force: true) == .ok(summary(1)))
         #expect(s.api.playsSummaryCalls.count == budget + 6)
+    }
+
+    @Test func aTimeoutOrLostConnectionMayHaveBeenCountedSoItKeepsTheCharge() async {
+        let budget = SyncPlayStatsService.budgetPerHour
+        let s = make(script: [.failure(SyncApiError.unreachable("timed out"))])
+        for _ in 0..<budget { #expect(await read(s, force: true) == .failed) }
+        #expect(await read(s, force: true) == .busy)
+        #expect(s.api.playsSummaryCalls.count == budget)
     }
 
     @Test func anHttpErrorStatusUsesTheBudget() async {
@@ -463,5 +471,35 @@ struct PlayStatsServiceTests {
         latch.release()
         #expect(await owner.value == .signedOut)
         #expect(await joiner.value == .signedOut)
+    }
+
+    // MARK: - A late error from the old account leaves the new account's budget alone
+
+    @Test func aLateTooManyRequestsFromTheOldAccountDoesNotBackOffTheNewOne() async {
+        let s = make(script: [.failure(SyncApiError.rateLimited), page(2)])
+        let latch = Latch()
+        hold(s, request: 1, latch)
+        let task = Task { await self.read(s) }
+        await waitForCalls(s, 1)
+        s.account.save(email: "b@example.com", deviceToken: "token-b", deviceId: "device-2")
+        #expect(await read(s) == .ok(summary(2))) // B's request completes
+        latch.release()
+        _ = await task.value
+        #expect(await read(s, force: true) == .ok(summary(2))) // B is not backed off: its next request is sent
+        #expect(s.api.playsSummaryCalls.count == 3)
+    }
+
+    @Test func aLateUnreachableFromTheOldAccountDoesNotRefundTheNewOnesRequest() async {
+        let s = make(script: [.failure(SyncApiError.unreachable("offline", beforeDelivery: true)), page(2)])
+        let latch = Latch()
+        hold(s, request: 1, latch)
+        let task = Task { await self.read(s) }
+        await waitForCalls(s, 1)
+        s.account.save(email: "b@example.com", deviceToken: "token-b", deviceId: "device-2")
+        #expect(await read(s) == .ok(summary(2)))
+        #expect(s.defaults.array(forKey: SyncPlayStatsService.requestTimesKey)?.count == 1)
+        latch.release()
+        _ = await task.value
+        #expect(s.defaults.array(forKey: SyncPlayStatsService.requestTimesKey)?.count == 1) // B's charge stays
     }
 }

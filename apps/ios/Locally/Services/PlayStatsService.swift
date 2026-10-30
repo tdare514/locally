@@ -24,13 +24,30 @@ protocol PlayStatsReading: AnyObject {
     @MainActor func summary(from: String, to: String, force: Bool) async -> PlayStatsRead
 }
 
+/// The phone's share of the server's per-user request limit, which the summary and the events routes both spend
+/// (`playsSummary`, 600 an hour). `SyncPlayStatsService` keeps it; the History service spends from the same one.
+@MainActor
+protocol PlayRequestBudget: AnyObject {
+    /// Whether one more request is allowed now (and, if so, counts it).
+    func takeRequest() -> Bool
+    /// Gives back the latest request: it never reached the service. `identity` is the budget key the request was
+    /// charged under; a request that outlived its account (the budget has moved on) is ignored.
+    func refundLastRequest(identity: String?)
+    /// A 429: no request for the back-off. Ignored when `identity` is no longer the budget's account.
+    func startBackOff(identity: String?)
+    /// The budget belongs to one account (`identity`, nil when signed out). A real change of account resets the
+    /// per-hour list and the back-off once; the same identity again is a no-op, so whichever service sees the new
+    /// account first resets it and the other cannot erase a back-off the new account has earned since.
+    func ensure(identity: String?)
+}
+
 /// Reads `GET /v1/plays/summary` frugally. The server allows 600 requests an hour per user, shared
 /// with the Mac (which keeps itself to 200), so this phone keeps to 200 page requests an hour (a
-/// request that never reached the service, with no HTTP response, is not counted), backs
+/// request that provably never left the phone is not counted; a timeout is), backs
 /// off 10 minutes after a 429, caches each range for 5 minutes and shares one request between
 /// concurrent callers of the same range.
 @MainActor
-final class SyncPlayStatsService: PlayStatsReading {
+final class SyncPlayStatsService: PlayStatsReading, PlayRequestBudget {
     static let freshSeconds: TimeInterval = 5 * 60
     static let maxCacheEntries = 12
     static let maxPages = 10
@@ -42,6 +59,7 @@ final class SyncPlayStatsService: PlayStatsReading {
     private struct Identity: Hashable {
         var deviceId: String?
         var token: String?
+        var budgetKey: String { "\(deviceId ?? "")|\(token ?? "")" }
     }
 
     private struct Key: Hashable {
@@ -62,6 +80,8 @@ final class SyncPlayStatsService: PlayStatsReading {
     /// Oldest first, so the front is the one to drop.
     private var cache: [(key: Key, entry: Entry)] = []
     private var cachedIdentity: Identity?
+    /// Who the budget and back-off belong to (see `ensure(identity:)`).
+    private var budgetIdentity: String?
     private var inFlight: [Key: Task<PlayStatsRead, Never>] = [:]
     private var requestTimes: [Date] = [] { didSet { saveBudget() } }
     private var backOffUntil: Date? { didSet { saveBudget() } }
@@ -104,16 +124,15 @@ final class SyncPlayStatsService: PlayStatsReading {
         guard account.deviceToken != nil else {
             cache.removeAll()
             cachedIdentity = nil
-            resetBudget()
+            ensure(identity: nil)
             return .signedOut
         }
         let session = identity
         if session != cachedIdentity {
             cache.removeAll()
-            // The first read after a launch has no identity yet: keep the saved budget then.
-            if cachedIdentity != nil { resetBudget() }
             cachedIdentity = session
         }
+        ensure(identity: session.budgetKey)
         let key = Key(identity: session, from: from, to: to)
         if !force, let entry = cached(key), now().timeIntervalSince(entry.fetchedAt) < Self.freshSeconds {
             return .ok(entry.summary)
@@ -161,14 +180,14 @@ final class SyncPlayStatsService: PlayStatsReading {
         if account.deviceToken == nil {
             cache.removeAll()
             cachedIdentity = nil
-            resetBudget()
+            ensure(identity: nil)
             return .signedOut
         }
         return .failed
     }
 
     /// Whether one more page request is allowed right now (and, if so, counts it).
-    private func takeRequest() -> Bool {
+    func takeRequest() -> Bool {
         let current = now()
         if let until = backOffUntil, current < until { return false }
         requestTimes.removeAll { current.timeIntervalSince($0) >= Self.budgetWindowSeconds }
@@ -178,9 +197,25 @@ final class SyncPlayStatsService: PlayStatsReading {
     }
 
     /// A new identity starts with a fresh budget and no back-off: both belong to the account that spent them.
-    private func resetBudget() {
-        requestTimes = []
-        backOffUntil = nil
+    /// The first identity after a launch keeps the saved budget.
+    func ensure(identity: String?) {
+        guard identity != budgetIdentity else { return }
+        let first = budgetIdentity == nil
+        budgetIdentity = identity
+        if !first {
+            requestTimes = []
+            backOffUntil = nil
+        }
+    }
+
+    func refundLastRequest(identity: String?) {
+        guard identity == budgetIdentity else { return }
+        if !requestTimes.isEmpty { requestTimes.removeLast() }
+    }
+
+    func startBackOff(identity: String?) {
+        guard identity == budgetIdentity else { return }
+        backOffUntil = now().addingTimeInterval(Self.backOffSeconds)
     }
 
     private func load(_ key: Key) async -> PlayStatsRead {
@@ -197,11 +232,11 @@ final class SyncPlayStatsService: PlayStatsReading {
             do {
                 page = try await api.playsSummary(from: key.from, to: key.to, cursor: cursor)
             } catch SyncApiError.rateLimited {
-                backOffUntil = now().addingTimeInterval(Self.backOffSeconds)
+                startBackOff(identity: key.identity.budgetKey)
                 return fallback(key, empty: .busy)
-            } catch SyncApiError.unreachable {
-                // No HTTP response: the service never saw it, so it does not count against the budget.
-                if !requestTimes.isEmpty { requestTimes.removeLast() }
+            } catch SyncApiError.unreachable(_, let beforeDelivery) {
+                // Only a failure known to happen before delivery is given back; a timeout may have been counted.
+                if beforeDelivery { refundLastRequest(identity: key.identity.budgetKey) }
                 return fallback(key, empty: .failed)
             } catch {
                 // `.unauthorized` too: the sync engine owns sign-out.

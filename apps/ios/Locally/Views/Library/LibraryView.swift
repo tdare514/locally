@@ -233,6 +233,9 @@ struct LibraryView: View {
             .navigationDestination(for: ArtistRoute.self) { route in
                 ArtistPageView(route: route)
             }
+            .navigationDestination(for: HistoryRoute.self) { route in
+                HistoryDestination(route: route)
+            }
             .navigationDestination(for: CollectionsRoute.self) { _ in
                 if let collections {
                     CollectionsView(
