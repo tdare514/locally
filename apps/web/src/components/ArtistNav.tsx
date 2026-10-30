@@ -92,7 +92,7 @@ export default function ArtistLinks({
   );
 }
 
-/** The small round glass chevron after an editable release's Artist field: opens that artist's page. */
+/** The bare chevron after an editable release's Artist field: opens that artist's page. */
 export function ArtistOpenButton({ artist }: { artist: string }) {
   const { open, lockedReason } = useArtistNav();
   const name = splitArtistFeaturing(artist).artist.trim();
@@ -109,9 +109,9 @@ export function ArtistOpenButton({ artist }: { artist: string }) {
       onClick={() => {
         if (!lockedReason) open(key);
       }}
-      className="group/open glass-fake relative isolate flex size-7 shrink-0 items-center justify-center self-center rounded-full text-text opacity-60 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent aria-disabled:cursor-not-allowed aria-disabled:opacity-40 aria-disabled:hover:opacity-40"
+      className="btn-icon -my-2 self-center aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
     >
-      <ChevronRightIcon className="h-3.5 w-3.5" />
+      <ChevronRightIcon className="h-5 w-5" />
     </button>
   );
 }

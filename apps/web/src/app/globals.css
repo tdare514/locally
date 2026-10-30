@@ -3,7 +3,7 @@
 :root {
   /* Footprint of the floating phone-tray button (#115). PhoneInbox sizes itself from this and
      views that run under it reserve room with it, so the two can't drift (#149). */
-  --tray-size: 2.5rem;
+  --tray-size: 2.75rem;
   --bg: #000000;
   --card: #121212;
   /* Legacy alias — kept so any code still referencing --panel/bg-panel keeps working. */
@@ -671,7 +671,8 @@ body {
   transition: opacity 160ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .share-row-button {
-  opacity: 0.35;
+  /* 70 % of `text-soft` is about 7:1 on black, so the icon reads without hover (rule 11). */
+  opacity: 0.7;
   transition: opacity 160ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .track-row:hover .track-affordance,
@@ -1076,7 +1077,8 @@ body {
  *                    capsule in `danger`, with the same hover, press and focus states.
  *   .btn-ink         the secondary: the word alone in `text-muted`, `text` on hover and press.
  *   .btn-ink-danger  the destructive trigger: the word in `danger`.
- *   .btn-icon        icon-only: the drawn glyph in a 44 target, nothing behind it. Give it an aria-label.
+ *   .btn-icon        icon-only: the drawn glyph in a 44 target, nothing behind it (`text-soft`, `text` on
+ *                    hover). Give it an aria-label.
  *   .btn-seg, .btn-seg-opt  a two-option toggle: words, and a dot that slides under the chosen one.
  * The sheet at /dev/buttons pins states with data-state="hover|press|focus"; each rule lists the
  * pinned selector next to the real :hover / :active / :focus-visible one. Focus is `accent`, the
@@ -1224,26 +1226,24 @@ body {
 }
 
 /* ===== Icon ================================================================= */
-/* Icon-only: the drawn glyph in `text` in a 44 target, with nothing behind it. At rest the glyph
-   is a little under full strength; hover brings it to full and press dims it. */
+/* Icon-only: the drawn glyph in a 44 target with nothing behind it. It moves by text colour, so a
+   glyph that fades itself (the tray's cloud and X) keeps its own opacity: `text-soft` at rest,
+   `text` on hover, `text-muted` while pressed. */
 .btn-icon {
   width: 2.75rem;
   height: 2.75rem;
   border-radius: 0.5rem;
+  color: var(--text-soft);
+  transition: color 160ms ease;
+}
+.btn-icon:where(:not(:disabled)):is(:hover, :active),
+.btn-icon[data-state="hover"],
+.btn-icon[data-state="press"] {
   color: var(--text);
 }
-.btn-icon svg {
-  opacity: 0.75;
-  transition: opacity 160ms ease;
-}
-.btn-icon:where(:not(:disabled)):is(:hover, :active) svg,
-.btn-icon[data-state="hover"] svg,
-.btn-icon[data-state="press"] svg {
-  opacity: 1;
-}
-.btn-icon:where(:not(:disabled)):active svg,
-.btn-icon[data-state="press"] svg {
-  opacity: 0.6;
+.btn-icon:where(:not(:disabled)):active,
+.btn-icon[data-state="press"] {
+  color: var(--text-muted);
 }
 .btn-icon:focus-visible,
 .btn-icon[data-state="focus"] {
@@ -1747,7 +1747,7 @@ body {
   .btn-danger,
   .btn-ink,
   .btn-ink-danger,
-  .btn-icon svg,
+  .btn-icon,
   .btn-seg-dot,
   .btn-seg-opt {
     transition: none;

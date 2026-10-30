@@ -310,12 +310,7 @@ export default function PhoneInbox({
         aria-expanded={open}
         aria-controls={panelId}
         aria-label={triggerLabel(count, open, friends.length)}
-        className={`relative isolate flex h-[var(--tray-size)] w-[var(--tray-size)] items-center justify-center rounded-full transition-[filter,background-color,box-shadow] active:scale-95 ${
-          // Open: the glass drops away and the red X stands alone.
-          open ? "bg-transparent" : "glass-fake hover:brightness-125"
-        } ${
-          count > 0 ? "text-text" : "text-text-dim"
-        }`}
+        className="btn-icon"
       >
         <span className="relative block h-5 w-5">
           <CloudDownIcon className="phone-tray-glyph absolute inset-0 h-5 w-5" data-open={open} />
