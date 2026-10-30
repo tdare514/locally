@@ -40,8 +40,9 @@ These were open until 24 Oct. They follow what Untitled (untitled.stream) publis
 page and a terms page at `/privacy` and `/terms`, a named contact for copyright notices, a rule
 that repeat infringers lose their account, and a closed iOS beta at the start.
 
-- **Privacy-policy URL:** `https://getlathe.pages.dev/privacy`, with the terms at `/terms`. That is
-  the Cloudflare Pages project `getlathe`, claimed on 24 Oct for the Lathe rename. Both clients
+- **Privacy-policy URL:** `https://homegrooves.pages.dev/privacy`, with the terms at `/terms`. That
+  is the Cloudflare Pages project `homegrooves`, claimed on 30 Oct for the Homegrooves rename (#389;
+  Lathe was dropped after a US trademark filing). Both clients
   link it next to the clause once the page is live. The full privacy text is written with the
   legal pages (still out of scope below).
 - **Takedown contact:** a dedicated mailbox for copyright notices, named on the terms page. The
