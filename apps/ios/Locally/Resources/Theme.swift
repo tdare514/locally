@@ -107,14 +107,10 @@ enum Theme {
         static let inputPaddingV: CGFloat = 12
         static let primaryButtonH: CGFloat = 32
         static let primaryButtonV: CGFloat = 12
-        /// Pill buttons keep these minimums at every text size; taller labels grow the pill instead.
+        /// The main button keeps this minimum at every text size (full width); taller labels grow the capsule instead.
         static let primaryButtonMinHeight: CGFloat = 48
-        static let primaryButtonCompactMinHeight: CGFloat = 36
-        static let coverGlowMinHeight: CGFloat = 52
-        static let coverGlowCompactMinHeight: CGFloat = 40
-        /// Segmented pills: the smallest touch target of one segment.
-        static let segmentMinHeight: CGFloat = 44
-        static let segmentRowGap: CGFloat = 4
+        /// The smallest touch target (docs/design.md "Design rules (30 Oct 2026)", rule 11): a compact main button, an icon button, one switch option.
+        static let minTarget: CGFloat = 44
     }
 
     /// The sticky footer's fade (docs/design.md "Sticky footer CTA (mobile)").
@@ -140,18 +136,14 @@ enum Theme {
         /// The slider's width with its two glyphs, the hit height, the thumb's size, the track's thickness and the snap duration.
         static let sizeSliderWidth: CGFloat = 128
         static let sizeSliderHeight: CGFloat = 44
-        /// The least brightness (HSB) the header controls' tint gets, so the glass thumbs show on a navy sky.
-        static let controlsTintMinBrightness: CGFloat = 0.70
-        static let sizeSliderThumb: CGFloat = 28
-        /// The glass track's thickness, the thumb's largest size and the detent dots' size and opacity.
-        static let sizeSliderTrack: CGFloat = 18
-        static let sizeSliderThumbMax: CGFloat = 36
-        static let sizeSliderDetent: CGFloat = 4
-        static let sizeSliderDetentOpacity: Double = 0.3
-        /// The thumb's top-left specular highlight.
-        static let thumbSpecularOpacity: Double = 0.35
-        /// The layout toggle's 44 pt buttons and how far the tinted thumb is inset from their top and bottom.
-        static let toggleThumbInset: CGFloat = 5
+        /// The slim slider (#411): the knob's size, the track's thickness, the knob's largest size and the detent dots' size and opacity.
+        static let sizeSliderThumb: CGFloat = 20
+        static let sizeSliderTrack: CGFloat = 4
+        static let sizeSliderThumbMax: CGFloat = 28
+        static let sizeSliderDetent: CGFloat = 6
+        static let sizeSliderDetentOpacity: Double = 0.4
+        /// The layout toggle's 44 pt buttons and how far the neutral thumb is inset from their top and bottom.
+        static let toggleThumbInset: CGFloat = 3
         static let sizeSliderGlyph: CGFloat = 13
         static let sizeSliderSnapDuration: Double = 0.3
         /// The Collections card: its minimum height, sleeve side, how far each sleeve peeks out, the tilt and the corner radius.
@@ -387,22 +379,14 @@ enum Theme {
         static let platterColor = Color(red: 0x0A / 255, green: 0x0A / 255, blue: 0x0A / 255)
     }
 
-    /// "Make a record" (#205): the cover beat, the invitation and the glow pill, ported from the
-    /// `.imp-*` rules and `.btn-save.btn-glow` in `apps/web/src/app/globals.css`. The beat's clock
-    /// is in `Views/Import/ImportBeat.swift`.
+    /// "Make a record" (#205): the cover beat and the invitation, ported from the `.imp-*` rules in
+    /// `apps/web/src/app/globals.css`. The beat's clock is in `Views/Import/ImportBeat.swift`.
     enum Import {
-        /// The cover glow button (Send, Save): its clouds' opacity at rest and pressed, and the
-        /// dark base under its glass that keeps the list scrolling beneath from showing through.
-        static let coverGlowRest: Double = 0.62
-        static let coverGlowPressed: Double = 0.95
-        /// The clouds at rest at the accessibility text sizes, where the label wraps over them.
-        static let coverGlowRestAccessibility: Double = 0.4
-        static let coverGlowBaseOpacity: Double = 0.88
-        /// The kind switch: each option's minimum tap height, and the black under its thumb's tint.
+        /// The slim switch: each option's minimum tap height, and (for the play disc, until #414) the black under a tint.
         static let kindSwitchMinTarget: CGFloat = 44
         static let kindThumbBase: Double = 0.35
-        /// A stacked kind switch is a rounded track, not a capsule, so its thumb stays inside; the thumb is
-        /// concentric, inset by the track's padding.
+        /// A stacked switch is a rounded track, not a capsule, so its thumb stays inside; the thumb is
+        /// concentric, inset from the track by this much.
         static let kindSwitchStackCorner: CGFloat = 22
         static let kindSwitchPadding: CGFloat = 3
         /// Send scrolls the record back to the sleeve over this long (docs/design.md "Make a record").
@@ -461,34 +445,13 @@ enum Theme {
         static let inviteGap: CGFloat = 20
         static let inviteButtonGap: CGFloat = 8
 
-        /// `.btn-glow`: the clear glass pill, its rim and the corner highlight.
+        /// Floating glass (`GlowGlass`, `GlowRim`): its fill and corner highlight, and the rim.
         static let glowFillTop: Double = 0.14
         static let glowFillBottom: Double = 0.04
         static let glowFillBottomAt = 0.55
         static let glowCornerHighlight: Double = 0.18
         static let glowRim: Double = 0.12
         static let glowRimTop: Double = 0.32
-        static let glowMinHeight: CGFloat = 48
-        /// The light layer is `inset: -60% -35%` of the pill.
-        static let glowInsetX: CGFloat = 0.35
-        static let glowInsetY: CGFloat = 0.60
-        static let glowFadeDuration: Double = 0.3
-        static let glowDriftDuration: Double = 4
-        static let glowDriftX: Double = 0.09
-        static let glowDriftY: Double = 0.05
-        static let glowDriftScale: Double = 0.2
-        /// The three clouds (azure, ice, cobalt) over a thin wash.
-        static let glowAzure = (r: 70.0, g: 160.0, b: 255.0)
-        static let glowIce = (r: 120.0, g: 215.0, b: 255.0)
-        static let glowCobalt = (r: 90.0, g: 120.0, b: 255.0)
-        /// The dark pool under the label while lit: black at this opacity, solid to the core stop,
-        /// feathered out to a radius of this share of the pill's width, squashed to an ellipse.
-        static let glowPoolOpacity: Double = 0.5
-        static let glowPoolCoreAt = 0.35
-        static let glowPoolMidAt = 0.7
-        static let glowPoolRadius: CGFloat = 0.5
-        static let glowPoolSquash: CGFloat = 0.6
-        static let glowWash = Color(red: 60 / 255, green: 130 / 255, blue: 255 / 255).opacity(0.3)
 
         /// The cover's backdrop over the studio one: in once the wash starts, out when the cover goes.
         static let backdropFadeInDuration: Double = 0.5

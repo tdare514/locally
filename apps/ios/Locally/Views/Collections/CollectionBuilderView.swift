@@ -145,8 +145,6 @@ struct CollectionBuilderView: View {
     private var pad: CGFloat { Theme.Spacing.pagePadding }
     private var title: String { draft.isNew ? Copy.CollectionBuilder.newTitle : Copy.CollectionBuilder.addMusicTitle }
     private var failureTitle: String { draft.isNew ? Copy.Collections.createFailed : Copy.Collections.addFailed(to: draft.name) }
-    private var glow: [Color] { Theme.coverGlowColors(palette) }
-    private var tint: Color { glow.first ?? Theme.accent }
 
     var body: some View {
         ZStack {
@@ -317,7 +315,7 @@ struct CollectionBuilderView: View {
                 VStack(alignment: .trailing, spacing: 10) {
                     BuilderSearchPill(text: $draft.query)
                     Button(Copy.CollectionBuilder.done, action: finish)
-                        .buttonStyle(CoverGlowButtonStyle(colors: glow, isFullWidth: false))
+                        .buttonStyle(MainButtonStyle(isFullWidth: false))
                         .disabled(!self.draft.canFinish)
                         .accessibilityLabel(Copy.CollectionBuilder.doneLabel(self.draft.songCount))
                         .accessibilityIdentifier("builder-done")
@@ -325,7 +323,7 @@ struct CollectionBuilderView: View {
             } else {
                 HStack(spacing: 10) {
                     BuilderSearchPill(text: $draft.query)
-                    BuilderDoneRound(tint: tint, label: Copy.CollectionBuilder.doneLabel(self.draft.songCount), isEnabled: self.draft.canFinish, action: finish)
+                    BuilderDoneRound(label: Copy.CollectionBuilder.doneLabel(self.draft.songCount), isEnabled: self.draft.canFinish, action: finish)
                 }
             }
         }
@@ -500,24 +498,20 @@ private struct BuilderCrate: View {
     }
 }
 
-/// A filled accent circle with a white check; a dim one for what the collection already holds.
+/// A filled accent circle with a white check (accent marks the selected item, rule 1); a dim one for
+/// what the collection already holds. No glow.
 private struct BuilderPickedDot: View {
-    let tint: Color
     let size: CGFloat
     var dimmed = false
-    var glows = false
 
     var body: some View {
         ZStack {
-            Circle().fill(dimmed ? Color.white.opacity(0.22) : tint)
-            // A little black keeps the white check readable on a bright cover.
-            Circle().fill(Color.black.opacity(dimmed ? 0 : 0.22))
+            Circle().fill(dimmed ? Color.white.opacity(0.22) : Theme.accent)
             Image(systemName: "checkmark")
                 .font(.system(size: size * 0.46, weight: .bold))
                 .foregroundStyle(Color.white.opacity(dimmed ? 0.7 : 1))
         }
         .frame(width: size, height: size)
-        .shadow(color: glows && !dimmed ? tint.opacity(0.6) : .clear, radius: 7)
         .accessibilityHidden(true)
     }
 }
@@ -527,9 +521,8 @@ private struct BuilderPressStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
             .opacity(configuration.isPressed ? 0.85 : 1)
-            .animation(Theme.Builder.ease, value: configuration.isPressed)
+            .animation(reduceMotion ? nil : Theme.Builder.ease, value: configuration.isPressed)
     }
 }
 
@@ -562,7 +555,6 @@ private struct BuilderShelfCover: View {
     private var state: BuilderRowState { draft.state(of: pick) }
     private var isOn: Bool { state != .off }
     private var blocked: Bool { state == .off && !draft.canPick(pick) }
-    private var tint: Color { art.accent(release.id) }
 
     private var label: String {
         var parts = [release.title, release.artist]
@@ -582,13 +574,12 @@ private struct BuilderShelfCover: View {
                     .overlay {
                         if state == .on {
                             GlowRim(corner: Theme.Builder.shelfRadius)
-                                .shadow(color: tint.opacity(0.7), radius: 8)
                                 .transition(.opacity)
                         }
                     }
                     .overlay(alignment: .topTrailing) {
                         if isOn {
-                            BuilderPickedDot(tint: tint, size: Theme.Builder.shelfDot, dimmed: state == .existing)
+                            BuilderPickedDot(size: Theme.Builder.shelfDot, dimmed: state == .existing)
                                 .padding(8)
                                 .transition(reduceMotion ? .opacity : .scale(scale: 0.5).combined(with: .opacity))
                         }
@@ -611,7 +602,6 @@ private struct BuilderShelfCover: View {
         .accessibilityLabel(label)
         .accessibilityHint(isOn ? "" : (blocked ? Copy.CollectionBuilder.full : Copy.CollectionBuilder.add(release.title)))
         .accessibilityAddTraits(isOn ? .isSelected : [])
-        .task(id: isOn) { if isOn { await art.loadAccent(release.id) } }
     }
 }
 
@@ -696,7 +686,7 @@ private struct BuilderSongRow: View {
     private var control: some View {
         let size = Theme.Builder.songDot
         if isOn {
-            BuilderPickedDot(tint: tint, size: size, dimmed: state != .on, glows: true)
+            BuilderPickedDot(size: size, dimmed: state != .on)
                 .transition(reduceMotion ? .opacity : .scale(scale: 0.5).combined(with: .opacity))
         } else {
             ZStack {
@@ -752,31 +742,24 @@ private struct BuilderSearchPill: View {
     }
 }
 
-/// The round Done: cover-tinted glass with a check.
+/// The round Done: a solid white circle with a black check, the main action as an icon (rule 3). Disabled:
+/// an `elevated` circle with a `text-dim` check.
 private struct BuilderDoneRound: View {
-    let tint: Color
     let label: String
     let isEnabled: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            ZStack {
-                Circle().fill(Color.black.opacity(0.8))
-                Circle().fill(tint.opacity(0.4))
-                GlowGlass().clipShape(Circle())
-                Image(systemName: "checkmark")
-                    .font(.system(.body, weight: .bold))
-                    .foregroundStyle(Color.white)
-            }
-            .overlay { GlowRim(round: true) }
-            .frame(width: Theme.Builder.searchMinHeight, height: Theme.Builder.searchMinHeight)
-            .shadow(color: tint.opacity(isEnabled ? 0.4 : 0), radius: 12, y: 3)
-            .contentShape(Circle())
+            Image(systemName: "checkmark")
+                .font(.system(.body, weight: .bold))
+                .foregroundStyle(isEnabled ? Color.black : Theme.textDim)
+                .frame(width: Theme.Builder.searchMinHeight, height: Theme.Builder.searchMinHeight)
+                .background(isEnabled ? Theme.primaryText : Theme.elevated, in: Circle())
+                .contentShape(Circle())
         }
         .buttonStyle(BuilderPressStyle())
         .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : 0.4)
         .accessibilityLabel(label)
         .accessibilityIdentifier("builder-done")
     }

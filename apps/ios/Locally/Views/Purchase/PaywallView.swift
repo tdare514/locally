@@ -44,18 +44,19 @@ struct PaywallView: View {
                     Task { await buy() }
                 } label: {
                     if isPurchasing {
-                        ProgressView().tint(.black)
+                        ProgressView()
                     } else {
                         Text(Copy.Purchase.buyLabel(price: product?.displayPrice))
                     }
                 }
-                .buttonStyle(PrimaryPillButtonStyle())
+                .buttonStyle(MainButtonStyle())
                 .disabled(isPurchasing || isRestoring || product == nil)
 
                 Button(Copy.Purchase.restore) {
                     Task { await restore() }
                 }
-                .buttonStyle(SecondaryPillButtonStyle())
+                .buttonStyle(TextButtonStyle())
+                .frame(maxWidth: .infinity, minHeight: Theme.Spacing.minTarget)
                 .disabled(isPurchasing || isRestoring)
 
                 Spacer()

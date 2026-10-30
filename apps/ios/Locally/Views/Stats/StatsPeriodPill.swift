@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The Stats page's period control (#367): one glass pill showing the current period, tinted by the
-/// cover's colour, that opens a glass pop-up of large rows. Choosing a row closes it.
+/// The Stats page's period control (#367): one quiet `elevated` pill showing the current period (no tint,
+/// glow or rim, #411) that opens a glass pop-up of large rows. Choosing a row closes it.
 struct StatsPeriodPill: View {
     let current: StatsPeriodKind
     /// The period's name ("This week", "Last month") and its dates ("18 to 24 Oct"), shown together in the pill.
@@ -41,15 +41,7 @@ struct StatsPeriodPill: View {
             .padding(.horizontal, 18)
             .padding(.vertical, 8)
             .frame(minHeight: Theme.Stats.minTarget)
-            .background {
-                ZStack {
-                    Capsule().fill(Theme.StatsPopup.base.opacity(0.55))
-                    GlowGlass().clipShape(Capsule())
-                    Capsule().fill(tint.opacity(Theme.StatsPopup.washOpacity))
-                }
-                .shadow(color: tint.opacity(0.35), radius: 10)
-            }
-            .overlay { GlowRim() }
+            .background(Theme.elevated, in: Capsule())
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)

@@ -217,33 +217,30 @@ eyebrows still apply to those labels.
   that fills with drifting fluorescent blue light on hover. A choice among several periods
   (`.seg-glass`, the Stats page) puts the chosen option on the same glass as a hovered main
   button. Not 2000s gloss: no gel highlight, no saturated fills, no coloured outer glow.
-- **Segmented pill and buttons on iOS** (until #160 carries the Mac set over): segmented pill is
-  an `elevated` track with 4 padding, selected segment an `accent` pill with black semibold text;
-  **Primary button**: `accent` pill, black bold text. **Secondary**: `elevated` pill, white text.
-  **Outline**: transparent with a `text-dim` border, white text. **Text button** (Cancel):
-  `text-muted`, white on hover, no background.
-  On iPhone the record's Single / Album switch is replaced (16 Oct 2026, owner: the switch and
-  the main buttons "look bland"; the library and crop sheet keep this pill). It is the **kind
-  switch**: a faked-glass capsule track (the Glow pill's glass and 1 pt rim), each option an
-  icon and a word (Single `music.note`, Album `rectangle.stack.fill`; subheadline semibold), the
-  chosen one white on a glass thumb tinted with the cover's colour (the palette's primary at 55 %
-  over black at 35 %, so the label keeps 4.5:1 on a bright colour; a brighter rim, a soft glow
-  of that colour under it), the other white at 55 %. Each option is at least 44 pt tall. The
-  thumb slides to the new option (spring, response 0.35, damping 0.85) with a selection haptic;
-  Reduce Motion moves it without sliding. No cover: the thumb is tinted `accent`. Locked: 50 %.
-  At the accessibility text sizes the switch takes its own line above the track count and drops
-  its icons, so both words fit side by side.
-- **Cover glow button** (iPhone, 16 Oct 2026, same owner request): **Send to Spotify** on the
-  record and **Save changes** in the release page's dock. A dark base (black at 88 %, so the list
-  scrolling under the footer never shows through), the Glow pill's faked glass and rim
-  with a white bold label and a leading icon (Send `paperplane.fill`, Save `checkmark`), lit at
-  rest by two soft clouds of the cover's colours (palette primary and secondary; `accent` and
-  violet with no cover) rising from the lower edge inside the capsule (62 % at rest, 95 % pressed), and a soft halo of the
-  primary colour under it, the Mac's main action in its lit state since a phone has no hover.
-  Pressed: the clouds brighten, one shimmer (a soft white diagonal band) sweeps across once
-  over 600 ms, scale 0.97, easing `cubic-bezier(0.16, 1, 0.3, 1)`. Reduce Motion: the brighten
-  only, no shimmer and no scale. Disabled: glass only, no clouds or halo, the label at 50 %.
-  While sending it keeps its progress line in white.
+- **Buttons, switches and the slider on iOS (#411, 30 Oct 2026, to the Design rules above).**
+  - **Main button** (`MainButtonStyle`: Send to Spotify, Save changes, Add a track, Done, Next, Get
+    started, Buy): a solid `text` capsule, black semibold label, 48 pt tall full width and at least
+    44 pt compact, so it has a shape at rest. Pressed: 85 % opacity, no scale. Disabled: an
+    `elevated` capsule with a `text-dim` label. A `ProgressView` inside takes the label colour.
+    The cover's colours never reach it. Replaces the Cover glow button, the Glow pill and the flat
+    accent pill (the glow clouds, halo, shimmer and dark base are gone).
+  - **Secondary** is the word alone (`TextButtonStyle`, `text-muted`, `text` while pressed) with a
+    44 pt target; **destructive** triggers are the same in `danger`. The grey pill is gone. **Icon
+    buttons** (`IconButtonStyle`: the Stats stepper and History, the Collections +, the Library
+    sort) are the drawn glyph in `text` in a 44 pt target with nothing behind it; 70 % while
+    pressed. The round Done in the collection builder is the main button as an icon: a white circle
+    with a black check.
+  - **Slim switch** (`SlimSwitch`, was `GlowSwitch`; the Import record's Single / Album, the
+    Collections and Stats layouts, the Stats Tracks / Albums / Artists, the date sheet's Year /
+    Month / Day, the crop sheet's Square / Original, the share sheet's expiry): an `elevated`
+    capsule track 44 pt high at the default size, a thumb in `elevated-hover` inset 3 pt, the
+    chosen word in `text` and the others in `text-muted`; an icon and a word per option, icons
+    dropped at the accessibility sizes. Each option is a 44 pt target. The thumb slides (spring,
+    response 0.35, damping 0.85) with a selection haptic; Reduce Motion moves it without
+    sliding. Wider than the room: `.stack` puts the options in a column, `.scroll` scrolls them.
+    No tint, rim, glow or shadow. The Library's layout toggle is the same track and thumb.
+    Locked: 50 %. `SegmentedPill` and `TintedGlassThumb` are gone.
+- **Outline** (Mac only now) is transparent with a `text-dim` border.
 - **iPhone record fields, covers and library (16 Oct 2026, owner on the phone)**: the inline
   fields read as floating text, so nobody could tell what a value was or that it could still be
   edited, and the import and the release page laid the same fields out differently.
@@ -327,11 +324,8 @@ eyebrows still apply to those labels.
   - *Accessibility pass* (16 Oct 2026, #226, from `performAccessibilityAudit` and a walk through
     every element on the simulator). Body text on these screens holds 4.5:1, and large text
     (18 pt, or 14 pt bold) holds 3:1, over any cover colour.
-    - Kind switch: no change. It is the shared `GlowSwitch` (also the Stats page's), its unchosen
-      word measured 7.1:1 over a bright cover, and the chosen option already carries the selected
-      trait, so VoiceOver says "Selected".
-    - Cover glow button: at the accessibility text sizes, where the label wraps over the clouds,
-      the clouds drop to 40 % at rest.
+    - Kind switch: no change. It is the shared `SlimSwitch` (also the Stats page's); the
+      chosen option already carries the selected trait, so VoiceOver says "Selected".
     - The reorder hint moves from `text-dim` to `text-muted` (4.0:1 to 8.5:1 on the panel). The
       library row's subtitle was already `text-muted` (8.4:1), and the Sent card's hint lines
       measure 9:1 once its entrance has settled, so they stay.
@@ -509,13 +503,12 @@ eyebrows still apply to those labels.
     (#360: Large is the old Medium, Medium the old Small, and the new Small shows the title only; the old
     1-across size is gone, and the choice moved to the key `locally.library.coverSize2`, migrated once
     from the old key; a fresh install starts on Large). The size control is `CoverSizeSlider` at the
-    right end of the layout row, covers view only: a glass track (the Glow switch's glass and rim) with three 30 % white detent dots, a round thumb in the Glow
-    switch's tinted glass (`TintedGlassThumb`, tinted by the library sky, the accent with no cover) with a top-left
-    highlight and the Glow spring, a dense-grid glyph at the left and a bigger one at the right, a 44 pt hit height,
-    a selection haptic per detent, adjustable for VoiceOver ("Cover size, Medium"). Tiles
+    right end of the layout row, covers view only: a thin 4 pt `elevated-hover` track with three 40 % white detent dots (6 pt),
+    a plain white 20 pt knob (it grows with the text up to 28 pt; #411, owner C07: slimmer) on the switch's spring, a dense-grid glyph at the left and a bigger one at the right, a 44 pt hit height,
+    a selection haptic per detent, adjustable for VoiceOver ("Cover size, Medium"). No tint, rim or shadow. Tiles
     have radius 8. A pressed tile grows to 1.03 with a shadow (radius 10, 35 %, y 4) over 0.15 s.
     List rows sit in a radius 16 panel, and the divider between Singles and Albums is white at 7 %.
-    The layout toggle and sort button are the same glass: the chosen layout is the tinted thumb sliding on the Glow spring. The Library has no "Add a song" footer (the Import tab does that). Collections is a glass card
+    The layout toggle is a slim switch track with a neutral thumb sliding on the switch's spring, and the sort button is a plain icon (#411). The Library has no "Add a song" footer (the Import tab does that). Collections is a glass card
     (`CollectionsLibraryCard`, at least 80 pt tall) under the header, washed from the first collection's cover colours (55 % at the leading edge, clear at 70 %), with the first three collections'
     covers as a stack of sleeves (the front one with a vinyl peeking out, the two behind tilted -7 and +5 degrees); it presses to 0.98 and holds its height while loading; one tap opens the Collections screen, which holds "New collection".
   - *Collection builder (iPhone, #366)*: "New collection" and "Add music" open one full-screen page (`CollectionBuilderView`). One cover wash fades down to near-black with no edge; the record sleeve carries the typed name over a mosaic of the first four picked covers; the picks lean in a boxless crate beside "3 songs · 7 min".
@@ -941,7 +934,7 @@ Plan: `docs/plans/146-sharing.md`. Owner's picks, 23 Oct: a glass popover for Sh
 Plan: `docs/plans/146-sharing.md`; built in #183. Copy is in `Copy.Share`, sentence case, nothing promises more than Locally's own sharing.
 
 - **Share** is a text button beside Edit on the release page in view mode, and "Share this song" in a track row's context menu (and a VoiceOver action). Adopted releases have neither.
-- **The sheet** (medium and large detents) sits on the studio backdrop in glass groups: **People** (wrapping email pills with a 44 pt ✕, a field that adds on return or a comma, saved group chips, "Save these people as a group"; groups live on the device only), then **Options** (Link, only while `GET /v1/me` says `publicSharesEnabled`; "Let them share it on", with "They can't share it on from Locally" when off; Expires as a `GlowSwitch` of Never / 7 days / 30 days), then a full-width **Share** pill. The result replaces the form: "Shared with 3 people", each unknown address with "Not on Locally yet", a returned link with Copy link and a `ShareLink`, and "Copy it now. Locally can't show this link again."
+- **The sheet** (medium and large detents) sits on the studio backdrop in glass groups: **People** (wrapping email pills with a 44 pt ✕, a field that adds on return or a comma, saved group chips, "Save these people as a group"; groups live on the device only), then **Options** (Link, only while `GET /v1/me` says `publicSharesEnabled`; "Let them share it on", with "They can't share it on from Locally" when off; Expires as a `SlimSwitch` of Never / 7 days / 30 days), then a full-width **Share** pill. The result replaces the form: "Shared with 3 people", each unknown address with "Not on Locally yet", a returned link with Copy link and a `ShareLink`, and "Copy it now. Locally can't show this link again."
 - **From your friends** is a second section of the Library header's tray, under "From your devices", in the same row language: the sleeve is **Send to Spotify**, the origin line is "from <sender email>", a small ✕ dismisses. One badge counts both sections; an empty section hides with its heading.
 - **Shared by you** is a Settings glass group: cover, title, "Shared with N people", each recipient "Added" or "Not yet", "Link on", the expiry, and a destructive **Revoke** with a confirm. Revoked and expired shares are greyed without Revoke. The group hides when there are none.
 - **Delete** confirm adds "It's shared with N people. They'll lose access." when live shares exist.
@@ -1008,8 +1001,8 @@ Previews: `docs/design-previews/339-mac/` (1280 and 900 wide: `playing`, plus `n
 
 Previews: `docs/design-previews/339-ios/` (`player-<case>.png`, from the gallery's `collections-player-*` cases). Target look: `docs/design-previews/339/phone-record-player*.png`. The Mac's half is #351; the maths is a port of its `record-player.ts` into `Domain/RecordWheel.swift`.
 
-- **Switches.** **Record player / List** and **Picture disc / Black vinyl** are the house `GlowSwitch` (compact) in `CollectionsModeSwitches`, side by side when they fit, else stacked (see Glass controls below); a stacked switch uses a 22 pt rounded track with an inset thumb. Each option has a 44 pt hit area and `.isSelected`; each group reads its name ("View", "Spinning record"). The record group shows only in the record player. Both choices are remembered per device (`locally.collections.view`, `locally.collections.record`); hidden with no collections. The List view is unchanged.
-- **Glass controls (#363).** The two switches are the house `GlowSwitch` (compact), side by side when they fit at 390 pt, else stacked, each stacking its own words at the accessibility sizes; their thumbs, the play / pause disc (the thumb recipe on a circle with a top-left highlight) and the played part of the progress line (with a faint glow) take the front cover's colour (the palette behind the wash; accent when none). Previous, next and + are `GlowGlass` circles with the round `GlowRim`. The wheel's ring dissolves over its last 18 degrees at the top and bottom. Frames: `docs/design-previews/363-ios/` (`after`, `player-bright`, `player-ax3`).
+- **Switches.** **Record player / List** and **Picture disc / Black vinyl** are the slim `SlimSwitch` (compact) in `CollectionsModeSwitches`, side by side when they fit, else stacked (see Glass controls below, whose switch part #411 retired: no cover tint); a stacked switch uses a 22 pt rounded track with an inset thumb. Each option has a 44 pt hit area and `.isSelected`; each group reads its name ("View", "Spinning record"). The record group shows only in the record player. Both choices are remembered per device (`locally.collections.view`, `locally.collections.record`); hidden with no collections. The List view is unchanged.
+- **Glass controls (#363).** The two switches are the slim `SlimSwitch` (compact, no cover tint since #411), side by side when they fit at 390 pt, else stacked, each stacking its own words at the accessibility sizes; the play / pause disc (the thumb recipe on a circle with a top-left highlight) and the played part of the progress line (with a faint glow) take the front cover's colour (the palette behind the wash; accent when none). Previous and next are `GlowGlass` circles with the round `GlowRim` (#414 makes them plain icons); + is a plain icon (#411). The wheel's ring dissolves over its last 18 degrees at the top and bottom. Frames: `docs/design-previews/363-ios/` (`after`, `player-bright`, `player-ax3`).
 - **The wheel.** The hub (the playing record, radius 154 with an 8 pt dark platter rim) sits on the left edge; rows ride the right half of a dial of radius 182. A row is a 48 pt `CollectionCoverView`, the name (`rowTitle`, one line, an ellipsis that ends 16 pt inside the screen) and "27 tracks" (`meta`), level, 64 pt apart at the front, each step 0.87 of the last, fading past 0.85 rad (about 49 degrees) so about seven show. A thin ring (radius 214) and a 14 x 3 accent notch mark the front. Only the window of 15 indexes around the front is built, keyed by collection id; placement is `offset`, `scaleEffect` and `opacity` only, and the rows are an `Animatable` view so a snap re-places just those rows. The playing collection's row says "Playing" or "Paused" in `Tint.accentText`, on one line with the count or, when the room is short (320 pt), the state above the count (only the name may end in an ellipsis) (4.5:1 on black; `accent` itself is 4.0:1), from the player's state. Under it, at the left: "1 of 24" and a 44 pt + (New collection).
 - **The hub record.** Picture disc: the playing track's cover edge to edge, faint grooves, a 16 pt centre hole. Black vinyl: black with grooves and the cover as a 36 % label. Nothing playing: a bare black record. It always shows the playing track, turns at 200 degrees a second (33 1/3 rpm) only while playing, keeps its angle when paused (the angle is accumulated across pauses), and the two looks are two layers cross-faded in place (0.3 s) so nothing remounts and the turn never restarts.
 - **Gestures.** A vertical drag that starts on the wheel turns it (one row per 64 pt); on release it snaps to the nearest row, from the predicted end translation for a flick (at most 8 rows), on `.timingCurve(0.16, 1, 0.3, 1)` over 0.45 s (0.55 s for a tap or an adjust). A drag anywhere else scrolls the page. A light selection haptic on each change of the front row. Every row is a button with a 44 pt hit area however small it is drawn.

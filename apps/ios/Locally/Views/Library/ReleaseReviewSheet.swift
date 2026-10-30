@@ -5,8 +5,6 @@ import SwiftUI
 /// Same dark sheet as `CoverChoiceSheet`.
 struct ReleaseReviewSheet: View {
     let model: ReleaseDetailViewModel
-    /// The cover's glow colours for Save (`Theme.coverGlowColors`).
-    let glowColors: [Color]
     let onClose: () -> Void
 
     @ScaledMetric(relativeTo: .body) private var thumbSize = Theme.Immersive.reviewThumbSize
@@ -46,12 +44,12 @@ struct ReleaseReviewSheet: View {
                     }
                 } label: {
                     if model.isSaving {
-                        ProgressView().tint(.white)
+                        ProgressView()
                     } else {
                         Text(Copy.Release.save)
                     }
                 }
-                .buttonStyle(CoverGlowButtonStyle(colors: glowColors))
+                .buttonStyle(MainButtonStyle())
                 .disabled(model.isSaving)
 
                 Button(Copy.Release.keepEditing, action: onClose)

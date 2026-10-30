@@ -16,13 +16,13 @@ struct ImportSingleView: View {
                     ImportRecordSleeve(coverData: Binding(get: { model.coverData }, set: { model.coverData = $0 }), context: context)
                         .id(ImportRecordSleeve.scrollID)
                         .importClearRow()
-                    ImportMetaLine(kind: context.kind, trackCount: model.pickedURL == nil ? 0 : 1, isSwitchDisabled: context.isBusy, tint: context.glowColors[0])
+                    ImportMetaLine(kind: context.kind, trackCount: model.pickedURL == nil ? 0 : 1, isSwitchDisabled: context.isBusy)
                         .importClearRow(top: 0, bottom: Theme.Immersive.fieldsMetaGap)
                     VStack(alignment: .leading, spacing: Theme.Immersive.labeledFieldRowGap) {
                         LabeledField(Copy.Import.fieldTitle, placeholder: Copy.Import.titlePlaceholder(for: .single), text: Binding(get: { model.title }, set: { model.title = $0 }), font: Theme.ScaledFont.fieldTitle, metricsStyle: .title3, wraps: true)
                         ArtistField(text: Binding(get: { model.artist }, set: { model.artist = $0 }))
                         FeaturingField(names: Binding(get: { model.featuring }, set: { model.featuring = $0 }), draft: Binding(get: { model.featuringDraft }, set: { model.featuringDraft = $0 }))
-                        ReleaseDateGenreRows(releaseDate: Binding(get: { model.releaseDateText }, set: { model.releaseDateText = $0 }), genre: Binding(get: { model.genre }, set: { model.genre = $0 }), message: model.releaseDateMessage, glowColors: context.glowColors)
+                        ReleaseDateGenreRows(releaseDate: Binding(get: { model.releaseDateText }, set: { model.releaseDateText = $0 }), genre: Binding(get: { model.genre }, set: { model.genre = $0 }), message: model.releaseDateMessage)
                     }
                     .importFieldsRow()
                     ClearSectionEnd()
@@ -64,7 +64,7 @@ struct ImportSingleView: View {
                 }
                 Button(action: context.onSend) {
                     if model.isSending {
-                        ProgressView().tint(.white)
+                        ProgressView()
                     } else {
                         HStack(spacing: 8) {
                             Image(systemName: "paperplane.fill").accessibilityHidden(true)
@@ -72,7 +72,7 @@ struct ImportSingleView: View {
                         }
                     }
                 }
-                .buttonStyle(CoverGlowButtonStyle(colors: context.glowColors))
+                .buttonStyle(MainButtonStyle())
                 .disabled(!model.canSend || context.isSendHeld)
             }
         }

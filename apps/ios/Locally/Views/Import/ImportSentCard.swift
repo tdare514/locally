@@ -118,7 +118,7 @@ struct ImportSentCard: View {
                 .foregroundStyle(Theme.secondaryText)
             VStack(spacing: Theme.Import.sentButtonGap) {
                 if spotifyInstalled {
-                    // The record's main buttons (Send, Save) are cover glow buttons; this one matches.
+                    // The record's main buttons (Send, Save) are the main button; this one matches.
                     Button {
                         openURL(Self.spotifyURL)
                         onOpenSpotify()
@@ -128,11 +128,11 @@ struct ImportSentCard: View {
                             Text(Copy.Import.openInSpotify)
                         }
                     }
-                    .buttonStyle(CoverGlowButtonStyle(colors: Theme.coverGlowColors(palette)))
+                    .buttonStyle(MainButtonStyle())
                     closeButton
                 } else {
                     Button(Copy.Purchase.close, action: close)
-                        .buttonStyle(CoverGlowButtonStyle(colors: Theme.coverGlowColors(palette)))
+                        .buttonStyle(MainButtonStyle())
                 }
             }
         }
