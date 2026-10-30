@@ -7,6 +7,77 @@ desktop sidebar, which is deliberately not adopted because its icon set reads as
 web app keeps its own sidebar. When the design session changes anything, this file changes first
 and both apps follow.
 
+## Design rules (30 Oct 2026)
+
+The owner's call in the 30 Oct consistency sweep (the Consistency Checklist, picks C01 to C27): the neon, the
+glowing glass buttons and the cover-glow pills look "vibe-coded" and "cartoonish". Locally should
+be modern and minimal, and still have feeling. These rules come first. Where a component below
+still describes a glow, shimmer, tinted thumb or glass button, that part is retired: build the
+quiet version these rules describe, and rewrite the component's entry when you touch it.
+
+**Where the feeling comes from.** The music: the cover, its colours and the record. The cover
+wash, the sleeve with its disc, the disc turning while it plays and the save and import
+ceremonies are the emotive parts, and they stay. Controls stay calm so those parts can carry it.
+
+1. **Colour belongs to surfaces, not controls.** The cover's colours wash the page behind the
+   content (capped, under its scrim), and the studio backdrop stands in when there is no cover. A
+   button, switch, slider or chip is never tinted with the cover. `accent` marks only the focus
+   ring, the selected item in a list or menu, links and eyebrows. It is never a fill behind a
+   label or a light source.
+2. **No light effects on controls.** No glow, halo, outer shadow in a colour, shimmer or light
+   sweep, fluorescent fill, colour cloud inside a capsule, or bright rim. A control's states are a
+   change of fill, opacity or text colour, nothing that emits light. Retired: the Cover Glow
+   button, the Glow pill, the main button's glass-and-shimmer hover, `.seg-glass`, the tinted
+   glass thumb on switches and sliders, `CoverGlowShimmer` and the glass play disc.
+3. **Buttons are plain and look the same at rest on both apps.**
+   - **Main action** (one per screen or bar: Save, Add to library, Send to Spotify, Sync now):
+     a solid capsule, `text` fill with a black semibold label, at least 44 pt tall. Hover
+     (Mac) lightens to `text-soft`; press dims to 85 %; disabled is `elevated` with a
+     `text-dim` label. It has a shape at rest, since a phone can't hover.
+   - **Secondary** (Cancel, Select, Copy, Done): the word alone in `text-muted`, `text` on
+     hover or press. No pill, no underline animation, no halo.
+   - **Destructive**: the trigger is a `danger` word; the final confirm is one solid `danger`
+     capsule with a black label, with the same hover, press and focus states as the main
+     action, on every confirm in both apps.
+   - **Icon-only** wherever the glyph is universal (play, pause, share, close, more, add,
+     back): the drawn icon in `text` at 20 to 24 pt in a 44 pt target, no circle or glass
+     behind it, with an accessible label. Use an icon and a word only when the icon alone is
+     unclear.
+4. **Play controls are icons.** Play, pause, next and previous are the drawn glyphs in white,
+   with nothing behind them. The record turning, the cover and the wash are what make playing
+   feel alive.
+5. **Glass is for things that float, never for things you press.** The tray, menus, popovers,
+   the mini player, toasts, sheets and Mac dialogs use one glass recipe: dark, neutral, a faint
+   1 px hairline, no tint and no rim light. Buttons, switches and sliders sit on that glass;
+   they are not made of it.
+6. **Choosers are quiet and slim.** A two- or three-way switch is a slim `elevated` track with
+   a neutral thumb a step lighter (`elevated-hover`) and white labels, the same on both apps, at
+   most 36 pt high on the Mac and 44 pt on the iPhone. Sliders are a thin track and a plain white
+   knob. On/off switches are the platform's switch in `accent`.
+7. **Rank with type, not trophies.** Stats show rank with numerals and size: #1 larger, the
+   rest in a plain list. No gold, silver or bronze shine, medal discs or badges. Keep the fan of
+   sleeves, but plain.
+8. **One shape scale.** Corner radius 8 for inputs, tiles and small surfaces, 12 for cards,
+   panels and list containers, 16 for sheets and dialogs, and a full capsule for buttons and
+   switches. Covers keep 4 and sleeves keep their own spec.
+9. **Motion explains, then gets out of the way.** Movement says where something came from or
+   that it was saved (the sleeve tucking in, a toast rising, a sheet sliding up). No ambient
+   motion on controls, no looping highlight, and every effect has a still version under Reduce
+   Motion. Read `~/.claude/design/motion.md` before adding any.
+10. **Loading should be invisible where it can be.** Make pages fast first, so most of them
+    need no placeholder (sweep pick C19: lag and slow pages matter more than the placeholders). Where
+    a wait is real, show still skeletons shaped like the content, after 300 ms, never shimmering,
+    and never "Loading…" text or a blank block. A busy button keeps its label and shows a small
+    spinner in place of its icon.
+11. **The basics hold everywhere.** Text and icons at 4.5:1 or better on the surface they sit on
+    (check on a pale cover's wash too), 44 pt touch targets, sentence case for every label,
+    eyebrow and button, visible focus, and nothing that works only on hover.
+
+**Before you ship a screen, check:** Is there any glow, shimmer, tint or coloured shadow on a
+control? Does the main action have a shape at rest? Could any labelled button be an icon? Is
+colour coming from the cover behind the content rather than the controls? Does it pass 4.5:1 on
+the palest cover you can find? Does it still read under Reduce Motion?
+
 ## Tokens
 
 | Token | Value | Use |
