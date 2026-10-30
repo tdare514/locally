@@ -99,7 +99,7 @@ export default function SpotifySourceBanner({ onOpenSettings, onToast }: Spotify
           onClick={handleCopyPath}
           className="btn-ink"
         >
-          <span className="btn-ink-label">Copy path</span>
+          Copy path
         </button>
       </div>
 
@@ -129,7 +129,7 @@ export default function SpotifySourceBanner({ onOpenSettings, onToast }: Spotify
           disabled={dismissing}
           className="btn-ink w-fit"
         >
-          <span className="btn-ink-label">{dismissing ? "Saving…" : "Done, I added it"}</span>
+          {dismissing ? "Saving…" : "Done, I added it"}
         </button>
         <button
           type="button"

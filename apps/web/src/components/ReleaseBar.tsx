@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { watchEscape } from "../lib/escape-watch";
 
 /** The nearest ancestor that scrolls vertically (the app's main pane). */
@@ -13,15 +13,13 @@ function scrollingAncestor(el: HTMLElement): HTMLElement | null {
 }
 
 interface ReleaseBarProps {
-  /** The cover's colour, for the glow of the main action (`--btn-tint`); the default blue without one. */
-  tint?: string;
   /** The destructive or secondary action, or its inline confirm, at the left. */
   left?: ReactNode;
   /** One quiet line just left of the main action. */
   status?: ReactNode;
   /** Secondary actions that sit beside the main one, before it. */
   beforeMain?: ReactNode;
-  /** The main action, at the right end of the last line. Give it `btn-save btn-save-lit`. */
+  /** The main action, at the right end of the last line. Give it `btn-save`. */
   main: ReactNode;
   /** The bar's measured height, so the page can keep its content clear of it. */
   onHeight?: (height: number) => void;
@@ -42,7 +40,7 @@ interface ReleaseBarProps {
  */
 // A sticky offset counts from the scroll container's content edge, inside its padding, so the 24 above the
 // pane's bottom is 24 minus AppShell's bottom padding (p-6 md:p-10 lg:p-16): 0, -16 and -40.
-export default function ReleaseBar({ tint, left, status, beforeMain, main, onHeight, label }: ReleaseBarProps) {
+export default function ReleaseBar({ left, status, beforeMain, main, onHeight, label }: ReleaseBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const onHeightRef = useRef(onHeight);
   useLayoutEffect(() => {
@@ -82,7 +80,6 @@ export default function ReleaseBar({ tint, left, status, beforeMain, main, onHei
         ref={barRef}
         role="region"
         aria-label={label}
-        style={tint ? ({ "--btn-tint": tint } as CSSProperties) : undefined}
         className="pointer-events-auto absolute inset-x-0 bottom-0 isolate flex min-h-[68px] flex-wrap items-center gap-x-4 gap-y-3 rounded-[24px] glass-fake glass-dock px-5 py-3"
       >
         {left && <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">{left}</div>}
@@ -165,7 +162,7 @@ export function BarConfirm({
       <span className="min-w-0 max-w-[40rem] text-text-muted">{message}</span>
       {children}
       <button ref={cancelRef} type="button" onClick={onCancel} disabled={disabled} className="btn-ink">
-        <span className="btn-ink-label">{cancelLabel}</span>
+        {cancelLabel}
       </button>
     </div>
   );

@@ -122,7 +122,7 @@ export default function SharedByYou({ onToast }: SharedByYouProps) {
                           type="button"
                           onClick={() => revoke(share.id)}
                           disabled={revoking === share.id}
-                          className="rounded-full bg-danger px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+                          className="btn-danger"
                         >
                           {revoking === share.id ? "Revoking…" : "Confirm revoke"}
                         </button>
@@ -135,7 +135,7 @@ export default function SharedByYou({ onToast }: SharedByYouProps) {
                           }}
                           className="btn-ink"
                         >
-                          <span className="btn-ink-label">Cancel</span>
+                          Cancel
                         </button>
                       </div>
                     ) : (
@@ -146,7 +146,7 @@ export default function SharedByYou({ onToast }: SharedByYouProps) {
                         data-focus-revoke
                         className="btn-ink-danger self-start"
                       >
-                        <span className="btn-ink-label">Revoke</span>
+                        Revoke
                       </button>
                     ))}
                 </div>
@@ -165,7 +165,7 @@ export default function SharedByYou({ onToast }: SharedByYouProps) {
           }}
           className="btn-ink self-start"
         >
-          <span className="btn-ink-label">{loadingMore ? "Loading…" : "Show older shares"}</span>
+          {loadingMore ? "Loading…" : "Show older shares"}
         </button>
       )}
     </section>

@@ -29,7 +29,7 @@ export default function ImportInvitation({
           <div className="record-sheen" />
         </div>
         <div className="flex flex-col items-center gap-3">
-          <button type="button" onClick={onAdd} className="btn-save btn-glow">
+          <button type="button" onClick={onAdd} className="btn-save">
             Add a track
           </button>
           <p className={`text-sm transition-colors duration-300 ${over ? "text-text" : "text-text-muted"}`}>

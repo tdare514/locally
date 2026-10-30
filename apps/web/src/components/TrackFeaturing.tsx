@@ -94,7 +94,7 @@ export default function TrackFeaturing({ trackName, names, onChange, index, name
             inputClassName="field-sizing-content min-w-[12ch] max-w-full rounded-md bg-transparent px-1.5 py-0.5 text-sm text-text outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
           />
           <button type="button" onClick={close} className="btn-ink self-end">
-            <span className="btn-ink-label">Done</span>
+            Done
           </button>
         </div>
       )}

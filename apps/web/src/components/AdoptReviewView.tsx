@@ -338,13 +338,13 @@ export default function AdoptReviewView({ scan, onBack, onAllAdded, onLibraryCha
               Try again
             </button>
             <button type="button" onClick={onBack} className="btn-ink">
-              <span className="btn-ink-label">Back to Settings</span>
+              Back to Settings
             </button>
           </div>
           {earlier && (
             <div>
               <button type="button" onClick={() => showFindings(earlier, releases, earlier.scannedAt)} className="btn-ink">
-                <span className="btn-ink-label">Review what Locally found on {shortDate(earlier.scannedAt)} instead</span>
+                Review what Locally found on {shortDate(earlier.scannedAt)} instead
               </button>
             </div>
           )}
@@ -354,7 +354,7 @@ export default function AdoptReviewView({ scan, onBack, onAllAdded, onLibraryCha
       {phase === "no-folders" && (
         <div>
           <button type="button" onClick={onBack} className="btn-ink">
-            <span className="btn-ink-label">Back to Settings</span>
+            Back to Settings
           </button>
         </div>
       )}
@@ -372,7 +372,7 @@ export default function AdoptReviewView({ scan, onBack, onAllAdded, onLibraryCha
       {nothingNew && (
         <div>
           <button type="button" onClick={onBack} className="btn-ink">
-            <span className="btn-ink-label">Back to Settings</span>
+            Back to Settings
           </button>
         </div>
       )}
@@ -480,10 +480,10 @@ export default function AdoptReviewView({ scan, onBack, onAllAdded, onLibraryCha
                   onClick={() => setTicked(new Set(tickedKeys.length < remaining ? orderedKeys : []))}
                   className="btn-ink"
                 >
-                  <span className="btn-ink-label">{tickedKeys.length < remaining ? "Select all" : "Select none"}</span>
+                  {tickedKeys.length < remaining ? "Select all" : "Select none"}
                 </button>
                 <button type="button" onClick={onBack} className="btn-ink">
-                  <span className="btn-ink-label">Cancel</span>
+                  Cancel
                 </button>
               </>
             )}

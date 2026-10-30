@@ -112,7 +112,7 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
         </div>
         <button type="button" onClick={() => setMaking((m) => !m)} aria-expanded={making} className="btn-ink min-h-11">
           <PlusIcon className="h-4 w-4" />
-          <span className="btn-ink-label">New collection</span>
+          New collection
         </button>
       </div>
 
@@ -143,7 +143,7 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
         <div className="flex flex-col items-start gap-3">
           <p className="text-text-muted">{COLLECTIONS_COPY.failedToLoad}</p>
           <button type="button" onClick={() => void api.refresh()} className="btn-ink min-h-11">
-            <span className="btn-ink-label">Try again</span>
+            Try again
           </button>
         </div>
       ) : collections.length === 0 ? (
@@ -402,7 +402,7 @@ function QueuePanel({
             aria-pressed={editing}
             className="btn-ink min-h-11"
           >
-            <span className="btn-ink-label">{editing ? "Done" : "Edit collection"}</span>
+            {editing ? "Done" : "Edit collection"}
           </button>
         </div>
       </div>
@@ -421,17 +421,17 @@ function QueuePanel({
             >
               <button
                 type="button"
-                className="btn-ink-danger min-h-11"
+                className="btn-danger"
                 onClick={async () => {
                   if (await api.remove(collection.id)) onGone(nextId);
                 }}
               >
-                <span className="btn-ink-label">Delete collection</span>
+                Delete collection
               </button>
             </BarConfirm>
           ) : (
             <button ref={deleteOpener} type="button" onClick={() => setConfirming(true)} className="btn-ink-danger min-h-11">
-              <span className="btn-ink-label">Delete collection…</span>
+              Delete collection…
             </button>
           )}
         </div>
@@ -441,7 +441,7 @@ function QueuePanel({
         <div className="flex flex-col items-start gap-3 rounded-[14px] border border-dashed border-border-dashed p-6">
           <p className="text-text-muted">{COLLECTIONS_COPY.emptyQueue}</p>
           <button type="button" onClick={onAddTracks} className="btn-ink min-h-11">
-            <span className="btn-ink-label">Add tracks</span>
+            Add tracks
           </button>
         </div>
       ) : editing ? (
@@ -570,7 +570,7 @@ export function Queue({
                   <button
                     type="button"
                     onClick={() => tryAgain(e)}
-                    className="mb-1 ml-[3.75rem] min-h-11 shrink-0 rounded-full px-4 text-sm font-semibold text-text outline-none @[26rem]:mb-0 @[26rem]:ml-0 ring-1 ring-inset ring-white/20 hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent"
+                    className="btn-ink mb-1 ml-[3.75rem] @[26rem]:mb-0 @[26rem]:ml-0"
                   >
                     Try again
                   </button>

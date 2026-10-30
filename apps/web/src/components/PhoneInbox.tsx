@@ -616,9 +616,9 @@ export function PendingRow({
             onClick={onHide}
             aria-label={`Hide ${title}`}
             title="Hide"
-            className="btn-icon text-text-muted opacity-0 transition-opacity motion-reduce:transition-none group-hover/row:opacity-100 group-focus-within/row:opacity-100 disabled:cursor-not-allowed"
+            className="btn-icon opacity-0 transition-opacity motion-reduce:transition-none group-hover/row:opacity-100 group-focus-within/row:opacity-100 disabled:cursor-not-allowed"
           >
-            <EyeOffIcon className="h-4 w-4" />
+            <EyeOffIcon className="h-5 w-5" />
           </button>
         )}
       </div>
@@ -707,9 +707,9 @@ export function FriendRow({
           onClick={onDismiss}
           aria-label={`Dismiss ${title} from ${item.fromEmail}`}
           title="Dismiss"
-          className="btn-icon text-text-muted opacity-0 transition-opacity motion-reduce:transition-none group-hover/row:opacity-100 group-focus-within/row:opacity-100 disabled:cursor-not-allowed"
+          className="btn-icon opacity-0 transition-opacity motion-reduce:transition-none group-hover/row:opacity-100 group-focus-within/row:opacity-100 disabled:cursor-not-allowed"
         >
-          <XIcon className="h-4 w-4" />
+          <XIcon className="h-5 w-5" />
         </button>
       </div>
     </div>

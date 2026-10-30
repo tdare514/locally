@@ -313,9 +313,9 @@ function DatePopover({
       )}
       <div className="flex items-center justify-between gap-3">
         <button type="button" onClick={onClear} className="btn-ink">
-          <span className="btn-ink-label">Clear date</span>
+          Clear date
         </button>
-        <button type="button" onClick={done} disabled={!chosen} className="btn-save">
+        <button type="button" onClick={done} disabled={!chosen} className="btn-ink">
           Done
         </button>
       </div>

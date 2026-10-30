@@ -275,7 +275,7 @@ export default function CoverCropDialog({
             onClick={onCancel}
             className="btn-ink"
           >
-            <span className="btn-ink-label">Cancel</span>
+            Cancel
           </button>
           <button
             type="button"

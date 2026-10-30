@@ -18,6 +18,7 @@ import {
 } from "../lib/share-copy";
 import { MAX_SHARE_GROUPS, type CreateShareResponse, type ShareGroup } from "../shared/shares";
 import { ShareIcon, XIcon } from "./Icons";
+import KnobSwitch from "./KnobSwitch";
 
 interface ShareControlProps {
   releaseId: string;
@@ -283,7 +284,7 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
   if (!signedIn) {
     return variant === "bar" ? (
       <button type="button" onClick={onSignIn} className="btn-ink">
-        <span className="btn-ink-label">{SIGN_IN_TO_SHARE}</span>
+        {SIGN_IN_TO_SHARE}
       </button>
     ) : (
       <button
@@ -292,9 +293,9 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
         onClick={onSignIn}
         aria-label={`${SIGN_IN_TO_SHARE}: ${name}`}
         title={SIGN_IN_TO_SHARE}
-        className="btn-icon share-row-button text-text-muted"
+        className="btn-icon share-row-button"
       >
-        <ShareIcon className="h-4 w-4" />
+        <ShareIcon className="h-5 w-5" />
       </button>
     );
   }
@@ -313,10 +314,12 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
           aria-haspopup="dialog"
           aria-expanded={open}
           aria-controls={open ? dialogId : undefined}
+          aria-label="Share"
+          title="Share"
           onClick={toggle}
-          className="btn-ink"
+          className="btn-icon"
         >
-          <span className="btn-ink-label">Share</span>
+          <ShareIcon className="h-5 w-5" />
         </button>
       ) : (
         <button
@@ -329,9 +332,9 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
           aria-label={`Share ${name}`}
           title="Share"
           onClick={toggle}
-          className="btn-icon share-row-button text-text-muted"
+          className="btn-icon share-row-button"
         >
-          <ShareIcon className="h-4 w-4" />
+          <ShareIcon className="h-5 w-5" />
         </button>
       )}
       {open && inOverlay(
@@ -471,16 +474,16 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
                         placeholder="Group name"
                         className="min-w-0 flex-1 rounded-lg bg-black/30 px-2.5 py-1.5 text-sm text-text outline-none ring-1 ring-white/10 placeholder:text-white/50 focus:ring-2 focus:ring-accent"
                       />
-                      <button type="submit" disabled={groupName.trim() === ""} className="btn-save btn-save-compact">
+                      <button type="submit" disabled={groupName.trim() === ""} className="btn-ink">
                         Save
                       </button>
                       <button type="button" onClick={() => setNamingGroup(false)} className="btn-ink">
-                        <span className="btn-ink-label">Cancel</span>
+                        Cancel
                       </button>
                     </form>
                   ) : (
                     <button type="button" onClick={() => setNamingGroup(true)} className="btn-ink self-start">
-                      <span className="btn-ink-label">Save these people as a group</span>
+                      Save these people as a group
                     </button>
                   ))}
               </section>
@@ -539,11 +542,11 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
           </div>
           <div ref={footRef} className="mt-3 flex shrink-0 justify-end">
             {result ? (
-              <button type="button" onClick={() => close(true)} className="btn-save btn-save-lit">
+              <button type="button" onClick={() => close(true)} className="btn-save">
                 Done
               </button>
             ) : (
-              <button type="button" onClick={submit} disabled={busy} className="btn-save btn-save-lit">
+              <button type="button" onClick={submit} disabled={busy} className="btn-save">
                 {busy ? "Sharing…" : "Share"}
               </button>
             )}
@@ -554,7 +557,7 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
   );
 }
 
-/** A switch row in the popover: the label, an On/Off switch (the Settings pill), and a quiet line under it. */
+/** A switch row in the popover: the label, the knob switch, and a quiet line under it. */
 function Option({
   id,
   label,
@@ -574,19 +577,12 @@ function Option({
         <span id={id} className="text-[13px] font-semibold text-text">
           {label}
         </span>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={on}
-          aria-labelledby={id}
-          aria-describedby={hint ? `${id}-hint` : undefined}
-          onClick={() => onChange(!on)}
-          className={`min-h-6 rounded-full px-4 py-1 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent motion-reduce:transition-none ${
-            on ? "bg-accent text-black" : "bg-elevated-hover text-text-muted hover:text-text"
-          }`}
-        >
-          {on ? "On" : "Off"}
-        </button>
+        <KnobSwitch
+          checked={on}
+          onChange={() => onChange(!on)}
+          labelledBy={id}
+          describedBy={hint ? `${id}-hint` : undefined}
+        />
       </div>
       {hint && (
         <p id={`${id}-hint`} className="text-[13px] leading-snug text-text-muted">
@@ -643,7 +639,7 @@ function ShareResult({
               onFocus={(e) => e.currentTarget.select()}
               className="min-w-0 flex-1 rounded-lg bg-black/30 px-2.5 py-1.5 text-sm text-text outline-none ring-1 ring-white/10 focus:ring-2 focus:ring-accent"
             />
-            <button type="button" onClick={onCopy} className="btn-save btn-save-compact">
+            <button type="button" onClick={onCopy} className="btn-ink">
               {copied ? "Copied" : "Copy"}
             </button>
           </div>

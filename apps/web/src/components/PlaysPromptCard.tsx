@@ -140,7 +140,7 @@ export default function PlaysPromptCard({ onToast, className = "" }: PlaysPrompt
           disabled={saving}
           className="btn-ink w-fit"
         >
-          <span className="btn-ink-label">Not now</span>
+          Not now
         </button>
       </div>
     </section>
