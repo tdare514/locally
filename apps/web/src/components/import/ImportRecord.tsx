@@ -34,7 +34,7 @@ interface ImportRecordProps {
   inspecting: boolean;
   coverFile: File | null;
   onCover: (file: File) => void;
-  beat: { stage: BeatStage; replay: boolean; discKey: string };
+  beat: { stage: BeatStage; discKey: string };
   /** The send (#421): the disc seals into the sleeve while the request runs, and slides back out if it fails. */
   send: SendStage;
   /** The cover, printed on the disc's centre label. */
@@ -133,7 +133,7 @@ export default function ImportRecord({
     <div className="imp-page-in flex flex-1 flex-col gap-12">
       <div className="flex flex-col gap-12">
         <header className="flex flex-col gap-8 pt-2 lg:pt-4">
-          <div className={stateClass} data-replay={beat.replay ? "true" : undefined}>
+          <div className={stateClass}>
             <RecordSleeve labelUrl={labelUrl} spin={0} discKey={beat.discKey}>
               <CoverPicker
                 file={coverFile}

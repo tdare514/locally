@@ -374,7 +374,7 @@ export default function ImportView({
           inspecting={inspecting}
           coverFile={coverFile}
           onCover={chooseCover}
-          beat={{ stage: beatStage, replay: beat.replay, discKey: discKeyFor(beat) }}
+          beat={{ stage: beatStage, discKey: discKeyFor(beat) }}
           send={sendStage}
           labelUrl={beat.hasCover ? coverUrl : null}
           canSubmit={canSubmit}
