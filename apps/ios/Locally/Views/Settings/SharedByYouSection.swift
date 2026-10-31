@@ -186,7 +186,7 @@ struct SentShareRow: View {
                     }
                 }
                 .frame(width: 48, height: 48)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.thumbnail, style: .continuous))
                 // Revoked and expired shares dim only the artwork; the words stay readable.
                 .opacity(status.isLive ? 1 : 0.4)
                 .accessibilityHidden(true)

@@ -32,11 +32,14 @@ struct SettingsView: View {
                 StudioBackdrop()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 26) {
-                        Text(Copy.Settings.title)
-                            .font(Theme.ScaledFont.largeTitle)
-                            .foregroundStyle(Theme.primaryText)
-                            .padding(.horizontal, 6)
-                            .accessibilityAddTraits(.isHeader)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(Copy.Settings.eyebrow).eyebrow()
+                            Text(Copy.Settings.title)
+                                .font(Theme.ScaledFont.largeTitle)
+                                .foregroundStyle(Theme.primaryText)
+                                .accessibilityAddTraits(.isHeader)
+                        }
+                        .padding(.horizontal, 6)
 
                         SettingsHeroCard()
 

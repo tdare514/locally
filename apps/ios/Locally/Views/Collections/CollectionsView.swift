@@ -114,10 +114,13 @@ struct CollectionsView: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
             : AnyLayout(HStackLayout(alignment: .center))
         return layout {
-            Text(Copy.Collections.title)
-                .themeFont(.pageTitle)
-                .foregroundStyle(Theme.primaryText)
-                .accessibilityAddTraits(.isHeader)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(Copy.Collections.pageEyebrow).eyebrow()
+                Text(Copy.Collections.title)
+                    .themeFont(.pageTitle)
+                    .foregroundStyle(Theme.primaryText)
+                    .accessibilityAddTraits(.isHeader)
+            }
             if !dynamicTypeSize.isAccessibilitySize { Spacer() }
             if model.isLoaded, model.readFailure == nil, !model.collections.isEmpty { newButton }
         }

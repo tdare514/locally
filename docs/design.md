@@ -167,27 +167,31 @@ hint drop away and **Add cover** wraps.
 | Page title, mobile | 24 | bold | text | -0.03em |
 | Page subtitle (desktop, under the title) | 16 | regular | text-muted | |
 | Section title (Metadata, Tracks) | 22 / 18 | bold | text | -0.03em |
-| Eyebrow (LOCAL LIBRARY, YOUR COLLECTION, DETAILS) | 11 (12 desktop) | bold | accent | 0.18em, uppercase |
-| Breadcrumb eyebrow (LIBRARY / SINGLE) | 12 | semibold | text-dim | 0.17em, uppercase |
+| Eyebrow (Local library, Your collection, Details) | 13 iPhone, 14 desktop | semibold | accent | none, sentence case |
+| Breadcrumb eyebrow (Library / Single) | 12 | semibold | text-dim | none, sentence case |
 | Header meta, right-aligned (7 tracks, Tap to edit) | 12 to 14 | regular | text-muted | |
-| Field label | 11 (12 desktop) | bold | text-muted | 0.14em, uppercase |
+| Field label | 13 iPhone, 12 desktop | semibold | text-muted | none, sentence case |
 | Input text | 16 mobile, 14 desktop | regular | text | |
 | Row title | 15 mobile, 14 desktop | semibold | text | |
 | Row subtitle | 14 mobile, 12 desktop | regular | text-muted | |
 | Drop-zone line / hint | 14 medium / 12 | | text-soft / text-hint | |
 | Nav title (mobile top bar) | 18 | bold | text | |
-| Badge | 10 | semibold | text-muted | 0.1em, uppercase |
+| Badge | 10 | semibold | text-muted | none, sentence case |
 | Primary button | 15 mobile, 14 desktop | bold | black on accent | |
 
 **Replaced 13 Oct 2026 (sentence case).** Small uppercase tracked labels are no longer used, so the
 eyebrow, breadcrumb eyebrow, field label and badge rows above are replaced. Labels are sentence
 case, e.g. `text-sm font-semibold text-accent` on web. The `text-dim` and `accent` roles that name
-eyebrows still apply to those labels.
+eyebrows still apply to those labels. The iPhone uses them in sentence case too since #418 (31 Oct
+2026): eyebrows and field labels are 13 pt semibold with no tracking, badges stay 10 pt, and Settings
+and Collections carry the Mac's eyebrows ("Local library", "Your music") over their titles.
 
 ## Shape and spacing
 
-- Radius: inputs and thumbnails 6; drop zones, cards and file rows 8; list containers 12; the
-  editor's big cover 10; dialogs 9; buttons, pills and badges fully rounded.
+- Radius (rule 8, one shape scale; the iPhone follows it since #418): 8 for inputs, tiles, drop
+  zones, file rows and other small surfaces; 12 for cards, panels, list containers and grouped
+  sections; 16 for sheets, dialogs and floating panels; buttons, switches, pills and badges fully
+  rounded. Covers keep 4 (thumbnails and the editor's cover too); sleeves keep their own spec.
 - Page padding: mobile 16 (list) to 20 (forms); desktop 40 to 64, content max width 896 (desktop
   form) or 920 (desktop release page). The desktop library has no max width by default: it fills
   the pane with about 24 px each side at `md` and 32 px from `lg` (Full width, #207); the

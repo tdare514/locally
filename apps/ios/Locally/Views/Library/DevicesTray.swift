@@ -253,7 +253,7 @@ struct DevicesTrayPanel: View {
     @State private var focusedRowWhenUsed: String?
     @State private var previousSections: DevicesTraySections?
 
-    private static let radius: CGFloat = 22
+    private static let radius: CGFloat = Theme.Radius.dialog
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Self.radius, style: .continuous)

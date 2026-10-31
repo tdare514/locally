@@ -465,14 +465,14 @@ private struct BuilderCrate: View {
         HStack(spacing: -Theme.Builder.crateOverlap) {
             if picks.isEmpty {
                 ForEach(0..<3, id: \.self) { index in
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: Theme.Radius.thumbnail, style: .continuous)
                         .fill(Color(white: 0.13))
                         .frame(width: side, height: side)
                         .rotationEffect(.degrees(index.isMultiple(of: 2) ? -4 : 4))
                 }
             }
             ForEach(Array(picks.enumerated()), id: \.element) { index, pick in
-                BuilderCover(art: art, id: pick.releaseID, side: side, radius: 10)
+                BuilderCover(art: art, id: pick.releaseID, side: side, radius: Theme.Radius.thumbnail)
                     .shadow(color: .black.opacity(0.45), radius: 6, x: 2, y: 3)
                     .rotationEffect(.degrees(index.isMultiple(of: 2) ? -4 : 4))
                     .zIndex(Double(index))
@@ -660,7 +660,7 @@ private struct BuilderSongRow: View {
             .padding(.horizontal, 10)
             .frame(maxWidth: .infinity, minHeight: Theme.Builder.songMinHeight, alignment: .leading)
             .background {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
                     .fill(Color.white.opacity(state == .on ? 0.08 : 0))
             }
             .opacity(blocked ? 0.45 : 1)

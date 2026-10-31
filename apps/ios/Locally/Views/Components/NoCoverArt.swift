@@ -67,7 +67,7 @@ struct NoCoverArt: View {
 #if DEBUG
 #Preview("No cover") {
     HStack(spacing: 16) {
-        NoCoverArt().frame(width: 48, height: 48).clipShape(RoundedRectangle(cornerRadius: 6))
+        NoCoverArt().frame(width: 48, height: 48).clipShape(RoundedRectangle(cornerRadius: Theme.Radius.thumbnail))
         NoCoverArt().frame(width: 200, height: 200).clipShape(RoundedRectangle(cornerRadius: 4))
     }
     .padding()

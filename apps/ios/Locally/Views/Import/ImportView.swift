@@ -404,9 +404,9 @@ struct ImportView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.ultraThinMaterial)
         .background(Theme.card.opacity(0.85))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.dialog, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.Radius.dialog, style: .continuous)
                 .stroke(Theme.border, lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.45), radius: 18, y: 8)

@@ -332,6 +332,8 @@ enum Copy {
     /// Collections (#339, #350): the plan's "States and wording" table word for word, then the labels around it.
     enum Collections {
         static let title = "Collections"
+        /// The eyebrow over the title, the Mac's Collections eyebrow (#418).
+        static let pageEyebrow = "Your music"
         static let newCollection = "New collection"
         static let searchPlaceholder = "Search collections"
         static func noMatches(_ query: String) -> String { "No matches for \u{201C}\(query)\u{201D}" }
@@ -527,6 +529,8 @@ enum Copy {
         static let keepBackdropsMovingHintKept = "Your iPhone has Reduce Motion on. Locally's backgrounds still drift slowly while this is on."
         static let appIconFailed = "Couldn't change the icon. Try again."
         static let title = "Settings"
+        /// The eyebrow over the title, the Mac's Settings eyebrow (#418).
+        static let eyebrow = "Local library"
         static let folderConnected = "Spotify's folder is connected."
         static let folderNotConnected = "Spotify's folder isn't connected."
         static let folderSection = "Spotify folder"

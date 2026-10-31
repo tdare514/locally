@@ -425,7 +425,7 @@ private struct SongActionRow: View {
 
 // MARK: - Panel pieces
 
-/// The details surface: opaque near-black, 28 pt continuous top corners, a 1 pt highlight that follows the curve, and a
+/// The details surface: opaque near-black, 16 pt continuous top corners, a 1 pt highlight that follows the curve, and a
 /// decorative grabber. It runs on below the content so a short page still ends on it.
 private struct SongDetailsPanelBackground: View {
     private var shape: UnevenRoundedRectangle {

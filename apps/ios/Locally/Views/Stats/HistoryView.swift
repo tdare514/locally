@@ -255,9 +255,9 @@ struct HistoryView: View {
             .padding(.horizontal, 2)
             .background {
                 if isSelected {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: Theme.Radius.tile, style: .continuous)
                         .fill(LinearGradient(colors: [tint.opacity(0.34), tint.opacity(0.10)], startPoint: .bottom, endPoint: .top))
-                        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(tint.opacity(0.75), lineWidth: 1.5))
+                        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.tile, style: .continuous).strokeBorder(tint.opacity(0.75), lineWidth: 1.5))
                 }
             }
             .contentShape(Rectangle())

@@ -53,8 +53,8 @@ enum Theme {
         static let pageTitle = SwiftUI.Font.system(size: 24, weight: .bold)
         /// "Metadata", "Tracks" section titles.
         static let sectionTitle = SwiftUI.Font.system(size: 18, weight: .bold)
-        static let eyebrow = SwiftUI.Font.system(size: 11, weight: .bold)
-        static let fieldLabel = SwiftUI.Font.system(size: 11, weight: .bold)
+        static let eyebrow = SwiftUI.Font.system(size: 13, weight: .semibold)
+        static let fieldLabel = SwiftUI.Font.system(size: 13, weight: .semibold)
         /// Text typed into a field: 16 pt on mobile.
         static let input = SwiftUI.Font.system(size: 16, weight: .regular)
         /// General paragraph copy (onboarding, paywall, done, errors).
@@ -72,21 +72,26 @@ enum Theme {
         static let chevron = SwiftUI.Font.system(size: 13, weight: .semibold)
     }
 
-    /// Corner radii from "Shape and spacing". Pill shapes (buttons, the
-    /// segmented control, badges) use `Capsule()` directly rather than a
-    /// radius constant.
+    /// Corner radii on the one shape scale (`docs/design.md` rule 8, #418): 8 for
+    /// inputs, tiles and small surfaces, 12 for cards, panels and list containers,
+    /// 16 for sheets, dialogs and floating panels. Covers keep 4; sleeves keep their
+    /// own spec. Pill shapes (buttons, the segmented control, badges) use `Capsule()`
+    /// directly rather than a radius constant.
     enum Radius {
-        static let input: CGFloat = 6
-        static let thumbnail: CGFloat = 6
+        static let input: CGFloat = 8
+        /// Covers, thumbnail-sized or not: 4.
+        static let thumbnail: CGFloat = 4
+        /// Small tiles and icon tiles.
+        static let tile: CGFloat = 8
         /// Drop zones and file rows.
         static let dropZone: CGFloat = 8
         static let fileRow: CGFloat = 8
-        /// List containers (`cardContainer`).
+        /// List containers (`cardContainer`), cards and grouped sections.
         static let card: CGFloat = 12
         /// The editor's big cover.
-        static let bigCover: CGFloat = 10
-        /// The crop dialog.
-        static let dialog: CGFloat = 9
+        static let bigCover: CGFloat = 4
+        /// Sheets, dialogs and floating panels (the crop dialog, the tray).
+        static let dialog: CGFloat = 16
     }
 
     /// Spacing constants from "Shape and spacing".
@@ -162,12 +167,12 @@ enum Theme {
         static let collectionsCardPressScale: CGFloat = 0.98
         static let collectionsCardPressOpacity: Double = 0.85
         static let collectionsCardPressDuration: Double = 0.2
-        static let collectionsCardRadius: CGFloat = 16
+        static let collectionsCardRadius: CGFloat = 12
         /// The Singles / Albums header buttons: tap target, chevron size and the fold's duration.
         static let sectionHeaderMinHeight: CGFloat = 44
         static let sectionChevronSize: CGFloat = 12
         static let sectionFoldDuration: Double = 0.3
-        static let listPanelCornerRadius: CGFloat = 16
+        static let listPanelCornerRadius: CGFloat = 12
         /// A pressed cover grows by this factor and gains a soft shadow.
         static let pressScale: CGFloat = 1.03
         static let pressShadowRadius: CGFloat = 10
@@ -241,7 +246,7 @@ enum Theme {
         static let modeFade: Double = 0.25
         /// The review sheet's cover thumbnails and their corner radius.
         static let reviewThumbSize: CGFloat = 56
-        static let reviewThumbRadius: CGFloat = 6
+        static let reviewThumbRadius: CGFloat = 4
         /// Between rows of the review sheet and between a row's old and new value.
         static let reviewRowSpacing: CGFloat = 16
         static let reviewValueSpacing: CGFloat = 4
@@ -462,7 +467,7 @@ enum Theme {
         static let sentDimDuration: Double = 0.25
         /// The card: radius, padding and the gap to the screen's edges. Its height is capped at
         /// this share of the screen's so its content scrolls at large text.
-        static let sentCardRadius: CGFloat = 28
+        static let sentCardRadius: CGFloat = 16
         static let sentCardPadding: CGFloat = 24
         static let sentCardEdgeInset: CGFloat = 16
         static let sentCardMaxHeightRatio: CGFloat = 0.62
@@ -690,7 +695,7 @@ extension Theme {
         static let pageGutter: CGFloat = 16
         /// The details panel: opaque near-black, so nothing of the wash shows through the rows.
         static let panelFill = Color(red: 0.03, green: 0.03, blue: 0.04)
-        static let panelCornerRadius: CGFloat = 28
+        static let panelCornerRadius: CGFloat = 16
         static let panelHighlightOpacity: Double = 0.10
         static let grabberWidth: CGFloat = 36
         static let grabberHeight: CGFloat = 5

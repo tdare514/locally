@@ -10,7 +10,7 @@ enum ThemeFontRole {
         switch self {
         case .pageTitle: 24
         case .sectionTitle: 18
-        case .eyebrow, .fieldLabel: 11
+        case .eyebrow, .fieldLabel: 13
         case .input: 16
         case .body, .meta, .rowSubtitle, .dropZoneLine: 14
         case .rowTitle, .primaryButton: 15
@@ -22,9 +22,9 @@ enum ThemeFontRole {
 
     var weight: Font.Weight {
         switch self {
-        case .pageTitle, .sectionTitle, .eyebrow, .fieldLabel, .primaryButton: .bold
+        case .pageTitle, .sectionTitle, .primaryButton: .bold
         case .input, .body, .rowSubtitle, .meta, .dropZoneHint: .regular
-        case .rowTitle, .badge, .chevron: .semibold
+        case .eyebrow, .fieldLabel, .rowTitle, .badge, .chevron: .semibold
         case .dropZoneLine: .medium
         }
     }
@@ -33,10 +33,10 @@ enum ThemeFontRole {
         switch self {
         case .pageTitle: .title2
         case .sectionTitle: .title3
-        case .eyebrow, .fieldLabel, .badge: .caption2
+        case .badge: .caption2
         case .input, .rowTitle, .primaryButton: .body
         case .body, .meta, .rowSubtitle, .dropZoneLine: .subheadline
-        case .dropZoneHint, .chevron: .footnote
+        case .eyebrow, .fieldLabel, .dropZoneHint, .chevron: .footnote
         }
     }
 }
