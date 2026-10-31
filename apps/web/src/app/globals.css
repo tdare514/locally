@@ -615,7 +615,8 @@ body {
   border-bottom: 1px solid rgb(255 255 255 / 0.07);
 }
 /* The one-time highlight behind a row the Stats page opened the release at (ReleaseView sets
-   data-highlight), in the iPhone's look and timing (#413, #362): a 12 radius wash in the cover colour
+   data-highlight and --hl-tint, the cover colour lifted to 85 % brightness, on the page root; accent
+   without a cover), in the iPhone's look and timing (#413, #362): a 12 radius wash in the cover colour
    fading from 30 % at the leading edge to 6 %, a 1 px white rim, a soft outer glow, and a 3 x 22 needle
    cue at the leading edge that grows from 0.2 to full height. 0.35 s wait, 0.3 s in, 1.2 s hold, 1.2 s
    out; only opacity and the cue's scale animate. */
@@ -628,12 +629,12 @@ body {
   border-radius: 12px;
   background: linear-gradient(
     to right,
-    color-mix(in srgb, var(--btn-tint, var(--btn-tint-default)) 30%, transparent),
-    color-mix(in srgb, var(--btn-tint, var(--btn-tint-default)) 6%, transparent)
+    color-mix(in srgb, var(--hl-tint, var(--accent)) 30%, transparent),
+    color-mix(in srgb, var(--hl-tint, var(--accent)) 6%, transparent)
   );
   box-shadow:
     inset 0 0 0 1px rgb(255 255 255 / 0.22),
-    0 0 12px color-mix(in srgb, var(--btn-tint, var(--btn-tint-default)) 35%, transparent);
+    0 0 12px color-mix(in srgb, var(--hl-tint, var(--accent)) 35%, transparent);
   animation: track-highlight 2700ms linear 350ms both;
 }
 .track-row[data-highlight]::after {
@@ -644,7 +645,7 @@ body {
   width: 3px;
   height: 22px;
   border-radius: 9999px;
-  background: var(--btn-tint, var(--btn-tint-default));
+  background: var(--hl-tint, var(--accent));
   transform-origin: top;
   pointer-events: none;
   animation: track-highlight-cue 2700ms linear 350ms both;
@@ -1107,9 +1108,6 @@ body {
  * ------------------------------------------------------------------------- */
 :root {
   --btn-ease: cubic-bezier(0.16, 1, 0.3, 1);
-  /* Read by the track highlight's wash, rim, glow and cue and by the mini player's backing; no
-     button uses it (#409, #413). */
-  --btn-tint-default: rgb(176 212 255 / 0.32);
 }
 
 /* Shared by every button. */
@@ -3253,7 +3251,9 @@ body {
   opacity: 0.85;
 }
 .rp-float-play:disabled {
-  opacity: 0.6;
+  background: var(--elevated);
+  color: var(--text-dim);
+  opacity: 1;
   cursor: not-allowed;
 }
 @media (prefers-reduced-motion: no-preference) {
