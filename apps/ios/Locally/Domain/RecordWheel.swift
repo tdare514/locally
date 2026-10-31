@@ -4,8 +4,10 @@ import Foundation
 /// of the Mac's `record-player.ts` (#351), the same order, the same ends and the same window of rows. Pure: no UI,
 /// so the geometry, the window and the snapping are tested without a screen.
 
-/// The wheel's dial: a 48 pt sleeve, 64 pt between level rows at the front, each step 0.87 of the last. The hub
-/// (the playing record) sits on the left edge, so `cx` is 0 and rows ride the right half of the dial.
+/// The wheel's dial: a 48 pt sleeve, 76 pt between level rows at the front, each step 0.87 of the last. The hub
+/// (the playing record) is tucked off the left edge (`Theme.Immersive.wheelCentreX`, #444), so `cx` is that centre and
+/// rows ride the right of the dial. The radius and the step are chosen so neighbouring sleeves keep 8 pt apart
+/// through the rows at full strength (the front three each side).
 struct WheelGeometry: Equatable {
     var base: Double
     var row: Double
@@ -13,10 +15,10 @@ struct WheelGeometry: Equatable {
     var radius: Double
     var cx: Double
 
-    static let phone = WheelGeometry(base: 48, row: 64, ratio: 0.87, radius: 182, cx: 0)
+    static let phone = WheelGeometry(base: 48, row: 76, ratio: 0.87, radius: 240, cx: Double(Theme.Immersive.wheelCentreX))
 }
 
-/// Where a row sits on the dial: its centre from the dial's centre height (`y`) and the hub's centre (`x`).
+/// Where a row sits on the dial: its centre from the dial's centre height (`y`) and the wheel's leading edge (`x`).
 struct RowPose: Equatable {
     var x: Double
     var y: Double

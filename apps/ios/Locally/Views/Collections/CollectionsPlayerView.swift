@@ -91,16 +91,7 @@ struct CollectionsPlayerView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 12) {
-                    // The shared page eyebrow, with the count beside it on the same backing (#418).
-                    (Text(Copy.Collections.pageEyebrow).foregroundStyle(Theme.accent)
-                        + Text(" \u{00B7} \(Copy.Collections.countLine(model.collections.count))")
-                        .foregroundStyle(Theme.secondaryText))
-                        .themeFont(.eyebrow)
-                        .eyebrowBacking()
-                    Text(Copy.Collections.title)
-                        .themeFont(.pageTitle)
-                        .foregroundStyle(Theme.primaryText)
-                        .accessibilityAddTraits(.isHeader)
+                    CollectionsTitleRow(count: model.collections.count)
                     CollectionsModeSwitches(mode: $mode, record: $record)
                 }
                 .padding(.horizontal, Theme.Spacing.listPagePadding)

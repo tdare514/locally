@@ -15,10 +15,31 @@ struct RecordWheelTests {
 
     @Test func theFrontRowIsLevelAtFullSizeOnTheDial() throws {
         let pose = try #require(RecordWheel.rowPose(0))
-        #expect(pose.x == 182)
+        #expect(pose.x == WheelGeometry.phone.cx + WheelGeometry.phone.radius)
         #expect(pose.y == 0)
         #expect(pose.scale == 1)
         #expect(pose.opacity == 1)
+    }
+
+    @Test func theHubIsTuckedSoAboutThirtyPercentOfTheRecordShows() {
+        let radius = Theme.Immersive.hubRadius
+        let shown = (Theme.Immersive.wheelCentreX + radius) / (radius * 2)
+        #expect(abs(shown - 0.3) < 0.005)
+        // The rows ride the same centre as the hub.
+        #expect(WheelGeometry.phone.cx == Double(Theme.Immersive.wheelCentreX))
+    }
+
+    @Test func neighbouringSleevesKeepEightPointsApartThroughTheRowsAtFullStrength() throws {
+        let g = WheelGeometry.phone
+        let poses = try (0...3).map { try #require(RecordWheel.rowPose(Double($0))) }
+        #expect(poses.allSatisfy { $0.opacity == 1 })
+        for (near, far) in zip(poses, poses.dropFirst()) {
+            let gap = (far.y - g.base / 2 * far.scale) - (near.y + g.base / 2 * near.scale)
+            #expect(gap >= 8)
+        }
+        // The farthest of them sits whole inside the wheel's frame.
+        let last = poses[3]
+        #expect(last.y + g.base / 2 * last.scale <= Double(RecordWheelView.height) / 2)
     }
 
     @Test func eachStepRoundIsDrawnAtPointEightSevenOfTheOneBefore() throws {

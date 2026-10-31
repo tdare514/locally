@@ -132,8 +132,6 @@ enum Copy {
     }
 
     enum Library {
-        /// The header row's eyebrow, per `docs/design.md`'s "Library list" component.
-        static let eyebrow = "Your collection"
         /// The header row's title, replacing the generic nav title in-content.
         static let allMusic = "All music"
         static let title = "Your library"
@@ -332,8 +330,6 @@ enum Copy {
     /// Collections (#339, #350): the plan's "States and wording" table word for word, then the labels around it.
     enum Collections {
         static let title = "Collections"
-        /// The eyebrow over the title, the Mac's Collections eyebrow (#418).
-        static let pageEyebrow = "Your music"
         static let newCollection = "New collection"
         static let searchPlaceholder = "Search collections"
         static func noMatches(_ query: String) -> String { "No matches for \u{201C}\(query)\u{201D}" }

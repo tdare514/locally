@@ -1,42 +1,95 @@
 import SwiftUI
 
 /// The two per-device choices at the top of the Collections screen (#352): Record player / List, and (in the record
-/// player) Picture disc / Black vinyl, as slim neutral switches (`SlimSwitch`, compact, #411). Side by side when
-/// they fit, else stacked; at the accessibility sizes each switch stacks its own words. Both are remembered by the
-/// screen that owns the bindings.
+/// player) Picture disc / Black vinyl, as icon toggles like the Library's layout toggle (`IconToggle`, #444). Side by
+/// side when they fit, else stacked. Both are remembered by the screen that owns the bindings; each icon keeps the old
+/// words as its accessibility label.
 struct CollectionsModeSwitches: View {
     @Binding var mode: CollectionsViewMode
     @Binding var record: SpinningRecord
 
-    private static let modes: [(value: CollectionsViewMode, icon: String?, label: String)] = [
-        (.player, nil, Copy.Collections.viewRecordPlayer), (.list, nil, Copy.Collections.viewList),
-    ]
-    private static let records: [(value: SpinningRecord, icon: String?, label: String)] = [
-        (.picture, nil, Copy.Collections.pictureDisc), (.vinyl, nil, Copy.Collections.blackVinyl),
-    ]
-
-    private var modeSwitch: some View {
-        SlimSwitch(options: Self.modes, selection: $mode, compact: true)
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(Copy.Collections.viewSwitchName)
+    private var modeToggle: some View {
+        IconToggle(
+            options: [
+                IconToggleOption(CollectionsViewMode.player, label: Copy.Collections.viewRecordPlayer) { RecordPlayerGlyph(size: $0) },
+                IconToggleOption(.list, icon: .list, label: Copy.Collections.viewList),
+            ],
+            selection: $mode, label: Copy.Collections.viewSwitchName
+        )
     }
 
-    private var recordSwitch: some View {
-        SlimSwitch(options: Self.records, selection: $record, compact: true)
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(Copy.Collections.recordSwitchName)
+    private var recordToggle: some View {
+        IconToggle(
+            options: [
+                IconToggleOption(SpinningRecord.picture, label: Copy.Collections.pictureDisc) { PictureDiscSwatch(size: $0) },
+                IconToggleOption(.vinyl, label: Copy.Collections.blackVinyl) { BlackVinylSwatch(size: $0) },
+            ],
+            selection: $record, label: Copy.Collections.recordSwitchName
+        )
     }
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) {
-                modeSwitch
-                if mode == .player { recordSwitch }
+                modeToggle
+                if mode == .player { recordToggle }
             }
             VStack(alignment: .leading, spacing: 8) {
-                modeSwitch
-                if mode == .player { recordSwitch }
+                modeToggle
+                if mode == .player { recordToggle }
             }
         }
+    }
+}
+
+/// The glyphs below are drawn on the `Icon/…` set's 24-unit grid (`u` is one unit at `size`): a 2-unit stroke, the
+/// circle's outer edge 19 units across, 2-unit gaps between the rings.
+
+/// A small record in the drawn set's style: an outline circle, one groove ring and a centre dot. A template: it
+/// takes the toggle's selected / unselected colour.
+private struct RecordPlayerGlyph: View {
+    let size: CGFloat
+
+    var body: some View {
+        let u = size / 24
+        ZStack {
+            Circle().stroke(lineWidth: 2 * u).frame(width: 17 * u, height: 17 * u)
+            Circle().stroke(lineWidth: 2 * u).frame(width: 9 * u, height: 9 * u)
+            Circle().frame(width: 3 * u, height: 3 * u)
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+/// Picture disc: a disc in the accent-to-pink wash with a small dark centre hole.
+private struct PictureDiscSwatch: View {
+    let size: CGFloat
+
+    var body: some View {
+        let u = size / 24
+        ZStack {
+            Circle()
+                .fill(LinearGradient(colors: Theme.Immersive.pictureSwatchColors, startPoint: .topLeading, endPoint: .bottomTrailing))
+                .frame(width: 19 * u, height: 19 * u)
+            Circle().fill(Color.black).frame(width: 4 * u, height: 4 * u)
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+/// Black vinyl: a near-black disc with a 1 pt light rim, one faint groove ring and a small light label dot. The
+/// rim, ring and dot take the toggle's selected / unselected colour.
+private struct BlackVinylSwatch: View {
+    let size: CGFloat
+
+    var body: some View {
+        let u = size / 24
+        ZStack {
+            Circle().fill(Theme.Immersive.discColor).frame(width: 19 * u, height: 19 * u)
+            Circle().strokeBorder(lineWidth: 1).frame(width: 19 * u, height: 19 * u)
+            Circle().strokeBorder(lineWidth: 1).opacity(0.3).frame(width: 12 * u, height: 12 * u)
+            Circle().frame(width: 5 * u, height: 5 * u)
+        }
+        .frame(width: size, height: size)
     }
 }

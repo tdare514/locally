@@ -211,14 +211,14 @@ extension View {
             )
     }
 
-    /// The section-eyebrow text style (e.g. "Your collection"): 13 pt semibold
+    /// The section-eyebrow text style (e.g. "Local library"): 13 pt semibold
     /// in sentence case, no tracking, `accent` colour (#418, rule 11).
     func eyebrow() -> some View {
         themeFont(.eyebrow)
             .foregroundStyle(Theme.accent)
     }
 
-    /// A page's eyebrow ("Your collection", "Local library", "Your music"): the `eyebrow()` text on the
+    /// A page's eyebrow ("Local library"): the `eyebrow()` text on the
     /// Mac's backing, a capsule in the page `bg` colour (10 pt across, 2 pt down), so `accent` text
     /// keeps 5.25:1 (#1E7DF0 on #000000) over a moving backdrop or a pale cover's wash instead of the
     /// 2.3 to 2.8:1 it measured bare (#418, rule 11). The leading -10 pt lines the text up with the
