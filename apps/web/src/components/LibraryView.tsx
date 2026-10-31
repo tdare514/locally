@@ -821,12 +821,14 @@ export function LibrarySection({
                   )}
                 </button>
                 {groups.length > 0 && (
-                  <TrackMoreButton
-                    title={r.title || artistShown}
-                    expanded={menu.open?.key === r.id}
-                    onOpen={(button) => menu.toggleFrom(button, r.id)}
-                    className="absolute right-0 top-1/2 -translate-y-1/2"
-                  />
+                  // A wrapper places it: `.btn-icon` sets its own `position`, which a utility on the button can't override.
+                  <span className="absolute right-0 top-1/2 flex -translate-y-1/2">
+                    <TrackMoreButton
+                      title={r.title || artistShown}
+                      expanded={menu.open?.key === r.id}
+                      onOpen={(button) => menu.toggleFrom(button, r.id)}
+                    />
+                  </span>
                 )}
               </li>
             );
@@ -958,12 +960,14 @@ function CoverSection({
               {groups.length > 0 && (
                 // Over the cover's top-right corner, above the hovered tile (which rises to z-1). The glyph carries a
                 // soft dark shadow so it reads on a pale cover.
-                <TrackMoreButton
-                  title={r.title || artistShown}
-                  expanded={menu.open?.key === r.id}
-                  onOpen={(button) => menu.toggleFrom(button, r.id)}
-                  className="absolute right-0.5 top-0.5 z-10 drop-shadow-[0_1px_3px_rgb(0_0_0/0.8)]"
-                />
+                <span className="absolute right-0.5 top-0.5 z-10 flex">
+                  <TrackMoreButton
+                    title={r.title || artistShown}
+                    expanded={menu.open?.key === r.id}
+                    onOpen={(button) => menu.toggleFrom(button, r.id)}
+                    className="drop-shadow-[0_1px_3px_rgb(0_0_0/0.8)]"
+                  />
+                </span>
               )}
               </div>
             );
