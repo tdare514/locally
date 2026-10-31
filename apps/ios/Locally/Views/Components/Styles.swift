@@ -167,7 +167,7 @@ struct TextButtonStyle: ButtonStyle {
 
 // MARK: - Fields
 
-/// `elevated` background, radius 6, a 1 pt `border` always, plus a 2 pt
+/// `elevated` background, radius 8, a 1 pt `border` always, plus a 2 pt
 /// `accent` ring layered on top when focused (the border colour itself never
 /// changes). Apply to a `TextField`/`SecureField` directly.
 private struct FieldStyleModifier: ViewModifier {
@@ -211,21 +211,35 @@ extension View {
             )
     }
 
-    /// The section-eyebrow text style (e.g. "YOUR COLLECTION"): 11 pt bold
-    /// uppercase, wide tracking, `accent` colour.
+    /// The section-eyebrow text style (e.g. "Your collection"): 13 pt semibold
+    /// in sentence case, no tracking, `accent` colour (#418, rule 11).
     func eyebrow() -> some View {
         themeFont(.eyebrow)
-            .tracking(11 * 0.18)
-            .textCase(.uppercase)
             .foregroundStyle(Theme.accent)
     }
 
-    /// The field-label text style (e.g. "TITLE"): 11 pt bold uppercase, wide
-    /// tracking, muted colour.
+    /// A page's eyebrow ("Your collection", "Local library", "Your music"): the `eyebrow()` text on the
+    /// Mac's backing, a capsule in the page `bg` colour (10 pt across, 2 pt down), so `accent` text
+    /// keeps 5.25:1 (#1E7DF0 on #000000) over a moving backdrop or a pale cover's wash instead of the
+    /// 2.3 to 2.8:1 it measured bare (#418, rule 11). The leading -10 pt lines the text up with the
+    /// title under it, as the Mac's `-ml-2.5` does.
+    func pageEyebrow() -> some View {
+        eyebrow()
+            .eyebrowBacking()
+    }
+
+    /// The page-eyebrow capsule on its own, for an eyebrow line that holds more than one run of text.
+    func eyebrowBacking() -> some View {
+        padding(.horizontal, Theme.Spacing.eyebrowBackingX)
+            .padding(.vertical, Theme.Spacing.eyebrowBackingY)
+            .background(Capsule().fill(Theme.background))
+            .padding(.leading, -Theme.Spacing.eyebrowBackingX)
+    }
+
+    /// The field-label text style (e.g. "Title"): 13 pt semibold in sentence
+    /// case, no tracking, muted colour (#418, rule 11).
     func fieldLabelStyle() -> some View {
         themeFont(.fieldLabel)
-            .tracking(11 * 0.14)
-            .textCase(.uppercase)
             .foregroundStyle(Theme.secondaryText)
     }
 
@@ -360,15 +374,13 @@ struct TrackListSilhouette: View {
 
 // MARK: - Kind badge
 
-/// SINGLE / ALBUM badge: an `elevated` pill in the badge text style.
+/// Single / Album badge: an `elevated` pill in the badge text style (sentence case).
 struct KindBadge: View {
     let text: String
 
     var body: some View {
         Text(text)
             .themeFont(.badge)
-            .tracking(1.0)
-            .textCase(.uppercase)
             .foregroundStyle(Theme.secondaryText)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)

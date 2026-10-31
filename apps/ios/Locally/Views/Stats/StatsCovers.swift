@@ -62,7 +62,7 @@ struct StatsCoverView: View {
     let owner: UUID?
     let cache: StatsCoverCache
     var round = false
-    var cornerRadius: CGFloat = 6
+    var cornerRadius: CGFloat = Theme.Radius.thumbnail
 
     @State private var image: UIImage?
 

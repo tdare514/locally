@@ -188,7 +188,7 @@ struct CoverPicker: View {
 
     // MARK: - Thumb (release detail header)
 
-    /// A 112 pt square cover beside the release title, radius 10, with a
+    /// A 112 pt square cover beside the release title, radius 4, with a
     /// small circular pencil badge bottom-right that opens the same
     /// Photos/Files menu. Replaces the full-width hero on the release page.
     private var thumbBody: some View {

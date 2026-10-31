@@ -506,7 +506,7 @@ struct StatsView: View {
             VStack(spacing: 0) {
                 ForEach(0..<4, id: \.self) { _ in
                     HStack(spacing: 12) {
-                        RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.white.opacity(0.06))
+                        RoundedRectangle(cornerRadius: Theme.Radius.thumbnail, style: .continuous).fill(Color.white.opacity(0.06))
                             .frame(width: Theme.Stats.rowCover, height: Theme.Stats.rowCover)
                         VStack(alignment: .leading, spacing: 6) {
                             Capsule().fill(Color.white.opacity(0.06)).frame(width: 150, height: 14)

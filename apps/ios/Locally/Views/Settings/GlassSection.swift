@@ -30,7 +30,7 @@ struct GlassSection<Content: View>: View {
     }
 }
 
-private let glassCornerRadius: CGFloat = 26
+private let glassCornerRadius: CGFloat = Theme.Radius.card
 
 private struct GlassSurface: View {
     var prominent: Bool
@@ -115,7 +115,7 @@ struct IconTile: View {
     private var side: CGFloat { min(scaledSide, 48) }
 
     var body: some View {
-        RoundedRectangle(cornerRadius: side * 0.30, style: .continuous)
+        RoundedRectangle(cornerRadius: Theme.Radius.tile, style: .continuous)
             .fill(LinearGradient(
                 colors: [tint.opacity(0.34), tint.opacity(0.16)],
                 startPoint: .topLeading, endPoint: .bottomTrailing
@@ -252,7 +252,7 @@ struct GlassField: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: Theme.Radius.input, style: .continuous)
         TextField(placeholder, text: $text)
             .keyboardType(keyboardType)
             .textContentType(contentType)

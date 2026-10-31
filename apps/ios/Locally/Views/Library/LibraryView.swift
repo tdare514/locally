@@ -336,13 +336,13 @@ struct LibraryView: View {
     private var headerEyebrow: some View {
         if pendingCount > 0 {
             ViewThatFits(in: .horizontal) {
-                Text(Copy.Library.eyebrow).eyebrow()
+                Text(Copy.Library.eyebrow).pageEyebrow()
                     .padding(.trailing, Theme.Library.cloudClearance)
-                Text(Copy.Library.eyebrow).eyebrow()
+                Text(Copy.Library.eyebrow).pageEyebrow()
                     .padding(.top, Theme.Library.cloudRowHeight)
             }
         } else {
-            Text(Copy.Library.eyebrow).eyebrow()
+            Text(Copy.Library.eyebrow).pageEyebrow()
         }
     }
 
@@ -970,13 +970,13 @@ struct LibraryEmptyState: View {
 
     private func tile<Content: View>(caption: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.Radius.tile, style: .continuous)
                 .fill(Theme.elevated)
                 .frame(width: 68, height: 68)
                 .overlay { content() }
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.tile, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: Theme.Radius.tile, style: .continuous)
                         .stroke(Theme.border, lineWidth: 1)
                 )
             Text(caption)

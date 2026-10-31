@@ -74,8 +74,8 @@ struct QueueToast: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var thumb: CGFloat = Theme.QueueToast.thumbSide
 
-    /// Bounded so wrapped text never meets a curve; at one line this is still more than half the height, so it reads as a capsule.
-    private static let corner: CGFloat = 22
+    /// A floating panel on the one shape scale (#418, rule 8): 16, so wrapped text never meets a curve.
+    private static let corner: CGFloat = Theme.Radius.dialog
     private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: Self.corner, style: .continuous) }
 
     var body: some View {

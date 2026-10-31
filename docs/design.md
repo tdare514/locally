@@ -167,27 +167,41 @@ hint drop away and **Add cover** wraps.
 | Page title, mobile | 24 | bold | text | -0.03em |
 | Page subtitle (desktop, under the title) | 16 | regular | text-muted | |
 | Section title (Metadata, Tracks) | 22 / 18 | bold | text | -0.03em |
-| Eyebrow (LOCAL LIBRARY, YOUR COLLECTION, DETAILS) | 11 (12 desktop) | bold | accent | 0.18em, uppercase |
-| Breadcrumb eyebrow (LIBRARY / SINGLE) | 12 | semibold | text-dim | 0.17em, uppercase |
+| Eyebrow (Local library, Your collection, Details) | 13 iPhone, 14 desktop | semibold | accent | none, sentence case |
+| Breadcrumb eyebrow (Library / Single) | 12 | semibold | text-dim | none, sentence case |
 | Header meta, right-aligned (7 tracks, Tap to edit) | 12 to 14 | regular | text-muted | |
-| Field label | 11 (12 desktop) | bold | text-muted | 0.14em, uppercase |
+| Field label | 13 iPhone, 12 desktop | semibold | text-muted | none, sentence case |
 | Input text | 16 mobile, 14 desktop | regular | text | |
 | Row title | 15 mobile, 14 desktop | semibold | text | |
 | Row subtitle | 14 mobile, 12 desktop | regular | text-muted | |
 | Drop-zone line / hint | 14 medium / 12 | | text-soft / text-hint | |
 | Nav title (mobile top bar) | 18 | bold | text | |
-| Badge | 10 | semibold | text-muted | 0.1em, uppercase |
+| Badge | 10 | semibold | text-muted | none, sentence case |
 | Primary button | 15 mobile, 14 desktop | bold | black on accent | |
 
 **Replaced 13 Oct 2026 (sentence case).** Small uppercase tracked labels are no longer used, so the
 eyebrow, breadcrumb eyebrow, field label and badge rows above are replaced. Labels are sentence
 case, e.g. `text-sm font-semibold text-accent` on web. The `text-dim` and `accent` roles that name
-eyebrows still apply to those labels.
+eyebrows still apply to those labels. The iPhone uses them in sentence case too since #418 (31 Oct
+2026): eyebrows and field labels are 13 pt semibold with no tracking, badges stay 10 pt, and Settings
+and Collections carry the Mac's eyebrows ("Local library", "Your music") over their titles. A page
+eyebrow on the iPhone (Library, Settings, Collections) sits on the Mac's backing, a capsule in the
+page `bg` colour (10 pt across, 2 pt down, the text lined up with the title), so `accent` keeps
+5.25:1 (#1E7DF0 on #000000) over the moving backdrop or a pale cover's wash; bare, it measured 2.3
+to 2.8:1 on Settings. The Collections player shows "Your music" with the collection count beside it
+("Your music · 5 collections", the count in `text-muted`) on the same capsule, then the title.
 
 ## Shape and spacing
 
-- Radius: inputs and thumbnails 6; drop zones, cards and file rows 8; list containers 12; the
-  editor's big cover 10; dialogs 9; buttons, pills and badges fully rounded.
+- Radius (rule 8, one shape scale; the iPhone follows it since #418): 8 for inputs, tiles, drop
+  zones, file rows and other small surfaces; 12 for cards, panels, list containers and grouped
+  sections; 16 for sheets, dialogs and floating panels; buttons, switches, pills and badges fully
+  rounded. Covers keep 4 (thumbnails, the editor's cover, the library grid, the collection builder's
+  shelf and songs and the mini player's artwork too, with any selection ring at the same radius);
+  sleeves keep their own spec. On the iPhone the edit-mode Tracks card is a section of a native
+  inset-grouped `List`, which clips it to the system's corner (about 20 pt on iOS 26.5, measured on
+  the simulator; smaller on iOS 17 and 18, not measured); it cannot be drawn at 12 without leaving
+  the `List`.
 - Page padding: mobile 16 (list) to 20 (forms); desktop 40 to 64, content max width 896 (desktop
   form) or 920 (desktop release page). The desktop library has no max width by default: it fills
   the pane with about 24 px each side at `md` and 32 px from `lg` (Full width, #207); the
@@ -207,7 +221,7 @@ eyebrows still apply to those labels.
   it ("Add a song or album to your Spotify library."). Section headers use the same eyebrow +
   title on the left with a `text-muted` meta on the right ("7 tracks", "Tap to edit", "1 file").
 - **Buttons on the Mac (#155, 15 Oct 2026; made plain by #409, 30 Oct 2026; classes in `apps/web/src/app/globals.css`, shown at `/dev/buttons`)**: the rules are **Design rules (30 Oct 2026)** above; this entry is how the Mac builds them. Nothing is tinted with the cover and nothing emits light: a state is a change of fill, opacity or text colour. **Main action** (`.btn-save`: Save to library, Show in Finder on an adopted release, Add to library, Sign in, Sync now…, one per screen, bar or card) is a solid `text` capsule with a black semibold label, 44 tall (the tray's Add all and Try all again are `.btn-save-compact`, 36 tall with a transparent strip that keeps the target at 44). Hover lightens it to `text-soft`, press dims it to 85 %, focus is a 2 px `accent` outline, disabled is `elevated` with a `text-dim` label. **Secondary** (`.btn-ink`: Cancel, Select, Sign out, Copy, Done…) is the word alone in `text-muted`, `text` on hover or press, no underline or halo. **Destructive**: the trigger (`.btn-ink-danger`) is a `danger` word, lightened 15 % toward white so it holds 4.5:1 on a cover wash; the final confirm (`.btn-danger`: Confirm delete, Delete account, Confirm revoke, Delete collection) is the main capsule in `danger` with a black label and the same hover, press and focus states. **Icon-only** (`.btn-icon`: Share in the release bar and on track rows, the Stats stepper, Hide and Dismiss in the tray) is the drawn glyph at 20 px in a 44 target with nothing behind it (`text-soft`, `text` on hover, `text-muted` pressed); give it an `aria-label`. The release page's Back, the Artist field's Open and the tray's cloud button are `.btn-icon` too (the glass ones are gone), so `--tray-size` is 44. **On/off** is the sidebar's knob switch in `accent` everywhere (`KnobSwitch`, `.sb-switch-*`): Settings and the share dialog no longer use an On/Off pill. **Choosers** are the slim switch of the next entry (#410). Retired: the main button's glass-and-shimmer hover, its resting "lit" state in the release bar, `.btn-glow` (the Import invitation's Add a track is now an ordinary `.btn-save`), and the underline and halo on `.btn-ink`.
-- **Toasts, dialogs and popovers on the Mac (#415, 31 Oct 2026; `apps/web/src/app/globals.css`)**: rule 5's one glass recipe. `.glass-fake` is `rgb(24 24 28)` at 90 %, a 1 px inset hairline of white at 8 % and a black drop shadow (`0 16px 40px -16px` at 60 %); `.glass-frost` is `rgb(22 22 26)` at 88 % with a 24 px blur and no saturation boost; the release bar's body is `rgb(14 14 18)` at 92 %; each falls back to a solid `rgb(30 30 34)` under Reduce Transparency. The lit top edge, inner glow and white sheen are gone. A toast is a glass capsule (radius 22, at least 44 tall) that rises 8 px over 220 ms and simply appears under Reduce Motion. Its text wraps; an error carries a drawn alert glyph in `danger`, the only red on it, and is announced as `role="alert"` (a success has no glyph and is `role="status"`); an action such as Undo is the word alone (`.btn-ink`) and Dismiss is a `.btn-icon` X with an `aria-label`. The bulk-edit and crop dialogs and the anchored popovers use the same glass at radius 16 and fade in over 160 ms from 98 % scale, also still under Reduce Motion. The iPhone's sleeve is not on the Mac toast because the Mac has no Play next or Add to queue toast.
+- **Toasts, dialogs and popovers on the Mac (#415, 31 Oct 2026; `apps/web/src/app/globals.css`)**: rule 5's one glass recipe. `.glass-fake` is `rgb(24 24 28)` at 90 %, a 1 px inset hairline of white at 8 % and a black drop shadow (`0 16px 40px -16px` at 60 %); `.glass-frost` is `rgb(22 22 26)` at 88 % with a 24 px blur and no saturation boost; the release bar's body is `rgb(14 14 18)` at 92 %; each falls back to a solid `rgb(30 30 34)` under Reduce Transparency. The lit top edge, inner glow and white sheen are gone. A toast is a glass capsule (radius 22, at least 44 tall) that rises 8 px over 220 ms and simply appears under Reduce Motion. Its text wraps; an error carries a drawn alert glyph in `danger`, the only red on it, and is announced as `role="alert"` (a success has no glyph and is `role="status"`); an action such as Undo is the word alone (`.btn-ink`) and Dismiss is a `.btn-icon` X with an `aria-label`. The bulk-edit and crop dialogs and the anchored popovers use the same glass at radius 16 and fade in over 160 ms from 98 % scale, also still under Reduce Motion. The iPhone's sleeve is not on the Mac toast because the Mac has no Play next or Add to queue toast. The iPhone's Play next / Add to queue toast is a floating panel at radius 16 (#418, rule 8; its 8 pt sleeve keeps its own spec).
 - **Choosers, the sort menu and the cover size slider on the Mac (#410, 30 Oct 2026; `apps/web/src/app/globals.css`)**: every two- or three-way choice is one slim switch (`.btn-seg`, rule 6): an `elevated` capsule track 36 tall with a 2 px inset, an `elevated-hover` capsule thumb that slides under the chosen option, labels in `text-muted` (white when chosen or hovered, 600 weight, 14 px), a 2 px `accent` focus ring, 85 % on press, 50 % when disabled; each option is a 44 px target through a transparent strip above and below the track; `.btn-seg-3` for three options and `.st-seg` with `--n` / `--i` for any number (the Stats period row, which still scrolls sideways when the room is short). Used by List / Grid / Artists, Single / Album, Year / Month / Day, the share link's expiry, Square / Original, library width, the Collections' Record player / List and Picture disc / Black vinyl, and the Stats period and Tracks / Albums / Artists. The Stats stepper's period, once stepped back, sits on a plain `elevated` capsule (`.period-face`). The Library sort is an icon-only `.btn-icon` (the sort glyph; `aria-label` "Sort, Recently updated") that opens a glass menu like the disc menu (`role="menu"`, `menuitemradio` items: Recently updated, Title, Artist, Year, the same four as the iPhone; the chosen one marked by an `accent` check (its label stays white: `accent` text on the glass is under 4.5:1); ArrowDown on the button opens it; arrows, Home, End, Escape and outside clicks work). The cover size slider (`.size-slider`) is a 4 px `elevated` track with three `text-muted` detents and a plain white 16 px knob in a 44 px hit height, three steps, Large by default; the list panel keeps its 12 corner. Retired: the dot toggle, `.seg-glass` and its cover-tinted thumb, the sidebar's unused `.sb-seg`, the accent native range and the native sort select.
 - **Buttons, switches and the slider on iOS (#411, 30 Oct 2026, to the Design rules above).**
   - **Main button** (`MainButtonStyle`: Send to Spotify, Save changes, Add a track, Done, Next, Get
@@ -344,7 +358,7 @@ eyebrows still apply to those labels.
 - **Mobile top bar**: 64 tall, `bg` at 90 % with blur, sticky; back chevron (28) at the left when
   there is a parent; title 18 bold; an optional trailing icon button (search, more). iOS keeps the
   system navigation bar and tab bar and styles them to match.
-- **Text field**: `elevated`, radius 6, label above in field-label style, placeholder at
+- **Text field**: `elevated`, radius 8 (the Mac's fields move from 6 in #417), label above in field-label style, placeholder at
   `text-muted` 60 %. Year and Genre sit side by side in a two-column grid.
 - **Library toolbar (desktop)**: under the "All music" header, a search field (magnifier at the
   left, placeholder "Search titles, artists, genres…", ⌘F focuses it, Escape clears it) beside a
@@ -402,7 +416,7 @@ eyebrows still apply to those labels.
     again, the disc first easing out of the sleeve. Reduced motion: no flash, slide or turn, a
     160 ms fade, the disc already in, colours at once.
 - **Library list (mobile)**: one `card` container, radius 12, 1 px `border`; rows 78 min height
-  with 12 padding, 56 square art radius 6 (or an `elevated` tile with a muted note icon), title
+  with 12 padding, 56 square art radius 4 (or an `elevated` tile with a muted note icon), title
   and subtitle (albums: "artist · N tracks"), a `text-dim` chevron at the right; rows separated by
   1 px `border`; press background `row-hover`. Header above: eyebrow "YOUR COLLECTION" (replaced 13 Oct 2026: sentence case), title
   "All music", meta "N tracks". The list is split into two sections, **Singles** then
@@ -500,13 +514,13 @@ eyebrows still apply to those labels.
     right end of the layout row, covers view only: a thin 4 pt `elevated-hover` track with three 40 % white detent dots (6 pt),
     a plain white 20 pt knob (it grows with the text up to 28 pt; #411, owner C07: slimmer) on the switch's spring, a dense-grid glyph at the left and a bigger one at the right, a 44 pt hit height,
     a selection haptic per detent, adjustable for VoiceOver ("Cover size, Medium"). No tint, rim or shadow. Tiles
-    have radius 8. A pressed tile grows to 1.03 with a shadow (radius 10, 35 %, y 4) over 0.15 s.
-    List rows sit in a radius 16 panel, and the divider between Singles and Albums is white at 7 %.
+    have radius 4, like every cover (#418). A pressed tile grows to 1.03 with a shadow (radius 10, 35 %, y 4) over 0.15 s.
+    List rows sit in a radius 12 panel, and the divider between Singles and Albums is white at 7 %.
     The layout toggle is a slim switch track with a neutral thumb sliding on the switch's spring, and the sort button is a plain icon (#411). The Library has no "Add a song" footer (the Import tab does that). Collections is a glass card
     (`CollectionsLibraryCard`, at least 80 pt tall) under the header, washed from the first collection's cover colours (55 % at the leading edge, clear at 70 %), with the first three collections'
     covers as a stack of sleeves (the front one with a vinyl peeking out, the two behind tilted -7 and +5 degrees); it presses to 0.98 and holds its height while loading; one tap opens the Collections screen, which holds "New collection".
   - *Collection builder (iPhone, #366)*: "New collection" and "Add music" open one full-screen page (`CollectionBuilderView`). One cover wash fades down to near-black with no edge; the record sleeve carries the typed name over a mosaic of the first four picked covers; the picks lean in a boxless crate beside "3 songs · 7 min".
-    Releases are a shelf of 132 pt covers (112 pt at accessibility sizes; a pick gets a cover-tinted check dot and `GlowRim(corner:)`); Songs is a borderless list with a trailing round + that fills with the cover's accent. A frosted search pill and a round cover-tinted Done float at the bottom and stack at accessibility sizes.
+    Releases are a shelf of 132 pt covers (112 pt at accessibility sizes; a pick gets a cover-tinted check dot and `GlowRim(corner:)`; shelf and song covers are radius 4 and the pick ring uses the same radius, #418); Songs is a borderless list with a trailing round + that fills with the cover's accent. A frosted search pill and a round cover-tinted Done float at the bottom and stack at accessibility sizes.
     Shelf text is held to accessibility1 so a word is never split ("Har-"). Previews in `docs/design-previews/366/`; sizes in `Theme.Builder`.
   - *Library sky*: an `ArtworkBackdrop` fixed behind the library, coloured by the cover last
     pressed or else the first cover on screen. A pressed cover stops colouring it after 120 pt of
@@ -577,7 +591,7 @@ eyebrows still apply to those labels.
       all), with a **Details** link opening the whole message in a sheet when that cuts it short.
       Once the disc is in and the send has worked, the **Sent card** pops up over everything,
       tab bar included, modelled on Google Health's "You're all set" card: the page dims (black
-      45 %, 250 ms); a compact card (`card`, radius 28, padding 24, 16 from the screen edges,
+      45 %, 250 ms); a compact card (`card`, radius 16, padding 24, 16 from the screen edges,
       sitting in the lower half) springs up from 40 pt below at 94 % scale (spring response 0.5,
       damping 0.72); behind its top edge a soft glow in the cover's colours blooms (the
       backdrop palette's colours, blurred 40, from 60 % scale and clear to full over 700 ms;
@@ -617,14 +631,16 @@ eyebrows still apply to those labels.
     - *Large text*: the fields, the buttons and the hint scale with Dynamic Type and wrap, and the
       invitation scrolls when it doesn't fit; the sleeve and the discs keep their size.
 - **Make it a playlist (album release pages, both apps)**: a disclosure between the Tracks
-  section and the action row, `card` with 1 px `border`, radius 9, padding 20, title "Make it a
+  section and the action row, `card` with 1 px `border`, radius 9 and padding 20 on the Mac (the iPhone
+  has no card of its own: the disclosure is a row of the Tracks panel, or a clear row on a collection's
+  page, so it has no radius), title "Make it a
   playlist" with a chevron that rotates open. Body: the album title beside a small secondary /
   outline "Copy" button (copy icon, reads "Copied" for two seconds after a click), the
   per-platform steps in `text-muted` 14, and the fallback line "If Add to playlist is missing,
   update Spotify and open it again." in `text-dim` 12. Open by default on the release page an
   album import lands on; collapsed when opened from the library. iOS renders the same body in
   the existing `DisclosureGroup` and on the done screen after an album send.
-- **Crop dialog**: on the Mac the glass card of the toasts, dialogs and popovers entry, radius 16, fading in over 160 ms; on the iPhone a `card` with `dialog-border`, radius 9; padding 20 to 24, title "Crop cover"
+- **Crop dialog**: on the Mac the glass card of the toasts, dialogs and popovers entry, radius 16, fading in over 160 ms; on the iPhone a `card` with `dialog-border`, radius 16 (`Theme.Radius.dialog`); padding 20 to 24, title "Crop cover"
   19 bold; the preview on #050505 with the image, an outer white 25 % border, centre lines at
   white 10 %, and an inner frame inset 12 at white 60 %; under it a centred Square | Original
   segmented pill (padding 2, segments 20 by 6, 14 pt), the hint "Spotify shows covers as a
@@ -889,7 +905,7 @@ eyebrows still apply to those labels.
     house easing; Reduced motion makes it instant. The library and release page keep theirs.
 - **From your devices on the iPhone** (*sections since 17 Oct 2026: see **Pages at full width** at the end*) **(#269, owner 16 Oct: "This notification should be in library… and should match the Mac's design")**: the Mac's tray (the entry above) carried to the phone's Library tab, replacing the toast, chip and list that sat on Import. Import goes back to only making a record.
   - *Button*: in the Library header, at the top right on the eyebrow's line (the track count stays where it is, on the title's baseline), the Mac's clear faked-glass cloud button, 40 pt visible inside a 44 pt hit area, with the `accent` count badge inside its top-trailing corner so it never crosses the 16 pt gutter, shown only while something is pending; while it shows, the gap between the eyebrow and the title grows from 4 to 26 pt so the track count sits clear below the button (owner 16 Oct: "Notification cloud seems choked"). Open, it becomes a bare red X and the badge hides. VoiceOver: "From your devices, 3 waiting" / "Close".
-  - *Tray* (owner 16 Oct: "Notification shouldn't take up the full screen width"): a slim panel like the Mac's, 300 pt wide (the screen less the 16 pt gutters when that is narrower), its top-right corner under the cloud button, opening out of that corner (scale from 0.92 at the top-trailing anchor with opacity, 240 ms on the house easing; Reduce Motion a 160 ms fade), radius 22, the phone's faked glass (no live blur), at most 60 % of the screen tall and scrolling inside. It opens and closes from the button, and also closes when the library behind it is tapped (a phone has no Escape). Heading "From your devices".
+  - *Tray* (owner 16 Oct: "Notification shouldn't take up the full screen width"): a slim panel like the Mac's, 300 pt wide (the screen less the 16 pt gutters when that is narrower), its top-right corner under the cloud button, opening out of that corner (scale from 0.92 at the top-trailing anchor with opacity, 240 ms on the house easing; Reduce Motion a 160 ms fade), radius 16, the phone's faked glass (no live blur), at most 60 % of the screen tall and scrolling inside. It opens and closes from the button, and also closes when the library behind it is tapped (a phone has no Escape). Heading "From your devices".
   - *Rows*, as on the Mac (titles and artists cut short to one line each so the tray stays slim; Dynamic Type at accessibility sizes may wrap to two): a 48 pt record sleeve (the cover, radius 10, the disc peeking out) that is itself the Send to Spotify button (pressed: the cover turns `accent` with a black plus and the disc rolls out), then the title (15 semibold), artist and track count (13 secondary) and the origin label (12 tertiary: "from your Mac", "from the web", "from another device"). A sent row collapses out. The phone has no signal that a pending record's audio is missing from the service (the missing-files check covers this phone's own releases), so it has no "still sending" or "waiting" looks; a failed accept can equally be the network, folder access or a local import error. Two states instead: *sending* (a send is running; it wins over an earlier failure) is the `accent` sleeve with a small spinner in place of the plus, and not a button; *failed* (the last send failed; the sleeve stays the Send button) adds "Couldn't send this yet." (12 `danger`) under the origin label and a secondary **Try again** pill that retries that send. VoiceOver: each sleeve is "Send <title> to Spotify"; a failed row's hint is the sync error text.
   - *Arrival*: no toast. When the pending count goes up, the badge scales in from 0.6 with opacity over 240 ms on the house easing (`.timingCurve(0.16, 1, 0.3, 1, duration:)`). Reduce Motion: the badge just appears, the tray fades in 160 ms, the disc doesn't roll.
 - **Pages at full width, the release bar, track columns, the tray's sections and no-cover releases (both apps; owner 17 Oct 2026, from screenshots and the mockups at https://claude.ai/artifact/ADeVZeEP1ZEpHjeVfNTtH4)**: the owner's picks, in one entry because they land together. References on Mobbin: Apple Music's album page (cover beside the details, a full-width track table), SoundCloud's vinyl maker (a bottom bar with the main action on the right), Meetup's grouped notifications (a header per group).
@@ -940,7 +956,7 @@ Plan: `docs/plans/146-sharing.md`; built in #183. Copy is in `Copy.Share`, sente
 
 - **Row play button** (release page, view mode only; edit mode keeps its rows): the track number is a 44 pt button, reaching into the row's inset and the gap before the title so the number column keeps its width. VoiceOver says "Play <title>" and, on the playing row, "Pause <title>". A release with no files on this phone (an adopted one) shows the plain number.
 - **Now-playing glyph**: the playing row swaps its number for the shared now-playing glyph (three bars, `Icon/NowPlaying`) in `accent`; a paused current row shows the drawn play glyph in `accent` (#414). Nothing animates, so nothing changes under Reduce Motion. A track whose file is gone shows "File missing" (13 `text-dim`) under the artist and is skipped.
-- **Mini player**: on every tab, above the tab bar, only while a queue exists. A bar inset 12 from the sides and 8 above the tab bar, radius 16, the phone's faked glass (a `card` base under the white 6 % fill, a 10 % rim, no live blur). The cover (44, radius 8), the title (15 semibold) over the artist (14 `text-muted`), then play/pause and next, the drawn glyphs (22 pt, white, 44 pt targets, nothing behind them, #414), with a 2 pt progress line (`accent` on white 12 %) along its bottom edge. Tapping the cover or names opens that release's page in the Library. The bar is a bottom safe-area inset, so the content grows by its height. At the accessibility sizes the names take their own row (title up to 3 lines) above the buttons. It slides up and fades in over 240 ms on the house easing; Reduce Motion is a 160 ms fade.
+- **Mini player**: on every tab, above the tab bar, only while a queue exists. A bar inset 12 from the sides and 8 above the tab bar, radius 16, the phone's faked glass (a `card` base under the white 6 % fill, a 10 % rim, no live blur). The cover (44, radius 4), the title (15 semibold) over the artist (14 `text-muted`), then play/pause and next, the drawn glyphs (22 pt, white, 44 pt targets, nothing behind them, #414), with a 2 pt progress line (`accent` on white 12 %) along its bottom edge. Tapping the cover or names opens that release's page in the Library. The bar is a bottom safe-area inset, so the content grows by its height. At the accessibility sizes the names take their own row (title up to 3 lines) above the buttons. It slides up and fades in over 240 ms on the house easing; Reduce Motion is a 160 ms fade.
 - **Lock screen**: title, artist, album, the cover, length and elapsed time; play, pause, toggle, next, previous and scrubbing. Playback continues in the background (`UIBackgroundModes: audio`).
 - **On iOS 26.1 and later the bar is the system's own** (`tabViewBottomAccessory`, the slot Apple Music uses), the one exception to the faked glass: the system draws the capsule and its live glass, and the bar draws none of its own chrome. The glass lets the page's text through, so a dark backing (black at 70 %, a little wider than the capsule so no edge shows) sits under the title and artist; a row scrolling beneath can't be read through them. The 2 pt progress line is inset 20 from the capsule's ends. The accessory is fixed height, so at the accessibility sizes the inset bar above is used instead. Earlier iOS uses the inset bar at every size.
 - **Paused row**: the paused current row shows a `play.fill` in `accent` where the number is. Only the number is the play target, not the whole row, because the artist names in the row are links (#288).

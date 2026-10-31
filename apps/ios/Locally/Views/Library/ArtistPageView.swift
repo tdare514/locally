@@ -225,7 +225,7 @@ struct ArtistPageView: View {
                     .frame(minWidth: 18)
                     .accessibilityHidden(true)
             }
-            StatsCoverView(owner: release.id, cache: covers.cache, cornerRadius: 6)
+            StatsCoverView(owner: release.id, cache: covers.cache, cornerRadius: Theme.Radius.thumbnail)
                 .id(covers.generation)
                 .frame(width: min(rowCover, 64), height: min(rowCover, 64))
                 .accessibilityHidden(true)
