@@ -2,15 +2,15 @@
 
 import { Fragment, useState, type CSSProperties, type ReactNode } from "react";
 import AmbientBackdrop from "../../../components/AmbientBackdrop";
-import { CloudDownIcon } from "../../../components/Icons";
+import { ShareIcon } from "../../../components/Icons";
 import type { AmbientPalette } from "../../../lib/artwork-palette";
 
-/** Gallery of the final button set for #155, plus the Import invitation's glow (#159). The
- * styles live in globals.css (`.btn-save`, `.btn-glow`, `.btn-ink`, `.btn-ink-danger`,
+/** Gallery of the button set: #155's, made plain by #409 (the 30 Oct 2026 rules in docs/design.md).
+ * The styles live in globals.css (`.btn-save`, `.btn-danger`, `.btn-ink`, `.btn-ink-danger`,
  * `.btn-icon`, `.btn-seg`). */
 
 type Pin = "rest" | "hover" | "press" | "focus" | "disabled";
-type Kind = "save" | "glow" | "secondary" | "delete" | "icon" | "toggle";
+type Kind = "save" | "secondary" | "delete" | "confirm" | "icon" | "toggle";
 
 const PINS: { id: Pin; label: string }[] = [
   { id: "rest", label: "Rest" },
@@ -21,10 +21,10 @@ const PINS: { id: Pin; label: string }[] = [
 ];
 
 const KINDS: { id: Kind; label: string }[] = [
-  { id: "save", label: "Primary" },
-  { id: "glow", label: "Glow" },
+  { id: "save", label: "Main" },
   { id: "secondary", label: "Secondary" },
   { id: "delete", label: "Destructive" },
+  { id: "confirm", label: "Confirm" },
   { id: "icon", label: "Icon" },
   { id: "toggle", label: "Toggle" },
 ];
@@ -83,22 +83,22 @@ function Cell({ kind, state }: { kind: Kind; state: Pin }) {
           Save to library
         </button>
       );
-    case "glow":
-      return (
-        <button type="button" className="btn-save btn-glow" {...p}>
-          Add a track
-        </button>
-      );
     case "secondary":
       return (
         <button type="button" className="btn-ink" {...p}>
-          <span className="btn-ink-label">Cancel</span>
+          Cancel
         </button>
       );
     case "delete":
       return (
         <button type="button" className="btn-ink-danger" {...p}>
-          <span className="btn-ink-label">Delete</span>
+          Delete
+        </button>
+      );
+    case "confirm":
+      return (
+        <button type="button" className="btn-danger" {...p}>
+          Confirm delete
         </button>
       );
     case "icon":
@@ -106,11 +106,11 @@ function Cell({ kind, state }: { kind: Kind; state: Pin }) {
         <button
           type="button"
           className="btn-icon"
-          aria-label="From your devices"
-          title="From your devices"
+          aria-label="Share"
+          title="Share"
           {...p}
         >
-          <CloudDownIcon className="h-[18px] w-[18px]" />
+          <ShareIcon className="h-5 w-5" />
         </button>
       );
     case "toggle":
@@ -163,8 +163,6 @@ function Stage({
         "--ambient-primary": palette.primary,
         "--ambient-secondary": palette.secondary,
         "--ambient-deep": palette.deep,
-        // As the release dock does: the Save glow takes the cover's colour.
-        "--btn-tint": palette.primary,
       } as CSSProperties)
     : undefined;
   return (
@@ -191,10 +189,12 @@ export default function ButtonSpecimen() {
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Buttons</h1>
         <p className="mt-2 max-w-3xl text-sm text-text-muted">
-          Issue #155, the final set. Each button is shown at rest and in forced hover (the shimmer
-          frozen mid-sweep), pressed, focus and disabled, on the dark panel the release dock and
-          Settings cards sit on and on a cover-colour wash. The pinned states are forced so they
-          can sit side by side; every button is also live, so hover, press and tab through them.
+          Issues #155 and #409, the quiet set: a solid main capsule, plain words for secondary and
+          destructive, one red confirm and a bare icon. Each button is shown at rest and in forced
+          hover, pressed, focus and disabled, on the dark panel the release dock and Settings cards
+          sit on and on a cover-colour wash (which tints nothing). The pinned states are forced so
+          they can sit side by side; every button is also live, so hover, press and tab through
+          them.
         </p>
       </header>
       <div className="mt-8 grid grid-cols-1 gap-5">

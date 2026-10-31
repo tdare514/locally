@@ -25,7 +25,7 @@ export default function LibraryCollections({
   const newButton = (
     <button type="button" onClick={() => setMaking((m) => !m)} aria-expanded={making} className="btn-ink min-h-11 shrink-0">
       <PlusIcon className="h-4 w-4" />
-      <span className="btn-ink-label">New collection</span>
+      New collection
     </button>
   );
   return (

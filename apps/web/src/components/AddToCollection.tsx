@@ -83,13 +83,13 @@ export default function AddToCollection({
           setOpen((o) => !o);
         }}
         {...(variant === "row"
-          ? { "aria-label": label, title: "Add to collection", className: "btn-icon share-row-button flex size-11 items-center justify-center rounded-md text-text-muted outline-none focus-visible:ring-2 focus-visible:ring-accent" }
+          ? { "aria-label": label, title: "Add to collection", className: "btn-icon share-row-button" }
           : { className: "btn-ink min-h-11" })}
       >
         {variant === "row" ? (
-          <PlusIcon className="h-4 w-4" />
+          <PlusIcon className="h-5 w-5" />
         ) : (
-          <span className="btn-ink-label">Add to collection</span>
+          "Add to collection"
         )}
       </button>
       <span role="status" aria-live="polite" className="sr-only">

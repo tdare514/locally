@@ -52,7 +52,7 @@ describe("ReleaseBar (#294)", () => {
         left: createElement("button", null, "Delete"),
         status: "Unsaved changes",
         beforeMain: createElement("button", null, "Show in Finder"),
-        main: createElement("button", { className: "btn-save btn-save-lit" }, "Save to library"),
+        main: createElement("button", { className: "btn-save" }, "Save to library"),
       }),
     );
     const order = ["Delete", "Unsaved changes", "Show in Finder", "Save to library"].map((t) => html.indexOf(t));

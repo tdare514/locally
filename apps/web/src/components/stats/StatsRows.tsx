@@ -46,7 +46,7 @@ function usePaging(
   const button =
     shown < total ? (
       <button type="button" className="btn-ink mt-4" onClick={more}>
-        <span className="btn-ink-label">{moreLabel(shown, total)}</span>
+        {moreLabel(shown, total)}
       </button>
     ) : null;
   return { shown, button };

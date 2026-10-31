@@ -758,7 +758,7 @@ function Deck({
         </div>
         {away && nowCollection && (
           <button type="button" className="btn-ink min-h-11" onClick={goHome}>
-            <span className="btn-ink-label">Back to {nowCollection.name}</span>
+            Back to {nowCollection.name}
           </button>
         )}
       </div>
