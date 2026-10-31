@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Release, ReleaseKind } from "../shared/types";
 import { coverUrl, deleteRelease, updateRelease } from "../lib/api-client";
 import { IS_DEMO } from "../lib/demo";
@@ -131,11 +131,19 @@ export default function LibraryView({
   const [folds, setFolds] = useState<SectionFolds>(NO_FOLDS);
   const [focusId, setFocusId] = useState<string | null>(null);
   // The one menu of a release row or cover (#419): Edit and Go to album open its page, Go to artist the main artist's.
-  const menuEnv: TrackMenuEnv = {
-    toast: onToast,
-    openRelease: onSelectRelease,
-    openArtist: (name) => onSelectArtist(creditKey(name)),
-  };
+  // One identity across renders (#422): AppShell passes new arrows each render, and every row is memoised on this.
+  const appRef = useRef({ onToast, onSelectRelease, onSelectArtist, onOpenCollections });
+  useLayoutEffect(() => {
+    appRef.current = { onToast, onSelectRelease, onSelectArtist, onOpenCollections };
+  });
+  const menuEnv = useMemo<TrackMenuEnv>(
+    () => ({
+      toast: (kind, text) => appRef.current.onToast(kind, text),
+      openRelease: (id) => appRef.current.onSelectRelease(id),
+      openArtist: (name) => appRef.current.onSelectArtist(creditKey(name)),
+    }),
+    [],
+  );
   const [focusArtistKey, setFocusArtistKey] = useState<string | null>(null);
   const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
 
@@ -164,18 +172,25 @@ export default function LibraryView({
     saveCoverSize(next);
   }
 
-  const visible = filterLibrary(releases, query);
-  const { singles, albums } = partitionLibrary(visible, sort);
+  const openCollections = useCallback(() => appRef.current.onOpenCollections(), []);
+  // The Collections card resolves its covers against every release, so it redraws only when the library does (#422).
+  const collectionsCard = useMemo(
+    () => <LibraryCollections releases={releases} onOpen={openCollections} />,
+    [releases, openCollections],
+  );
+  // Memoised (#422): the library re-renders on every scroll step, as the ambient wash follows what is on screen.
+  const visible = useMemo(() => filterLibrary(releases, query), [releases, query]);
+  const { singles, albums } = useMemo(() => partitionLibrary(visible, sort), [visible, sort]);
   // The ambient wash follows the hovered or focused cover while it is on screen, else the first
   // cover on screen, else the first cover in the library.
-  const coverReleases = [...singles, ...albums].filter((r) => r.coverPath);
+  const coverReleases = useMemo(() => [...singles, ...albums].filter((r) => r.coverPath), [singles, albums]);
   const focusRelease =
     coverReleases.find((r) => r.id === focusId && visibleIds.has(r.id)) ??
     coverReleases.find((r) => visibleIds.has(r.id)) ??
     coverReleases[0] ??
     null;
   // The Artists view tints by the hovered artist's front cover, else the first artist's.
-  const visibleArtists = filterArtists(catalog, query);
+  const visibleArtists = useMemo(() => filterArtists(catalog, query), [catalog, query]);
   const focusArtist = visibleArtists.find((a) => a.key === focusArtistKey) ?? visibleArtists[0];
   const artistCover = focusArtist?.covers[0];
   const ambientUrl =
@@ -191,7 +206,7 @@ export default function LibraryView({
   }, [ambientUrl, onAmbientCoverChange]);
 
   // Track which rows or tiles are on screen in the scrolling pane, so the colour follows scroll.
-  const shownIds = [...singles, ...albums].map((r) => r.id).join(",");
+  const shownIds = useMemo(() => [...singles, ...albums].map((r) => r.id).join(","), [singles, albums]);
   // Folding unmounts a section's rows and unfolding mounts new ones, so observation is rebuilt on every fold change.
   const singlesOpen = isSectionOpen(folds.singles, query);
   const albumsOpen = isSectionOpen(folds.albums, query);
@@ -538,7 +553,7 @@ export default function LibraryView({
         </div>
       )}
 
-      {!artistsView && <LibraryCollections releases={releases} onOpen={onOpenCollections} />}
+      {!artistsView && collectionsCard}
 
       {!artistsView && singles.length > 0 && (
         <SectionComponent
@@ -646,11 +661,18 @@ const COL_GENRE = "hidden @[680px]:block";
 const COL_NUMBER = "hidden @[520px]:block text-right tabular-nums";
 const COL_ADDED = "hidden @[820px]:block pl-6 tabular-nums";
 
-/** "Feb 6, 2026" style date in the user's locale. */
+const addedDateFormats = new Map<string | undefined, Intl.DateTimeFormat>();
+
+/** "Feb 6, 2026" style date in the user's locale. One formatter per locale (#422): building one is the slow part. */
 export function formatAddedDate(iso: string, locale?: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(d);
+  let format = addedDateFormats.get(locale);
+  if (!format) {
+    format = new Intl.DateTimeFormat(locale, { dateStyle: "medium" });
+    addedDateFormats.set(locale, format);
+  }
+  return format.format(d);
 }
 
 /** The Singles or Albums heading as one button: label, count, chevron (#260). The button sits inside
@@ -700,6 +722,7 @@ export function LibrarySection({
   menuEnv,
 }: SectionProps) {
   const menu = useTrackMenu();
+  const handlers = useRowHandlers(onSelectRelease, onToggle, onFocusRelease);
   const openRelease = menu.open ? releases.find((r) => r.id === menu.open?.key) : undefined;
   return (
     <section className="@container flex flex-col gap-2">
@@ -730,93 +753,21 @@ export function LibrarySection({
           <span />
         </div>
         <ul className="overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.04]">
-          {releases.map((r, index) => {
-            const locked = selecting && r.adopted === true;
-            const isSelected = selecting && !locked && selected.has(r.id);
-            const artistShown = shownArtist(r);
-            const groups = releaseMenuGroups(r, menuEnv, selecting);
-            return (
-              <li key={r.id} className="group/track relative" {...(groups.length > 0 ? menu.rowProps(r.id) : {})}>
-                {index > 0 && (
-                  <div className="h-px bg-white/[0.06]" aria-hidden="true" />
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (locked) return;
-                    if (selecting) onToggle(r.id);
-                    else onSelectRelease(r.id);
-                  }}
-                  onMouseEnter={() => onFocusRelease(r.id)}
-                  onFocus={() => onFocusRelease(r.id)}
-                  data-release-id={r.id}
-                  disabled={selecting && disabled}
-                  aria-pressed={selecting && !locked ? isSelected : undefined}
-                  aria-disabled={locked || undefined}
-                  title={locked ? ADOPTED_NOT_SELECTABLE : undefined}
-                  className={`list-row ${LIST_GRID} min-h-[78px] w-full px-3 py-3 text-left transition-colors hover:bg-white/[0.06] focus-visible:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60 ${
-                    isSelected ? "bg-white/[0.06]" : ""
-                  } ${locked ? "cursor-not-allowed opacity-60" : ""}`}
-                >
-                  <span className="flex min-w-0 items-center gap-3">
-                    {selecting && !locked && <SelectBox checked={isSelected} />}
-                    {locked && <span aria-hidden="true" className="size-5 shrink-0" />}
-                    {r.coverPath ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={coverUrl(r.id, r.updatedAt)}
-                        alt=""
-                        className="list-thumb h-14 w-14 shrink-0 rounded object-cover"
-                      />
-                    ) : (
-                      <NoCover className="list-thumb h-14 w-14 shrink-0 rounded" />
-                    )}
-                    <span className="min-w-0 flex-1">
-                      <span className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate text-sm font-semibold text-text">
-                          {r.title || artistShown}
-                        </span>
-                        {r.adopted && <AdoptedMark />}
-                      </span>
-                      <span className="block truncate text-xs text-text-muted">
-                        {artistShown}
-                      </span>
-                    </span>
-                  </span>
-                  <span className={`${COL_GENRE} truncate text-xs text-text-muted`}>
-                    {r.genre ?? ""}
-                  </span>
-                  <span className={`${COL_NUMBER} text-xs text-text-muted`}>
-                    {r.year ?? ""}
-                  </span>
-                  <span className={`${COL_NUMBER} text-xs text-text-muted`}>
-                    {r.tracks.length}
-                  </span>
-                  <span className={`${COL_ADDED} text-xs text-text-muted`}>
-                    {formatAddedDate(r.createdAt)}
-                  </span>
-                  {!selecting ? (
-                    // The More button takes the chevron's place while the row is hovered or has focus.
-                    <ChevronRightIcon
-                      className={`h-4 w-4 shrink-0 text-text-dim ${groups.length > 0 ? "group-hover/track:opacity-0 group-focus-within/track:opacity-0" : ""}`}
-                    />
-                  ) : (
-                    <span />
-                  )}
-                </button>
-                {groups.length > 0 && (
-                  // A wrapper places it: `.btn-icon` sets its own `position`, which a utility on the button can't override.
-                  <span className="absolute right-0 top-1/2 flex -translate-y-1/2">
-                    <TrackMoreButton
-                      title={r.title || artistShown}
-                      expanded={menu.open?.key === r.id}
-                      onOpen={(button) => menu.toggleFrom(button, r.id)}
-                    />
-                  </span>
-                )}
-              </li>
-            );
-          })}
+          {releases.map((r, index) => (
+            <ListRow
+              key={r.id}
+              release={r}
+              first={index === 0}
+              selecting={selecting}
+              isSelected={selecting && r.adopted !== true && selected.has(r.id)}
+              disabled={disabled}
+              menuEnv={menuEnv}
+              menuExpanded={menu.open?.key === r.id}
+              rowProps={menu.rowProps}
+              onOpenMenu={menu.toggleFrom}
+              handlers={handlers}
+            />
+          ))}
         </ul>
         {menu.open && openRelease && (
           <TrackMenu
@@ -852,6 +803,7 @@ function CoverSection({
   menuEnv,
 }: SectionProps) {
   const menu = useTrackMenu();
+  const handlers = useRowHandlers(onSelectRelease, onToggle, onFocusRelease);
   const openRelease = menu.open ? releases.find((r) => r.id === menu.open?.key) : undefined;
   return (
     <section className="flex flex-col gap-4">
@@ -876,85 +828,21 @@ function CoverSection({
             gap: COVER_GRID_GAP_PX[coverSize],
           }}
         >
-          {releases.map((r) => {
-            const locked = selecting && r.adopted === true;
-            const isSelected = selecting && !locked && selected.has(r.id);
-            const artistShown = shownArtist(r);
-            const url = r.coverPath ? coverUrl(r.id, r.updatedAt) : null;
-            const groups = releaseMenuGroups(r, menuEnv, selecting);
-            return (
-              <div key={r.id} className="group/track relative min-w-0" {...(groups.length > 0 ? menu.rowProps(r.id) : {})}>
-              <button
-                type="button"
-                onClick={() => {
-                  if (locked) return;
-                  if (selecting) onToggle(r.id);
-                  else onSelectRelease(r.id);
-                }}
-                onMouseEnter={() => onFocusRelease(r.id)}
-                onFocus={() => onFocusRelease(r.id)}
-                data-release-id={r.id}
-                disabled={selecting && disabled}
-                aria-pressed={selecting && !locked ? isSelected : undefined}
-                aria-disabled={locked || undefined}
-                title={locked ? ADOPTED_NOT_SELECTABLE : undefined}
-                className={`shelf-tile block w-full min-w-0 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-60 ${
-                  locked ? "cursor-not-allowed opacity-60" : ""
-                }`}
-              >
-                <div className="relative aspect-square">
-                  <div
-                    className={`shelf-cover h-full w-full rounded-lg ${
-                      isSelected
-                        ? "ring-2 ring-accent ring-offset-2 ring-offset-bg"
-                        : ""
-                    }`}
-                  >
-                    {url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={url}
-                        alt=""
-                        className="h-full w-full rounded-lg object-cover shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]"
-                      />
-                    ) : (
-                      <NoCover className="h-full w-full rounded-lg shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]" />
-                    )}
-                    {selecting && !locked && (
-                      <span className="absolute left-2 top-2 rounded-full bg-black/50 p-1">
-                        <SelectBox checked={isSelected} />
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <span className={`mt-3 flex min-w-0 items-center gap-1.5 ${groups.length > 0 ? "pr-7" : ""}`}>
-                  <span
-                    className={`truncate font-semibold text-text ${
-                      coverSize === 0 ? "text-xs" : "text-sm"
-                    }`}
-                  >
-                    {r.title || artistShown}
-                  </span>
-                  {r.adopted && <AdoptedMark />}
-                </span>
-                <span className={`block truncate text-xs text-text-muted ${groups.length > 0 ? "pr-7" : ""}`}>
-                  {libraryRowSubtitle({ ...r, artist: artistShown })}
-                </span>
-              </button>
-              {groups.length > 0 && (
-                // At the caption's right end, on the page rather than the artwork (design rule 3: nothing behind an icon
-                // button), above the hovered tile (which rises to z-1). The caption keeps 28px clear for the glyph.
-                <span className="absolute -bottom-1 -right-2 z-10 flex">
-                  <TrackMoreButton
-                    title={r.title || artistShown}
-                    expanded={menu.open?.key === r.id}
-                    onOpen={(button) => menu.toggleFrom(button, r.id)}
-                  />
-                </span>
-              )}
-              </div>
-            );
-          })}
+          {releases.map((r) => (
+            <CoverTile
+              key={r.id}
+              release={r}
+              coverSize={coverSize}
+              selecting={selecting}
+              isSelected={selecting && r.adopted !== true && selected.has(r.id)}
+              disabled={disabled}
+              menuEnv={menuEnv}
+              menuExpanded={menu.open?.key === r.id}
+              rowProps={menu.rowProps}
+              onOpenMenu={menu.toggleFrom}
+              handlers={handlers}
+            />
+          ))}
           </div>
           {menu.open && openRelease && (
             <TrackMenu
@@ -971,6 +859,242 @@ function CoverSection({
     </section>
   );
 }
+
+interface RowProps {
+  release: Release;
+  selecting: boolean;
+  isSelected: boolean;
+  disabled: boolean;
+  menuEnv?: TrackMenuEnv;
+  menuExpanded: boolean;
+  rowProps: ReturnType<typeof useTrackMenu>["rowProps"];
+  onOpenMenu: ReturnType<typeof useTrackMenu>["toggleFrom"];
+  handlers: RowHandlers;
+}
+
+interface RowHandlers {
+  select: (id: string) => void;
+  toggle: (id: string) => void;
+  focus: (id: string) => void;
+}
+
+/** A section's row callbacks with one identity across renders (#422): every scroll step re-renders the library (the
+ * ambient wash follows what is on screen), and rows memoised on stable props skip it. The latest callbacks are read
+ * at call time. */
+function useRowHandlers(
+  onSelectRelease: (id: string) => void,
+  onToggle: (id: string) => void,
+  onFocusRelease: (id: string) => void,
+): RowHandlers {
+  const latest = useRef({ onSelectRelease, onToggle, onFocusRelease });
+  useLayoutEffect(() => {
+    latest.current = { onSelectRelease, onToggle, onFocusRelease };
+  });
+  return useMemo(
+    () => ({
+      select: (id) => latest.current.onSelectRelease(id),
+      toggle: (id) => latest.current.onToggle(id),
+      focus: (id) => latest.current.onFocusRelease(id),
+    }),
+    [],
+  );
+}
+
+/** One list row (#422: memoised, so it redraws only when its own release, selection, or menu state changes). */
+const ListRow = memo(function ListRow({
+  release,
+  first,
+  selecting,
+  isSelected,
+  disabled,
+  menuEnv,
+  menuExpanded,
+  rowProps,
+  onOpenMenu,
+  handlers,
+}: RowProps & { first: boolean }) {
+  const locked = selecting && release.adopted === true;
+  const artistShown = shownArtist(release);
+  const groups = releaseMenuGroups(release, menuEnv, selecting);
+  return (
+    <li className="group/track relative" {...(groups.length > 0 ? rowProps(release.id) : {})}>
+      {!first && (
+        <div className="h-px bg-white/[0.06]" aria-hidden="true" />
+      )}
+      <button
+        type="button"
+        onClick={() => {
+          if (locked) return;
+          if (selecting) handlers.toggle(release.id);
+          else handlers.select(release.id);
+        }}
+        onMouseEnter={() => handlers.focus(release.id)}
+        onFocus={() => handlers.focus(release.id)}
+        data-release-id={release.id}
+        disabled={selecting && disabled}
+        aria-pressed={selecting && !locked ? isSelected : undefined}
+        aria-disabled={locked || undefined}
+        title={locked ? ADOPTED_NOT_SELECTABLE : undefined}
+        className={`list-row ${LIST_GRID} min-h-[78px] w-full px-3 py-3 text-left transition-colors hover:bg-white/[0.06] focus-visible:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-60 ${
+          isSelected ? "bg-white/[0.06]" : ""
+        } ${locked ? "cursor-not-allowed opacity-60" : ""}`}
+      >
+        <span className="flex min-w-0 items-center gap-3">
+          {selecting && !locked && <SelectBox checked={isSelected} />}
+          {locked && <span aria-hidden="true" className="size-5 shrink-0" />}
+          {release.coverPath ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={coverUrl(release.id, release.updatedAt)}
+              alt=""
+              width={56}
+              height={56}
+              loading="lazy"
+              decoding="async"
+              className="list-thumb h-14 w-14 shrink-0 rounded object-cover"
+            />
+          ) : (
+            <NoCover className="list-thumb h-14 w-14 shrink-0 rounded" />
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate text-sm font-semibold text-text">
+                {release.title || artistShown}
+              </span>
+              {release.adopted && <AdoptedMark />}
+            </span>
+            <span className="block truncate text-xs text-text-muted">
+              {artistShown}
+            </span>
+          </span>
+        </span>
+        <span className={`${COL_GENRE} truncate text-xs text-text-muted`}>
+          {release.genre ?? ""}
+        </span>
+        <span className={`${COL_NUMBER} text-xs text-text-muted`}>
+          {release.year ?? ""}
+        </span>
+        <span className={`${COL_NUMBER} text-xs text-text-muted`}>
+          {release.tracks.length}
+        </span>
+        <span className={`${COL_ADDED} text-xs text-text-muted`}>
+          {formatAddedDate(release.createdAt)}
+        </span>
+        {!selecting ? (
+          // The More button takes the chevron's place while the row is hovered or has focus.
+          <ChevronRightIcon
+            className={`h-4 w-4 shrink-0 text-text-dim ${groups.length > 0 ? "group-hover/track:opacity-0 group-focus-within/track:opacity-0" : ""}`}
+          />
+        ) : (
+          <span />
+        )}
+      </button>
+      {groups.length > 0 && (
+        // A wrapper places it: `.btn-icon` sets its own `position`, which a utility on the button can't override.
+        <span className="absolute right-0 top-1/2 flex -translate-y-1/2">
+          <TrackMoreButton
+            title={release.title || artistShown}
+            expanded={menuExpanded}
+            onOpen={(button) => onOpenMenu(button, release.id)}
+          />
+        </span>
+      )}
+    </li>
+  );
+});
+
+/** One cover tile (#422: memoised like `ListRow`). */
+const CoverTile = memo(function CoverTile({
+  release,
+  coverSize,
+  selecting,
+  isSelected,
+  disabled,
+  menuEnv,
+  menuExpanded,
+  rowProps,
+  onOpenMenu,
+  handlers,
+}: RowProps & { coverSize: CoverSize }) {
+  const locked = selecting && release.adopted === true;
+  const artistShown = shownArtist(release);
+  const url = release.coverPath ? coverUrl(release.id, release.updatedAt) : null;
+  const groups = releaseMenuGroups(release, menuEnv, selecting);
+  return (
+    <div className="group/track relative min-w-0" {...(groups.length > 0 ? rowProps(release.id) : {})}>
+    <button
+      type="button"
+      onClick={() => {
+        if (locked) return;
+        if (selecting) handlers.toggle(release.id);
+        else handlers.select(release.id);
+      }}
+      onMouseEnter={() => handlers.focus(release.id)}
+      onFocus={() => handlers.focus(release.id)}
+      data-release-id={release.id}
+      disabled={selecting && disabled}
+      aria-pressed={selecting && !locked ? isSelected : undefined}
+      aria-disabled={locked || undefined}
+      title={locked ? ADOPTED_NOT_SELECTABLE : undefined}
+      className={`shelf-tile block w-full min-w-0 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-60 ${
+        locked ? "cursor-not-allowed opacity-60" : ""
+      }`}
+    >
+      <div className="relative aspect-square">
+        <div
+          className={`shelf-cover h-full w-full rounded-lg ${
+            isSelected
+              ? "ring-2 ring-accent ring-offset-2 ring-offset-bg"
+              : ""
+          }`}
+        >
+          {url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={url}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="h-full w-full rounded-lg object-cover shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]"
+            />
+          ) : (
+            <NoCover className="h-full w-full rounded-lg shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]" />
+          )}
+          {selecting && !locked && (
+            <span className="absolute left-2 top-2 rounded-full bg-black/50 p-1">
+              <SelectBox checked={isSelected} />
+            </span>
+          )}
+        </div>
+      </div>
+      <span className={`mt-3 flex min-w-0 items-center gap-1.5 ${groups.length > 0 ? "pr-7" : ""}`}>
+        <span
+          className={`truncate font-semibold text-text ${
+            coverSize === 0 ? "text-xs" : "text-sm"
+          }`}
+        >
+          {release.title || artistShown}
+        </span>
+        {release.adopted && <AdoptedMark />}
+      </span>
+      <span className={`block truncate text-xs text-text-muted ${groups.length > 0 ? "pr-7" : ""}`}>
+        {libraryRowSubtitle({ ...release, artist: artistShown })}
+      </span>
+    </button>
+    {groups.length > 0 && (
+      // At the caption's right end, on the page rather than the artwork (design rule 3: nothing behind an icon
+      // button), above the hovered tile (which rises to z-1). The caption keeps 28px clear for the glyph.
+      <span className="absolute -bottom-1 -right-2 z-10 flex">
+        <TrackMoreButton
+          title={release.title || artistShown}
+          expanded={menuExpanded}
+          onOpen={(button) => onOpenMenu(button, release.id)}
+        />
+      </span>
+    )}
+    </div>
+  );
+});
 
 /** 20 square checkbox shown at the left of a row in selection mode. */
 function SelectBox({ checked }: { checked: boolean }) {
