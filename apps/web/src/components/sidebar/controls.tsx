@@ -237,7 +237,7 @@ export function EditWidgets({
         data-state={open ? "open" : "closed"}
         className="sb-pop right-0 top-full mt-2"
       >
-        <p className="px-2.5 pb-1 pt-1.5 text-xs text-text-dim">Show in this panel</p>
+        <p className="px-2.5 pb-1 pt-1.5 text-xs text-text-muted">Show in this panel</p>
         {WIDGETS.map((w) => (
           <Switch
             key={w.key}
@@ -249,7 +249,7 @@ export function EditWidgets({
             {w.title}
           </Switch>
         ))}
-        {onCount === 1 && <p className="px-2.5 pb-1.5 pt-1 text-xs text-text-dim">At least one stays on.</p>}
+        {onCount === 1 && <p className="px-2.5 pb-1.5 pt-1 text-xs text-text-muted">At least one stays on.</p>}
       </div>
     </div>
   );

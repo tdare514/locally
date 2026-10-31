@@ -76,7 +76,7 @@ function Row({
       <span aria-hidden className="sb-bar" />
       <span
         data-medal={medal}
-        className={`relative w-4 shrink-0 text-center text-xs font-bold tabular-nums text-text-dim ${medalText}`}
+        className={`relative w-4 shrink-0 text-center text-xs font-bold tabular-nums text-text-muted ${medalText}`}
       >
         {item.rank}
       </span>

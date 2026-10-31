@@ -266,7 +266,7 @@ export default function Sidebar({
             onClick={toLibrary}
             end={
               loading ? undefined : (
-                <span className="text-xs font-normal text-text-dim">{releaseCountLabel(releases.length)}</span>
+                <span className="text-xs font-normal text-text-muted">{releaseCountLabel(releases.length)}</span>
               )
             }
           >
@@ -313,17 +313,17 @@ export default function Sidebar({
             </div>
           )}
           {stats.status === "error" && (
-            <p className="sb-item px-3 py-1 text-[13px] leading-snug text-text-dim" style={step(2)}>
+            <p className="sb-item px-3 py-1 text-[13px] leading-snug text-text-muted" style={step(2)}>
               Couldn&apos;t load your plays. It will try again the next time this opens.
             </p>
           )}
           {stats.status === "quiet" && (
-            <p className="sb-item px-3 py-1 text-[13px] leading-snug text-text-dim" style={step(2)}>
+            <p className="sb-item px-3 py-1 text-[13px] leading-snug text-text-muted" style={step(2)}>
               {periodEmptyLine(period)}
             </p>
           )}
           {stats.status === "empty" && !loading && (
-            <p className="sb-item px-3 py-1 text-[13px] leading-snug text-text-dim" style={step(2)}>
+            <p className="sb-item px-3 py-1 text-[13px] leading-snug text-text-muted" style={step(2)}>
               Plays show up here once Locally has counted some. Turn it on in{" "}
               <button
                 type="button"
