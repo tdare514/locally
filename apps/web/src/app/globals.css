@@ -20,7 +20,6 @@
   --accent-hover: #3b8ef5;
   --border: #282828;
   --border-dashed: #3e3e3e;
-  --dialog-border: #303030;
   --danger: #f15e6c;
 }
 
@@ -40,7 +39,6 @@
   --color-accent-hover: var(--accent-hover);
   --color-border: var(--border);
   --color-border-dashed: var(--border-dashed);
-  --color-dialog-border: var(--dialog-border);
   --color-danger: var(--danger);
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
@@ -546,33 +544,18 @@ body {
   }
 }
 
-/* Liquid Glass approximation (#115), not Apple's own material: nearly clear, with a lit top
-   edge, a soft inner glow and a faint white sheen so the colours behind come through. The
-   parent needs `isolate`. */
+/* One recipe for everything that floats (tray, menus, popovers, mini player, release bar, toasts, dialogs): dark
+   and neutral, a 1 px hairline, a black drop shadow for lift, no tint and no rim light (#415). The parent needs
+   `isolate`. `.glass-frost` adds the blur; `.glass-dock` is the darker body for bars with no blur over scrolling rows. */
 .glass-fake {
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.04) 55%);
+  background: rgb(24 24 28 / 0.9);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.35),
-    inset 0 -1px 0 rgb(255 255 255 / 0.08),
-    inset 0 0 0 1px rgb(255 255 255 / 0.12),
-    0 18px 50px -18px rgb(0 0 0 / 0.55);
+    inset 0 0 0 1px rgb(255 255 255 / 0.08),
+    0 16px 40px -16px rgb(0 0 0 / 0.6);
 }
-.glass-fake::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  pointer-events: none;
-  background: radial-gradient(120% 70% at 15% -15%, rgb(255 255 255 / 0.18), transparent 60%);
-}
-/* Frosted variant for panels with text over busy content: the blur keeps it readable while it
-   stays clear. Only the open tray uses it, so the cost over the animated sky stays small. */
 .glass-frost {
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.03) 55%),
-    rgb(20 20 24 / 0.22);
-  backdrop-filter: blur(28px) saturate(170%);
+  background: rgb(22 22 26 / 0.88);
+  backdrop-filter: blur(24px);
 }
 @media (prefers-reduced-transparency: reduce) {
   .glass-fake,
@@ -581,14 +564,8 @@ body {
     backdrop-filter: none;
   }
 }
-/* The release dock (#163) rides over the scrolling track rows with no blur, so a bare
-   `.glass-fake` lets their text show through its buttons. This darker body, used together with
-   `.glass-fake`, keeps the dock legible over rows and over a bright cover's wash; the lit edge
-   and glow still come from `.glass-fake`. */
 .glass-fake.glass-dock {
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.12), rgb(255 255 255 / 0.03) 55%),
-    rgb(14 14 18 / 0.88);
+  background: rgb(14 14 18 / 0.92);
 }
 @media (prefers-reduced-transparency: reduce) {
   .glass-fake.glass-dock {
@@ -860,6 +837,28 @@ body {
   from {
     opacity: 0;
     scale: 0.96;
+  }
+}
+/* A toast rises into the corner and a dialog or popover fades in (#415); nothing under reduced motion, where
+   they just appear. */
+@media (prefers-reduced-motion: no-preference) {
+  .toast-in {
+    animation: toast-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .dialog-in {
+    animation: dialog-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    scale: 0.98;
   }
 }
 

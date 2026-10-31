@@ -191,7 +191,7 @@ export default function CoverCropDialog({
   return (
     <dialog
       ref={dialogRef}
-      className="m-auto max-w-none overflow-visible rounded-[9px] border border-dialog-border bg-card p-0 text-text backdrop:bg-black/70"
+      className="m-auto max-w-none overflow-visible glass-fake glass-frost isolate dialog-in rounded-2xl p-0 text-text backdrop:bg-black/70"
     >
       <div className="flex w-[360px] flex-col gap-4 p-6">
         <h2 className="text-[19px] font-bold">Crop cover</h2>

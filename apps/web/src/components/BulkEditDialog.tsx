@@ -59,7 +59,7 @@ export default function BulkEditDialog({
   return (
     <dialog
       ref={dialogRef}
-      className="m-auto max-w-none rounded-[9px] border border-dialog-border bg-card p-0 text-text backdrop:bg-black/70"
+      className="m-auto max-w-none glass-fake glass-frost isolate dialog-in rounded-2xl p-0 text-text backdrop:bg-black/70"
     >
       {/* Mounted only while open, so the fields start empty on every open. */}
       {open && (
