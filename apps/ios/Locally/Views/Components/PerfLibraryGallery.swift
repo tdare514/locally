@@ -53,7 +53,13 @@ enum PerfSeed {
     private static let genres = ["Indie pop", "Folk", "Ambient", "Dream pop", "Synthwave", "Country", "House", "Jazz", "Soul", "Rock"]
 
     private static func title(_ n: Int, words count: Int) -> String {
-        (0..<count).map { words[(n * 7 + $0 * 13 + $0 * n) % words.count] }.joined(separator: " ")
+        // A loop rather than one map expression: CI's compiler timed out type-checking the latter.
+        var parts: [String] = []
+        for i in 0..<count {
+            let index: Int = (n * 7 + i * 13 + i * n) % words.count
+            parts.append(words[index])
+        }
+        return parts.joined(separator: " ")
     }
 
     /// Every sixth release up to the 60th album is an album, the rest singles; `updatedAt` spaced an hour apart.
