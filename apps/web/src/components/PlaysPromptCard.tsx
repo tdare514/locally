@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { PlaysStatus } from "../shared/types";
 import { answerPlaysPrompt, getPlaysStatus, getSettings } from "../lib/api-client";
+import { BusyLabel, BusyStatus } from "./Spinner";
 
 interface PlaysPromptCardProps {
   onToast: (kind: "success" | "error", message: string) => void;
@@ -130,10 +131,12 @@ export default function PlaysPromptCard({ onToast, className = "" }: PlaysPrompt
           type="button"
           onClick={() => void answer(true)}
           disabled={saving}
+          aria-busy={saving || undefined}
           className="btn-save w-fit"
         >
-          {saving ? "Turning on…" : "Turn on"}
+          <BusyLabel busy={saving}>Turn on</BusyLabel>
         </button>
+        <BusyStatus busy={saving} text="Turning on" />
         <button
           type="button"
           onClick={() => void answer(false)}

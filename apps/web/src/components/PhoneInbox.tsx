@@ -19,6 +19,7 @@ import type { FriendShare } from "../shared/shares";
 import { friendCoverUrl } from "../lib/api-client";
 import { friendTitle, fromLabel } from "../lib/share-copy";
 import { CloudDownIcon, EyeOffIcon, MusicNoteIcon, PlusIcon, XIcon } from "./Icons";
+import { BusyLabel, BusyStatus } from "./Spinner";
 
 /** Matches the .phone-tray exit transition in globals.css. */
 const EXIT_MS = 200;
@@ -362,7 +363,7 @@ export default function PhoneInbox({
                 count={ready.length}
                 action={
                   showAddAll(ready)
-                    ? { label: addingAll ? "Adding…" : "Add all", busy: addingAll, onClick: addAll }
+                    ? { label: "Add all", busy: addingAll, busyText: "Adding all", onClick: addAll }
                     : undefined
                 }
               />
@@ -383,7 +384,7 @@ export default function PhoneInbox({
                 count={other.length}
                 action={
                   showTryAllAgain(other)
-                    ? { label: resyncing ? "Trying…" : "Try all again", busy: resyncing, onClick: resync }
+                    ? { label: "Try all again", busy: resyncing, busyText: "Trying again", onClick: resync }
                     : undefined
                 }
               />
@@ -467,7 +468,8 @@ export function SectionHeader({
   count: number;
   /** A status subheading under "From your devices": a level down and quieter. */
   sub?: boolean;
-  action?: { label: string; busy: boolean; onClick: () => void };
+  /** `busyText` is read out while `busy`; the button keeps `label` and shows a spinner. */
+  action?: { label: string; busy: boolean; busyText: string; onClick: () => void };
 }) {
   return (
     <div className="flex items-center justify-between gap-2 px-3 pb-1 pt-1.5">
@@ -483,9 +485,19 @@ export function SectionHeader({
         </h3>
       )}
       {action && (
-        <button type="button" data-header-action disabled={action.busy} onClick={action.onClick} className="btn-save btn-save-compact">
-          {action.label}
-        </button>
+        <>
+          <button
+            type="button"
+            data-header-action
+            disabled={action.busy}
+            aria-busy={action.busy || undefined}
+            onClick={action.onClick}
+            className="btn-save btn-save-compact"
+          >
+            <BusyLabel busy={action.busy}>{action.label}</BusyLabel>
+          </button>
+          <BusyStatus busy={action.busy} text={action.busyText} />
+        </>
       )}
     </div>
   );

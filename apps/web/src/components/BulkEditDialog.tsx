@@ -7,6 +7,7 @@ import ReleaseDateField from "./ReleaseDateField";
 import { releaseDateTextBlocks } from "../lib/release-date-input";
 import ArtistCombobox from "./ArtistCombobox";
 import type { ArtistEntry } from "../lib/artist-index";
+import { BusyLabel, BusyStatus } from "./Spinner";
 
 interface BulkEditDialogProps {
   open: boolean;
@@ -158,10 +159,12 @@ function BulkEditForm({
         <button
           type="submit"
           disabled={busy || dateBlocked}
+          aria-busy={busy || undefined}
           className="btn-save"
         >
-          {busy ? "Applying…" : `Apply to ${count}`}
+          <BusyLabel busy={busy}>{`Apply to ${count}`}</BusyLabel>
         </button>
+        <BusyStatus busy={busy} text="Applying" />
       </div>
     </form>
   );

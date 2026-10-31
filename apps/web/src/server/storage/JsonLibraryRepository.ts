@@ -21,6 +21,11 @@ export class JsonLibraryRepository implements LibraryRepository {
   // `libraryDir:id-or-index` keys already warned about, so a malformed entry logs once
   // rather than on every list()/find() call for as long as this process runs.
   private warnedBadEntries = new Set<string>();
+  // The validated releases of the last read per library dir, with the file's inode, size and mtime then (#422).
+  // Every cover and audio request looks one release up, and parsing and validating a 1,500-release index each
+  // time made a screen of covers queue for seconds. A read whose file is unchanged is answered from here; a
+  // write, or any change to the file from outside, makes the next read parse it again. Callers get copies.
+  private readCache = new Map<string, { stamp: string; releases: Release[] }>();
 
   private withLock<T>(libraryDir: string, fn: () => Promise<T>): Promise<T> {
     const prior = this.locks.get(libraryDir) ?? Promise.resolve();
@@ -69,6 +74,7 @@ export class JsonLibraryRepository implements LibraryRepository {
   }
 
   private async writeRaw(libraryDir: string, library: Library): Promise<void> {
+    this.readCache.delete(libraryDir);
     await fs.mkdir(libraryDir, { recursive: true });
     const file = libraryFilePath(libraryDir);
     const tmp = `${file}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -101,16 +107,39 @@ export class JsonLibraryRepository implements LibraryRepository {
     return out;
   }
 
+  /** The index file's identity (inode, size, mtime), or null when it can't be read. */
+  private async stamp(libraryDir: string): Promise<string | null> {
+    try {
+      const st = await fs.stat(libraryFilePath(libraryDir));
+      return `${st.ino}:${st.size}:${st.mtimeMs}`;
+    } catch {
+      return null;
+    }
+  }
+
+  /** The validated releases, from the read cache while the file is unchanged. Call inside the lock; never hand
+   * the result out without copying it. The stamp is taken before the read, so a change in between only costs
+   * one more parse next time. */
+  private async validated(libraryDir: string): Promise<Release[]> {
+    const stamp = await this.stamp(libraryDir);
+    const hit = this.readCache.get(libraryDir);
+    if (stamp !== null && hit?.stamp === stamp) return hit.releases;
+    const lib = await this.readRaw(libraryDir);
+    const releases = this.validReleases(lib.releases, libraryDir);
+    if (stamp !== null) this.readCache.set(libraryDir, { stamp, releases });
+    else this.readCache.delete(libraryDir);
+    return releases;
+  }
+
   async list(libraryDir: string): Promise<Release[]> {
-    return this.withLock(libraryDir, async () => {
-      const lib = await this.readRaw(libraryDir);
-      return this.validReleases(lib.releases, libraryDir);
-    });
+    return this.withLock(libraryDir, async () => structuredClone(await this.validated(libraryDir)));
   }
 
   async find(libraryDir: string, id: string): Promise<Release | null> {
-    const releases = await this.list(libraryDir);
-    return releases.find((r) => r.id === id) ?? null;
+    return this.withLock(libraryDir, async () => {
+      const release = (await this.validated(libraryDir)).find((r) => r.id === id);
+      return release ? structuredClone(release) : null;
+    });
   }
 
   async upsert(libraryDir: string, release: Release): Promise<Release> {

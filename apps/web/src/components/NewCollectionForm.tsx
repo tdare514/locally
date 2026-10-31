@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { COLLECTION_NAME_MAX, cleanCollectionName } from "../shared/collections";
+import { BusyLabel, BusyStatus } from "./Spinner";
 
 /** A name field and its Create button (#349): used inside the Add to collection list and the Collections page. */
 export default function NewCollectionForm({
@@ -46,9 +47,10 @@ export default function NewCollectionForm({
         onChange={(e) => setName(e.target.value)}
         className="min-h-11 min-w-0 flex-1 rounded-lg bg-elevated px-3 text-sm text-text outline-none placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-accent"
       />
-      <button type="submit" disabled={!clean || busy} className="btn-ink min-h-11 min-w-11">
-        {busy ? "Making…" : submitLabel}
+      <button type="submit" disabled={!clean || busy} aria-busy={busy || undefined} className="btn-ink min-h-11 min-w-11">
+        <BusyLabel busy={busy}>{submitLabel}</BusyLabel>
       </button>
+      <BusyStatus busy={busy} text="Making the collection" />
       {onCancel && (
         <button type="button" onClick={onCancel} className="btn-ink min-h-11 min-w-11">
           Cancel
