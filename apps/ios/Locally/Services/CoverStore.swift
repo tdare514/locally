@@ -17,6 +17,15 @@ protocol CoverStore {
     func delete(_ id: UUID) throws
 }
 
+extension CoverStore {
+    /// When the cover for `id` was last written, or nil when there is none. Every save moves it, so a reader holding
+    /// a decoded cover can tell the bytes changed even when the release's `updatedAt` did not (#423).
+    func revision(_ id: UUID) -> Date? {
+        guard let url = fileURL(id) else { return nil }
+        return try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+    }
+}
+
 /// Production `CoverStore`: one file per release under the app's own
 /// Application Support directory, named `<id>.jpg` or `<id>.png` depending
 /// on the image's magic bytes (never trusting a filename that may not

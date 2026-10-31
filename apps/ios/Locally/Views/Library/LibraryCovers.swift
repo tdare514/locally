@@ -5,16 +5,33 @@ import UIKit
 /// follows what is shown rather than the whole library. Decoded images sit in an `NSCache` bounded by their bytes
 /// (64 MB), at most `maxConcurrent` reads run at once, and a request that is cancelled (its tile scrolled away, the
 /// layout changed) stops before it reads or decodes. A cover that is missing is never remembered, so one that arrives
-/// later is found by the next ask. The loader turns a release id into its cover bytes (production: `CoverStore.load`).
+/// later is found by the next ask, and a cover rewritten on disk is read again, because its file's modification date
+/// is checked when a tile asks. The loader turns a release id into its cover bytes (production: `CoverStore.load`);
+/// the revision turns it into when those bytes were last written (production: `CoverStore.revision`).
 final class LibraryCoverCache: @unchecked Sendable {
     typealias Loader = @Sendable (UUID) -> Data?
+    typealias Revision = @Sendable (UUID) -> Date?
+
+    /// A decoded cover and the revision of the bytes it came from.
+    private final class Entry: NSObject {
+        let image: UIImage
+        let revision: Date?
+
+        init(image: UIImage, revision: Date?) {
+            self.image = image
+            self.revision = revision
+        }
+    }
 
     private let loader: Loader
-    private let cache = NSCache<NSString, UIImage>()
+    private let revision: Revision
+    private let cache = NSCache<NSString, Entry>()
     private let slots: CoverSlots
 
-    init(loader: @escaping Loader, costLimit: Int = 64 << 20, maxConcurrent: Int = 4) {
+    init(loader: @escaping Loader, revision: @escaping Revision = { _ in nil },
+         costLimit: Int = 64 << 20, maxConcurrent: Int = 4) {
         self.loader = loader
+        self.revision = revision
         slots = CoverSlots(count: maxConcurrent)
         cache.totalCostLimit = costLimit
     }
@@ -25,32 +42,47 @@ final class LibraryCoverCache: @unchecked Sendable {
         return cg.bytesPerRow * cg.height
     }
 
-    /// The cover held for this release at `pixels`, if any, so a tile already cached draws on its first frame.
+    /// The cover held for this release at `pixels`, if any, so a tile already cached draws on its first frame. It may
+    /// be one revision behind: `image(...)` checks the file and returns the current one.
     func cached(id: UUID, updatedAt: Date, pixels: CGFloat) -> UIImage? {
-        cache.object(forKey: Self.key(id: id, updatedAt: updatedAt, pixels: pixels))
+        cache.object(forKey: Self.key(id: id, updatedAt: updatedAt, pixels: pixels))?.image
     }
 
-    /// The cover for this release at `pixels`: held, or read and decoded off the main thread once a slot is free.
-    /// Nil when the release has no cover, the bytes are not an image, or the request was cancelled; nil is never kept.
+    /// The cover for this release at `pixels`: held while its file's revision is unchanged, otherwise read and decoded
+    /// off the main thread once a slot is free. Nil when the release has no cover, the bytes are not an image, or the
+    /// request was cancelled; nil is never kept, and a cover that is gone or no longer an image is dropped.
     func image(id: UUID, updatedAt: Date, pixels: CGFloat) async -> UIImage? {
         let key = Self.key(id: id, updatedAt: updatedAt, pixels: pixels)
-        if let hit = cache.object(forKey: key) { return hit }
+        // The revision is read before the bytes: a save landing between the two costs one extra read later, never a
+        // stale entry.
+        let current = await currentRevision(id: id)
+        if let hit = cache.object(forKey: key), hit.revision == current { return hit.image }
         guard await slots.acquire() else { return nil }
         let image: UIImage?
-        if let hit = cache.object(forKey: key) {
-            image = hit
+        if let hit = cache.object(forKey: key), hit.revision == current {
+            image = hit.image
         } else if Task.isCancelled {
             image = nil
         } else {
             image = await read(id: id, pixels: pixels)
+            if let image {
+                cache.setObject(Entry(image: image, revision: current), forKey: key, cost: Self.cost(of: image))
+            } else if !Task.isCancelled {
+                cache.removeObject(forKey: key)
+            }
         }
         await slots.release()
-        if let image { cache.setObject(image, forKey: key, cost: Self.cost(of: image)) }
         return image
     }
 
     /// How many requests wait for a slot. For tests.
     func waitingCount() async -> Int { await slots.waitingCount }
+
+    /// The cover file's revision, read on a detached task so the file system is never touched on the main thread.
+    private func currentRevision(id: UUID) async -> Date? {
+        let revision = self.revision
+        return await Task.detached(priority: .userInitiated) { revision(id) }.value
+    }
 
     /// The read and the decode, on a detached task that the caller's cancellation reaches; it checks before each step.
     private func read(id: UUID, pixels: CGFloat) async -> UIImage? {
@@ -125,7 +157,9 @@ actor CoverSlots {
 /// A Library cover filling its frame: the stored cover, the double note on `card` (#296) when there is none, and while
 /// it is being read a still square once the read has taken 300 ms (#423). It asks `cache` when it appears (so a tile
 /// scrolled away before its turn never reads) and again when `generation` moves, which finds a cover that was missing
-/// and has since arrived. It keeps showing what it has meanwhile.
+/// and has since arrived. A cover the cache already holds draws on the first frame, and the same ask then checks the
+/// file's revision: it keeps that image when the file is unchanged and swaps in the new one when it was rewritten. It
+/// keeps showing what it has meanwhile.
 struct LibraryCoverView: View {
     let id: UUID
     let updatedAt: Date
@@ -203,11 +237,15 @@ struct LibraryCoverView: View {
         if let hit = cache.cached(id: id, updatedAt: updatedAt, pixels: pixels) {
             phase = .found(hit)
             shown = cover
-            return
+        } else if shown != cover {
+            phase = .loading
         }
-        if shown != cover { phase = .loading }
         let image = await cache.image(id: id, updatedAt: updatedAt, pixels: pixels)
         guard !Task.isCancelled else { return }
+        if case .found(let current) = phase, let image, current === image {
+            shown = cover
+            return
+        }
         phase = image.map { .found($0) } ?? .none
         shown = cover
     }

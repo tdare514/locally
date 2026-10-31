@@ -806,7 +806,9 @@ struct LibraryView: View {
             let source = artistCovers ?? ArtistCoverSource(loader: { store.load($0) })
             source.refresh(releases)
             artistCovers = source
-            if coverCache == nil { coverCache = LibraryCoverCache(loader: { store.load($0) }) }
+            if coverCache == nil {
+                coverCache = LibraryCoverCache(loader: { store.load($0) }, revision: { store.revision($0) })
+            }
             let live = Set(releases.map(key))
             palettes = palettes.filter { live.contains($0.key) }
         } catch {

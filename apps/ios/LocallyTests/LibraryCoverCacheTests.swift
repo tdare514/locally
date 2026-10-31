@@ -145,6 +145,51 @@ import UIKit
         #expect(reads.mostAtOnce == 2)
     }
 
+    /// A real `FileCoverStore` in a fresh temp directory, and a loader over it that counts its calls.
+    private func makeStore() -> (store: FileCoverStore, directory: URL, loads: Counter) {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        return (FileCoverStore(directory: directory), directory, Counter())
+    }
+
+    @Test func aCoverReplacedOnDiskAtTheSameUpdatedAtIsReadAgain() async throws {
+        let (store, directory, loads) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = LibraryCoverCache(loader: { loads.bump(); return store.load($0) }, revision: { store.revision($0) })
+        let id = UUID()
+
+        // Existing artwork is read once.
+        _ = try store.save(jpeg(width: 40, height: 20), for: id)
+        let existing = await cache.image(id: id, updatedAt: updatedAt, pixels: 64)
+        #expect(pixels(existing) == CGSize(width: 40, height: 20))
+        #expect(loads.count == 1)
+
+        // The replacement failed to download: the file is untouched, so the held image stands and nothing is read.
+        let afterFailure = await cache.image(id: id, updatedAt: updatedAt, pixels: 64)
+        #expect(afterFailure === existing)
+        #expect(loads.count == 1)
+
+        // The retry writes the new cover at the same updatedAt: it is read again, and the cache now holds it.
+        _ = try store.save(jpeg(width: 20, height: 40), for: id)
+        let afterRetry = await cache.image(id: id, updatedAt: updatedAt, pixels: 64)
+        #expect(pixels(afterRetry) == CGSize(width: 20, height: 40))
+        #expect(pixels(cache.cached(id: id, updatedAt: updatedAt, pixels: 64)) == CGSize(width: 20, height: 40))
+        #expect(loads.count == 2)
+    }
+
+    @Test func aCoverRemovedFromDiskIsDropped() async throws {
+        let (store, directory, loads) = makeStore()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = LibraryCoverCache(loader: { loads.bump(); return store.load($0) }, revision: { store.revision($0) })
+        let id = UUID()
+
+        _ = try store.save(jpeg(width: 40, height: 20), for: id)
+        #expect(await cache.image(id: id, updatedAt: updatedAt, pixels: 64) != nil)
+
+        try store.delete(id)
+        #expect(await cache.image(id: id, updatedAt: updatedAt, pixels: 64) == nil)
+        #expect(cache.cached(id: id, updatedAt: updatedAt, pixels: 64) == nil)
+    }
+
     /// Polls `condition` until true, failing after 5 s so a broken test cannot hang.
     private func eventually(_ condition: () async -> Bool) async throws {
         let deadline = Date().addingTimeInterval(5)
@@ -155,6 +200,16 @@ import UIKit
     }
 
     private struct WaitTimeout: Error {}
+}
+
+/// Counts calls from a loader that runs off the main thread.
+private final class Counter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var calls = 0
+
+    var count: Int { lock.withLock { calls } }
+
+    func bump() { lock.withLock { calls += 1 } }
 }
 
 /// A fake loader's script: counts calls, answers from `responses` in turn (the last one again when `repeating`),
