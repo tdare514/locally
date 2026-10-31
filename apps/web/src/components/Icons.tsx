@@ -204,13 +204,12 @@ export function LibraryIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-/** Settings: a drawn gear, the same drawing as the iPhone's tab (#412). */
+/** Settings: a drawn cog, a toothed outline with a centre hole, the same drawing as the iPhone's tab (#412). */
 export function SettingsIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconBase {...props}>
-      <circle cx="12" cy="12" r="5.5" />
-      <circle cx="12" cy="12" r="1.75" />
-      <path d="M12 2.5v2.75M12 18.75v2.75M2.5 12h2.75M18.75 12h2.75M5.28 5.28l1.95 1.95M16.77 16.77l1.95 1.95M5.28 18.72l1.95-1.95M16.77 7.23l1.95-1.95" />
+      <path d="M10 3h4l.5 3 2 1 2.5-1 2 3-2 2v2l2 2-2 3-2.5-1-2 1-.5 3h-4l-.5-3-2-1-2.5 1-2-3 2-2v-2l-2-2 2-3 2.5 1 2-1Z" />
+      <circle cx="12" cy="12" r="3" />
     </IconBase>
   );
 }

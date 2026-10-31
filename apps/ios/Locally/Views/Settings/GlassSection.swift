@@ -122,11 +122,22 @@ struct IconTile: View {
             ))
             .frame(width: side, height: side)
             .overlay(
-                Image(systemName: symbol)
-                    .font(.system(size: side * 0.50, weight: .semibold))
+                glyph
                     .foregroundStyle(tint)
             )
             .accessibilityHidden(true)
+    }
+
+    /// The drawn glyph when `symbol` names one (`Icon/…`), else the SF Symbol. `side` is already
+    /// scaled with text, so the drawn glyph is not scaled again.
+    @ViewBuilder
+    private var glyph: some View {
+        if let mac = LocallyIcon.Name(rawValue: symbol) {
+            LocallyIcon(mac, size: side * 0.50, scaled: false)
+        } else {
+            Image(systemName: symbol)
+                .font(.system(size: side * 0.50, weight: .semibold))
+        }
     }
 }
 

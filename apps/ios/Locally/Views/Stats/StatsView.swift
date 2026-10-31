@@ -489,7 +489,7 @@ struct StatsView: View {
 
     private var layoutPill: some View {
         SlimSwitch(
-            options: [(value: StatsLayout.list, icon: "list.bullet", label: Copy.Stats.listLayout), (.grid, "square.grid.2x2", Copy.Stats.gridLayout)],
+            options: [(value: StatsLayout.list, icon: "Icon/List", label: Copy.Stats.listLayout), (.grid, "Icon/Grid", Copy.Stats.gridLayout)],
             selection: Binding(get: { model.layout }, set: { model.selectLayout($0) }),
             compact: true, overflow: .stack
         )

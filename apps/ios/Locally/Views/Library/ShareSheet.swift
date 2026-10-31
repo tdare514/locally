@@ -138,7 +138,7 @@ struct ShareSheet: View {
                         onClose()
                         openSettingsTab()
                     } label: {
-                        GlassRow(symbol: "gearshape.fill", tint: Theme.Tint.slate, title: Copy.Share.openSettings, chevron: true)
+                        GlassRow(symbol: "Icon/Settings", tint: Theme.Tint.slate, title: Copy.Share.openSettings, chevron: true)
                     }
                     .buttonStyle(SoftPressStyle())
                 }

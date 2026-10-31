@@ -44,6 +44,8 @@ struct LibraryView: View {
     @ScaledMetric(relativeTo: .body) private var scaledToggleButtonSize = Theme.Library.toggleButtonSize
     @ScaledMetric(relativeTo: .subheadline) private var sectionChevronSize = Theme.Library.sectionChevronSize
     private var toggleIconSize: CGFloat { min(scaledToggleIconSize, Theme.Library.toggleIconMaxSize) }
+    /// The hand-drawn glyphs sit a little smaller in their box than SF Symbols, so they get 3 pt more, still under the 35 pt cap.
+    private var drawnToggleIconSize: CGFloat { min(toggleIconSize + 3, Theme.Library.toggleIconMaxSize) }
     private var toggleButtonSize: CGFloat { min(scaledToggleButtonSize, Theme.Library.toggleButtonMaxSize) }
     @Environment(SyncStatus.self) private var syncStatus
     /// The "From your devices" tray (#269): open or closed.
@@ -540,7 +542,7 @@ struct LibraryView: View {
             }
         } label: {
             let side = max(toggleButtonSize, Theme.Spacing.minTarget)
-            LocallyIcon(.sort, size: toggleIconSize + 3, scaled: false)
+            LocallyIcon(.sort, size: drawnToggleIconSize, scaled: false)
                 .foregroundStyle(Theme.primaryText)
                 .frame(width: side, height: side)
                 .contentShape(Rectangle())
@@ -551,7 +553,7 @@ struct LibraryView: View {
     /// The hand-drawn glyph variant (#213, #412).
     private func layoutButton(_ value: LibraryLayout, icon: LocallyIcon.Name, label: String) -> some View {
         layoutButton(value, label: label) {
-            LocallyIcon(icon, size: toggleIconSize + 3, scaled: false)
+            LocallyIcon(icon, size: drawnToggleIconSize, scaled: false)
         }
     }
 

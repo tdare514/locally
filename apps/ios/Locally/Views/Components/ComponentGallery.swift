@@ -1132,7 +1132,7 @@ private struct ControlsGallery: View {
                     KindSwitch(kind: $single)
                     KindSwitch(kind: $album)
                     SlimSwitch(
-                        options: [(value: StatsLayout.list, icon: "list.bullet", label: Copy.Stats.listLayout), (.grid, "square.grid.2x2", Copy.Stats.gridLayout)],
+                        options: [(value: StatsLayout.list, icon: "Icon/List", label: Copy.Stats.listLayout), (.grid, "Icon/Grid", Copy.Stats.gridLayout)],
                         selection: $layout, compact: true
                     )
                     CoverSizeSlider(selection: $size)
@@ -1325,7 +1325,10 @@ enum ShareGallery {
         if result {
             model.outcome = ShareOutcome(sharedCount: 2, notOnLocally: ["new.friend@example.com"], link: "https://locally-sync-api.vercel.app/s/4f9c2b7e1a8d")
         }
-        return ShareSheet(model: model, onClose: {}).preferredColorScheme(.dark)
+        // The signed-out frame gets a no-op settings action so its "Open Settings" row renders (#412).
+        return ShareSheet(model: model, onClose: {})
+            .environment(\.openSettingsTab, signedOut ? {} : nil)
+            .preferredColorScheme(.dark)
     }
 
     @MainActor
