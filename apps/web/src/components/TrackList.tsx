@@ -15,7 +15,7 @@ import { useElementWidth } from "../lib/use-element-size";
 import { trackArtist, trackColumns, trackGridTemplate } from "../lib/track-columns";
 import { formatLength } from "../lib/adopt-review";
 import { adoptDiscAfterMove, discActionsFor, discHeadings, joinPreviousDisc, startDiscAt } from "../shared/discs";
-import DiscMenu, { DiscNumberButton } from "./DiscMenu";
+import TrackMenu, { TrackMoreButton, useTrackMenu } from "./TrackMenu";
 import { NowPlayingIcon, PauseIcon, PlayIcon, XIcon } from "./Icons";
 import TrackPlaylistsLine, { type PlaylistRef } from "./TrackPlaylistsLine";
 import TrackFeaturing from "./TrackFeaturing";
@@ -23,6 +23,10 @@ import type { ArtistEntry } from "../lib/artist-index";
 import { featuringText } from "../lib/featuring-field";
 import { splitFeaturing } from "../lib/artist-names";
 import ArtistLinks from "./ArtistNav";
+import { IS_DEMO } from "../lib/demo";
+import { playerStore } from "../lib/play-queue";
+import { targetActions, trackMenuGroups, type TrackMenuEnv, type TrackMenuItem } from "../lib/track-menu";
+import type { Release } from "../shared/types";
 
 export interface EditableTrack {
   /** Stable identifier for this row — a release track's `id`, or a locally-generated key
@@ -68,6 +72,9 @@ interface TrackListProps {
   renderShare?: (key: string, title: string) => ReactNode;
   /** Release page (#349): an "Add to collection" control for one track, in the row's actions (hover, focus or right-click). */
   renderCollect?: (key: string, title: string) => ReactNode;
+  /** Release page (#419): the release the rows belong to and how the one track menu reaches the app (its toast, the
+   * artist page). Without it a row's menu holds only the row's own actions (the disc ones, while importing). */
+  menu?: { release: Release; env: TrackMenuEnv };
   /** Release page (#338): play from the rows. Each row's number turns into a play button on hover and keyboard
    * focus. `playableKeys` are the rows that can play (a row with a missing file is left out). */
   player?: {
@@ -212,6 +219,7 @@ export default function TrackList({
   linkArtists,
   renderShare,
   renderCollect,
+  menu,
   player,
 }: TrackListProps) {
   const listRef = useRef<HTMLOListElement>(null);
@@ -221,8 +229,8 @@ export default function TrackList({
   const hintId = useId();
   const [announcement, setAnnouncement] = useState("");
   const [grabbedKey, setGrabbedKey] = useState<string | null>(null);
-  /** The key of the row whose disc menu is open (#222). */
-  const [discMenuKey, setDiscMenuKey] = useState<string | null>(null);
+  /** The one menu of a row (#419): its Play next, Add to queue, Add to collection, Share, Edit, Go to artist and disc actions. */
+  const trackMenu = useTrackMenu();
 
   // Latest props for handlers that outlive a render (the drop timer, window listeners).
   const tracksRef = useRef(tracks);
@@ -508,14 +516,48 @@ export default function TrackList({
   const canEditDiscs = !readOnly && !view && tracks.length >= 2;
 
   /** Applies a disc action through `onChange`, the path a drag-reorder takes, and gives focus back to
-   * the row's grip (the number's button may be gone, once the row no longer has an action). */
+   * the row's grip (the More button may be gone, once the row no longer has an action). */
   function applyDiscAction(key: string, next: EditableTrack[]) {
-    setDiscMenuKey(null);
     focusKey.current = key;
     onChange(next);
   }
 
-  const actionsWidth = (readOnly ? 0 : 32) + (onRemove ? 32 : 0) + (renderShare ? 32 : 0) + (renderCollect ? 44 : 0) + (canEditDiscs ? 32 : 0);
+  /** The row the open menu is for: the one its More button is in. Read when an item is chosen, never while rendering. */
+  const menuRow = () => trackMenu.open?.opener?.closest<HTMLElement>("li[data-key]");
+
+  /** The row's own button of the Add to collection or Share control: the menu's item presses it, so the popover opens where it always did. */
+  const pressRowButton = (selector: string) => menuRow()?.querySelector<HTMLElement>(selector)?.click();
+
+  /** The groups of a row's one menu (#419). Empty when the row has nothing to offer: it then has no More button and no menu. */
+  function menuGroups(track: EditableTrack, index: number): TrackMenuItem[][] {
+    const release = menu?.release.tracks.some((t) => t.id === track.key) ? menu.release : null;
+    const shared = release && menu ? targetActions({ release, trackId: track.key }, menu.env, playerStore, IS_DEMO) : {};
+    const disc = canEditDiscs ? discActionsFor(discs, index) : {};
+    return trackMenuGroups({
+      playNext: shared.playNext,
+      addToQueue: shared.addToQueue,
+      addToCollection: renderCollect ? () => pressRowButton("[data-collect-button]") : undefined,
+      share: renderShare ? () => pressRowButton("[data-share-button]") : undefined,
+      // Edit: the title field of this row, on the release page. A read-only list (the demo, a release added from a Spotify folder) has nothing to edit.
+      edit: release && !readOnly && !view ? () => menuRow()?.querySelector<HTMLElement>("[data-track-title]")?.focus() : undefined,
+      goToArtist: shared.goToArtist,
+      disc: [
+        ...(disc.start !== undefined
+          ? [{ label: `Start disc ${disc.start} here`, run: () => applyDiscAction(track.key, startDiscAt(tracks, index)) }]
+          : []),
+        ...(disc.join !== undefined
+          ? [{ label: `Join disc ${disc.join}`, run: () => applyDiscAction(track.key, joinPreviousDisc(tracks, index)) }]
+          : []),
+      ],
+    });
+  }
+  // Only the items' actions touch a ref (the grip-focus mark), and they run when an item is chosen, never while rendering.
+  // eslint-disable-next-line react-hooks/refs
+  const rowMenus = tracks.map(menuGroups);
+  const anyMenu = rowMenus.some((groups) => groups.length > 0);
+  const openAt = trackMenu.open ? tracks.findIndex((t) => t.key === trackMenu.open?.key) : -1;
+
+  const actionsWidth = (readOnly ? 0 : 32) + (onRemove ? 32 : 0) + (renderShare ? 32 : 0) + (renderCollect ? 44 : 0) + (anyMenu ? 44 : 0);
   const gridTemplate = trackGridTemplate(columns, actionsWidth);
 
   return (
@@ -548,8 +590,8 @@ export default function TrackList({
           const viewInfo = view?.[track.key];
           const seconds = viewInfo ? viewInfo.durationSec : (durations?.[track.key] ?? null);
           const trackPlaylists = playlists?.[track.key] ?? [];
-          const discActions = canEditDiscs ? discActionsFor(discs, index) : {};
-          const hasDiscActions = discActions.start !== undefined || discActions.join !== undefined;
+          const hasMenu = rowMenus[index].length > 0;
+          const title = track.title.trim() || `track ${index + 1}`;
           const row = (
             <li
               key={track.key}
@@ -559,41 +601,17 @@ export default function TrackList({
               className={`track-row group/track -mx-2 grid min-h-14 items-center gap-x-5 px-2 py-1.5 hover:bg-white/[0.03] data-[grabbed]:bg-white/[0.07] ${
                 readOnly ? "" : "cursor-grab"
               } ${viewInfo?.missing ? "text-text-muted" : ""}`}
-              onContextMenu={(e) => {
-                // The row's disc menu; the title input keeps the system one (copy and paste). A row with
-                // no disc actions opens its Share popover instead (#182).
-                if ((e.target as HTMLElement).closest("input, textarea")) return;
-                if (!hasDiscActions) {
-                  // Add to collection (#349) first, else Share.
-                  const share =
-                    e.currentTarget.querySelector<HTMLButtonElement>("[data-collect-button]") ??
-                    e.currentTarget.querySelector<HTMLButtonElement>("[data-share-button]");
-                  if (!share) return;
-                  e.preventDefault();
-                  share.click();
-                  return;
-                }
-                e.preventDefault();
-                setDiscMenuKey(track.key);
-              }}
+              {...(hasMenu ? trackMenu.rowProps(track.key) : {})}
             >
               {/* The glass tile: shown only while this row is held. */}
               <span aria-hidden className="track-tile glass-fake glass-frost" />
               <div data-play-cell={player?.playableKeys.has(track.key) ? "" : undefined} className="relative shrink-0">
-              {hasDiscActions ? (
-                <DiscNumberButton
-                  number={index + 1}
-                  open={discMenuKey === track.key}
-                  onOpenChange={(open) => setDiscMenuKey(open ? track.key : null)}
-                />
-              ) : (
-                <span data-number className="w-6 shrink-0 text-sm tabular-nums text-white/60">
-                  {index + 1}
-                </span>
-              )}
+              <span data-number className="w-6 shrink-0 text-sm tabular-nums text-white/60">
+                {index + 1}
+              </span>
               {player?.playableKeys.has(track.key) && (
                 <PlayButton
-                  title={track.title.trim() || `track ${index + 1}`}
+                  title={title}
                   current={player.currentKey === track.key}
                   playing={player.currentKey === track.key && player.playing}
                   onToggle={() => player.onToggle(track.key)}
@@ -614,6 +632,7 @@ export default function TrackList({
                 <input
                   type="text"
                   aria-label={`Track ${index + 1} title`}
+                  data-track-title
                   value={track.title}
                   readOnly={readOnly}
                   onChange={(e) => updateTitle(index, e.target.value)}
@@ -670,19 +689,15 @@ export default function TrackList({
               )}
               {actionsWidth > 0 && (
                 <div className="flex justify-end">
-              {hasDiscActions && (
-                <DiscMenu
-                  number={index + 1}
-                  title={track.title.trim() || `track ${index + 1}`}
-                  actions={discActions}
-                  open={discMenuKey === track.key}
-                  onOpenChange={(open) => setDiscMenuKey(open ? track.key : null)}
-                  onStart={() => applyDiscAction(track.key, startDiscAt(tracks, index))}
-                  onJoin={() => applyDiscAction(track.key, joinPreviousDisc(tracks, index))}
+              {hasMenu && (
+                <TrackMoreButton
+                  title={title}
+                  expanded={trackMenu.open?.key === track.key}
+                  onOpen={(button) => trackMenu.toggleFrom(button, track.key)}
                 />
               )}
-              {renderCollect?.(track.key, track.title.trim() || `track ${index + 1}`)}
-              {renderShare?.(track.key, track.title.trim() || `track ${index + 1}`)}
+              {renderCollect?.(track.key, title)}
+              {renderShare?.(track.key, title)}
               {!readOnly && (
                 <button
                   type="button"
@@ -733,6 +748,15 @@ export default function TrackList({
           ];
         })}
       </ol>
+      {trackMenu.open && openAt >= 0 && rowMenus[openAt].length > 0 && (
+        <TrackMenu
+          label={`Actions for ${tracks[openAt].title.trim() || `track ${openAt + 1}`}`}
+          at={trackMenu.open.at}
+          opener={trackMenu.open.opener}
+          groups={rowMenus[openAt]}
+          onClose={trackMenu.close}
+        />
+      )}
       {!readOnly && (
         <p id={hintId} className="sr-only">
           Press Space on a track&rsquo;s grip to pick it up, the up and down arrow keys to move it,

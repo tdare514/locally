@@ -7,9 +7,29 @@ import { moreLabel, nextShown, seaTiers } from "../../lib/stats-layout";
 import StatCover, { statCoverUrl } from "../sidebar/StatCover";
 import ArtistLinks from "../ArtistNav";
 import { splitFeaturing } from "../../lib/artist-names";
+import { IS_DEMO } from "../../lib/demo";
+import { playerStore } from "../../lib/play-queue";
+import { targetActions, trackMenuGroups, type MenuTarget, type TrackMenuEnv } from "../../lib/track-menu";
+import TrackMenu, { TrackMoreButton, useTrackMenu } from "../TrackMenu";
 
 /** The ranked list and the sorted sea under the fan on the Stats page (#145). Each row and each
  * tile is a real button: it opens the release, or for an artist their releases in the Library. */
+
+/**
+ * How the Stats rows and tiles get the one track menu (#419): the toast and pages it reaches, and what an item stands
+ * for. A track in the Tracks ranking is that one track; an album in the Albums ranking is the whole release; an
+ * artist (or an item whose release is gone) has no target, so no menu.
+ */
+export interface StatsMenu {
+  env: TrackMenuEnv;
+  targetFor: (item: StatItem) => MenuTarget | null;
+}
+
+/** The menu's groups for an item; empty when it has no menu. */
+function menuGroupsFor(menu: StatsMenu | undefined, item: StatItem) {
+  const target = menu?.targetFor(item);
+  return menu && target ? trackMenuGroups(targetActions(target, menu.env, playerStore, IS_DEMO)) : [];
+}
 
 /** The last-played text of a row: day and time when the play has a time, else the day. It wraps to a second line rather than clip. */
 function lastLabel(item: StatItem, today: string): string {
@@ -74,6 +94,7 @@ export function StatsList({
   onOpen,
   initialShown,
   onShownChange,
+  menu,
 }: {
   items: StatItem[];
   label: string;
@@ -86,15 +107,21 @@ export function StatsList({
   onOpen: (item: StatItem) => void;
   initialShown: number;
   onShownChange: (shown: number) => void;
+  /** The one track menu of a row (#419). Without it the rows have none. */
+  menu?: StatsMenu;
 }) {
+  const trackMenu = useTrackMenu();
+  const openItem = trackMenu.open ? items.find((i) => i.id === trackMenu.open?.key) : undefined;
   const max = Math.max(0, ...items.map((i) => i.plays));
   const list = useRef<HTMLOListElement>(null);
   const { shown, button } = usePaging(items.length, (i) => list.current?.querySelectorAll<HTMLElement>("[data-row-open]")[i], initialShown, onShownChange);
   return (
     <div className="st-list">
       <ol ref={list} aria-label={label} className="mt-3">
-        {items.slice(0, shown).map((item) => (
-          <li key={item.id}>
+        {items.slice(0, shown).map((item) => {
+          const hasMenu = menuGroupsFor(menu, item).length > 0;
+          return (
+          <li key={item.id} className="group/track" {...(hasMenu ? trackMenu.rowProps(item.id) : {})}>
             {/* A div, not a button: the artist names inside are links, and a link can't sit in a button. The
                 title is the keyboard stop; a click anywhere else on the row opens it too. */}
             <div className="st-row" onClick={() => onOpen(item)}>
@@ -126,10 +153,29 @@ export function StatsList({
                 {formatCount(item.plays)}
                 <span className="sr-only">{item.plays === 1 ? " play" : " plays"}</span>
               </span>
+              {hasMenu ? (
+                <TrackMoreButton
+                  title={item.title}
+                  expanded={trackMenu.open?.key === item.id}
+                  onOpen={(button) => trackMenu.toggleFrom(button, item.id)}
+                />
+              ) : (
+                <span aria-hidden />
+              )}
             </div>
           </li>
-        ))}
+          );
+        })}
       </ol>
+      {trackMenu.open && openItem && (
+        <TrackMenu
+          label={`Actions for ${openItem.title}`}
+          at={trackMenu.open.at}
+          opener={trackMenu.open.opener}
+          groups={menuGroupsFor(menu, openItem)}
+          onClose={trackMenu.close}
+        />
+      )}
       {button}
     </div>
   );
@@ -138,11 +184,24 @@ export function StatsList({
 /** How each tier of the sea shows its covers: what sits under the picture. */
 const CAPTIONS = ["full", "name", "name"] as const;
 
-function Tile({ item, tier, round, onOpen }: { item: StatItem; tier: number; round: boolean; onOpen: (item: StatItem) => void }) {
+function Tile({
+  item,
+  tier,
+  round,
+  onOpen,
+  rowProps,
+}: {
+  item: StatItem;
+  tier: number;
+  round: boolean;
+  onOpen: (item: StatItem) => void;
+  /** The tile's right-click and ContextMenu key handlers (#419); none when it has no menu. */
+  rowProps?: ReturnType<ReturnType<typeof useTrackMenu>["rowProps"]>;
+}) {
   const url = statCoverUrl(item.cover);
   const caption = CAPTIONS[tier];
   return (
-    <li className="min-w-0">
+    <li className="min-w-0" {...rowProps}>
       <button
         type="button"
         className="st-tile st-focus"
@@ -200,6 +259,7 @@ export function StatsSea({
   onOpen,
   initialShown,
   onShownChange,
+  menu,
 }: {
   items: StatItem[];
   label: string;
@@ -207,7 +267,12 @@ export function StatsSea({
   onOpen: (item: StatItem) => void;
   initialShown: number;
   onShownChange: (shown: number) => void;
+  /** The one track menu of a cover (#419): right-click, or the ContextMenu key or Shift+F10 on the focused cover. The
+   * covers are too small for a More button. Without it the covers have none. */
+  menu?: StatsMenu;
 }) {
+  const trackMenu = useTrackMenu();
+  const openItem = trackMenu.open ? items.find((i) => i.id === trackMenu.open?.key) : undefined;
   const wrap = useRef<HTMLElement>(null);
   const { shown, button } = usePaging(items.length, (i) => wrap.current?.querySelectorAll<HTMLElement>("button")[i], initialShown, onShownChange);
   const groups = seaTiers(items.slice(0, shown));
@@ -218,11 +283,27 @@ export function StatsSea({
         {groups.map((group, tier) => (
           <ol key={tier} className="st-sea" data-tier={tier} style={{ "--tier": tier } as CSSProperties}>
             {group.map((item) => (
-              <Tile key={item.id} item={item} tier={tier} round={round} onOpen={onOpen} />
+              <Tile
+                key={item.id}
+                item={item}
+                tier={tier}
+                round={round}
+                onOpen={onOpen}
+                rowProps={menuGroupsFor(menu, item).length > 0 ? trackMenu.rowProps(item.id) : undefined}
+              />
             ))}
           </ol>
         ))}
       </div>
+      {trackMenu.open && openItem && (
+        <TrackMenu
+          label={`Actions for ${openItem.title}`}
+          at={trackMenu.open.at}
+          opener={trackMenu.open.opener}
+          groups={menuGroupsFor(menu, openItem)}
+          onClose={trackMenu.close}
+        />
+      )}
       {button}
     </section>
   );

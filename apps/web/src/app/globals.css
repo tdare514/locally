@@ -1992,8 +1992,10 @@ body {
   container-type: inline-size;
 }
 
-/* The list. Rank, cover, name and total always; last played from 480px of room and the play bar
-   from 760px, measured on the list itself. */
+/* The list. Rank, cover, name and total always; last played from 540px of room and the play bar
+   from 820px, measured on the list itself. The last column is the 44 px More button of the row's menu (#419; empty on an artist's row).
+   Both breakpoints sit 60px later than before the More column (480 and 760) so it doesn't take the title's room: the title keeps
+   about 150px when last played arrives and 184px when the bar does. */
 .st-list {
   container-type: inline-size;
 }
@@ -2001,7 +2003,7 @@ body {
   display: grid;
   width: calc(100% + 1.5rem);
   margin-inline: -0.75rem;
-  grid-template-columns: 1.75rem 2.75rem minmax(0, 1fr) auto;
+  grid-template-columns: 1.75rem 2.75rem minmax(0, 1fr) auto 2.75rem;
   align-items: center;
   column-gap: 0.75rem;
   padding: 0.625rem 0.75rem;
@@ -2020,19 +2022,19 @@ body {
 .st-row-total {
   min-width: 2.5rem;
 }
-@container (min-width: 480px) {
+@container (min-width: 540px) {
   .st-row {
     /* The last-played column fits "Yesterday at 09:02 PM" (#398). */
-    grid-template-columns: 1.75rem 2.75rem minmax(0, 1fr) 9.5rem auto;
+    grid-template-columns: 1.75rem 2.75rem minmax(0, 1fr) 9.5rem auto 2.75rem;
     column-gap: 1rem;
   }
   .st-row-last {
     display: block;
   }
 }
-@container (min-width: 760px) {
+@container (min-width: 820px) {
   .st-row {
-    grid-template-columns: 1.75rem 2.75rem minmax(0, 1fr) 10rem minmax(6rem, 13rem) 3.5rem;
+    grid-template-columns: 1.75rem 2.75rem minmax(0, 1fr) 10rem minmax(6rem, 13rem) 3.5rem 2.75rem;
   }
   .st-row-bar {
     display: flex;

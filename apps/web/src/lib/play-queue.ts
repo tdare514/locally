@@ -192,6 +192,12 @@ export interface PlayerState {
 /** What the bar says about an item that would not play. */
 export const COULDNT_PLAY = "Couldn't play this file";
 
+/** What `playNext` and `addToQueue` did (#419): how many items joined, and whether that started a queue (nothing was loaded). */
+export interface QueueAddOutcome {
+  added: number;
+  started: boolean;
+}
+
 /** A small external store: the queue and what the one audio element reports. Pure state, no audio. */
 export function createPlayerStore() {
   let state: PlayerState = { queue: null, playing: false, positionSec: 0, durationSec: 0, unavailable: [], attempt: 0, move: "forward" };
@@ -204,12 +210,36 @@ export function createPlayerStore() {
     state = { ...state, ...patch };
     listeners.forEach((l) => l());
   };
+  const startQueue = (queue: PlayQueue) => {
+    set({ queue, playing: true, positionSec: 0, durationSec: 0, unavailable: [], attempt: state.attempt + 1, move: "forward" });
+  };
   /** A new attempt at the current item, its mark cleared. */
   const retryAt = (index: number) => {
     const key = itemKey(state.queue?.items[index] ?? null);
     return { attempt: state.attempt + 1, unavailable: state.unavailable.filter((k) => k !== key) };
   };
   const retry = () => retryAt(state.queue?.index ?? 0);
+  /**
+   * Adds `items` to the queue (#419), as the iPhone's `PlaybackService.enqueue` does. With no queue (or one with no
+   * current item) they start one, its context the release of the first item (the release itself, when every item
+   * is from one). Otherwise they go right after the current item, or at the end, and the current item is not touched: no
+   * reload, no restart. If they are not all from the queue's own release, the context becomes the current item's
+   * release (the Mac has no "mixed" context).
+   */
+  const enqueue = (items: readonly QueueItem[], atEnd: boolean): QueueAddOutcome => {
+    if (items.length === 0) return { added: 0, started: false };
+    const { queue } = state;
+    const current = queue?.items[queue.index];
+    if (!queue || !current) {
+      startQueue({ items: items.slice(), index: 0, context: { kind: "release", id: items[0].releaseId } });
+      return { added: items.length, started: true };
+    }
+    const at = atEnd ? queue.items.length : queue.index + 1;
+    const stays = queue.context.kind === "release" && items.every((i) => i.releaseId === queue.context.id);
+    const context: QueueContext = stays ? queue.context : { kind: "release", id: current.releaseId };
+    set({ queue: { ...queue, items: [...queue.items.slice(0, at), ...items, ...queue.items.slice(at)], context } });
+    return { added: items.length, started: false };
+  };
   return {
     getState: () => state,
     subscribe(listener: () => void) {
@@ -218,7 +248,15 @@ export function createPlayerStore() {
     },
     /** Start a queue and play it from its index. */
     start(queue: PlayQueue) {
-      set({ queue, playing: true, positionSec: 0, durationSec: 0, unavailable: [], attempt: state.attempt + 1, move: "forward" });
+      startQueue(queue);
+    },
+    /** Insert `items` right after the current item (#419); with no queue they start one. The current item is not touched. */
+    playNext(items: readonly QueueItem[]): QueueAddOutcome {
+      return enqueue(items, false);
+    },
+    /** Append `items` to the queue (#419); with no queue they start one. The current item is not touched. */
+    addToQueue(items: readonly QueueItem[]): QueueAddOutcome {
+      return enqueue(items, true);
     },
     /** Play or pause as the engine or the media keys say. Playing again is a retry: it clears the item's mark. */
     setPlaying(playing: boolean) {

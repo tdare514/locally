@@ -51,6 +51,7 @@ import { initialReleaseDateText, releaseDateTextBlocks } from "../lib/release-da
 import { parseReleaseDateText, releaseDateFields, storedReleaseDate } from "../shared/releaseDate";
 import ArtistLinks, { ArtistNavProvider, ArtistOpenButton, LOCKED_TIP, useArtistNav } from "./ArtistNav";
 import { splitFeaturing } from "../lib/artist-names";
+import { creditKey } from "../lib/artist-catalog";
 import { releaseTitleForSave, releaseTitleShown, titleForSave, toEditor } from "../lib/featuring-field";
 
 interface ReleaseViewProps {
@@ -527,6 +528,12 @@ export default function ReleaseView({
   // A name on this page opens that artist's page; leaving drops unsaved edits, so while there are
   // some the links are disabled (#288).
   const artistNavHere = { open: artistNav.open, lockedReason: unsaved ? LOCKED_TIP : null };
+  // The track menu (#419) reaches the app through the toast and the artist page. It has no Go to album (this is the
+  // album's page), and no Go to artist while unsaved edits would be dropped: a menu shows no disabled item.
+  const trackMenuEnv = {
+    toast: onToast,
+    openArtist: unsaved ? undefined : (name: string) => artistNav.open(creditKey(name)),
+  };
   // The names a single features, as links in a read-only header; an album has none of its own.
   const headerFeaturing =
     release.kind === "single" && tracks.length > 0
@@ -667,6 +674,7 @@ export default function ReleaseView({
             releaseArtist={artistShown}
             linkArtists={linkedArtist}
             plays={plays}
+            menu={{ release, env: trackMenuEnv }}
             player={
               playableKeys.size > 0
                 ? {
