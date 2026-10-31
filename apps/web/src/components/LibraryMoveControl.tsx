@@ -82,7 +82,7 @@ export default function LibraryMoveControl({ onToast, onMoved }: LibraryMoveCont
       )}
       {preview?.problem && <p className="text-sm text-danger">{preview.problem}</p>}
       {preview?.needsMove && !preview.problem && !preview.movable && preview.reason && (
-        <p className="text-xs text-text-dim">{preview.reason}</p>
+        <p className="text-xs text-text-muted">{preview.reason}</p>
       )}
       {preview?.needsMove && preview.movable && !open && (
         <div>

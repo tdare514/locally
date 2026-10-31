@@ -66,7 +66,7 @@ const STEPS = [
   'Open Spotify and go to Settings.',
   'Scroll to the "Library" section.',
   'Turn on "Show Local Files".',
-  '"Add a source" and pick your library folder (below).',
+  '"Add a source" and pick the folder shown under Library folder.',
 ];
 
 function formatQuota(bytes: number): string {
@@ -559,7 +559,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
     <div className={`flex flex-col gap-8 pb-16 ${libraryWidthClass(libraryWidth)}`}>
       <AmbientBackdrop palette={null} />
       <div>
-        <p className="text-sm font-semibold text-accent">
+        <p className="text-sm font-semibold text-accent-hover">
           Local library
         </p>
         <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">Settings</h1>
@@ -596,7 +596,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
               <button
                 type="button"
                 onClick={handleBaseUrlBlur}
-                className="mt-1 text-xs font-medium text-text-muted underline-offset-2 hover:text-text hover:underline"
+                className="-mx-1 -mb-2 inline-flex min-h-11 items-center rounded-md px-1 text-xs font-medium text-text-muted underline-offset-2 outline-none hover:text-text hover:underline focus-visible:ring-2 focus-visible:ring-accent"
               >
                 Use this address
               </button>
@@ -813,7 +813,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
       <SettingsSection title="Connect to Spotify">
         <SettingsBlock className="flex flex-col gap-3">
           {spotifyWatching !== null && (
-            <p className={`text-sm ${spotifyWatching ? "text-accent" : "text-text-muted"}`}>
+            <p className={`text-sm ${spotifyWatching ? "text-text" : "text-text-muted"}`}>
               {spotifyWatching
                 ? "Spotify is watching your library folder."
                 : "Spotify isn't watching your library folder yet."}
