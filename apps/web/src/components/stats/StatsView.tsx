@@ -25,6 +25,7 @@ import { useLibraryWidth } from "../../lib/use-library-width";
 import { WideToggle, PeriodStepper, SelectMenu, Toggle } from "./controls";
 import SleeveFan from "./SleeveFan";
 import { StatsList, StatsSea, type StatsMenu } from "./StatsRows";
+import { Bone, Skeleton } from "../Skeleton";
 
 /**
  * The Stats page (#145). Top to bottom: the heading with the period, a one-line digest and the
@@ -194,9 +195,7 @@ export default function StatsView({
         </div>
       )}
 
-      {state.status === "loading" || (loadingLibrary && state.status !== "ready") ? (
-        <div aria-busy={busy} className="min-h-[24rem]" />
-      ) : null}
+      {state.status === "loading" || (loadingLibrary && state.status !== "ready") ? <StatsSkeleton /> : null}
 
       {stats && items.length > 0 && (
         <>
@@ -249,6 +248,26 @@ export default function StatsView({
         </>
       )}
     </div>
+  );
+}
+
+/** The ranking while plays load (#422): the fan's room with three still sleeves, then the list heading and rows. */
+function StatsSkeleton() {
+  const sleeve = "clamp(64px, 22cqw, 210px)";
+  return (
+    <Skeleton label="Loading your stats" className="st-fan-stage mt-3">
+      <div className="flex items-end justify-center gap-4" style={{ height: `calc(${sleeve} * 2.107)` }}>
+        {[0, 1, 2].map((i) => (
+          <Bone key={i} className="aspect-square shrink-0 rounded-[12px]!" style={{ width: sleeve }} />
+        ))}
+      </div>
+      <div className="mt-10 flex flex-col gap-3">
+        <Bone className="h-7 w-40" />
+        {Array.from({ length: 5 }, (_, i) => (
+          <Bone key={i} className="h-14 rounded-[12px]!" />
+        ))}
+      </div>
+    </Skeleton>
   );
 }
 

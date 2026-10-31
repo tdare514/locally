@@ -55,6 +55,7 @@ import { playerStore } from "../lib/play-queue";
 import { targetActions, trackMenuGroups, type TrackMenuEnv } from "../lib/track-menu";
 import TrackMenu, { TrackMoreButton, useTrackMenu } from "./TrackMenu";
 import { BusyLabel, BusyStatus } from "./Spinner";
+import { Bone, Skeleton } from "./Skeleton";
 
 const ADOPTED_LABEL = "In your Spotify folder";
 const ADOPTED_NOT_SELECTABLE = "Releases from your Spotify folder can't be selected. Remove one from its own page.";
@@ -261,7 +262,7 @@ export default function LibraryView({
   }, [selecting, editing, busy]);
 
   if (loading) {
-    return <p className="text-text-muted">Loading…</p>;
+    return <LibrarySkeleton className={libraryWidthClass(width)} />;
   }
 
   if (releases.length === 0) {
@@ -337,7 +338,7 @@ export default function LibraryView({
       );
       const summary = bulkSummary("Updated", outcome, total);
       onToast(summary.kind, summary.text);
-      // Close before the refresh: the list shows "Loading…" while it reloads.
+      // Close before the refresh: the list shows its placeholder while it reloads.
       setEditing(false);
       await onBulkDone();
     } finally {
@@ -1098,6 +1099,29 @@ const CoverTile = memo(function CoverTile({
     </div>
   );
 });
+
+/** The library while its index loads (#422): the heading, the toolbar and a section of list rows, still, after 300 ms. */
+function LibrarySkeleton({ className }: { className: string }) {
+  return (
+    <Skeleton label="Loading your library" className={`pb-16 ${className}`}>
+      <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-2">
+          <Bone className="h-5 w-28" />
+          <Bone className="h-10 w-48" />
+        </div>
+        <Bone className="h-10 w-full" />
+        <div className="flex flex-col gap-2">
+          <Bone className="h-7 w-32" />
+          <div className="flex flex-col gap-px overflow-hidden rounded-[12px]">
+            {Array.from({ length: 8 }, (_, i) => (
+              <Bone key={i} className="h-[78px] rounded-none!" />
+            ))}
+          </div>
+        </div>
+      </div>
+    </Skeleton>
+  );
+}
 
 /** 20 square checkbox shown at the left of a row in selection mode. */
 function SelectBox({ checked }: { checked: boolean }) {

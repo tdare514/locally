@@ -53,6 +53,7 @@ import ArtistLinks, { ArtistNavProvider, ArtistOpenButton, LOCKED_TIP, useArtist
 import { splitFeaturing } from "../lib/artist-names";
 import { creditKey } from "../lib/artist-catalog";
 import { releaseTitleForSave, releaseTitleShown, titleForSave, toEditor } from "../lib/featuring-field";
+import { Bone, Skeleton } from "./Skeleton";
 import { BusyLabel, BusyStatus } from "./Spinner";
 
 interface ReleaseViewProps {
@@ -509,7 +510,7 @@ export default function ReleaseView({
   }
 
   if (loading) {
-    return <p className="text-text-muted">Loading…</p>;
+    return <ReleaseSkeleton className={libraryWidthClass(width)} />;
   }
 
   if (!release) {
@@ -858,5 +859,27 @@ export default function ReleaseView({
       />
     </div>
     </ArtistNavProvider>
+  );
+}
+
+/** The release page's shape while the release is read (#422): the sleeve, the kind line, title and artist, and a few
+ * track rows. Still, and only after 300 ms. */
+function ReleaseSkeleton({ className }: { className: string }) {
+  return (
+    <Skeleton label="Loading this release" className={`pt-2 lg:pt-4 ${className}`}>
+      <div className="flex flex-col gap-8 md:flex-row md:items-end md:gap-10">
+        <Bone className="size-[200px] shrink-0 rounded-[4px]! sm:size-[248px]" />
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <Bone className="h-4 w-28" />
+          <Bone className="h-10 w-2/3 max-w-[480px]" />
+          <Bone className="h-6 w-1/3 max-w-[240px]" />
+        </div>
+      </div>
+      <div className="mt-12 flex flex-col gap-2">
+        {[0, 1, 2, 3].map((i) => (
+          <Bone key={i} className="h-14 rounded-[12px]!" />
+        ))}
+      </div>
+    </Skeleton>
   );
 }
