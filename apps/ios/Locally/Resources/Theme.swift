@@ -384,7 +384,6 @@ enum Theme {
     enum Import {
         /// The slim switch: each option's minimum tap height, and (for the play disc, until #414) the black under a tint.
         static let kindSwitchMinTarget: CGFloat = 44
-        static let kindThumbBase: Double = 0.35
         /// A stacked switch is a rounded track, not a capsule, so its thumb stays inside; the thumb is
         /// concentric, inset from the track by this much.
         static let kindSwitchStackCorner: CGFloat = 22

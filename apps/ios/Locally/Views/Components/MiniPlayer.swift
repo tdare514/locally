@@ -67,10 +67,10 @@ struct MiniPlayerBar: View {
 
                 HStack(spacing: 0) {
                     if dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
-                    control(state.isPlaying ? "pause.fill" : "play.fill", label: state.isPlaying ? Copy.Playback.pauseButton : Copy.Playback.playButton, id: "mini-player-toggle") {
+                    control(state.isPlaying ? .pause : .play, label: state.isPlaying ? Copy.Playback.pauseButton : Copy.Playback.playButton, id: "mini-player-toggle") {
                         playback.togglePlayPause()
                     }
-                    control("forward.fill", label: Copy.Playback.nextButton, id: "mini-player-next") { playback.next() }
+                    control(.next, label: Copy.Playback.nextButton, id: "mini-player-next") { playback.next() }
                 }
             }
             .padding(.leading, 10)
@@ -100,10 +100,9 @@ struct MiniPlayerBar: View {
         .accessibilityHidden(true)
     }
 
-    private func control(_ symbol: String, label: String, id: String, action: @escaping () -> Void) -> some View {
+    private func control(_ icon: LocallyIcon.Name, label: String, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 18, weight: .semibold))
+            LocallyIcon(icon, size: 22, scaled: true)
                 .foregroundStyle(Theme.primaryText)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())

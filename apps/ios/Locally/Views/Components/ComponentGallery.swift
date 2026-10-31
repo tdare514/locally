@@ -1678,6 +1678,7 @@ private struct IconSetGallery: View {
         Glyph(name: .pause, label: "Pause"), Glyph(name: .next, label: "Next"),
         Glyph(name: .previous, label: "Previous"), Glyph(name: .grid, label: "Grid"),
         Glyph(name: .list, label: "List"), Glyph(name: .sort, label: "Sort"),
+        Glyph(name: .nowPlaying, label: "Now playing"),
     ]
 
     private static let also = [
