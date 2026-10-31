@@ -4,15 +4,19 @@ import {
   INITIAL_BEAT,
   REDUCED_BEAT,
   SEND,
+  SENT_TOAST_UNSEEN,
+  SENT_TOAST_WATCHING,
   beatPhase,
   beatReducer,
   beatTimes,
+  canSendAgain,
   discKeyFor,
   isAudioFile,
   isPlaying,
   mayBeAudioDrag,
   planAdd,
   sealRemaining,
+  sentToast,
   trimForKind,
   type BeatEvent,
   type BeatState,
@@ -135,6 +139,31 @@ describe("discKeyFor", () => {
     expect(discKeyFor(ended)).toBe(discKeyFor(a));
     expect(discKeyFor(skipped)).not.toBe(discKeyFor(a));
     expect(discKeyFor(replaced)).not.toBe(discKeyFor(a));
+  });
+});
+
+describe("canSendAgain", () => {
+  it("is off while the disc seals or slides back out, so a retry never jumps it", () => {
+    expect(canSendAgain("sealing")).toBe(false);
+    expect(canSendAgain("unsealing")).toBe(false);
+  });
+
+  it("is on before any send and once the disc rests out again", () => {
+    expect(canSendAgain("idle")).toBe(true);
+    expect(canSendAgain("failed")).toBe(true);
+  });
+});
+
+describe("sentToast", () => {
+  it("keeps the Local Files line only when Spotify can see the folder", () => {
+    expect(sentToast(true)).toBe(SENT_TOAST_WATCHING);
+    expect(SENT_TOAST_WATCHING).toBe("Sent to Spotify. It's in Your Library, under Local Files.");
+  });
+
+  it("says it is saved, and not that it is in Spotify, when it can't see the folder or that is unknown", () => {
+    expect(sentToast(false)).toBe(SENT_TOAST_UNSEEN);
+    expect(sentToast(null)).toBe(SENT_TOAST_UNSEEN);
+    expect(SENT_TOAST_UNSEEN).toBe("Saved. Spotify will show it once it can see the folder.");
   });
 });
 

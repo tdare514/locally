@@ -2,7 +2,7 @@
 
 import { useEffect, useReducer, useRef, useState, type DragEvent } from "react";
 import type { ImportMeta, Release, ReleaseKind } from "../shared/types";
-import { importRelease, inspectFiles } from "../lib/api-client";
+import { getSpotifySource, importRelease, inspectFiles } from "../lib/api-client";
 import AmbientBackdrop from "./AmbientBackdrop";
 import ImportInvitation from "./import/ImportInvitation";
 import ImportRecord from "./import/ImportRecord";
@@ -15,12 +15,14 @@ import {
   SEND,
   beatReducer,
   beatTimes,
+  canSendAgain,
   discKeyFor,
   isAudioFile,
   isPlaying,
   mayBeAudioDrag,
   planAdd,
   sealRemaining,
+  sentToast,
   trimForKind,
   type SendStage,
 } from "../lib/import-flow";
@@ -232,7 +234,9 @@ export default function ImportView({
 
   const hasArtist = artist.trim().length > 0;
   const dateBlocked = releaseDateTextBlocks(releaseDate);
-  const canSubmit = entries.length > 0 && hasArtist && !dateBlocked && !importing;
+  // Send also waits for the disc to be back out after a failure, so a retry never jumps it.
+  const canSubmit =
+    entries.length > 0 && hasArtist && !dateBlocked && !importing && canSendAgain(sendStage);
 
   // After a failed send the disc slides back out. It waits for the seal to finish first, so it is never
   // cut off halfway, and gives way if another send has started.
@@ -254,6 +258,12 @@ export default function ImportView({
     const run = sendRun.current;
     const startedAt = Date.now();
     setImporting(true);
+    // Whether Spotify can see the library folder decides the success line. It is asked now, alongside the
+    // import, so it adds no wait; unknown (null) is treated as not seen.
+    const watching = getSpotifySource().then(
+      (source) => source.watching === true,
+      () => null,
+    );
     // The disc starts sealing into the sleeve at once; with reduced motion it doesn't move.
     if (!reducedMotion) setSendStage("sealing");
     let failed = false;
@@ -281,7 +291,7 @@ export default function ImportView({
       // The Added moment fires once the seal has finished and the request has succeeded (at once
       // under reduced motion): the toast, then the release page, then the form reset.
       await pause(sealRemaining(Date.now() - startedAt, reducedMotion));
-      onToast("success", "Sent to Spotify. It's in Your Library, under Local Files.");
+      onToast("success", sentToast(await watching));
       onImported(release);
       setEntries([]);
       setCoverFile(null);

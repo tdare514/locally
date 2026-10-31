@@ -139,6 +139,22 @@ export function sealRemaining(elapsedMs: number, reducedMotion: boolean): number
   return reducedMotion ? 0 : Math.max(0, SEND.sealMs - elapsedMs);
 }
 
+/** Whether Send may be pressed again, as far as the disc goes: not while it is sealing or sliding
+ * back out, so a retry never jumps the disc. After a failure that is at most `SEND.sealMs` +
+ * `SEND.unsealMs` after Send; with reduced motion the stage never leaves "idle" or "failed". */
+export function canSendAgain(stage: SendStage): boolean {
+  return stage !== "sealing" && stage !== "unsealing";
+}
+
+/** The success toast at the Added moment (#421). It only promises "in Your Library" when Spotify's
+ * local-files index already lists the library folder; `watching` is null when that is unknown. */
+export const SENT_TOAST_WATCHING = "Sent to Spotify. It's in Your Library, under Local Files.";
+export const SENT_TOAST_UNSEEN = "Saved. Spotify will show it once it can see the folder.";
+
+export function sentToast(watching: boolean | null): string {
+  return watching === true ? SENT_TOAST_WATCHING : SENT_TOAST_UNSEEN;
+}
+
 /** What switching to `kind` leaves of the tracks: a Single is one file, so only the first stays.
  * Returns the same array when nothing is trimmed. */
 export function trimForKind<T>(entries: T[], kind: ReleaseKind): T[] {

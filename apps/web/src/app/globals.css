@@ -466,6 +466,21 @@ body {
   }
 }
 
+/* The shared busy ring (Spinner.tsx, 14px): a quarter arc that turns, rotate only. Under reduced motion it
+   stands still; the static arc still reads as busy. */
+.spinner {
+  animation: spinner-rotate 800ms linear infinite;
+}
+@keyframes spinner-rotate {
+  from { rotate: 0deg; }
+  to { rotate: 360deg; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
 /* The three dots on a tray row whose files are still being sent, typed out like a terminal: ".",
    "..", "..." and again, 0.4s a step, opacity only and no easing between steps. Declared only
    when motion is allowed, so under reduced motion the three dots simply stand still (a reduce

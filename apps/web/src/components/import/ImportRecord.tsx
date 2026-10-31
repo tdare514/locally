@@ -12,6 +12,7 @@ import { useLibraryWidth } from "../../lib/use-library-width";
 import type { ArtistEntry } from "../../lib/artist-index";
 import FeaturingRow from "../FeaturingRow";
 import ReleaseDateField from "../ReleaseDateField";
+import Spinner from "../Spinner";
 
 /** What the page shows of the cover beat: nothing before a cover, "playing" while it runs,
  * "settled" once it has ended or been skipped. */
@@ -246,9 +247,32 @@ export default function ImportRecord({
         </button>
       }
       main={
-        <button type="button" onClick={onSubmit} disabled={!canSubmit} className="btn-save">
-          {importing ? "Sending…" : "Send to Spotify"}
-        </button>
+        <>
+          {/* A busy button keeps its label and shows a spinner before it. Two layers share one cell, so the
+              width never changes: the spinner layer sizes the cell, the label-only layer sits centred. */}
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={!canSubmit}
+            aria-busy={importing || undefined}
+            className="btn-save"
+          >
+            <span className="inline-grid">
+              <span
+                className={`inline-flex items-center gap-2 [grid-area:1/1] ${importing ? "" : "invisible"}`}
+              >
+                <Spinner />
+                Send to Spotify
+              </span>
+              <span className={`self-center justify-self-center [grid-area:1/1] ${importing ? "invisible" : ""}`}>
+                Send to Spotify
+              </span>
+            </span>
+          </button>
+          <span role="status" className="sr-only">
+            {importing ? "Sending to Spotify…" : ""}
+          </span>
+        </>
       }
     />
     </div>
