@@ -38,7 +38,7 @@ import { useLibraryWidth } from "../lib/use-library-width";
 import BulkEditDialog from "./BulkEditDialog";
 import LibrarySortMenu from "./LibrarySortMenu";
 import AddToCollection from "./AddToCollection";
-import LibraryCollections from "./LibraryCollections";
+import LibraryCollections, { CollectionsCardFrame } from "./LibraryCollections";
 import type { ArtistEntry } from "../lib/artist-index";
 import {
   ChevronRightIcon,
@@ -262,7 +262,7 @@ export default function LibraryView({
   }, [selecting, editing, busy]);
 
   if (loading) {
-    return <LibrarySkeleton className={libraryWidthClass(width)} />;
+    return <LibrarySkeleton className={libraryWidthClass(width)} layout={layout} coverSize={coverSize} />;
   }
 
   if (releases.length === 0) {
@@ -1100,24 +1100,59 @@ const CoverTile = memo(function CoverTile({
   );
 });
 
-/** The library while its index loads (#422): the heading, the toolbar and a section of list rows, still, after 300 ms. */
-function LibrarySkeleton({ className }: { className: string }) {
+/** The library while its index loads (#422), still, after 300 ms, in the saved layout so nothing jumps when it arrives:
+ * the heading, the toolbar, then the Collections card's frame and a section of list rows or cover tiles at the saved
+ * size, or the Artists grid (which has no card). */
+function LibrarySkeleton({ className, layout, coverSize }: { className: string; layout: LibraryLayout; coverSize: CoverSize }) {
+  const size = layout === "covers" ? coverSize : 1;
+  const tiles = (
+    <div
+      className="grid"
+      style={{
+        gridTemplateColumns: `repeat(auto-fill, minmax(${COVER_TILE_MIN_PX[size]}px, 1fr))`,
+        gap: COVER_GRID_GAP_PX[size],
+      }}
+    >
+      {Array.from({ length: 8 }, (_, i) => (
+        <div key={i} className="min-w-0">
+          <Bone className="aspect-square" />
+          <Bone className="mt-3.5 h-3.5 w-3/4" />
+          <Bone className="mt-2 h-3 w-1/2" />
+        </div>
+      ))}
+    </div>
+  );
   return (
     <Skeleton label="Loading your library" className={`pb-16 ${className}`}>
       <div className="flex flex-col gap-8">
-        <div className="flex flex-col gap-2">
+        {/* The loaded header row is 72 px with its layout control beside the title, 76 with the Grid's size slider. */}
+        <div className={`flex flex-col gap-1 ${layout === "covers" ? "h-[76px]" : "h-[72px]"}`}>
           <Bone className="h-5 w-28" />
           <Bone className="h-10 w-48" />
         </div>
-        <Bone className="h-10 w-full" />
-        <div className="flex flex-col gap-2">
-          <Bone className="h-7 w-32" />
-          <div className="flex flex-col gap-px overflow-hidden rounded-[12px]">
-            {Array.from({ length: 8 }, (_, i) => (
-              <Bone key={i} className="h-[78px] rounded-none!" />
-            ))}
-          </div>
-        </div>
+        <Bone className="h-11 w-full rounded-full!" />
+        {layout === "artists" ? (
+          tiles
+        ) : (
+          <>
+            <CollectionsCardFrame />
+            <div className={`flex flex-col ${layout === "covers" ? "gap-4" : "gap-2"}`}>
+              <div className="flex h-[33px] items-center">
+                <Bone className="h-6 w-32" />
+              </div>
+              {layout === "covers" ? (
+                tiles
+              ) : (
+                // Below the room of the list's column header.
+                <div className="mt-[23px] flex flex-col gap-px overflow-hidden rounded-[12px]">
+                  {Array.from({ length: 8 }, (_, i) => (
+                    <Bone key={i} className="h-[78px] rounded-none!" />
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </Skeleton>
   );

@@ -865,20 +865,35 @@ export default function ReleaseView({
 /** The release page's shape while the release is read (#422): the sleeve, the kind line, title and artist, and a few
  * track rows. Still, and only after 300 ms. */
 function ReleaseSkeleton({ className }: { className: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  // The loaded page's own rule, so the details don't jump below the sleeve when it arrives: beside it past a 900 pane.
+  const beside = detailsBesideSleeve(usePaneWidth(ref));
   return (
     <Skeleton label="Loading this release" className={`pt-2 lg:pt-4 ${className}`}>
-      <div className="flex flex-col gap-8 md:flex-row md:items-end md:gap-10">
-        <Bone className="size-[200px] shrink-0 rounded-[4px]! sm:size-[248px]" />
-        <div className="flex min-w-0 flex-1 flex-col gap-3">
-          <Bone className="h-4 w-28" />
-          <Bone className="h-10 w-2/3 max-w-[480px]" />
-          <Bone className="h-6 w-1/3 max-w-[240px]" />
+      <div ref={ref} className={`flex ${beside ? "flex-row items-end gap-10" : "flex-col gap-8"}`}>
+        {/* The record's silhouette, in RecordSleeve's box: the sleeve with the disc peeking out of its right edge. */}
+        <div className="relative w-fit shrink-0 pr-[92px] sm:pr-[116px]">
+          <Bone className="absolute right-0 top-1/2 size-[184px] -translate-y-1/2 rounded-full! sm:size-[228px]" />
+          <Bone className="relative size-[200px] rounded-[4px]! sm:size-[248px]" />
+        </div>
+        {/* Each bone sits in its loaded row's box (the kind line, the title field, the artist, then featuring and the
+            release date and genre), so the details start where the loaded ones do. */}
+        <div className={`flex min-w-0 flex-col gap-3 ${beside ? "flex-1" : ""}`}>
+          <div className="flex h-5 items-center"><Bone className="h-4 w-28" /></div>
+          <div className="flex h-14 items-center"><Bone className="h-10 w-2/3 max-w-[480px]" /></div>
+          <div className="-mt-1 flex h-8 items-center"><Bone className="h-6 w-1/3 max-w-[240px]" /></div>
+          <div className="mt-1 flex h-[27px] items-center"><Bone className="h-5 w-56 max-w-full" /></div>
+          <div className="mt-1 flex h-[27px] items-center"><Bone className="h-5 w-72 max-w-full" /></div>
         </div>
       </div>
-      <div className="mt-12 flex flex-col gap-2">
-        {[0, 1, 2, 3].map((i) => (
-          <Bone key={i} className="h-14 rounded-[12px]!" />
-        ))}
+      <div className="mt-12 flex flex-col gap-3">
+        <div className="flex h-7 items-center"><Bone className="h-6 w-24" /></div>
+        {/* Below the room of the list's column header, at the loaded rows' 58 px pitch. */}
+        <div className="mt-[25px] flex flex-col">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="flex h-[58px] items-center"><Bone className="h-12 w-full rounded-[12px]!" /></div>
+          ))}
+        </div>
       </div>
     </Skeleton>
   );

@@ -251,18 +251,20 @@ export default function StatsView({
   );
 }
 
-/** The ranking while plays load (#422): the fan's room with three still sleeves, then the list heading and rows. */
+/** The ranking while plays load (#422): the page fan's own box (`.fan[data-size="page"]`, so its height, and the room it
+ * keeps for the caption when narrow, follow the loaded fan's at every width) with three still sleeves, then the list
+ * heading and rows. */
 function StatsSkeleton() {
-  const sleeve = "clamp(64px, 22cqw, 210px)";
   return (
     <Skeleton label="Loading your stats" className="st-fan-stage mt-3">
-      <div className="flex items-end justify-center gap-4" style={{ height: `calc(${sleeve} * 2.107)` }}>
+      <div className="fan flex items-end justify-center gap-4 pb-[var(--fan-base)]" data-size="page">
         {[0, 1, 2].map((i) => (
-          <Bone key={i} className="aspect-square shrink-0 rounded-[12px]!" style={{ width: sleeve }} />
+          <Bone key={i} className="aspect-square shrink-0 rounded-[12px]!" style={{ width: "var(--w)" }} />
         ))}
       </div>
       <div className="mt-10 flex flex-col gap-3">
-        <Bone className="h-7 w-40" />
+        {/* The loaded heading row is 36 px: its sort menu and layout toggle sit beside the heading. */}
+        <div className="flex h-9 items-center"><Bone className="h-7 w-40" /></div>
         {Array.from({ length: 5 }, (_, i) => (
           <Bone key={i} className="h-14 rounded-[12px]!" />
         ))}
@@ -326,6 +328,10 @@ function Coverage({
         )}
       </p>
     );
+  }
+  // While plays load, the line's room is kept, so the placeholder below doesn't move when it arrives (#422).
+  if (status === "loading" && !IS_DEMO && counting !== null) {
+    return <p aria-hidden="true" className="invisible mt-2 text-[13px]">&nbsp;</p>;
   }
   if (status === "loading" || status === "error" || IS_DEMO || counting === null) return null;
   return (
