@@ -900,7 +900,8 @@ body {
 /* ---------------------------------------------------------------------------
  * Import, "make a record" (#159). Everything is .imp-*. The descendant selectors reach the disc
  * inside RecordSleeve from a wrapper class (.imp-beat while the beat runs, .imp-rest once it is
- * over), so RecordSleeve carries no import styles. lib/import-flow.ts holds the same clock.
+ * over, .imp-sealing / .imp-unsealing for the send), so RecordSleeve carries no import styles.
+ * lib/import-flow.ts holds the same clock.
  *
  * Transform and opacity only (the disc uses the individual `translate` / `rotate` properties, as
  * the record animations above do). Reduced-motion fallbacks are in the block at the end of the file.
@@ -979,22 +980,12 @@ body {
  *               820ms), then fades over 480ms so the colour comes back through it; the
  *               colour wash starts with it, on the backdrop's own 900ms fade. Warm white, never
  *               pure, and the spill past the sleeve stays faint
- * 1340 for 950  once the flash has faded (it ends at 1300), the disc slides all the way into the
- *               sleeve and turns 240deg as it goes, one motion that eases in gently and settles
- *               (.record-disc and .record-face; not the snappy expo-out): sealed at 2290
- * After the beat the disc rests in the sleeve and hovering the record brings it out again (the
- * `.record:hover` rule above). A cover that replaces another starts with the disc already in the
- * sleeve (data-replay), so it first eases out (600ms) and then seals as above. */
-.imp-beat,
-.imp-rest {
-  --imp-back: -100px;
-}
-@media (min-width: 40rem) {
-  .imp-beat,
-  .imp-rest {
-    --imp-back: -126px;
-  }
-}
+ * 1340 for 950  once the flash has faded (it ends at 1300), the disc stays peeking out of the
+ *               sleeve and its label turns 240deg into place, one motion that eases in gently
+ *               and settles (.record-face; not the snappy expo-out): at rest at 2290
+ * The disc rests peeking after the beat, and hovering the record nudges it out (the
+ * `.record:hover` rule above), as on the iPhone. A cover that replaces another plays the beat again
+ * from the peeking disc: the turn only. The disc seals into the sleeve at Send (below). */
 .imp-cover {
   animation: imp-slide 420ms cubic-bezier(0.3, 0.5, 0.3, 1) backwards;
 }
@@ -1033,27 +1024,54 @@ body {
 @keyframes imp-turn {
   from { rotate: -240deg; }
 }
+/* The disc itself stays put through the beat and after it (no entrance replay: the disc is
+ * remounted for each cover). */
 .imp-beat .record-disc,
-.imp-rest .record-disc {
-  translate: var(--imp-back) -50%;
-}
 .imp-rest .record-disc {
   animation: none;
 }
-.imp-beat .record-disc {
-  animation: imp-away 950ms cubic-bezier(0.33, 0, 0.15, 1) 1340ms backwards;
+
+/* Send (#421): from the press of Send the disc slides all the way into the sleeve, turning as it
+ * goes, while the request runs: 950ms on the beat's turn curve, ending at --imp-back. `both` holds
+ * the sealed pose for as long as the send takes (the class goes when the page leaves after the
+ * Added moment, or when the send fails). A failed send: the disc slides back out (400ms, the
+ * curve it comes out on when the record first appears), turning back. Only the individual
+ * translate / rotate properties move. */
+.imp-sealing,
+.imp-unsealing {
+  --imp-back: -100px;
 }
-@keyframes imp-away {
+@media (min-width: 40rem) {
+  .imp-sealing,
+  .imp-unsealing {
+    --imp-back: -126px;
+  }
+}
+.imp-sealing .record-disc {
+  animation: imp-seal 950ms cubic-bezier(0.33, 0, 0.15, 1) both;
+}
+@keyframes imp-seal {
   from { translate: 0 -50%; }
+  to { translate: var(--imp-back) -50%; }
 }
-.imp-beat[data-replay="true"] .record-disc {
-  animation: imp-away-replay 2290ms backwards;
+.imp-sealing .record-face {
+  animation: imp-seal-turn 950ms cubic-bezier(0.33, 0, 0.15, 1) both;
 }
-@keyframes imp-away-replay {
-  0% { translate: var(--imp-back) -50%; animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); }
-  26.2% { translate: 0 -50%; }
-  58.5% { translate: 0 -50%; animation-timing-function: cubic-bezier(0.33, 0, 0.15, 1); }
-  100% { translate: var(--imp-back) -50%; }
+@keyframes imp-seal-turn {
+  from { rotate: 0deg; }
+  to { rotate: 240deg; }
+}
+.imp-unsealing .record-disc {
+  animation: imp-unseal 400ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+@keyframes imp-unseal {
+  from { translate: var(--imp-back) -50%; }
+}
+.imp-unsealing .record-face {
+  animation: imp-unseal-turn 400ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+@keyframes imp-unseal-turn {
+  from { rotate: 240deg; }
 }
 
 /* The invitation and the empty record share the library's drifting colour sky (.ambient-space,
@@ -1769,8 +1787,8 @@ body {
     scale: 1;
   }
   /* #159 Import: no sweep, no slide, no spin, and no flash at all (photosensitivity). The
-     invitation and the cover just fade in (a short opacity fade), the disc is already in the
-     sleeve, and hovering still moves it instantly (transition: none above). */
+     invitation and the cover just fade in (a short opacity fade), the disc stays peeking, and
+     hovering still moves it instantly (transition: none above). */
   .imp-wash,
   .imp-flash {
     display: none;
@@ -1788,8 +1806,15 @@ body {
     animation: none;
   }
   .imp-beat .record-face,
-  .imp-beat .record-disc,
-  .imp-beat[data-replay="true"] .record-disc {
+  .imp-beat .record-disc {
+    animation: none;
+  }
+  /* Send (#421): no slide. The disc stays peeking, and the Added moment fires as soon as the
+     request succeeds. */
+  .imp-sealing .record-disc,
+  .imp-sealing .record-face,
+  .imp-unsealing .record-disc,
+  .imp-unsealing .record-face {
     animation: none;
   }
   .imp-sky .ambient-sky-paint {

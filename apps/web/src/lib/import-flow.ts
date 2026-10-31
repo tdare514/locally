@@ -14,8 +14,8 @@ export const INVITE_PALETTE: AmbientPalette = {
 };
 
 /** The cover beat's clock, in ms from the moment a cover is chosen. The keyframes in globals.css
- * (`.imp-cover`, `.imp-flash`, and `.record-face` / `.record-disc` under `.imp-beat`) hold the
- * same numbers; keep the two in step. */
+ * (`.imp-cover`, `.imp-flash`, and `.record-face` under `.imp-beat`) hold the same numbers; keep
+ * the two in step. */
 export const BEAT = {
   /** The new cover slides in from the right. */
   slideEnd: 420,
@@ -26,15 +26,18 @@ export const BEAT = {
   flashEnd: 1300,
   /** The backdrop takes the cover's colours as the flash starts (its own 900ms fade follows). */
   washAt: 420,
-  /** The disc slides all the way into the sleeve, turning as it goes: sealed at `discEnd`. */
+  /** The disc stays peeking out of the sleeve and its label turns 240 degrees into place: at
+   * rest at `discEnd`. (The disc seals into the sleeve at Send now, see `SEND`.) */
   discAt: 1340,
   discEnd: 2290,
 } as const;
 
-/** With reduced motion there is no flash, slide or seal: the cover just fades in (160ms), the
+/** With reduced motion there is no flash, slide or turn: the cover just fades in (160ms), the
  * colours follow at once and the beat is over as soon as that fade is. */
 export const REDUCED_BEAT = { washAt: 0, endAt: 160 } as const;
 
+/** "seal" is the label's turn into place (1340 to 2290); the name dates from when the disc sealed
+ * into the sleeve here. The disc seals at Send now. */
 export type BeatPhase = "slide" | "swell" | "white" | "fade" | "gap" | "seal" | "done";
 
 /** Which part of the beat `ms` after the cover was chosen falls in. */
@@ -60,9 +63,9 @@ export interface BeatState {
   run: number;
   /** The beat is over: it ran out, or input jumped it to the end. */
   ended: boolean;
-  /** Input jumped it to the end (so the disc lands in the sleeve at once, with no glide). */
+  /** Input jumped it to the end (so the label lands at rest at once, with no turn). */
   skipped: boolean;
-  /** This cover replaced another, so the disc starts tucked in the sleeve, not peeking out. */
+  /** This cover replaced another: the beat plays again from the peeking disc (the turn only). */
   replay: boolean;
 }
 
@@ -109,9 +112,31 @@ export function beatReducer(state: BeatState, event: BeatEvent): BeatState {
 }
 
 /** Changes whenever the disc has to be remounted: a new cover restarts its animation, and a skip
- * lands it in the sleeve at once instead of letting it glide there. */
+ * lands the label at rest at once instead of letting it turn into place. */
 export function discKeyFor(state: BeatState): string {
   return `${state.run}${state.skipped ? "s" : ""}`;
+}
+
+/** Send (#421): the disc slides into the sleeve, turning as it goes, while the request runs. The
+ * `.imp-sealing` and `.imp-unsealing` keyframes in globals.css hold the same numbers (the curve is
+ * the beat's turn, cubic-bezier(0.33, 0, 0.15, 1)); keep the two in step. */
+export const SEND = {
+  /** The disc slides all the way into the sleeve. */
+  sealMs: 950,
+  /** After a failed send the disc slides back out. */
+  unsealMs: 400,
+} as const;
+
+/** Where the disc is for the send: "idle" before any send, "sealing" from Send until the send is
+ * over, "unsealing" while it slides back out after a failure, "failed" once it is out again (so it
+ * rests peeking and the entrance never replays). */
+export type SendStage = "idle" | "sealing" | "unsealing" | "failed";
+
+/** How much of the seal is still to run `elapsedMs` after Send. The Added moment (and the slide
+ * back out after a failure) waits this long, so the disc is never cut off halfway: the moment fires
+ * when both the seal and the request are done. Reduced motion has no slide, so nothing to wait for. */
+export function sealRemaining(elapsedMs: number, reducedMotion: boolean): number {
+  return reducedMotion ? 0 : Math.max(0, SEND.sealMs - elapsedMs);
 }
 
 /** What switching to `kind` leaves of the tracks: a Single is one file, so only the first stays.

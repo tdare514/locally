@@ -174,7 +174,7 @@ export default function CoverPicker({
           dragOver,
           !previewUrl,
           inert
-        )} ${disabled ? "cursor-not-allowed opacity-60" : ""} ${readOnly ? "!cursor-default" : ""}`}
+        )} ${disabled ? (presentation === "sleeve" ? "cursor-not-allowed" : "cursor-not-allowed opacity-60") : ""} ${readOnly ? "!cursor-default" : ""}`}
       >
         {/* The first cover of the beat: the empty state fades out under it (an outgoing cover, when
             there is one, sits above this and hides it). */}

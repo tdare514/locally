@@ -3,6 +3,7 @@ import {
   BEAT,
   INITIAL_BEAT,
   REDUCED_BEAT,
+  SEND,
   beatPhase,
   beatReducer,
   beatTimes,
@@ -11,6 +12,7 @@ import {
   isPlaying,
   mayBeAudioDrag,
   planAdd,
+  sealRemaining,
   trimForKind,
   type BeatEvent,
   type BeatState,
@@ -36,7 +38,7 @@ describe("beatPhase", () => {
     expect(beatPhase(2290)).toBe("done");
   });
 
-  it("starts the colour wash with the flash and seals 950ms after the disc starts", () => {
+  it("starts the colour wash with the flash and turns the label for 950ms after the disc starts", () => {
     expect(BEAT.washAt).toBe(BEAT.flashAt);
     expect(BEAT.discEnd - BEAT.discAt).toBe(950);
     expect(BEAT.discAt).toBeGreaterThanOrEqual(BEAT.flashEnd);
@@ -52,6 +54,33 @@ describe("beatTimes", () => {
     expect(beatTimes(true)).toEqual(REDUCED_BEAT);
     expect(beatTimes(true).washAt).toBe(0);
     expect(beatTimes(true).endAt).toBeLessThan(BEAT.slideEnd);
+  });
+});
+
+describe("send", () => {
+  it("seals in the time the label turns in, and slides back out faster", () => {
+    expect(SEND.sealMs).toBe(BEAT.discEnd - BEAT.discAt);
+    expect(SEND.sealMs).toBe(950);
+    expect(SEND.unsealMs).toBe(400);
+  });
+
+  it("makes the Added moment wait for the rest of the seal, once the request is done", () => {
+    // The request finished instantly: wait out the whole seal.
+    expect(sealRemaining(0, false)).toBe(SEND.sealMs);
+    // A slower request: only what is left of the seal.
+    expect(sealRemaining(300, false)).toBe(SEND.sealMs - 300);
+    expect(sealRemaining(SEND.sealMs - 1, false)).toBe(1);
+  });
+
+  it("fires at once when the request outlasts the seal", () => {
+    expect(sealRemaining(SEND.sealMs, false)).toBe(0);
+    expect(sealRemaining(SEND.sealMs + 4000, false)).toBe(0);
+  });
+
+  it("never waits under reduced motion, whenever the request finishes", () => {
+    expect(sealRemaining(0, true)).toBe(0);
+    expect(sealRemaining(300, true)).toBe(0);
+    expect(sealRemaining(SEND.sealMs + 1, true)).toBe(0);
   });
 });
 

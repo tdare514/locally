@@ -12,6 +12,7 @@ import type { AmbientPalette } from "../lib/artwork-palette";
 import {
   INITIAL_BEAT,
   INVITE_PALETTE,
+  SEND,
   beatReducer,
   beatTimes,
   discKeyFor,
@@ -19,7 +20,9 @@ import {
   isPlaying,
   mayBeAudioDrag,
   planAdd,
+  sealRemaining,
   trimForKind,
+  type SendStage,
 } from "../lib/import-flow";
 import { applyTrackEdits } from "../lib/track-order";
 import type { ArtistEntry } from "../lib/artist-index";
@@ -56,6 +59,11 @@ interface Entry {
   tagTrackNumber?: number;
 }
 
+/** Resolves after `ms`, at once when there is nothing to wait for. */
+function pause(ms: number): Promise<void> {
+  return ms > 0 ? new Promise((resolve) => window.setTimeout(resolve, ms)) : Promise.resolve();
+}
+
 function stripExtension(name: string): string {
   const idx = name.lastIndexOf(".");
   return idx > 0 ? name.slice(0, idx) : name;
@@ -77,6 +85,10 @@ export default function ImportView({
   const [genre, setGenre] = useState("");
   const [inspecting, setInspecting] = useState(false);
   const [importing, setImporting] = useState(false);
+  // The send (#421): the disc seals into the sleeve while the request runs. `sendRun` numbers the sends so
+  // a slide back out after a failure gives way to a newer send.
+  const [sendStage, setSendStage] = useState<SendStage>("idle");
+  const sendRun = useRef(0);
   // Audio is being dragged over the pane.
   const [dragOver, setDragOver] = useState(false);
   // The record replaces the invitation once a track is added, and stays even if all are removed.
@@ -222,9 +234,29 @@ export default function ImportView({
   const dateBlocked = releaseDateTextBlocks(releaseDate);
   const canSubmit = entries.length > 0 && hasArtist && !dateBlocked && !importing;
 
+  // After a failed send the disc slides back out. It waits for the seal to finish first, so it is never
+  // cut off halfway, and gives way if another send has started.
+  async function slideBackOut(run: number, startedAt: number) {
+    await pause(sealRemaining(Date.now() - startedAt, reducedMotion));
+    if (sendRun.current !== run) return;
+    if (reducedMotion) {
+      setSendStage("failed");
+      return;
+    }
+    setSendStage("unsealing");
+    await pause(SEND.unsealMs);
+    if (sendRun.current === run) setSendStage("failed");
+  }
+
   async function handleSubmit() {
     if (!canSubmit) return;
+    sendRun.current += 1;
+    const run = sendRun.current;
+    const startedAt = Date.now();
     setImporting(true);
+    // The disc starts sealing into the sleeve at once; with reduced motion it doesn't move.
+    if (!reducedMotion) setSendStage("sealing");
+    let failed = false;
     try {
       // The stored track title is the catalogue form "Song (feat. B)"; the release title stays plain, so
       // a single with no title of its own gets its track's plain title (the server would copy the joined one).
@@ -246,7 +278,10 @@ export default function ImportView({
         entries.map((e) => e.file),
         coverFile
       );
-      onToast("success", "Imported to your library");
+      // The Added moment fires once the seal has finished and the request has succeeded (at once
+      // under reduced motion): the toast, then the release page, then the form reset.
+      await pause(sealRemaining(Date.now() - startedAt, reducedMotion));
+      onToast("success", "Sent to Spotify. It's in Your Library, under Local Files.");
       onImported(release);
       setEntries([]);
       setCoverFile(null);
@@ -257,11 +292,14 @@ export default function ImportView({
       setReleaseDate("");
       setGenre("");
       setKind("single");
+      setSendStage("idle");
     } catch (e) {
+      failed = true;
       onToast("error", e instanceof Error ? e.message : "Import failed");
     } finally {
       setImporting(false);
     }
+    if (failed) await slideBackOut(run, startedAt);
   }
 
   if (IS_DEMO) {
@@ -337,6 +375,7 @@ export default function ImportView({
           coverFile={coverFile}
           onCover={chooseCover}
           beat={{ stage: beatStage, replay: beat.replay, discKey: discKeyFor(beat) }}
+          send={sendStage}
           labelUrl={beat.hasCover ? coverUrl : null}
           canSubmit={canSubmit}
           importing={importing}

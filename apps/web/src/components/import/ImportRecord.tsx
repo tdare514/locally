@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReleaseKind } from "../../shared/types";
+import type { SendStage } from "../../lib/import-flow";
 import CoverPicker from "../CoverPicker";
 import RecordSleeve from "../RecordSleeve";
 import TrackList, { type EditableTrack } from "../TrackList";
@@ -34,6 +35,8 @@ interface ImportRecordProps {
   coverFile: File | null;
   onCover: (file: File) => void;
   beat: { stage: BeatStage; replay: boolean; discKey: string };
+  /** The send (#421): the disc seals into the sleeve while the request runs, and slides back out if it fails. */
+  send: SendStage;
   /** The cover, printed on the disc's centre label. */
   labelUrl: string | null;
   canSubmit: boolean;
@@ -80,8 +83,8 @@ function InlineField({
 }
 
 /** The release page (#112) with the record being made: the sleeve and disc, blank inline fields,
- * the tracks and the release bar (#294). A cover is the moment: it slides in, the light flashes, the disc tucks
- * away (the beat, driven by `beat` and globals.css `.imp-*`). */
+ * the tracks and the release bar (#294). A cover is the moment: it slides in, the light flashes, the label turns
+ * into place (the beat, driven by `beat` and globals.css `.imp-*`); Send seals the disc into the sleeve (`send`). */
 export default function ImportRecord({
   kind,
   onKindChange,
@@ -100,6 +103,7 @@ export default function ImportRecord({
   coverFile,
   onCover,
   beat,
+  send,
   labelUrl,
   canSubmit,
   importing,
@@ -109,8 +113,18 @@ export default function ImportRecord({
 }: ImportRecordProps) {
   const [width] = useLibraryWidth();
   const trackCount = `${tracks.length} track${tracks.length === 1 ? "" : "s"}`;
-  // The wrapper's class is how the beat reaches the disc inside RecordSleeve.
-  const stateClass = beat.stage === "playing" ? "imp-beat" : beat.stage === "settled" ? "imp-rest" : "";
+  // The wrapper's class is how the beat and the send reach the disc inside RecordSleeve. The send comes
+  // first; after a failed send the disc rests peeking (imp-rest) even with no cover, so its entrance never replays.
+  const stateClass =
+    send === "sealing"
+      ? "imp-sealing"
+      : send === "unsealing"
+        ? "imp-unsealing"
+        : beat.stage === "playing"
+          ? "imp-beat"
+          : beat.stage === "settled" || send === "failed"
+            ? "imp-rest"
+            : "";
 
   return (
     // The bottom margin cancels the pane's own bottom padding (AppShell's p-6 md:p-10 lg:p-16), so the
@@ -233,7 +247,7 @@ export default function ImportRecord({
       }
       main={
         <button type="button" onClick={onSubmit} disabled={!canSubmit} className="btn-save">
-          {importing ? "Adding…" : "Add to library"}
+          {importing ? "Sending…" : "Send to Spotify"}
         </button>
       }
     />
