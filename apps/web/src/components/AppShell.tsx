@@ -428,6 +428,11 @@ export default function AppShell() {
               selectedId={view.id}
               onSelect={(id) => setView({ type: "collections", id })}
               onAddTracks={() => goTo({ type: "library" })}
+              menuEnv={{
+                toast: showToast,
+                openRelease: (id) => pushTo({ type: "release", id }),
+                openArtist: (name) => pushTo({ type: "artist", key: creditKey(name) }),
+              }}
             />
           )}
           {view.type === "import" && (
@@ -473,6 +478,7 @@ export default function AppShell() {
               onOpenRelease={(id, trackId) => pushTo({ type: "release", id, trackId })}
               onOpenArtist={(name) => pushTo({ type: "artist", key: creditKey(name) })}
               onOpenSettings={() => goTo({ type: "settings" })}
+              onToast={showToast}
             />
           )}
           {view.type === "artist" &&

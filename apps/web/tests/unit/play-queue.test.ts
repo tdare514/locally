@@ -218,3 +218,86 @@ describe("the Mac player queue (#338)", () => {
     });
   });
 });
+
+describe("play next and add to queue (#419)", () => {
+  const item = (releaseId: string, trackId: string): QueueItem => ({ releaseId, trackId });
+  const ids = (store: ReturnType<typeof createPlayerStore>) => store.getState().queue?.items.map((i) => i.trackId);
+
+  it("starts a queue when none is loaded, its context the release when every item is from it", () => {
+    const next = createPlayerStore();
+    expect(next.playNext([item("r1", "a1"), item("r1", "a2")])).toEqual({ added: 2, started: true });
+    expect(next.getState()).toMatchObject({
+      playing: true,
+      queue: { index: 0, context: { kind: "release", id: "r1" } },
+    });
+    expect(ids(next)).toEqual(["a1", "a2"]);
+    const end = createPlayerStore();
+    expect(end.addToQueue([item("r2", "b1")])).toEqual({ added: 1, started: true });
+    expect(end.getState().queue).toEqual({ items: [item("r2", "b1")], index: 0, context: { kind: "release", id: "r2" } });
+  });
+
+  it("starts a queue from items of several releases in the first item's release, and adds nothing for no items", () => {
+    const store = createPlayerStore();
+    expect(store.playNext([])).toEqual({ added: 0, started: false });
+    expect(store.getState().queue).toBeNull();
+    store.addToQueue([item("r2", "b1"), item("r1", "a1")]);
+    expect(store.getState().queue?.context).toEqual({ kind: "release", id: "r2" });
+  });
+
+  it("puts play next right after the current item, in order, without touching what is playing", () => {
+    const store = createPlayerStore();
+    store.start(buildReleaseQueue(withCover, "a1")!);
+    store.report(42, 200);
+    const attempt = store.getState().attempt;
+    expect(store.playNext([item("r1", "x1"), item("r1", "x2")])).toEqual({ added: 2, started: false });
+    expect(ids(store)).toEqual(["a1", "x1", "x2", "a2"]);
+    expect(store.getState()).toMatchObject({ playing: true, positionSec: 42, durationSec: 200, attempt, queue: { index: 0 } });
+    // A second play next goes in front of the first one.
+    store.playNext([item("r1", "y1")]);
+    expect(ids(store)).toEqual(["a1", "y1", "x1", "x2", "a2"]);
+  });
+
+  it("puts play next after a current item that is not the first, and add to queue at the end", () => {
+    const store = createPlayerStore();
+    store.start(buildReleaseQueue(withCover, "a2")!);
+    store.playNext([item("r1", "x1")]);
+    expect(ids(store)).toEqual(["a1", "a2", "x1"]);
+    store.addToQueue([item("r1", "z1"), item("r1", "z2")]);
+    expect(ids(store)).toEqual(["a1", "a2", "x1", "z1", "z2"]);
+    expect(store.getState().queue?.index).toBe(1);
+  });
+
+  it("keeps a paused queue paused", () => {
+    const store = createPlayerStore();
+    store.start(buildReleaseQueue(withCover, "a1")!);
+    store.toggle();
+    store.addToQueue([item("r1", "z1")]);
+    expect(store.getState().playing).toBe(false);
+  });
+
+  it("keeps the release context when the added items are all from it", () => {
+    const store = createPlayerStore();
+    store.start(buildReleaseQueue(withCover, "a1")!);
+    store.addToQueue([item("r1", "z1")]);
+    expect(store.getState().queue?.context).toEqual({ kind: "release", id: "r1" });
+  });
+
+  it("makes the context the playing item's release when an item from another release is added", () => {
+    const store = createPlayerStore();
+    store.start(buildReleaseQueue(withCover, "a2")!);
+    store.addToQueue([item("r2", "b1")]);
+    expect(store.getState().queue?.context).toEqual({ kind: "release", id: "r1" });
+    expect(store.getState().queue?.items.at(-1)).toEqual(item("r2", "b1"));
+    // Items from that release keep it as the context.
+    store.playNext([item("r1", "z1")]);
+    expect(store.getState().queue?.context).toEqual({ kind: "release", id: "r1" });
+  });
+
+  it("makes a collection queue's context the playing item's release when anything is added", () => {
+    const store = createPlayerStore();
+    store.start({ items: [item("r2", "b1"), item("r1", "a1")], index: 1, context: { kind: "collection", id: "c1" } });
+    store.playNext([item("r1", "a2")]);
+    expect(store.getState().queue?.context).toEqual({ kind: "release", id: "r1" });
+    expect(ids(store)).toEqual(["b1", "a1", "a2"]);
+  });
+});

@@ -51,7 +51,10 @@ import {
 } from "./Icons";
 import NoCover from "./NoCover";
 import ArtistsGrid from "./ArtistsGrid";
-import { filterArtists, type CatalogEntry } from "../lib/artist-catalog";
+import { creditKey, filterArtists, type CatalogEntry } from "../lib/artist-catalog";
+import { playerStore } from "../lib/play-queue";
+import { targetActions, trackMenuGroups, type TrackMenuEnv } from "../lib/track-menu";
+import TrackMenu, { TrackMoreButton, useTrackMenu } from "./TrackMenu";
 
 const ADOPTED_LABEL = "In your Spotify folder";
 const ADOPTED_NOT_SELECTABLE = "Releases from your Spotify folder can't be selected. Remove one from its own page.";
@@ -128,6 +131,12 @@ export default function LibraryView({
   const [width] = useLibraryWidth();
   const [folds, setFolds] = useState<SectionFolds>(NO_FOLDS);
   const [focusId, setFocusId] = useState<string | null>(null);
+  // The one menu of a release row or cover (#419): Edit and Go to album open its page, Go to artist the main artist's.
+  const menuEnv: TrackMenuEnv = {
+    toast: onToast,
+    openRelease: onSelectRelease,
+    openArtist: (name) => onSelectArtist(creditKey(name)),
+  };
   const [focusArtistKey, setFocusArtistKey] = useState<string | null>(null);
   const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
 
@@ -562,6 +571,7 @@ export default function LibraryView({
           onToggle={toggleRelease}
           coverSize={coverSize}
           onFocusRelease={setFocusId}
+          menuEnv={menuEnv}
         />
       )}
 
@@ -587,6 +597,7 @@ export default function LibraryView({
           onToggle={toggleRelease}
           coverSize={coverSize}
           onFocusRelease={setFocusId}
+          menuEnv={menuEnv}
         />
       )}
 
@@ -631,6 +642,13 @@ interface SectionProps {
   onToggle: (id: string) => void;
   coverSize: CoverSize;
   onFocusRelease: (id: string) => void;
+  /** How the one release menu (#419) reaches the app. Without it the rows have no menu. */
+  menuEnv?: TrackMenuEnv;
+}
+
+/** The release menu's groups for a row (#419): the whole release, in play order. None while selecting, or without `menuEnv`. */
+function releaseMenuGroups(release: Release, env: TrackMenuEnv | undefined, selecting: boolean) {
+  return env && !selecting ? trackMenuGroups(targetActions({ release }, env, playerStore, IS_DEMO)) : [];
 }
 
 /** Shared grid for the list header and every row. Columns drop as the section narrows:
@@ -695,7 +713,10 @@ export function LibrarySection({
   disabled,
   onToggle,
   onFocusRelease,
+  menuEnv,
 }: SectionProps) {
+  const menu = useTrackMenu();
+  const openRelease = menu.open ? releases.find((r) => r.id === menu.open?.key) : undefined;
   return (
     <section className="@container flex flex-col gap-2">
       <SectionHeader
@@ -729,8 +750,9 @@ export function LibrarySection({
             const locked = selecting && r.adopted === true;
             const isSelected = selecting && !locked && selected.has(r.id);
             const artistShown = shownArtist(r);
+            const groups = releaseMenuGroups(r, menuEnv, selecting);
             return (
-              <li key={r.id}>
+              <li key={r.id} className="group/track relative" {...(groups.length > 0 ? menu.rowProps(r.id) : {})}>
                 {index > 0 && (
                   <div className="h-px bg-white/[0.06]" aria-hidden="true" />
                 )}
@@ -790,15 +812,35 @@ export function LibrarySection({
                     {formatAddedDate(r.createdAt)}
                   </span>
                   {!selecting ? (
-                    <ChevronRightIcon className="h-4 w-4 shrink-0 text-text-dim" />
+                    // The More button takes the chevron's place while the row is hovered or has focus.
+                    <ChevronRightIcon
+                      className={`h-4 w-4 shrink-0 text-text-dim ${groups.length > 0 ? "group-hover/track:opacity-0 group-focus-within/track:opacity-0" : ""}`}
+                    />
                   ) : (
                     <span />
                   )}
                 </button>
+                {groups.length > 0 && (
+                  <TrackMoreButton
+                    title={r.title || artistShown}
+                    expanded={menu.open?.key === r.id}
+                    onOpen={(button) => menu.toggleFrom(button, r.id)}
+                    className="absolute right-0 top-1/2 -translate-y-1/2"
+                  />
+                )}
               </li>
             );
           })}
         </ul>
+        {menu.open && openRelease && (
+          <TrackMenu
+            label={`Actions for ${openRelease.title || shownArtist(openRelease)}`}
+            at={menu.open.at}
+            opener={menu.open.opener}
+            groups={releaseMenuGroups(openRelease, menuEnv, selecting)}
+            onClose={menu.close}
+          />
+        )}
         </>
         )}
       </div>
@@ -821,7 +863,10 @@ function CoverSection({
   onToggle,
   coverSize,
   onFocusRelease,
+  menuEnv,
 }: SectionProps) {
+  const menu = useTrackMenu();
+  const openRelease = menu.open ? releases.find((r) => r.id === menu.open?.key) : undefined;
   return (
     <section className="flex flex-col gap-4">
       <SectionHeader
@@ -850,9 +895,10 @@ function CoverSection({
             const isSelected = selecting && !locked && selected.has(r.id);
             const artistShown = shownArtist(r);
             const url = r.coverPath ? coverUrl(r.id, r.updatedAt) : null;
+            const groups = releaseMenuGroups(r, menuEnv, selecting);
             return (
+              <div key={r.id} className="group/track relative min-w-0" {...(groups.length > 0 ? menu.rowProps(r.id) : {})}>
               <button
-                key={r.id}
                 type="button"
                 onClick={() => {
                   if (locked) return;
@@ -866,7 +912,7 @@ function CoverSection({
                 aria-pressed={selecting && !locked ? isSelected : undefined}
                 aria-disabled={locked || undefined}
                 title={locked ? ADOPTED_NOT_SELECTABLE : undefined}
-                className={`shelf-tile min-w-0 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-60 ${
+                className={`shelf-tile block w-full min-w-0 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-bg disabled:cursor-not-allowed disabled:opacity-60 ${
                   locked ? "cursor-not-allowed opacity-60" : ""
                 }`}
               >
@@ -909,9 +955,29 @@ function CoverSection({
                   {libraryRowSubtitle({ ...r, artist: artistShown })}
                 </span>
               </button>
+              {groups.length > 0 && (
+                // Over the cover's top-right corner, above the hovered tile (which rises to z-1). The glyph carries a
+                // soft dark shadow so it reads on a pale cover.
+                <TrackMoreButton
+                  title={r.title || artistShown}
+                  expanded={menu.open?.key === r.id}
+                  onOpen={(button) => menu.toggleFrom(button, r.id)}
+                  className="absolute right-0.5 top-0.5 z-10 drop-shadow-[0_1px_3px_rgb(0_0_0/0.8)]"
+                />
+              )}
+              </div>
             );
           })}
           </div>
+          {menu.open && openRelease && (
+            <TrackMenu
+              label={`Actions for ${openRelease.title || shownArtist(openRelease)}`}
+              at={menu.open.at}
+              opener={menu.open.opener}
+              groups={releaseMenuGroups(openRelease, menuEnv, selecting)}
+              onClose={menu.close}
+            />
+          )}
         </>
         )}
       </div>

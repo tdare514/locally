@@ -28,6 +28,8 @@ import { useArtworkPalette } from "../lib/use-artwork-palette";
 import { formatLength } from "../lib/adopt-review";
 import { normalizeSearchText } from "../lib/library-sections";
 import { playerStore, usePlayerSelector, usePlayerState } from "../lib/play-queue";
+import { IS_DEMO } from "../lib/demo";
+import { targetActions, trackMenuGroups, type TrackMenuEnv } from "../lib/track-menu";
 import { nearestSlot } from "../lib/track-order";
 import {
   loadSpinningRecord,
@@ -42,6 +44,7 @@ import { useCollections } from "./CollectionsContext";
 import CollectionSleeve from "./CollectionSleeve";
 import RecordSleeve from "./RecordSleeve";
 import { NowPlayingIcon, PlayIcon, PlusIcon, SearchIcon, XIcon } from "./Icons";
+import TrackMenu, { TrackMoreButton, useTrackMenu } from "./TrackMenu";
 import NewCollectionForm from "./NewCollectionForm";
 import NoCover from "./NoCover";
 import PlaylistGuide from "./PlaylistGuide";
@@ -56,13 +59,15 @@ interface Props {
   onSelect: (id: string) => void;
   /** "Add tracks" on an empty collection: the Library, where every track row can add. */
   onAddTracks: () => void;
+  /** How a queue row's one menu (#419) reaches the app: its toast, the release page, the artist page. */
+  menuEnv?: TrackMenuEnv;
 }
 
 /**
  * The Collections page (#349, #351): the record player (a wheel, a turntable and the queue) or the List view (the
  * collections on the left, the chosen one's queue on the right), by a switch remembered on this Mac.
  */
-export default function CollectionsView({ releases, selectedId, onSelect, onAddTracks }: Props) {
+export default function CollectionsView({ releases, selectedId, onSelect, onAddTracks, menuEnv }: Props) {
   const api = useCollections();
   const [query, setQuery] = useState("");
   const [making, setMaking] = useState(false);
@@ -172,6 +177,7 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
               onGone={(nextId) => nextId && onSelect(nextId)}
               nextId={collections.find((x) => x.id !== c.id)?.id ?? null}
               onAddTracks={onAddTracks}
+              menuEnv={menuEnv}
             />
           )}
         />
@@ -226,6 +232,7 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
               onGone={(nextId) => nextId && onSelect(nextId)}
               nextId={collections.find((c) => c.id !== selected.id)?.id ?? null}
               onAddTracks={onAddTracks}
+              menuEnv={menuEnv}
             />
           )}
         </div></div>
@@ -291,12 +298,14 @@ function QueuePanel({
   onGone,
   onAddTracks,
   deck = false,
+  menuEnv,
 }: {
   collection: CollectionRecord;
   releases: Release[];
   nextId: string | null;
   onGone: (nextId: string | null) => void;
   onAddTracks: () => void;
+  menuEnv?: TrackMenuEnv;
   /** Under the record player's deck (#351): no sleeve (the hovering cover is the picture, and the deck has its own transport). */
   deck?: boolean;
 }) {
@@ -447,7 +456,7 @@ function QueuePanel({
       ) : editing ? (
         <EditList collection={collection} rows={rows} />
       ) : (
-        <Queue collection={collection} rows={rows} releases={releases} playing={queueOfThis && playing} />
+        <Queue collection={collection} rows={rows} releases={releases} playing={queueOfThis && playing} menuEnv={menuEnv} />
       )}
 
       {!empty && !editing && (
@@ -480,12 +489,16 @@ export function Queue({
   rows,
   releases,
   playing,
+  menuEnv,
 }: {
   collection: CollectionRecord;
   rows: CollectionRow[];
   releases: Release[];
   playing: boolean;
+  /** How a row's one menu (#419) reaches the app. Without it the rows have no menu. */
+  menuEnv?: TrackMenuEnv;
 }) {
+  const menu = useTrackMenu();
   const playerState = usePlayerState();
   const playerQueue = playerState.queue;
   const positions = rowQueuePositions(rows);
@@ -527,12 +540,16 @@ export function Queue({
       playerStore.start(queue);
     }
   }
+  /** The one menu of a queue row (#419): that track, whichever release it is from. */
+  const groupsFor = (e: Entry) => (menuEnv ? trackMenuGroups(targetActions({ release: e.release, trackId: e.trackId }, menuEnv, playerStore, IS_DEMO)) : []);
+  const openEntry = menu.open ? entries.find((e) => e.key === menu.open?.key) : undefined;
   const list = (
         <ol className="flex flex-col">
           {entries.map((e) => {
             const isCurrent = isCurrentRow(playerQueue, collection.id, e.position, { releaseId: e.release.id, trackId: e.trackId });
             return (
-              <li key={e.key} className="@container flex flex-wrap items-center gap-1">
+              <li key={e.key} className="@container group/track flex flex-wrap items-center gap-1" {...(groupsFor(e).length > 0 ? menu.rowProps(e.key) : {})}>
+                <div className="flex min-w-0 basis-full items-center @[26rem]:flex-1 @[26rem]:basis-0">
                 <button
                   type="button"
                   ref={(el) => {
@@ -542,7 +559,7 @@ export function Queue({
                   disabled={!e.playable}
                   onClick={() => playFrom(e)}
                   aria-label={`${isCurrent && playing ? "Pause" : "Play"} ${e.title}${e.playable ? "" : ", file missing"}${e.failed ? `, ${COULDNT_PLAY_TRACK}` : ""}`}
-                  className="flex min-h-14 min-w-0 basis-full items-center gap-2 rounded-xl p-2 @[26rem]:flex-1 @[26rem]:basis-0 @[26rem]:gap-3 text-left outline-none hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+                  className="flex min-h-14 min-w-0 flex-1 items-center gap-2 rounded-xl p-2 @[26rem]:gap-3 text-left outline-none hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
                 >
                   <span className="relative block size-10 shrink-0 overflow-hidden rounded-[4px] bg-card">
                     {e.release.coverPath ? (
@@ -566,6 +583,14 @@ export function Queue({
                     {e.playable ? (e.durationSec !== null ? formatLength(e.durationSec) : "") : "Missing"}
                   </span>
                 </button>
+                {groupsFor(e).length > 0 && (
+                  <TrackMoreButton
+                    title={e.title}
+                    expanded={menu.open?.key === e.key}
+                    onOpen={(button) => menu.toggleFrom(button, e.key)}
+                  />
+                )}
+                </div>
                 {e.failed && (
                   <button
                     type="button"
@@ -587,6 +612,15 @@ export function Queue({
         {announcement}
       </div>
       {list}
+      {menu.open && openEntry && (
+        <TrackMenu
+          label={`Actions for ${openEntry.title}`}
+          at={menu.open.at}
+          opener={menu.open.opener}
+          groups={groupsFor(openEntry)}
+          onClose={menu.close}
+        />
+      )}
     </div>
   );
 }

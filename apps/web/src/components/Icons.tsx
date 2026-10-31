@@ -304,6 +304,15 @@ export function SortIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** More: three dots in a row (#419; the track menu's button). Round-capped zero-length strokes, drawn heavier so they read at 20 px. */
+export function MoreIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M5.5 12h.01M12 12h.01M18.5 12h.01" strokeWidth={3} />
+    </IconBase>
+  );
+}
+
 /** The now-playing glyph (#338) on the playing row: three bars of fixed, different heights. Static, never animated. */
 export function NowPlayingIcon(props: SVGProps<SVGSVGElement>) {
   return (

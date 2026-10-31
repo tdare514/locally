@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import TrackList, { type EditableTrack } from "../../src/components/TrackList";
+import type { Release } from "../../src/shared/types";
 
 const tracks: EditableTrack[] = [
   { key: "t-c", title: "Cathedral" },
@@ -147,7 +148,7 @@ describe("TrackList markup", () => {
     const html = render({ onRemove: () => {} });
     expect(html).toContain("data-handle");
     expect(html).toContain('aria-label="Remove Cathedral"');
-    expect(html).toContain("2rem minmax(0,1fr) 4.5rem minmax(0,15rem) 5.5rem 96px");
+    expect(html).toContain("2rem minmax(0,1fr) 4.5rem minmax(0,15rem) 5.5rem 108px");
   });
 
   it("says so when there are no tracks", () => {
@@ -181,20 +182,72 @@ describe("TrackList playlists line (#212)", () => {
   });
 });
 
-describe("TrackList disc menu buttons (#222)", () => {
-  const buttons = (html: string) => [...html.matchAll(/aria-label="(Track \d+, disc options)"/g)].map((m) => m[1]);
+describe("TrackList track menu (#419)", () => {
+  const buttons = (html: string) => [...html.matchAll(/aria-label="(More actions for [^"]+)"/g)].map((m) => m[1]);
+  const release = {
+    id: "r1",
+    kind: "album",
+    title: "Night",
+    artist: "Mira Valdane",
+    year: null,
+    genre: null,
+    coverPath: null,
+    folderPath: "/lib/r1",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    tracks: tracks.map((t, i) => ({ id: t.key, title: t.title, trackNumber: i + 1, filePath: "", originalName: "", durationSec: 60 })),
+  } as unknown as Release;
+  const env = { toast: () => {}, openArtist: () => {} };
+  const names = ["More actions for Cathedral", "More actions for Afterglow", "More actions for Bluebird"];
 
-  it("turns the number into a menu button on every row but the first of an editable list", () => {
+  it("gives a More button to every row with a disc action: all but the first of an editable list", () => {
     const html = render();
-    expect(buttons(html)).toEqual(["Track 2, disc options", "Track 3, disc options"]);
+    expect(buttons(html)).toEqual(["More actions for Afterglow", "More actions for Bluebird"]);
     expect(html).toContain('aria-haspopup="menu"');
+    expect(html).toContain('aria-expanded="false"');
+    // The old disc controls are gone: the number is plain text, and there is no disc menu button.
+    expect(html).not.toContain("disc options");
+    expect(html).not.toContain("to another disc");
+    expect([...html.matchAll(/<(button|span)[^>]*data-number[^>]*>/g)].map((m) => m[1])).toEqual(["span", "span", "span"]);
+  });
+
+  it("draws the More button as the 44 px icon button, shown on hover and focus, and no menu until it is opened", () => {
+    const html = render();
+    const tag = html.match(/<button[^>]*data-track-more[^>]*>/)?.[0] ?? "";
+    expect(tag).toContain("btn-icon");
+    expect(tag).toContain("opacity-0");
+    expect(tag).toContain("group-hover/track:opacity-100");
+    expect(tag).toContain("group-focus-within/track:opacity-100");
+    expect(html).not.toContain('role="menu"');
   });
 
   it("gives the first row of disc 2 a button too, and leaves one-track, read-only and view lists plain", () => {
     const discs = tracks.map((t, i) => ({ ...t, discNumber: i < 2 ? 1 : 2 }));
-    expect(buttons(render({ tracks: discs }))).toEqual(["Track 2, disc options", "Track 3, disc options"]);
+    expect(buttons(render({ tracks: discs }))).toEqual(["More actions for Afterglow", "More actions for Bluebird"]);
     expect(buttons(render({ tracks: tracks.slice(0, 1) }))).toEqual([]);
     expect(buttons(render({ readOnly: true }))).toEqual([]);
     expect(buttons(render({ view: { "t-c": { durationSec: 1 } } }))).toEqual([]);
+  });
+
+  it("gives every playable row of the release page a More button, the first row and the read-only list too", () => {
+    expect(buttons(render({ menu: { release, env } }))).toEqual(names);
+    expect(buttons(render({ menu: { release, env }, readOnly: true }))).toEqual(names);
+  });
+
+  it("leaves a row without a menu when nothing in it can be done", () => {
+    const toastOnly = { toast: () => {} };
+    const missing = { ...release, tracks: release.tracks.map((t) => ({ ...t, missing: true })) } as Release;
+    // Files gone, no artist page to open, nothing to edit in a read-only list: no buttons at all.
+    expect(buttons(render({ menu: { release: missing, env: toastOnly }, readOnly: true }))).toEqual([]);
+    expect(buttons(render({ menu: { release: { ...release, tracks: [] }, env: toastOnly }, readOnly: true }))).toEqual([]);
+    // Playable files can be queued, which is enough.
+    expect(buttons(render({ menu: { release, env: toastOnly }, readOnly: true }))).toEqual(names);
+  });
+
+  it("keeps the Add to collection and Share controls in the row, and shows the More button beside them", () => {
+    const html = render({ renderCollect: (_k, n) => createElement("i", { "data-collect-button": "" }, n), renderShare: () => createElement("b", { "data-share-button": "" }) });
+    expect(buttons(html)).toHaveLength(3);
+    expect(html.indexOf("data-track-more")).toBeLessThan(html.indexOf("data-collect-button"));
+    expect(html.indexOf("data-collect-button")).toBeLessThan(html.indexOf("data-share-button"));
   });
 });

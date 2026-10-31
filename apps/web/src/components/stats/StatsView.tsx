@@ -24,7 +24,7 @@ import { libraryWidthClass } from "../../lib/library-view-prefs";
 import { useLibraryWidth } from "../../lib/use-library-width";
 import { WideToggle, PeriodStepper, SelectMenu, Toggle } from "./controls";
 import SleeveFan from "./SleeveFan";
-import { StatsList, StatsSea } from "./StatsRows";
+import { StatsList, StatsSea, type StatsMenu } from "./StatsRows";
 
 /**
  * The Stats page (#145). Top to bottom: the heading with the period, a one-line digest and the
@@ -69,6 +69,7 @@ export default function StatsView({
   onOpenRelease,
   onOpenArtist,
   onOpenSettings,
+  onToast,
 }: {
   releases: Release[];
   loadingLibrary: boolean;
@@ -83,6 +84,8 @@ export default function StatsView({
   /** Opens the artist's page (#288). */
   onOpenArtist: (name: string) => void;
   onOpenSettings: () => void;
+  /** The track menu's toast after Play next or Add to queue (#419). */
+  onToast: (kind: "success" | "error", text: string) => void;
 }) {
   const { tab, period, layout, sort } = prefs;
   const { state, countingSince, allDevices, today, firstDay } = usePlayStats(period, releases, true, Infinity);
@@ -102,6 +105,16 @@ export default function StatsView({
     // A track opens its release at that track; an album opens the release, no track.
     if (item.releaseId) onOpenRelease(item.releaseId, tab === "tracks" ? item.id : undefined);
     else onOpenArtist(item.title);
+  };
+
+  // The one track menu of a row or cover (#419): a track in the Tracks ranking is that track, an album the whole release.
+  const menu: StatsMenu = {
+    env: { toast: onToast, openRelease: (id) => onOpenRelease(id), openArtist: onOpenArtist },
+    targetFor: (item) => {
+      const release = item.releaseId ? releases.find((r) => r.id === item.releaseId) : undefined;
+      if (!release) return null;
+      return tab === "tracks" ? { release, trackId: item.id } : { release };
+    },
   };
 
   const digest =
@@ -226,9 +239,10 @@ export default function StatsView({
                   onOpen={open}
                   initialShown={shown}
                   onShownChange={onShownChange}
+                  menu={menu}
                 />
               ) : (
-                <StatsSea items={items} label={`Your ${noun}, in rank order`} round={tab === "artists"} onOpen={open} initialShown={shown} onShownChange={onShownChange} />
+                <StatsSea items={items} label={`Your ${noun}, in rank order`} round={tab === "artists"} onOpen={open} initialShown={shown} onShownChange={onShownChange} menu={menu} />
               )}
             </div>
           </section>
