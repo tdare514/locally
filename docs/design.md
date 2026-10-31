@@ -348,7 +348,7 @@ and Collections carry the Mac's eyebrows ("Local library", "Your music") over th
 - **Mobile top bar**: 64 tall, `bg` at 90 % with blur, sticky; back chevron (28) at the left when
   there is a parent; title 18 bold; an optional trailing icon button (search, more). iOS keeps the
   system navigation bar and tab bar and styles them to match.
-- **Text field**: `elevated`, radius 6, label above in field-label style, placeholder at
+- **Text field**: `elevated`, radius 8 (the Mac's fields move from 6 in #417), label above in field-label style, placeholder at
   `text-muted` 60 %. Year and Genre sit side by side in a two-column grid.
 - **Library toolbar (desktop)**: under the "All music" header, a search field (magnifier at the
   left, placeholder "Search titles, artists, genres…", ⌘F focuses it, Escape clears it) beside a
@@ -406,7 +406,7 @@ and Collections carry the Mac's eyebrows ("Local library", "Your music") over th
     again, the disc first easing out of the sleeve. Reduced motion: no flash, slide or turn, a
     160 ms fade, the disc already in, colours at once.
 - **Library list (mobile)**: one `card` container, radius 12, 1 px `border`; rows 78 min height
-  with 12 padding, 56 square art radius 6 (or an `elevated` tile with a muted note icon), title
+  with 12 padding, 56 square art radius 4 (or an `elevated` tile with a muted note icon), title
   and subtitle (albums: "artist · N tracks"), a `text-dim` chevron at the right; rows separated by
   1 px `border`; press background `row-hover`. Header above: eyebrow "YOUR COLLECTION" (replaced 13 Oct 2026: sentence case), title
   "All music", meta "N tracks". The list is split into two sections, **Singles** then
@@ -505,7 +505,7 @@ and Collections carry the Mac's eyebrows ("Local library", "Your music") over th
     a plain white 20 pt knob (it grows with the text up to 28 pt; #411, owner C07: slimmer) on the switch's spring, a dense-grid glyph at the left and a bigger one at the right, a 44 pt hit height,
     a selection haptic per detent, adjustable for VoiceOver ("Cover size, Medium"). No tint, rim or shadow. Tiles
     have radius 8. A pressed tile grows to 1.03 with a shadow (radius 10, 35 %, y 4) over 0.15 s.
-    List rows sit in a radius 16 panel, and the divider between Singles and Albums is white at 7 %.
+    List rows sit in a radius 12 panel, and the divider between Singles and Albums is white at 7 %.
     The layout toggle is a slim switch track with a neutral thumb sliding on the switch's spring, and the sort button is a plain icon (#411). The Library has no "Add a song" footer (the Import tab does that). Collections is a glass card
     (`CollectionsLibraryCard`, at least 80 pt tall) under the header, washed from the first collection's cover colours (55 % at the leading edge, clear at 70 %), with the first three collections'
     covers as a stack of sleeves (the front one with a vinyl peeking out, the two behind tilted -7 and +5 degrees); it presses to 0.98 and holds its height while loading; one tap opens the Collections screen, which holds "New collection".
@@ -581,7 +581,7 @@ and Collections carry the Mac's eyebrows ("Local library", "Your music") over th
       all), with a **Details** link opening the whole message in a sheet when that cuts it short.
       Once the disc is in and the send has worked, the **Sent card** pops up over everything,
       tab bar included, modelled on Google Health's "You're all set" card: the page dims (black
-      45 %, 250 ms); a compact card (`card`, radius 28, padding 24, 16 from the screen edges,
+      45 %, 250 ms); a compact card (`card`, radius 16, padding 24, 16 from the screen edges,
       sitting in the lower half) springs up from 40 pt below at 94 % scale (spring response 0.5,
       damping 0.72); behind its top edge a soft glow in the cover's colours blooms (the
       backdrop palette's colours, blurred 40, from 60 % scale and clear to full over 700 ms;
@@ -893,7 +893,7 @@ and Collections carry the Mac's eyebrows ("Local library", "Your music") over th
     house easing; Reduced motion makes it instant. The library and release page keep theirs.
 - **From your devices on the iPhone** (*sections since 17 Oct 2026: see **Pages at full width** at the end*) **(#269, owner 16 Oct: "This notification should be in library… and should match the Mac's design")**: the Mac's tray (the entry above) carried to the phone's Library tab, replacing the toast, chip and list that sat on Import. Import goes back to only making a record.
   - *Button*: in the Library header, at the top right on the eyebrow's line (the track count stays where it is, on the title's baseline), the Mac's clear faked-glass cloud button, 40 pt visible inside a 44 pt hit area, with the `accent` count badge inside its top-trailing corner so it never crosses the 16 pt gutter, shown only while something is pending; while it shows, the gap between the eyebrow and the title grows from 4 to 26 pt so the track count sits clear below the button (owner 16 Oct: "Notification cloud seems choked"). Open, it becomes a bare red X and the badge hides. VoiceOver: "From your devices, 3 waiting" / "Close".
-  - *Tray* (owner 16 Oct: "Notification shouldn't take up the full screen width"): a slim panel like the Mac's, 300 pt wide (the screen less the 16 pt gutters when that is narrower), its top-right corner under the cloud button, opening out of that corner (scale from 0.92 at the top-trailing anchor with opacity, 240 ms on the house easing; Reduce Motion a 160 ms fade), radius 22, the phone's faked glass (no live blur), at most 60 % of the screen tall and scrolling inside. It opens and closes from the button, and also closes when the library behind it is tapped (a phone has no Escape). Heading "From your devices".
+  - *Tray* (owner 16 Oct: "Notification shouldn't take up the full screen width"): a slim panel like the Mac's, 300 pt wide (the screen less the 16 pt gutters when that is narrower), its top-right corner under the cloud button, opening out of that corner (scale from 0.92 at the top-trailing anchor with opacity, 240 ms on the house easing; Reduce Motion a 160 ms fade), radius 16, the phone's faked glass (no live blur), at most 60 % of the screen tall and scrolling inside. It opens and closes from the button, and also closes when the library behind it is tapped (a phone has no Escape). Heading "From your devices".
   - *Rows*, as on the Mac (titles and artists cut short to one line each so the tray stays slim; Dynamic Type at accessibility sizes may wrap to two): a 48 pt record sleeve (the cover, radius 10, the disc peeking out) that is itself the Send to Spotify button (pressed: the cover turns `accent` with a black plus and the disc rolls out), then the title (15 semibold), artist and track count (13 secondary) and the origin label (12 tertiary: "from your Mac", "from the web", "from another device"). A sent row collapses out. The phone has no signal that a pending record's audio is missing from the service (the missing-files check covers this phone's own releases), so it has no "still sending" or "waiting" looks; a failed accept can equally be the network, folder access or a local import error. Two states instead: *sending* (a send is running; it wins over an earlier failure) is the `accent` sleeve with a small spinner in place of the plus, and not a button; *failed* (the last send failed; the sleeve stays the Send button) adds "Couldn't send this yet." (12 `danger`) under the origin label and a secondary **Try again** pill that retries that send. VoiceOver: each sleeve is "Send <title> to Spotify"; a failed row's hint is the sync error text.
   - *Arrival*: no toast. When the pending count goes up, the badge scales in from 0.6 with opacity over 240 ms on the house easing (`.timingCurve(0.16, 1, 0.3, 1, duration:)`). Reduce Motion: the badge just appears, the tray fades in 160 ms, the disc doesn't roll.
 - **Pages at full width, the release bar, track columns, the tray's sections and no-cover releases (both apps; owner 17 Oct 2026, from screenshots and the mockups at https://claude.ai/artifact/ADeVZeEP1ZEpHjeVfNTtH4)**: the owner's picks, in one entry because they land together. References on Mobbin: Apple Music's album page (cover beside the details, a full-width track table), SoundCloud's vinyl maker (a bottom bar with the main action on the right), Meetup's grouped notifications (a header per group).
