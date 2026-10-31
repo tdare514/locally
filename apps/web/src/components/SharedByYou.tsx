@@ -72,7 +72,7 @@ export default function SharedByYou({ onToast }: SharedByYouProps) {
   }
 
   return (
-    <section id="shared-by-you" aria-labelledby="shared-by-you-heading" className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
+    <section id="shared-by-you" aria-labelledby="shared-by-you-heading" className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6">
       <p id="shared-by-you-heading" className="text-sm font-bold text-text">
         Shared by you
       </p>
@@ -176,7 +176,7 @@ export default function SharedByYou({ onToast }: SharedByYouProps) {
 function ShareCover({ releaseId, dim }: { releaseId: string; dim: boolean }) {
   const [failed, setFailed] = useState(false);
   return (
-    <span className={`flex ${dim ? "opacity-60 " : ""} h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-elevated text-text-muted ring-1 ring-white/10`}>
+    <span className={`flex ${dim ? "opacity-60 " : ""} h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[4px] bg-elevated text-text-muted ring-1 ring-white/10`}>
       {failed ? (
         <MusicNoteIcon className="h-4 w-4" />
       ) : (

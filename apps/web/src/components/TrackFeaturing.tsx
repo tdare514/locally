@@ -62,7 +62,7 @@ export default function TrackFeaturing({ trackName, names, onChange, index, name
         aria-haspopup="dialog"
         aria-controls={open ? dialogId : undefined}
         onClick={() => (open ? close() : setOpen(true))}
-        className={`cursor-pointer truncate rounded-md px-1.5 py-0.5 text-left text-[15px] outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-accent ${
+        className={`cursor-pointer truncate rounded-lg px-1.5 py-0.5 text-left text-[15px] outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-accent ${
           has
             ? "text-text-muted"
             : "text-text-dim opacity-0 group-hover/track:opacity-100 group-focus-within/track:opacity-100 aria-expanded:opacity-100"
@@ -91,7 +91,7 @@ export default function TrackFeaturing({ trackName, names, onChange, index, name
             onChange={onChange}
             index={index}
             ariaLabel="Add a featured artist"
-            inputClassName="field-sizing-content min-w-[12ch] max-w-full rounded-md bg-transparent px-1.5 py-0.5 text-sm text-text outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
+            inputClassName="field-sizing-content min-w-[12ch] max-w-full rounded-lg bg-transparent px-1.5 py-0.5 text-sm text-text outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
           />
           <button type="button" onClick={close} className="btn-ink self-end">
             Done

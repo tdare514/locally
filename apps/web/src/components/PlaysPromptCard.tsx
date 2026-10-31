@@ -99,7 +99,7 @@ export default function PlaysPromptCard({ onToast, className = "" }: PlaysPrompt
 
   if (phase === "loading" || phase === "hidden") return null;
 
-  const cardClass = `glass-fake relative isolate w-full rounded-2xl text-left ${className}`;
+  const cardClass = `glass-fake relative isolate w-full rounded-xl text-left ${className}`;
 
   if (phase === "answered") {
     return (

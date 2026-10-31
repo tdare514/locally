@@ -323,8 +323,8 @@ export default function AdoptReviewView({ scan, onBack, onAllAdded, onLibraryCha
               <span className="size-5 shrink-0 rounded-full ring-[1.5px] ring-inset ring-white/[0.06]" />
               <span className="size-12 shrink-0 rounded bg-white/[0.06]" />
               <span className="flex flex-1 flex-col gap-2">
-                <span className="h-3 w-1/3 rounded bg-white/[0.06]" />
-                <span className="h-3 w-1/5 rounded bg-white/[0.06]" />
+                <span className="h-3 w-1/3 rounded-full bg-white/[0.06]" />
+                <span className="h-3 w-1/5 rounded-full bg-white/[0.06]" />
               </span>
             </li>
           ))}

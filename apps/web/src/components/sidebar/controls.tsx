@@ -45,7 +45,7 @@ export function NavItem({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-text-muted ${focusRing} ${
+      className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-text-muted ${focusRing} ${
         active ? "bg-white/[0.1] text-text" : "text-text-muted hover:bg-white/[0.07] hover:text-text"
       }`}
     >
@@ -57,7 +57,7 @@ export function NavItem({
 }
 
 interface ChoiceProps<T extends string> {
-  /** `seg` is a segmented control (a radio group); `tabs` is a row of text tabs. */
+  /** `seg` is the slim switch (`.btn-seg`, as on the Stats page) as a radio group; `tabs` is a row of text tabs. */
   kind: "seg" | "tabs";
   label: string;
   value: T;
@@ -90,28 +90,50 @@ export function Choice<T extends string>({
     e.currentTarget.querySelectorAll<HTMLButtonElement>("button")[next]?.focus();
   }
 
+  const vars = { "--n": options.length, "--i": index } as CSSProperties;
+
+  if (kind === "seg") {
+    return (
+      <div role="radiogroup" aria-label={label} onKeyDown={onKeyDown} className={`btn-seg st-seg w-full ${className}`} style={vars}>
+        <span aria-hidden className="btn-seg-dot">
+          <span />
+        </span>
+        {options.map((o) => {
+          const selected = o.value === value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => onChange(o.value)}
+              className="btn-seg-opt"
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
-    <div
-      role={kind === "seg" ? "radiogroup" : "tablist"}
-      aria-label={label}
-      onKeyDown={onKeyDown}
-      className={`sb-${kind} ${className}`}
-      style={{ "--n": options.length, "--i": index } as CSSProperties}
-    >
-      <span aria-hidden className={`sb-${kind}-thumb`} />
+    <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className={`sb-tabs ${className}`} style={vars}>
+      <span aria-hidden className="sb-tabs-thumb" />
       {options.map((o) => {
         const selected = o.value === value;
         return (
           <button
             key={o.value}
             type="button"
-            role={kind === "seg" ? "radio" : "tab"}
-            {...(kind === "seg" ? { "aria-checked": selected } : { "aria-selected": selected })}
+            role="tab"
+            aria-selected={selected}
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(o.value)}
-            className={`relative z-10 whitespace-nowrap text-xs font-semibold transition-colors ${focusRing} ${
-              kind === "seg" ? "rounded-full py-1.5" : "rounded-md py-1.5"
-            } ${selected ? "text-text" : "text-text-muted hover:text-text-soft"}`}
+            className={`relative z-10 whitespace-nowrap rounded-full py-1.5 text-xs font-semibold transition-colors ${focusRing} ${
+              selected ? "text-text" : "text-text-muted hover:text-text-soft"
+            }`}
           >
             {o.label}
           </button>
@@ -215,19 +237,19 @@ export function EditWidgets({
         data-state={open ? "open" : "closed"}
         className="sb-pop right-0 top-full mt-2"
       >
-        <p className="px-2.5 pb-1 pt-1.5 text-xs text-text-dim">Show in this panel</p>
+        <p className="px-2.5 pb-1 pt-1.5 text-xs text-text-muted">Show in this panel</p>
         {WIDGETS.map((w) => (
           <Switch
             key={w.key}
             checked={enabled[w.key]}
             onChange={() => onToggle(w.key)}
             locked={enabled[w.key] && onCount === 1}
-            className="w-full justify-between rounded-xl px-2.5 py-2 text-[13px] hover:bg-white/[0.06]"
+            className="w-full justify-between rounded-lg px-2.5 py-2 text-[13px] hover:bg-white/[0.06]"
           >
             {w.title}
           </Switch>
         ))}
-        {onCount === 1 && <p className="px-2.5 pb-1.5 pt-1 text-xs text-text-dim">At least one stays on.</p>}
+        {onCount === 1 && <p className="px-2.5 pb-1.5 pt-1 text-xs text-text-muted">At least one stays on.</p>}
       </div>
     </div>
   );

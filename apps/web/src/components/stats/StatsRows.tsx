@@ -107,7 +107,7 @@ export function StatsList({
                   type="button"
                   data-row-open
                   title={openHint(item)}
-                  className="medal-name st-focus block max-w-full truncate rounded-sm text-left text-[15px] font-semibold"
+                  className="medal-name st-focus block max-w-full truncate rounded-lg text-left text-[15px] font-semibold"
                   data-medal={medalFor(item.rank)}
                 >
                   {trackRows ? splitFeaturing(item.title).title : item.title}

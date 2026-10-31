@@ -78,7 +78,7 @@ export default function SpotifySourceBanner({ onOpenSettings, onToast }: Spotify
   if (!loaded || !libraryDir || watching || dismissed) return null;
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-border border-l-4 border-l-accent bg-card p-6">
+    <div className="flex flex-col gap-4 rounded-xl border border-border border-l-4 border-l-accent bg-card p-6">
       <div>
         <p className="text-sm font-semibold text-accent">Spotify setup</p>
         <h2 className="mt-1 text-lg font-bold tracking-[-0.03em] text-text">

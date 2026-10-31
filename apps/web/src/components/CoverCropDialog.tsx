@@ -198,7 +198,7 @@ export default function CoverCropDialog({
 
         <div
           ref={viewportRef}
-          className="relative mx-auto touch-none select-none overflow-hidden rounded-md bg-[#050505]"
+          className="relative mx-auto touch-none select-none overflow-hidden rounded-lg bg-[#050505]"
           style={{
             width: viewportWidth,
             height: viewportHeight,

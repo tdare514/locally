@@ -551,7 +551,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
 
       {/* Two columns from lg, each card at its natural height (CSS columns), one column below. */}
       <div className="lg:columns-2 lg:gap-x-8 [&>*]:mb-8 [&>*]:break-inside-avoid [&>*:last-child]:mb-0">
-      <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
+      <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6">
         <p className="text-sm font-bold text-text">Library folder</p>
         <fieldset disabled={IS_DEMO} className="m-0 min-w-0 border-0 p-0">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -588,7 +588,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
 
       <SpotifyFoldersCard onToast={onToast} onCheck={onCheckSpotifyFolders} />
 
-      <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
+      <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6">
         <p className="text-sm font-bold text-text">Library</p>
         <div className="flex items-center justify-between gap-4">
           <span id="library-width-label" className="text-sm text-text-muted">
@@ -618,7 +618,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
         </div>
       </section>
 
-      <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
+      <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6">
         <p className="text-sm font-bold text-text">Plays</p>
         <fieldset disabled={IS_DEMO} className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
           <div className="flex items-center justify-between gap-4">
@@ -677,7 +677,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
       </section>
 
       {spotify && (
-        <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
+        <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6">
           <p className="text-sm font-bold text-text">Spotify</p>
           {spotify.connected ? (
             <>
@@ -753,7 +753,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
         </section>
       )}
 
-      <section id="account" className="flex flex-col gap-4 rounded-lg border border-border bg-card p-6">
+      <section id="account" className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6">
         <div>
           <p className="text-sm font-bold text-text">Sync with your phone</p>
           <p className="mt-1 text-sm text-text-muted">
@@ -895,7 +895,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
             </div>
 
             {confirmingDeleteAccount ? (
-              <div className="flex flex-col gap-2 rounded-lg border border-danger/40 bg-danger/5 p-4">
+              <div className="flex flex-col gap-2 rounded-xl border border-danger/40 bg-danger/5 p-4">
                 <p className="text-sm font-bold text-text">Delete your sync account?</p>
                 <p className="text-sm text-text-muted">
                   This removes your account and every release and file Locally has stored in the
@@ -943,7 +943,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
 
       {signedIn && !IS_DEMO && <SharedByYou onToast={onToast} />}
 
-      <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
+      <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6">
         <p className="text-sm font-semibold text-text">Connect to Spotify</p>
         {spotifyWatching !== null && (
           <p className={`text-sm ${spotifyWatching ? "text-accent" : "text-text-muted"}`}>
@@ -964,7 +964,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
         </ol>
       </section>
 
-      <section className="flex flex-col gap-2 rounded-lg border border-border bg-card p-6 text-sm text-text-muted">
+      <section className="flex flex-col gap-2 rounded-xl border border-border bg-card p-6 text-sm text-text-muted">
         <p>
           Spotify caches local-file metadata. After editing an existing track here,{" "}
           <strong className="text-text">restart Spotify</strong> to see the changes.

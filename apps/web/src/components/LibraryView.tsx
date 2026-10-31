@@ -485,7 +485,7 @@ export default function LibraryView({
                   onQueryChange("");
                 }
               }}
-              className="w-full rounded-md bg-elevated py-3 pl-11 pr-4 text-sm text-text outline-none placeholder:text-text-muted/60 focus:ring-2 focus:ring-accent"
+              className="min-h-11 w-full rounded-full bg-elevated pl-11 pr-4 text-sm text-text outline-none placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-accent"
             />
           </div>
           {!artistsView && <LibrarySortMenu value={sort} onChange={onSortChange} />}
@@ -667,7 +667,7 @@ function SectionHeader({
         onClick={onToggleOpen}
         aria-expanded={open}
         aria-controls={bodyId}
-        className="group flex items-baseline gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-bg"
+        className="group flex items-baseline gap-2 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 focus-visible:ring-offset-bg"
       >
         <span>{label}</span>
         <span className="text-sm font-normal tracking-normal text-text-dim">{count}</span>
@@ -889,7 +889,7 @@ function CoverSection({
                       <NoCover className="h-full w-full rounded-lg shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]" />
                     )}
                     {selecting && !locked && (
-                      <span className="absolute left-2 top-2 rounded-md bg-black/50 p-1">
+                      <span className="absolute left-2 top-2 rounded-full bg-black/50 p-1">
                         <SelectBox checked={isSelected} />
                       </span>
                     )}
@@ -924,7 +924,7 @@ function SelectBox({ checked }: { checked: boolean }) {
   return (
     <span
       aria-hidden="true"
-      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
+      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
         checked ? "border-accent bg-accent" : "border-text-dim"
       }`}
     >
@@ -1027,7 +1027,7 @@ function DiagramTile({
 }) {
   return (
     <div className="flex flex-col items-center gap-2">
-      <div className="flex h-[68px] w-[68px] items-center justify-center overflow-hidden rounded-2xl border border-border bg-elevated">
+      <div className="flex h-[68px] w-[68px] items-center justify-center overflow-hidden rounded-lg border border-border bg-elevated">
         {children}
       </div>
       <span className="text-xs text-text-muted">{caption}</span>

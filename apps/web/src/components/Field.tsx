@@ -9,7 +9,7 @@ interface FieldProps {
   placeholder?: string;
   type?: InputHTMLAttributes<HTMLInputElement>["type"];
   disabled?: boolean;
-  /** Sentence-case label in place of the small-caps one. */
+  /** Plain 14 px label in place of the 13 px semibold one. */
   plainLabel?: boolean;
 }
 
@@ -25,7 +25,7 @@ export default function Field({
 }: FieldProps) {
   return (
     <label className="flex flex-col gap-2 text-sm">
-      <span className={plainLabel ? "text-sm text-text-muted" : "text-xs font-bold uppercase tracking-[0.14em] text-text-muted"}>
+      <span className={plainLabel ? "text-sm text-text-muted" : "text-[13px] font-semibold text-text-muted"}>
         {label}
       </span>
       <input
@@ -34,7 +34,7 @@ export default function Field({
         placeholder={placeholder}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-md bg-elevated px-4 py-3 text-sm text-text outline-none placeholder:text-text-muted/60 focus:ring-2 focus:ring-accent disabled:opacity-50"
+        className="rounded-lg bg-elevated px-4 py-3 text-sm text-text outline-none placeholder:text-text-muted focus:ring-2 focus:ring-accent disabled:opacity-50"
       />
     </label>
   );

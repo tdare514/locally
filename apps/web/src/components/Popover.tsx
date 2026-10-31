@@ -157,4 +157,4 @@ export default function Popover({
 
 /** The class of a popover's item: 44 px tall, a visible focus ring. */
 export const MENU_ITEM =
-  "flex min-h-11 w-full items-center gap-3 rounded-[12px] px-3 text-left text-sm text-text outline-none hover:bg-white/[0.08] focus-visible:ring-2 focus-visible:ring-accent disabled:text-text-dim disabled:hover:bg-transparent";
+  "flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-text outline-none hover:bg-white/[0.08] focus-visible:ring-2 focus-visible:ring-accent disabled:text-text-dim disabled:hover:bg-transparent";

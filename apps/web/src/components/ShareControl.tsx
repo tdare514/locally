@@ -352,7 +352,7 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
               ? { position: "fixed", right: pos?.right ?? 16, ...(up ? { bottom: pos?.edge ?? 0 } : { top: pos?.edge ?? 0 }), visibility: pos ? "visible" : "hidden" }
               : {}),
           }}
-          className={`share-pop playlist-pop glass-fake glass-frost isolate flex w-[360px] max-w-[calc(100vw-2rem)] cursor-default flex-col rounded-[22px] p-4 text-left ${
+          className={`share-pop playlist-pop glass-fake glass-frost isolate flex w-[360px] max-w-[calc(100vw-2rem)] cursor-default flex-col rounded-2xl p-4 text-left ${
             overlay ? "pointer-events-auto" : `absolute right-0 z-40 ${up ? "bottom-full mb-3" : "top-full mt-1"}`
           }`}
         >
@@ -378,7 +378,7 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
                   People
                 </h3>
                 <div
-                  className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-xl bg-black/30 px-2 py-1.5 ring-1 ring-white/10 focus-within:ring-2 focus-within:ring-accent"
+                  className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg bg-black/30 px-2 py-1.5 ring-1 ring-white/10 focus-within:ring-2 focus-within:ring-accent"
                   onClick={() => inputRef.current?.focus()}
                 >
                   {emails.map((email) => (

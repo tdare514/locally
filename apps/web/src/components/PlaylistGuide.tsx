@@ -37,7 +37,7 @@ export default function PlaylistGuide({
   }
 
   return (
-    <details className="group rounded-[9px] border border-border bg-card p-5">
+    <details className="group rounded-xl border border-border bg-card p-5">
       <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-base font-bold tracking-[-0.02em] text-text [&::-webkit-details-marker]:hidden">
         <ChevronRightIcon className="h-4 w-4 text-text-muted transition-transform motion-reduce:transition-none group-open:rotate-90" />
         Make it a playlist

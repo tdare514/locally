@@ -189,7 +189,7 @@ function InlineField({
         placeholder={placeholder}
         readOnly={IS_DEMO}
         onChange={(e) => onChange(e.target.value)}
-        className="field-sizing-content min-w-[4ch] rounded-md bg-transparent px-1.5 py-0.5 font-semibold text-text outline-none transition-colors placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
+        className="field-sizing-content min-w-[4ch] rounded-lg bg-transparent px-1.5 py-0.5 font-semibold text-text outline-none transition-colors placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
       />
     </label>
   );
@@ -630,7 +630,7 @@ export default function ReleaseView({
                   index={artistIndex}
                   wrapperClassName="-mx-2 max-w-full self-start"
                   hintClassName="self-start"
-                  inputClassName="field-sizing-content min-w-[8ch] max-w-full rounded-md bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
+                  inputClassName="field-sizing-content min-w-[8ch] max-w-full rounded-lg bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
                 />
                 <span className="flex h-8 items-center">
                   <ArtistOpenButton artist={artist} />
@@ -715,7 +715,7 @@ export default function ReleaseView({
       {release.kind === "album" && (
         <details
           open={justImported}
-          className="group rounded-[9px] border border-border bg-card p-5"
+          className="group rounded-xl border border-border bg-card p-5"
         >
           <summary className="flex cursor-pointer list-none items-center gap-2 text-base font-bold tracking-[-0.02em] text-text [&::-webkit-details-marker]:hidden">
             <ChevronRightIcon className="h-4 w-4 text-text-muted transition-transform motion-reduce:transition-none group-open:rotate-90" />

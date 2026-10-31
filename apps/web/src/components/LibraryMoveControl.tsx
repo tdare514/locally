@@ -68,7 +68,7 @@ export default function LibraryMoveControl({ onToast, onMoved }: LibraryMoveCont
   return (
     <div className="flex flex-col gap-3">
       {oldPath && (
-        <div className="flex flex-col gap-2 rounded-md border border-border bg-elevated p-3">
+        <div className="flex flex-col gap-2 rounded-xl border border-border bg-elevated p-3">
           <p className="text-sm text-text">In Spotify, remove the old folder from Local Files sources.</p>
           <div className="flex items-center gap-2">
             <code className="min-w-0 flex-1 truncate text-xs text-text-muted" title={oldPath}>
@@ -99,7 +99,7 @@ export default function LibraryMoveControl({ onToast, onMoved }: LibraryMoveCont
         </div>
       )}
       {preview && open && (
-        <div className="flex flex-col gap-3 rounded-md border border-border bg-elevated p-3">
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-elevated p-3">
           <Field label="Move to" plainLabel value={destination} onChange={setDestination} disabled={moving} />
           <p className="text-sm text-text-muted">
             This moves {plural(preview.songs, "song", "songs")} in {plural(preview.releases, "release", "releases")} to the

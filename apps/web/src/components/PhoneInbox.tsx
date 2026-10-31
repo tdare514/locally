@@ -334,7 +334,7 @@ export default function PhoneInbox({
           aria-labelledby={headingId}
           tabIndex={-1}
           data-state={open ? "open" : "closed"}
-          className="phone-tray glass-fake glass-frost absolute right-full top-full z-30 isolate w-[300px] max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain rounded-[22px] p-2 outline-none"
+          className="phone-tray glass-fake glass-frost absolute right-full top-full z-30 isolate w-[300px] max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain rounded-2xl p-2 outline-none"
         >
           <h2 id={headingId} tabIndex={-1} className="sr-only">
             {friends.length > 0 ? `${INBOX_TITLE} and friends` : INBOX_TITLE}
@@ -552,7 +552,7 @@ export function PendingRow({
   );
   return (
     <div className="group/row" aria-busy={busy || undefined}>
-      <div className={`flex items-center rounded-2xl px-2.5 ${compact ? "gap-3 py-1.5" : "gap-3.5 py-2.5"}`}>
+      <div className={`flex items-center rounded-lg px-2.5 ${compact ? "gap-3 py-1.5" : "gap-3.5 py-2.5"}`}>
         {arriving ? (
           // Still being sent: greyed out and not a button. The dots are decorative; the words follow.
           <div className={`relative ${frame} shrink-0`}>
@@ -642,7 +642,7 @@ export function FriendRow({
   const showCover = item.hasCover && !coverFailed;
   return (
     <div className="group/row" aria-busy={busy || undefined}>
-      <div className="flex items-center gap-3.5 rounded-2xl px-2.5 py-2.5">
+      <div className="flex items-center gap-3.5 rounded-lg px-2.5 py-2.5">
         <button
           type="button"
           data-row-control

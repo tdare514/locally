@@ -24,7 +24,7 @@ export function useArtistNav(): ArtistNav {
   return useContext(ArtistNavContext);
 }
 
-const linkClass = `inline cursor-pointer rounded-sm text-left hover:text-text hover:underline focus-visible:underline ${focusRing} aria-disabled:cursor-not-allowed aria-disabled:hover:no-underline`;
+const linkClass = `inline cursor-pointer rounded-lg text-left hover:text-text hover:underline focus-visible:underline ${focusRing} aria-disabled:cursor-not-allowed aria-disabled:hover:no-underline`;
 
 /** One artist name as a link to their page. A name with no letters in it stays plain text. */
 export function ArtistLink({ name, className = "" }: { name: string; className?: string }) {

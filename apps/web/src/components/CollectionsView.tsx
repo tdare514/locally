@@ -199,7 +199,7 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
                       type="button"
                       onClick={() => onSelect(c.id)}
                       aria-current={on ? "true" : undefined}
-                      className={`flex min-h-14 w-full items-center gap-3 rounded-[14px] p-2 text-left outline-none hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent ${
+                      className={`flex min-h-14 w-full items-center gap-3 rounded-xl p-2 text-left outline-none hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent ${
                         on ? "bg-white/[0.09]" : ""
                       }`}
                     >
@@ -269,15 +269,15 @@ function Placeholders() {
           <div key={i} className="flex min-h-14 items-center gap-3 p-2">
             <span className="size-12 rounded-[8px] bg-card" />
             <span className="flex flex-1 flex-col gap-2">
-              <span className="h-3 w-2/3 rounded bg-card" />
-              <span className="h-2.5 w-1/3 rounded bg-card" />
+              <span className="h-3 w-2/3 rounded-full bg-card" />
+              <span className="h-2.5 w-1/3 rounded-full bg-card" />
             </span>
           </div>
         ))}
       </div>
       <div className="flex flex-col gap-2">
         {[0, 1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-14 rounded-[14px] bg-card" />
+          <div key={i} className="h-14 rounded-xl bg-card" />
         ))}
       </div>
     </div></div>
@@ -381,7 +381,7 @@ function QueuePanel({
                   commitName();
                 }
               }}
-              className="min-h-11 w-full rounded-[12px] bg-elevated px-3 text-2xl font-bold tracking-[-0.02em] text-text outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="min-h-11 w-full rounded-lg bg-elevated px-3 text-2xl font-bold tracking-[-0.02em] text-text outline-none focus-visible:ring-2 focus-visible:ring-accent"
             />
           ) : (
             <h2 className={`font-bold tracking-[-0.02em] text-text ${deck ? "truncate text-xl" : "break-words text-3xl [text-wrap:balance]"}`}>{collection.name}</h2>
@@ -438,7 +438,7 @@ function QueuePanel({
       )}
 
       {empty ? (
-        <div className="flex flex-col items-start gap-3 rounded-[14px] border border-dashed border-border-dashed p-6">
+        <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-border-dashed p-6">
           <p className="text-text-muted">{COLLECTIONS_COPY.emptyQueue}</p>
           <button type="button" onClick={onAddTracks} className="btn-ink min-h-11">
             Add tracks
@@ -542,9 +542,9 @@ export function Queue({
                   disabled={!e.playable}
                   onClick={() => playFrom(e)}
                   aria-label={`${isCurrent && playing ? "Pause" : "Play"} ${e.title}${e.playable ? "" : ", file missing"}${e.failed ? `, ${COULDNT_PLAY_TRACK}` : ""}`}
-                  className="flex min-h-14 min-w-0 basis-full items-center gap-2 rounded-[14px] p-2 @[26rem]:flex-1 @[26rem]:basis-0 @[26rem]:gap-3 text-left outline-none hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+                  className="flex min-h-14 min-w-0 basis-full items-center gap-2 rounded-xl p-2 @[26rem]:flex-1 @[26rem]:basis-0 @[26rem]:gap-3 text-left outline-none hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
                 >
-                  <span className="relative block size-10 shrink-0 overflow-hidden rounded-[6px] bg-card">
+                  <span className="relative block size-10 shrink-0 overflow-hidden rounded-[4px] bg-card">
                     {e.release.coverPath ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={coverUrl(e.release.id, e.release.updatedAt)} alt="" loading="lazy" className="size-full object-cover" />
@@ -691,7 +691,7 @@ function EditList({ collection, rows }: { collection: CollectionRecord; rows: Co
                   move(i, i + (e.key === "ArrowUp" ? -1 : 1), key);
                 }
               }}
-              className={`flex min-h-14 items-center gap-2 rounded-[14px] p-1 outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+              className={`flex min-h-14 items-center gap-2 rounded-xl p-1 outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                 drag?.from === i ? "opacity-50" : ""
               } ${drag && drag.over === i && drag.from !== i ? (drag.over < drag.from ? "border-t-2 border-accent" : "border-b-2 border-accent") : ""}`}
             >
@@ -699,7 +699,7 @@ function EditList({ collection, rows }: { collection: CollectionRecord; rows: Co
                 type="button"
                 aria-label={`Drag ${title}`}
                 onPointerDown={(e) => startDrag(e, i)}
-                className="flex size-11 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-text-muted outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-accent"
+                className="flex size-11 shrink-0 cursor-grab touch-none items-center justify-center rounded-full text-text-muted outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="size-4">
                   <circle cx="9" cy="6" r="1.6" /><circle cx="15" cy="6" r="1.6" />
@@ -707,7 +707,7 @@ function EditList({ collection, rows }: { collection: CollectionRecord; rows: Co
                   <circle cx="9" cy="18" r="1.6" /><circle cx="15" cy="18" r="1.6" />
                 </svg>
               </button>
-              <span className="relative block size-10 shrink-0 overflow-hidden rounded-[6px] bg-card">
+              <span className="relative block size-10 shrink-0 overflow-hidden rounded-[4px] bg-card">
                 {row.release.coverPath ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={coverUrl(row.release.id, row.release.updatedAt)} alt="" loading="lazy" className="size-full object-cover" />
@@ -739,7 +739,7 @@ function EditList({ collection, rows }: { collection: CollectionRecord; rows: Co
                   setAnnouncement(`Removed ${title}`);
                   void api.save(collection.id, { items: removeAt(collection.items, row.index) });
                 }}
-                className="flex size-11 shrink-0 items-center justify-center rounded-md text-text-muted outline-none hover:text-danger focus-visible:ring-2 focus-visible:ring-accent"
+                className="flex size-11 shrink-0 items-center justify-center rounded-full text-text-muted outline-none hover:text-danger focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <XIcon className="size-4" />
               </button>
@@ -791,7 +791,7 @@ function RowMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => onOpenChange(!open)}
-        className="flex size-11 items-center justify-center rounded-md text-text-muted outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-accent"
+        className="flex size-11 items-center justify-center rounded-full text-text-muted outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-accent"
       >
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="size-4">
           <circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" />

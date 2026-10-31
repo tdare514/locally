@@ -111,7 +111,7 @@ export default function AddToCollection({
                     aria-label="Search collections"
                     placeholder="Search collections"
                     onChange={(e) => setQuery(e.target.value)}
-                    className="min-h-11 w-full rounded-[12px] bg-elevated pl-10 pr-3 text-sm text-text outline-none placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-accent"
+                    className="min-h-11 w-full rounded-full bg-elevated pl-10 pr-3 text-sm text-text outline-none placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-accent"
                   />
                 </div>
               )}

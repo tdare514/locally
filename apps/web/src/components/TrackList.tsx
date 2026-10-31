@@ -175,7 +175,7 @@ function PlayButton({
       data-current={current ? "" : undefined}
       aria-label={`${playing ? "Pause" : "Play"} ${title}`}
       onClick={onToggle}
-      className="track-play absolute left-0 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-white outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      className="track-play absolute left-0 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full text-white outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
       {current ? (
         <>
@@ -618,7 +618,7 @@ export default function TrackList({
                   readOnly={readOnly}
                   onChange={(e) => updateTitle(index, e.target.value)}
                   placeholder="Track title"
-                  className="field-sizing-content -mx-1.5 min-w-[8ch] max-w-[calc(100%+0.75rem)] cursor-text rounded-md bg-transparent px-1.5 py-0.5 text-[15px] font-semibold tracking-[-0.01em] text-text outline-none placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
+                  className="field-sizing-content -mx-1.5 min-w-[8ch] max-w-[calc(100%+0.75rem)] cursor-text rounded-lg bg-transparent px-1.5 py-0.5 text-[15px] font-semibold tracking-[-0.01em] text-text outline-none placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent"
                 />
                 {featuringIndex && !readOnly && (
                   <TrackFeaturing
@@ -699,7 +699,7 @@ export default function TrackList({
                       setGrabbedKey(null);
                     }
                   }}
-                  className="track-affordance flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-white outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  className="track-affordance flex size-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-full text-white outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <GripIcon className="size-4" />
                 </button>
@@ -709,7 +709,7 @@ export default function TrackList({
                   type="button"
                   onClick={() => onRemove(index)}
                   aria-label={`Remove ${track.title.trim() || `track ${index + 1}`}`}
-                  className="track-affordance flex size-8 shrink-0 items-center justify-center rounded-md text-white outline-none hover:text-danger focus-visible:ring-2 focus-visible:ring-accent"
+                  className="track-affordance flex size-8 shrink-0 items-center justify-center rounded-full text-white outline-none hover:text-danger focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <XIcon className="size-4" />
                 </button>

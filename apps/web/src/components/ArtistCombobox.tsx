@@ -249,7 +249,7 @@ export default function ArtistCombobox({
                   e.preventDefault();
                   takeHint(hint.artist);
                 }}
-                className="rounded font-medium text-text-muted underline underline-offset-2 transition-colors hover:text-text"
+                className="rounded-lg font-medium text-text-muted underline underline-offset-2 transition-colors hover:text-text"
               >
                 {didYouMeanButton(hint)}
               </button>
@@ -274,7 +274,7 @@ export default function ArtistCombobox({
                 <button
                   type="button"
                   onClick={() => change(hint.artist)}
-                  className={`rounded font-medium text-text-muted underline underline-offset-2 transition-colors hover:text-text ${focusRing}`}
+                  className={`rounded-lg font-medium text-text-muted underline underline-offset-2 transition-colors hover:text-text ${focusRing}`}
                 >
                   {didYouMeanButton(hint)}
                 </button>
