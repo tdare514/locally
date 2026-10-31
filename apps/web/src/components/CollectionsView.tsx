@@ -82,7 +82,7 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
             <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">Collections</h1>
           </div>
           {loaded && collections.length > 0 && (
-            <div className="rp-switches mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-text-muted">
+            <div className="rp-switches mt-4 flex flex-wrap items-center gap-x-5 gap-y-5 text-sm text-text-muted">
               <Switch
                 label="Show as"
                 value={mode}
@@ -234,7 +234,7 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
   );
 }
 
-/** A two-option switch: words, and a dot under the chosen one (the app's `.btn-seg`). */
+/** A two-option switch (the app's `.btn-seg`, the slim switch). */
 function Switch<T extends string>({
   label,
   value,
@@ -252,7 +252,7 @@ function Switch<T extends string>({
         <span />
       </span>
       {options.map(([v, text]) => (
-        <button key={v} type="button" onClick={() => onChange(v)} aria-pressed={value === v} className="btn-seg-opt min-h-11 px-3">
+        <button key={v} type="button" onClick={() => onChange(v)} aria-pressed={value === v} className="btn-seg-opt">
           {text}
         </button>
       ))}

@@ -21,7 +21,7 @@ export function parseLibraryLayout(raw: string | null): LibraryLayout {
 }
 
 export function parseCoverSize(raw: string | null): CoverSize {
-  return raw === "0" ? 0 : raw === "2" ? 2 : 1;
+  return raw === "0" ? 0 : raw === "1" ? 1 : 2;
 }
 
 export function parseLibraryWidth(raw: string | null): LibraryWidth {
@@ -34,10 +34,10 @@ export function libraryWidthClass(width: LibraryWidth): string {
   return width === "comfortable" ? "mx-auto w-full max-w-[920px]" : "md:-mx-4 lg:-mx-8";
 }
 
-/** The saved layout and cover size, or the defaults (list, medium). */
+/** The saved layout and cover size, or the defaults (list, large). */
 export function loadLibraryViewPrefs(): { layout: LibraryLayout; coverSize: CoverSize } {
   let layout: LibraryLayout = "list";
-  let coverSize: CoverSize = 1;
+  let coverSize: CoverSize = 2;
   try {
     layout = parseLibraryLayout(window.localStorage.getItem(LAYOUT_KEY));
   } catch {

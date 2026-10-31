@@ -33,16 +33,16 @@ describe("parseCoverSize", () => {
     expect(parseCoverSize("1")).toBe(1);
     expect(parseCoverSize("2")).toBe(2);
   });
-  it("defaults to 1 for null and garbage", () => {
-    expect(parseCoverSize(null)).toBe(1);
-    expect(parseCoverSize("")).toBe(1);
-    expect(parseCoverSize("big")).toBe(1);
+  it("defaults to 2 (large) for null and garbage", () => {
+    expect(parseCoverSize(null)).toBe(2);
+    expect(parseCoverSize("")).toBe(2);
+    expect(parseCoverSize("big")).toBe(2);
   });
-  it("defaults to 1 for out-of-range numbers", () => {
-    expect(parseCoverSize("3")).toBe(1);
-    expect(parseCoverSize("-1")).toBe(1);
-    expect(parseCoverSize("1.5")).toBe(1);
-    expect(parseCoverSize("99")).toBe(1);
+  it("defaults to 2 (large) for out-of-range numbers", () => {
+    expect(parseCoverSize("3")).toBe(2);
+    expect(parseCoverSize("-1")).toBe(2);
+    expect(parseCoverSize("1.5")).toBe(2);
+    expect(parseCoverSize("99")).toBe(2);
   });
 });
 

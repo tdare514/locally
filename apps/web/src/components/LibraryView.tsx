@@ -13,7 +13,6 @@ import {
   type BulkDetails,
 } from "../lib/library-bulk";
 import {
-  LIBRARY_SORT_OPTIONS,
   filterLibrary,
   libraryRowSubtitle,
   partitionLibrary,
@@ -37,6 +36,7 @@ import {
 } from "../lib/library-view-prefs";
 import { useLibraryWidth } from "../lib/use-library-width";
 import BulkEditDialog from "./BulkEditDialog";
+import LibrarySortMenu from "./LibrarySortMenu";
 import { useCollections } from "./CollectionsContext";
 import AddToCollection from "./AddToCollection";
 import LibraryCollections from "./LibraryCollections";
@@ -124,7 +124,7 @@ export default function LibraryView({
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [layout, setLayout] = useState<LibraryLayout>("list");
-  const [coverSize, setCoverSize] = useState<CoverSize>(1);
+  const [coverSize, setCoverSize] = useState<CoverSize>(2);
   const [width] = useLibraryWidth();
   const [folds, setFolds] = useState<SectionFolds>(NO_FOLDS);
   const [focusId, setFocusId] = useState<string | null>(null);
@@ -354,8 +354,9 @@ export default function LibraryView({
                 step={1}
                 value={coverSize}
                 aria-label="Cover size"
+                aria-valuetext={["Compact", "Medium", "Large"][coverSize]}
                 onChange={(e) => changeCoverSize(Number(e.target.value) as CoverSize)}
-                className="w-[88px] accent-accent"
+                className="size-slider w-24"
               />
               <CoverLargeIcon className="h-4 w-4" />
             </div>
@@ -487,23 +488,7 @@ export default function LibraryView({
               className="w-full rounded-md bg-elevated py-3 pl-11 pr-4 text-sm text-text outline-none placeholder:text-text-muted/60 focus:ring-2 focus:ring-accent"
             />
           </div>
-          {!artistsView && (
-          <div className="relative shrink-0">
-            <select
-              aria-label="Sort library"
-              value={sort}
-              onChange={(e) => onSortChange(e.target.value as LibrarySort)}
-              className="appearance-none rounded-md bg-elevated py-3 pl-4 pr-10 text-sm text-text outline-none focus:ring-2 focus:ring-accent"
-            >
-              {LIBRARY_SORT_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-            <ChevronRightIcon className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 rotate-90 text-text-muted" />
-          </div>
-          )}
+          {!artistsView && <LibrarySortMenu value={sort} onChange={onSortChange} />}
           {!IS_DEMO && !artistsView && (
             <button
               type="button"

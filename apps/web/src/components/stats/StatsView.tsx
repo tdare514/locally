@@ -22,7 +22,7 @@ import { statCoverUrl } from "../sidebar/StatCover";
 import { usePlayStats } from "../sidebar/use-stats";
 import { libraryWidthClass } from "../../lib/library-view-prefs";
 import { useLibraryWidth } from "../../lib/use-library-width";
-import { GlassToggle, PeriodStepper, SelectMenu, Toggle } from "./controls";
+import { WideToggle, PeriodStepper, SelectMenu, Toggle } from "./controls";
 import SleeveFan from "./SleeveFan";
 import { StatsList, StatsSea } from "./StatsRows";
 
@@ -124,7 +124,7 @@ export default function StatsView({
       <header className="st-rise flex flex-wrap items-center justify-between gap-x-6 gap-y-3" style={{ "--st-i": 0 } as CSSProperties}>
         <h1 className="text-[22px] font-bold tracking-tight">Stats</h1>
         {showControls && (
-          <GlassToggle
+          <WideToggle
             label="Time frame"
             value={period.kind}
             onChange={(kind) => onPrefsChange({ period: { kind, back: 0 } })}
