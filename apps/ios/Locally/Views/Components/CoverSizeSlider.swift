@@ -1,16 +1,15 @@
 import SwiftUI
 
-/// The Library's cover size control (#360): a glass track (the Glow switch's glass and rim) with three
-/// detent dots, a round thumb in the Glow switch's tinted glass with a small highlight, a dense-grid glyph
-/// at the left end and a big-grid glyph at the right. Drag or tap to move it; the thumb follows on the Glow
-/// switch's spring, with a selection haptic per detent. VoiceOver reads it as an adjustable "Cover size, Medium".
+/// The Library's cover size control (#360, slimmed by #411): a thin `elevated-hover` track with three
+/// detent dots, a plain white knob, a dense-grid glyph at the left end and a big-grid glyph at the right
+/// (docs/design.md "Design rules (30 Oct 2026)", rule 6). Drag or tap to move it; the knob follows on the
+/// switch's spring, with a selection haptic per detent. No tint, rim or shadow. VoiceOver reads it as an
+/// adjustable "Cover size, Medium".
 struct CoverSizeSlider: View {
     @Binding var selection: CoverSize
-    /// The library sky's colour (the cover's glow colour; the accent with no cover).
-    var tint: Color = Theme.accent
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .body) private var scaledThumb = Theme.Library.sizeSliderThumb
-    /// Grows a little with the text but stays within 36 pt and inside the 44 pt hit height.
+    /// Grows a little with the text but stays within `sizeSliderThumbMax` and inside the 44 pt hit height.
     private var thumb: CGFloat { min(scaledThumb, Theme.Library.sizeSliderThumbMax, Theme.Library.sizeSliderHeight - 8) }
 
     private var sizes: [CoverSize] { CoverSize.allCases }
@@ -49,9 +48,8 @@ struct CoverSizeSlider: View {
             let last = CGFloat(sizes.count - 1)
             let dot = Theme.Library.sizeSliderDetent
             ZStack(alignment: .leading) {
-                GlowGlass()
-                    .clipShape(Capsule())
-                    .overlay { GlowRim() }
+                Capsule()
+                    .fill(Theme.elevatedHover)
                     .frame(height: Theme.Library.sizeSliderTrack)
                 ForEach(sizes, id: \.self) { size in
                     Circle()
@@ -59,7 +57,8 @@ struct CoverSizeSlider: View {
                         .frame(width: dot, height: dot)
                         .offset(x: inset + span * CGFloat(size.rawValue) / last - dot / 2)
                 }
-                TintedGlassThumb(shape: Circle(), tint: tint, specular: true)
+                Circle()
+                    .fill(Theme.primaryText)
                     .frame(width: thumb, height: thumb)
                     .offset(x: span * CGFloat(selection.rawValue) / last)
                     .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: selection)

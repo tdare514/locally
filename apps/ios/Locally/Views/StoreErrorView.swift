@@ -36,9 +36,10 @@ struct StoreErrorView: View {
 
                 VStack(spacing: Theme.Spacing.labelGap) {
                     Button(Copy.StoreError.tryAgain, action: onRetry)
-                        .buttonStyle(PrimaryPillButtonStyle())
+                        .buttonStyle(MainButtonStyle())
                     Button(Copy.StoreError.reset) { showResetConfirm = true }
-                        .buttonStyle(SecondaryPillButtonStyle(isDestructive: true))
+                        .buttonStyle(TextButtonStyle(color: Theme.danger))
+                        .frame(maxWidth: .infinity, minHeight: Theme.Spacing.minTarget)
                 }
             }
             .padding(Theme.Spacing.pagePadding)

@@ -283,7 +283,7 @@ struct StatsView: View {
                     .foregroundStyle(Theme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 Button(Copy.Stats.signedOutAction) { selectedTab = .settings }
-                    .buttonStyle(CoverGlowButtonStyle(colors: [Theme.accent, Theme.Studio.violet]))
+                    .buttonStyle(MainButtonStyle())
                     .padding(.top, 6)
             }
             .padding(16)
@@ -350,31 +350,31 @@ struct StatsView: View {
         Button(action: action) {
             LocallyIcon(icon, size: 24, scaled: false, mirrored: mirrored)
         }
-        .buttonStyle(GlowCircleButtonStyle())
+        .buttonStyle(IconButtonStyle())
         .disabled(!enabled)
         .accessibilityLabel(label)
     }
 
-    /// The way into History (#399): the stepper's round glass button, at the title's trailing edge.
+    /// The way into History (#399): a plain icon button like the stepper's, at the title's trailing edge.
     private var historyButton: some View {
         Button { path.append(HistoryRoute()) } label: {
             Image(systemName: "clock.arrow.circlepath").font(.system(size: 20, weight: .semibold))
         }
-        .buttonStyle(GlowCircleButtonStyle())
+        .buttonStyle(IconButtonStyle())
         .accessibilityLabel(Copy.History.entryLabel)
         .accessibilityHint(Copy.History.entryHint)
         .accessibilityIdentifier("stats-history")
     }
 
     private var tabPicker: some View {
-        GlowSwitch(
+        SlimSwitch(
             options: [
                 (value: StatsKind.tracks, icon: "music.note", label: Copy.Stats.tracksTab),
                 (.albums, "rectangle.stack.fill", Copy.Stats.albumsTab),
                 (.artists, LocallyIcon.Name.person.rawValue, Copy.Stats.artistsTab),
             ],
             selection: Binding(get: { model.tab }, set: { model.selectTab($0) }),
-            tint: tint, overflow: .scroll
+            overflow: .scroll
         )
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Copy.Stats.showTopLabel)
@@ -481,18 +481,17 @@ struct StatsView: View {
             .foregroundStyle(Theme.primaryText)
             .padding(.horizontal, 14)
             .frame(minHeight: Theme.Stats.minTarget)
-            .background { GlowGlass().clipShape(Capsule()) }
-            .overlay { GlowRim() }
+            .background(Theme.elevated, in: Capsule())
             .contentShape(Capsule())
         }
         .accessibilityLabel("\(Copy.Stats.sortLabel), \(sortLabel)")
     }
 
     private var layoutPill: some View {
-        GlowSwitch(
+        SlimSwitch(
             options: [(value: StatsLayout.list, icon: "list.bullet", label: Copy.Stats.listLayout), (.grid, "square.grid.2x2", Copy.Stats.gridLayout)],
             selection: Binding(get: { model.layout }, set: { model.selectLayout($0) }),
-            tint: tint, compact: true, overflow: .stack
+            compact: true, overflow: .stack
         )
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Copy.Stats.layoutLabel)

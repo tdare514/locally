@@ -277,7 +277,8 @@ struct ArtistPageView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             Button(Copy.Artists.backToLibrary) { dismiss() }
-                .buttonStyle(SecondaryPillButtonStyle())
+                .buttonStyle(TextButtonStyle())
+                .frame(minHeight: Theme.Spacing.minTarget)
         }
         .padding(.top, 24)
     }

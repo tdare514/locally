@@ -171,7 +171,7 @@ struct ReleaseDetailView: View {
             // Mode changes are instant; only the dock fades (0.25 s, signature easing; none under Reduce Motion).
             ZStack {
                 if model.isEditing {
-                    ReleaseDock(model: model, glowColors: glowColors) {
+                    ReleaseDock(model: model) {
                         model.commitFeaturingDraft()
                         isPresentingReview = true
                     }
@@ -202,7 +202,7 @@ struct ReleaseDetailView: View {
             }
         }
         .sheet(isPresented: $isPresentingReview) {
-            ReleaseReviewSheet(model: model, glowColors: glowColors) { isPresentingReview = false }
+            ReleaseReviewSheet(model: model) { isPresentingReview = false }
         }
         .confirmationDialog(
             Copy.Release.discardTitle,

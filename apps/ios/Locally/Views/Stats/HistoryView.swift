@@ -154,7 +154,7 @@ struct HistoryView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if let openSettingsTab {
                     Button(Copy.History.signedOutAction, action: openSettingsTab)
-                        .buttonStyle(CoverGlowButtonStyle(colors: [Theme.accent, Theme.Studio.violet]))
+                        .buttonStyle(MainButtonStyle())
                         .padding(.top, 6)
                 }
             }

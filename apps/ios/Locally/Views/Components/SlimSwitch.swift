@@ -1,16 +1,18 @@
 import SwiftUI
 
-/// The Import screen's Single / Album switch, for any set of options (docs/design.md "Kind switch"):
-/// the Glow pill's glass track, an optional icon and a word per option, and a thumb tinted with
-/// `tint` that slides to the chosen option. Every option is a 44 pt target. At accessibility text
-/// sizes the icons step aside. When the options are wider than the room, `.stack` puts them in a
-/// column and `.scroll` scrolls them sideways (the chosen one kept in view, the edges faded).
-struct GlowSwitch<Value: Hashable>: View {
+/// The slim neutral switch for a two- or three-way choice (docs/design.md "Design rules (30 Oct 2026)",
+/// rule 6): the Import record's Single / Album, the Collections and Stats layouts, the date sheet's
+/// Year / Month / Day, the crop sheet's Square / Original. A slim `elevated` track with a thumb a step
+/// lighter (`elevated-hover`) that slides to the chosen option, an optional icon and a word per option,
+/// white for the chosen one. The cover's colours never reach it: no tint, rim, glow or shadow. The track is
+/// 44 pt high at the default text size and every option is a 44 pt target. At accessibility text sizes the
+/// icons step aside. When the options are wider than the room, `.stack` puts them in a column and
+/// `.scroll` scrolls them sideways (the chosen one kept in view, the edges faded).
+struct SlimSwitch<Value: Hashable>: View {
     enum Overflow { case stack, scroll }
 
     let options: [(value: Value, icon: String?, label: String)]
     @Binding var selection: Value
-    let tint: Color
     var compact = false
     var overflow: Overflow = .stack
 
@@ -20,9 +22,8 @@ struct GlowSwitch<Value: Hashable>: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private static var fade: CGFloat { 14 }
-    private static var padding: CGFloat { Theme.Import.kindSwitchPadding }
+    private static var inset: CGFloat { Theme.Import.kindSwitchPadding }
     private static var stackCorner: CGFloat { Theme.Import.kindSwitchStackCorner }
-    private static var thumbCorner: CGFloat { stackCorner - padding }
 
     var body: some View {
         Group {
@@ -30,25 +31,17 @@ struct GlowSwitch<Value: Hashable>: View {
             case .stack:
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 0) { optionButtons(fill: false) }
-                        .padding(Self.padding)
-                        .background { GlowGlass().clipShape(Capsule()) }
-                        .overlay { GlowRim() }
+                        .background(Theme.elevated, in: Capsule())
                     // A tall capsule's ends are round by half its width, so a column gets a bounded corner.
                     VStack(spacing: 0) { optionButtons(fill: true) }
-                        .padding(Self.padding)
-                        .background { GlowGlass().clipShape(RoundedRectangle(cornerRadius: Self.stackCorner, style: .continuous)) }
-                        .overlay { GlowRim(corner: Self.stackCorner) }
+                        .background(Theme.elevated, in: RoundedRectangle(cornerRadius: Self.stackCorner, style: .continuous))
                 }
             case .scroll:
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 0) { optionButtons(fill: false) }
-                        .padding(Self.padding)
-                        .background { GlowGlass().clipShape(Capsule()) }
-                        .overlay { GlowRim() }
+                        .background(Theme.elevated, in: Capsule())
                     scroller
-                        .padding(Self.padding)
-                        .background { GlowGlass().clipShape(Capsule()) }
-                        .overlay { GlowRim() }
+                        .background(Theme.elevated, in: Capsule())
                 }
             }
         }
@@ -95,15 +88,21 @@ struct GlowSwitch<Value: Hashable>: View {
                     Text(option.label)
                 }
                 .font(Theme.ScaledFont.subheadline.weight(.semibold))
-                .foregroundStyle(Color.white.opacity(chosen ? 1 : 0.55))
+                // 4.5:1 or better on the track and on the thumb.
+                .foregroundStyle(chosen ? Theme.primaryText : Theme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, compact ? 9 : 14)
                 .padding(.vertical, 8)
                 // A 44 pt tap target at every text size.
-                .frame(maxWidth: fill ? .infinity : nil, minHeight: Theme.Import.kindSwitchMinTarget)
+                .frame(maxWidth: fill ? .infinity : nil, minHeight: Theme.Spacing.minTarget)
                 .contentShape(optionShape(fill: fill))
                 .background {
-                    if chosen { thumb(fill: fill).matchedGeometryEffect(id: "thumb", in: thumbSpace) }
+                    if chosen {
+                        optionShape(fill: fill)
+                            .fill(Theme.elevatedHover)
+                            .padding(Self.inset)
+                            .matchedGeometryEffect(id: "thumb", in: thumbSpace)
+                    }
                 }
             }
             .buttonStyle(.plain)
@@ -113,19 +112,8 @@ struct GlowSwitch<Value: Hashable>: View {
         }
     }
 
-    /// The thumb's and tap area's shape: a capsule in a row, a concentric rounded rectangle in the column.
+    /// The option's and thumb's shape: a capsule in a row, a rounded rectangle in the column (the thumb is this, inset).
     private func optionShape(fill: Bool) -> AnyShape {
-        fill ? AnyShape(RoundedRectangle(cornerRadius: Self.thumbCorner, style: .continuous)) : AnyShape(Capsule())
-    }
-
-    private func thumb(fill: Bool) -> some View {
-        let shape = optionShape(fill: fill)
-        // A dark base under the tint keeps the white label at 4.5:1 or better on a bright colour.
-        return shape
-            .fill(Color.black.opacity(Theme.Import.kindThumbBase))
-            .overlay(shape.fill(tint.opacity(0.55)))
-            // AnyShape is not insettable: a 2 pt stroke clipped to the shape is a 1 pt inside border.
-            .overlay(shape.stroke(Color.white.opacity(0.35), lineWidth: 2).clipShape(shape))
-            .shadow(color: tint.opacity(0.5), radius: 8)
+        fill ? AnyShape(RoundedRectangle(cornerRadius: Self.stackCorner, style: .continuous)) : AnyShape(Capsule())
     }
 }

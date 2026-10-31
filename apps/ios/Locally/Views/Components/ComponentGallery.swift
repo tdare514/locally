@@ -9,7 +9,7 @@ struct ComponentGallery: View {
         "studio-backdrop", "settings-signed-in", "settings-signed-out", "settings-code-sent", "settings-scrolled", "migration-banner", "root-banner",
         // #205: the release page's tracks panel (the shared `TrackRow`, preset rows).
         "release-tracks",
-        // Kind switch and cover glow buttons, on the studio backdrop.
+        // The plain controls (#411): main button, text and icon buttons, the slim switches and the size slider, on the studio backdrop.
         "controls",
         // #336: the release page with a row playing under the mini player, at the default size and at accessibility3, and the bar paused.
         "player-release", "player-release-ax3", "player-mini-paused",
@@ -447,7 +447,7 @@ struct ComponentGallery: View {
     /// #205: the Make a record invitation and the cover beat, on the studio backdrop. The real record
     /// on prefilled models is `import-record-single`, `-album`, `-album-empty`, `-live` and `-album-live` (see
     /// `ImportRecordGallery`). Names:
-    /// `import-invite`, `import-invite-lit`, `import-beat-<ms>`,
+    /// `import-invite`, `import-beat-<ms>`,
     /// `import-beat-reduced-<ms>` (a fixed frame), `import-beat-live` (plays in real time),
     /// `import-send-seal-<ms>` (Send's disc sliding in, frozen at a time) and, over a record page,
     /// `import-sent-single`, `import-sent-album` and `import-sent-nocover` (the Sent card).
@@ -456,8 +456,6 @@ struct ComponentGallery: View {
         switch name {
         case "import-invite":
             ImportInvitation(onAddTrack: {})
-        case "import-invite-lit":
-            ImportInvitation(onAddTrack: {}, pinnedLit: true)
         case "import-beat-live":
             ImportBeatLive()
         default:
@@ -909,7 +907,7 @@ private struct ReleaseReviewErrorGallery: View {
     }
 
     var body: some View {
-        ReleaseReviewSheet(model: model, glowColors: Theme.coverGlowColors(nil)) {}
+        ReleaseReviewSheet(model: model) {}
             .background(Theme.card)
     }
 }
@@ -1114,47 +1112,70 @@ private struct ImportRecordGallery: View {
     }
 }
 
-/// `controls`: the kind switch and the cover glow buttons, enabled, disabled and pressed.
+/// `controls` (#411): every plain control on the studio backdrop. The main button (Send, Save, Add a track),
+/// disabled and busy; text and icon buttons; the slim switches; the cover size slider.
 private struct ControlsGallery: View {
     @State private var single = ImportKind.single
     @State private var album = ImportKind.album
-    private let warm = [ArtworkBackdrop.color(hex: "#E2552E"), ArtworkBackdrop.color(hex: "#F2B134")]
+    @State private var layout = StatsLayout.list
+    @State private var size = CoverSize.medium
 
     var body: some View {
         ZStack {
             StudioBackdrop()
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    KindSwitch(kind: $single, tint: Theme.accent)
-                    KindSwitch(kind: $album, tint: ArtworkBackdrop.color(hex: "#E2552E"))
-                    send(Theme.coverGlowColors(nil))
-                    send(warm)
-                    send(warm).disabled(true)
+                    KindSwitch(kind: $single)
+                    KindSwitch(kind: $album)
+                    SlimSwitch(
+                        options: [(value: StatsLayout.list, icon: "list.bullet", label: Copy.Stats.listLayout), (.grid, "square.grid.2x2", Copy.Stats.gridLayout)],
+                        selection: $layout, compact: true
+                    )
+                    CoverSizeSlider(selection: $size)
+                    send
+                    send.disabled(true)
+                    Button {} label: {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text(Copy.Import.send)
+                        }
+                    }
+                    .buttonStyle(MainButtonStyle())
+                    .disabled(true)
                     Button {} label: {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark").accessibilityHidden(true)
                             Text(Copy.Detail.saveChanges)
                         }
                     }
-                    .buttonStyle(CoverGlowButtonStyle(colors: warm, isFullWidth: false))
-                    Button {} label: { sendLabel }
-                        .buttonStyle(CoverGlowButtonStyle(colors: warm, pinnedPressed: true))
+                    .buttonStyle(MainButtonStyle(isFullWidth: false))
+                    Button(Copy.Import.addTrack) {}
+                        .buttonStyle(MainButtonStyle(isFullWidth: false))
+                    HStack(spacing: 24) {
+                        Button(Copy.Cover.cancel) {}
+                            .buttonStyle(TextButtonStyle())
+                            .frame(minHeight: Theme.Spacing.minTarget)
+                        Button(Copy.StoreError.reset) {}
+                            .buttonStyle(TextButtonStyle(color: Theme.danger))
+                            .frame(minHeight: Theme.Spacing.minTarget)
+                        Button {} label: { Image(systemName: "clock.arrow.circlepath").font(.system(size: 20, weight: .semibold)) }
+                            .buttonStyle(IconButtonStyle())
+                            .accessibilityLabel(Copy.History.entryLabel)
+                    }
                 }
                 .padding(Theme.Spacing.pagePadding)
             }
         }
     }
 
-    private func send(_ colors: [Color]) -> some View {
-        Button {} label: { sendLabel }
-            .buttonStyle(CoverGlowButtonStyle(colors: colors))
-    }
-
-    private var sendLabel: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "paperplane.fill").accessibilityHidden(true)
-            Text(Copy.Import.send)
+    private var send: some View {
+        Button {} label: {
+            HStack(spacing: 8) {
+                Image(systemName: "paperplane.fill").accessibilityHidden(true)
+                Text(Copy.Import.send)
+            }
         }
+        .buttonStyle(MainButtonStyle())
     }
 }
 

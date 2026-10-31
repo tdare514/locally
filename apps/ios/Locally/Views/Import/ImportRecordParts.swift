@@ -18,8 +18,6 @@ struct ImportRecordContext {
     let onReplaceTrack: (UUID) -> Void
     let onPickCoverFromFiles: () -> Void
     let onSend: () -> Void
-    /// The cover's two glow colours (accent and violet with no cover): the kind switch's tint and Send.
-    let glowColors: [Color]
 }
 
 /// The sleeve at the top of the record. It draws the driver's frame through a `TimelineView`
@@ -64,8 +62,6 @@ struct ImportMetaLine: View {
     let trackCount: Int
     /// Dims and disables the switch (VoiceOver reads it as dimmed).
     var isSwitchDisabled: Bool = false
-    /// The switch's thumb colour.
-    let tint: Color
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -86,7 +82,7 @@ struct ImportMetaLine: View {
     }
 
     private var kindSwitch: some View {
-        KindSwitch(kind: $kind, tint: tint).disabled(isSwitchDisabled)
+        KindSwitch(kind: $kind).disabled(isSwitchDisabled)
     }
 
     private var count: some View {

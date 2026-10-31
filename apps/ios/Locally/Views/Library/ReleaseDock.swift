@@ -26,8 +26,6 @@ struct PanelRowBackground: View {
 /// "Unsaved changes" / "Saved to your library" status and Save.
 struct ReleaseDock: View {
     let model: ReleaseDetailViewModel
-    /// The cover's glow colours for Save (`Theme.coverGlowColors`).
-    let glowColors: [Color]
     /// Opens the review sheet; the sheet runs the save.
     let onSave: () -> Void
 
@@ -84,7 +82,7 @@ struct ReleaseDock: View {
             }
             .fixedSize()
         }
-        .buttonStyle(CoverGlowButtonStyle(colors: glowColors, isFullWidth: false))
+        .buttonStyle(MainButtonStyle(isFullWidth: false))
         .disabled(!model.canSave)
     }
 }
