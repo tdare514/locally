@@ -943,7 +943,7 @@ function CoverSection({
                     )}
                   </div>
                 </div>
-                <span className="mt-3 flex min-w-0 items-center gap-1.5">
+                <span className={`mt-3 flex min-w-0 items-center gap-1.5 ${groups.length > 0 ? "pr-7" : ""}`}>
                   <span
                     className={`truncate font-semibold text-text ${
                       coverSize === 0 ? "text-xs" : "text-sm"
@@ -953,19 +953,18 @@ function CoverSection({
                   </span>
                   {r.adopted && <AdoptedMark />}
                 </span>
-                <span className="block truncate text-xs text-text-muted">
+                <span className={`block truncate text-xs text-text-muted ${groups.length > 0 ? "pr-7" : ""}`}>
                   {libraryRowSubtitle({ ...r, artist: artistShown })}
                 </span>
               </button>
               {groups.length > 0 && (
-                // Over the cover's top-right corner, above the hovered tile (which rises to z-1), on a dark disc so it
-                // reads on a pale cover.
-                <span className="absolute right-0.5 top-0.5 z-10 flex">
+                // At the caption's right end, on the page rather than the artwork (design rule 3: nothing behind an icon
+                // button), above the hovered tile (which rises to z-1). The caption keeps 28px clear for the glyph.
+                <span className="absolute -bottom-1 -right-2 z-10 flex">
                   <TrackMoreButton
                     title={r.title || artistShown}
                     expanded={menu.open?.key === r.id}
                     onOpen={(button) => menu.toggleFrom(button, r.id)}
-                    onArtwork
                   />
                 </span>
               )}
