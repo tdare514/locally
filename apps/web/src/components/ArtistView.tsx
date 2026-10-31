@@ -165,7 +165,7 @@ export default function ArtistView({
       <div ref={rootRef} className={`flex flex-col items-start gap-4 pt-2 ${libraryWidthClass(width)}`}>
         <p className="text-text-muted">This artist isn&apos;t in your library any more.</p>
         <button type="button" onClick={onGoToLibrary} className="btn-ink">
-          <span className="btn-ink-label">Back to Library</span>
+          Back to Library
         </button>
       </div>
     );

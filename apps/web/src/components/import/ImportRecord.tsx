@@ -36,8 +36,6 @@ interface ImportRecordProps {
   beat: { stage: BeatStage; replay: boolean; discKey: string };
   /** The cover, printed on the disc's centre label. */
   labelUrl: string | null;
-  /** The cover's colour, for the glow of the release bar's main action. */
-  tint: string | undefined;
   canSubmit: boolean;
   importing: boolean;
   onSubmit: () => void;
@@ -103,7 +101,6 @@ export default function ImportRecord({
   onCover,
   beat,
   labelUrl,
-  tint,
   canSubmit,
   importing,
   onSubmit,
@@ -229,14 +226,13 @@ export default function ImportRecord({
 
     <ReleaseBar
       label="Import actions"
-      tint={tint}
       left={
         <button type="button" onClick={onAddTrack} disabled={importing} className="btn-ink">
-          <span className="btn-ink-label">Add a track</span>
+          Add a track
         </button>
       }
       main={
-        <button type="button" onClick={onSubmit} disabled={!canSubmit} className="btn-save btn-save-lit">
+        <button type="button" onClick={onSubmit} disabled={!canSubmit} className="btn-save">
           {importing ? "Adding…" : "Add to library"}
         </button>
       }

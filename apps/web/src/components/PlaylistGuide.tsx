@@ -50,7 +50,7 @@ export default function PlaylistGuide({
             <span className="text-sm font-semibold text-text">{name}</span>
             <button type="button" onClick={handleCopy} className="btn-ink min-h-11">
               <CopyIcon className="h-3.5 w-3.5" />
-              <span className="btn-ink-label">{COPY_LABEL}</span>
+              {COPY_LABEL}
             </button>
             <span role="status" aria-live="polite" className="text-sm text-text-muted">
               {failed ? "Couldn't copy the name" : copied ? "Name copied" : ""}

@@ -31,6 +31,7 @@ import { libraryWidthClass } from "../lib/library-view-prefs";
 import { useLibraryWidth } from "../lib/use-library-width";
 import { IS_DEMO } from "../lib/demo";
 import Field from "./Field";
+import KnobSwitch from "./KnobSwitch";
 import LibraryMoveControl from "./LibraryMoveControl";
 import SpotifyFoldersCard from "./SpotifyFoldersCard";
 import { HAS_SPOTIFY_CONNECTION } from "./sidebar/flags";
@@ -106,20 +107,13 @@ function CloudPlaysRow({
         <span id="cloud-plays-label" className="text-sm text-text-muted">
           {CLOUD_PLAYS_LABEL}
         </span>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={lines.on}
-          aria-labelledby="cloud-plays-label"
-          aria-describedby="cloud-plays-help"
-          onClick={onToggle}
+        <KnobSwitch
+          checked={lines.on}
+          onChange={onToggle}
           disabled={busy}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40 ${
-            lines.on ? "bg-accent text-black" : "bg-elevated-hover text-text-dim hover:text-text-muted"
-          }`}
-        >
-          {lines.on ? "On" : "Off"}
-        </button>
+          labelledBy="cloud-plays-label"
+          describedBy="cloud-plays-help"
+        />
       </div>
       <div className="flex items-center justify-between gap-4">
         <p id="cloud-plays-help" className="text-xs text-text-dim">
@@ -127,7 +121,7 @@ function CloudPlaysRow({
         </p>
         {lines.reconnect && (
           <button type="button" onClick={onReconnect} disabled={busy} className="btn-ink">
-            <span className="btn-ink-label">Reconnect</span>
+            Reconnect
           </button>
         )}
       </div>
@@ -582,7 +576,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
             <button
               type="button"
               onClick={handleReveal}
-              className="btn-save"
+              className="btn-ink"
             >
               Show in Finder
             </button>
@@ -631,19 +625,12 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
             <span id="track-plays-label" className="text-sm text-text-muted">
               Count my plays
             </span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={trackPlays}
-              aria-labelledby="track-plays-label"
-              onClick={handleToggleTrackPlays}
+            <KnobSwitch
+              checked={trackPlays}
+              onChange={handleToggleTrackPlays}
               disabled={loading || savingTrackPlays}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40 ${
-                trackPlays ? "bg-accent text-black" : "bg-elevated-hover text-text-dim hover:text-text-muted"
-              }`}
-            >
-              {trackPlays ? "On" : "Off"}
-            </button>
+              labelledBy="track-plays-label"
+            />
           </div>
           <p className="text-xs text-text-dim">
             {cloudActive
@@ -660,19 +647,12 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
                 <span id="count-other-devices-label" className="text-sm text-text-muted">
                   Count plays on my other devices
                 </span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={countOtherDevices}
-                  aria-labelledby="count-other-devices-label"
-                  onClick={handleToggleCountOtherDevices}
+                <KnobSwitch
+                  checked={countOtherDevices}
+                  onChange={handleToggleCountOtherDevices}
                   disabled={loading || savingOtherDevices}
-                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-40 ${
-                    countOtherDevices ? "bg-accent text-black" : "bg-elevated-hover text-text-dim hover:text-text-muted"
-                  }`}
-                >
-                  {countOtherDevices ? "On" : "Off"}
-                </button>
+                  labelledBy="count-other-devices-label"
+                />
               </div>
               <p className="text-xs text-text-dim">
                 Counts what you play on your phone and other computers through your Spotify account, while
@@ -709,7 +689,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
                   disabled={spotifyBusy}
                   className="btn-ink"
                 >
-                  <span className="btn-ink-label">Disconnect</span>
+                  Disconnect
                 </button>
               </div>
               <p className="text-xs text-text-dim">
@@ -735,7 +715,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
                   disabled={spotifyBusy}
                   className="btn-ink"
                 >
-                  <span className="btn-ink-label">Cancel</span>
+                  Cancel
                 </button>
               </div>
               {spotifyAuthorizeUrl && (
@@ -850,7 +830,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
                     }}
                     className="btn-ink"
                   >
-                    <span className="btn-ink-label">Use a different email</span>
+                    Use a different email
                   </button>
                 </div>
               </div>
@@ -910,7 +890,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
                 disabled={signingOut}
                 className="btn-ink"
               >
-                <span className="btn-ink-label">{signingOut ? "Signing out…" : "Sign out"}</span>
+                {signingOut ? "Signing out…" : "Sign out"}
               </button>
             </div>
 
@@ -927,7 +907,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
                     type="button"
                     onClick={handleDeleteAccount}
                     disabled={deletingAccount}
-                    className="rounded-full bg-danger px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                    className="btn-danger"
                   >
                     {deletingAccount ? "Deleting…" : "Delete account"}
                   </button>
@@ -937,7 +917,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
                     disabled={deletingAccount}
                     className="btn-ink"
                   >
-                    <span className="btn-ink-label">Cancel</span>
+                    Cancel
                   </button>
                 </div>
               </div>
@@ -947,7 +927,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
                 onClick={handleDeleteAccount}
                 className="btn-ink-danger w-fit"
               >
-                <span className="btn-ink-label">Delete sync account…</span>
+                Delete sync account…
               </button>
             )}
           </div>

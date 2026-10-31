@@ -74,7 +74,7 @@ export default function LibraryMoveControl({ onToast, onMoved }: LibraryMoveCont
             <code className="min-w-0 flex-1 truncate text-xs text-text-muted" title={oldPath}>
               {oldPath}
             </code>
-            <button type="button" onClick={copyOld} className="btn-save">
+            <button type="button" onClick={copyOld} className="btn-ink">
               {copied ? "Copied" : "Copy path"}
             </button>
           </div>
@@ -109,7 +109,7 @@ export default function LibraryMoveControl({ onToast, onMoved }: LibraryMoveCont
             <button type="button" onClick={handleMove} disabled={moving || destination.trim().length === 0} className="btn-save">
               {moving ? "Moving…" : "Move library"}
             </button>
-            <button type="button" onClick={() => setOpen(false)} disabled={moving} className="btn-save">
+            <button type="button" onClick={() => setOpen(false)} disabled={moving} className="btn-ink">
               Cancel
             </button>
           </div>

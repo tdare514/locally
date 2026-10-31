@@ -310,12 +310,7 @@ export default function PhoneInbox({
         aria-expanded={open}
         aria-controls={panelId}
         aria-label={triggerLabel(count, open, friends.length)}
-        className={`relative isolate flex h-[var(--tray-size)] w-[var(--tray-size)] items-center justify-center rounded-full transition-[filter,background-color,box-shadow] active:scale-95 ${
-          // Open: the glass drops away and the red X stands alone.
-          open ? "bg-transparent" : "glass-fake hover:brightness-125"
-        } ${
-          count > 0 ? "text-text" : "text-text-dim"
-        }`}
+        className="btn-icon"
       >
         <span className="relative block h-5 w-5">
           <CloudDownIcon className="phone-tray-glyph absolute inset-0 h-5 w-5" data-open={open} />
@@ -616,9 +611,9 @@ export function PendingRow({
             onClick={onHide}
             aria-label={`Hide ${title}`}
             title="Hide"
-            className="btn-icon text-text-muted opacity-0 transition-opacity motion-reduce:transition-none group-hover/row:opacity-100 group-focus-within/row:opacity-100 disabled:cursor-not-allowed"
+            className="btn-icon opacity-0 transition-opacity motion-reduce:transition-none group-hover/row:opacity-100 group-focus-within/row:opacity-100 disabled:cursor-not-allowed"
           >
-            <EyeOffIcon className="h-4 w-4" />
+            <EyeOffIcon className="h-5 w-5" />
           </button>
         )}
       </div>
@@ -707,9 +702,9 @@ export function FriendRow({
           onClick={onDismiss}
           aria-label={`Dismiss ${title} from ${item.fromEmail}`}
           title="Dismiss"
-          className="btn-icon text-text-muted opacity-0 transition-opacity motion-reduce:transition-none group-hover/row:opacity-100 group-focus-within/row:opacity-100 disabled:cursor-not-allowed"
+          className="btn-icon opacity-0 transition-opacity motion-reduce:transition-none group-hover/row:opacity-100 group-focus-within/row:opacity-100 disabled:cursor-not-allowed"
         >
-          <XIcon className="h-4 w-4" />
+          <XIcon className="h-5 w-5" />
         </button>
       </div>
     </div>

@@ -116,7 +116,7 @@ export default function SpotifyFoldersCard({ onToast, onCheck }: SpotifyFoldersC
                 <span className="min-w-0 truncate text-[13px] text-text-muted" title={suggested}>
                   {suggested}
                 </span>
-                <button type="button" onClick={() => add(suggested)} disabled={busy} className="btn-save">
+                <button type="button" onClick={() => add(suggested)} disabled={busy} className="btn-ink">
                   Add
                 </button>
               </li>
@@ -134,7 +134,7 @@ export default function SpotifyFoldersCard({ onToast, onCheck }: SpotifyFoldersC
                   aria-label={`Remove ${folderName(root)}`}
                   className="btn-ink"
                 >
-                  <span className="btn-ink-label">Remove</span>
+                  Remove
                 </button>
               </li>
             ))}
@@ -172,16 +172,16 @@ export default function SpotifyFoldersCard({ onToast, onCheck }: SpotifyFoldersC
               }}
               className="btn-ink"
             >
-              <span className="btn-ink-label">Cancel</span>
+              Cancel
             </button>
           </form>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={handleAddFolder} disabled={busy || typing} className="btn-save">
+          <button type="button" onClick={handleAddFolder} disabled={busy || typing} className={hasRoots ? "btn-ink" : "btn-save"}>
             Add folder…
           </button>
           {hasRoots && (
-            <button type="button" onClick={onCheck} disabled={busy} className="btn-save">
+            <button type="button" onClick={onCheck} disabled={busy} className="btn-ink">
               Check for new files
             </button>
           )}

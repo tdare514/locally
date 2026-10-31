@@ -47,11 +47,11 @@ export default function NewCollectionForm({
         className="min-h-11 min-w-0 flex-1 rounded-[12px] bg-elevated px-3 text-sm text-text outline-none placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-accent"
       />
       <button type="submit" disabled={!clean || busy} className="btn-ink min-h-11 min-w-11">
-        <span className="btn-ink-label">{busy ? "Making…" : submitLabel}</span>
+        {busy ? "Making…" : submitLabel}
       </button>
       {onCancel && (
         <button type="button" onClick={onCancel} className="btn-ink min-h-11 min-w-11">
-          <span className="btn-ink-label">Cancel</span>
+          Cancel
         </button>
       )}
     </form>

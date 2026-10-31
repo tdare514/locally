@@ -728,7 +728,7 @@ export default function ReleaseView({
                 className="btn-ink"
               >
                 <CopyIcon className="h-3.5 w-3.5" />
-                <span className="btn-ink-label">{copied ? COPIED_LABEL : COPY_LABEL}</span>
+                {copied ? COPIED_LABEL : COPY_LABEL}
               </button>
             </div>
             <p className="text-sm text-text-muted">{playlistSteps(release.title, tracks.length)}</p>
@@ -740,7 +740,6 @@ export default function ReleaseView({
 
       <ReleaseBar
         label="Release actions"
-        tint={palette?.primary}
         left={
           isAdopted ? (
             confirmingRemove ? (
@@ -756,7 +755,7 @@ export default function ReleaseView({
               </BarConfirm>
             ) : (
               <button ref={bindRemoveOpener} type="button" onClick={askRemove} className="btn-ink">
-                <span className="btn-ink-label">Remove from Locally</span>
+                Remove from Locally
               </button>
             )
           ) : confirmingDelete ? (
@@ -765,7 +764,7 @@ export default function ReleaseView({
                 type="button"
                 onClick={handleDelete}
                 disabled={deleting}
-                className="rounded-full bg-danger px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                className="btn-danger"
               >
                 {deleting ? "Deleting…" : "Confirm delete"}
               </button>
@@ -779,7 +778,7 @@ export default function ReleaseView({
               title={IS_DEMO ? "Not available in the demo" : undefined}
               className="btn-ink-danger"
             >
-              <span className="btn-ink-label">Delete</span>
+              Delete
             </button>
           )
         }
@@ -815,7 +814,7 @@ export default function ReleaseView({
                 title={IS_DEMO ? "Not available in the demo" : undefined}
                 className="btn-ink"
               >
-                <span className="btn-ink-label">Show in Finder</span>
+                Show in Finder
               </button>
             </>
           )}
@@ -823,7 +822,7 @@ export default function ReleaseView({
         }
         main={
           isAdopted ? (
-            <button type="button" onClick={handleReveal} disabled={IS_DEMO} className="btn-save btn-save-lit">
+            <button type="button" onClick={handleReveal} disabled={IS_DEMO} className="btn-save">
               Show in Finder
             </button>
           ) : (
@@ -832,7 +831,7 @@ export default function ReleaseView({
               onClick={handleSave}
               disabled={saving || IS_DEMO || dateBlocked}
               title={IS_DEMO ? "Not available in the demo" : dateBlocked ? "Fix the release date first" : undefined}
-              className="btn-save btn-save-lit"
+              className="btn-save"
             >
               {saving ? "Saving…" : "Save to library"}
             </button>

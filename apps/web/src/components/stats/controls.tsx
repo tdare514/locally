@@ -135,7 +135,7 @@ export function PeriodStepper({
         // A disabled button gets no hover, so the tooltip sits on a wrapper.
         <span title={canBack ? undefined : "Kept for 400 days"}>
           <button type="button" className="btn-icon" aria-label={`Previous ${noun}`} disabled={!canBack} onClick={onBack}>
-            <ChevronRightIcon className="h-[18px] w-[18px] rotate-180" />
+            <ChevronRightIcon className="h-5 w-5 rotate-180" />
           </button>
         </span>
       )}
@@ -149,7 +149,7 @@ export function PeriodStepper({
       </p>
       {noun && (
         <button type="button" className="btn-icon" aria-label={`Next ${noun}`} disabled={!canForward} onClick={onForward}>
-          <ChevronRightIcon className="h-[18px] w-[18px]" />
+          <ChevronRightIcon className="h-5 w-5" />
         </button>
       )}
     </div>

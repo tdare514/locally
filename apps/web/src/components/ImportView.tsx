@@ -338,7 +338,6 @@ export default function ImportView({
           onCover={chooseCover}
           beat={{ stage: beatStage, replay: beat.replay, discKey: discKeyFor(beat) }}
           labelUrl={beat.hasCover ? coverUrl : null}
-          tint={beat.hasCover && shown !== INVITE_PALETTE ? shown.primary : undefined}
           canSubmit={canSubmit}
           importing={importing}
           onSubmit={handleSubmit}

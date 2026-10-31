@@ -153,7 +153,7 @@ function BulkEditForm({
           disabled={busy}
           className="btn-ink"
         >
-          <span className="btn-ink-label">Cancel</span>
+          Cancel
         </button>
         <button
           type="submit"

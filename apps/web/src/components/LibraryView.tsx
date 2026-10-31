@@ -417,7 +417,7 @@ export default function LibraryView({
                 type="button"
                 onClick={handleBulkDelete}
                 disabled={busy}
-                className="rounded-full bg-danger px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                className="btn-danger"
               >
                 {busy ? "Deleting…" : "Confirm delete"}
               </button>
@@ -427,7 +427,7 @@ export default function LibraryView({
                 disabled={busy}
                 className="btn-ink"
               >
-                <span className="btn-ink-label">Cancel</span>
+                Cancel
               </button>
             </div>
           ) : (
@@ -445,7 +445,7 @@ export default function LibraryView({
                 disabled={busy || selectedCount === 0}
                 className="btn-ink"
               >
-                <span className="btn-ink-label">Edit details…</span>
+                Edit details…
               </button>
               <button
                 type="button"
@@ -453,7 +453,7 @@ export default function LibraryView({
                 disabled={busy || selectedCount === 0}
                 className="btn-ink-danger"
               >
-                <span className="btn-ink-label">Delete…</span>
+                Delete…
               </button>
               <button
                 type="button"
@@ -461,7 +461,7 @@ export default function LibraryView({
                 disabled={busy}
                 className="btn-ink"
               >
-                <span className="btn-ink-label">Done</span>
+                Done
               </button>
             </div>
           )}
@@ -510,7 +510,7 @@ export default function LibraryView({
               onClick={() => setSelecting(true)}
               className="btn-ink"
             >
-              <span className="btn-ink-label">Select</span>
+              Select
             </button>
           )}
         </div>
@@ -525,7 +525,7 @@ export default function LibraryView({
           <p className="text-text-muted">{searching ? `No artists match “${query.trim()}”.` : "No artists yet."}</p>
           {searching && (
             <button type="button" onClick={() => onQueryChange("")} className="btn-ink mt-2">
-              <span className="btn-ink-label">Clear search</span>
+              Clear search
             </button>
           )}
         </div>
@@ -542,7 +542,7 @@ export default function LibraryView({
             onClick={() => onQueryChange("")}
             className="btn-ink mt-2"
           >
-            <span className="btn-ink-label">Clear search</span>
+            Clear search
           </button>
         </div>
       )}
@@ -998,7 +998,7 @@ function LibraryEmptyState({
           title={IS_DEMO ? "Not available in the demo" : undefined}
           className="btn-ink w-full"
         >
-          <span className="btn-ink-label">Make an album</span>
+          Make an album
         </button>
       </div>
       <PlaysPromptCard onToast={onToast} className="mt-8" />
