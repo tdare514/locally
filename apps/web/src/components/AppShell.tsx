@@ -419,7 +419,7 @@ export default function AppShell() {
               onBulkDone={refreshLibrary}
               onToast={showToast}
               onAmbientCoverChange={setAmbientCoverUrl}
-              onOpenCollection={(id) => pushTo({ type: "collections", id })}
+              onOpenCollections={() => pushTo({ type: "collections" })}
             />
           )}
           {view.type === "collections" && (

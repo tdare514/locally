@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { COLLECTION_NAME_MAX, cleanCollectionName } from "../shared/collections";
 
-/** A name field and its Create button (#349): used inside the Add to collection list, the Library row and the Collections page. */
+/** A name field and its Create button (#349): used inside the Add to collection list and the Collections page. */
 export default function NewCollectionForm({
   onCreate,
   onCancel,

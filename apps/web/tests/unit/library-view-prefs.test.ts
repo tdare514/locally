@@ -138,16 +138,23 @@ describe("section folds (#260)", () => {
 
   it("defaults both sections to open", () => {
     stubStorage({});
-    expect(loadSectionFolds()).toEqual({ collections: false, singles: false, albums: false });
+    expect(loadSectionFolds()).toEqual({ singles: false, albums: false });
   });
   it("saves and reloads each section on its own", () => {
     const store: Record<string, string> = {};
     stubStorage(store);
     saveSectionFolded("singles", true);
-    expect(loadSectionFolds()).toEqual({ collections: false, singles: true, albums: false });
+    expect(loadSectionFolds()).toEqual({ singles: true, albums: false });
     saveSectionFolded("singles", false);
     saveSectionFolded("albums", true);
-    expect(loadSectionFolds()).toEqual({ collections: false, singles: false, albums: true });
+    expect(loadSectionFolds()).toEqual({ singles: false, albums: true });
+  });
+  it("leaves the retired Collections fold alone (#420)", () => {
+    const store: Record<string, string> = { "locally.library.collectionsFolded": "1" };
+    stubStorage(store);
+    expect(loadSectionFolds()).toEqual({ singles: false, albums: false });
+    saveSectionFolded("singles", true);
+    expect(store["locally.library.collectionsFolded"]).toBe("1");
   });
   it("treats garbage as open", () => {
     expect(parseSectionFolded("yes")).toBe(false);
@@ -156,7 +163,7 @@ describe("section folds (#260)", () => {
   });
   it("survives localStorage throwing", () => {
     vi.stubGlobal("window", throwing);
-    expect(loadSectionFolds()).toEqual({ collections: false, singles: false, albums: false });
+    expect(loadSectionFolds()).toEqual({ singles: false, albums: false });
     expect(() => saveSectionFolded("albums", true)).not.toThrow();
   });
   it("a typed search opens a folded section, whitespace does not", () => {

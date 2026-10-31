@@ -84,18 +84,17 @@ export function saveLibraryWidth(width: LibraryWidth): void {
   }
 }
 
-/** Which library section: Collections (#349), Singles or Albums (#260). */
-export type LibrarySectionKey = "collections" | "singles" | "albums";
+/** Which library section folds: Singles or Albums (#260). Collections is one card now (#420) and no longer folds. */
+export type LibrarySectionKey = "singles" | "albums";
 export type SectionFolds = Record<LibrarySectionKey, boolean>;
 
 const FOLD_KEYS: Record<LibrarySectionKey, string> = {
-  collections: "locally.library.collectionsFolded",
   singles: "locally.library.singlesFolded",
   albums: "locally.library.albumsFolded",
 };
 
 /** Both sections open: the default. */
-export const NO_FOLDS: SectionFolds = { collections: false, singles: false, albums: false };
+export const NO_FOLDS: SectionFolds = { singles: false, albums: false };
 
 export function parseSectionFolded(raw: string | null): boolean {
   return raw === "1";

@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Queue } from "../../src/components/CollectionsView";
+import { CollectionsCard } from "../../src/components/LibraryCollections";
 import { createPlayerStore } from "../../src/lib/play-queue";
 import {
   addItems,
@@ -12,6 +13,7 @@ import {
   isCurrentRow,
   isFailedRow,
   rowQueuePositions,
+  collectionCountLabel,
   collectionCoverIds,
   collectionPlaylistGuide,
   COLLECTIONS_COPY,
@@ -261,5 +263,52 @@ describe("the queue is one list (#369)", () => {
     expect(html.match(/<ol/g)).toHaveLength(1);
     expect(html.match(/<li/g)).toHaveLength(5); // four playable rows and the missing file, dimmed
     expect(html.indexOf(">c<")).toBeLessThan(html.indexOf(`>${T2}<`));
+  });
+});
+
+describe("the Library's Collections card (#420)", () => {
+  const noop = () => {};
+  const rels = ["1", "2", "3", "4"].map((n) => release(`0000000${n}-0000-4000-8000-000000000000`, [track("t", 1)]));
+  const made = (n: number): CollectionRecord[] =>
+    rels.slice(0, n).map((r, i) => ({ id: `c${i}`, name: `Mix ${i}`, items: [{ kind: "release", releaseId: r.id }], createdAt: "", updatedAt: "" }) as unknown as CollectionRecord);
+  const card = (props: Partial<Parameters<typeof CollectionsCard>[0]> = {}) =>
+    renderToStaticMarkup(createElement(CollectionsCard, { collections: made(3), loaded: true, failed: false, releases: rels, color: "#123456", onOpen: noop, ...props }));
+
+  it("counts collections", () => {
+    expect(collectionCountLabel(1)).toBe("1 collection");
+    expect(collectionCountLabel(3)).toBe("3 collections");
+  });
+  it("is one button with the count in its label and subtitle", () => {
+    const html = card();
+    expect(html.match(/<button/g)).toHaveLength(1);
+    expect(html).toContain('type="button"');
+    expect(html).toContain('aria-label="Collections, 3 collections"');
+    expect(html).toContain(">3 collections<");
+    expect(card({ collections: made(1) })).toContain('aria-label="Collections, 1 collection"');
+  });
+  it("stacks the first three sleeves only, washed and labelled in the cover colour", () => {
+    const html = card({ collections: made(4) });
+    expect(html.match(/<img/g)).toHaveLength(3);
+    expect(html).toContain("linear-gradient(to right, #123456, transparent 70%)");
+    expect(html).toContain('fill="#123456"');
+  });
+  it("with none, says the plan's line over one empty sleeve and the disc", () => {
+    const html = card({ collections: [], color: "#262626" });
+    expect(html).toContain('aria-label="Collections"');
+    expect(html).toContain(COLLECTIONS_COPY.none);
+    expect(html).not.toContain("<img");
+    expect(html).toContain("<svg");
+  });
+  it("holds its place while loading, as a hidden placeholder", () => {
+    const html = card({ loaded: false });
+    expect(html).not.toContain("<button");
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain("min-h-20");
+  });
+  it("says it could not load when there are none, but still shows what it has", () => {
+    const failed = card({ collections: [], failed: true });
+    expect(failed.replace("&#x27;", "'")).toContain(COLLECTIONS_COPY.failedToLoad);
+    expect(failed).not.toContain("<button");
+    expect(card({ failed: true })).toContain('aria-label="Collections, 3 collections"');
   });
 });
