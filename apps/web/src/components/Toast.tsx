@@ -1,5 +1,7 @@
 "use client";
 
+import { AlertIcon, XIcon } from "./Icons";
+
 export interface ToastMessage {
   id: number;
   kind: "success" | "error";
@@ -13,7 +15,10 @@ interface ToastProps {
   onDismiss: (id: number) => void;
 }
 
-/** A stack of dismissible success/error toasts, fixed to the bottom-right corner. */
+/**
+ * A stack of dismissible success/error toasts, fixed to the bottom-right corner (#415). Each is a glass capsule that
+ * rises in (still under Reduce Motion); an error carries a red glyph, the only red on it, and is announced as an alert.
+ */
 export default function Toast({ toasts, onDismiss }: ToastProps) {
   if (toasts.length === 0) return null;
 
@@ -22,32 +27,28 @@ export default function Toast({ toasts, onDismiss }: ToastProps) {
       {toasts.map((t) => (
         <div
           key={t.id}
-          role="status"
-          className={`pointer-events-auto flex items-center gap-3 rounded-lg px-4 py-3 text-sm text-white shadow-lg ${
-            t.kind === "success" ? "bg-accent" : "bg-danger"
-          }`}
+          role={t.kind === "error" ? "alert" : "status"}
+          className="pointer-events-auto glass-fake glass-frost isolate toast-in rounded-[22px] min-h-11 flex flex-wrap items-center gap-x-2 py-1 pl-4 pr-1 text-sm text-text max-w-[min(26rem,calc(100vw-2rem))]"
         >
-          <span>{t.text}</span>
-          {t.action && (
-            <button
-              type="button"
-              onClick={() => {
-                t.action?.onClick();
-                onDismiss(t.id);
-              }}
-              className="font-semibold underline underline-offset-2"
-            >
-              {t.action.label}
+          {t.kind === "error" && <AlertIcon className="size-5 shrink-0 text-danger" aria-hidden />}
+          <span className="min-w-[min(10rem,100%)] flex-1 py-2 [overflow-wrap:anywhere]">{t.text}</span>
+          <div className="ml-auto flex shrink-0 items-center">
+            {t.action && (
+              <button
+                type="button"
+                onClick={() => {
+                  t.action?.onClick();
+                  onDismiss(t.id);
+                }}
+                className="btn-ink font-semibold"
+              >
+                {t.action.label}
+              </button>
+            )}
+            <button type="button" onClick={() => onDismiss(t.id)} className="btn-icon" aria-label="Dismiss">
+              <XIcon className="size-5" aria-hidden />
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => onDismiss(t.id)}
-            className="text-white/80 hover:text-white"
-            aria-label="Dismiss"
-          >
-            ✕
-          </button>
+          </div>
         </div>
       ))}
     </div>

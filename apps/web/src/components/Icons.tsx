@@ -164,6 +164,16 @@ export function XIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+/** Error glyph on a toast (#415): a circle with a short vertical line and a dot. */
+export function AlertIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5v5M12 16.5h.01" />
+    </IconBase>
+  );
+}
+
 /** Hide from the tray (#295): an eye with a line through it. */
 export function EyeOffIcon(props: SVGProps<SVGSVGElement>) {
   return (

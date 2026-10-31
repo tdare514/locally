@@ -147,7 +147,7 @@ export default function Popover({
         bottom: pos?.bottom,
         visibility: pos ? "visible" : "hidden",
       }}
-      className="pointer-events-auto fixed z-40 flex max-w-[calc(100vw-2rem)] flex-col overflow-y-auto rounded-[18px] glass-fake glass-frost isolate p-2 text-left outline-none"
+      className="pointer-events-auto fixed z-40 flex max-w-[calc(100vw-2rem)] flex-col overflow-y-auto rounded-2xl glass-fake glass-frost isolate dialog-in p-2 text-left outline-none"
     >
       {children}
     </div>
