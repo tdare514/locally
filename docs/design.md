@@ -126,7 +126,7 @@ The shared hand-drawn set on both platforms (#213; iPhone template images `Icon/
 frame) is Library, Import (a plain plus), Stats, Person, chevron, X, pencil, search and copy,
 accent when selected, and since #412 (30 Oct 2026) Settings (a drawn cog, a toothed outline with a centre hole, on both apps: it replaced
 the Mac's sliders and the iPhone's `gearshape`), play, pause, next, previous, grid, list (the
-Library's layout toggle on both) and sort (the Library's sort button on both); Stats' list / grid switch and the share sheet's Settings row use the drawn glyphs too; both apps' mini player and
+Library's layout toggle on both) and sort (the Library's sort button on both); Stats' list / grid switch, the share sheet's Settings row and the iPhone's Collections toggles (#444: a turntable seen from above and the list glyph for Record player / List, a picture-disc and a black-vinyl swatch for Picture disc / Black vinyl) use the drawn glyphs too; both apps' mini player and
 record player use the transport glyphs (#413, #414). The owner kept SF Symbols for the
 note on file rows and the Tracks and Single options, Add cover art (`photo.badge.plus`), trash,
 checkmarks, seals, folder, iphone, photo, `rectangle.stack.fill`, `paperplane.fill` and system
@@ -174,7 +174,7 @@ hint drop away and **Add cover** wraps.
 | Page title, mobile | 24 | bold | text | -0.03em |
 | Page subtitle (desktop, under the title) | 16 | regular | text-muted | |
 | Section title (Metadata, Tracks) | 22 / 18 | bold | text | -0.03em |
-| Eyebrow (Local library, Your collection, Details) | 13 iPhone, 14 desktop | semibold | accent | none, sentence case |
+| Eyebrow (Local library, Details) | 13 iPhone, 14 desktop | semibold | accent | none, sentence case |
 | Breadcrumb eyebrow (Library / Single) | 12 | semibold | text-dim | none, sentence case |
 | Header meta, right-aligned (7 tracks, Tap to edit) | 12 to 14 | regular | text-muted | |
 | Field label | 13 (both apps; the Mac since #417) | semibold | text-muted | none, sentence case |
@@ -191,13 +191,14 @@ eyebrow, breadcrumb eyebrow, field label and badge rows above are replaced. Labe
 case, e.g. `text-sm font-semibold text-accent` on web. The `text-dim` and `accent` roles that name
 eyebrows still apply to those labels. The iPhone uses them in sentence case too since #418 (31 Oct
 2026): eyebrows and field labels are 13 pt semibold with no tracking, badges stay 10 pt, and Settings
-and Collections carry the Mac's eyebrows ("Local library", "Your music") over their titles. A page
-eyebrow on the iPhone (Library, Settings, Collections) sits on a capsule in the
+carries the Mac's "Local library" eyebrow over its title (the Library and Collections have none since
+#444). A page eyebrow on the iPhone (Settings) sits on a capsule in the
 page `bg` colour (10 pt across, 2 pt down, the text lined up with the title), so `accent` keeps
 5.25:1 (#1E7DF0 on #000000) over the moving backdrop or a pale cover's wash; bare, it measured 2.3
-to 2.8:1 on Settings. The Collections player shows "Your music" with the collection count beside it
-("Your music · 5 collections", the count in `text-muted`) on the same capsule, then the title. The
-Mac's Collections page dropped its capsule (#420, 31 Oct 2026): "Your music" there is plain
+to 2.8:1 on Settings. The iPhone's Library and Collections have a title row instead (#444, 31 Oct 2026):
+the title at the left and the count at the right on its last baseline ("All music", "12 tracks";
+"Collections", "12 collections" in both the record player and the list), in `text-muted`; at the accessibility sizes the
+count drops under the title. The Mac's Collections page dropped its capsule (#420, 31 Oct 2026): "Your music" there is plain
 `text-sm font-semibold text-text-muted` (rule 11), since bare `accent` measured 2.3 to 2.8:1 over a
 cover wash. The iPhone's capsule is unchanged.
 
@@ -261,6 +262,15 @@ cover wash. The iPhone's capsule is unchanged.
     sliding. Wider than the room: `.stack` puts the options in a column, `.scroll` scrolls them.
     No tint, rim, glow or shadow. The Library's layout toggle is the same track and thumb.
     Locked: 50 %. `SegmentedPill` and `TintedGlassThumb` are gone.
+    On Stats (#444) Tracks / Albums / Artists is the compact switch, words only, at the left
+    of one row with the period pill at the right, like the Library toolbar; the week arrows
+    and date range sit in a small right-aligned row under the pill (the stepper glyph 18 pt in
+    its 44 pt target). When the row won't fit (large text, a long period label) the switch
+    takes its own line with its icons and the pill sits under it, right-aligned. The row comes
+    right under the title, as on the Mac, and the digest sentence under the arrows, so a sentence
+    that arrives, grows with a long track name or goes quiet never moves the controls; while the
+    first read runs, two bars sized with the sentence's text head the skeleton, at 12% white so they
+    show on the backdrop's brightest part.
 - **iPhone record fields, covers and library (16 Oct 2026, owner on the phone)**: the inline
   fields read as floating text, so nobody could tell what a value was or that it could still be
   edited, and the import and the release page laid the same fields out differently.
@@ -1060,11 +1070,11 @@ Previews: `docs/design-previews/339-mac/` (1280 and 900 wide: `playing`, plus `n
 
 Previews: `docs/design-previews/339-ios/` (`player-<case>.png`, from the gallery's `collections-player-*` cases). Target look: `docs/design-previews/339/phone-record-player*.png`. The Mac's half is #351; the maths is a port of its `record-player.ts` into `Domain/RecordWheel.swift`.
 
-- **Switches.** **Record player / List** and **Picture disc / Black vinyl** are the slim `SlimSwitch` (compact) in `CollectionsModeSwitches`, side by side when they fit, else stacked (see Glass controls below, whose switch part #411 retired: no cover tint); a stacked switch uses a 22 pt rounded track with an inset thumb. Each option has a 44 pt hit area and `.isSelected`; each group reads its name ("View", "Spinning record"). The record group shows only in the record player. Both choices are remembered per device (`locally.collections.view`, `locally.collections.record`); hidden with no collections. The List view is unchanged.
-- **Glass controls (#363).** The two switches are the slim `SlimSwitch` (compact, no cover tint since #411), side by side when they fit at 390 pt, else stacked, each stacking its own words at the accessibility sizes; the play / pause disc (the thumb recipe on a circle with a top-left highlight) and the played part of the progress line (with a faint glow) take the front cover's colour (the palette behind the wash; accent when none). Previous and next are `GlowGlass` circles with the round `GlowRim` (#414 makes them plain icons); + is a plain icon (#411). The wheel's ring dissolves over its last 18 degrees at the top and bottom. Frames: `docs/design-previews/363-ios/` (`after`, `player-bright`, `player-ax3`).
-- **The wheel.** The hub (the playing record, radius 154 with an 8 pt dark platter rim) sits on the left edge; rows ride the right half of a dial of radius 182. A row is a 48 pt `CollectionCoverView`, the name (`rowTitle`, one line, an ellipsis that ends 16 pt inside the screen) and "27 tracks" (`meta`), level, 64 pt apart at the front, each step 0.87 of the last, fading past 0.85 rad (about 49 degrees) so about seven show. A thin ring (radius 214) and a 14 x 3 accent notch mark the front. Only the window of 15 indexes around the front is built, keyed by collection id; placement is `offset`, `scaleEffect` and `opacity` only, and the rows are an `Animatable` view so a snap re-places just those rows. The playing collection's row says "Playing" or "Paused" in `Tint.accentText`, on one line with the count or, when the room is short (320 pt), the state above the count (only the name may end in an ellipsis) (4.5:1 on black; `accent` itself is 4.0:1), from the player's state. Under it, at the left: "1 of 24" and a 44 pt + (New collection).
+- **Switches.** **Record player / List** and **Picture disc / Black vinyl** are two `IconToggle`s (#444, the Library's layout toggle as one shared piece) in `CollectionsModeSwitches`, side by side 8 pt apart when they fit, else stacked: an `elevated` capsule track, an `elevated-hover` thumb that slides, one icon per option (Record player: a drawn record, an outline circle, one groove ring and a centre dot at the `Icon/…` stroke weight; List: the list glyph; Picture disc: an accent-to-pink disc with a dark hole; Black vinyl: a near-black disc with a 1 pt rim, a faint groove and a label dot), `primaryText` for the chosen one and `secondaryText` for the rest. Each option has a 44 pt hit area, `.isSelected` and its old words as its label (the words are no longer drawn); each group reads its name ("View", "Spinning record"). The record group shows only in the record player. Both choices are remembered per device (`locally.collections.view`, `locally.collections.record`); hidden with no collections. The List view is unchanged.
+- **Glass controls (#363).** The two switches are icon toggles since #444 (no cover tint since #411), side by side when they fit at 390 pt, else stacked; the play / pause disc (the thumb recipe on a circle with a top-left highlight) and the played part of the progress line (with a faint glow) take the front cover's colour (the palette behind the wash; accent when none). Previous and next are `GlowGlass` circles with the round `GlowRim` (#414 makes them plain icons); + is a plain icon (#411). The wheel's ring dissolves over its last 18 degrees at the top and bottom. Frames: `docs/design-previews/363-ios/` (`after`, `player-bright`, `player-ax3`).
+- **The wheel.** The hub (the playing record, radius 154 with an 8 pt dark platter rim) is tucked off the left edge, its centre 0.4 of its radius (about 62 pt) left of the edge so 30 % of the record shows (`Theme.Immersive.wheelCentreX`, #444); rows ride a dial of radius 240 round the same centre. A row is a 48 pt `CollectionCoverView`, the name (`rowTitle`, one line, an ellipsis that ends 16 pt inside the screen) and "27 tracks" (`meta`), level, 76 pt apart at the front (neighbouring covers keep at least 8 pt apart through the three rows each side), each step 0.87 of the last, fading past 0.85 rad (about 49 degrees) so about seven show; the wheel is 376 pt tall so the third row each side sits whole in it. A thin ring (radius 272) and a 14 x 3 accent notch mark the front. Only the window of 15 indexes around the front is built, keyed by collection id; placement is `offset`, `scaleEffect` and `opacity` only, and the rows are an `Animatable` view so a snap re-places just those rows. The playing collection's row says "Playing" or "Paused" in `Tint.accentText`, on one line with the count or, when the room is short (320 pt), the state above the count (only the name may end in an ellipsis) (4.5:1 on black; `accent` itself is 4.0:1), from the player's state. Under it, at the left: "1 of 24" and a 44 pt + (New collection).
 - **The hub record.** Picture disc: the playing track's cover edge to edge, faint grooves, a 16 pt centre hole. Black vinyl: black with grooves and the cover as a 36 % label. Nothing playing: a bare black record. It always shows the playing track, turns at 200 degrees a second (33 1/3 rpm) only while playing, keeps its angle when paused (the angle is accumulated across pauses), and the two looks are two layers cross-faded in place (0.3 s) so nothing remounts and the turn never restarts.
-- **Gestures.** A vertical drag that starts on the wheel turns it (one row per 64 pt); on release it snaps to the nearest row, from the predicted end translation for a flick (at most 8 rows), on `.timingCurve(0.16, 1, 0.3, 1)` over 0.45 s (0.55 s for a tap or an adjust). A drag anywhere else scrolls the page. A light selection haptic on each change of the front row. Every row is a button with a 44 pt hit area however small it is drawn.
+- **Gestures.** A vertical drag that starts on the wheel turns it (one row per 76 pt); on release it snaps to the nearest row, from the predicted end translation for a flick (at most 8 rows), on `.timingCurve(0.16, 1, 0.3, 1)` over 0.45 s (0.55 s for a tap or an adjust). A drag anywhere else scrolls the page. A light selection haptic on each change of the front row. Every row is a button with a 44 pt hit area however small it is drawn.
 - **Motion and power.** The spin and the wheel's animation stop when the scene is not active, in Low Power Mode (`BackdropMotion.isActive`), when the screen is not showing, when the wheel is scrolled out of view (`onGeometryChange`, back-deployed, reduced to one Bool so only an in / out change updates state; it works on iOS 17) and under Reduce Motion, where the wheel jumps. Only transforms and opacity move; nothing that moves has a blur or material.
 - **Now playing** (under the wheel, scales fully): the eyebrow "Late drives · track 3 of 27", the title and artist, a progress line, previous / play-pause / next centred (44 pt, the main one 52), plain white drawn glyphs with nothing behind them (#414; the tinted glass disc is gone). While the front differs from the playing collection, "Back to {name}" turns the wheel back. Nothing playing: "Nothing playing", the controls disabled.
 - **The queue** is the collection page's, shared (`CollectionQueueHeader`, `CollectionQueueRows`): name in full, "27 tracks, 1 hr 56 min", Play / Pause, Edit collection (opens the page in edit mode; Play / Pause keeps its words on one line and the buttons stack at the largest text), Side A and Side B (the queue split in half, the extra track on A), the rows, "Make it a playlist". The collection page uses the same views, now with Side A and Side B in place of the single "Queue" heading.

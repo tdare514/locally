@@ -20,7 +20,6 @@ struct CollectionsView: View {
     var onEdit: (UUID) -> Void = { _ in }
     /// Opens the wheel on this collection (the debug gallery's browsing frame); otherwise on the playing one.
     var startsOn: UUID?
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.playback) private var playback
     @AppStorage(CollectionsViewPrefs.viewKey) private var viewRaw = CollectionsViewMode.default.rawValue
     @AppStorage(CollectionsViewPrefs.recordKey) private var recordRaw = SpinningRecord.default.rawValue
@@ -82,8 +81,8 @@ struct CollectionsView: View {
     private var listScroll: some View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    header
-                    if hasCollections { CollectionsModeSwitches(mode: mode, record: record) }
+                    CollectionsTitleRow(count: hasCollections ? model.collections.count : nil)
+                    if hasCollections { controlsRow }
                     if !model.isLoaded {
                         loadingRows
                     } else if let failure = model.readFailure {
@@ -113,20 +112,18 @@ struct CollectionsView: View {
             .scrollDismissesKeyboard(.immediately)
     }
 
-    private var header: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
-            : AnyLayout(HStackLayout(alignment: .center))
-        return layout {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(Copy.Collections.pageEyebrow).pageEyebrow()
-                Text(Copy.Collections.title)
-                    .themeFont(.pageTitle)
-                    .foregroundStyle(Theme.primaryText)
-                    .accessibilityAddTraits(.isHeader)
+    /// The mode toggle at the left and "New collection" at the right; stacked when they don't fit side by side.
+    private var controlsRow: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Theme.Library.headerControlGap) {
+                CollectionsModeSwitches(mode: mode, record: record)
+                Spacer(minLength: Theme.Library.headerControlGap)
+                newButton
             }
-            if !dynamicTypeSize.isAccessibilitySize { Spacer() }
-            if model.isLoaded, model.readFailure == nil, !model.collections.isEmpty { newButton }
+            VStack(alignment: .leading, spacing: Theme.Library.headerControlGap) {
+                CollectionsModeSwitches(mode: mode, record: record)
+                newButton
+            }
         }
     }
 

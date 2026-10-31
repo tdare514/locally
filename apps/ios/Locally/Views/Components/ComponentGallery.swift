@@ -17,6 +17,7 @@ struct ComponentGallery: View {
         "library-empty", "onboarding", "paywall",
         // #204: the real Stats page over sample plays.
         "stats-week", "stats-albums-grid", "stats-artists", "stats-quiet", "stats-signed-out", "stats-large-text", "stats-week-scrolled", "stats-grid-scrolled",
+        "stats-ax5", "stats-quiet-ax5", "stats-long-title", "stats-long-title-ax5", "stats-slow-week", "stats-slow-week-ax5", "stats-slow-quiet", "stats-slow-quiet-ax5", "stats-slow-long-title", "stats-slow-long-title-ax5", "collections-screen-ax5",
         // #213: the Mac's glyphs on the real tab bar, library and release page, over seeded sample data.
         "icons-tabs-library", "icons-tabs-stats", "icons-library-list", "icons-library-grid", "icons-release", "icons-release-bottom", "icons-cover-edit", "icons-playlist-guide",
         // #412: the shared glyph set, drawn once on both apps (the Mac shows it at /dev/icons).
@@ -190,6 +191,20 @@ struct ComponentGallery: View {
             StatsGallery.page(.week).dynamicTypeSize(.accessibility3)
         case "stats-large-text":
             StatsGallery.page(.week).dynamicTypeSize(.accessibility2)
+        // #444: the controls row at AX5, a long top track, and a read held back four seconds ("-slow").
+        case "stats-ax5":
+            StatsGallery.page(.week).dynamicTypeSize(.accessibility5)
+        case "stats-quiet-ax5":
+            StatsGallery.page(.quiet).dynamicTypeSize(.accessibility5)
+        case "stats-long-title":
+            StatsGallery.page(.longTitle)
+        case "stats-long-title-ax5":
+            StatsGallery.page(.longTitle).dynamicTypeSize(.accessibility5)
+        case _ where name.hasPrefix("stats-slow-"):
+            // "stats-slow-week", "-quiet" or "-long-title", each with an optional "-ax5".
+            let base = name.dropFirst("stats-slow-".count).replacingOccurrences(of: "-ax5", with: "")
+            StatsGallery.page(base == "quiet" ? .quiet : base == "long-title" ? .longTitle : .week, slow: true)
+                .dynamicTypeSize(name.hasSuffix("-ax5") ? .accessibility5 : .large)
         case "release-tracks":
             Self.releaseTracks
         case "release-review-error":
@@ -270,6 +285,8 @@ struct ComponentGallery: View {
             CollectionsGallery.cardPressed()
         case "collections-screen":
             CollectionsGallery.screen()
+        case "collections-screen-ax5":
+            CollectionsGallery.screen().dynamicTypeSize(.accessibility5)
         case "collections-empty":
             CollectionsGallery.screen(seed: false)
         case "collections-queue":
@@ -532,13 +549,18 @@ struct ComponentGallery: View {
 /// A `PlayStatsReading` that answers with a fixed read, for the gallery.
 final class GalleryPlayStats: PlayStatsReading {
     private let read: PlayStatsRead
-    init(_ read: PlayStatsRead) { self.read = read }
-    func summary(from: String, to: String, force: Bool) async -> PlayStatsRead { read }
+    private let delay: Duration
+    /// `delay` holds the read back, so the loading state shows first (#444).
+    init(_ read: PlayStatsRead, delay: Duration = .zero) { self.read = read; self.delay = delay }
+    func summary(from: String, to: String, force: Bool) async -> PlayStatsRead {
+        if delay > .zero { try? await Task.sleep(for: delay) }
+        return read
+    }
 }
 
 /// The real `StatsView` over eight sample releases (fourteen tracks, three to forty-eight plays).
 enum StatsGallery {
-    enum Mode { case week, albumsGrid, artists, quiet, signedOut }
+    enum Mode { case week, albumsGrid, artists, quiet, signedOut, longTitle }
 
     private static func id(_ n: Int) -> UUID { UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", n))! }
 
@@ -604,9 +626,9 @@ enum StatsGallery {
     }
 
     @MainActor
-    static func page(_ mode: Mode) -> some View {
+    static func page(_ mode: Mode, slow: Bool = false) -> some View {
         TabView {
-            statsView(mode)
+            statsView(mode, slow: slow)
                 .tabItem { Label(Copy.Stats.tabLabel, image: "Icon/Stats") }
         }
         .tint(Theme.accent)
@@ -615,9 +637,10 @@ enum StatsGallery {
         .environment(SyncStatus())
     }
 
-    /// The Stats page alone, over sample plays (the tab bar is the caller's).
+    /// The Stats page alone, over sample plays (the tab bar is the caller's). `slow` holds the read back four
+    /// seconds, so the loading state and the move to loaded can be seen (#444).
     @MainActor
-    static func statsView(_ mode: Mode) -> some View {
+    static func statsView(_ mode: Mode, slow: Bool = false) -> some View {
         let defaults = UserDefaults(suiteName: "gallery.stats")!
         defaults.removePersistentDomain(forName: "gallery.stats")
         defaults.set(StatsPeriodKind.week.rawValue, forKey: StatsViewModel.periodKey)
@@ -631,7 +654,13 @@ enum StatsGallery {
             break
         }
         let read: PlayStatsRead = mode == .signedOut ? .signedOut : .ok(summary(empty: mode == .quiet))
-        let model = StatsViewModel(stats: GalleryPlayStats(read), releases: { releases }, defaults: defaults)
+        // A long name on the most-played track, so the sentence runs to more lines (#444).
+        let shown = mode != .longTitle ? releases : releases.map { release -> Release in
+            var copy = release
+            copy.tracks = release.tracks.map { var t = $0; if t.title == "Night Bus to Nowhere" { t.title = "Night Bus to Nowhere (Extended Midnight Mix, Live at the Harbour)" }; return t }
+            return copy
+        }
+        let model = StatsViewModel(stats: GalleryPlayStats(read, delay: slow ? .seconds(4) : .zero), releases: { shown }, defaults: defaults)
         let cache = StatsCoverCache(loader: { covers[$0] })
         return StatsView(model: model, cache: cache, selectedTab: .constant(.stats), librarySearchRequest: .constant(nil))
     }
@@ -1551,6 +1580,8 @@ enum CollectionsGallery {
     }
 
     static func screen(seed: Bool = true) -> some View {
+        // The List view, which these galleries were drawn for before the record player became the default.
+        UserDefaults.standard.set(CollectionsViewMode.list.rawValue, forKey: CollectionsViewPrefs.viewKey)
         let (container, model) = container(seed: seed)
         return IconsGallery.environment(NavigationStack { CollectionsView(model: model) { _ in } }, container)
     }

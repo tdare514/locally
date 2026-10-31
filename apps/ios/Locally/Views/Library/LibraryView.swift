@@ -37,17 +37,15 @@ struct LibraryView: View {
     @AppStorage(LibraryViewPrefs.singlesCollapsedKey) private var singlesCollapsed = false
     @AppStorage(LibraryViewPrefs.albumsCollapsedKey) private var albumsCollapsed = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Namespace private var layoutThumbSpace
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.displayScale) private var displayScale
     /// Icon and button sizes, scaling with Dynamic Type (#226).
     @ScaledMetric(relativeTo: .body) private var scaledToggleIconSize = Theme.Library.toggleIconSize
     @ScaledMetric(relativeTo: .body) private var scaledToggleButtonSize = Theme.Library.toggleButtonSize
     @ScaledMetric(relativeTo: .subheadline) private var sectionChevronSize = Theme.Library.sectionChevronSize
-    private var toggleIconSize: CGFloat { min(scaledToggleIconSize, Theme.Library.toggleIconMaxSize) }
-    /// The hand-drawn glyphs sit a little smaller in their box than SF Symbols, so they get 3 pt more, still under the 35 pt cap.
-    private var drawnToggleIconSize: CGFloat { min(toggleIconSize + 3, Theme.Library.toggleIconMaxSize) }
-    private var toggleButtonSize: CGFloat { min(scaledToggleButtonSize, Theme.Library.toggleButtonMaxSize) }
+    /// The sort menu's icon and button, sized as the `IconToggle` beside it.
+    private var drawnToggleIconSize: CGFloat { IconToggleMetrics.drawnIconSize(scaled: scaledToggleIconSize) }
+    private var toggleButtonSize: CGFloat { IconToggleMetrics.buttonSize(scaled: scaledToggleButtonSize) }
     @Environment(SyncStatus.self) private var syncStatus
     /// The "From your devices" tray (#269): open or closed.
     @State private var tray = DevicesTrayModel()
@@ -312,10 +310,14 @@ struct LibraryView: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
             : AnyLayout(HStackLayout(alignment: .lastTextBaseline))
         headerLayout {
-            // With a cloud pending the row grows so the count (on the title's baseline) sits at
-            // least 10 pt below the 40 pt button; with none it is as before #269.
-            VStack(alignment: .leading, spacing: pendingCount > 0 ? 26 : 4) {
-                headerEyebrow
+            // With a cloud pending a spacer of the cloud's row sits over the title so the count (on
+            // the title's baseline) stays at least 10 pt below the 40 pt button; with none the title
+            // is the top of the header.
+            VStack(alignment: .leading, spacing: 0) {
+                if pendingCount > 0 {
+                    Color.clear.frame(height: Theme.Library.cloudRowHeight)
+                        .accessibilityHidden(true)
+                }
                 Text(Copy.Library.allMusic)
                     .themeFont(.pageTitle)
                     .foregroundStyle(Theme.primaryText)
@@ -328,7 +330,7 @@ struct LibraryView: View {
         // Full width at every size, so the cloud keeps to the trailing edge when the row stacks.
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .topTrailing) {
-            // Top of the visible 40 pt glass level with the eyebrow's top; the 44 pt hit area
+            // Top of the visible 40 pt glass level with the header's top; the 44 pt hit area
             // ends at the 16 pt gutter, so the badge inside it never crosses.
             devicesButton.offset(y: -2)
         }
@@ -340,22 +342,6 @@ struct LibraryView: View {
         }
         searchField
         controls
-    }
-
-    /// Beside the cloud while it fits there on one line; otherwise under the cloud at full width,
-    /// so it wraps between words on a narrow screen at the largest sizes (#226).
-    @ViewBuilder
-    private var headerEyebrow: some View {
-        if pendingCount > 0 {
-            ViewThatFits(in: .horizontal) {
-                Text(Copy.Library.eyebrow).pageEyebrow()
-                    .padding(.trailing, Theme.Library.cloudClearance)
-                Text(Copy.Library.eyebrow).pageEyebrow()
-                    .padding(.top, Theme.Library.cloudRowHeight)
-            }
-        } else {
-            Text(Copy.Library.eyebrow).pageEyebrow()
-        }
     }
 
     // MARK: From your devices (#269)
@@ -529,15 +515,14 @@ struct LibraryView: View {
     }
 
     private var layoutToggle: some View {
-        HStack(spacing: 0) {
-            layoutButton(.list, icon: .list, label: Copy.Library.layoutList)
-            layoutButton(.covers, icon: .grid, label: Copy.Library.layoutCovers)
-            layoutButton(.artists, icon: .person, label: Copy.Library.layoutArtists)
-        }
-        .background(Theme.elevated, in: Capsule())
-        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: layout)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(Copy.Library.layoutLabel)
+        IconToggle(
+            options: [
+                IconToggleOption(LibraryLayout.list, icon: .list, label: Copy.Library.layoutList),
+                IconToggleOption(.covers, icon: .grid, label: Copy.Library.layoutCovers),
+                IconToggleOption(.artists, icon: .person, label: Copy.Library.layoutArtists),
+            ],
+            selection: $layout, label: Copy.Library.layoutLabel
+        )
     }
 
     private var sizeControl: some View {
@@ -560,36 +545,6 @@ struct LibraryView: View {
                 .contentShape(Rectangle())
         }
         .accessibilityLabel(Copy.Library.sortLabel(Copy.Library.sortName(sort)))
-    }
-
-    /// The hand-drawn glyph variant (#213, #412).
-    private func layoutButton(_ value: LibraryLayout, icon: LocallyIcon.Name, label: String) -> some View {
-        layoutButton(value, label: label) {
-            LocallyIcon(icon, size: drawnToggleIconSize, scaled: false)
-        }
-    }
-
-    private func layoutButton<Glyph: View>(_ value: LibraryLayout, label: String, @ViewBuilder glyph: () -> Glyph) -> some View {
-        let selected = layout == value
-        return Button {
-            layout = value
-        } label: {
-            glyph()
-                .foregroundStyle(selected ? Theme.primaryText : Theme.secondaryText)
-                .frame(width: max(toggleButtonSize, Theme.Spacing.minTarget), height: max(toggleButtonSize, Theme.Spacing.minTarget))
-                .background {
-                    if selected {
-                        Capsule()
-                            .fill(Theme.elevatedHover)
-                            .padding(Theme.Library.toggleThumbInset)
-                            .matchedGeometryEffect(id: "layoutThumb", in: layoutThumbSpace)
-                    }
-                }
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
-        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     /// A section label with its count, then the rows (list) or tiles (covers)
