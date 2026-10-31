@@ -100,20 +100,22 @@ struct AlbumBuilderView: View {
                     ImportSendError(message: errorMessage)
                 }
                 Button(action: context.onSend) {
-                    if model.isSending {
-                        VStack(spacing: 4) {
-                            ProgressView()
+                    VStack(spacing: 4) {
+                        // A busy button keeps its label and swaps its icon for a spinner (rule 10).
+                        HStack(spacing: 8) {
+                            if model.isSending {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "paperplane.fill").accessibilityHidden(true)
+                            }
+                            Text(Copy.Import.send)
+                        }
+                        if model.isSending {
                             Text(Copy.Import.taggingProgress(done: model.progressDone, total: model.progressTotal))
                                 .themeFont(.rowSubtitle)
                         }
-                        .frame(maxWidth: .infinity)
-                    } else {
-                        HStack(spacing: 8) {
-                            Image(systemName: "paperplane.fill").accessibilityHidden(true)
-                            Text(Copy.Import.send)
-                        }
-                        .frame(maxWidth: .infinity)
                     }
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(MainButtonStyle())
                 .disabled(!model.canSend || context.isSendHeld)

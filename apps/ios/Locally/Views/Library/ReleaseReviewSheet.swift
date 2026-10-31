@@ -43,9 +43,9 @@ struct ReleaseReviewSheet: View {
                         if model.errorMessage == nil { onClose() }
                     }
                 } label: {
-                    if model.isSaving {
-                        ProgressView()
-                    } else {
+                    HStack(spacing: 8) {
+                        // A busy button keeps its label and shows a spinner beside it (rule 10).
+                        if model.isSaving { ProgressView() }
                         Text(Copy.Release.save)
                     }
                 }

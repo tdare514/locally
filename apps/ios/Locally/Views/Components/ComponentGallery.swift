@@ -1134,9 +1134,14 @@ private struct ControlsGallery: View {
                     CoverSizeSlider(selection: $size)
                     send
                     send.disabled(true)
-                    Button {} label: { ProgressView() }
-                        .buttonStyle(MainButtonStyle())
-                        .disabled(true)
+                    Button {} label: {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text(Copy.Import.send)
+                        }
+                    }
+                    .buttonStyle(MainButtonStyle())
+                    .disabled(true)
                     Button {} label: {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark").accessibilityHidden(true)

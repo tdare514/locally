@@ -63,13 +63,14 @@ struct ImportSingleView: View {
                     ImportSendError(message: errorMessage)
                 }
                 Button(action: context.onSend) {
-                    if model.isSending {
-                        ProgressView()
-                    } else {
-                        HStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        // A busy button keeps its label and swaps its icon for a spinner (rule 10).
+                        if model.isSending {
+                            ProgressView()
+                        } else {
                             Image(systemName: "paperplane.fill").accessibilityHidden(true)
-                            Text(Copy.Import.send)
                         }
+                        Text(Copy.Import.send)
                     }
                 }
                 .buttonStyle(MainButtonStyle())

@@ -149,7 +149,7 @@ struct GlowRim: View {
 }
 
 /// "Cancel" / "Delete": no background, just coloured text that lightens to
-/// white on press. `color` defaults to `text-muted`; pass `Theme.danger` for
+/// white on press, with a 44 pt tall hit area. `color` defaults to `text-muted`; pass `Theme.danger` for
 /// a destructive text button (e.g. release detail's "Delete").
 struct TextButtonStyle: ButtonStyle {
     var color: Color = Theme.secondaryText
@@ -159,6 +159,8 @@ struct TextButtonStyle: ButtonStyle {
         configuration.label
             .themeFont(.body, weight: .semibold)
             .foregroundStyle(configuration.isPressed ? Theme.primaryText : color)
+            .frame(minHeight: Theme.Spacing.minTarget)
+            .contentShape(Rectangle())
             .opacity(isEnabled ? 1 : 0.5)
     }
 }

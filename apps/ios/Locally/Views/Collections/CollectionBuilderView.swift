@@ -29,13 +29,11 @@ extension View {
 
 // MARK: - Covers
 
-/// The builder's covers: read off the main thread through the Stats cover cache, and each release's accent colour
-/// (worked out once, only for what is picked).
+/// The builder's covers: read off the main thread through the Stats cover cache.
 @MainActor
 @Observable
 final class BuilderArt {
     private(set) var images: [UUID: UIImage] = [:]
-    private(set) var accents: [UUID: Color] = [:]
     @ObservationIgnored private var cache: StatsCoverCache?
 
     func configure(store: CoverStore?) {
@@ -46,15 +44,6 @@ final class BuilderArt {
     func load(_ id: UUID) async {
         guard images[id] == nil, let cache, let image = await cache.image(for: id) else { return }
         images[id] = image
-    }
-
-    func accent(_ id: UUID) -> Color { accents[id] ?? Theme.accent }
-
-    func loadAccent(_ id: UUID) async {
-        guard accents[id] == nil, let cache else { return }
-        let data = await cache.data(for: id)
-        let palette = await Task.detached(priority: .utility) { ArtworkPalette.palette(forCover: data) }.value
-        accents[id] = Theme.coverGlowColors(palette).first ?? Theme.accent
     }
 
     /// The wash and the sleeve's art for these releases (the first four, in order).
@@ -307,23 +296,28 @@ struct CollectionBuilderView: View {
             .accessibilityAddTraits(.isHeader)
     }
 
-    /// The search pill and Done float over the page; at large text they stack, the pill full width and a Done capsule under it.
+    /// The Done capsule: the main action, labelled (rule 3).
+    private var doneButton: some View {
+        Button(Copy.CollectionBuilder.done, action: finish)
+            .buttonStyle(MainButtonStyle(isFullWidth: false))
+            .disabled(!draft.canFinish)
+            .accessibilityLabel(Copy.CollectionBuilder.doneLabel(draft.songCount))
+            .accessibilityIdentifier("builder-done")
+    }
+
+    /// The search pill and Done float over the page; at large text they stack, the pill full width and the Done capsule under it.
     private var bottomBar: some View {
         @Bindable var draft = draft
         return Group {
             if large {
                 VStack(alignment: .trailing, spacing: 10) {
                     BuilderSearchPill(text: $draft.query)
-                    Button(Copy.CollectionBuilder.done, action: finish)
-                        .buttonStyle(MainButtonStyle(isFullWidth: false))
-                        .disabled(!self.draft.canFinish)
-                        .accessibilityLabel(Copy.CollectionBuilder.doneLabel(self.draft.songCount))
-                        .accessibilityIdentifier("builder-done")
+                    doneButton
                 }
             } else {
                 HStack(spacing: 10) {
                     BuilderSearchPill(text: $draft.query)
-                    BuilderDoneRound(label: Copy.CollectionBuilder.doneLabel(self.draft.songCount), isEnabled: self.draft.canFinish, action: finish)
+                    doneButton
                 }
             }
         }
@@ -498,7 +492,7 @@ private struct BuilderCrate: View {
     }
 }
 
-/// A filled accent circle with a white check (accent marks the selected item, rule 1); a dim one for
+/// A filled accent circle with a black check (accent marks the selected item, rule 1); a dim one for
 /// what the collection already holds. No glow.
 private struct BuilderPickedDot: View {
     let size: CGFloat
@@ -509,7 +503,8 @@ private struct BuilderPickedDot: View {
             Circle().fill(dimmed ? Color.white.opacity(0.22) : Theme.accent)
             Image(systemName: "checkmark")
                 .font(.system(size: size * 0.46, weight: .bold))
-                .foregroundStyle(Color.white.opacity(dimmed ? 0.7 : 1))
+                // Black on accent is 5.25:1; white would be 4.0:1 (rule 11).
+                .foregroundStyle(dimmed ? Color.white.opacity(0.7) : Color.black)
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
@@ -573,7 +568,8 @@ private struct BuilderShelfCover: View {
                     .shadow(color: .black.opacity(0.4), radius: 10, y: 6)
                     .overlay {
                         if state == .on {
-                            GlowRim(corner: Theme.Builder.shelfRadius)
+                            RoundedRectangle(cornerRadius: Theme.Builder.shelfRadius, style: .continuous)
+                                .strokeBorder(Theme.accent, lineWidth: 2)
                                 .transition(.opacity)
                         }
                     }
@@ -619,7 +615,6 @@ private struct BuilderSongRow: View {
     private var state: BuilderRowState { draft.state(of: pick) }
     private var isOn: Bool { state != .off }
     private var blocked: Bool { state == .off && !draft.canPick(pick) }
-    private var tint: Color { art.accent(release.id) }
     private var isAdopted: Bool { release.source == .adopted }
 
     private var subtitle: String {
@@ -666,7 +661,7 @@ private struct BuilderSongRow: View {
             .frame(maxWidth: .infinity, minHeight: Theme.Builder.songMinHeight, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(tint.opacity(state == .on ? 0.12 : 0))
+                    .fill(Color.white.opacity(state == .on ? 0.08 : 0))
             }
             .opacity(blocked ? 0.45 : 1)
             .contentShape(Rectangle())
@@ -678,10 +673,9 @@ private struct BuilderSongRow: View {
         .accessibilityLabel(label)
         .accessibilityHint(isOn ? "" : (blocked ? Copy.CollectionBuilder.full : Copy.CollectionBuilder.add(track.title)))
         .accessibilityAddTraits(isOn ? .isSelected : [])
-        .task(id: isOn) { if isOn { await art.loadAccent(release.id) } }
     }
 
-    /// The trailing round +, which fills with the cover's accent and a check when picked.
+    /// The trailing round +, which fills with the accent and a check when picked.
     @ViewBuilder
     private var control: some View {
         let size = Theme.Builder.songDot
@@ -739,28 +733,5 @@ private struct BuilderSearchPill: View {
             .clipShape(Capsule())
         }
         .overlay { Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5) }
-    }
-}
-
-/// The round Done: a solid white circle with a black check, the main action as an icon (rule 3). Disabled:
-/// an `elevated` circle with a `text-dim` check.
-private struct BuilderDoneRound: View {
-    let label: String
-    let isEnabled: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: "checkmark")
-                .font(.system(.body, weight: .bold))
-                .foregroundStyle(isEnabled ? Color.black : Theme.textDim)
-                .frame(width: Theme.Builder.searchMinHeight, height: Theme.Builder.searchMinHeight)
-                .background(isEnabled ? Theme.primaryText : Theme.elevated, in: Circle())
-                .contentShape(Circle())
-        }
-        .buttonStyle(BuilderPressStyle())
-        .disabled(!isEnabled)
-        .accessibilityLabel(label)
-        .accessibilityIdentifier("builder-done")
     }
 }

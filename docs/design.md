@@ -221,15 +221,19 @@ eyebrows still apply to those labels.
   - **Main button** (`MainButtonStyle`: Send to Spotify, Save changes, Add a track, Done, Next, Get
     started, Buy): a solid `text` capsule, black semibold label, 48 pt tall full width and at least
     44 pt compact, so it has a shape at rest. Pressed: 85 % opacity, no scale. Disabled: an
-    `elevated` capsule with a `text-dim` label. A `ProgressView` inside takes the label colour.
-    The cover's colours never reach it. Replaces the Cover glow button, the Glow pill and the flat
+    `elevated` capsule with a `text-dim` label (3.3:1; rule 3 prescribes it, and WCAG exempts
+    inactive controls from 4.5:1). A busy button keeps its label and shows a `ProgressView` in
+    place of its icon (or beside the label); the spinner takes the label colour. The cover's
+    colours never reach it. Replaces the Cover glow button, the Glow pill and the flat
     accent pill (the glow clouds, halo, shimmer and dark base are gone).
   - **Secondary** is the word alone (`TextButtonStyle`, `text-muted`, `text` while pressed) with a
-    44 pt target; **destructive** triggers are the same in `danger`. The grey pill is gone. **Icon
+    hit area at least 44 pt tall, set inside the style; **destructive** triggers are the same in `danger`. The grey pill is gone. **Icon
     buttons** (`IconButtonStyle`: the Stats stepper and History, the Collections +, the Library
     sort) are the drawn glyph in `text` in a 44 pt target with nothing behind it; 70 % while
-    pressed. The round Done in the collection builder is the main button as an icon: a white circle
-    with a black check.
+    pressed. Done in the collection builder is the labelled main button at every text size. Its
+    picks are an `accent` dot with a black check (5.25:1, white would be 4.0:1), a selected shelf
+    cover gets a 2 pt `accent` outline and a selected song row a neutral white 8 % fill: no cover
+    colour and no glow.
   - **Slim switch** (`SlimSwitch`, was `GlowSwitch`; the Import record's Single / Album, the
     Collections and Stats layouts, the Stats Tracks / Albums / Artists, the date sheet's Year /
     Month / Day, the crop sheet's Square / Original, the share sheet's expiry): an `elevated`
