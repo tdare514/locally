@@ -23,7 +23,7 @@ export function Skeleton({
   className?: string;
   style?: CSSProperties;
   /** The blocks, laid out in the content's own shape and size. */
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   const shown = useDelayedFlag(busy);
   return (

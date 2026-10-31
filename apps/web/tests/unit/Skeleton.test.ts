@@ -6,7 +6,7 @@ import { Bone, Skeleton } from "../../src/components/Skeleton";
 describe("Skeleton (#422)", () => {
   it("holds the place from the first frame but draws and says nothing until 300 ms have passed", () => {
     const html = renderToStaticMarkup(
-      createElement(Skeleton, { label: "Loading your stats", className: "flex gap-4", children: createElement(Bone, { className: "h-4" }) }),
+      createElement(Skeleton, { label: "Loading your stats", className: "flex gap-4" }, createElement(Bone, { className: "h-4" })),
     );
     expect(html).toContain('<div aria-busy="true" class="flex gap-4 invisible">');
     expect(html).toContain('<span role="status" class="sr-only"></span>');
@@ -19,7 +19,7 @@ describe("Skeleton (#422)", () => {
   });
 
   it("is not busy and draws nothing once the wait is over", () => {
-    const html = renderToStaticMarkup(createElement(Skeleton, { busy: false, label: "Loading", children: null }));
+    const html = renderToStaticMarkup(createElement(Skeleton, { busy: false, label: "Loading" }));
     expect(html).toBe('<span role="status" class="sr-only"></span><div class="invisible"></div>');
   });
 });
