@@ -34,6 +34,9 @@ struct MiniPlayerBar: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var coverBase: CGFloat = 44
     private var coverSide: CGFloat { inAccessory ? min(coverBase, 38) : coverBase }
+    /// The control glyphs scale with Dynamic Type up to a cap, and the 44 pt target grows with them (#414).
+    @ScaledMetric(relativeTo: .body) private var scaledControlGlyph: CGFloat = 22
+    private var controlGlyph: CGFloat { min(scaledControlGlyph, 35) }
     @State private var cover: UIImage?
     static let accessoryBacking = 0.7
 
@@ -67,10 +70,10 @@ struct MiniPlayerBar: View {
 
                 HStack(spacing: 0) {
                     if dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
-                    control(state.isPlaying ? "pause.fill" : "play.fill", label: state.isPlaying ? Copy.Playback.pauseButton : Copy.Playback.playButton, id: "mini-player-toggle") {
+                    control(state.isPlaying ? .pause : .play, label: state.isPlaying ? Copy.Playback.pauseButton : Copy.Playback.playButton, id: "mini-player-toggle") {
                         playback.togglePlayPause()
                     }
-                    control("forward.fill", label: Copy.Playback.nextButton, id: "mini-player-next") { playback.next() }
+                    control(.next, label: Copy.Playback.nextButton, id: "mini-player-next") { playback.next() }
                 }
             }
             .padding(.leading, 10)
@@ -100,12 +103,11 @@ struct MiniPlayerBar: View {
         .accessibilityHidden(true)
     }
 
-    private func control(_ symbol: String, label: String, id: String, action: @escaping () -> Void) -> some View {
+    private func control(_ icon: LocallyIcon.Name, label: String, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 18, weight: .semibold))
+            LocallyIcon(icon, size: controlGlyph, scaled: false)
                 .foregroundStyle(Theme.primaryText)
-                .frame(width: 44, height: 44)
+                .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

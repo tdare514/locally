@@ -223,7 +223,7 @@ struct CollectionQueueRows: View {
         HStack(spacing: 12) {
             Group {
                 if nowPlaying {
-                    Image(systemName: control.isPlaying ? "speaker.wave.2.fill" : "pause.fill")
+                    LocallyIcon(control.isPlaying ? .nowPlaying : .play, size: 16, relativeTo: .subheadline, scaled: true)
                         .foregroundStyle(Theme.accent)
                 } else {
                     Text("\(number)")
