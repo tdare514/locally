@@ -190,7 +190,7 @@ page `bg` colour (10 pt across, 2 pt down, the text lined up with the title), so
 5.25:1 (#1E7DF0 on #000000) over the moving backdrop or a pale cover's wash; bare, it measured 2.3
 to 2.8:1 on Settings. The iPhone's Library and Collections have a title row instead (#444, 31 Oct 2026):
 the title at the left and the count at the right on its last baseline ("All music", "12 tracks";
-"Collections", "12 collections" in the record player), in `text-muted`; at the accessibility sizes the
+"Collections", "12 collections" in both the record player and the list), in `text-muted`; at the accessibility sizes the
 count drops under the title. The Mac's Collections page dropped its capsule (#420, 31 Oct 2026): "Your music" there is plain
 `text-sm font-semibold text-text-muted` (rule 11), since bare `accent` measured 2.3 to 2.8:1 over a
 cover wash. The iPhone's capsule is unchanged.
@@ -259,7 +259,10 @@ cover wash. The iPhone's capsule is unchanged.
     of one row with the period pill at the right, like the Library toolbar; the week arrows
     and date range sit in a small right-aligned row under the pill (the stepper glyph 18 pt in
     its 44 pt target). When the row won't fit (large text, a long period label) the switch
-    takes its own line with its icons and the pill sits under it, right-aligned.
+    takes its own line with its icons and the pill sits under it, right-aligned. The row comes
+    right under the title, as on the Mac, and the digest sentence under the arrows, so a sentence
+    that arrives, grows with a long track name or goes quiet never moves the controls; while the
+    first read runs, the sentence's faint lines head the skeleton.
 - **iPhone record fields, covers and library (16 Oct 2026, owner on the phone)**: the inline
   fields read as floating text, so nobody could tell what a value was or that it could still be
   edited, and the import and the release page laid the same fields out differently.

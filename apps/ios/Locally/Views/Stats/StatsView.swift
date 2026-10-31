@@ -220,17 +220,8 @@ struct StatsView: View {
             signedOutCard
         } else {
             if model.showsControls {
-                if !model.digest.isEmpty {
-                    digestText(model.digest)
-                        .foregroundStyle(Theme.primaryText.opacity(0.88))
-                } else if model.phase == .loading {
-                    // Holds the digest's lines while the first read runs, so the controls don't drop when it arrives
-                    // (#423). A typical sentence at the reader's text size sets the room.
-                    digestText(Copy.Stats.digestSentence(model.displayed, total: 1_000, topTrack: "A track title"))
-                        .foregroundStyle(Color.white.opacity(0.06))
-                        .redacted(reason: .placeholder)
-                        .accessibilityHidden(true)
-                }
+                // The controls sit right under the title, as on the Mac, so a sentence that arrives, grows or
+                // goes quiet never moves them (#444).
                 VStack(alignment: .trailing, spacing: 0) {
                     controlsRow
                     stepperRow
@@ -239,6 +230,10 @@ struct StatsView: View {
                     guard openPeriodOnAppear else { return }
                     try? await Task.sleep(for: .seconds(1.5))
                     periodOpen = true
+                }
+                if !model.digest.isEmpty {
+                    digestText(model.digest)
+                        .foregroundStyle(Theme.primaryText.opacity(0.88))
                 }
             }
             Group {
@@ -529,6 +524,10 @@ struct StatsView: View {
 
     private func skeleton(room: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 20) {
+            // The sentence's lines, so the list starts about where it will once the read lands.
+            digestText(Copy.Stats.digestSentence(model.displayed, total: 1_000, topTrack: "A track title"))
+                .foregroundStyle(Color.white.opacity(0.06))
+                .redacted(reason: .placeholder)
             StatsFanSkeleton(width: room)
                 .frame(maxWidth: .infinity)
             VStack(spacing: 0) {

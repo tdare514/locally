@@ -77,7 +77,7 @@ struct CollectionsView: View {
     private var listScroll: some View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    CollectionsTitleRow(count: nil)
+                    CollectionsTitleRow(count: hasCollections ? model.collections.count : nil)
                     if hasCollections { controlsRow }
                     if !model.isLoaded {
                         loadingRows
