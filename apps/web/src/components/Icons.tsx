@@ -2,7 +2,8 @@ import { useId, type ReactNode, type SVGProps } from "react";
 
 /** Shared attributes for every icon: a 24-unit viewBox, stroked (not filled) paths,
  * round caps/joins — matches the app's design-language icon spec so we don't need to
- * pull in an icon package for five glyphs. */
+ * pull in an icon package. This is the app's hand-drawn glyph set, shared with the iPhone
+ * (`Icon/` assets, #213, #412). */
 function IconBase({
   children,
   ...props
@@ -203,13 +204,13 @@ export function LibraryIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-/** Settings glyph: two sliders. */
+/** Settings: a drawn gear, the same drawing as the iPhone's tab (#412). */
 export function SettingsIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconBase {...props}>
-      <path d="M4 8h9M17 8h3M4 16h3M11 16h9" />
-      <circle cx="15" cy="8" r="2" />
-      <circle cx="9" cy="16" r="2" />
+      <circle cx="12" cy="12" r="5.5" />
+      <circle cx="12" cy="12" r="1.75" />
+      <path d="M12 2.5v2.75M12 18.75v2.75M2.5 12h2.75M18.75 12h2.75M5.28 5.28l1.95 1.95M16.77 16.77l1.95 1.95M5.28 18.72l1.95-1.95M16.77 7.23l1.95-1.95" />
     </IconBase>
   );
 }
@@ -270,6 +271,26 @@ export function NextTrackIcon(props: SVGProps<SVGSVGElement>) {
     <IconBase {...props} fill="currentColor" strokeWidth={1.5}>
       <path d="M5 6.2v11.6a.8.8 0 0 0 1.25.66l8.4-5.8a.8.8 0 0 0 0-1.32l-8.4-5.8A.8.8 0 0 0 5 6.2Z" />
       <rect x="16.5" y="5" width="2.8" height="14" rx="1" />
+    </IconBase>
+  );
+}
+
+/** Previous track: the mirror of NextTrackIcon (#412). */
+export function PreviousTrackIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props} fill="currentColor" strokeWidth={1.5}>
+      <rect x="4.7" y="5" width="2.8" height="14" rx="1" />
+      <path d="M19 6.2v11.6a.8.8 0 0 1-1.25.66l-8.4-5.8a.8.8 0 0 1 0-1.32l8.4-5.8A.8.8 0 0 1 19 6.2Z" />
+    </IconBase>
+  );
+}
+
+/** Sort: one arrow up, one down (#412; the Library's sort button). */
+export function SortIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconBase {...props}>
+      <path d="M8 20V4M4.5 7.5 8 4l3.5 3.5" />
+      <path d="M16 4v16M12.5 16.5 16 20l3.5-3.5" />
     </IconBase>
   );
 }

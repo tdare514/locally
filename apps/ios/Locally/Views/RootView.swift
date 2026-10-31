@@ -77,7 +77,7 @@ struct RootView: View {
                     SettingsView()
                         .miniPlayerInset()
                         .environment(\.isTabSelected, selectedTab == .settings)
-                        .tabItem { Label(Copy.Settings.title, systemImage: "gearshape") }
+                        .tabItem { Label(Copy.Settings.title, image: "Icon/Settings") }
                         .tag(Tab.settings)
                 }
                 .tint(Theme.accent)

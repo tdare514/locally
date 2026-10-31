@@ -2,7 +2,9 @@ import SwiftUI
 
 /// The Mac app's hand-drawn glyphs on the iPhone (#213), from the `Icon/` template images in the
 /// asset catalog (24-unit viewBox, stroke 2, round caps). Where the owner chose to keep an SF Symbol
-/// (gear, list and grid toggles, music note, photo.badge.plus) nothing here replaces it.
+/// (the music note, `photo.badge.plus`, trash, checkmarks, seals, folder, iphone, photo,
+/// `rectangle.stack.fill`, `paperplane.fill` and system menus) nothing here replaces it; the gear,
+/// the list and grid glyphs, the transport glyphs and sort are drawn since #412.
 ///
 /// Used like `Image(systemName:)`: it takes the foreground style, and scales with Dynamic Type from
 /// a base size set against the text style it sits beside. A glyph next to a fixed-size font passes
@@ -19,6 +21,14 @@ struct LocallyIcon: View {
         case pencil = "Icon/Pencil"
         case search = "Icon/Search"
         case copy = "Icon/Copy"
+        case settings = "Icon/Settings"
+        case play = "Icon/Play"
+        case pause = "Icon/Pause"
+        case next = "Icon/Next"
+        case previous = "Icon/Previous"
+        case grid = "Icon/Grid"
+        case list = "Icon/List"
+        case sort = "Icon/Sort"
     }
 
     let name: Name
