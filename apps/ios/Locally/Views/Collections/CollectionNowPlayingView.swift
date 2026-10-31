@@ -10,9 +10,15 @@ struct CollectionNowPlayingView: View {
     let sourceName: String?
     /// The playing collection's name when the wheel's front is another one; nil when they are the same or nothing plays.
     let backTo: String?
-    /// The playing cover's colour, for the play disc and the progress line (the accent when there is none).
+    /// The playing cover's colour, for the progress line (the accent when there is none).
     var tint: Color = Theme.accent
     var onBack: () -> Void
+
+    /// The drawn glyphs scale with Dynamic Type up to a cap, like the library toggle icons (#414).
+    @ScaledMetric(relativeTo: .body) private var scaledSideGlyph: CGFloat = 24
+    @ScaledMetric(relativeTo: .body) private var scaledMainGlyph: CGFloat = 30
+    private var sideGlyph: CGFloat { min(scaledSideGlyph, 35) }
+    private var mainGlyph: CGFloat { min(scaledMainGlyph, 44) }
 
     private var hasTrack: Bool { playback?.currentTrack != nil }
 
@@ -54,71 +60,32 @@ struct CollectionNowPlayingView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// Plain drawn glyphs in `Theme.primaryText` with nothing behind them (#414): 24 pt previous / next and a 30 pt
+    /// play / pause, in 44 pt targets (the main one 52). The frames are minimums, so they grow with the glyph at the
+    /// large text sizes.
     private var controls: some View {
-        HStack(spacing: 24) {
-            Button(Copy.Collections.previousTrack, systemImage: "backward.end.fill") { playback?.previous() }
-                .buttonStyle(PlayerGlassStyle(size: 44))
-            Button(playback?.isPlaying == true ? Copy.Collections.pause : Copy.Collections.play, systemImage: playback?.isPlaying == true ? "pause.fill" : "play.fill") {
+        let playing = playback?.isPlaying == true
+        return HStack(spacing: 24) {
+            transport(.previous, size: sideGlyph, side: 44, label: Copy.Collections.previousTrack) { playback?.previous() }
+            transport(playing ? .pause : .play, size: mainGlyph, side: 52, label: playing ? Copy.Collections.pause : Copy.Collections.play) {
                 playback?.togglePlayPause()
             }
-            .buttonStyle(PlayerDiscStyle(size: 52, tint: tint))
-            Button(Copy.Collections.nextTrack, systemImage: "forward.end.fill") { playback?.next() }
-                .buttonStyle(PlayerGlassStyle(size: 44))
+            transport(.next, size: sideGlyph, side: 44, label: Copy.Collections.nextTrack) { playback?.next() }
         }
-        .labelStyle(.iconOnly)
         .disabled(!hasTrack)
+        .opacity(hasTrack ? 1 : 0.4)
         .frame(maxWidth: .infinity)
     }
-}
 
-/// Previous / next: a glass circle with the round rim and a white glyph, at least `size` across.
-private struct PlayerGlassStyle: ButtonStyle {
-    let size: CGFloat
-    @Environment(\.isEnabled) private var isEnabled
-    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: size * 0.36, weight: .bold))
-            .foregroundStyle(Color.white)
-            .frame(width: size * min(scale, 1.6), height: size * min(scale, 1.6))
-            .background { GlowGlass().clipShape(Circle()) }
-            .overlay { GlowRim(round: true) }
-            .contentShape(Circle())
-            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
-    }
-}
-
-/// Play / pause: the Glow switch's tinted thumb as a disc (dark base, the cover's colour, white rim, tinted shadow)
-/// with a specular highlight at the top left.
-private struct PlayerDiscStyle: ButtonStyle {
-    let size: CGFloat
-    let tint: Color
-    @Environment(\.isEnabled) private var isEnabled
-    @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 1
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: size * 0.36, weight: .bold))
-            .foregroundStyle(Color.white)
-            .frame(width: size * min(scale, 1.6), height: size * min(scale, 1.6))
-            .background { disc }
-            .contentShape(Circle())
-            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
-    }
-
-    private var disc: some View {
-        // A dark base under the tint keeps the white glyph at 4.5:1 or better on a bright colour.
-        Circle()
-            .fill(Color.black.opacity(Theme.Import.kindThumbBase))
-            .overlay(Circle().fill(tint.opacity(0.55)))
-            .overlay {
-                Circle().fill(RadialGradient(
-                    colors: [.white.opacity(0.35), .clear], center: UnitPoint(x: 0.28, y: 0.2), startRadius: 0, endRadius: size * 0.55
-                ))
-            }
-            .overlay(Circle().strokeBorder(Color.white.opacity(0.35), lineWidth: 1))
-            .shadow(color: tint.opacity(0.5), radius: 8)
+    private func transport(_ icon: LocallyIcon.Name, size: CGFloat, side: CGFloat, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            LocallyIcon(icon, size: size, scaled: false)
+                .foregroundStyle(Theme.primaryText)
+                .frame(minWidth: side, minHeight: side)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(GlyphPressStyle())
+        .accessibilityLabel(label)
     }
 }
 
@@ -142,5 +109,14 @@ private struct TintedProgressStyle: ProgressViewStyle {
                 }
             }
             .frame(height: 12)
+    }
+}
+
+/// A press that only dims the glyph: nothing is drawn behind a play control (#414).
+private struct GlyphPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.55 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
