@@ -26,13 +26,14 @@ export default function Spinner({ className = "" }: { className?: string }) {
 /**
  * A busy button's content (#422; docs/design.md, Buttons): the label stays and the spinner shows before it while
  * busy. Two layers share one grid cell, so the button never changes width: the spinner layer sizes the cell and the
- * label-only layer sits centred. Set `disabled` and `aria-busy` on the button, and put a {@link BusyStatus} beside it.
+ * label-only layer sits centred. The spinner is mounted only while busy (a 14 px space holds its place otherwise), so an
+ * idle button runs no animation. Set `disabled` and `aria-busy` on the button, and put a {@link BusyStatus} beside it.
  */
 export function BusyLabel({ busy, children }: { busy: boolean; children: ReactNode }) {
   return (
     <span className="inline-grid">
       <span className={`inline-flex items-center justify-center gap-2 [grid-area:1/1] ${busy ? "" : "invisible"}`}>
-        <Spinner />
+        {busy ? <Spinner /> : <span aria-hidden className="size-[14px] shrink-0" />}
         {children}
       </span>
       <span className={`self-center justify-self-center [grid-area:1/1] ${busy ? "invisible" : ""}`}>{children}</span>
