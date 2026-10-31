@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReleaseKind } from "../../shared/types";
+import type { SendStage } from "../../lib/import-flow";
 import CoverPicker from "../CoverPicker";
 import RecordSleeve from "../RecordSleeve";
 import TrackList, { type EditableTrack } from "../TrackList";
@@ -11,6 +12,7 @@ import { useLibraryWidth } from "../../lib/use-library-width";
 import type { ArtistEntry } from "../../lib/artist-index";
 import FeaturingRow from "../FeaturingRow";
 import ReleaseDateField from "../ReleaseDateField";
+import Spinner from "../Spinner";
 
 /** What the page shows of the cover beat: nothing before a cover, "playing" while it runs,
  * "settled" once it has ended or been skipped. */
@@ -33,7 +35,9 @@ interface ImportRecordProps {
   inspecting: boolean;
   coverFile: File | null;
   onCover: (file: File) => void;
-  beat: { stage: BeatStage; replay: boolean; discKey: string };
+  beat: { stage: BeatStage; discKey: string };
+  /** The send (#421): the disc seals into the sleeve while the request runs, and slides back out if it fails. */
+  send: SendStage;
   /** The cover, printed on the disc's centre label. */
   labelUrl: string | null;
   canSubmit: boolean;
@@ -80,8 +84,8 @@ function InlineField({
 }
 
 /** The release page (#112) with the record being made: the sleeve and disc, blank inline fields,
- * the tracks and the release bar (#294). A cover is the moment: it slides in, the light flashes, the disc tucks
- * away (the beat, driven by `beat` and globals.css `.imp-*`). */
+ * the tracks and the release bar (#294). A cover is the moment: it slides in, the light flashes, the label turns
+ * into place (the beat, driven by `beat` and globals.css `.imp-*`); Send seals the disc into the sleeve (`send`). */
 export default function ImportRecord({
   kind,
   onKindChange,
@@ -100,6 +104,7 @@ export default function ImportRecord({
   coverFile,
   onCover,
   beat,
+  send,
   labelUrl,
   canSubmit,
   importing,
@@ -109,8 +114,18 @@ export default function ImportRecord({
 }: ImportRecordProps) {
   const [width] = useLibraryWidth();
   const trackCount = `${tracks.length} track${tracks.length === 1 ? "" : "s"}`;
-  // The wrapper's class is how the beat reaches the disc inside RecordSleeve.
-  const stateClass = beat.stage === "playing" ? "imp-beat" : beat.stage === "settled" ? "imp-rest" : "";
+  // The wrapper's class is how the beat and the send reach the disc inside RecordSleeve. The send comes
+  // first; after a failed send the disc rests peeking (imp-rest) even with no cover, so its entrance never replays.
+  const stateClass =
+    send === "sealing"
+      ? "imp-sealing"
+      : send === "unsealing"
+        ? "imp-unsealing"
+        : beat.stage === "playing"
+          ? "imp-beat"
+          : beat.stage === "settled" || send === "failed"
+            ? "imp-rest"
+            : "";
 
   return (
     // The bottom margin cancels the pane's own bottom padding (AppShell's p-6 md:p-10 lg:p-16), so the
@@ -119,7 +134,7 @@ export default function ImportRecord({
     <div className="imp-page-in flex flex-1 flex-col gap-12">
       <div className="flex flex-col gap-12">
         <header className="flex flex-col gap-8 pt-2 lg:pt-4">
-          <div className={stateClass} data-replay={beat.replay ? "true" : undefined}>
+          <div className={stateClass}>
             <RecordSleeve labelUrl={labelUrl} spin={0} discKey={beat.discKey}>
               <CoverPicker
                 file={coverFile}
@@ -232,9 +247,32 @@ export default function ImportRecord({
         </button>
       }
       main={
-        <button type="button" onClick={onSubmit} disabled={!canSubmit} className="btn-save">
-          {importing ? "Adding…" : "Add to library"}
-        </button>
+        <>
+          {/* A busy button keeps its label and shows a spinner before it. Two layers share one cell, so the
+              width never changes: the spinner layer sizes the cell, the label-only layer sits centred. */}
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={!canSubmit}
+            aria-busy={importing || undefined}
+            className="btn-save"
+          >
+            <span className="inline-grid">
+              <span
+                className={`inline-flex items-center gap-2 [grid-area:1/1] ${importing ? "" : "invisible"}`}
+              >
+                <Spinner />
+                Send to Spotify
+              </span>
+              <span className={`self-center justify-self-center [grid-area:1/1] ${importing ? "invisible" : ""}`}>
+                Send to Spotify
+              </span>
+            </span>
+          </button>
+          <span role="status" className="sr-only">
+            {importing ? "Sending to Spotify…" : ""}
+          </span>
+        </>
       }
     />
     </div>

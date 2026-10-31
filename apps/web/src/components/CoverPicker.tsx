@@ -89,6 +89,8 @@ export default function CoverPicker({
   beat,
 }: CoverPickerProps) {
   const inert = disabled || readOnly;
+  // The sleeve while a send runs: stays opaque, but no longer advertises editing (no pencil, aria-disabled).
+  const sleeveLocked = presentation === "sleeve" && !!disabled;
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
@@ -168,13 +170,14 @@ export default function CoverPicker({
         tabIndex={inert ? -1 : 0}
         title={readOnly ? "Not available in the demo" : undefined}
         aria-label={previewUrl ? "Edit cover" : "Choose cover image"}
+        aria-disabled={sleeveLocked ? true : undefined}
         style={side === null ? undefined : { width: side, height: side }}
         className={`relative flex shrink-0 cursor-pointer items-center justify-center overflow-hidden text-center transition-colors ${frameClass(
           presentation,
           dragOver,
           !previewUrl,
           inert
-        )} ${disabled ? "cursor-not-allowed opacity-60" : ""} ${readOnly ? "!cursor-default" : ""}`}
+        )} ${disabled ? (presentation === "sleeve" ? "cursor-not-allowed" : "cursor-not-allowed opacity-60") : ""} ${readOnly ? "!cursor-default" : ""}`}
       >
         {/* The first cover of the beat: the empty state fades out under it (an outgoing cover, when
             there is one, sits above this and hides it). */}
@@ -218,7 +221,7 @@ export default function CoverPicker({
             </p>
           </div>
         )}
-        {!readOnly && !beating && (presentation === "thumb" || previewUrl) ? (
+        {!readOnly && !beating && !sleeveLocked && (presentation === "thumb" || previewUrl) ? (
           <PencilBadge settle={beat === "settled"} />
         ) : null}
         <input
