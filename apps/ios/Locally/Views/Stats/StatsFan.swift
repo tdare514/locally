@@ -379,6 +379,7 @@ private struct StatsFanSleeve: View {
         ZStack {
             if let image {
                 Image(uiImage: image).resizable().scaledToFill()
+                    .endsSignpost(.statsFirstCover)
             } else {
                 NoCoverArt()
             }

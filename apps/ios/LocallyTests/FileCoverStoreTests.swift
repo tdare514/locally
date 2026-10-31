@@ -73,6 +73,23 @@ struct FileCoverStoreTests {
         #expect(store.load(id) == pngBytes)
     }
 
+    @Test func aSaveMovesTheRevision() throws {
+        let (store, dir) = makeStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let id = UUID()
+        #expect(store.revision(id) == nil)
+
+        _ = try store.save(jpegBytes, for: id)
+        let first = try #require(store.revision(id))
+
+        _ = try store.save(jpegBytes + Data([4]), for: id)
+        let second = try #require(store.revision(id))
+        #expect(second != first)
+
+        try store.delete(id)
+        #expect(store.revision(id) == nil)
+    }
+
     @Test func deletingAnUnknownIdDoesNotThrow() throws {
         let (store, _) = makeStore()
         try store.delete(UUID())

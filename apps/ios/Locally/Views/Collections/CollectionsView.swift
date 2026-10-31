@@ -71,7 +71,11 @@ struct CollectionsView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .task { model.reload() }
+        .task {
+            if showsPlayer { PerfSignpost.begin(.playerLoad) }
+            model.reload()
+            PerfSignpost.end(.playerLoad)
+        }
         .collectionBuilder($builder, model: model, onDone: onOpen)
     }
 

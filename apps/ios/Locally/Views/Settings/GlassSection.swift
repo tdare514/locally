@@ -52,13 +52,14 @@ private struct GlassSurface: View {
                 ))
             )
             .overlay(
-                shape.strokeBorder(
-                    LinearGradient(
-                        colors: [.white.opacity(0.26), .white.opacity(0.07), .white.opacity(0.02)],
-                        startPoint: .top, endPoint: .bottom
-                    ),
-                    lineWidth: 1
+                // The rim's gradient through a plain stroke: the same pixels. A gradient-stroked shape is painted on
+                // the main thread into a bitmap the size of the card; under a long Stats list that took seconds and
+                // over a gigabyte (#423).
+                LinearGradient(
+                    colors: [.white.opacity(0.26), .white.opacity(0.07), .white.opacity(0.02)],
+                    startPoint: .top, endPoint: .bottom
                 )
+                .mask(shape.strokeBorder(lineWidth: 1))
             )
     }
 }

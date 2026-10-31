@@ -69,6 +69,13 @@ ceremonies are the emotive parts, and they stay. Controls stay calm so those par
     a wait is real, show still skeletons shaped like the content, after 300 ms, never shimmering,
     and never "Loading…" text or a blank block. A busy button keeps its label and shows a small
     spinner in place of its icon.
+    - iPhone (#423): Stats' loading skeleton and the Library's cover slots (while a cover is read) show only after
+      300 ms (`DelayedSkeleton`, `Theme.skeletonDelay`), still, in white at 6 % (`Theme.skeletonFill`), fading in
+      over 0.2 s or at once under Reduce Motion; the release page and record player show none, their text is up
+      within 65 ms. Each Library tile reads its own cover as it nears the screen, through a bounded cache (64 MB,
+      at most 4 reads at once); a cover that is missing is asked for again when the Library reloads, and a cover
+      rewritten on disk (for example a sync retry at the same version) is read again, because the cache checks the
+      file's modification date.
 11. **The basics hold everywhere.** Text and icons at 4.5:1 or better on the surface they sit on
     (check on a pale cover's wash too), 44 pt touch targets, sentence case for every label,
     eyebrow and button, visible focus, and nothing that works only on hover.

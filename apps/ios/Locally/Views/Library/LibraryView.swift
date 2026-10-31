@@ -39,6 +39,7 @@ struct LibraryView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var layoutThumbSpace
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.displayScale) private var displayScale
     /// Icon and button sizes, scaling with Dynamic Type (#226).
     @ScaledMetric(relativeTo: .body) private var scaledToggleIconSize = Theme.Library.toggleIconSize
     @ScaledMetric(relativeTo: .body) private var scaledToggleButtonSize = Theme.Library.toggleButtonSize
@@ -65,8 +66,10 @@ struct LibraryView: View {
     /// Releases whose row or tile is currently on screen.
     @State private var visibleIDs: Set<Release.ID> = []
     @State private var palettes: [CoverKey: AmbientPalette] = [:]
-    /// Decoded covers, read once per `CoverKey` in `load()`.
-    @State private var covers: [CoverKey: UIImage] = [:]
+    /// Each tile reads its own cover as it nears the screen, through this bounded cache (#423); made once in `load()`.
+    @State private var coverCache: LibraryCoverCache?
+    /// Bumped at the end of every `load()`, so a tile whose cover was missing asks for it again.
+    @State private var coverGeneration = 0
     /// The Artists view (#288): the catalogue of `releases`, its covers, and the stack's path
     /// (release and artist pages push onto it).
     @State private var catalog = ArtistCatalog(releases: [])
@@ -84,6 +87,14 @@ struct LibraryView: View {
 
     private func key(_ release: Release) -> CoverKey {
         CoverKey(id: release.id, updatedAt: release.updatedAt)
+    }
+
+    /// The pixel side covers are decoded at: the 56 pt thumbnail in the list; in the grid, the widest an adaptive
+    /// tile can be (under twice its minimum plus a gap, or another column would fit), so a large stored cover is
+    /// never held at full size.
+    private var coverPixels: CGFloat {
+        guard layout == .covers else { return Theme.Library.thumbnailSize * displayScale }
+        return (2 * gridSize.tileMinWidth + gridSize.tileGap) * displayScale
     }
 
     private static let scrollSpace = "librarySkyScroll"
@@ -244,6 +255,7 @@ struct LibraryView: View {
             // `.onAppear` (not `.task`) so returning from `ReleaseDetailView`
             // after a save/delete re-reads the store and reflects it here.
             .onAppear {
+                PerfSignpost.begin(.libraryFirstCover)
                 load()
                 openRequestedRelease()
                 openRequestedCollection()
@@ -639,15 +651,15 @@ struct LibraryView: View {
         trackSheets.actions(for: .release(release.id), release: release, goToAlbum: false) { path.append($0) }
     }
 
-    /// Rows in a translucent panel over the sky, separated by a 1 pt `panelStroke`.
+    /// Rows in a translucent panel over the sky, separated by a 1 pt `panelStroke`. The rows are built as they
+    /// scroll in (#423); the sky still counts every row of an open section as shown, as it did when all were built.
     private func listPanel(_ items: [Release]) -> some View {
         let shape = RoundedRectangle(cornerRadius: Theme.Library.listPanelCornerRadius, style: .continuous)
-        return VStack(spacing: 0) {
+        let ids = items.map(\.id)
+        return LazyVStack(spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, release in
                 NavigationLink(value: release) { row(for: release) }
                     .buttonStyle(PressAwareStyle(rowHighlight: true, onPress: { didPress(release) }))
-                    .onAppear { visibleIDs.insert(release.id) }
-                    .onDisappear { visibleIDs.remove(release.id) }
                     .trackActions(releaseActions(release))
 
                 if index < items.count - 1 {
@@ -655,6 +667,12 @@ struct LibraryView: View {
                 }
             }
         }
+        .onAppear { visibleIDs.formUnion(ids) }
+        .onChange(of: ids) { old, new in
+            visibleIDs.subtract(old)
+            visibleIDs.formUnion(new)
+        }
+        .onDisappear { visibleIDs.subtract(ids) }
         .background(shape.fill(Theme.Immersive.panelFill))
         .clipShape(shape)
         .overlay(shape.stroke(Theme.Immersive.panelStroke, lineWidth: 1))
@@ -753,20 +771,15 @@ struct LibraryView: View {
             .overlay { coverImage(for: release, cornerRadius: Theme.Radius.thumbnail) }
     }
 
-    /// The stored cover filling its frame, or the double note on `card` (#296).
+    /// The stored cover filling its frame, or the double note on `card` (#296); read by the tile itself as it nears the
+    /// screen (#423).
     @ViewBuilder
     private func coverImage(for release: Release, cornerRadius: CGFloat) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius)
-        if let uiImage = covers[key(release)] {
-            Color.clear
-                .overlay {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFill()
-                }
-                .clipShape(shape)
+        if let coverCache {
+            LibraryCoverView(id: release.id, updatedAt: release.updatedAt, pixels: coverPixels, cache: coverCache,
+                             cornerRadius: cornerRadius, generation: coverGeneration)
         } else {
-            NoCoverArt().clipShape(shape)
+            DelayedSkeleton { RoundedRectangle(cornerRadius: cornerRadius).fill(Theme.skeletonFill) }
         }
     }
 
@@ -782,6 +795,8 @@ struct LibraryView: View {
 
     private func load() {
         guard let container else { return }
+        PerfSignpost.begin(.libraryLoad)
+        defer { PerfSignpost.end(.libraryLoad) }
         if collections == nil { collections = container.makeCollectionsModel() }
         collections?.reload()
         do {
@@ -791,17 +806,15 @@ struct LibraryView: View {
             let source = artistCovers ?? ArtistCoverSource(loader: { store.load($0) })
             source.refresh(releases)
             artistCovers = source
+            if coverCache == nil {
+                coverCache = LibraryCoverCache(loader: { store.load($0) }, revision: { store.revision($0) })
+            }
             let live = Set(releases.map(key))
             palettes = palettes.filter { live.contains($0.key) }
-            covers = covers.filter { live.contains($0.key) }
-            for release in releases where covers[key(release)] == nil {
-                if let data = container.coverStore.load(release.id), let image = UIImage(data: data) {
-                    covers[key(release)] = image
-                }
-            }
         } catch {
             errorMessage = error.localizedDescription
         }
+        coverGeneration += 1
     }
 }
 
