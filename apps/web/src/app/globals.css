@@ -1076,7 +1076,7 @@ body {
  *   .btn-danger      the destructive confirm ("Confirm delete", "Delete account"): the same
  *                    capsule in `danger`, with the same hover, press and focus states.
  *   .btn-ink         the secondary: the word alone in `text-muted`, `text` on hover and press.
- *   .btn-ink-danger  the destructive trigger: the word in `danger`.
+ *   .btn-ink-danger  the destructive trigger: the word in `danger` (15 % lighter, for a wash).
  *   .btn-icon        icon-only: the drawn glyph in a 44 target, nothing behind it (`text-soft`, `text` on
  *                    hover). Give it an aria-label.
  *   .btn-seg, .btn-seg-opt  a two-option toggle: words, and a dot that slides under the chosen one.
@@ -1195,7 +1195,8 @@ body {
   color: var(--text-muted);
 }
 .btn-ink-danger {
-  color: var(--danger);
+  /* `danger` lightened 15 % toward white so the word holds 4.5:1 on a cover wash, not only on black. */
+  color: color-mix(in srgb, var(--danger) 85%, white);
 }
 .btn-ink:where(:not(:disabled)):is(:hover, :active),
 .btn-ink[data-state="hover"],
@@ -1205,7 +1206,7 @@ body {
 .btn-ink-danger:where(:not(:disabled)):is(:hover, :active),
 .btn-ink-danger[data-state="hover"],
 .btn-ink-danger[data-state="press"] {
-  color: color-mix(in srgb, var(--danger) 78%, white);
+  color: color-mix(in srgb, var(--danger) 65%, white);
 }
 .btn-ink:where(:not(:disabled)):active,
 .btn-ink[data-state="press"],
