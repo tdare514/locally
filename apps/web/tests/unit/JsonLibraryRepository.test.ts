@@ -137,4 +137,51 @@ describe("JsonLibraryRepository", () => {
     expect(stored).toEqual(ok);
     for (const r of bad) expect(await repo.find(libraryDir, r.id)).toBeNull();
   });
+  describe("read cache (#422)", () => {
+    it("hands out copies, so changing a found or listed release never reaches the next read", async () => {
+      const repo = new JsonLibraryRepository();
+      const release = makeRelease({ title: "Kept" });
+      await repo.upsert(libraryDir, release);
+      const found = await repo.find(libraryDir, release.id);
+      found!.title = "Changed by a caller";
+      const [listed] = await repo.list(libraryDir);
+      listed.title = "Changed too";
+      expect((await repo.find(libraryDir, release.id))?.title).toBe("Kept");
+      expect((await repo.list(libraryDir))[0].title).toBe("Kept");
+    });
+
+    it("reads the file again once it changes from outside the repository", async () => {
+      const repo = new JsonLibraryRepository();
+      const release = makeRelease({ title: "Before" });
+      await repo.upsert(libraryDir, release);
+      expect((await repo.find(libraryDir, release.id))?.title).toBe("Before");
+      // Another writer replaces the index (a new inode, size and mtime), as an atomic rename does.
+      const other = makeRelease({ title: "Written elsewhere" });
+      const tmp = `${libraryFilePath(libraryDir)}.outside`;
+      await fs.writeFile(tmp, JSON.stringify({ version: 1, releases: [{ ...release, title: "After, from outside" }, other] }));
+      await fs.rename(tmp, libraryFilePath(libraryDir));
+      expect((await repo.find(libraryDir, release.id))?.title).toBe("After, from outside");
+      expect((await repo.list(libraryDir)).map((r) => r.id)).toEqual([release.id, other.id]);
+    });
+
+    it("sees its own writes and removals at once", async () => {
+      const repo = new JsonLibraryRepository();
+      const a = makeRelease({ title: "A" });
+      await repo.upsert(libraryDir, a);
+      await repo.list(libraryDir);
+      await repo.upsert(libraryDir, { ...a, title: "A again" });
+      expect((await repo.find(libraryDir, a.id))?.title).toBe("A again");
+      await repo.remove(libraryDir, a.id);
+      expect(await repo.find(libraryDir, a.id)).toBeNull();
+      expect(await repo.list(libraryDir)).toEqual([]);
+    });
+
+    it("answers a missing index as empty, and a file that appears later is read", async () => {
+      const repo = new JsonLibraryRepository();
+      expect(await repo.list(libraryDir)).toEqual([]);
+      const release = makeRelease();
+      await fs.writeFile(libraryFilePath(libraryDir), JSON.stringify({ version: 1, releases: [release] }));
+      expect(await repo.find(libraryDir, release.id)).toEqual(release);
+    });
+  });
 });
