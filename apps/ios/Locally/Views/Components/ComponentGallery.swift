@@ -12,7 +12,7 @@ struct ComponentGallery: View {
         // The plain controls (#411): main button, text and icon buttons, the slim switches and the size slider, on the studio backdrop.
         "controls",
         // #336: the release page with a row playing under the mini player, at the default size and at accessibility3, and the bar paused.
-        "player-release", "player-release-ax3", "player-mini-paused",
+        "player-release", "player-release-ax3", "player-mini-paused", "player-mini-ax5",
         // #226: Dynamic Type checks of screens that need no sample data.
         "library-empty", "onboarding", "paywall",
         // #204: the real Stats page over sample plays.
@@ -42,7 +42,7 @@ struct ComponentGallery: View {
         "collections-library", "collections-screen", "collections-queue", "collections-edit", "collections-empty", "collections-queue-ax", "collections-add", "collections-playing", "collections-add-failed", "collections-wont-play", "collections-playlist-guide", "collections-none-here",
         // #352: the record player on the Collections screen, over seeded collections and a player on fakes.
         "collections-player-playing", "collections-player-browsing", "collections-player-paused", "collections-player-vinyl", "collections-player-reduce-motion",
-        "collections-player-ax", "collections-player-narrow", "collections-player-empty", "collections-player-wont-play", "collections-player-many", "collections-player-single", "collections-player-ax-lower", "collections-player-ax-controls", "collections-player-narrow-lower",
+        "collections-player-ax", "collections-player-narrow", "collections-player-empty", "collections-player-wont-play", "collections-player-many", "collections-player-single", "collections-player-ax-lower", "collections-player-ax-controls", "collections-player-narrow-lower", "collections-player-idle",
         // #363: the cover-tinted glass controls, a bright cover in front, and accessibility3 text.
         "player-bright", "player-ax3",
         // #361: the one-size Stats grid and the one-line artist rows. Each name takes "-320" (a 320 pt screen) and "-ax3" (accessibility3): see `StatsCreditGallery`.
@@ -300,8 +300,12 @@ struct ComponentGallery: View {
             CollectionsPlayerGallery(scrollsTo: CollectionsPlayerView.queueID)
         case "collections-playing":
             CollectionsPlayingGallery()
-        case "collections-player-playing", "collections-player-ax":
+        case "collections-player-playing":
             CollectionsPlayerGallery()
+        case "collections-player-ax":
+            CollectionsPlayerGallery().dynamicTypeSize(.accessibility5)
+        case "collections-player-idle":
+            CollectionsPlayerGallery(playing: false)
         case "player-bright":
             CollectionsPlayerGallery(brightFront: true, scrollsTo: CollectionsPlayerView.nowPlayingID)
         case "player-ax3":
@@ -315,7 +319,7 @@ struct ComponentGallery: View {
         case "collections-player-reduce-motion":
             CollectionsPlayerGallery(reduceMotion: true)
         case "collections-player-ax-controls":
-            CollectionsPlayerGallery(scrollsTo: CollectionsPlayerView.nowPlayingID)
+            CollectionsPlayerGallery(scrollsTo: CollectionsPlayerView.nowPlayingID).dynamicTypeSize(.accessibility5)
         case "collections-player-ax-lower":
             CollectionsPlayerGallery(scrollsTo: CollectionsPlayerView.queueID)
         case "collections-player-narrow-lower":
@@ -375,6 +379,8 @@ struct ComponentGallery: View {
             PlayerGallery(paused: false).dynamicTypeSize(.accessibility3)
         case "player-mini-paused":
             PlayerGallery(paused: true, showsLibrary: true)
+        case "player-mini-ax5":
+            PlayerGallery(paused: true, showsLibrary: true).dynamicTypeSize(.accessibility5)
         case "release-view-large-text":
             IconsGallery.release().dynamicTypeSize(.accessibility3)
         case "release-view-large-text-bottom":
