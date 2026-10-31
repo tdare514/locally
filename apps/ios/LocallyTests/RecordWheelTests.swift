@@ -42,6 +42,21 @@ struct RecordWheelTests {
         #expect(last.y + g.base / 2 * last.scale <= Double(RecordWheelView.height) / 2)
     }
 
+    @Test func aRowTheFrameWouldCutFadesInsteadOfShowingASliver() throws {
+        let height = Double(RecordWheelView.height)
+        for d in -3...3 {
+            let pose = try #require(RecordWheel.rowPose(Double(d)))
+            #expect(RecordWheel.edgeOpacity(pose, height: height) == 1)
+        }
+        for d in [-4.0, 4.0] {
+            let pose = try #require(RecordWheel.rowPose(d))
+            #expect(RecordWheel.edgeOpacity(pose, height: height) < 0.05)
+        }
+        // Half out of the frame: a quarter strength.
+        let half = RowPose(x: 0, y: height / 2, scale: 1, opacity: 1, angle: 0)
+        #expect(abs(RecordWheel.edgeOpacity(half, height: height) - 0.25) < 0.001)
+    }
+
     @Test func eachStepRoundIsDrawnAtPointEightSevenOfTheOneBefore() throws {
         let one = try #require(RecordWheel.rowPose(1))
         let two = try #require(RecordWheel.rowPose(2))

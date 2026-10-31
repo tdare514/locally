@@ -45,19 +45,33 @@ struct CollectionsModeSwitches: View {
 /// The glyphs below are drawn on the `Icon/…` set's 24-unit grid (`u` is one unit at `size`): a 2-unit stroke, the
 /// circle's outer edge 19 units across, 2-unit gaps between the rings.
 
-/// A small record in the drawn set's style: an outline circle, one groove ring and a centre dot. A template: it
-/// takes the toggle's selected / unselected colour.
+/// A turntable from above in the drawn set's style: the plinth, the platter with its spindle, and the tonearm from its
+/// pivot at the top right to the record's edge. Kept apart from the record swatches beside it, which are discs alone. A
+/// template: it takes the toggle's selected / unselected colour.
 private struct RecordPlayerGlyph: View {
     let size: CGFloat
 
     var body: some View {
         let u = size / 24
         ZStack {
-            Circle().stroke(lineWidth: 2 * u).frame(width: 17 * u, height: 17 * u)
-            Circle().stroke(lineWidth: 2 * u).frame(width: 9 * u, height: 9 * u)
-            Circle().frame(width: 3 * u, height: 3 * u)
+            TurntableShape().stroke(style: StrokeStyle(lineWidth: 2 * u, lineCap: .round, lineJoin: .round))
+            Circle().frame(width: 2.5 * u, height: 2.5 * u).offset(x: -2 * u)
         }
         .frame(width: size, height: size)
+    }
+}
+
+private struct TurntableShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let u = rect.width / 24
+        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: rect.minX + x * u, y: rect.minY + y * u) }
+        var path = Path()
+        path.addRoundedRect(in: CGRect(origin: point(2.5, 4.5), size: CGSize(width: 19 * u, height: 15 * u)), cornerSize: CGSize(width: 3 * u, height: 3 * u))
+        path.addEllipse(in: CGRect(origin: point(5, 7), size: CGSize(width: 10 * u, height: 10 * u)))
+        path.move(to: point(18.5, 7.5))
+        path.addLine(to: point(18.5, 12.5))
+        path.addLine(to: point(14.5, 15))
+        return path
     }
 }
 

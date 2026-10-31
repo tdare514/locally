@@ -232,7 +232,7 @@ private struct WheelRows: View, Animatable {
                     ) { onSelect(entry.index) }
                         .scaleEffect(pose.scale, anchor: .leading)
                         .offset(x: pose.x - 24 * pose.scale, y: pose.y)
-                        .opacity(pose.opacity)
+                        .opacity(pose.opacity * RecordWheel.edgeOpacity(pose, height: Double(RecordWheelView.height)))
                 }
             }
         }

@@ -80,6 +80,14 @@ enum RecordWheel {
         return RowPose(x: g.cx + g.radius * cos(angle), y: g.radius * sin(angle), scale: pow(g.ratio, x), opacity: opacity, angle: angle)
     }
 
+    /// How much of a row shows in a wheel `height` tall (#444): the share of its sleeve inside the frame, squared. A row
+    /// turning past the top or bottom edge fades as it goes, so the frame never cuts one to a sliver at rest.
+    static func edgeOpacity(_ pose: RowPose, height: Double, _ g: WheelGeometry = .phone) -> Double {
+        let half = g.base / 2 * pose.scale
+        let share = min(1, max(0, (height / 2 - (abs(pose.y) - half)) / (2 * half)))
+        return share * share
+    }
+
     /// JavaScript's `Math.round`: halves go up, so the iPhone and the Mac agree on which row is in front.
     static func roundHalfUp(_ value: Double) -> Int { Int((value + 0.5).rounded(.down)) }
 
