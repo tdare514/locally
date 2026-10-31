@@ -6,6 +6,7 @@ import { COPIES_STAY, expiryLabel, sentShareState, sharedWithLabel } from "../li
 import type { SentShare } from "../shared/shares";
 import { MusicNoteIcon } from "./Icons";
 import { SettingsBlock, SettingsSection } from "./SettingsGroup";
+import { BusyLabel, BusyStatus } from "./Spinner";
 
 interface SharedByYouProps {
   onToast: (kind: "success" | "error", text: string) => void;
@@ -121,10 +122,12 @@ export default function SharedByYou({ onToast }: SharedByYouProps) {
                           type="button"
                           onClick={() => revoke(share.id)}
                           disabled={revoking === share.id}
+                          aria-busy={revoking === share.id || undefined}
                           className="btn-danger"
                         >
-                          {revoking === share.id ? "Revoking…" : "Confirm revoke"}
+                          <BusyLabel busy={revoking === share.id}>Confirm revoke</BusyLabel>
                         </button>
+                        <BusyStatus busy={revoking === share.id} text="Revoking" />
                         <button
                           type="button"
                           autoFocus
@@ -155,17 +158,21 @@ export default function SharedByYou({ onToast }: SharedByYouProps) {
         </ul>
       )}
       {cursor && (
-        <button
-          type="button"
-          disabled={loadingMore}
-          onClick={() => {
-            setLoadingMore(true);
-            void load(cursor);
-          }}
-          className="btn-ink self-start"
-        >
-          {loadingMore ? "Loading…" : "Show older shares"}
-        </button>
+        <>
+          <button
+            type="button"
+            disabled={loadingMore}
+            aria-busy={loadingMore || undefined}
+            onClick={() => {
+              setLoadingMore(true);
+              void load(cursor);
+            }}
+            className="btn-ink self-start"
+          >
+            <BusyLabel busy={loadingMore}>Show older shares</BusyLabel>
+          </button>
+          <BusyStatus busy={loadingMore} text="Loading older shares" />
+        </>
       )}
       </SettingsBlock>
     </SettingsSection>

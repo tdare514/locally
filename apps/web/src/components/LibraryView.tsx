@@ -54,6 +54,7 @@ import { creditKey, filterArtists, type CatalogEntry } from "../lib/artist-catal
 import { playerStore } from "../lib/play-queue";
 import { targetActions, trackMenuGroups, type TrackMenuEnv } from "../lib/track-menu";
 import TrackMenu, { TrackMoreButton, useTrackMenu } from "./TrackMenu";
+import { BusyLabel, BusyStatus } from "./Spinner";
 
 const ADOPTED_LABEL = "In your Spotify folder";
 const ADOPTED_NOT_SELECTABLE = "Releases from your Spotify folder can't be selected. Remove one from its own page.";
@@ -439,10 +440,12 @@ export default function LibraryView({
                 type="button"
                 onClick={handleBulkDelete}
                 disabled={busy}
+                aria-busy={busy || undefined}
                 className="btn-danger"
               >
-                {busy ? "Deleting…" : "Confirm delete"}
+                <BusyLabel busy={busy}>Confirm delete</BusyLabel>
               </button>
+              <BusyStatus busy={busy} text="Deleting" />
               <button
                 type="button"
                 onClick={() => setConfirmingDelete(false)}

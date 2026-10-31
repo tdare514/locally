@@ -98,10 +98,11 @@ describe("PendingRow files states (#172)", () => {
 
   it("a section header has the count in the heading's name and one action of the same class", () => {
     const html = renderToStaticMarkup(
-      createElement(SectionHeader, { id: "h", name: "Ready to add", count: 2, action: { label: "Add all", busy: false, onClick: () => {} } })
+      createElement(SectionHeader, { id: "h", name: "Ready to add", count: 2, action: { label: "Add all", busy: false, busyText: "Adding all", onClick: () => {} } })
     );
     expect(html).toContain("<h3");
-    expect(html.replace(/<[^>]+>/g, "")).toBe("Ready to add, 2Add all");
+    // The button keeps its label while busy (#422): a hidden spinner layer holds it too, and the status line is empty.
+    expect(html.replace(/<[^>]+>/g, "")).toBe("Ready to add, 2Add allAdd all");
     expect(html).toContain('class="btn-save btn-save-compact"');
     const none = renderToStaticMarkup(createElement(SectionHeader, { id: "h", name: "Ready to add", count: 1 }));
     expect(none).not.toContain("<button");

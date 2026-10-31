@@ -53,6 +53,7 @@ import ArtistLinks, { ArtistNavProvider, ArtistOpenButton, LOCKED_TIP, useArtist
 import { splitFeaturing } from "../lib/artist-names";
 import { creditKey } from "../lib/artist-catalog";
 import { releaseTitleForSave, releaseTitleShown, titleForSave, toEditor } from "../lib/featuring-field";
+import { BusyLabel, BusyStatus } from "./Spinner";
 
 interface ReleaseViewProps {
   releaseId: string;
@@ -759,9 +760,10 @@ export default function ReleaseView({
                 onCancel={cancelRemove}
                 disabled={removing}
               >
-                <button type="button" onClick={handleRemove} disabled={removing} className="btn-save">
-                  {removing ? "Removing…" : "Remove"}
+                <button type="button" onClick={handleRemove} disabled={removing} aria-busy={removing || undefined} className="btn-save">
+                  <BusyLabel busy={removing}>Remove</BusyLabel>
                 </button>
+                <BusyStatus busy={removing} text="Removing" />
               </BarConfirm>
             ) : (
               <button ref={bindRemoveOpener} type="button" onClick={askRemove} className="btn-ink">
@@ -774,10 +776,12 @@ export default function ReleaseView({
                 type="button"
                 onClick={handleDelete}
                 disabled={deleting}
+                aria-busy={deleting || undefined}
                 className="btn-danger"
               >
-                {deleting ? "Deleting…" : "Confirm delete"}
+                <BusyLabel busy={deleting}>Confirm delete</BusyLabel>
               </button>
+              <BusyStatus busy={deleting} text="Deleting" />
             </BarConfirm>
           ) : (
             <button
@@ -836,15 +840,19 @@ export default function ReleaseView({
               Show in Finder
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving || IS_DEMO || dateBlocked}
-              title={IS_DEMO ? "Not available in the demo" : dateBlocked ? "Fix the release date first" : undefined}
-              className="btn-save"
-            >
-              {saving ? "Saving…" : "Save to library"}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || IS_DEMO || dateBlocked}
+                aria-busy={saving || undefined}
+                title={IS_DEMO ? "Not available in the demo" : dateBlocked ? "Fix the release date first" : undefined}
+                className="btn-save"
+              >
+                <BusyLabel busy={saving}>Save to library</BusyLabel>
+              </button>
+              <BusyStatus busy={saving} text="Saving" />
+            </>
           )
         }
       />
