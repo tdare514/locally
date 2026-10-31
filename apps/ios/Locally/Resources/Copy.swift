@@ -174,6 +174,44 @@ enum Copy {
             case .year: return "Year"
             }
         }
+        /// The icon toolbar (#446): search opens a full-width field with Cancel; the filter menu is All, Singles, Albums, then genres.
+        static let searchLabel = "Search"
+        static let cancelSearch = "Cancel"
+        static func matchCount(_ count: Int) -> String { count == 1 ? "1 match" : "\(count) matches" }
+        /// A search result's subtitle: "Okoro \u{00B7} Single".
+        static func resultSubtitle(artist: String, kind: ReleaseKind) -> String {
+            "\(artist) \u{00B7} \(kind == .album ? album : single)"
+        }
+        static let filterMenuTitle = "Filter"
+        static func filterLabel(_ current: String) -> String { "Filter, \(current)" }
+        static func filterName(_ filter: LibraryFilter) -> String {
+            switch filter {
+            case .all: return "All"
+            case .singles: return singlesSection
+            case .albums: return albumsSection
+            case .genre(let name): return name
+            }
+        }
+        static let noFilterMatches = "Nothing matches this filter."
+        /// The three cards over the Collections shelf (#446).
+        static func plays(_ count: Int) -> String { count == 1 ? "1 play" : "\(count) plays" }
+        static let thisWeek = "This week"
+        /// Under the week's number on the first card.
+        static let playsWord = "plays"
+        static let mostPlayed = "Most played"
+        static let topArtist = "Top artist"
+        static let weekLoading = "Loading this week"
+        static func thisWeekLabel(plays count: Int) -> String { "\(thisWeek), \(plays(count))" }
+        static func mostPlayedLabel(title: String, plays count: Int) -> String { "\(mostPlayed), \(title), \(plays(count))" }
+        static func topArtistLabel(name: String, plays count: Int) -> String { "\(topArtist), \(name), \(plays(count))" }
+        static let thisWeekHint = "Opens Stats on this week"
+        static let mostPlayedHint = "Opens the release"
+        static let topArtistHint = "Opens the artist's page"
+        /// The Collections shelf (#446).
+        static let seeAll = "See all"
+        static let seeAllLabel = "See all collections"
+        static let openCollectionHint = "Opens the collection"
+        static let newCollectionHint = "Starts a new collection"
         static let coverSizeLabel = "Cover size"
         static let sizeSmall = "Small"
         static let sizeMedium = "Medium"

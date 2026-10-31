@@ -52,6 +52,8 @@ struct ComponentGallery: View {
         + CollectionBuilderGallery.names
         // #423: the four slow screens over a large seeded library, for the performance tests.
         + PerfLibraryGallery.names
+        // #446: the Library header: the cards loaded, loading, with no plays, and the search open.
+        + LibraryHeaderGallery.names
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -76,6 +78,8 @@ struct ComponentGallery: View {
     var body: some View {
         if name.hasPrefix("builder-") {
             CollectionBuilderGallery(name: name)
+        } else if LibraryHeaderGallery.names.contains(name) {
+            LibraryHeaderGallery(name: name)
         } else if name.hasPrefix("import-record-") || name.hasPrefix("import-sent-") {
             ImportRecordGallery(name: name).preferredColorScheme(.dark)
         } else if name.hasPrefix("import-") {
@@ -607,7 +611,7 @@ enum StatsGallery {
 
     static let covers: [UUID: Data] = Dictionary(uniqueKeysWithValues: seeds.map { ($0.releaseID, SampleArtwork.cover($0.colors, size: 360).pngData() ?? Data()) })
 
-    private static func summary(empty: Bool) -> PlaysSummary {
+    static func summary(empty: Bool) -> PlaysSummary {
         var tracks: [PlayCount] = []
         var allTime: [PlayCount] = []
         for seed in seeds {
@@ -1510,12 +1514,12 @@ enum CollectionsGallery {
     /// A collection of only the Mac-only release: the playlist guide has nothing to add.
     static let noneHereID = UUID(uuidString: "00000000-0000-0000-0000-0000000000c2")!
 
-    static func container(seed: Bool, many: Int = 0, single: Bool = false, bright: Bool = false, extra: [Release] = [], extraCovers: [UUID: Data] = [:]) -> (AppContainer, CollectionsModel) {
+    static func container(seed: Bool, many: Int = 0, single: Bool = false, bright: Bool = false, extra: [Release] = [], extraCovers: [UUID: Data] = [:], playStats: PlayStatsReading? = nil) -> (AppContainer, CollectionsModel) {
         // `bright`: every cover is yellow and orange, so the sky and the card's wash come from a light cover.
         let covers = bright
             ? Dictionary(uniqueKeysWithValues: StatsGallery.releases.map { ($0.id, SampleArtwork.cover([.systemYellow, .systemOrange], size: 360).pngData() ?? Data()) })
             : StatsGallery.covers
-        let container = IconsGallery.container(releases: StatsGallery.releases + [macOnly] + extra, covers: covers.merging(extraCovers) { _, new in new })
+        let container = IconsGallery.container(releases: StatsGallery.releases + [macOnly] + extra, covers: covers.merging(extraCovers) { _, new in new }, playStats: playStats)
         if seed {
             let r = StatsGallery.releases
             let stamp = Date()

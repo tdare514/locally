@@ -34,6 +34,9 @@ enum StatsPhase: Equatable {
 @Observable
 final class StatsViewModel {
     static let periodKey = "stats.period"
+    /// A period another screen wants the page to open on (#446: the Library's This week card). Taken, and cleared,
+    /// by the next read, so a page that already exists follows it too.
+    static let requestedPeriodKey = "stats.requestedPeriod"
     static let tabKey = "stats.tab"
     static let layoutKey = "stats.layout"
     static let sortKey = "stats.sort"
@@ -83,6 +86,23 @@ final class StatsViewModel {
         self.tab = defaults.string(forKey: Self.tabKey).flatMap(StatsKind.init(rawValue:)) ?? .tracks
         self.layout = defaults.string(forKey: Self.layoutKey).flatMap(StatsLayout.init(rawValue:)) ?? .list
         self.sort = defaults.string(forKey: Self.sortKey).flatMap(StatsSort.init(rawValue:)) ?? .plays
+        takeRequestedPeriod()
+        // Nothing has been read yet, so what is shown is for the period just taken.
+        displayed = period
+    }
+
+    /// Asks the Stats page to open on `kind`, the current one (not stepped back), the next time it reads.
+    static func requestPeriod(_ kind: StatsPeriodKind, in defaults: UserDefaults = .standard) {
+        defaults.set(kind.rawValue, forKey: requestedPeriodKey)
+    }
+
+    /// Moves to a requested period, if there is one, and clears the request.
+    private func takeRequestedPeriod() {
+        guard let raw = defaults.string(forKey: Self.requestedPeriodKey) else { return }
+        defaults.removeObject(forKey: Self.requestedPeriodKey)
+        guard let kind = StatsPeriodKind(rawValue: raw) else { return }
+        period = PeriodSelection(kind: kind, back: 0)
+        defaults.set(kind.rawValue, forKey: Self.periodKey)
     }
 
     // MARK: - Choices
@@ -211,6 +231,7 @@ final class StatsViewModel {
     func read(force: Bool = false) async {
         generation += 1
         let mine = generation
+        takeRequestedPeriod()
         today = PlayPeriods.localDayString(now(), calendar: calendar)
         firstDay = PlayPeriods.isoFirstDay(fromAppleFirstWeekday: calendar.firstWeekday)
         let selection = period

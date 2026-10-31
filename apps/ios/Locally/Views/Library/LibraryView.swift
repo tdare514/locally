@@ -10,6 +10,11 @@ import SwiftUI
 /// release once the library has scrolled away from it). With no releases
 /// it becomes the onboarding: a diagram of files moving from Locally into
 /// Spotify and the two first-import actions.
+///
+/// Under the "All music" title (#446): three cards from this week's plays (`LibraryHeaderCards`, hidden when there is
+/// nothing to show), the Collections shelf, then a right-aligned icon toolbar: search, sort, filter and the layout
+/// switch. The search icon swaps the cards, shelf and toolbar for a full-width field with Cancel, and the results are
+/// one list with Single or Album in each row's subtitle.
 struct LibraryView: View {
     @Environment(\.appContainer) private var container
     @Environment(\.playback) private var playback
@@ -30,9 +35,13 @@ struct LibraryView: View {
     @State private var errorMessage: String?
     /// The search box text; not persisted.
     @State private var query = ""
+    /// Whether the full-width search field has replaced the cards, shelf and toolbar (#446). Not persisted.
+    @State private var isSearching = false
+    @FocusState private var searchFocused: Bool
 
     @AppStorage(LibraryViewPrefs.layoutKey) private var layout: LibraryLayout = .default
     @AppStorage(LibraryViewPrefs.sortKey) private var sort: LibrarySortOption = .default
+    @AppStorage(LibraryViewPrefs.filterKey) private var filter: LibraryFilter = .default
     @AppStorage(LibraryViewPrefs.coverSizeKey) private var coverSize: CoverSize = .default
     @AppStorage(LibraryViewPrefs.singlesCollapsedKey) private var singlesCollapsed = false
     @AppStorage(LibraryViewPrefs.albumsCollapsedKey) private var albumsCollapsed = false
@@ -75,7 +84,12 @@ struct LibraryView: View {
     @State private var path = NavigationPath()
     /// The collections (#350): the row under the title, the Collections screen and a collection's queue share it.
     @State private var collections: CollectionsModel?
-    /// A New collection whose save failed: an alert says so and offers the name again.
+    /// The collection builder, opened by the shelf's New collection tile (#446).
+    @State private var builder: BuilderTarget?
+    /// The three cards' reads of this week's plays (#446); made once in `load()`.
+    @State private var headerModel: LibraryHeaderModel?
+    /// The filter's choices (All, Singles, Albums, each genre present), kept with the releases in `load()`.
+    @State private var filterOptions: [LibraryFilter] = [.all, .singles, .albums]
 
     /// A release's cover identity: a replaced cover bumps `updatedAt`.
     private struct CoverKey: Hashable {
@@ -101,16 +115,22 @@ struct LibraryView: View {
         releases.reduce(0) { $0 + $1.tracks.count }
     }
 
-    /// `releases` narrowed by the search box; the sections and the sky follow this. In the Artists
-    /// view the box filters artist names instead, so every release stays.
-    private var matching: [Release] { layout == .artists ? releases : LibrarySearch.filter(releases, query: query) }
+    /// The filter in force: a stored genre nobody has any more counts as All (#446).
+    private var activeFilter: LibraryFilter { filter.resolved(among: filterOptions) }
+    /// `releases` narrowed by the filter; the sections and the sky follow this. The Artists view has no filter (its
+    /// list is every artist) and the search box filters artist names there, so every release stays.
+    private var matching: [Release] { layout == .artists ? releases : activeFilter.apply(releases) }
     /// Singles and Albums are each ordered by the sort menu.
     private var sortedMatching: [Release] { LibrarySort.sorted(matching, by: sort) }
     private var singles: [Release] { sortedMatching.filter { $0.kind == .single } }
     private var albums: [Release] { sortedMatching.filter { $0.kind == .album } }
+    /// Whether the search box holds a word (spaces alone do not).
+    private var hasQuery: Bool { !LibrarySearch.normalize(query).isEmpty }
+    /// What a search finds in the whole library (the filter is not applied), in the sort menu's order.
+    private var results: [Release] { hasQuery ? LibrarySort.sorted(LibrarySearch.filter(releases, query: query), by: sort) : [] }
 
-    /// Display order: singles, then albums.
-    private var displayOrder: [Release] { singles + albums }
+    /// Display order: the search's results while searching, else singles, then albums.
+    private var displayOrder: [Release] { isSearching && layout != .artists ? results : singles + albums }
 
     /// The release whose cover colours the sky.
     private var skyID: Release.ID? {
@@ -169,9 +189,11 @@ struct LibraryView: View {
                             header
                             if layout == .artists {
                                 artistsContent
+                            } else if isSearching {
+                                searchResults
                             } else {
                                 if matching.isEmpty {
-                                    noMatchesText(Copy.Library.noMatches(query))
+                                    noMatchesText(Copy.Library.noFilterMatches)
                                 }
                                 if !singles.isEmpty {
                                     section(label: Copy.Library.singlesSection, items: singles, collapsed: $singlesCollapsed)
@@ -215,6 +237,13 @@ struct LibraryView: View {
             // One host for the whole screen, so Singles and Albums never present the same request twice (#364), on the
             // Library's own collections model so its card follows a collection made from the menu.
             .trackActionSheets(trackSheets, collections: collections)
+            .fullScreenCover(item: $builder) { target in
+                if let collections {
+                    CollectionBuilderView(
+                        model: collections, addingTo: target.collectionID, onDone: { path.append(CollectionRoute(id: $0)) }
+                    )
+                }
+            }
             .task(id: skyKey) { await ensurePalette(for: skyKey) }
             // No bar on the home screen (the header carries the title); pushed
             // release pages set their own.
@@ -264,6 +293,8 @@ struct LibraryView: View {
             .onChange(of: playback?.openCollectionRequest) { _, _ in openRequestedCollection() }
             .onChange(of: librarySearchRequest) { _, name in
                 guard let name else { return }
+                // The Stats page asked for an artist's releases: the search opens on that name.
+                isSearching = true
                 query = name
                 librarySearchRequest = nil
             }
@@ -303,8 +334,26 @@ struct LibraryView: View {
         selectedTab = .importSong
     }
 
+    /// The title row, then either the search bar or (#446) the week's cards, the Collections shelf and the toolbar.
     @ViewBuilder
     private var header: some View {
+        titleRow
+        if isSearching {
+            searchBar
+        } else {
+            weekCards
+            if let collections {
+                CollectionsShelf(
+                    model: collections, onOpen: { path.append(CollectionRoute(id: $0)) },
+                    onSeeAll: { path.append(CollectionsRoute()) }, onNew: { builder = .new }
+                )
+            }
+            toolbar
+        }
+    }
+
+    @ViewBuilder
+    private var titleRow: some View {
         // At accessibility sizes the track count drops under the title instead of squeezing it.
         let headerLayout = dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
@@ -334,14 +383,38 @@ struct LibraryView: View {
             // ends at the 16 pt gutter, so the badge inside it never crosses.
             devicesButton.offset(y: -2)
         }
-        if let collections {
-            CollectionsLibraryCard(model: collections, onOpen: { path.append(CollectionsRoute()) })
-        } else if container != nil {
-            // Holds the card's height until the model exists, so the header does not pop in.
-            CollectionsLibraryCard.placeholder
+    }
+
+    // MARK: The week's cards (#446)
+
+    /// The three cards: placeholders while the first read is under way, nothing when there is nothing to show.
+    @ViewBuilder
+    private var weekCards: some View {
+        if let headerModel {
+            switch headerModel.phase {
+            case .loading:
+                LibraryHeaderCardsPlaceholder()
+            case .week(let week):
+                LibraryHeaderCards(
+                    week: week,
+                    trackRelease: week.topTrack.releaseId.flatMap { id in releases.first { $0.id == id } },
+                    artistRelease: catalog.entry(forKey: week.artistKey)?.newest
+                        ?? releases.first { $0.coverPath != nil && $0.coverPath == week.topArtist.coverPath },
+                    coverCache: coverCache, coverGeneration: coverGeneration,
+                    onThisWeek: {
+                        // The Stats tab opens on this week, however it was left.
+                        StatsViewModel.requestPeriod(.week)
+                        selectedTab = .stats
+                    },
+                    onTrack: {
+                        if let id = week.topTrack.releaseId, let release = releases.first(where: { $0.id == id }) { path.append(release) }
+                    },
+                    onArtist: { path.append(ArtistRoute(key: week.artistKey)) }
+                )
+            case .hidden:
+                EmptyView()
+            }
         }
-        searchField
-        controls
     }
 
     // MARK: From your devices (#269)
@@ -454,6 +527,20 @@ struct LibraryView: View {
         }
     }
 
+    // MARK: Search (#446)
+
+    /// The search field and Cancel in one row; at accessibility sizes Cancel drops under the field.
+    private var searchBar: some View {
+        let bar = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .trailing, spacing: 0))
+            : AnyLayout(HStackLayout(spacing: Theme.Library.headerControlGap))
+        return bar {
+            searchField
+            Button(Copy.Library.cancelSearch) { closeSearch() }
+                .buttonStyle(TextButtonStyle())
+        }
+    }
+
     /// Fake-glass search box filtering the library by title, artist, genre, year and track titles.
     private var searchField: some View {
         HStack(spacing: Theme.Library.headerControlGap) {
@@ -469,49 +556,117 @@ struct LibraryView: View {
                 .foregroundStyle(Theme.primaryText)
                 .submitLabel(.search)
                 .autocorrectionDisabled()
+                .focused($searchFocused)
+                .padding(.vertical, Theme.Library.searchPaddingV)
             if !query.isEmpty {
                 Button {
                     query = ""
                 } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.secondaryText)
+                    // A fixed glyph in a 44 pt target: it must not outgrow the field at the accessibility sizes.
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(Theme.secondaryText)
+                        .frame(width: Theme.Spacing.minTarget, height: Theme.Spacing.minTarget)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Copy.Library.clearSearch)
             }
         }
-        .padding(.horizontal, Theme.Library.searchPaddingH)
-        .padding(.vertical, Theme.Library.searchPaddingV)
-        .frame(minHeight: Theme.Library.searchMinHeight)
+        .padding(.leading, Theme.Library.searchPaddingH)
+        .padding(.trailing, query.isEmpty ? Theme.Library.searchPaddingH : 0)
+        .frame(minHeight: Theme.Spacing.minTarget)
         .background(Capsule().fill(Theme.Immersive.panelFill))
         .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
     }
 
-    /// The list / covers toggle and, in covers view, the size slider at the right end.
-    private var controls: some View {
-        // Side by side while they fit; at large text sizes the size control, then the sort, drop under the toggle.
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: Theme.Library.headerControlGap) {
-                layoutToggle
-                // The sort is within Singles and Albums, so the Artists view (always A to Z) has none.
-                if layout != .artists { sortMenu }
-                Spacer()
-                if layout == .covers { sizeControl }
-            }
-            VStack(alignment: .leading, spacing: Theme.Library.headerControlGap) {
-                // Decided apart from the size control, whose unwrapped width would push the sort down too.
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: Theme.Library.headerControlGap) {
-                        layoutToggle
-                        if layout != .artists { sortMenu }
-                    }
-                    VStack(alignment: .leading, spacing: Theme.Library.headerControlGap) {
-                        layoutToggle
-                        if layout != .artists { sortMenu }
-                    }
-                }
-                if layout == .covers { sizeControl }
+    /// Opens the full-width field with the keyboard up. Under Reduce Motion it swaps without an animation.
+    private func openSearch() {
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { isSearching = true }
+        // The field is made by the change above; it takes focus on the next turn.
+        Task { @MainActor in
+            await Task.yield()
+            searchFocused = true
+        }
+    }
+
+    /// Cancel: clears the query and brings the cards, shelf and toolbar back.
+    private func closeSearch() {
+        searchFocused = false
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+            isSearching = false
+            query = ""
+        }
+    }
+
+    /// One list of what matched, a row each with Single or Album in its subtitle; nothing until a word is typed.
+    @ViewBuilder
+    private var searchResults: some View {
+        if hasQuery {
+            if results.isEmpty {
+                noMatchesText(Copy.Library.noMatches(query))
+            } else {
+                Text(Copy.Library.matchCount(results.count))
+                    .themeFont(.meta)
+                    .foregroundStyle(Theme.secondaryText)
+                    .padding(.horizontal, 4)
+                listPanel(results, showsKind: true)
             }
         }
+    }
+
+    // MARK: Toolbar (#446)
+
+    /// The side of an icon button: the toggle's scaled size, never under the 44 pt target.
+    private var iconSide: CGFloat { max(toggleButtonSize, Theme.Spacing.minTarget) }
+
+    private var searchButton: some View {
+        Button { openSearch() } label: {
+            LocallyIcon(.search, size: drawnToggleIconSize, scaled: false)
+                .frame(width: iconSide, height: iconSide)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(IconButtonStyle())
+        .keyboardShortcut("f", modifiers: .command)
+        .accessibilityLabel(Copy.Library.searchLabel)
+    }
+
+    /// Search, then sort and filter (neither applies to the Artists view, always A to Z).
+    @ViewBuilder
+    private var toolbarIcons: some View {
+        searchButton
+        if layout != .artists {
+            sortMenu
+            filterMenu
+        }
+    }
+
+    /// Right-aligned: the icons, then the layout switch; in covers view the size control sits under the row. As
+    /// before, the row wraps when it can't fit: the switch drops under the icons, then the icons stack.
+    private var toolbar: some View {
+        let gap = Theme.Library.headerControlGap
+        return VStack(alignment: .trailing, spacing: gap) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: gap) {
+                    Spacer(minLength: 0)
+                    toolbarIcons
+                    layoutToggle
+                }
+                VStack(alignment: .trailing, spacing: gap) {
+                    HStack(spacing: gap) {
+                        Spacer(minLength: 0)
+                        toolbarIcons
+                    }
+                    layoutToggle
+                }
+                VStack(alignment: .trailing, spacing: gap) {
+                    toolbarIcons
+                    layoutToggle
+                }
+            }
+            if layout == .covers { sizeControl }
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
     private var layoutToggle: some View {
@@ -545,6 +700,25 @@ struct LibraryView: View {
                 .contentShape(Rectangle())
         }
         .accessibilityLabel(Copy.Library.sortLabel(Copy.Library.sortName(sort)))
+    }
+
+    /// The filter menu (#446): All, Singles, Albums, then the genres present, with a check on the current one. A
+    /// filter other than All shows the icon in `accent` (a selected item), like the web's active filter.
+    private var filterMenu: some View {
+        let current = activeFilter
+        return Menu {
+            Picker(Copy.Library.filterMenuTitle, selection: Binding(get: { current }, set: { filter = $0 })) {
+                ForEach(filterOptions, id: \.self) { option in
+                    Text(Copy.Library.filterName(option)).tag(option)
+                }
+            }
+        } label: {
+            LocallyIcon(.filter, size: drawnToggleIconSize, scaled: false)
+                .foregroundStyle(current.isDefault ? Theme.primaryText : Theme.accent)
+                .frame(width: iconSide, height: iconSide)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel(Copy.Library.filterLabel(Copy.Library.filterName(current)))
     }
 
     /// A section label with its count, then the rows (list) or tiles (covers)
@@ -608,12 +782,12 @@ struct LibraryView: View {
 
     /// Rows in a translucent panel over the sky, separated by a 1 pt `panelStroke`. The rows are built as they
     /// scroll in (#423); the sky still counts every row of an open section as shown, as it did when all were built.
-    private func listPanel(_ items: [Release]) -> some View {
+    private func listPanel(_ items: [Release], showsKind: Bool = false) -> some View {
         let shape = RoundedRectangle(cornerRadius: Theme.Library.listPanelCornerRadius, style: .continuous)
         let ids = items.map(\.id)
         return LazyVStack(spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, release in
-                NavigationLink(value: release) { row(for: release) }
+                NavigationLink(value: release) { row(for: release, showsKind: showsKind) }
                     .buttonStyle(PressAwareStyle(rowHighlight: true, onPress: { didPress(release) }))
                     .trackActions(releaseActions(release))
 
@@ -693,7 +867,7 @@ struct LibraryView: View {
             .accessibilityHidden(true)
     }
 
-    private func row(for release: Release) -> some View {
+    private func row(for release: Release, showsKind: Bool = false) -> some View {
         HStack(spacing: 12) {
             coverThumbnail(for: release)
                 .liftOnPress()
@@ -703,7 +877,7 @@ struct LibraryView: View {
                     .themeFont(.rowTitle)
                     .foregroundStyle(Theme.primaryText)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-                Text(subtitle(for: release))
+                Text(showsKind ? Copy.Library.resultSubtitle(artist: release.artist, kind: release.kind) : subtitle(for: release))
                     .themeFont(.rowSubtitle)
                     .foregroundStyle(Theme.secondaryText)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
@@ -754,8 +928,15 @@ struct LibraryView: View {
         defer { PerfSignpost.end(.libraryLoad) }
         if collections == nil { collections = container.makeCollectionsModel() }
         collections?.reload()
+        if headerModel == nil { headerModel = LibraryHeaderModel(stats: container.playStats) }
         do {
             releases = try container.library.all().sorted { $0.updatedAt > $1.updatedAt }
+            filterOptions = LibraryFilter.options(for: releases)
+            // An emptied library is the onboarding; a search left open has nothing to search.
+            if releases.isEmpty {
+                isSearching = false
+                query = ""
+            }
             catalog = ArtistCatalog(releases: releases)
             let store = container.coverStore
             let source = artistCovers ?? ArtistCoverSource(loader: { store.load($0) })
@@ -770,6 +951,8 @@ struct LibraryView: View {
             errorMessage = error.localizedDescription
         }
         coverGeneration += 1
+        // The cards read the week's plays through the Stats tab's service, so its cache serves both; never forced.
+        if let headerModel { Task { await headerModel.read(releases: releases) } }
     }
 }
 
