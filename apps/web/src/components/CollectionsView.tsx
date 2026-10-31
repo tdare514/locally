@@ -82,7 +82,7 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
             <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">Collections</h1>
           </div>
           {loaded && collections.length > 0 && (
-            <div className="rp-switches mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-text-muted">
+            <div className="rp-switches mt-4 flex flex-wrap items-center gap-x-5 gap-y-5 text-sm text-text-muted">
               <Switch
                 label="Show as"
                 value={mode}
