@@ -7,7 +7,7 @@ import Sidebar, { type SidebarPage } from "./sidebar/Sidebar";
 import LibraryView from "./LibraryView";
 import { buildArtistIndex } from "../lib/artist-index";
 import { buildArtistCatalog, catalogEntry, creditKey } from "../lib/artist-catalog";
-import ArtistView from "./ArtistView";
+import ArtistView, { ArtistSkeleton } from "./ArtistView";
 import { ArtistNavProvider } from "./ArtistNav";
 import { IS_DEMO } from "../lib/demo";
 import ImportView from "./ImportView";
@@ -105,7 +105,7 @@ export default function AppShell() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  // Only the first load shows "Loading…": later refreshes (after an import,
+  // Only the first load shows the placeholder: later refreshes (after an import,
   // edit, delete, or bulk action) swap the list in place so the library view
   // keeps its toolbar and selection state on screen.
   const refreshLibrary = useCallback(() => {
@@ -483,7 +483,7 @@ export default function AppShell() {
           )}
           {view.type === "artist" &&
             (loadingLibrary ? (
-              <p className="text-text-muted">Loading…</p>
+              <ArtistSkeleton />
             ) : (
               <ArtistView
                 entry={catalogEntry(artistCatalog, view.key)}

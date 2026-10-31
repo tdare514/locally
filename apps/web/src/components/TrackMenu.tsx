@@ -48,7 +48,8 @@ export function useTrackMenu() {
     if (returnFocus) was?.opener?.focus({ preventScroll: true });
   }, []);
 
-  const rowProps = (key: string) => ({
+  // Stable (#422): the library's rows are memoised on these.
+  const rowProps = useCallback((key: string) => ({
     onContextMenu(e: ReactMouseEvent<HTMLElement>) {
       const row = e.currentTarget;
       // A popover drawn elsewhere in the page still bubbles to its row through React; only this row's own DOM counts.
@@ -64,13 +65,16 @@ export function useTrackMenu() {
       const opener = fallbackOpener(row);
       setOpen({ key, at: { anchor: opener ?? (e.target as HTMLElement) }, opener });
     },
-  });
+  }), []);
 
   /** The More button's click: opens the menu under the button, or closes it when it is this row's. */
-  const toggleFrom = (button: HTMLElement, key: string) => {
-    if (openRef.current?.key === key) close(false);
-    else setOpen({ key, at: { anchor: button }, opener: button });
-  };
+  const toggleFrom = useCallback(
+    (button: HTMLElement, key: string) => {
+      if (openRef.current?.key === key) close(false);
+      else setOpen({ key, at: { anchor: button }, opener: button });
+    },
+    [close],
+  );
 
   return { open, close, rowProps, toggleFrom };
 }

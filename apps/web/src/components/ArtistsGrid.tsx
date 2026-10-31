@@ -21,6 +21,8 @@ export function ArtistCoverStack({ covers }: { covers: CoverRef[] }) {
           key={cover.releaseId}
           src={coverUrl(cover.releaseId, cover.updatedAt)}
           alt=""
+          loading="lazy"
+          decoding="async"
           className={`absolute aspect-square w-[80%] rounded-lg object-cover ${shadow}`}
           style={{
             left: `${i * 10}%`,

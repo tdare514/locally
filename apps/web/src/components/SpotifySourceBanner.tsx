@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { dismissSpotifySource, getSpotifySource, openSpotifySettings } from "../lib/api-client";
+import { BusyLabel, BusyStatus } from "./Spinner";
 
 interface SpotifySourceBannerProps {
   onOpenSettings: () => void;
@@ -119,18 +120,22 @@ export default function SpotifySourceBanner({ onOpenSettings, onToast }: Spotify
           type="button"
           onClick={handleOpenSpotifySettings}
           disabled={opening}
+          aria-busy={opening || undefined}
           className="btn-save w-fit"
         >
-          {opening ? "Opening…" : "Open Spotify settings"}
+          <BusyLabel busy={opening}>Open Spotify settings</BusyLabel>
         </button>
+        <BusyStatus busy={opening} text="Opening Spotify settings" />
         <button
           type="button"
           onClick={handleDismiss}
           disabled={dismissing}
+          aria-busy={dismissing || undefined}
           className="btn-ink w-fit"
         >
-          {dismissing ? "Saving…" : "Done, I added it"}
+          <BusyLabel busy={dismissing}>Done, I added it</BusyLabel>
         </button>
+        <BusyStatus busy={dismissing} text="Saving" />
         <button
           type="button"
           onClick={onOpenSettings}

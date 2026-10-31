@@ -18,6 +18,7 @@ import { useLibraryWidth } from "../lib/use-library-width";
 import AmbientBackdrop from "./AmbientBackdrop";
 import ArtistLinks from "./ArtistNav";
 import NoCover from "./NoCover";
+import { Bone, Skeleton } from "./Skeleton";
 import { usePlayStats } from "./sidebar/use-stats";
 
 const COVER_SHADOW = "shadow-[0_12px_32px_-12px_rgb(0_0_0/0.6)]";
@@ -219,5 +220,30 @@ export default function ArtistView({
         </Section>
       )}
     </div>
+  );
+}
+
+/** The artist page's shape while the library is first read (#422): the name, its line and a row of tiles. Still,
+ * and only after 300 ms. */
+export function ArtistSkeleton() {
+  const [width] = useLibraryWidth();
+  return (
+    <Skeleton label="Loading this artist" className={`flex flex-col gap-10 pb-16 ${libraryWidthClass(width)}`}>
+      <div className="flex flex-col gap-2">
+        <Bone className="h-[33px] w-2/3 max-w-[420px] sm:h-[48px]" />
+        <Bone className="h-4 w-48" />
+      </div>
+      <div
+        className="grid"
+        style={{
+          gridTemplateColumns: `repeat(auto-fill, minmax(${COVER_TILE_MIN_PX[1]}px, 1fr))`,
+          gap: COVER_GRID_GAP_PX[1],
+        }}
+      >
+        {[0, 1, 2, 3].map((i) => (
+          <Bone key={i} className="aspect-square" />
+        ))}
+      </div>
+    </Skeleton>
   );
 }

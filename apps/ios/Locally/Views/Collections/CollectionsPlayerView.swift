@@ -146,7 +146,10 @@ struct CollectionsPlayerView: View {
         }
         #endif
         }
-        .onAppear { isScreenShowing = true }
+        .onAppear {
+            PerfSignpost.begin(.playerFirstCover)
+            isScreenShowing = true
+        }
         .onDisappear { isScreenShowing = false }
         .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange).receive(on: DispatchQueue.main)) { _ in
             isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled

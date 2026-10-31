@@ -53,6 +53,16 @@ export default function LibraryCollections({ releases, onOpen }: { releases: Rel
   );
 }
 
+/** The card's empty frame: same height and surface as the card, so nothing below moves when the collections arrive.
+ * The library's loading placeholder (#422) draws it too. */
+export function CollectionsCardFrame() {
+  return (
+    <div aria-hidden="true" className={FRAME}>
+      <span className="block shrink-0" style={{ width: SLEEVE + PEEK, height: STACK_HEIGHT }} />
+    </div>
+  );
+}
+
 /** The card for a state of the collections, and the colour of the first cover ("#rrggbb"; grey with none). */
 export function CollectionsCard({
   collections,
@@ -69,14 +79,7 @@ export function CollectionsCard({
   color: string;
   onOpen: () => void;
 }) {
-  // Same height and surface as the card, so nothing below moves when the collections arrive.
-  if (!loaded) {
-    return (
-      <div aria-hidden="true" className={FRAME}>
-        <span className="block shrink-0" style={{ width: SLEEVE + PEEK, height: STACK_HEIGHT }} />
-      </div>
-    );
-  }
+  if (!loaded) return <CollectionsCardFrame />;
   if (failed && collections.length === 0) {
     return <p className="px-1 text-sm text-text-muted">{COLLECTIONS_COPY.failedToLoad}</p>;
   }

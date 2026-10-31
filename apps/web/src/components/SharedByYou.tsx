@@ -6,6 +6,8 @@ import { COPIES_STAY, expiryLabel, sentShareState, sharedWithLabel } from "../li
 import type { SentShare } from "../shared/shares";
 import { MusicNoteIcon } from "./Icons";
 import { SettingsBlock, SettingsSection } from "./SettingsGroup";
+import { Bone, Skeleton } from "./Skeleton";
+import { BusyLabel, BusyStatus } from "./Spinner";
 
 interface SharedByYouProps {
   onToast: (kind: "success" | "error", text: string) => void;
@@ -75,7 +77,19 @@ export default function SharedByYou({ onToast }: SharedByYouProps) {
   return (
     <SettingsSection id="shared-by-you" title="Shared by you" titleId="shared-by-you-heading">
       <SettingsBlock className="flex flex-col gap-3">
-      {!loaded && <p className="text-sm text-text-muted">Loading…</p>}
+      {!loaded && (
+        <Skeleton label="Loading your shares" className="flex flex-col gap-4">
+          {[0, 1].map((i) => (
+            <div key={i} className="flex gap-3.5">
+              <Bone className="size-12 shrink-0 rounded-[4px]!" />
+              <div className="flex flex-1 flex-col gap-2 pt-1">
+                <Bone className="h-4 w-1/2" />
+                <Bone className="h-3 w-1/3" />
+              </div>
+            </div>
+          ))}
+        </Skeleton>
+      )}
       {loaded && failed && shares.length === 0 && (
         <p role="status" className="text-sm text-text-muted">
           Couldn&apos;t load your shares right now.
@@ -121,10 +135,12 @@ export default function SharedByYou({ onToast }: SharedByYouProps) {
                           type="button"
                           onClick={() => revoke(share.id)}
                           disabled={revoking === share.id}
+                          aria-busy={revoking === share.id || undefined}
                           className="btn-danger"
                         >
-                          {revoking === share.id ? "Revoking…" : "Confirm revoke"}
+                          <BusyLabel busy={revoking === share.id}>Confirm revoke</BusyLabel>
                         </button>
+                        <BusyStatus busy={revoking === share.id} text="Revoking" />
                         <button
                           type="button"
                           autoFocus
@@ -155,17 +171,21 @@ export default function SharedByYou({ onToast }: SharedByYouProps) {
         </ul>
       )}
       {cursor && (
-        <button
-          type="button"
-          disabled={loadingMore}
-          onClick={() => {
-            setLoadingMore(true);
-            void load(cursor);
-          }}
-          className="btn-ink self-start"
-        >
-          {loadingMore ? "Loading…" : "Show older shares"}
-        </button>
+        <>
+          <button
+            type="button"
+            disabled={loadingMore}
+            aria-busy={loadingMore || undefined}
+            onClick={() => {
+              setLoadingMore(true);
+              void load(cursor);
+            }}
+            className="btn-ink self-start"
+          >
+            <BusyLabel busy={loadingMore}>Show older shares</BusyLabel>
+          </button>
+          <BusyStatus busy={loadingMore} text="Loading older shares" />
+        </>
       )}
       </SettingsBlock>
     </SettingsSection>

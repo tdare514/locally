@@ -19,6 +19,7 @@ struct StatsTab: View {
             }
         }
         .task {
+            PerfSignpost.begin(.statsFirstCover)
             guard model == nil, let container else { return }
             let store = container.coverStore
             let library = container.library
@@ -138,7 +139,11 @@ struct StatsView: View {
         .artistLinks { path.append($0) }
         .environment(\.openSong, { path.append($0) })
         .task(id: isTabSelected) {
-            if isTabSelected { await model.read() }
+            if isTabSelected {
+                PerfSignpost.begin(.statsLoad)
+                await model.read()
+                PerfSignpost.end(.statsLoad)
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, isTabSelected { Task { await model.read() } }
@@ -242,7 +247,7 @@ struct StatsView: View {
             Group {
                 switch model.phase {
                 case .loading:
-                    skeleton(room: room)
+                    DelayedSkeleton(label: Copy.Stats.loadingLabel) { skeleton(room: room) }
                 case .ready:
                     ready(room: room)
                 case .quiet, .signedOut:
@@ -556,8 +561,6 @@ struct StatsView: View {
                 }
             }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Copy.Stats.loadingLabel)
     }
 
     // MARK: Opening

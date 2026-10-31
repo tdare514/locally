@@ -10,6 +10,7 @@ import {
   type Size,
 } from "../lib/crop-geometry";
 import { cropImage } from "../lib/crop-image";
+import { BusyLabel, BusyStatus } from "./Spinner";
 
 interface CoverCropDialogProps {
   /** The freshly-chosen file to frame. The dialog is open exactly when this is non-null. */
@@ -281,10 +282,12 @@ export default function CoverCropDialog({
             type="button"
             onClick={handleDone}
             disabled={!rect || cropping}
+            aria-busy={cropping || undefined}
             className="btn-save"
           >
-            {cropping ? "Cropping…" : "Done"}
+            <BusyLabel busy={cropping}>Done</BusyLabel>
           </button>
+          <BusyStatus busy={cropping} text="Cropping" />
         </div>
       </div>
     </dialog>
