@@ -196,12 +196,13 @@ enum Copy {
         /// The three cards over the Collections shelf (#446).
         static func plays(_ count: Int) -> String { count == 1 ? "1 play" : "\(count) plays" }
         static let thisWeek = "This week"
-        /// Under the week's number on the first card.
+        /// Under the week's number on the first card: "plays", then "across 31 tracks".
         static let playsWord = "plays"
+        static func acrossTracks(_ count: Int) -> String { count == 1 ? "across 1 track" : "across \(count) tracks" }
         static let mostPlayed = "Most played"
         static let topArtist = "Top artist"
         static let weekLoading = "Loading this week"
-        static func thisWeekLabel(plays count: Int) -> String { "\(thisWeek), \(plays(count))" }
+        static func thisWeekLabel(plays count: Int, tracks: Int) -> String { "\(thisWeek), \(plays(count)) \(acrossTracks(tracks))" }
         static func mostPlayedLabel(title: String, plays count: Int) -> String { "\(mostPlayed), \(title), \(plays(count))" }
         static func topArtistLabel(name: String, plays count: Int) -> String { "\(topArtist), \(name), \(plays(count))" }
         static let thisWeekHint = "Opens Stats on this week"

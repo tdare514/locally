@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The three cards under "All music" (#446): This week (the week's plays and seven still day bars, today brighter),
+/// The three cards under "All music" (#446): This week (the week's plays and how many tracks they were of),
 /// Most played (the week's top track) and Top artist (a round avatar from the artist's newest cover). Each is one
 /// button with one spoken label. Equal width in a row; at accessibility text sizes they stack as full-width rows.
 /// Cards are `panelFill` on a `panelStroke` hairline at radius 12: no glow, tint or shadow, and no medals (rank is the
@@ -42,7 +42,7 @@ struct LibraryHeaderCards: View {
     // MARK: Cards
 
     private var thisWeekCard: some View {
-        card(label: Copy.Library.thisWeek, spoken: Copy.Library.thisWeekLabel(plays: week.total), hint: Copy.Library.thisWeekHint, action: onThisWeek) {
+        card(label: Copy.Library.thisWeek, spoken: Copy.Library.thisWeekLabel(plays: week.total, tracks: week.trackCount), hint: Copy.Library.thisWeekHint, action: onThisWeek) {
             Text("\(week.total)")
                 .font(.system(size: bigNumberSize, weight: .bold))
                 .monospacedDigit()
@@ -51,7 +51,11 @@ struct LibraryHeaderCards: View {
                 .themeFont(.meta)
                 .foregroundStyle(Theme.secondaryText)
             Spacer(minLength: 4)
-            LibraryWeekBars(days: week.days, todayIndex: week.todayIndex)
+            Text(Copy.Library.acrossTracks(week.trackCount))
+                .themeFont(.dropZoneHint)
+                .foregroundStyle(Theme.secondaryText)
+                .lineLimit(stacked ? nil : 1)
+                .minimumScaleFactor(0.7)
         }
     }
 
@@ -138,33 +142,6 @@ struct LibraryHeaderCards: View {
 private struct LibraryCardStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.opacity(configuration.isPressed ? 0.7 : 1)
-    }
-}
-
-/// Seven still bars for the week's days, the week's first day at the left. Today is full white, the days before it
-/// are dimmer, and days still to come are stubs. Drawn from the plays each track last had on a day (the summary only
-/// names a track's latest day), so it shows when the week was busy, not an exact count. Hidden from VoiceOver.
-struct LibraryWeekBars: View {
-    let days: [Int]
-    let todayIndex: Int
-
-    @ScaledMetric(relativeTo: .body) private var maxHeight = Theme.Library.weekBarMaxHeight
-
-    var body: some View {
-        let peak = max(days.max() ?? 0, 1)
-        HStack(alignment: .bottom, spacing: Theme.Library.weekBarGap) {
-            ForEach(Array(days.enumerated()), id: \.offset) { index, plays in
-                let upcoming = index > todayIndex
-                let height = upcoming || plays == 0
-                    ? Theme.Library.weekBarMinHeight
-                    : max(Theme.Library.weekBarMinHeight, maxHeight * CGFloat(plays) / CGFloat(peak))
-                RoundedRectangle(cornerRadius: 1.5)
-                    .fill(Color.white.opacity(index == todayIndex ? 1 : (upcoming ? 0.12 : 0.3)))
-                    .frame(width: Theme.Library.weekBarWidth, height: height)
-            }
-        }
-        .frame(height: maxHeight, alignment: .bottom)
-        .accessibilityHidden(true)
     }
 }
 

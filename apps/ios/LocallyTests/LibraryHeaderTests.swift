@@ -74,9 +74,27 @@ struct LibraryHeaderTests {
         #expect(week.topArtist.title == "Okoro")
         #expect(week.topArtist.plays == 12)
         #expect(week.artistKey == "okoro")
-        // Monday 12th to Sunday 18th; today is the fourth bar and the rest of the week is still to come.
-        #expect(week.days == [3, 4, 5, 2, 0, 0, 0])
-        #expect(week.todayIndex == 3)
+        // Four different tracks: Night Bus 11, Lanterns 21 and the album's two.
+        #expect(week.trackCount == 4)
+    }
+
+    @Test func aTrackWithNoPlaysIsNotInTheTrackCount() async {
+        let m = make(week([
+            count(1, 11, 5, day: "2026-10-14"),
+            count(3, 31, 4, day: "2026-10-13"),
+            count(3, 32, 0, day: "2026-10-12"),
+        ]))
+        await m.model.read(releases: library)
+        guard case .week(let week) = m.model.phase else { Issue.record("expected the week"); return }
+        #expect(week.trackCount == 2)
+        #expect(week.total == 9)
+    }
+
+    @Test func theFirstCardSaysHowManyTracksAndReadsOutLoudWithThem() {
+        #expect(Copy.Library.acrossTracks(31) == "across 31 tracks")
+        #expect(Copy.Library.acrossTracks(1) == "across 1 track")
+        #expect(Copy.Library.thisWeekLabel(plays: 246, tracks: 31) == "This week, 246 plays across 31 tracks")
+        #expect(Copy.Library.thisWeekLabel(plays: 1, tracks: 1) == "This week, 1 play across 1 track")
     }
 
     @Test func aCountForATrackNoLongerInTheLibraryIsLeftOut() async {
@@ -84,7 +102,7 @@ struct LibraryHeaderTests {
         await m.model.read(releases: library)
         guard case .week(let week) = m.model.phase else { Issue.record("expected the week"); return }
         #expect(week.total == 5)
-        #expect(week.days.reduce(0, +) == 5)
+        #expect(week.trackCount == 1)
     }
 
     @Test func aLibraryWithNoneOfTheCountedTracksHidesTheCards() async {

@@ -5,10 +5,8 @@ import Observation
 struct LibraryWeek: Equatable {
     /// Every counted play this week.
     var total: Int
-    /// Plays for each of the week's seven days, the week's first day first. Days after today are 0.
-    var days: [Int]
-    /// Which of `days` is today.
-    var todayIndex: Int
+    /// How many different tracks those plays were of.
+    var trackCount: Int
     var topTrack: StatItem
     var topArtist: StatItem
     /// The artist page's key for `topArtist` (an "A feat. B" release counts for A, as on the Stats page).
@@ -64,7 +62,7 @@ final class LibraryHeaderModel {
         switch outcome {
         case .ok(let summary):
             lastEmptyAt = nil
-            phase = Self.week(from: summary, releases: releases, range: range, today: today).map(Phase.week) ?? .hidden
+            phase = Self.week(from: summary, releases: releases).map(Phase.week) ?? .hidden
         case .signedOut:
             lastEmptyAt = nil
             phase = .hidden
@@ -75,23 +73,13 @@ final class LibraryHeaderModel {
     }
 
     /// The cards for a week's summary, or nil when no play of a track still in the library was counted.
-    static func week(from summary: PlaysSummary, releases: [Release], range: DayRange, today: String) -> LibraryWeek? {
+    static func week(from summary: PlaysSummary, releases: [Release]) -> LibraryWeek? {
         // The same ranking the Stats page makes for a week: `StatsViewModel.apply` with the period's own counts.
-        let ranked = PlayStats.aggregate(releases: releases, counts: summary.tracks, limit: 1)
+        // Only tracks still in the library count, each once, so `tracks.count` is the number played this week.
+        let ranked = PlayStats.aggregate(releases: releases, counts: summary.tracks, limit: .max)
         guard ranked.total > 0, let track = ranked.tracks.first, let artist = ranked.artists.first else { return nil }
-        let held = Set(releases.flatMap { release in
-            release.tracks.map { release.id.uuidString.lowercased() + "/" + $0.id.uuidString.lowercased() }
-        })
-        let dayNames = (0..<7).map { PlayPeriods.addDays(range.from, $0) }
-        var days = Array(repeating: 0, count: 7)
-        for count in summary.tracks where count.plays > 0 {
-            guard held.contains(count.releaseId.lowercased() + "/" + count.trackId.lowercased()),
-                  let day = count.lastPlayedDay, let index = dayNames.firstIndex(of: day) else { continue }
-            // The summary names only the latest day of a track's plays, so a track counts on that day.
-            days[index] += count.plays
-        }
         return LibraryWeek(
-            total: ranked.total, days: days, todayIndex: dayNames.firstIndex(of: today) ?? 0,
+            total: ranked.total, trackCount: ranked.tracks.count,
             topTrack: track, topArtist: artist,
             artistKey: ArtistNames.artistKey(ArtistNames.splitArtistFeaturing(artist.title).artist)
         )

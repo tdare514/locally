@@ -176,18 +176,14 @@ enum Theme {
         static let collectionsCardPressOpacity: Double = 0.85
         static let collectionsCardPressDuration: Double = 0.2
         static let collectionsCardRadius: CGFloat = 12
-        /// The three cards over the Collections shelf (#446): minimum height, gap, inner padding, the cover or avatar's
-        /// side, the week bars' width, gap and tallest height. They grow with the text.
+        /// The three cards over the Collections shelf (#446): minimum height, gap, inner padding and the cover or
+        /// avatar's side. They grow with the text.
         static let headerCardMinHeight: CGFloat = 124
         /// How far that minimum height grows with the text.
         static let headerCardMaxMinHeight: CGFloat = 180
         static let headerCardGap: CGFloat = 8
         static let headerCardPadding: CGFloat = 12
         static let headerCardCover: CGFloat = 40
-        static let weekBarWidth: CGFloat = 6
-        static let weekBarGap: CGFloat = 3
-        static let weekBarMaxHeight: CGFloat = 22
-        static let weekBarMinHeight: CGFloat = 3
         /// The Collections shelf (#446): a tile's side (cover radius 8) and the gap between tiles.
         static let shelfTile: CGFloat = 112
         static let shelfGap: CGFloat = 12
