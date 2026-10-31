@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Release, UpdateReleaseMeta } from "../shared/types";
 import {
   coverUrl,
@@ -27,6 +27,7 @@ import { COPIED_LABEL, COPY_LABEL, PLAYLIST_FALLBACK, playlistSteps } from "../l
 import { PLAYS_ACROSS_DEVICES } from "../lib/plays-copy";
 import { startPlaylistsPolling } from "../lib/playlists-poll";
 import { useArtworkPalette } from "../lib/use-artwork-palette";
+import { liftBrightness } from "../lib/artwork-palette";
 import { IS_DEMO } from "../lib/demo";
 import { UNKNOWN_ARTIST } from "../shared/adopt";
 import { folderAfterRoot } from "../lib/adopt-review";
@@ -418,7 +419,8 @@ export default function ReleaseView({
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     row.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
     row.dataset.highlight = "";
-    const timer = setTimeout(() => delete row.dataset.highlight, reduced ? 2000 : 1800);
+    // The highlight runs 0.35 s wait + 0.3 s in + 1.2 s hold + 1.2 s out (#413), also the still version under reduced motion.
+    const timer = setTimeout(() => delete row.dataset.highlight, 3100);
     return () => {
       clearTimeout(timer);
       delete row.dataset.highlight;
@@ -540,7 +542,7 @@ export default function ReleaseView({
     // The bottom margin cancels the pane's own bottom padding (AppShell's p-6 md:p-10 lg:p-16), so the
     // bar's anchor sits at the pane's bottom edge and the bar stays 24 above it at the end of the scroll.
     <ArtistNavProvider value={artistNavHere}>
-    <div ref={pageRef} className={`flex min-h-[calc(100%+1.5rem)] flex-col -mb-6 md:min-h-[calc(100%+2.5rem)] md:-mb-10 lg:min-h-[calc(100%+4rem)] lg:-mb-16 ${libraryWidthClass(width)}`}>
+    <div ref={pageRef} className={`flex min-h-[calc(100%+1.5rem)] flex-col -mb-6 md:min-h-[calc(100%+2.5rem)] md:-mb-10 lg:min-h-[calc(100%+4rem)] lg:-mb-16 ${libraryWidthClass(width)}`} style={palette ? ({ "--hl-tint": liftBrightness(palette.primary) } as CSSProperties) : undefined}>
       <div className="flex flex-1 flex-col gap-12">
       <AmbientBackdrop palette={palette} />
       {!isAdopted && <SpotifySourceBanner onOpenSettings={onOpenSettings} onToast={onToast} />}

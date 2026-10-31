@@ -61,6 +61,23 @@ function channels(hex: string): [number, number, number] {
   ];
 }
 
+/** The highlight's tint: the palette colour lifted to at least this HSB brightness, as the iPhone does (#362, #413). */
+export const HIGHLIGHT_MIN_BRIGHTNESS = 0.85;
+
+/** `hex` ("#rrggbb") with its HSB brightness raised to at least `min` (hue and saturation kept); the input when it is already brighter or not parseable. */
+export function liftBrightness(hex: string, min = HIGHLIGHT_MIN_BRIGHTNESS): string {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return hex;
+  const rgb = channels(hex);
+  const v = Math.max(...rgb) / 255;
+  if (v >= min) return hex;
+  // Black has no hue to keep, so there is nothing to scale.
+  if (v === 0) return hex;
+  const scale = min / v;
+  return `#${rgb
+    .map((c) => Math.min(255, Math.round(c * scale)).toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
 /** WCAG 2.x relative luminance of a "#rrggbb" colour, 0 (black) to 1 (white). */
 export function relativeLuminance(hex: string): number {
   const [r, g, b] = channels(hex).map((c) => {

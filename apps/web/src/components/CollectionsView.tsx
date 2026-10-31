@@ -41,7 +41,7 @@ import AmbientBackdrop from "./AmbientBackdrop";
 import { useCollections } from "./CollectionsContext";
 import CollectionSleeve from "./CollectionSleeve";
 import RecordSleeve from "./RecordSleeve";
-import { NowPlayingIcon, PauseIcon, PlayIcon, PlusIcon, SearchIcon, XIcon } from "./Icons";
+import { NowPlayingIcon, PlayIcon, PlusIcon, SearchIcon, XIcon } from "./Icons";
 import NewCollectionForm from "./NewCollectionForm";
 import NoCover from "./NoCover";
 import PlaylistGuide from "./PlaylistGuide";
@@ -560,7 +560,7 @@ export function Queue({
                       <span title={e.release.artist} className="line-clamp-2 break-words text-[0.8125rem] text-text-muted">{e.release.artist}</span>
                     )}
                   </span>
-                  {isCurrent && (playing ? <PauseIcon className="size-4 text-accent" /> : <NowPlayingIcon className={`size-4 text-accent ${e.failed ? "hidden @[26rem]:block" : ""}`} />)}
+                  {isCurrent && (playing ? <NowPlayingIcon className="size-4 text-accent" /> : <PlayIcon className={`size-4 text-accent ${e.failed ? "hidden @[26rem]:block" : ""}`} />)}
                   {!isCurrent && e.playable && <PlayIcon className="hidden size-4 text-text-dim @[26rem]:block" />}
                   <span className="shrink-0 text-right text-sm tabular-nums @[26rem]:min-w-12 text-text-muted">
                     {e.playable ? (e.durationSec !== null ? formatLength(e.durationSec) : "") : "Missing"}

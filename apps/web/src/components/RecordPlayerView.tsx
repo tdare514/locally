@@ -31,7 +31,7 @@ import {
 } from "../lib/record-player";
 import AmbientBackdrop from "./AmbientBackdrop";
 import CollectionSleeve from "./CollectionSleeve";
-import { ChevronRightIcon, NextTrackIcon, PauseIcon, PlayIcon, PlusIcon, SearchIcon } from "./Icons";
+import { ChevronRightIcon, NextTrackIcon, PauseIcon, PlayIcon, PlusIcon, PreviousTrackIcon, SearchIcon } from "./Icons";
 import NoCover from "./NoCover";
 
 /** Rows kept in the DOM round the front (the dial shows about seven; the rest is slack for a fast turn). */
@@ -730,7 +730,7 @@ function Deck({
               else playerStore.back();
             }}
           >
-            <NextTrackIcon className="size-5 -scale-x-100" />
+            <PreviousTrackIcon className="size-6" />
           </button>
           <button
             ref={toggleRef}
@@ -742,7 +742,7 @@ function Deck({
               if (hasQueue) playerStore.toggle();
             }}
           >
-            {playing ? <PauseIcon className="size-5" /> : <PlayIcon className="size-5" />}
+            {playing ? <PauseIcon className="size-8" /> : <PlayIcon className="size-8" />}
           </button>
           <button
             type="button"
@@ -753,7 +753,7 @@ function Deck({
               if (position + 1 < length) playerStore.next();
             }}
           >
-            <NextTrackIcon className="size-5" />
+            <NextTrackIcon className="size-6" />
           </button>
         </div>
         {away && nowCollection && (
