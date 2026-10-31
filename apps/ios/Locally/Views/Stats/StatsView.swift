@@ -221,20 +221,25 @@ struct StatsView: View {
         } else {
             if model.showsControls {
                 if !model.digest.isEmpty {
-                    Text(model.digest)
-                        .font(.system(.title3, weight: .semibold))
+                    digestText(model.digest)
                         .foregroundStyle(Theme.primaryText.opacity(0.88))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 6)
+                } else if model.phase == .loading {
+                    // Holds the digest's lines while the first read runs, so the controls don't drop when it arrives
+                    // (#423). A typical sentence at the reader's text size sets the room.
+                    digestText(Copy.Stats.digestSentence(model.displayed, total: 1_000, topTrack: "A track title"))
+                        .foregroundStyle(Color.white.opacity(0.06))
+                        .redacted(reason: .placeholder)
+                        .accessibilityHidden(true)
                 }
-                periodRow
-                    .task {
-                        guard openPeriodOnAppear else { return }
-                        try? await Task.sleep(for: .seconds(1.5))
-                        periodOpen = true
-                    }
-                tabPicker
-                    .frame(maxWidth: .infinity)
+                VStack(alignment: .trailing, spacing: 0) {
+                    controlsRow
+                    stepperRow
+                }
+                .task {
+                    guard openPeriodOnAppear else { return }
+                    try? await Task.sleep(for: .seconds(1.5))
+                    periodOpen = true
+                }
             }
             Group {
                 switch model.phase {
@@ -311,9 +316,14 @@ struct StatsView: View {
         StatsPeriodPill(
             current: model.period.kind,
             title: Copy.Stats.periodLabel(model.period),
-            detail: Copy.Stats.periodDetail(model.period, range: model.range, today: model.today),
+            detail: periodDetail,
+            showsDetail: false,
             tint: tint, isPresented: $periodOpen
         ) { model.selectKind($0) }
+    }
+
+    private var periodDetail: String {
+        Copy.Stats.periodDetail(model.period, range: model.range, today: model.today)
     }
 
     private var backButton: some View {
@@ -324,31 +334,42 @@ struct StatsView: View {
         stepButton(.chevronRight, label: Copy.Stats.nextLabel(model.period.kind), enabled: model.canStepForward) { model.stepForward() }
     }
 
-    /// One row: ‹ [ This week ⌄ ] ›. The dates sit in the pill as its second line. At the largest text
-    /// sizes the arrows drop below the pill, side by side.
-    @ViewBuilder
-    private var periodRow: some View {
-        if model.showsStepper {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) {
-                    backButton
-                    periodPill
-                    forwardButton
-                }
-                VStack(spacing: 10) {
-                    periodPill
-                    HStack(spacing: 24) { backButton; forwardButton }
-                }
+    /// The tabs at the left and the period at the right, on one row like the Library's toolbar (#444): the tabs as
+    /// words in the slim compact switch, so both fit a 375 pt screen. When they don't (large text, or a long "12 weeks
+    /// ago"), the tabs take their own row with their icons, scrolling if need be, and the period sits under them.
+    private var controlsRow: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 0) {
+                tabPicker(icons: false, compact: true).fixedSize(horizontal: true, vertical: false)
+                Spacer(minLength: 12)
+                periodPill.fixedSize()
             }
-            .frame(maxWidth: .infinity)
-        } else {
-            periodPill.frame(maxWidth: .infinity)
+            VStack(alignment: .trailing, spacing: 12) {
+                tabPicker(icons: true, compact: false).frame(maxWidth: .infinity, alignment: .leading)
+                periodPill
+            }
         }
+    }
+
+    /// The period's dates under the pill, with ‹ › stepping a period back and forward (#444). The pill reads the dates
+    /// out, so the line itself is hidden from VoiceOver.
+    private var stepperRow: some View {
+        HStack(spacing: 0) {
+            if model.showsStepper { backButton }
+            Text(periodDetail)
+                .font(.footnote)
+                .foregroundStyle(Theme.secondaryText)
+                .contentTransition(.opacity)
+                .accessibilityHidden(true)
+                .padding(.horizontal, model.showsStepper ? 0 : 6)
+            if model.showsStepper { forwardButton }
+        }
+        .frame(minHeight: Theme.Stats.minTarget)
     }
 
     private func stepButton(_ icon: LocallyIcon.Name, mirrored: Bool = false, label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            LocallyIcon(icon, size: 24, scaled: false, mirrored: mirrored)
+            LocallyIcon(icon, size: 18, scaled: false, mirrored: mirrored)
         }
         .buttonStyle(IconButtonStyle())
         .disabled(!enabled)
@@ -366,15 +387,15 @@ struct StatsView: View {
         .accessibilityIdentifier("stats-history")
     }
 
-    private var tabPicker: some View {
+    private func tabPicker(icons: Bool, compact: Bool) -> some View {
         SlimSwitch(
             options: [
-                (value: StatsKind.tracks, icon: "music.note", label: Copy.Stats.tracksTab),
-                (.albums, "rectangle.stack.fill", Copy.Stats.albumsTab),
-                (.artists, LocallyIcon.Name.person.rawValue, Copy.Stats.artistsTab),
+                (value: StatsKind.tracks, icon: icons ? "music.note" : nil, label: Copy.Stats.tracksTab),
+                (.albums, icons ? "rectangle.stack.fill" : nil, Copy.Stats.albumsTab),
+                (.artists, icons ? LocallyIcon.Name.person.rawValue : nil, Copy.Stats.artistsTab),
             ],
             selection: Binding(get: { model.tab }, set: { model.selectTab($0) }),
-            overflow: .scroll
+            compact: compact, overflow: .scroll
         )
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Copy.Stats.showTopLabel)
@@ -498,6 +519,13 @@ struct StatsView: View {
     }
 
     // MARK: Loading
+
+    private func digestText(_ text: String) -> some View {
+        Text(text)
+            .font(.system(.title3, weight: .semibold))
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 6)
+    }
 
     private func skeleton(room: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 20) {
