@@ -1317,6 +1317,12 @@ body {
     color 200ms var(--btn-ease),
     opacity 160ms var(--btn-ease);
 }
+/* Rule 11's 44 px target on a 36 px track: a transparent strip 6 px above and below each option. */
+.btn-seg-opt::before {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
+}
 .btn-seg-opt[aria-pressed="true"] {
   color: #fff;
 }
@@ -1341,11 +1347,12 @@ body {
 }
 
 /* The Library's cover size slider (#410): a 4 px `elevated` track with three `text-muted` detents and a plain white
-   16 px knob. Three steps (compact, medium, large); the native range keeps the keyboard and the a11y name. */
+   16 px knob in a 44 px hit height around the 4 px track (rule 11). Three steps (compact, medium, large); the native
+   range keeps the keyboard and the a11y name. */
 .size-slider {
   -webkit-appearance: none;
   appearance: none;
-  height: 24px;
+  height: 44px;
   background: transparent;
   cursor: pointer;
 }

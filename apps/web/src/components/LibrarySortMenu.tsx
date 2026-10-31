@@ -10,8 +10,9 @@ interface LibrarySortMenuProps {
 }
 
 /** The Library's sort (#410): an icon-only button that opens a menu of the four orders (the iPhone's), built like the
- * disc menu so one restyle covers both. Real menu semantics: the chosen order is a checked `menuitemradio`, arrows,
- * Home and End move, Escape closes and gives focus back, a click outside or Tab closes. */
+ * disc menu so one restyle covers both. Real menu semantics: the chosen order is a checked `menuitemradio` with an
+ * `accent` check (its label stays white for contrast), arrows on the button open the menu, arrows, Home and End move,
+ * Escape closes and gives focus back, a click outside or Tab closes. */
 export default function LibrarySortMenu({ value, onChange }: LibrarySortMenuProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -79,6 +80,12 @@ export default function LibrarySortMenu({ value, onChange }: LibrarySortMenuProp
         aria-label={`Sort, ${currentLabel}`}
         title="Sort"
         onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            setOpen(true);
+          }
+        }}
       >
         {/* #412 replaces this glyph with the shared sort icon. */}
         <svg
@@ -117,7 +124,7 @@ export default function LibrarySortMenu({ value, onChange }: LibrarySortMenuProp
                   className={MENU_ITEM}
                   onClick={() => choose(o.value)}
                 >
-                  <span className={`flex-1 whitespace-nowrap ${chosen ? "text-accent" : ""}`}>{o.label}</span>
+                  <span className="flex-1 whitespace-nowrap">{o.label}</span>
                   {chosen && (
                     <svg
                       viewBox="0 0 24 24"
