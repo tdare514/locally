@@ -650,7 +650,7 @@ to 2.8:1 on Settings. The Collections player shows "Your music" with the collect
 - **Kind badge** (SINGLE / ALBUM): `elevated` pill, badge type.
 - **Errors**: `danger` 12 text under the field or button that failed.
 - **Empty state (library home, both apps)**: doubles as onboarding. A diagram of two 68 pt
-  `elevated` tiles, radius 16, 1 px `border`: the app icon / solid listener mark (captioned
+  `elevated` tiles, radius 8 (rule 8; was 16 until #417 and #418, 31 Oct 2026), 1 px `border`: the app icon / solid listener mark (captioned
   "Locally"), three accent dots and a chevron, a note icon (captioned "Spotify"; never Spotify's
   logo). Below: eyebrow "YOUR LIBRARY" (replaced 13 Oct 2026: sentence case), title "Nothing here yet" (24 bold mobile / 36 desktop),
   one line of `text-muted` 14 body, then a primary "Add your first single" and a secondary "Make

@@ -57,7 +57,7 @@ export function NavItem({
 }
 
 interface ChoiceProps<T extends string> {
-  /** `seg` is a segmented control (a radio group); `tabs` is a row of text tabs. */
+  /** `seg` is the slim switch (`.btn-seg`, as on the Stats page); `tabs` is a row of text tabs. */
   kind: "seg" | "tabs";
   label: string;
   value: T;
@@ -90,28 +90,50 @@ export function Choice<T extends string>({
     e.currentTarget.querySelectorAll<HTMLButtonElement>("button")[next]?.focus();
   }
 
+  const vars = { "--n": options.length, "--i": index } as CSSProperties;
+
+  // The slim switch's thumb follows aria-pressed (globals.css, Choosers), so `seg` uses toggle buttons.
+  if (kind === "seg") {
+    return (
+      <div role="group" aria-label={label} onKeyDown={onKeyDown} className={`btn-seg st-seg w-full ${className}`} style={vars}>
+        <span aria-hidden className="btn-seg-dot">
+          <span />
+        </span>
+        {options.map((o) => {
+          const selected = o.value === value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              aria-pressed={selected}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => onChange(o.value)}
+              className="btn-seg-opt"
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
-    <div
-      role={kind === "seg" ? "radiogroup" : "tablist"}
-      aria-label={label}
-      onKeyDown={onKeyDown}
-      className={`sb-${kind} ${className}`}
-      style={{ "--n": options.length, "--i": index } as CSSProperties}
-    >
-      <span aria-hidden className={`sb-${kind}-thumb`} />
+    <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className={`sb-tabs ${className}`} style={vars}>
+      <span aria-hidden className="sb-tabs-thumb" />
       {options.map((o) => {
         const selected = o.value === value;
         return (
           <button
             key={o.value}
             type="button"
-            role={kind === "seg" ? "radio" : "tab"}
-            {...(kind === "seg" ? { "aria-checked": selected } : { "aria-selected": selected })}
+            role="tab"
+            aria-selected={selected}
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(o.value)}
-            className={`relative z-10 whitespace-nowrap text-xs font-semibold transition-colors ${focusRing} ${
-              "rounded-full py-1.5"
-            } ${selected ? "text-text" : "text-text-muted hover:text-text-soft"}`}
+            className={`relative z-10 whitespace-nowrap rounded-full py-1.5 text-xs font-semibold transition-colors ${focusRing} ${
+              selected ? "text-text" : "text-text-muted hover:text-text-soft"
+            }`}
           >
             {o.label}
           </button>

@@ -1027,7 +1027,7 @@ function DiagramTile({
 }) {
   return (
     <div className="flex flex-col items-center gap-2">
-      <div className="flex h-[68px] w-[68px] items-center justify-center overflow-hidden rounded-2xl border border-border bg-elevated">
+      <div className="flex h-[68px] w-[68px] items-center justify-center overflow-hidden rounded-lg border border-border bg-elevated">
         {children}
       </div>
       <span className="text-xs text-text-muted">{caption}</span>
