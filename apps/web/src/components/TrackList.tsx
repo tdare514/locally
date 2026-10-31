@@ -153,8 +153,9 @@ interface Drag {
 
 /**
  * The row's play button (#338), laid over the track number. Hidden until the row is hovered or the button has
- * keyboard focus; the current row keeps it showing as a static now-playing glyph (a pause mark on hover or
- * focus while it plays). Enter or Space presses it, as for any button. Nothing loops or moves.
+ * keyboard focus; the current row keeps it showing in `accent`: the static now-playing glyph while it plays, the
+ * play glyph while it is paused (#413); hover or focus swaps in the pause or play action. Enter or Space presses
+ * it, as for any button. Nothing loops or moves.
  */
 function PlayButton({
   title,
@@ -178,7 +179,11 @@ function PlayButton({
     >
       {current ? (
         <>
-          <NowPlayingIcon className="track-play-glyph size-4 text-accent" />
+          {playing ? (
+            <NowPlayingIcon className="track-play-glyph size-4 text-accent" />
+          ) : (
+            <PlayIcon className="track-play-glyph size-4 text-accent" />
+          )}
           {playing ? <PauseIcon className="track-play-action size-4" /> : <PlayIcon className="track-play-action size-4" />}
         </>
       ) : (

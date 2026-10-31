@@ -418,7 +418,8 @@ export default function ReleaseView({
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     row.scrollIntoView({ block: "center", behavior: reduced ? "auto" : "smooth" });
     row.dataset.highlight = "";
-    const timer = setTimeout(() => delete row.dataset.highlight, reduced ? 2000 : 1800);
+    // The highlight runs 0.35 s wait + 0.3 s in + 1.2 s hold + 1.2 s out (#413), also the still version under reduced motion.
+    const timer = setTimeout(() => delete row.dataset.highlight, 3100);
     return () => {
       clearTimeout(timer);
       delete row.dataset.highlight;

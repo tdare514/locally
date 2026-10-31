@@ -614,21 +614,51 @@ body {
 .track-head {
   border-bottom: 1px solid rgb(255 255 255 / 0.07);
 }
-/* The one-time tint behind a row the Stats page opened the release at (ReleaseView sets
-   data-highlight): fades in fast, out over about 1.6s. Opacity only. */
+/* The one-time highlight behind a row the Stats page opened the release at (ReleaseView sets
+   data-highlight), in the iPhone's look and timing (#413, #362): a 12 radius wash in the cover colour
+   fading from 30 % at the leading edge to 6 %, a 1 px white rim, a soft outer glow, and a 3 x 22 needle
+   cue at the leading edge that grows from 0.2 to full height. 0.35 s wait, 0.3 s in, 1.2 s hold, 1.2 s
+   out; only opacity and the cue's scale animate. */
 .track-row[data-highlight]::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  border-radius: 8px;
+  border-radius: 12px;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--btn-tint, var(--btn-tint-default)) 30%, transparent),
+    color-mix(in srgb, var(--btn-tint, var(--btn-tint-default)) 6%, transparent)
+  );
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.22),
+    0 0 12px color-mix(in srgb, var(--btn-tint, var(--btn-tint-default)) 35%, transparent);
+  animation: track-highlight 2700ms linear 350ms both;
+}
+.track-row[data-highlight]::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 8px;
+  width: 3px;
+  height: 22px;
+  border-radius: 9999px;
   background: var(--btn-tint, var(--btn-tint-default));
-  animation: track-highlight 1600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: top;
+  pointer-events: none;
+  animation: track-highlight-cue 2700ms linear 350ms both;
 }
 @keyframes track-highlight {
   0% { opacity: 0; }
-  10% { opacity: 1; }
+  11.1% { opacity: 1; }
+  55.6% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes track-highlight-cue {
+  0% { opacity: 0; transform: scaleY(0.2); }
+  11.1% { opacity: 1; transform: scaleY(1); }
+  55.6% { opacity: 1; }
   100% { opacity: 0; }
 }
 .track-tile {
@@ -715,8 +745,8 @@ body {
 }
 
 /* Mini player (#338): the glass bar above the release bar. It appears with a short rise on the signature
-   easing (transform and opacity only); under reduced motion it just appears. The main button carries a
-   soft glow of the playing cover's colour (--btn-tint), like the release bar's main action. */
+   easing (transform and opacity only); under reduced motion it just appears. Its play/pause and next are
+   plain `.btn-icon` buttons with white glyphs, nothing behind them (#413). */
 .mini-player {
   animation: mini-player-in 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -790,15 +820,6 @@ body {
 }
 .mini-player-scrub:disabled::-webkit-slider-thumb {
   opacity: 0.4;
-}
-.mini-player-main {
-  background: radial-gradient(120% 120% at 50% 0%, var(--btn-tint, var(--btn-tint-default, rgb(176 212 255 / 0.32))), rgb(255 255 255 / 0.06));
-  box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.22),
-    0 0 18px -4px var(--btn-tint, var(--btn-tint-default, rgb(176 212 255 / 0.32)));
-}
-.mini-player-main:hover {
-  filter: brightness(1.15);
 }
 
 /* Phone inbox tray (#115): panel enter/exit (out of the button's bottom-left corner, on a diagonal), accepted-row collapse, trigger icon morph. */
@@ -1086,8 +1107,8 @@ body {
  * ------------------------------------------------------------------------- */
 :root {
   --btn-ease: cubic-bezier(0.16, 1, 0.3, 1);
-  /* Still read by the track highlight and the mini player, which a later issue of the quiet pass
-     (#413) retires; no button uses it. */
+  /* Read by the track highlight's wash, rim, glow and cue and by the mini player's backing; no
+     button uses it (#409, #413). */
   --btn-tint-default: rgb(176 212 255 / 0.32);
 }
 
@@ -2614,9 +2635,11 @@ body {
   .fan-sleeve[data-opening="true"] .fan-record {
     transition: none;
   }
-  .track-row[data-highlight]::before {
+  .track-row[data-highlight]::before,
+  .track-row[data-highlight]::after {
     animation: none;
     opacity: 1;
+    transform: none;
   }
   .fan-record[data-medal]::before,
   .fan-record[data-medal]::after {
@@ -2845,8 +2868,7 @@ body {
   color: var(--text-muted);
   outline: none;
 }
-.rp-hub-btn:hover,
-.rp-round:hover {
+.rp-hub-btn:hover {
   color: var(--text);
   background: rgb(255 255 255 / 0.06);
 }
@@ -3219,16 +3241,27 @@ body {
   min-width: 0;
   font-size: calc(14px / var(--s));
   font-weight: 600;
-  color: var(--text);
-  background: var(--card);
-  box-shadow:
-    inset 0 0 0 1px rgb(255 255 255 / 0.22),
-    inset 0 1px 0 rgb(255 255 255 / 0.14);
+  color: #000;
+  background: var(--text);
   outline: none;
+}
+/* The main action (#413, design rule 3), like .btn-save: hover lightens the fill, press dims it. */
+.rp-float-play:where(:not(:disabled)):hover {
+  background: var(--text-soft);
+}
+.rp-float-play:where(:not(:disabled)):active {
+  opacity: 0.85;
 }
 .rp-float-play:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rp-float-play {
+    transition:
+      background-color 160ms ease,
+      opacity 160ms ease;
+  }
 }
 
 /* The tonearm swings onto the record while something is on the platter (and stays there when paused). */
@@ -3318,15 +3351,26 @@ body {
   gap: 10px;
   margin-top: 14px;
 }
+/* Transport (#413, design rules 3 and 4): previous, play/pause and next are the drawn glyph in white in a 44
+   target (the main one 52) with nothing behind it. Hover and press move the text colour only, like .btn-icon
+   (white at rest and on hover, `text-muted` while pressed); aria-disabled buttons dim and do not react. */
 .rp-round {
   color: var(--text);
-  background: rgb(255 255 255 / 0.08);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16);
+}
+.rp-round:where(:not([aria-disabled="true"])):is(:hover, :active) {
+  color: var(--text);
+}
+.rp-round:where(:not([aria-disabled="true"])):active {
+  color: var(--text-muted);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rp-round {
+    transition: color 160ms ease;
+  }
 }
 .rp-main {
   width: 52px;
   height: 52px;
-  box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 0.5);
 }
 .rp-round[aria-disabled="true"] {
   opacity: 0.45;

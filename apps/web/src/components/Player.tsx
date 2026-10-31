@@ -297,18 +297,18 @@ export default function Player({ releases, onOpenRelease, onOpenCollection }: Pl
                 type="button"
                 onClick={() => playerStore.toggle()}
                 aria-label={state.playing ? `Pause ${info.title}` : `Play ${info.title}`}
-                className="mini-player-main flex size-10 items-center justify-center rounded-full text-white outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="btn-icon [--text-soft:var(--text)]"
               >
-                {state.playing ? <PauseIcon className="size-5" /> : <PlayIcon className="size-5" />}
+                {state.playing ? <PauseIcon className="size-6" /> : <PlayIcon className="size-6" />}
               </button>
               <button
                 type="button"
                 onClick={() => playerStore.next()}
                 disabled={state.queue.index + 1 >= state.queue.items.length}
                 aria-label="Next track"
-                className="flex size-10 items-center justify-center rounded-full text-white outline-none hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 disabled:hover:bg-transparent"
+                className="btn-icon [--text-soft:var(--text)]"
               >
-                <NextTrackIcon className="size-5" />
+                <NextTrackIcon className="size-6" />
               </button>
             </div>
             <div className="flex min-w-[9rem] flex-1 items-center gap-2">
