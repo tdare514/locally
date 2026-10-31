@@ -66,9 +66,10 @@ struct LibraryView: View {
     /// Releases whose row or tile is currently on screen.
     @State private var visibleIDs: Set<Release.ID> = []
     @State private var palettes: [CoverKey: AmbientPalette] = [:]
-    /// Covers read so far, decoded off the main thread at the size the layout shows them (#423). A key with no
-    /// entry is still being read, and its slot stays empty rather than showing the no-cover note.
-    @State private var covers: [CoverKey: LibraryCover] = [:]
+    /// Each tile reads its own cover as it nears the screen, through this bounded cache (#423); made once in `load()`.
+    @State private var coverCache: LibraryCoverCache?
+    /// Bumped at the end of every `load()`, so a tile whose cover was missing asks for it again.
+    @State private var coverGeneration = 0
     /// The Artists view (#288): the catalogue of `releases`, its covers, and the stack's path
     /// (release and artist pages push onto it).
     @State private var catalog = ArtistCatalog(releases: [])
@@ -87,21 +88,6 @@ struct LibraryView: View {
     private func key(_ release: Release) -> CoverKey {
         CoverKey(id: release.id, updatedAt: release.updatedAt)
     }
-
-    /// A cover as read: the image (nil when the release has none) and the pixel side it was decoded at.
-    private struct LibraryCover {
-        let image: UIImage?
-        let pixels: CGFloat
-    }
-
-    /// What `readCovers()` reads: every release's cover, at `coverPixels`.
-    private struct CoverRequest: Equatable {
-        let keys: [CoverKey]
-        let pixels: CGFloat
-    }
-
-    /// The covers read first, so the first screen fills before the rest are read.
-    private static let firstCoverBatch = 24
 
     /// The pixel side covers are decoded at: the 56 pt thumbnail in the list; in the grid, the widest an adaptive
     /// tile can be (under twice its minimum plus a gap, or another column would fit), so a large stored cover is
@@ -232,7 +218,6 @@ struct LibraryView: View {
             // Library's own collections model so its card follows a collection made from the menu.
             .trackActionSheets(trackSheets, collections: collections)
             .task(id: skyKey) { await ensurePalette(for: skyKey) }
-            .task(id: CoverRequest(keys: releases.map(key), pixels: coverPixels)) { await readCovers() }
             // No bar on the home screen (the header carries the title); pushed
             // release pages set their own.
             .toolbar(.hidden, for: .navigationBar)
@@ -786,24 +771,15 @@ struct LibraryView: View {
             .overlay { coverImage(for: release, cornerRadius: Theme.Radius.thumbnail) }
     }
 
-    /// The stored cover filling its frame, or the double note on `card` (#296); while it is being read, a still
-    /// square once the read has taken 300 ms (#423).
+    /// The stored cover filling its frame, or the double note on `card` (#296); read by the tile itself as it nears the
+    /// screen (#423).
     @ViewBuilder
     private func coverImage(for release: Release, cornerRadius: CGFloat) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius)
-        if let uiImage = covers[key(release)]?.image {
-            Color.clear
-                .overlay {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFill()
-                }
-                .clipShape(shape)
-                .endsSignpost(.libraryFirstCover)
-        } else if covers[key(release)] != nil {
-            NoCoverArt().clipShape(shape)
+        if let coverCache {
+            LibraryCoverView(id: release.id, updatedAt: release.updatedAt, pixels: coverPixels, cache: coverCache,
+                             cornerRadius: cornerRadius, generation: coverGeneration)
         } else {
-            DelayedSkeleton { shape.fill(Theme.skeletonFill) }
+            DelayedSkeleton { RoundedRectangle(cornerRadius: cornerRadius).fill(Theme.skeletonFill) }
         }
     }
 
@@ -815,28 +791,6 @@ struct LibraryView: View {
             ArtworkPalette.palette(forCover: store?.load(key.id))
         }.value
         palettes[key] = palette
-    }
-
-    /// Reads the covers not yet held at `coverPixels`, off the main thread, the first screenful first (#423).
-    private func readCovers() async {
-        guard let store = container?.coverStore else { return }
-        let pixels = coverPixels
-        var seen = Set<CoverKey>()
-        let todo = (displayOrder + releases).map(key).filter { coverKey in
-            guard seen.insert(coverKey).inserted else { return false }
-            guard let held = covers[coverKey] else { return true }
-            return held.image != nil && held.pixels < pixels
-        }
-        for batch in [Array(todo.prefix(Self.firstCoverBatch)), Array(todo.dropFirst(Self.firstCoverBatch))] where !batch.isEmpty {
-            let ids = batch.map(\.id)
-            let found = await Task.detached(priority: .userInitiated) {
-                CoverThumbnail.images(for: ids, from: store, maxPixels: pixels)
-            }.value
-            guard !Task.isCancelled else { return }
-            var next = covers
-            for coverKey in batch { next[coverKey] = LibraryCover(image: found[coverKey.id], pixels: pixels) }
-            covers = next
-        }
     }
 
     private func load() {
@@ -852,12 +806,13 @@ struct LibraryView: View {
             let source = artistCovers ?? ArtistCoverSource(loader: { store.load($0) })
             source.refresh(releases)
             artistCovers = source
+            if coverCache == nil { coverCache = LibraryCoverCache(loader: { store.load($0) }) }
             let live = Set(releases.map(key))
             palettes = palettes.filter { live.contains($0.key) }
-            covers = covers.filter { live.contains($0.key) }
         } catch {
             errorMessage = error.localizedDescription
         }
+        coverGeneration += 1
     }
 }
 

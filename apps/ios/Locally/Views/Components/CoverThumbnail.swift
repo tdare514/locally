@@ -19,17 +19,4 @@ enum CoverThumbnail {
         guard let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
         return UIImage(cgImage: cg)
     }
-
-    /// The covers of `ids` from `store`, decoded in parallel. An id with no cover, or bytes that are not an image,
-    /// has no entry.
-    static func images(for ids: [UUID], from store: CoverStore, maxPixels: CGFloat?) -> [UUID: UIImage] {
-        let lock = NSLock()
-        var found: [UUID: UIImage] = [:]
-        DispatchQueue.concurrentPerform(iterations: ids.count) { index in
-            let id = ids[index]
-            guard let data = store.load(id), let image = image(from: data, maxPixels: maxPixels) else { return }
-            lock.withLock { found[id] = image }
-        }
-        return found
-    }
 }

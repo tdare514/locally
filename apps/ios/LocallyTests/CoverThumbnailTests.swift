@@ -37,20 +37,6 @@ import UIKit
         #expect(CoverThumbnail.image(from: Data(), maxPixels: 168) == nil)
     }
 
-    @Test func readsEveryStoredCoverAndSkipsMissingOrBadOnes() throws {
-        let store = FakeCoverStore()
-        let first = UUID(), second = UUID(), bad = UUID(), missing = UUID()
-        _ = try store.save(jpeg(width: 1000, height: 1000), for: first)
-        _ = try store.save(jpeg(width: 400, height: 400), for: second)
-        _ = try store.save(Data("not a cover".utf8), for: bad)
-
-        let found = CoverThumbnail.images(for: [first, second, bad, missing], from: store, maxPixels: 168)
-
-        #expect(Set(found.keys) == [first, second])
-        #expect(pixels(found[first]) == CGSize(width: 168, height: 168))
-        #expect(pixels(found[second]) == CGSize(width: 168, height: 168))
-    }
-
     @Test func theStatsCacheReadsACoverOnceAndShrinksIt() async {
         let data = jpeg(width: 1000, height: 1000)
         let reads = ReadCounter()
