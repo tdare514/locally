@@ -17,14 +17,14 @@ struct AlbumBuilderView: View {
                     ImportRecordSleeve(coverData: Binding(get: { model.coverData }, set: { model.coverData = $0 }), context: context)
                         .id(ImportRecordSleeve.scrollID)
                         .importClearRow()
-                    ImportMetaLine(kind: context.kind, trackCount: model.rows.count, isSwitchDisabled: context.isBusy, tint: context.glowColors[0])
+                    ImportMetaLine(kind: context.kind, trackCount: model.rows.count, isSwitchDisabled: context.isBusy)
                         .importClearRow(top: 0, bottom: Theme.Immersive.fieldsMetaGap)
                     AlbumNotice()
                         .importClearRow(top: 0, bottom: Theme.Immersive.fieldsMetaGap)
                     VStack(alignment: .leading, spacing: Theme.Immersive.labeledFieldRowGap) {
                         LabeledField(Copy.Import.fieldTitle, placeholder: Copy.Import.titlePlaceholder(for: .album), text: Binding(get: { model.albumTitle }, set: { model.albumTitle = $0 }), font: Theme.ScaledFont.fieldTitle, metricsStyle: .title3, wraps: true)
                         ArtistField(text: Binding(get: { model.artist }, set: { model.artist = $0 }))
-                        ReleaseDateGenreRows(releaseDate: Binding(get: { model.releaseDateText }, set: { model.releaseDateText = $0 }), genre: Binding(get: { model.genre }, set: { model.genre = $0 }), message: model.releaseDateMessage, glowColors: context.glowColors)
+                        ReleaseDateGenreRows(releaseDate: Binding(get: { model.releaseDateText }, set: { model.releaseDateText = $0 }), genre: Binding(get: { model.genre }, set: { model.genre = $0 }), message: model.releaseDateMessage)
                     }
                     .importFieldsRow()
                     ClearSectionEnd()
@@ -100,22 +100,24 @@ struct AlbumBuilderView: View {
                     ImportSendError(message: errorMessage)
                 }
                 Button(action: context.onSend) {
-                    if model.isSending {
-                        VStack(spacing: 4) {
-                            ProgressView().tint(.white)
+                    VStack(spacing: 4) {
+                        // A busy button keeps its label and swaps its icon for a spinner (rule 10).
+                        HStack(spacing: 8) {
+                            if model.isSending {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "paperplane.fill").accessibilityHidden(true)
+                            }
+                            Text(Copy.Import.send)
+                        }
+                        if model.isSending {
                             Text(Copy.Import.taggingProgress(done: model.progressDone, total: model.progressTotal))
                                 .themeFont(.rowSubtitle)
                         }
-                        .frame(maxWidth: .infinity)
-                    } else {
-                        HStack(spacing: 8) {
-                            Image(systemName: "paperplane.fill").accessibilityHidden(true)
-                            Text(Copy.Import.send)
-                        }
-                        .frame(maxWidth: .infinity)
                     }
+                    .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(CoverGlowButtonStyle(colors: context.glowColors))
+                .buttonStyle(MainButtonStyle())
                 .disabled(!model.canSend || context.isSendHeld)
             }
         }

@@ -6,149 +6,50 @@ import SwiftUI
 
 // MARK: - Buttons
 
-/// "Import to Spotify" / "Send to Spotify": an `accent` pill with black bold
-/// text, full width and 48 tall on mobile (per "Shape and spacing"), or a
-/// small non-full-width pill (the crop sheet's "Done"). Press feedback:
-/// scale to 0.95. Disabled: 50% opacity.
-struct PrimaryPillButtonStyle: ButtonStyle {
+/// The main action (docs/design.md "Design rules (30 Oct 2026)", rule 3): Send to Spotify, Save changes,
+/// Add a track, Done, Next. A solid `text` capsule with a black semibold label, at least 44 pt tall (48
+/// full width), so it has a shape at rest on a phone. A press dims it to 85 %. Disabled: an `elevated`
+/// capsule with a `text-dim` label. A `ProgressView` inside takes the label's colour. The cover's colours
+/// never reach it: no tint, glow, shimmer or scale.
+struct MainButtonStyle: ButtonStyle {
     var isFullWidth: Bool = true
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
+        let label = isEnabled ? Color.black : Theme.textDim
         configuration.label
-            .themeFont(.primaryButton)
-            .foregroundStyle(Color.black)
+            .themeFont(.primaryButton, weight: .semibold)
+            .foregroundStyle(label)
+            .tint(label)
             .multilineTextAlignment(.center)
-            .padding(.horizontal, isFullWidth ? 0 : Theme.Spacing.primaryButtonH)
+            .padding(.horizontal, Theme.Spacing.primaryButtonH)
             .padding(.vertical, Theme.Spacing.primaryButtonV)
             .frame(maxWidth: isFullWidth ? .infinity : nil)
-            .frame(minHeight: isFullWidth ? Theme.Spacing.primaryButtonMinHeight : Theme.Spacing.primaryButtonCompactMinHeight)
-            .background(Theme.accent)
-            .clipShape(Capsule())
-            .opacity(isEnabled ? 1 : 0.5)
-            .scaleEffect(configuration.isPressed ? 0.95 : 1)
+            .frame(minHeight: isFullWidth ? Theme.Spacing.primaryButtonMinHeight : Theme.Spacing.minTarget)
+            .background(isEnabled ? Theme.primaryText : Theme.elevated, in: Capsule())
+            .contentShape(Capsule())
+            .opacity(configuration.isPressed ? 0.85 : 1)
     }
 }
 
-/// The Mac's `.btn-save.btn-glow` (#159, #205): a clear faked-glass capsule (gradients only, no
-/// Material, no blur) with a white label. While pressed, three soft clouds of fluorescent blue
-/// light fade in over 0.3 s, clipped by the capsule, and drift slowly back and forth while lit.
-/// Reduce Motion: the same opacity fade, no drift and no press scale. `pinnedLit` is for the
-/// component gallery: lit, with the drift held at its midpoint.
-struct GlowPillButtonStyle: ButtonStyle {
-    var pinnedLit: Bool = false
+/// An icon-only button (rule 3): the drawn glyph in `text` in a 44 pt target, with nothing behind it. A
+/// press dims it to 70 %; disabled, 40 %. Give the button an accessibility label.
+struct IconButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
-        let lit = pinnedLit || configuration.isPressed
         configuration.label
-            .themeFont(.primaryButton)
-            .foregroundStyle(Color.white)
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, Theme.Spacing.primaryButtonH)
-            .padding(.vertical, Theme.Spacing.primaryButtonV)
-            .frame(minHeight: Theme.Import.glowMinHeight)
-            .background {
-                ZStack {
-                    GlowGlass()
-                    GlowClouds(lit: lit, drifts: !reduceMotion && !pinnedLit, pinned: pinnedLit || reduceMotion)
-                    GlowLabelPool(lit: lit)
-                }
-                .clipShape(Capsule())
-            }
-            .overlay { GlowRim() }
-            .opacity(isEnabled ? 1 : 0.5)
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.95 : 1)
-    }
-}
-
-/// The cover glow button (docs/design.md "Cover glow button"): Send to Spotify and Save changes.
-/// The Glow pill's glass and rim with a white label, two soft clouds of the cover's colours
-/// rising from the lower edge and a halo of the first colour under it. Pressed: the clouds
-/// brighten, one shimmer sweeps across, scale 0.97. Reduce Motion: the brighten only. Disabled:
-/// glass and rim, a half-opacity label. `pinnedPressed` is for the component gallery.
-struct CoverGlowButtonStyle: ButtonStyle {
-    let colors: [Color]
-    var isFullWidth: Bool = true
-    var pinnedPressed: Bool = false
-    @Environment(\.isEnabled) private var isEnabled
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    private var ease: Animation { .timingCurve(0.16, 1, 0.3, 1, duration: 0.45) }
-
-    func makeBody(configuration: Configuration) -> some View {
-        let pressed = pinnedPressed || configuration.isPressed
-        let first = colors.first ?? Theme.accent
-        let second = colors.count > 1 ? colors[1] : first
-        configuration.label
-            .themeFont(.primaryButton)
-            .foregroundStyle(Color.white)
-            .multilineTextAlignment(.center)
-            .opacity(isEnabled ? 1 : 0.5)
-            .padding(.horizontal, Theme.Spacing.primaryButtonH)
-            .padding(.vertical, Theme.Spacing.primaryButtonV)
-            .frame(maxWidth: isFullWidth ? .infinity : nil, minHeight: isFullWidth ? Theme.Spacing.coverGlowMinHeight : Theme.Spacing.coverGlowCompactMinHeight)
-            .background {
-                ZStack {
-                    if isEnabled {
-                        // The halo's shape: glass alone is too clear to cast a shadow.
-                        Capsule()
-                            .fill(first.opacity(0.2))
-                            .shadow(color: first.opacity(0.45), radius: 14, y: 4)
-                    }
-                    ZStack {
-                        // A dark base under the glass, so the list scrolling beneath the footer
-                        // never shows through the button.
-                        Theme.background.opacity(Theme.Import.coverGlowBaseOpacity)
-                        GlowGlass()
-                        if isEnabled {
-                            CoverGlowClouds(first: first, second: second, bright: pressed, restOpacity: dynamicTypeSize.isAccessibilitySize ? Theme.Import.coverGlowRestAccessibility : Theme.Import.coverGlowRest)
-                            CoverGlowShimmer(pressed: pressed, pinned: pinnedPressed, enabled: !reduceMotion)
-                            GlowLabelPool(lit: true)
-                        }
-                    }
-                    .clipShape(Capsule())
-                }
-                .animation(ease, value: pressed)
-            }
-            .overlay { GlowRim() }
-            .scaleEffect(pressed && !reduceMotion ? 0.97 : 1)
-            .animation(ease, value: pressed)
-    }
-}
-
-/// Two soft blurred ellipses rising from the capsule's lower edge, lit at rest and brighter pressed.
-private struct CoverGlowClouds: View {
-    let first: Color
-    let second: Color
-    let bright: Bool
-    let restOpacity: Double
-
-    var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let h = geo.size.height
-            ZStack {
-                Ellipse().fill(first)
-                    .frame(width: w * 0.62, height: h * 1.3)
-                    .position(x: w * 0.3, y: h * 1.0)
-                Ellipse().fill(second)
-                    .frame(width: w * 0.62, height: h * 1.3)
-                    .position(x: w * 0.7, y: h * 1.0)
-            }
-            .blur(radius: 16)
-            .opacity(bright ? Theme.Import.coverGlowPressed : restOpacity)
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
+            .foregroundStyle(Theme.primaryText)
+            .frame(minWidth: Theme.Spacing.minTarget, minHeight: Theme.Spacing.minTarget)
+            .contentShape(Rectangle())
+            .opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
     }
 }
 
 /// One soft white diagonal band that sweeps left to right over 0.6 s each time `pressed` turns
 /// on, and is off screen the rest of the time. Only its offset animates. Held at the middle
-/// when `pinned`.
+/// when `pinned`. No button uses it any more (rule 2); the collection page's sleeve still does until
+/// #414 gives it a plain playing state.
 struct CoverGlowShimmer: View {
     let pressed: Bool
     let pinned: Bool
@@ -188,7 +89,8 @@ extension Theme {
     }
 }
 
-/// The pill at rest: the phone-tray glass's body, a top-to-bottom fill and a corner highlight.
+/// Glass for things that float (the tray, toasts, cards): the phone-tray glass's body, a top-to-bottom fill and a corner highlight.
+/// Never behind something you press (rule 5).
 struct GlowGlass: View {
     var body: some View {
         ZStack {
@@ -246,149 +148,8 @@ struct GlowRim: View {
     }
 }
 
-/// A round 44 pt button in the Glow pill's glass and rim (the Stats stepper's chevrons). Half opacity disabled.
-struct GlowCircleButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(Color.white)
-            .frame(width: Theme.Import.kindSwitchMinTarget, height: Theme.Import.kindSwitchMinTarget)
-            .background { GlowGlass().clipShape(Circle()) }
-            .overlay { GlowRim(round: true) }
-            .contentShape(Circle())
-            .opacity(isEnabled ? 1 : 0.5)
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.95 : 1)
-    }
-}
-
-/// A soft dark pool between the light and the label, only while lit, so the white label keeps
-/// its contrast over the bright clouds wherever they drift. A feathered ellipse, no edge.
-struct GlowLabelPool: View {
-    let lit: Bool
-
-    var body: some View {
-        GeometryReader { geo in
-            RadialGradient(
-                stops: [
-                    .init(color: .black.opacity(Theme.Import.glowPoolOpacity), location: 0),
-                    .init(color: .black.opacity(Theme.Import.glowPoolOpacity), location: Theme.Import.glowPoolCoreAt),
-                    .init(color: .black.opacity(Theme.Import.glowPoolOpacity * 0.45), location: Theme.Import.glowPoolMidAt),
-                    .init(color: .black.opacity(0), location: 1),
-                ],
-                center: .center,
-                startRadius: 0,
-                endRadius: geo.size.width * Theme.Import.glowPoolRadius
-            )
-            // Taller than the pill before the squash, so the gradient's rectangle never shows.
-            .frame(width: geo.size.width * 2, height: geo.size.height * 2 / Theme.Import.glowPoolSquash)
-            .scaleEffect(x: 1, y: Theme.Import.glowPoolSquash, anchor: .center)
-            .frame(width: geo.size.width, height: geo.size.height)
-        }
-        .opacity(lit ? 1 : 0)
-        .animation(.easeOut(duration: Theme.Import.glowFadeDuration), value: lit)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-}
-
-/// The light: three feathered clouds over a thin wash on a layer far larger than the pill (its
-/// middle shows), faded with `lit` and drifting (translate and scale, back and forth) only while lit.
-private struct GlowClouds: View {
-    let lit: Bool
-    /// The drift runs; false holds it still.
-    let drifts: Bool
-    /// Held at the drift's midpoint (the gallery, and Reduce Motion).
-    let pinned: Bool
-
-    var body: some View {
-        GeometryReader { geo in
-            let layer = CGSize(width: geo.size.width * (1 + 2 * Theme.Import.glowInsetX),
-                               height: geo.size.height * (1 + 2 * Theme.Import.glowInsetY))
-            TimelineView(.animation(minimumInterval: nil, paused: !(lit && drifts))) { timeline in
-                let eased = pinned ? 0.5 : Self.drift(at: timeline.date.timeIntervalSinceReferenceDate)
-                cloudLayer(layer)
-                    .scaleEffect(1 + Theme.Import.glowDriftScale * eased)
-                    .offset(x: layer.width * Theme.Import.glowDriftX * (2 * eased - 1),
-                            y: layer.height * Theme.Import.glowDriftY * (2 * eased - 1))
-                    .frame(width: layer.width, height: layer.height)
-                    .position(x: geo.size.width / 2, y: geo.size.height / 2)
-            }
-        }
-        .opacity(lit ? 1 : 0)
-        .animation(.easeOut(duration: Theme.Import.glowFadeDuration), value: lit)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-
-    /// 0 to 1 and back every 2 x `glowDriftDuration`, ease-in-out (`animation: ... alternate`).
-    private static func drift(at seconds: TimeInterval) -> Double {
-        let cycle = Theme.Import.glowDriftDuration * 2
-        var u = seconds.truncatingRemainder(dividingBy: cycle) / Theme.Import.glowDriftDuration
-        if u > 1 { u = 2 - u }
-        return UnitCurve.easeInOut.value(at: u)
-    }
-
-    private func cloudLayer(_ size: CGSize) -> some View {
-        ZStack {
-            Theme.Import.glowWash
-            cloud(Theme.Import.glowAzure, alphas: (0.95, 0.62, 0.24), stops: (0.28, 0.62),
-                  radii: (0.40, 0.70), at: (0.36, 0.56), in: size)
-            cloud(Theme.Import.glowIce, alphas: (0.9, 0.55, 0.2), stops: (0.30, 0.64),
-                  radii: (0.34, 0.62), at: (0.58, 0.36), in: size)
-            cloud(Theme.Import.glowCobalt, alphas: (0.92, 0.58, 0.2), stops: (0.30, 0.64),
-                  radii: (0.38, 0.68), at: (0.70, 0.64), in: size)
-        }
-        .frame(width: size.width, height: size.height)
-    }
-
-    /// `radial-gradient(rx ry at cx cy, c a0 0%, c a1 s0, c a2 s1, transparent 100%)`: a circle
-    /// of radius rx squashed to an ellipse, so it stays a gradient and needs no mask.
-    private func cloud(_ c: (r: Double, g: Double, b: Double), alphas: (Double, Double, Double),
-                       stops: (Double, Double), radii: (Double, Double), at centre: (Double, Double),
-                       in size: CGSize) -> some View {
-        let color = { (a: Double) in Color(red: c.r / 255, green: c.g / 255, blue: c.b / 255).opacity(a) }
-        let rx = size.width * radii.0
-        let ry = size.height * radii.1
-        return Rectangle()
-            .fill(RadialGradient(
-                stops: [
-                    .init(color: color(alphas.0), location: 0),
-                    .init(color: color(alphas.1), location: stops.0),
-                    .init(color: color(alphas.2), location: stops.1),
-                    .init(color: color(0), location: 1),
-                ],
-                center: .center,
-                startRadius: 0,
-                endRadius: rx
-            ))
-            .frame(width: rx * 2, height: rx * 2)
-            .scaleEffect(x: 1, y: ry / rx)
-            .position(x: size.width * centre.0, y: size.height * centre.1)
-    }
-}
-
-/// "Settings" / "Show in Finder"-style secondary actions: an `elevated`
-/// pill with a `text` (or `danger`, for destructive actions) label.
-struct SecondaryPillButtonStyle: ButtonStyle {
-    var isDestructive: Bool = false
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .themeFont(.body, weight: .medium)
-            .foregroundStyle(isDestructive ? Theme.danger : Theme.primaryText)
-            .padding(.horizontal, Theme.Spacing.primaryButtonH)
-            .padding(.vertical, Theme.Spacing.primaryButtonV)
-            .background(Theme.elevated)
-            .clipShape(Capsule())
-            .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.5)
-    }
-}
-
 /// "Cancel" / "Delete": no background, just coloured text that lightens to
-/// white on press. `color` defaults to `text-muted`; pass `Theme.danger` for
+/// white on press, with a 44 pt tall hit area. `color` defaults to `text-muted`; pass `Theme.danger` for
 /// a destructive text button (e.g. release detail's "Delete").
 struct TextButtonStyle: ButtonStyle {
     var color: Color = Theme.secondaryText
@@ -398,6 +159,8 @@ struct TextButtonStyle: ButtonStyle {
         configuration.label
             .themeFont(.body, weight: .semibold)
             .foregroundStyle(configuration.isPressed ? Theme.primaryText : color)
+            .frame(minHeight: Theme.Spacing.minTarget)
+            .contentShape(Rectangle())
             .opacity(isEnabled ? 1 : 0.5)
     }
 }

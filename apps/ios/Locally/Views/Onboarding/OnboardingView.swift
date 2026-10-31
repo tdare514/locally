@@ -136,19 +136,19 @@ struct OnboardingView: View {
     private var actionButton: some View {
         if isConfirmed {
             Button(Copy.Onboarding.getStarted, action: onFinished)
-                .buttonStyle(PrimaryPillButtonStyle())
+                .buttonStyle(MainButtonStyle())
         } else if step == .folder {
             Button(Copy.Onboarding.chooseFolder) {
                 isPresentingFolderPicker = true
             }
-            .buttonStyle(PrimaryPillButtonStyle())
+            .buttonStyle(MainButtonStyle())
         } else {
             Button(Copy.Onboarding.next) {
                 if let next = Step(rawValue: step.rawValue + 1) {
                     step = next
                 }
             }
-            .buttonStyle(PrimaryPillButtonStyle())
+            .buttonStyle(MainButtonStyle())
         }
     }
 

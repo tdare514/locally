@@ -44,10 +44,10 @@ struct CoverCropView: View {
 
             cropCanvas
 
-            SegmentedPill(
-                options: [(CoverRatio.square, Copy.Cover.square), (CoverRatio.original, Copy.Cover.original)],
+            SlimSwitch(
+                options: [(value: CoverRatio.square, icon: nil, label: Copy.Cover.square), (value: CoverRatio.original, icon: nil, label: Copy.Cover.original)],
                 selection: $ratio,
-                isCompact: true
+                compact: true
             )
             .onChange(of: ratio) { _, newValue in
                 resetCropRect(CropGeometry.initialRect(imageSize: imageSize, ratio: newValue))
@@ -66,7 +66,7 @@ struct CoverCropView: View {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(spacing: 8) {
                     Button(Copy.Cover.done, action: process)
-                        .buttonStyle(PrimaryPillButtonStyle())
+                        .buttonStyle(MainButtonStyle())
                         .disabled(uiImage == nil)
                     Button(Copy.Cover.cancel, action: onCancel)
                         .buttonStyle(TextButtonStyle())
@@ -77,7 +77,7 @@ struct CoverCropView: View {
                     Button(Copy.Cover.cancel, action: onCancel)
                         .buttonStyle(TextButtonStyle())
                     Button(Copy.Cover.done, action: process)
-                        .buttonStyle(PrimaryPillButtonStyle(isFullWidth: false))
+                        .buttonStyle(MainButtonStyle(isFullWidth: false))
                         .disabled(uiImage == nil)
                 }
             }

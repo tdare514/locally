@@ -116,16 +116,6 @@ struct LibraryView: View {
         skyKey.flatMap { palettes[$0] } ?? .neutral
     }
 
-    /// The header controls' tint: the sky cover's glow colour, lifted to a minimum brightness so the glass thumbs show on a dark
-    /// cover; the accent with no cover (as the Import record's switch).
-    private var controlsTint: Color {
-        let palette = skyPalette
-        let glow = Theme.coverGlowColors(palette == .neutral ? nil : palette)[0]
-        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0
-        guard palette != .neutral, UIColor(glow).getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: nil) else { return glow }
-        return Color(hue: hue, saturation: saturation, brightness: max(brightness, Theme.Library.controlsTintMinBrightness))
-    }
-
     private func openRequestedRelease() {
         guard let id = playback?.openReleaseRequest, let release = releases.first(where: { $0.id == id }) else { return }
         if let trackId = playback?.openReleaseTrackRequest {
@@ -530,16 +520,14 @@ struct LibraryView: View {
             layoutButton(.covers, systemImage: "square.grid.2x2", label: Copy.Library.layoutCovers)
             layoutButton(.artists, icon: .person, label: Copy.Library.layoutArtists)
         }
-        .padding(.horizontal, 3)
-        .background { GlowGlass().clipShape(Capsule()) }
-        .overlay { GlowRim() }
+        .background(Theme.elevated, in: Capsule())
         .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: layout)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Copy.Library.layoutLabel)
     }
 
     private var sizeControl: some View {
-        CoverSizeSlider(selection: $coverSize, tint: controlsTint)
+        CoverSizeSlider(selection: $coverSize)
     }
 
     /// The sort menu (#288): the Mac's four options with a check on the current one.
@@ -551,14 +539,12 @@ struct LibraryView: View {
                 }
             }
         } label: {
-            let side = max(toggleButtonSize, Theme.Import.kindSwitchMinTarget)
+            let side = max(toggleButtonSize, Theme.Spacing.minTarget)
             Image(systemName: "arrow.up.arrow.down")
                 .font(.system(size: toggleIconSize, weight: .semibold))
-                .foregroundStyle(Color.white.opacity(0.85))
+                .foregroundStyle(Theme.primaryText)
                 .frame(width: side, height: side)
-                .background { GlowGlass().clipShape(Circle()) }
-                .overlay { GlowRim(round: true) }
-                .contentShape(Circle())
+                .contentShape(Rectangle())
         }
         .accessibilityLabel(Copy.Library.sortLabel(Copy.Library.sortName(sort)))
     }
@@ -583,12 +569,13 @@ struct LibraryView: View {
             layout = value
         } label: {
             glyph()
-                .foregroundStyle(Color.white.opacity(selected ? 1 : 0.55))
-                .frame(width: max(toggleButtonSize, Theme.Import.kindSwitchMinTarget), height: max(toggleButtonSize, Theme.Import.kindSwitchMinTarget))
+                .foregroundStyle(selected ? Theme.primaryText : Theme.secondaryText)
+                .frame(width: max(toggleButtonSize, Theme.Spacing.minTarget), height: max(toggleButtonSize, Theme.Spacing.minTarget))
                 .background {
                     if selected {
-                        TintedGlassThumb(shape: Capsule(), tint: controlsTint)
-                            .padding(.vertical, Theme.Library.toggleThumbInset)
+                        Capsule()
+                            .fill(Theme.elevatedHover)
+                            .padding(Theme.Library.toggleThumbInset)
                             .matchedGeometryEffect(id: "layoutThumb", in: layoutThumbSpace)
                     }
                 }
@@ -946,9 +933,10 @@ struct LibraryEmptyState: View {
 
             VStack(spacing: 12) {
                 Button(Copy.Library.addFirstSingle, action: onAddSingle)
-                    .buttonStyle(PrimaryPillButtonStyle())
+                    .buttonStyle(MainButtonStyle())
                 Button(Copy.Library.makeAnAlbum, action: onMakeAlbum)
-                    .buttonStyle(SecondaryPillButtonStyle())
+                    .buttonStyle(TextButtonStyle())
+                    .frame(maxWidth: .infinity, minHeight: Theme.Spacing.minTarget)
             }
             .padding(.bottom, 8)
         }

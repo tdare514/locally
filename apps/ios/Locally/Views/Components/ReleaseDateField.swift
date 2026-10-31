@@ -9,7 +9,6 @@ struct ReleaseDateField: View {
     @Binding var text: String
     var isEditable = true
     var message: String?
-    var glowColors: [Color] = Theme.coverGlowColors(nil)
 
     @FocusState private var focused: Bool
     @State private var isPresentingSheet: Bool
@@ -17,11 +16,10 @@ struct ReleaseDateField: View {
     @Environment(\.displayScale) private var displayScale
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(text: Binding<String>, isEditable: Bool = true, message: String? = nil, glowColors: [Color] = Theme.coverGlowColors(nil), startsWithSheetOpen: Bool = false) {
+    init(text: Binding<String>, isEditable: Bool = true, message: String? = nil, startsWithSheetOpen: Bool = false) {
         self._text = text
         self.isEditable = isEditable
         self.message = message
-        self.glowColors = glowColors
         self._isPresentingSheet = State(initialValue: startsWithSheetOpen)
     }
 
@@ -151,7 +149,7 @@ struct ReleaseDateField: View {
             messageLine
         }
         .sheet(isPresented: $isPresentingSheet) {
-            ReleaseDateSheet(text: $text, glowColors: glowColors)
+            ReleaseDateSheet(text: $text)
         }
     }
 }
@@ -165,7 +163,6 @@ private enum DatePrecision: Hashable {
 /// Every conversion uses a Gregorian calendar in UTC, so 17 May never becomes 16 May.
 private struct ReleaseDateSheet: View {
     @Binding var text: String
-    let glowColors: [Color]
 
     @State private var precision: DatePrecision
     @State private var year: Int
@@ -184,9 +181,8 @@ private struct ReleaseDateSheet: View {
         return calendar
     }
 
-    init(text: Binding<String>, glowColors: [Color]) {
+    init(text: Binding<String>) {
         self._text = text
-        self.glowColors = glowColors
         let start: (precision: DatePrecision, year: Int, month: Int, day: Int)
         if let date = ReleaseDateText.parse(text.wrappedValue).date {
             start = (date.month == nil ? .year : date.day == nil ? .month : .day, date.year, date.month ?? 1, date.day ?? 1)
@@ -284,7 +280,7 @@ private struct ReleaseDateSheet: View {
                     .font(Theme.ScaledFont.headline)
                     .foregroundStyle(Theme.primaryText)
                     .accessibilityAddTraits(.isHeader)
-                GlowSwitch(options: Self.options, selection: $precision, tint: Theme.accent, compact: true)
+                SlimSwitch(options: Self.options, selection: $precision, compact: true)
                     .frame(maxWidth: .infinity)
                 wheels
                     .frame(maxWidth: .infinity)
@@ -294,7 +290,7 @@ private struct ReleaseDateSheet: View {
                 } label: {
                     Text(Copy.DateField.done)
                 }
-                .buttonStyle(CoverGlowButtonStyle(colors: glowColors))
+                .buttonStyle(MainButtonStyle())
                 Button {
                     text = ""
                     dismiss()
@@ -321,13 +317,12 @@ struct ReleaseDateGenreRows: View {
     @Binding var genre: String
     var isEditable = true
     var message: String?
-    var glowColors: [Color] = Theme.coverGlowColors(nil)
     /// The component gallery's open-sheet frame.
     var startsWithSheetOpen = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Immersive.labeledFieldRowGap) {
-            ReleaseDateField(text: $releaseDate, isEditable: isEditable, message: message, glowColors: glowColors, startsWithSheetOpen: startsWithSheetOpen)
+            ReleaseDateField(text: $releaseDate, isEditable: isEditable, message: message, startsWithSheetOpen: startsWithSheetOpen)
             LabeledField(Copy.Import.fieldGenre, placeholder: Copy.Import.genrePlaceholder, text: $genre, font: Theme.ScaledFont.input,
                          wraps: true, isEditable: isEditable)
         }

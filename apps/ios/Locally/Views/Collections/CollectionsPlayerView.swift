@@ -98,7 +98,7 @@ struct CollectionsPlayerView: View {
                         .themeFont(.pageTitle)
                         .foregroundStyle(Theme.primaryText)
                         .accessibilityAddTraits(.isHeader)
-                    CollectionsModeSwitches(mode: $mode, record: $record, tint: tint)
+                    CollectionsModeSwitches(mode: $mode, record: $record)
                 }
                 .padding(.horizontal, Theme.Spacing.listPagePadding)
                 .padding(.top, 12)
@@ -174,13 +174,8 @@ struct CollectionsPlayerView: View {
                 .accessibilityLabel(RecordWheel.hubCount(frontIndex, model.collections.count))
             Button(action: onNew) {
                 LocallyIcon(.plus, size: 22, relativeTo: .body)
-                    .foregroundStyle(Theme.primaryText)
-                    .frame(width: 44, height: 44)
-                    .background { GlowGlass().clipShape(Circle()) }
-                    .overlay { GlowRim(round: true) }
-                    .contentShape(Circle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(IconButtonStyle())
             .accessibilityLabel(Copy.Collections.newCollectionLabel)
         }
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)

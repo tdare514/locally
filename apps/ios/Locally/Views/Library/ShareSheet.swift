@@ -164,7 +164,7 @@ struct ShareSheet: View {
             } label: {
                 Text(model.isSending ? Copy.Share.sending : Copy.Share.send)
             }
-            .buttonStyle(PrimaryPillButtonStyle())
+            .buttonStyle(MainButtonStyle())
             .disabled(!model.canSend)
         }
     }
@@ -237,9 +237,9 @@ struct ShareSheet: View {
                         .foregroundStyle(Theme.primaryText)
                 }
                 .accessibilityElement(children: .combine)
-                GlowSwitch(
+                SlimSwitch(
                     options: ShareExpiry.allCases.map { (value: $0, icon: nil, label: $0.label) },
-                    selection: $model.expiry, tint: Theme.accent, compact: true
+                    selection: $model.expiry, compact: true
                 )
             }
             .padding(.horizontal, 16)
@@ -279,7 +279,7 @@ struct ShareSheet: View {
                 }
             }
             Button(Copy.Share.done, action: onClose)
-                .buttonStyle(PrimaryPillButtonStyle())
+                .buttonStyle(MainButtonStyle())
         }
     }
 

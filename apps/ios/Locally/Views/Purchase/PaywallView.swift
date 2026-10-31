@@ -43,19 +43,20 @@ struct PaywallView: View {
                 Button {
                     Task { await buy() }
                 } label: {
-                    if isPurchasing {
-                        ProgressView().tint(.black)
-                    } else {
+                    HStack(spacing: 8) {
+                        // A busy button keeps its label and shows a spinner beside it (rule 10).
+                        if isPurchasing { ProgressView() }
                         Text(Copy.Purchase.buyLabel(price: product?.displayPrice))
                     }
                 }
-                .buttonStyle(PrimaryPillButtonStyle())
+                .buttonStyle(MainButtonStyle())
                 .disabled(isPurchasing || isRestoring || product == nil)
 
                 Button(Copy.Purchase.restore) {
                     Task { await restore() }
                 }
-                .buttonStyle(SecondaryPillButtonStyle())
+                .buttonStyle(TextButtonStyle())
+                .frame(maxWidth: .infinity, minHeight: Theme.Spacing.minTarget)
                 .disabled(isPurchasing || isRestoring)
 
                 Spacer()

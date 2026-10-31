@@ -7,8 +7,6 @@ import SwiftUI
 /// is centred when it fits.
 struct ImportInvitation: View {
     let onAddTrack: () -> Void
-    /// The component gallery holds the button lit.
-    var pinnedLit: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shown = false
@@ -39,7 +37,7 @@ struct ImportInvitation: View {
                 Button(action: onAddTrack) {
                     Text(Copy.Import.addTrack)
                 }
-                .buttonStyle(GlowPillButtonStyle(pinnedLit: pinnedLit))
+                .buttonStyle(MainButtonStyle(isFullWidth: false))
                 Text(Copy.Import.addTrackHint)
                     .font(Theme.ScaledFont.caption)
                     .foregroundStyle(Theme.secondaryText)
