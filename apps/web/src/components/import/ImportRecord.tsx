@@ -73,7 +73,7 @@ function InlineField({
         placeholder={placeholder}
         inputMode={inputMode}
         onChange={(e) => onChange(e.target.value)}
-        className={`field-sizing-content ${minWidth} rounded-md bg-transparent px-1.5 py-0.5 font-semibold text-text outline-none transition-colors placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent ${UNDERLINE}`}
+        className={`field-sizing-content ${minWidth} rounded-lg bg-transparent px-1.5 py-0.5 font-semibold text-text outline-none transition-colors placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent ${UNDERLINE}`}
       />
     </label>
   );
@@ -179,7 +179,7 @@ export default function ImportRecord({
               index={artistIndex}
               wrapperClassName="-mx-2 -mt-1 max-w-full self-start"
               hintClassName="self-start"
-              inputClassName={`field-sizing-content min-w-[16ch] max-w-full rounded-md bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent ${UNDERLINE}`}
+              inputClassName={`field-sizing-content min-w-[16ch] max-w-full rounded-lg bg-transparent px-2 py-0.5 text-xl font-semibold tracking-[-0.02em] text-white/85 outline-none transition-colors placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent ${UNDERLINE}`}
             />
             {kind === "single" && tracks.length > 0 && (
               <FeaturingRow

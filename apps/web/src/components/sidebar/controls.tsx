@@ -45,7 +45,7 @@ export function NavItem({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-text-muted ${focusRing} ${
+      className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-text-muted ${focusRing} ${
         active ? "bg-white/[0.1] text-text" : "text-text-muted hover:bg-white/[0.07] hover:text-text"
       }`}
     >
@@ -110,7 +110,7 @@ export function Choice<T extends string>({
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(o.value)}
             className={`relative z-10 whitespace-nowrap text-xs font-semibold transition-colors ${focusRing} ${
-              kind === "seg" ? "rounded-full py-1.5" : "rounded-md py-1.5"
+              "rounded-full py-1.5"
             } ${selected ? "text-text" : "text-text-muted hover:text-text-soft"}`}
           >
             {o.label}
@@ -222,7 +222,7 @@ export function EditWidgets({
             checked={enabled[w.key]}
             onChange={() => onToggle(w.key)}
             locked={enabled[w.key] && onCount === 1}
-            className="w-full justify-between rounded-xl px-2.5 py-2 text-[13px] hover:bg-white/[0.06]"
+            className="w-full justify-between rounded-lg px-2.5 py-2 text-[13px] hover:bg-white/[0.06]"
           >
             {w.title}
           </Switch>

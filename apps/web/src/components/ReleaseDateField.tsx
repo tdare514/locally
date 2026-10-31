@@ -40,8 +40,8 @@ const PRECISIONS: { value: PickerPrecision; label: string }[] = [
 
 const INPUT_CLASS: Record<"inline" | "form", string> = {
   inline:
-    "rounded-md bg-transparent px-1.5 py-0.5 font-semibold text-text outline-none transition-colors placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent",
-  form: "min-w-0 flex-1 rounded-md bg-elevated px-4 py-3 text-sm text-text outline-none placeholder:text-text-muted/60 focus:ring-2 focus:ring-accent disabled:opacity-50",
+    "rounded-lg bg-transparent px-1.5 py-0.5 font-semibold text-text outline-none transition-colors placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent",
+  form: "min-w-0 flex-1 rounded-lg bg-elevated px-4 py-3 text-sm text-text outline-none placeholder:text-text-muted/60 focus:ring-2 focus:ring-accent disabled:opacity-50",
 };
 
 /**
@@ -125,7 +125,7 @@ export default function ReleaseDateField({
       aria-haspopup="dialog"
       aria-controls={open ? dialogId : undefined}
       onClick={() => (open ? close() : setOpen(true))}
-      className={`flex size-6 shrink-0 cursor-pointer items-center justify-center self-center rounded-md outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 ${
+      className={`flex size-6 shrink-0 cursor-pointer items-center justify-center self-center rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50 ${
         variant === "inline" ? "text-white/70 hover:bg-white/[0.07] hover:text-text" : "text-text-muted hover:text-text"
       }`}
     >
@@ -153,7 +153,7 @@ export default function ReleaseDateField({
         </div>
       ) : (
         <>
-          <label htmlFor={inputId} className="text-xs font-bold uppercase tracking-[0.14em] text-text-muted">
+          <label htmlFor={inputId} className="text-[13px] font-semibold text-text-muted">
             {LABEL}
           </label>
           <div className="flex items-center gap-1">
@@ -252,7 +252,7 @@ function DatePopover({
   }
 
   const inputClass =
-    "w-full rounded-md bg-white/10 px-2 py-1 text-sm text-text outline-none [color-scheme:dark] focus:ring-2 focus:ring-accent";
+    "w-full rounded-lg bg-white/10 px-2 py-1 text-sm text-text outline-none [color-scheme:dark] focus:ring-2 focus:ring-accent";
 
   return (
     <div

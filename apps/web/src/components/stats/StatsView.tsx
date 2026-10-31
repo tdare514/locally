@@ -122,7 +122,7 @@ export default function StatsView({
       <AmbientBackdrop palette={palette} />
       <div aria-hidden className="st-scrim" />
       <header className="st-rise flex flex-wrap items-center justify-between gap-x-6 gap-y-3" style={{ "--st-i": 0 } as CSSProperties}>
-        <h1 className="text-[22px] font-bold tracking-tight">Stats</h1>
+        <h1 className="text-4xl font-bold tracking-[-0.02em] text-text">Stats</h1>
         {showControls && (
           <WideToggle
             label="Time frame"
@@ -275,7 +275,7 @@ function Coverage({
   onOpenSettings: () => void;
 }) {
   const settingsLink = (
-    <button type="button" onClick={onOpenSettings} className="st-focus rounded font-medium underline underline-offset-2 hover:text-text">
+    <button type="button" onClick={onOpenSettings} className="st-focus rounded-lg font-medium underline underline-offset-2 hover:text-text">
       Settings
     </button>
   );

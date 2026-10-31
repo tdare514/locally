@@ -265,13 +265,13 @@ export default function Player({ releases, onOpenRelease, onOpenCollection }: Pl
             role="region"
             aria-label="Player"
             style={tint ? ({ "--btn-tint": tint } as CSSProperties) : undefined}
-            className="mini-player pointer-events-auto relative isolate flex min-h-[64px] items-center gap-3 rounded-[24px] glass-fake glass-dock px-3 py-2"
+            className="mini-player pointer-events-auto relative isolate flex min-h-[64px] items-center gap-3 rounded-2xl glass-fake glass-dock px-3 py-2"
           >
             <button
               type="button"
               onClick={() => openContext(state.queue!.context, onOpenRelease, onOpenCollection)}
               aria-label={state.queue.context.kind === "collection" ? "Open the collection" : `Open ${info.album}`}
-              className="flex min-w-0 shrink items-center gap-3 rounded-[14px] p-1 pr-3 text-left outline-none hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent basis-56"
+              className="flex min-w-0 shrink items-center gap-3 rounded-xl p-1 pr-3 text-left outline-none hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent basis-56"
             >
               <span className="block size-12 shrink-0 overflow-hidden rounded-[8px] shadow-[0_6px_16px_-6px_rgb(0_0_0/0.7)]">
                 {info.coverUrl ? (
@@ -329,7 +329,7 @@ export default function Player({ releases, onOpenRelease, onOpenCollection }: Pl
                     "--scrub-tint": tint ?? "var(--accent)",
                   } as CSSProperties
                 }
-                className="mini-player-scrub h-8 min-w-0 flex-1 cursor-pointer rounded-md outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="mini-player-scrub h-8 min-w-0 flex-1 cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent"
               />
               <span className="w-10 shrink-0 text-xs tabular-nums text-text-muted">{formatClock(duration)}</span>
             </div>

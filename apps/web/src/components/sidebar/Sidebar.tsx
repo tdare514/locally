@@ -19,7 +19,7 @@ const rule =
 
 const step = (d: number) => ({ "--d": d }) as CSSProperties;
 
-const railButton = `flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${focusRing}`;
+const railButton = `flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${focusRing}`;
 
 /** The pages the rail and the panel go to. Stats waits for its page (see HAS_STATS_PAGE). */
 export type SidebarPage = "library" | "import" | "settings" | "stats";
@@ -326,7 +326,7 @@ export default function Sidebar({
               <button
                 type="button"
                 onClick={toSettings}
-                className={`rounded font-medium text-text-muted underline underline-offset-2 transition-colors hover:text-text ${focusRing}`}
+                className={`rounded-lg font-medium text-text-muted underline underline-offset-2 transition-colors hover:text-text ${focusRing}`}
               >
                 Settings
               </button>

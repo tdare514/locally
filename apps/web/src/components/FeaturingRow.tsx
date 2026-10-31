@@ -30,7 +30,7 @@ export default function FeaturingRow({ names, onChange, index, readOnly, inputEx
         index={index}
         readOnly={readOnly}
         linkNames={linkNames}
-        inputClassName={`field-sizing-content min-w-[18ch] max-w-full rounded-md bg-transparent px-1.5 py-0.5 font-semibold text-text outline-none transition-colors placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent ${inputExtraClassName}`}
+        inputClassName={`field-sizing-content min-w-[18ch] max-w-full rounded-lg bg-transparent px-1.5 py-0.5 font-semibold text-text outline-none transition-colors placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent ${inputExtraClassName}`}
       />
     </div>
   );

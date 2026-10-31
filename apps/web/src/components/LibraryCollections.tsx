@@ -33,9 +33,9 @@ export default function LibraryCollections({
       {!api.loaded ? (
         <div aria-busy="true" aria-label="Loading collections" className="flex gap-3">
           {[0, 1, 2].map((i) => (
-            <span key={i} className="flex h-14 w-48 items-center gap-3 rounded-[14px] p-1.5">
+            <span key={i} className="flex h-14 w-48 items-center gap-3 rounded-xl p-1.5">
               <span className="size-12 rounded-[8px] bg-card" />
-              <span className="h-3 w-20 rounded bg-card" />
+              <span className="h-3 w-20 rounded-full bg-card" />
             </span>
           ))}
         </div>
@@ -53,7 +53,7 @@ export default function LibraryCollections({
               <button
                 type="button"
                 onClick={() => onOpen(c.id)}
-                className="flex h-14 w-52 items-center gap-3 rounded-[14px] p-1.5 text-left outline-none hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent"
+                className="flex h-14 w-52 items-center gap-3 rounded-xl p-1.5 text-left outline-none hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <CollectionSleeve items={c.items} releases={releases} className="size-12" />
                 <span className="min-w-0">

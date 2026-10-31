@@ -19,7 +19,7 @@ export default function StatCover({
   className: string;
 }) {
   const src = statCoverUrl(cover);
-  const shape = round ? "rounded-full" : "rounded-md";
+  const shape = round ? "rounded-full" : "rounded-[4px]";
   if (!src) {
     return <NoCover className={`shrink-0 ${shape} ${className}`} />;
   }

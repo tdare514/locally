@@ -80,7 +80,7 @@ export default function ReleaseBar({ left, status, beforeMain, main, onHeight, l
         ref={barRef}
         role="region"
         aria-label={label}
-        className="pointer-events-auto absolute inset-x-0 bottom-0 isolate flex min-h-[68px] flex-wrap items-center gap-x-4 gap-y-3 rounded-[24px] glass-fake glass-dock px-5 py-3"
+        className="pointer-events-auto absolute inset-x-0 bottom-0 isolate flex min-h-[68px] flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl glass-fake glass-dock px-5 py-3"
       >
         {left && <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">{left}</div>}
         <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-4 gap-y-2">

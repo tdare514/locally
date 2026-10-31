@@ -89,7 +89,7 @@ export default function DiscMenu({ number, title, actions, open, onOpenChange, o
         aria-controls={open ? menuId : undefined}
         aria-label={`Move ${title} to another disc`}
         onClick={() => onOpenChange(!open)}
-        className="track-affordance flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-white outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="track-affordance flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-white outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         <ChevronRightIcon aria-hidden className="size-4 rotate-90" />
       </button>
@@ -153,7 +153,7 @@ export function DiscNumberButton({
           onOpenChange(true);
         }
       }}
-      className="relative flex h-8 w-6 cursor-pointer items-center rounded-md text-sm tabular-nums text-white/60 outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-accent"
+      className="relative flex h-8 w-6 cursor-pointer items-center rounded-full text-sm tabular-nums text-white/60 outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-accent"
     >
       <span data-number className="tabular-nums">
         {number}

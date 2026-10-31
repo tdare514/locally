@@ -106,16 +106,16 @@ function TrackRow({
         <span className="size-10 shrink-0">
           {url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={url} alt="" className="size-10 rounded-md object-cover" />
+            <img src={url} alt="" className="size-10 rounded-[4px] object-cover" />
           ) : (
-            <NoCover className="size-10 rounded-md" />
+            <NoCover className="size-10 rounded-[4px]" />
           )}
         </span>
         <span className="min-w-0 flex-1">
           <button
             type="button"
             data-row-open
-            className="block max-w-full truncate rounded-sm text-left text-[15px] font-semibold text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="block max-w-full truncate rounded-lg text-left text-[15px] font-semibold text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             {title || "Untitled"}
           </button>

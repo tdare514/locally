@@ -44,7 +44,7 @@ export default function NewCollectionForm({
         aria-label="Collection name"
         placeholder="Name your collection"
         onChange={(e) => setName(e.target.value)}
-        className="min-h-11 min-w-0 flex-1 rounded-[12px] bg-elevated px-3 text-sm text-text outline-none placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-accent"
+        className="min-h-11 min-w-0 flex-1 rounded-lg bg-elevated px-3 text-sm text-text outline-none placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-accent"
       />
       <button type="submit" disabled={!clean || busy} className="btn-ink min-h-11 min-w-11">
         {busy ? "Making…" : submitLabel}

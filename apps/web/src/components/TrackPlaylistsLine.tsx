@@ -63,7 +63,7 @@ export default function TrackPlaylistsLine({ trackTitle, playlists, onOpen }: Pr
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         onClick={() => setOpen((v) => !v)}
-        className="-mx-1.5 block cursor-pointer truncate rounded-md px-1.5 text-left text-[13px] leading-5 text-text-muted outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-accent"
+        className="-mx-1.5 block cursor-pointer truncate rounded-lg px-1.5 text-left text-[13px] leading-5 text-text-muted outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-accent"
       >
         {playlistsLine(playlists.map((p) => p.name))}
       </button>

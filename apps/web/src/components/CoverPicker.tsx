@@ -55,7 +55,7 @@ function frameClass(
         }`;
     return `record-sleeve size-[200px] rounded-[4px] bg-card sm:size-[248px] ${edge}`;
   }
-  const radius = presentation === "thumb" ? "rounded-[10px]" : "rounded-lg";
+  const radius = presentation === "thumb" ? "rounded-lg" : "rounded-lg";
   if (presentation === "thumb") {
     return `${radius} border border-border bg-card ${dragOver ? "ring-2 ring-accent" : ""}`;
   }

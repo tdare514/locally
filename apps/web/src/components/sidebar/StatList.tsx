@@ -70,7 +70,7 @@ function Row({
   const medal = medalFor(item.rank);
   return (
     <li
-      className={`sb-row relative flex items-center gap-2.5 rounded-xl px-1.5 ${lead ? "py-1" : "py-0.5"}`}
+      className={`sb-row relative flex items-center gap-2.5 rounded-lg px-1.5 ${lead ? "py-1" : "py-0.5"}`}
       style={{ "--w": share, "--d": order } as CSSProperties}
     >
       <span aria-hidden className="sb-bar" />
