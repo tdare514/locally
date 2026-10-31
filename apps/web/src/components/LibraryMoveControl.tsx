@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getLibraryMovePreview, moveLibrary, type LibraryMovePreview } from "../lib/api-client";
 import { IS_DEMO } from "../lib/demo";
 import Field from "./Field";
+import { BusyLabel, BusyStatus } from "./Spinner";
 
 interface LibraryMoveControlProps {
   onToast: (kind: "success" | "error", text: string) => void;
@@ -106,9 +107,10 @@ export default function LibraryMoveControl({ onToast, onMoved }: LibraryMoveCont
             folder above. Nothing is changed until you confirm.
           </p>
           <div className="flex gap-2">
-            <button type="button" onClick={handleMove} disabled={moving || destination.trim().length === 0} className="btn-save">
-              {moving ? "Moving…" : "Move library"}
+            <button type="button" onClick={handleMove} disabled={moving || destination.trim().length === 0} aria-busy={moving || undefined} className="btn-save">
+              <BusyLabel busy={moving}>Move library</BusyLabel>
             </button>
+            <BusyStatus busy={moving} text="Moving the library" />
             <button type="button" onClick={() => setOpen(false)} disabled={moving} className="btn-ink">
               Cancel
             </button>

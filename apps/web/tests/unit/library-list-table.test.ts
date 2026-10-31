@@ -64,6 +64,13 @@ describe("LibrarySection table", () => {
     expect(formatAddedDate("2026-02-06T12:00:00.000Z", "en-US")).toBe("Feb 6, 2026");
   });
 
+  it("keeps one formatter per locale (#422): a second locale and a repeat each format in their own", () => {
+    expect(formatAddedDate("2026-02-06T12:00:00.000Z", "en-GB")).toBe("6 Feb 2026");
+    expect(formatAddedDate("2026-02-06T12:00:00.000Z", "en-US")).toBe("Feb 6, 2026");
+    expect(formatAddedDate("2026-03-01T12:00:00.000Z", "en-GB")).toBe("1 Mar 2026");
+    expect(formatAddedDate("not a date", "en-GB")).toBe("");
+  });
+
   it("renders nothing for a missing genre or year", () => {
     const html = render([release({ id: "b" })]);
     expect(html).not.toContain("null");

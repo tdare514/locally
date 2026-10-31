@@ -46,6 +46,7 @@ import KnobSwitch from "./KnobSwitch";
 import LibraryMoveControl from "./LibraryMoveControl";
 import { SettingsBlock, SettingsRow, SettingsSection } from "./SettingsGroup";
 import SpotifyFoldersCard from "./SpotifyFoldersCard";
+import { BusyLabel, BusyStatus } from "./Spinner";
 import { HAS_SPOTIFY_CONNECTION } from "./sidebar/flags";
 
 interface SettingsViewProps {
@@ -617,10 +618,12 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
                   type="button"
                   onClick={handleSendCode}
                   disabled={sendingCode || !email.trim()}
+                  aria-busy={sendingCode || undefined}
                   className="btn-save w-fit"
                 >
-                  {sendingCode ? "Sending…" : "Send code"}
+                  <BusyLabel busy={sendingCode}>Send code</BusyLabel>
                 </button>
+                <BusyStatus busy={sendingCode} text="Sending the code" />
               </div>
             ) : (
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -637,10 +640,12 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
                     type="button"
                     onClick={handleVerify}
                     disabled={verifying || !code.trim()}
+                    aria-busy={verifying || undefined}
                     className="btn-save w-fit"
                   >
-                    {verifying ? "Signing in…" : "Sign in"}
+                    <BusyLabel busy={verifying}>Sign in</BusyLabel>
                   </button>
+                  <BusyStatus busy={verifying} text="Signing in" />
                   <button
                     type="button"
                     onClick={() => {
@@ -682,10 +687,12 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
                 type="button"
                 onClick={handleSave}
                 disabled={saving || loading}
+                aria-busy={saving || undefined}
                 className="btn-save"
               >
-                {saving ? "Saving…" : "Save"}
+                <BusyLabel busy={saving}>Save</BusyLabel>
               </button>
+              <BusyStatus busy={saving} text="Saving" />
               <button
                 type="button"
                 onClick={handleReveal}
@@ -723,18 +730,22 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
                 type="button"
                 onClick={handleSyncNow}
                 disabled={syncing}
+                aria-busy={syncing || undefined}
                 className="btn-save w-fit"
               >
-                {syncing ? "Syncing…" : "Sync now"}
+                <BusyLabel busy={syncing}>Sync now</BusyLabel>
               </button>
+              <BusyStatus busy={syncing} text="Syncing" />
               <button
                 type="button"
                 onClick={handleSignOut}
                 disabled={signingOut}
+                aria-busy={signingOut || undefined}
                 className="btn-ink"
               >
-                {signingOut ? "Signing out…" : "Sign out"}
+                <BusyLabel busy={signingOut}>Sign out</BusyLabel>
               </button>
+              <BusyStatus busy={signingOut} text="Signing out" />
             </div>
 
             {confirmingDeleteAccount ? (
@@ -750,10 +761,12 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
                     type="button"
                     onClick={handleDeleteAccount}
                     disabled={deletingAccount}
+                    aria-busy={deletingAccount || undefined}
                     className="btn-danger"
                   >
-                    {deletingAccount ? "Deleting…" : "Delete account"}
+                    <BusyLabel busy={deletingAccount}>Delete account</BusyLabel>
                   </button>
+                  <BusyStatus busy={deletingAccount} text="Deleting the account" />
                   <button
                     type="button"
                     onClick={() => setConfirmingDeleteAccount(false)}

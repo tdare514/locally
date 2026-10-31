@@ -19,6 +19,7 @@ import {
 import { MAX_SHARE_GROUPS, type CreateShareResponse, type ShareGroup } from "../shared/shares";
 import { ShareIcon, XIcon } from "./Icons";
 import KnobSwitch from "./KnobSwitch";
+import { BusyLabel, BusyStatus } from "./Spinner";
 
 interface ShareControlProps {
   releaseId: string;
@@ -546,9 +547,12 @@ export default function ShareControl({ releaseId, name, trackIds, variant, signe
                 Done
               </button>
             ) : (
-              <button type="button" onClick={submit} disabled={busy} className="btn-save">
-                {busy ? "Sharing…" : "Share"}
-              </button>
+              <>
+                <button type="button" onClick={submit} disabled={busy} aria-busy={busy || undefined} className="btn-save">
+                  <BusyLabel busy={busy}>Share</BusyLabel>
+                </button>
+                <BusyStatus busy={busy} text="Sharing" />
+              </>
             )}
           </div>
         </div>

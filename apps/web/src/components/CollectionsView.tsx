@@ -51,6 +51,7 @@ import PlaylistGuide from "./PlaylistGuide";
 import RecordPlayerView from "./RecordPlayerView";
 import Popover, { MENU_ITEM } from "./Popover";
 import { BarConfirm } from "./ReleaseBar";
+import { Bone, Skeleton } from "./Skeleton";
 
 interface Props {
   releases: Release[];
@@ -267,27 +268,29 @@ function Switch<T extends string>({
   );
 }
 
-/** Quiet placeholders in the final shapes while the store is first read: no spinner. */
+/** Quiet placeholders in the final shapes while the store is first read: no spinner, drawn only after 300 ms (#422). */
 function Placeholders() {
   return (
-    <div className="coll-wrap"><div aria-busy="true" aria-label="Loading collections" className="coll-grid">
-      <div className="flex flex-col gap-1">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="flex min-h-14 items-center gap-3 p-2">
-            <span className="size-12 rounded-[8px] bg-card" />
-            <span className="flex flex-1 flex-col gap-2">
-              <span className="h-3 w-2/3 rounded-full bg-card" />
-              <span className="h-2.5 w-1/3 rounded-full bg-card" />
-            </span>
-          </div>
-        ))}
+    <Skeleton label="Loading collections" className="coll-wrap">
+      <div className="coll-grid">
+        <div className="flex flex-col gap-1">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex min-h-14 items-center gap-3 p-2">
+              <Bone className="size-12 shrink-0" />
+              <span className="flex flex-1 flex-col gap-2">
+                <Bone className="h-3 w-2/3" />
+                <Bone className="h-2.5 w-1/3" />
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-col gap-2">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <Bone key={i} className="h-14 rounded-[12px]!" />
+          ))}
+        </div>
       </div>
-      <div className="flex flex-col gap-2">
-        {[0, 1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-14 rounded-xl bg-card" />
-        ))}
-      </div>
-    </div></div>
+    </Skeleton>
   );
 }
 
