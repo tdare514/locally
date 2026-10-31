@@ -119,7 +119,7 @@ The shared hand-drawn set on both platforms (#213; iPhone template images `Icon/
 frame) is Library, Import (a plain plus), Stats, Person, chevron, X, pencil, search and copy,
 accent when selected, and since #412 (30 Oct 2026) Settings (a drawn cog, a toothed outline with a centre hole, on both apps: it replaced
 the Mac's sliders and the iPhone's `gearshape`), play, pause, next, previous, grid, list (the
-Library's layout toggle on both) and sort (the Library's sort button on both); Stats' list / grid switch, the share sheet's Settings row and the iPhone's Collections toggles (#444: a drawn record and the list glyph for Record player / List, a picture-disc and a black-vinyl swatch for Picture disc / Black vinyl) use the drawn glyphs too; both apps' mini player and
+Library's layout toggle on both) and sort (the Library's sort button on both); Stats' list / grid switch, the share sheet's Settings row and the iPhone's Collections toggles (#444: a turntable seen from above and the list glyph for Record player / List, a picture-disc and a black-vinyl swatch for Picture disc / Black vinyl) use the drawn glyphs too; both apps' mini player and
 record player use the transport glyphs (#413, #414). The owner kept SF Symbols for the
 note on file rows and the Tracks and Single options, Add cover art (`photo.badge.plus`), trash,
 checkmarks, seals, folder, iphone, photo, `rectangle.stack.fill`, `paperplane.fill` and system
@@ -255,6 +255,11 @@ cover wash. The iPhone's capsule is unchanged.
     sliding. Wider than the room: `.stack` puts the options in a column, `.scroll` scrolls them.
     No tint, rim, glow or shadow. The Library's layout toggle is the same track and thumb.
     Locked: 50 %. `SegmentedPill` and `TintedGlassThumb` are gone.
+    On Stats (#444) Tracks / Albums / Artists is the compact switch, words only, at the left
+    of one row with the period pill at the right, like the Library toolbar; the week arrows
+    and date range sit in a small right-aligned row under the pill (the stepper glyph 18 pt in
+    its 44 pt target). When the row won't fit (large text, a long period label) the switch
+    takes its own line with its icons and the pill sits under it, right-aligned.
 - **iPhone record fields, covers and library (16 Oct 2026, owner on the phone)**: the inline
   fields read as floating text, so nobody could tell what a value was or that it could still be
   edited, and the import and the release page laid the same fields out differently.
