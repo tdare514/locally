@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getAdoptProposal, getSettings, putAdoptRoots } from "../lib/api-client";
 import { folderName, lastCheckedLine } from "../lib/adopt-review";
 import { IS_DEMO } from "../lib/demo";
+import { SettingsBlock, SettingsSection } from "./SettingsGroup";
 
 /** Present only in the desktop app's window (electron/preload.ts); a browser has no picker. */
 type DesktopBridge = { pickFolder?: () => Promise<string | null> };
@@ -20,7 +21,7 @@ function MiddleCut({ text }: { text: string }) {
   const head = text.length > keep ? text.slice(0, -keep) : "";
   const tail = text.length > keep ? text.slice(-keep) : text;
   return (
-    <span className="flex min-w-0 text-xs text-text-dim" title={text}>
+    <span className="flex min-w-0 text-xs text-text-muted" title={text}>
       {head && <span className="truncate">{head}</span>}
       <span className="shrink-0 whitespace-pre">{tail}</span>
     </span>
@@ -103,12 +104,12 @@ export default function SpotifyFoldersCard({ onToast, onCheck }: SpotifyFoldersC
   const hasRoots = roots.length > 0;
 
   return (
-    <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6">
-      <p className="text-sm font-bold text-text">Your Spotify folders</p>
-      <p className="text-xs text-text-muted">
-        Locally reads the music Spotify plays from these folders. It never changes, moves or deletes a file there.
-      </p>
-      <fieldset disabled={IS_DEMO} className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0">
+    <SettingsSection
+      title="Your Spotify folders"
+      disabled={IS_DEMO}
+      footnote="Locally reads the music Spotify plays from these folders. It never changes, moves or deletes a file there."
+    >
+      <SettingsBlock className="flex flex-col gap-3">
         {(hasRoots || suggested) && (
           <ul className="flex flex-col gap-3">
             {suggested && (
@@ -187,9 +188,9 @@ export default function SpotifyFoldersCard({ onToast, onCheck }: SpotifyFoldersC
           )}
         </div>
         {scannedAt && lastCheckedLine(scannedAt) && (
-          <p className="text-xs text-text-dim">{lastCheckedLine(scannedAt)}</p>
+          <p className="text-xs text-text-muted">{lastCheckedLine(scannedAt)}</p>
         )}
-      </fieldset>
-    </section>
+      </SettingsBlock>
+    </SettingsSection>
   );
 }
