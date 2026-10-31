@@ -84,11 +84,14 @@ export function TrackMoreButton({
   title,
   expanded,
   onOpen,
+  onArtwork = false,
   className = "",
 }: {
   title: string;
   expanded: boolean;
   onOpen: (button: HTMLButtonElement) => void;
+  /** Over a cover (the Library grid): the glyph sits on a dark disc, white on `black/60`, so it keeps 4.5:1 on a white cover. */
+  onArtwork?: boolean;
   className?: string;
 }) {
   return (
@@ -105,7 +108,13 @@ export function TrackMoreButton({
       }}
       className={`btn-icon shrink-0 opacity-0 outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent group-hover/track:opacity-100 group-focus-within/track:opacity-100 aria-expanded:opacity-100 ${className}`}
     >
-      <MoreIcon className="size-5" />
+      {onArtwork ? (
+        <span className="grid size-7 place-items-center rounded-full bg-black/60 text-white">
+          <MoreIcon className="size-5" />
+        </span>
+      ) : (
+        <MoreIcon className="size-5" />
+      )}
     </button>
   );
 }

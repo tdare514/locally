@@ -958,14 +958,14 @@ function CoverSection({
                 </span>
               </button>
               {groups.length > 0 && (
-                // Over the cover's top-right corner, above the hovered tile (which rises to z-1). The glyph carries a
-                // soft dark shadow so it reads on a pale cover.
+                // Over the cover's top-right corner, above the hovered tile (which rises to z-1), on a dark disc so it
+                // reads on a pale cover.
                 <span className="absolute right-0.5 top-0.5 z-10 flex">
                   <TrackMoreButton
                     title={r.title || artistShown}
                     expanded={menu.open?.key === r.id}
                     onOpen={(button) => menu.toggleFrom(button, r.id)}
-                    className="drop-shadow-[0_1px_3px_rgb(0_0_0/0.8)]"
+                    onArtwork
                   />
                 </span>
               )}

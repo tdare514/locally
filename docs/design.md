@@ -726,7 +726,7 @@ to 2.8:1 on Settings. The Collections player shows "Your music" with the collect
     ("Show 37 more" near the end); when the last page opens, focus moves to its first row. Covers
     load lazily, and the page keeps the reads of its last 8 periods.
   - **Narrow (390px)**: the period control scrolls, the fan scales with its room (210px sleeves down
-    to a fifth of the room below 545px, so it fits a 320px phone), the list drops last played below 480px of room and the bar below 760px.
+    to a fifth of the room below 545px, so it fits a 320px phone), the list drops last played below 540px of room and the bar below 820px (480 and 760 before the More column, #419, so the title keeps its room).
   - **Contrast**: the wash is capped for white text, but the greys need more over a pale cover, so
     a scrim darkens the top of the page and the unchosen tab words are 70% rather than 50%.
     Measured over a cream cover as #1: every text 5.36:1 or better, bars 5.8:1 against their track
