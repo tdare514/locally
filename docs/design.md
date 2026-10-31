@@ -262,7 +262,8 @@ cover wash. The iPhone's capsule is unchanged.
     takes its own line with its icons and the pill sits under it, right-aligned. The row comes
     right under the title, as on the Mac, and the digest sentence under the arrows, so a sentence
     that arrives, grows with a long track name or goes quiet never moves the controls; while the
-    first read runs, the sentence's faint lines head the skeleton.
+    first read runs, two bars sized with the sentence's text head the skeleton, at 12% white so they
+    show on the backdrop's brightest part.
 - **iPhone record fields, covers and library (16 Oct 2026, owner on the phone)**: the inline
   fields read as floating text, so nobody could tell what a value was or that it could still be
   edited, and the import and the release page laid the same fields out differently.

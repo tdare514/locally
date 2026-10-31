@@ -52,6 +52,9 @@ struct StatsView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.isTabSelected) private var isTabSelected
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The loading sentence's bars, sized with the sentence's text style so they hold its place at every size (#444).
+    @ScaledMetric(relativeTo: .title3) private var digestBar: CGFloat = 14
+    @ScaledMetric(relativeTo: .title3) private var digestBarGap: CGFloat = 11
     @AppStorage(BackdropMotion.keepMovingKey) private var keepBackdropsMoving = false
 
     private static var edgeFade: CGFloat { 22 }
@@ -524,10 +527,16 @@ struct StatsView: View {
 
     private func skeleton(room: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 20) {
-            // The sentence's lines, so the list starts about where it will once the read lands.
-            digestText(Copy.Stats.digestSentence(model.displayed, total: 1_000, topTrack: "A track title"))
-                .foregroundStyle(Color.white.opacity(0.06))
-                .redacted(reason: .placeholder)
+            // The sentence's two lines as bars, right under the controls. They sit on the backdrop's brightest part,
+            // so they take a stronger fill than the rows below to stay visible.
+            VStack(alignment: .leading, spacing: digestBarGap) {
+                Capsule().frame(maxWidth: .infinity)
+                Capsule().frame(width: room * 0.6)
+            }
+            .frame(height: digestBar * 2 + digestBarGap)
+            .foregroundStyle(Color.white.opacity(0.12))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 6)
             StatsFanSkeleton(width: room)
                 .frame(maxWidth: .infinity)
             VStack(spacing: 0) {
