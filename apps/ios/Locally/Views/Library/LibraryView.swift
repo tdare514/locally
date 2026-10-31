@@ -103,10 +103,12 @@ struct LibraryView: View {
     /// The covers read first, so the first screen fills before the rest are read.
     private static let firstCoverBatch = 24
 
-    /// The pixel side covers are decoded at: the 56 pt thumbnail in the list, the whole cover in the grid, whose
-    /// tiles grow with the screen.
+    /// The pixel side covers are decoded at: the 56 pt thumbnail in the list; in the grid, the widest an adaptive
+    /// tile can be (under twice its minimum plus a gap, or another column would fit), so a large stored cover is
+    /// never held at full size.
     private var coverPixels: CGFloat {
-        layout == .covers ? .infinity : Theme.Library.thumbnailSize * displayScale
+        guard layout == .covers else { return Theme.Library.thumbnailSize * displayScale }
+        return (2 * gridSize.tileMinWidth + gridSize.tileGap) * displayScale
     }
 
     private static let scrollSpace = "librarySkyScroll"
@@ -828,7 +830,7 @@ struct LibraryView: View {
         for batch in [Array(todo.prefix(Self.firstCoverBatch)), Array(todo.dropFirst(Self.firstCoverBatch))] where !batch.isEmpty {
             let ids = batch.map(\.id)
             let found = await Task.detached(priority: .userInitiated) {
-                CoverThumbnail.images(for: ids, from: store, maxPixels: pixels.isFinite ? pixels : nil)
+                CoverThumbnail.images(for: ids, from: store, maxPixels: pixels)
             }.value
             guard !Task.isCancelled else { return }
             var next = covers
