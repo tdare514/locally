@@ -20,9 +20,9 @@ export type LibrarySort = "newest" | "title" | "artist" | "year";
 
 export const LIBRARY_SORT_OPTIONS: { value: LibrarySort; label: string }[] = [
   { value: "newest", label: "Recently updated" },
-  { value: "title", label: "Title A–Z" },
-  { value: "artist", label: "Artist A–Z" },
-  { value: "year", label: "Year, newest first" },
+  { value: "title", label: "Title" },
+  { value: "artist", label: "Artist" },
+  { value: "year", label: "Year" },
 ];
 
 /** Lowercase, strip diacritics ("Björk" -> "bjork"), collapse whitespace, trim. */

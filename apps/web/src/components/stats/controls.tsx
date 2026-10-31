@@ -10,9 +10,8 @@ function vars(values: Record<string, string | number>): CSSProperties {
   return values as CSSProperties;
 }
 
-/** The set's toggle: words, and a dot that slides under the chosen one. Two options is exactly
- * `.btn-seg`; more adds `.st-seg`, which spreads the dot over `--n` columns and puts it at `--i`
- * (the set's toggle is two-option only, see the Stats block in globals.css). */
+/** The slim switch (#410). Two options is exactly `.btn-seg`; more adds `.st-seg`, which spreads the
+ * thumb over `--n` columns and puts it at `--i` (see the Stats block in globals.css). */
 export function Toggle<T extends string>({
   label,
   value,
@@ -55,10 +54,9 @@ export function Toggle<T extends string>({
   );
 }
 
-/** The glass toggle (`.seg-glass`, globals.css): the chosen option sits on the Save button's hover
- * glass, which slides to the next one. Any number of options. When they are wider than the room
- * (a phone) the row scrolls sideways and keeps the chosen one in view. */
-export function GlassToggle<T extends string>({
+/** The slim switch for any number of options (`.btn-seg.st-seg`): when they are wider than the room
+ * the row scrolls sideways and keeps the chosen one in view. */
+export function WideToggle<T extends string>({
   label,
   value,
   options,
@@ -86,15 +84,17 @@ export function GlassToggle<T extends string>({
   }, [value]);
   return (
     <div ref={row} className="st-scroll-x">
-      <div role="group" aria-label={label} className="seg-glass" style={vars({ "--n": options.length, "--i": index })}>
-        <span aria-hidden className="seg-glass-thumb" />
+      <div role="group" aria-label={label} className="btn-seg st-seg" style={vars({ "--n": options.length, "--i": index })}>
+        <span aria-hidden className="btn-seg-dot">
+          <span />
+        </span>
         {options.map((o) => (
           <button
             key={o.value}
             type="button"
             aria-pressed={o.value === value}
             onClick={() => onChange(o.value)}
-            className="seg-glass-opt"
+            className="btn-seg-opt"
           >
             {o.label}
           </button>
@@ -105,7 +105,7 @@ export function GlassToggle<T extends string>({
 }
 
 /** Steps the chosen period back and forward: earlier is the left chevron. A period stepped back to
- * sits on the same glass as the chosen period. All time has nothing to step through, so it only
+ * sits on an `elevated` capsule. All time has nothing to step through, so it only
  * says what it covers. When the Mac no longer keeps days that far back the left chevron is off,
  * with a tooltip that says why. */
 export function PeriodStepper({
@@ -122,7 +122,7 @@ export function PeriodStepper({
   noun: string;
   title: string;
   detail: string;
-  /** A period stepped back to wears the glass. */
+  /** A period stepped back to sits on the capsule. */
   stepped: boolean;
   canBack: boolean;
   canForward: boolean;
@@ -142,7 +142,7 @@ export function PeriodStepper({
       <p
         aria-live="polite"
         data-on={stepped}
-        className="seg-glass-face relative isolate min-w-[9.5rem] rounded-full px-4 py-1.5 text-center"
+        className="period-face relative isolate min-w-[9.5rem] rounded-full px-4 py-1.5 text-center"
       >
         <span className="block text-sm font-semibold leading-tight">{title}</span>
         <span className="block text-xs leading-tight text-text-muted">{detail}</span>

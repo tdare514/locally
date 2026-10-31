@@ -1079,15 +1079,15 @@ body {
  *   .btn-ink-danger  the destructive trigger: the word in `danger` (15 % lighter, for a wash).
  *   .btn-icon        icon-only: the drawn glyph in a 44 target, nothing behind it (`text-soft`, `text` on
  *                    hover). Give it an aria-label.
- *   .btn-seg, .btn-seg-opt  a two-option toggle: words, and a dot that slides under the chosen one.
+ *   .btn-seg, .btn-seg-opt  the slim switch for a two- or three-way choice (Choosers, below).
  * The sheet at /dev/buttons pins states with data-state="hover|press|focus"; each rule lists the
  * pinned selector next to the real :hover / :active / :focus-visible one. Focus is `accent`, the
  * one place accent marks a control.
  * ------------------------------------------------------------------------- */
 :root {
   --btn-ease: cubic-bezier(0.16, 1, 0.3, 1);
-  /* Still read by the track highlight, the mini player and `.seg-glass`, which later issues of the
-     quiet pass (#410, #413) retire; no button uses it. */
+  /* Still read by the track highlight and the mini player, which a later issue of the quiet pass
+     (#413) retires; no button uses it. */
   --btn-tint-default: rgb(176 212 255 / 0.32);
 }
 
@@ -1255,39 +1255,42 @@ body {
   opacity: 0.4;
 }
 
-/* ===== Toggle =============================================================== */
-/* Two options as plain words, and a dot that slides under the chosen one. The dot follows
-   aria-pressed on the second option, so it needs no value attribute from the caller. */
+/* ===== Choosers (#410) ============================================================ */
+/* A two- or three-way choice (design rules 30 Oct 2026, rule 6): a slim `elevated` capsule track, 36 tall, with a
+   neutral thumb a step lighter (`elevated-hover`) that slides under the chosen option. Labels are `text-muted`,
+   white when chosen or hovered. No tint, glow, rim or shadow. Markup: .btn-seg > .btn-seg-dot (the thumb) and
+   .btn-seg-opt buttons; the thumb follows aria-pressed through :has(), so callers pass no value. Three options add
+   .btn-seg-3; any number adds .st-seg with --n and --i (Stats). */
 .btn-seg {
   position: relative;
   display: inline-grid;
   grid-template-columns: 1fr 1fr;
+  padding: 2px;
+  border-radius: 9999px;
+  background: var(--elevated);
 }
 .btn-seg-dot {
   position: absolute;
-  bottom: 1px;
-  left: 0;
-  display: flex;
-  width: 50%;
-  justify-content: center;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) / 2);
+  border-radius: 9999px;
+  background: var(--elevated-hover);
   pointer-events: none;
   transition: translate 340ms var(--btn-ease);
 }
 .btn-seg-dot > span {
-  width: 5px;
-  height: 5px;
-  border-radius: 9999px;
-  background: #fff;
+  display: none;
 }
 .btn-seg:has(.btn-seg-opt:last-of-type[aria-pressed="true"]) .btn-seg-dot {
   translate: 100% 0;
 }
-/* Three options (the Library's List, Grid, Artists, #288): thirds, and the dot steps by its own width. */
 .btn-seg-3 {
   grid-template-columns: repeat(3, 1fr);
 }
 .btn-seg-3 .btn-seg-dot {
-  width: calc(100% / 3);
+  width: calc((100% - 4px) / 3);
 }
 .btn-seg-3:has(.btn-seg-opt:nth-of-type(2)[aria-pressed="true"]) .btn-seg-dot {
   translate: 100% 0;
@@ -1296,34 +1299,102 @@ body {
   translate: 200% 0;
 }
 .btn-seg-opt {
-  height: 2.25rem;
-  padding: 0 0.9rem 0.25rem;
-  border-radius: 0.5rem;
-  color: #fff;
-  font-weight: 500;
-  opacity: 0.5;
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 9999px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
   transition:
-    opacity 200ms var(--btn-ease),
-    scale 160ms var(--btn-ease);
+    color 200ms var(--btn-ease),
+    opacity 160ms var(--btn-ease);
 }
 .btn-seg-opt[aria-pressed="true"] {
-  opacity: 1;
+  color: #fff;
 }
 .btn-seg-opt:where(:not(:disabled)):hover,
 .btn-seg[data-state="hover"] .btn-seg-opt[aria-pressed="false"] {
-  opacity: 0.85;
+  color: #fff;
 }
 .btn-seg-opt:where(:not(:disabled)):active,
 .btn-seg[data-state="press"] .btn-seg-opt[aria-pressed="false"] {
-  scale: 0.94;
+  opacity: 0.85;
 }
 .btn-seg-opt:focus-visible,
 .btn-seg[data-state="focus"] .btn-seg-opt[aria-pressed="true"] {
-  outline: 1.5px solid rgb(255 255 255 / 0.85);
-  outline-offset: 3px;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.btn-seg-opt:disabled {
+  cursor: default;
 }
 .btn-seg:has(.btn-seg-opt:disabled) {
-  opacity: 0.4;
+  opacity: 0.5;
+}
+
+/* The Library's cover size slider (#410): a 4 px `elevated` track with three `text-muted` detents and a plain white
+   16 px knob. Three steps (compact, medium, large); the native range keeps the keyboard and the a11y name. */
+.size-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 24px;
+  background: transparent;
+  cursor: pointer;
+}
+.size-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 2px 50%, var(--text-muted) 2px, transparent 2.5px),
+    radial-gradient(circle at 50% 50%, var(--text-muted) 2px, transparent 2.5px),
+    radial-gradient(circle at calc(100% - 2px) 50%, var(--text-muted) 2px, transparent 2.5px),
+    var(--elevated);
+}
+.size-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 2px 50%, var(--text-muted) 2px, transparent 2.5px),
+    radial-gradient(circle at 50% 50%, var(--text-muted) 2px, transparent 2.5px),
+    radial-gradient(circle at calc(100% - 2px) 50%, var(--text-muted) 2px, transparent 2.5px),
+    var(--elevated);
+}
+.size-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 50%;
+  border: 0;
+  background: #fff;
+  box-shadow: none;
+}
+.size-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 0;
+  background: #fff;
+}
+.size-slider:focus-visible {
+  outline: none;
+}
+.size-slider:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.size-slider:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* ---------------------------------------------------------------------------
@@ -1519,43 +1590,6 @@ body {
   transition: transform 460ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Segmented control (the Today / This week / This month toggle). */
-.sb-seg {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(var(--n), 1fr);
-  padding: 2px;
-  border-radius: 9999px;
-  background: rgb(0 0 0 / 0.34);
-  box-shadow:
-    inset 0 1px 2px rgb(0 0 0 / 0.35),
-    inset 0 0 0 1px rgb(255 255 255 / 0.07);
-}
-.sb-seg-thumb {
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  left: 2px;
-  width: calc((100% - 4px) / var(--n));
-  border-radius: 9999px;
-  /* The glass Save and Show in Finder used to take on hover (retired from buttons in #409; this
-     thumb goes with the quiet choosers, #410): `.glass-fake`'s corner highlight and body with the
-     faint clear-blue glow from the lower edge. */
-  background:
-    radial-gradient(120% 70% at 15% -15%, rgb(255 255 255 / 0.18), transparent 60%),
-    radial-gradient(
-      90% 140% at 50% 135%,
-      color-mix(in oklab, var(--btn-tint, rgb(176 212 255 / 0.32)) 55%, transparent),
-      transparent 72%
-    ),
-    linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.04) 55%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.35),
-    inset 0 -1px 0 rgb(255 255 255 / 0.08),
-    inset 0 0 0 1px rgb(255 255 255 / 0.12);
-  transform: translate3d(calc(var(--i) * 100%), 0, 0);
-  transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
-}
 /* Text tabs (the shelf's Tracks / Albums / Artists): equal columns, an accent underline slides
    under the chosen one. */
 .sb-tabs {
@@ -1753,7 +1787,7 @@ body {
   .btn-seg-opt {
     transition: none;
   }
-  /* The Stats page (#145) and the glass toggle are defined further down the file, so their
+  /* The Stats page (#145) and its period face are defined further down the file, so their
      reduced-motion rules are in the block at the very end of it. */
 
   /* #154 sidebar (.sb-*): the card shows and hides instantly and the stagger, fan, bars and pin
@@ -1774,7 +1808,6 @@ body {
     animation: none;
   }
   .sb-bar,
-  .sb-seg-thumb,
   .sb-tabs-thumb,
   .sb-switch-track::before,
   .sb-switch-knob {
@@ -1782,102 +1815,19 @@ body {
   }
 }
 
-/* ---------------------------------------------------------------------------
- * Glass toggle (#145): a row of options where the chosen one sits on a glass thumb, for any number
- * of options. Built from the pieces of the glass Save used to take on hover (the corner highlight,
- * the faint glow of --btn-tint / --btn-tint-default off the lower edge, `.glass-fake`'s body and
- * edges); there is no backdrop-filter. Retired by the quiet pass (#410 replaces it).
- *   .seg-glass        the row. Inline: --n (how many options) and --i (the chosen one, from 0).
- *   .seg-glass-thumb  an aria-hidden span, first child: the glass under the chosen option. It slides
- *                     with the house easing (translate only); reduced motion = it jumps.
- *   .seg-glass-opt    one option button (aria-pressed): a plain label; hover shows the same glass
- *                     at low opacity.
- *   .seg-glass-face   the same glass as a static backdrop for any element (isolate it), shown when
- *                     it has data-on="true"; the Stats stepper uses it for a period stepped back to.
- * ------------------------------------------------------------------------- */
-.seg-glass {
-  position: relative;
-  isolation: isolate;
-  display: inline-grid;
-  grid-template-columns: repeat(var(--n), 1fr);
-}
-.seg-glass-thumb,
-.seg-glass-opt::before,
-.seg-glass-face::before {
-  background:
-    radial-gradient(120% 70% at 15% -15%, rgb(255 255 255 / 0.18), transparent 60%),
-    radial-gradient(
-      90% 140% at 50% 135%,
-      color-mix(in oklab, var(--btn-tint, var(--btn-tint-default)) 55%, transparent),
-      transparent 72%
-    ),
-    linear-gradient(180deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.04) 55%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.35),
-    inset 0 -1px 0 rgb(255 255 255 / 0.08),
-    inset 0 0 0 1px rgb(255 255 255 / 0.12);
-}
-.seg-glass-thumb {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  z-index: -1;
-  width: calc(100% / var(--n));
-  border-radius: 9999px;
-  pointer-events: none;
-  translate: calc(var(--i) * 100%) 0;
-  transition: translate 340ms var(--btn-ease);
-}
-.seg-glass-opt {
-  position: relative;
-  isolation: isolate;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 2.25rem;
-  padding: 0 1.1rem;
-  border-radius: 9999px;
-  color: rgb(255 255 255 / 0.62);
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
-  font-size: 0.875rem;
-  font-weight: 500;
-  line-height: 1;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    color 200ms var(--btn-ease),
-    scale 160ms var(--btn-ease);
-}
-.seg-glass-opt::before,
-.seg-glass-face::before {
+/* The Stats stepper's period, once stepped back: a plain `elevated` capsule behind it (#410; it was cover-tinted glass). */
+.period-face::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: -1;
   border-radius: inherit;
   pointer-events: none;
+  background: var(--elevated);
   opacity: 0;
   transition: opacity 200ms var(--btn-ease);
 }
-.seg-glass-opt[aria-pressed="true"] {
-  color: #fff;
-}
-.seg-glass-opt[aria-pressed="false"]:hover {
-  color: rgb(255 255 255 / 0.9);
-}
-.seg-glass-opt[aria-pressed="false"]:hover::before {
-  opacity: 0.35;
-}
-.seg-glass-opt:active {
-  scale: 0.96;
-}
-.seg-glass-opt:focus-visible {
-  outline: 1.5px solid rgb(255 255 255 / 0.85);
-  outline-offset: 3px;
-}
-.seg-glass-face[data-on="true"]::before {
+.period-face[data-on="true"]::before {
   opacity: 1;
 }
 
@@ -1907,15 +1857,14 @@ body {
   animation-delay: calc(var(--st-i, 0) * 70ms);
 }
 
-/* The button set's toggle is two-option only (a dot at 0 or 50%). With more options, `.st-seg`
-   spreads the columns and the dot over `--n` options and puts the dot under option `--i`. Delete
-   this when the set's toggle takes any number of options. */
+/* `.btn-seg` is two-way and `.btn-seg-3` three-way. With any other number of options, `.st-seg`
+   spreads the columns and the thumb over `--n` options and puts the thumb under option `--i`. */
 .st-seg {
   grid-template-columns: repeat(var(--n), 1fr);
 }
 .st-seg .btn-seg-dot,
 .st-seg:has(.btn-seg-opt:last-of-type[aria-pressed="true"]) .btn-seg-dot {
-  width: calc(100% / var(--n));
+  width: calc((100% - 4px) / var(--n));
   translate: calc(var(--i) * 100%) 0;
 }
 
@@ -2117,11 +2066,6 @@ body {
   border-radius: 6px;
   text-align: left;
   cursor: pointer;
-}
-/* The tab words on this page sit on the wash, so the unchosen ones are a little stronger than the
-   button set's half-opacity (4.5:1 on the brightest wash a pale cover gives). */
-.st-root .btn-seg-opt[aria-pressed="false"] {
-  opacity: 0.7;
 }
 
 /* The rank and plays over a cover: white on a dark pill, dark enough for a white cover. */
@@ -2635,11 +2579,10 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
- * Reduced motion for the Stats page, the glass toggle and the fan. This block is last on purpose:
+ * Reduced motion for the Stats page, its period face and the fan. This block is last on purpose:
  * its rules have the same specificity as the ones they override, so only coming after them makes
  * them win (the main reduced-motion block is far above these rules and could not). No entrances
- * and no fan-out; the grid's lift, the fan's lift, record slide and tag, and the glass toggle's
- * thumb still change, but jump.
+ * and no fan-out; the grid's lift, the fan's lift, record slide and tag still change, but jump.
  * ------------------------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   .st-rise,
@@ -2647,10 +2590,7 @@ body {
   .sb-card[data-state="open"] .fan-sleeve {
     animation: none;
   }
-  .seg-glass-thumb,
-  .seg-glass-opt,
-  .seg-glass-opt::before,
-  .seg-glass-face::before,
+  .period-face::before,
   .st-lift,
   .st-lift .record-sleeve,
   .st-row,
@@ -2727,11 +2667,6 @@ body {
 .rp-switches .btn-seg-dot {
   transition: none;
 }
-.rp-switches .btn-seg + .btn-seg {
-  padding-left: 1.25rem;
-  border-left: 1px solid rgb(255 255 255 / 0.16);
-  border-radius: 0;
-}
 /* Narrow: the groups wrap, so the second one drops its divider and padding, and each group stays inside the pane:
    its two options share the width and a long label wraps in two lines rather than run off the edge. */
 @media (max-width: 639px) {
@@ -2740,14 +2675,12 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .rp-switches .btn-seg-opt {
+    height: auto;
+    min-height: 32px;
     padding-inline: 0.5rem;
     white-space: normal;
     text-align: center;
     line-height: 1.15;
-  }
-  .rp-switches .btn-seg + .btn-seg {
-    padding-left: 0;
-    border-left: 0;
   }
 }
 .rp-grid {

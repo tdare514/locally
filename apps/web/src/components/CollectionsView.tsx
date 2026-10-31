@@ -234,7 +234,7 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
   );
 }
 
-/** A two-option switch: words, and a dot under the chosen one (the app's `.btn-seg`). */
+/** A two-option switch (the app's `.btn-seg`, the slim switch). */
 function Switch<T extends string>({
   label,
   value,
@@ -252,7 +252,7 @@ function Switch<T extends string>({
         <span />
       </span>
       {options.map(([v, text]) => (
-        <button key={v} type="button" onClick={() => onChange(v)} aria-pressed={value === v} className="btn-seg-opt min-h-11 px-3">
+        <button key={v} type="button" onClick={() => onChange(v)} aria-pressed={value === v} className="btn-seg-opt">
           {text}
         </button>
       ))}
