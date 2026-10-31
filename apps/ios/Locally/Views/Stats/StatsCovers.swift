@@ -1,6 +1,5 @@
 import SwiftUI
 import UIKit
-import ImageIO
 
 /// Covers for the Stats page: read off the main thread, shrunk to a size the fan's biggest sleeve
 /// needs, and kept in memory so scrolling a long list does not read the same file twice. The
@@ -44,15 +43,7 @@ final class StatsCoverCache: @unchecked Sendable {
     }
 
     private static func thumbnail(_ data: Data) -> UIImage? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxPixels,
-        ]
-        guard let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
-        return UIImage(cgImage: cg)
+        CoverThumbnail.image(from: data, maxPixels: maxPixels)
     }
 }
 
@@ -72,6 +63,7 @@ struct StatsCoverView: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
+                    .endsSignpost(.statsFirstCover)
             } else {
                 NoCoverArt()
             }

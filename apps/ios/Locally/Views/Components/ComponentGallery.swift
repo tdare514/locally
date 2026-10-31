@@ -49,6 +49,8 @@ struct ComponentGallery: View {
         "stats-361-grid-tracks", "stats-361-grid-tracks-bright", "stats-361-grid-albums", "stats-361-grid-artists", "stats-361-stats-row", "stats-361-track-row", "stats-361-artist-row"]
         // #366: the collection builder over the seeded library.
         + CollectionBuilderGallery.names
+        // #423: the four slow screens over a large seeded library, for the performance tests.
+        + PerfLibraryGallery.names
 
     let name: String
     @State private var title = "Midnight Drive"
@@ -162,6 +164,8 @@ struct ComponentGallery: View {
             Self.settings(signedIn: true)
         case _ where SongPageGallery.names.contains(name):
             SongPageGallery(name: name)
+        case _ where PerfLibraryGallery.names.contains(name):
+            PerfLibraryGallery(name: name)
         case _ where HistoryGallery.names.contains(name):
             HistoryGallery(name: name)
         case _ where StatsPopupGallery.names.contains(name):
@@ -640,12 +644,12 @@ enum IconsGallery {
     static func container(
         releases: [Release] = StatsGallery.releases, covers: [UUID: Data] = StatsGallery.covers, playStats: PlayStatsReading? = nil,
         folder: SpotifyFolderAccess = UserDefaultsSpotifyFolder(), tagWriter: TagWriter? = nil,
-        playHistory: PlayHistoryReading? = nil
+        playHistory: PlayHistoryReading? = nil, coverStore: CoverStore? = nil
     ) -> AppContainer {
         // swiftlint:disable:next force_try
         let modelContainer = try! ModelStore.open(at: nil)
         let library = SwiftDataLibraryStore(context: modelContainer.mainContext)
-        let coverStore = FileCoverStore()
+        let coverStore = coverStore ?? FileCoverStore()
         let coordinator = ReleaseCoordinator(
             importer: LocalFileImporter(), transcoder: AVTranscoder(), m4aTagWriter: tagWriter ?? M4ATagWriter(), id3TagWriter: tagWriter ?? ID3TagWriter(),
             folder: folder, library: library, coverStore: coverStore, durationReader: TrackLengthLoader.shared
@@ -1518,6 +1522,14 @@ enum CollectionsGallery {
             nowPlaying: GalleryNowPlaying(), remote: GalleryRemote(), coverData: { _ in nil }
         )
         return (container, model, playback)
+    }
+
+    /// A player on the gallery's fakes, for the perf galleries (#423).
+    static func fakePlayback() -> PlaybackService {
+        PlaybackService(
+            engine: GalleryEngine(), access: GalleryAccess(), session: GallerySession(),
+            nowPlaying: GalleryNowPlaying(), remote: GalleryRemote(), coverData: { _ in nil }
+        )
     }
 
     static func library(layout: LibraryLayout = .list, size: CoverSize = .default, seed: Bool = true, bright: Bool = false) -> some View {
