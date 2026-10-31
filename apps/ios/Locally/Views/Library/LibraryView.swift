@@ -44,6 +44,8 @@ struct LibraryView: View {
     @ScaledMetric(relativeTo: .body) private var scaledToggleButtonSize = Theme.Library.toggleButtonSize
     @ScaledMetric(relativeTo: .subheadline) private var sectionChevronSize = Theme.Library.sectionChevronSize
     private var toggleIconSize: CGFloat { min(scaledToggleIconSize, Theme.Library.toggleIconMaxSize) }
+    /// The hand-drawn glyphs sit a little smaller in their box than SF Symbols, so they get 3 pt more, still under the 35 pt cap.
+    private var drawnToggleIconSize: CGFloat { min(toggleIconSize + 3, Theme.Library.toggleIconMaxSize) }
     private var toggleButtonSize: CGFloat { min(scaledToggleButtonSize, Theme.Library.toggleButtonMaxSize) }
     @Environment(SyncStatus.self) private var syncStatus
     /// The "From your devices" tray (#269): open or closed.
@@ -516,8 +518,8 @@ struct LibraryView: View {
 
     private var layoutToggle: some View {
         HStack(spacing: 0) {
-            layoutButton(.list, systemImage: "list.bullet", label: Copy.Library.layoutList)
-            layoutButton(.covers, systemImage: "square.grid.2x2", label: Copy.Library.layoutCovers)
+            layoutButton(.list, icon: .list, label: Copy.Library.layoutList)
+            layoutButton(.covers, icon: .grid, label: Copy.Library.layoutCovers)
             layoutButton(.artists, icon: .person, label: Copy.Library.layoutArtists)
         }
         .background(Theme.elevated, in: Capsule())
@@ -540,8 +542,7 @@ struct LibraryView: View {
             }
         } label: {
             let side = max(toggleButtonSize, Theme.Spacing.minTarget)
-            Image(systemName: "arrow.up.arrow.down")
-                .font(.system(size: toggleIconSize, weight: .semibold))
+            LocallyIcon(.sort, size: drawnToggleIconSize, scaled: false)
                 .foregroundStyle(Theme.primaryText)
                 .frame(width: side, height: side)
                 .contentShape(Rectangle())
@@ -549,17 +550,10 @@ struct LibraryView: View {
         .accessibilityLabel(Copy.Library.sortLabel(Copy.Library.sortName(sort)))
     }
 
-    private func layoutButton(_ value: LibraryLayout, systemImage: String, label: String) -> some View {
-        layoutButton(value, label: label) {
-            Image(systemName: systemImage)
-                .font(.system(size: toggleIconSize, weight: .semibold))
-        }
-    }
-
-    /// The hand-drawn glyph variant (#213), for the Artists choice.
+    /// The hand-drawn glyph variant (#213, #412).
     private func layoutButton(_ value: LibraryLayout, icon: LocallyIcon.Name, label: String) -> some View {
         layoutButton(value, label: label) {
-            LocallyIcon(icon, size: toggleIconSize + 3, scaled: false)
+            LocallyIcon(icon, size: drawnToggleIconSize, scaled: false)
         }
     }
 

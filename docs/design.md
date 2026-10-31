@@ -113,14 +113,17 @@ from the same geometry as the brand marks:
 - **AppIcon-Line** (alternate, user-selectable): "Line art, profile". White line work, white
   headphones, white cup with an accent plus.
 
-The web app uses the main icon for `icon.png` and `apple-icon.png`. The tab bar, row chevrons, close buttons
-and a few more spots share the Mac's hand-drawn glyph set on both platforms (#213; iPhone template
-images `Icon/…`, `LocallyIcon`): Library, Import (a plain plus), Stats, Person, chevron, X, pencil,
-search and copy, accent when selected. The owner kept SF Symbols for Settings (`gearshape`), the
-note on file rows and the Tracks and Single options, the list and grid toggles (the Mac's two
-were redrawn to match), Add cover art (`photo.badge.plus`; the Mac's was redrawn to match), and
-trash, checkmarks, seals, folder, iphone, photo, `rectangle.stack.fill`, `paperplane.fill` and
-system menus. The metallic plus studies remain in
+The web app uses the main icon for `icon.png` and `apple-icon.png`.
+The shared hand-drawn set on both platforms (#213; iPhone template images `Icon/…`,
+`LocallyIcon`; the Mac's `Icons.tsx`, shown at `/dev/icons` and in the iPhone gallery's `icons-set`
+frame) is Library, Import (a plain plus), Stats, Person, chevron, X, pencil, search and copy,
+accent when selected, and since #412 (30 Oct 2026) Settings (a drawn cog, a toothed outline with a centre hole, on both apps: it replaced
+the Mac's sliders and the iPhone's `gearshape`), play, pause, next, previous, grid, list (the
+Library's layout toggle on both) and sort (the Library's sort button on both); Stats' list / grid switch and the share sheet's Settings row use the drawn glyphs too; the mini player and
+the record player adopt the transport glyphs in #413 and #414. The owner kept SF Symbols for the
+note on file rows and the Tracks and Single options, Add cover art (`photo.badge.plus`), trash,
+checkmarks, seals, folder, iphone, photo, `rectangle.stack.fill`, `paperplane.fill` and system
+menus. The metallic plus studies remain in
 `scripts/make-app-icons.py` for reference but are no longer in the asset catalog.
 
 ## Listener mark

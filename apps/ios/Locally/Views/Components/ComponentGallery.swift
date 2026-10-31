@@ -19,6 +19,8 @@ struct ComponentGallery: View {
         "stats-week", "stats-albums-grid", "stats-artists", "stats-quiet", "stats-signed-out", "stats-large-text", "stats-week-scrolled", "stats-grid-scrolled",
         // #213: the Mac's glyphs on the real tab bar, library and release page, over seeded sample data.
         "icons-tabs-library", "icons-tabs-stats", "icons-library-list", "icons-library-grid", "icons-release", "icons-release-bottom", "icons-cover-edit", "icons-playlist-guide",
+        // #412: the shared glyph set, drawn once on both apps (the Mac shows it at /dev/icons).
+        "icons-set",
         // #269: the Library's "From your devices" button and tray, over sample pending records.
         "devices-header-0", "devices-header-1", "devices-header-3", "devices-tray-open", "devices-tray-large-text", "devices-tray-failed",
         // #296: view mode in the Mac's look, no cover, the empty sleeve in edit mode, the tray's sections.
@@ -190,6 +192,8 @@ struct ComponentGallery: View {
             ReleaseReviewErrorGallery()
         case "controls":
             ControlsGallery()
+        case "icons-set":
+            IconSetGallery()
         case "library-empty":
             ZStack {
                 Theme.background.ignoresSafeArea()
@@ -488,7 +492,7 @@ struct ComponentGallery: View {
     private static func settings(signedIn: Bool, codeSentTo: String? = nil) -> some View {
         TabView {
             SettingsView()
-                .tabItem { Label(Copy.Settings.title, systemImage: "gearshape") }
+                .tabItem { Label(Copy.Settings.title, image: "Icon/Settings") }
         }
         .tint(Theme.accent)
         .environment(FolderStatus(isConnected: true))
@@ -843,7 +847,7 @@ private struct IconsTabs: View {
                 .tag(RootView.Tab.stats)
             SettingsView()
                 .environment(\.isTabSelected, selected == .settings)
-                .tabItem { Label(Copy.Settings.title, systemImage: "gearshape") }
+                .tabItem { Label(Copy.Settings.title, image: "Icon/Settings") }
                 .tag(RootView.Tab.settings)
         }
         .task {
@@ -1128,7 +1132,7 @@ private struct ControlsGallery: View {
                     KindSwitch(kind: $single)
                     KindSwitch(kind: $album)
                     SlimSwitch(
-                        options: [(value: StatsLayout.list, icon: "list.bullet", label: Copy.Stats.listLayout), (.grid, "square.grid.2x2", Copy.Stats.gridLayout)],
+                        options: [(value: StatsLayout.list, icon: "Icon/List", label: Copy.Stats.listLayout), (.grid, "Icon/Grid", Copy.Stats.gridLayout)],
                         selection: $layout, compact: true
                     )
                     CoverSizeSlider(selection: $size)
@@ -1321,7 +1325,10 @@ enum ShareGallery {
         if result {
             model.outcome = ShareOutcome(sharedCount: 2, notOnLocally: ["new.friend@example.com"], link: "https://locally-sync-api.vercel.app/s/4f9c2b7e1a8d")
         }
-        return ShareSheet(model: model, onClose: {}).preferredColorScheme(.dark)
+        // The signed-out frame gets a no-op settings action so its "Open Settings" row renders (#412).
+        return ShareSheet(model: model, onClose: {})
+            .environment(\.openSettingsTab, signedOut ? {} : nil)
+            .preferredColorScheme(.dark)
     }
 
     @MainActor
@@ -1654,6 +1661,70 @@ private struct HighlightedReleaseHost: View {
                 .navigationDestination(for: ArtistRoute.self) { ArtistPageView(route: $0) }
         }
         .artistLinks { path.append($0) }
+    }
+}
+
+/// The shared glyph set (#412): the eight drawn once for both apps, then the rest of the `Icon/` set.
+/// The Mac's `/dev/icons` sheet shows the same drawings.
+private struct IconSetGallery: View {
+    private struct Glyph: Identifiable {
+        let name: LocallyIcon.Name
+        let label: String
+        var id: String { label }
+    }
+
+    private static let shared = [
+        Glyph(name: .settings, label: "Settings"), Glyph(name: .play, label: "Play"),
+        Glyph(name: .pause, label: "Pause"), Glyph(name: .next, label: "Next"),
+        Glyph(name: .previous, label: "Previous"), Glyph(name: .grid, label: "Grid"),
+        Glyph(name: .list, label: "List"), Glyph(name: .sort, label: "Sort"),
+    ]
+
+    private static let also = [
+        Glyph(name: .library, label: "Library"), Glyph(name: .plus, label: "Plus"),
+        Glyph(name: .stats, label: "Stats"), Glyph(name: .person, label: "Person"),
+        Glyph(name: .chevronRight, label: "Chevron"), Glyph(name: .x, label: "X"),
+        Glyph(name: .pencil, label: "Pencil"), Glyph(name: .search, label: "Search"),
+        Glyph(name: .copy, label: "Copy"),
+    ]
+
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 4)
+
+    var body: some View {
+        ZStack {
+            Theme.background.ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 28) {
+                    section("Shared glyphs", Self.shared)
+                    section("Also drawn", Self.also)
+                }
+                .padding(20)
+            }
+        }
+    }
+
+    private func section(_ title: String, _ glyphs: [Glyph]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .eyebrow()
+                .accessibilityAddTraits(.isHeader)
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(glyphs) { glyph in
+                    VStack(spacing: 8) {
+                        LocallyIcon(glyph.name, size: 24)
+                            .foregroundStyle(Theme.primaryText)
+                        Text(glyph.label)
+                            .font(Theme.ScaledFont.subheadline)
+                            .foregroundStyle(Theme.secondaryText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Theme.elevated, in: RoundedRectangle(cornerRadius: 12))
+                }
+            }
+        }
     }
 }
 

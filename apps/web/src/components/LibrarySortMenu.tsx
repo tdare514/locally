@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { LIBRARY_SORT_OPTIONS, type LibrarySort } from "../lib/library-sections";
+import { SortIcon } from "./Icons";
 import { MENU_ITEM } from "./Popover";
 
 interface LibrarySortMenuProps {
@@ -87,21 +88,7 @@ export default function LibrarySortMenu({ value, onChange }: LibrarySortMenuProp
           }
         }}
       >
-        {/* #412 replaces this glyph with the shared sort icon. */}
-        <svg
-          viewBox="0 0 24 24"
-          width={20}
-          height={20}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={1.75}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M8 20V4M4.5 7.5 8 4l3.5 3.5" />
-          <path d="M16 4v16M12.5 16.5 16 20l3.5-3.5" />
-        </svg>
+        <SortIcon className="h-5 w-5" />
       </button>
       {open && (
         <ul
