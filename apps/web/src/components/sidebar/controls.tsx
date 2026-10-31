@@ -57,7 +57,7 @@ export function NavItem({
 }
 
 interface ChoiceProps<T extends string> {
-  /** `seg` is the slim switch (`.btn-seg`, as on the Stats page); `tabs` is a row of text tabs. */
+  /** `seg` is the slim switch (`.btn-seg`, as on the Stats page) as a radio group; `tabs` is a row of text tabs. */
   kind: "seg" | "tabs";
   label: string;
   value: T;
@@ -92,10 +92,9 @@ export function Choice<T extends string>({
 
   const vars = { "--n": options.length, "--i": index } as CSSProperties;
 
-  // The slim switch's thumb follows aria-pressed (globals.css, Choosers), so `seg` uses toggle buttons.
   if (kind === "seg") {
     return (
-      <div role="group" aria-label={label} onKeyDown={onKeyDown} className={`btn-seg st-seg w-full ${className}`} style={vars}>
+      <div role="radiogroup" aria-label={label} onKeyDown={onKeyDown} className={`btn-seg st-seg w-full ${className}`} style={vars}>
         <span aria-hidden className="btn-seg-dot">
           <span />
         </span>
@@ -105,7 +104,8 @@ export function Choice<T extends string>({
             <button
               key={o.value}
               type="button"
-              aria-pressed={selected}
+              role="radio"
+              aria-checked={selected}
               tabIndex={selected ? 0 : -1}
               onClick={() => onChange(o.value)}
               className="btn-seg-opt"

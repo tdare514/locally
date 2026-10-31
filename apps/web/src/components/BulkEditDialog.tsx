@@ -122,7 +122,7 @@ function BulkEditForm({
           placeholder="Leave unchanged"
           disabled={busy}
           wrapperClassName="flex flex-col"
-          inputClassName="rounded-lg bg-elevated px-4 py-3 text-sm text-text outline-none placeholder:text-text-muted/60 focus:ring-2 focus:ring-accent disabled:opacity-50"
+          inputClassName="rounded-lg bg-elevated px-4 py-3 text-sm text-text outline-none placeholder:text-text-muted focus:ring-2 focus:ring-accent disabled:opacity-50"
         />
       </div>
       <div className="grid grid-cols-2 gap-4">

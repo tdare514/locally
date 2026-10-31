@@ -1341,7 +1341,8 @@ body {
   position: absolute;
   inset: -6px 0;
 }
-.btn-seg-opt[aria-pressed="true"] {
+.btn-seg-opt[aria-pressed="true"],
+.btn-seg-opt[aria-checked="true"] {
   color: #fff;
 }
 .btn-seg-opt:where(:not(:disabled)):hover,

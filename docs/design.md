@@ -360,7 +360,7 @@ to 2.8:1 on Settings. The Collections player shows "Your music" with the collect
   there is a parent; title 18 bold; an optional trailing icon button (search, more). iOS keeps the
   system navigation bar and tab bar and styles them to match.
 - **Text field**: `elevated`, radius 8 (both apps; the Mac's fields moved from 6 in #417), label above in field-label style, placeholder at
-  `text-muted` 60 %. Year and Genre sit side by side in a two-column grid.
+  `text-muted` (on the Mac at full strength since #417 for 4.5:1; it was 60 %). Year and Genre sit side by side in a two-column grid.
 - **Library toolbar (desktop)**: under the "All music" header, a search field (magnifier at the
   left, placeholder "Search titles, artists, genres…", ⌘F focuses it, Escape clears it) beside a
   sort menu (Recently updated, Title A–Z, Artist A–Z, Year, newest first). On the Mac the search is
@@ -659,7 +659,8 @@ to 2.8:1 on Settings. The Collections player shows "Your music" with the collect
   menu button (three lines) at the very top, then Library and the accent Import circle in the
   order the panel lists them; at its foot sit Settings and, at the very bottom, the profile: a
   32 px circle with the first letter of the signed-in email (white on an `accent` tint), or a
-  person glyph when not signed in. *Since 15 Oct 2026 the profile replaces the quiet brand mark
+  person glyph when not signed in. Rail buttons draw at 40 with a transparent ring that makes each
+  target 44 (rule 11, #417). *Since 15 Oct 2026 the profile replaces the quiet brand mark
   that used to sit at the foot, and Settings moved down from under Import.* Hovering the top of the rail
   (the menu button through Stats, not Settings, the profile or the empty rail between) blooms a glass panel out of its right edge: the panel controls (**Pin down**, which shows
   "Pinned" while docked, and the Open on hover switch) level with the menu button, rows for

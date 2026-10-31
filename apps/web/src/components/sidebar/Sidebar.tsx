@@ -19,7 +19,9 @@ const rule =
 
 const step = (d: number) => ({ "--d": d }) as CSSProperties;
 
-const railButton = `flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${focusRing}`;
+// Drawn at 40 to stay level with the panel's rows; the transparent ring around it makes the target 44 (rule 11).
+const hitStrip = "relative before:absolute before:-inset-0.5 before:content-['']";
+const railButton = `${hitStrip} flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${focusRing}`;
 
 /** The pages the rail and the panel go to. Stats waits for its page (see HAS_STATS_PAGE). */
 export type SidebarPage = "library" | "import" | "settings" | "stats";
@@ -210,7 +212,7 @@ export default function Sidebar({
             disabled={IS_DEMO}
             title={IS_DEMO ? "Not available in the demo" : undefined}
             aria-current={activePage === "import" ? "page" : undefined}
-            className={`${IS_DEMO ? "" : "import-pill "}mt-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent hover:bg-accent-hover ${focusRing} ${
+            className={`${IS_DEMO ? "" : "import-pill "}${hitStrip} mt-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent hover:bg-accent-hover ${focusRing} ${
               activePage === "import" ? "ring-2 ring-white/25" : ""
             } disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-accent`}
           >

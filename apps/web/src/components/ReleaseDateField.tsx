@@ -41,7 +41,7 @@ const PRECISIONS: { value: PickerPrecision; label: string }[] = [
 const INPUT_CLASS: Record<"inline" | "form", string> = {
   inline:
     "rounded-lg bg-transparent px-1.5 py-0.5 font-semibold text-text outline-none transition-colors placeholder:font-normal placeholder:text-white/50 hover:bg-white/[0.07] focus:bg-white/10 focus:ring-2 focus:ring-accent",
-  form: "min-w-0 flex-1 rounded-lg bg-elevated px-4 py-3 text-sm text-text outline-none placeholder:text-text-muted/60 focus:ring-2 focus:ring-accent disabled:opacity-50",
+  form: "min-w-0 flex-1 rounded-lg bg-elevated px-4 py-3 text-sm text-text outline-none placeholder:text-text-muted focus:ring-2 focus:ring-accent disabled:opacity-50",
 };
 
 /**

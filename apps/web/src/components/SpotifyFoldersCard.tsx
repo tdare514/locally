@@ -105,7 +105,7 @@ export default function SpotifyFoldersCard({ onToast, onCheck }: SpotifyFoldersC
   return (
     <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6">
       <p className="text-sm font-bold text-text">Your Spotify folders</p>
-      <p className="text-xs text-text-dim">
+      <p className="text-xs text-text-muted">
         Locally reads the music Spotify plays from these folders. It never changes, moves or deletes a file there.
       </p>
       <fieldset disabled={IS_DEMO} className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0">
@@ -159,7 +159,7 @@ export default function SpotifyFoldersCard({ onToast, onCheck }: SpotifyFoldersC
               aria-label="Folder path"
               placeholder="/Users/you/Documents/Spotify Music"
               autoFocus
-              className="min-w-0 flex-1 rounded-lg bg-elevated px-4 py-3 text-sm text-text outline-none placeholder:text-text-muted/60 focus:ring-2 focus:ring-accent"
+              className="min-w-0 flex-1 rounded-lg bg-elevated px-4 py-3 text-sm text-text outline-none placeholder:text-text-muted focus:ring-2 focus:ring-accent"
             />
             <button type="submit" disabled={busy || typed.trim() === ""} className="btn-save">
               Add
