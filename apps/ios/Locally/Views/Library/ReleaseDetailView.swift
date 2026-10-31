@@ -70,6 +70,8 @@ struct ReleaseDetailView: View {
         }
         .task {
             if model == nil, let container {
+                PerfSignpost.begin(.releaseFirstCover)
+                PerfSignpost.begin(.releaseLoad)
                 let made = ReleaseDetailViewModel(release: release, coordinator: container.coordinator, coverStore: container.coverStore, syncApi: container.syncApi, isSignedIn: { container.syncAccount.deviceToken != nil })
                 coverImage = made.coverData.flatMap(UIImage.init(data:))
                 coverImageData = made.coverData
@@ -79,6 +81,7 @@ struct ReleaseDetailView: View {
                 }
                 model = made
                 collectionsModel = container.makeCollectionsModel()
+                PerfSignpost.end(.releaseLoad)
             }
             await model?.loadPlays()
             await model?.loadMissingLengths()
@@ -284,6 +287,7 @@ struct ReleaseDetailView: View {
             .accessibilityRemoveTraits(model.isEditing ? [] : .isButton)
             // In view mode VoiceOver reads it as the cover, an image, not "Change cover art".
             .modifier(ViewModeCoverAccessibility(isEditing: model.isEditing))
+            .endsSignpost(.releaseFirstCover, when: coverImage != nil)
             .sheet(isPresented: $isPresentingCoverSource, onDismiss: { applyCoverChoice(model) }) {
                 // Remove is left out: saving a release with its cover removed is not supported
                 // (`ReleaseChanges.cover` nil means "unchanged"), so it would do nothing.

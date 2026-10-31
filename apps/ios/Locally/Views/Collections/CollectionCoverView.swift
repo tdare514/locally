@@ -20,6 +20,7 @@ struct CollectionCoverView: View {
             .overlay { art }
             .clipShape(.rect(cornerRadius: cornerRadius))
             .accessibilityHidden(true)
+            .endsSignpost(.playerFirstCover, when: !images.isEmpty)
             .task(id: releaseIDs) {
                 let store = container?.coverStore
                 let ids = releaseIDs

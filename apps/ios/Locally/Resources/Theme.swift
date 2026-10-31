@@ -39,6 +39,10 @@ enum Theme {
     static let danger = Color(red: 0xF1 / 255, green: 0x5E / 255, blue: 0x6C / 255)
     /// iOS accent (#1E7DF0) — never Spotify green.
     static let accent = Color(red: 0x1E / 255, green: 0x7D / 255, blue: 0xF0 / 255)
+    /// How long a wait lasts before its skeleton shows (`DelayedSkeleton`, docs/design.md rule 10).
+    static let skeletonDelay: Duration = .milliseconds(300)
+    /// A skeleton's cover square on the dark panels: the Stats skeleton's row cover (`card` at 50% vanishes there).
+    static let skeletonFill = Color.white.opacity(0.06)
 
     /// Type roles from `docs/design.md`'s "Type" table, iOS/mobile column.
     enum Cover {
