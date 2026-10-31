@@ -28,25 +28,27 @@ export default function Toast({ toasts, onDismiss }: ToastProps) {
         <div
           key={t.id}
           role={t.kind === "error" ? "alert" : "status"}
-          className="pointer-events-auto glass-fake glass-frost isolate toast-in rounded-[22px] min-h-11 flex items-center gap-2 py-1 pl-4 pr-1 text-sm text-text max-w-[min(420px,calc(100vw-2rem))]"
+          className="pointer-events-auto glass-fake glass-frost isolate toast-in rounded-[22px] min-h-11 flex flex-wrap items-center gap-x-2 py-1 pl-4 pr-1 text-sm text-text max-w-[min(26rem,calc(100vw-2rem))]"
         >
           {t.kind === "error" && <AlertIcon className="size-5 shrink-0 text-danger" aria-hidden />}
-          <span className="py-2">{t.text}</span>
-          {t.action && (
-            <button
-              type="button"
-              onClick={() => {
-                t.action?.onClick();
-                onDismiss(t.id);
-              }}
-              className="btn-ink font-semibold"
-            >
-              {t.action.label}
+          <span className="min-w-[min(10rem,100%)] flex-1 py-2 [overflow-wrap:anywhere]">{t.text}</span>
+          <div className="ml-auto flex shrink-0 items-center">
+            {t.action && (
+              <button
+                type="button"
+                onClick={() => {
+                  t.action?.onClick();
+                  onDismiss(t.id);
+                }}
+                className="btn-ink font-semibold"
+              >
+                {t.action.label}
+              </button>
+            )}
+            <button type="button" onClick={() => onDismiss(t.id)} className="btn-icon" aria-label="Dismiss">
+              <XIcon className="size-5" aria-hidden />
             </button>
-          )}
-          <button type="button" onClick={() => onDismiss(t.id)} className="btn-icon" aria-label="Dismiss">
-            <XIcon className="size-5" aria-hidden />
-          </button>
+          </div>
         </div>
       ))}
     </div>
