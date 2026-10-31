@@ -291,7 +291,9 @@ export default function ImportView({
       // The Added moment fires once the seal has finished and the request has succeeded (at once
       // under reduced motion): the toast, then the release page, then the form reset.
       await pause(sealRemaining(Date.now() - startedAt, reducedMotion));
-      onToast("success", sentToast(await watching));
+      // A status check that hangs mustn't hold the page: past half a second more it counts as unknown.
+      const seen = await Promise.race([watching, pause(500).then(() => null)]);
+      onToast("success", sentToast(seen));
       onImported(release);
       setEntries([]);
       setCoverFile(null);
