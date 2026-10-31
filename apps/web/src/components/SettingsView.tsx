@@ -596,7 +596,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
               <button
                 type="button"
                 onClick={handleBaseUrlBlur}
-                className="mt-1 text-xs font-medium text-text-dim underline-offset-2 hover:text-text hover:underline"
+                className="mt-1 text-xs font-medium text-text-muted underline-offset-2 hover:text-text hover:underline"
               >
                 Use this address
               </button>

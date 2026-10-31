@@ -43,9 +43,9 @@ export function SettingsSection({
   }`;
   return (
     <section id={id} aria-labelledby={headingId}>
-      <p id={headingId} className="mb-2.5 px-1.5 text-[13px] font-semibold text-text-muted">
+      <h2 id={headingId} className="mb-2.5 px-1.5 text-[13px] font-semibold text-text-muted">
         {title}
-      </p>
+      </h2>
       {disabled === undefined ? (
         <div className={cardClass}>{children}</div>
       ) : (

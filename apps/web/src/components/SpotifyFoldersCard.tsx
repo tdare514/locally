@@ -21,7 +21,7 @@ function MiddleCut({ text }: { text: string }) {
   const head = text.length > keep ? text.slice(0, -keep) : "";
   const tail = text.length > keep ? text.slice(-keep) : text;
   return (
-    <span className="flex min-w-0 text-xs text-text-dim" title={text}>
+    <span className="flex min-w-0 text-xs text-text-muted" title={text}>
       {head && <span className="truncate">{head}</span>}
       <span className="shrink-0 whitespace-pre">{tail}</span>
     </span>
