@@ -416,7 +416,6 @@ enum Copy {
         static let recordSwitchName = "Spinning record"
         static let pictureDisc = "Picture disc"
         static let blackVinyl = "Black vinyl"
-        static func eyebrow(_ count: Int) -> String { "Library \u{00B7} \(countLine(count))" }
         static let editCollection = "Edit collection"
         static let nothingPlaying = "Nothing playing"
         static let previousTrack = "Previous track"

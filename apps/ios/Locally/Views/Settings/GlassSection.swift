@@ -252,7 +252,7 @@ struct GlassField: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: Theme.Radius.input, style: .continuous)
         TextField(placeholder, text: $text)
             .keyboardType(keyboardType)
             .textContentType(contentType)

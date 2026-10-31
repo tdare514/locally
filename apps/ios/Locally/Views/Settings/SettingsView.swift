@@ -33,7 +33,7 @@ struct SettingsView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 26) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(Copy.Settings.eyebrow).eyebrow()
+                            Text(Copy.Settings.eyebrow).pageEyebrow()
                             Text(Copy.Settings.title)
                                 .font(Theme.ScaledFont.largeTitle)
                                 .foregroundStyle(Theme.primaryText)

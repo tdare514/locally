@@ -108,6 +108,9 @@ enum Theme {
         static let fieldGap: CGFloat = 16
         /// Gap between rows in a list (e.g. album track rows).
         static let rowGap: CGFloat = 4
+        /// A page eyebrow's backing capsule (`pageEyebrow()`), the Mac's `px-2.5 py-0.5`.
+        static let eyebrowBackingX: CGFloat = 10
+        static let eyebrowBackingY: CGFloat = 2
         static let inputPaddingH: CGFloat = 16
         static let inputPaddingV: CGFloat = 12
         static let primaryButtonH: CGFloat = 32
@@ -136,7 +139,8 @@ enum Theme {
         static let tileMinWidth: [CGFloat] = [60, 96, 150]
         /// Gap between tiles per `CoverSize`.
         static let tileGap: [CGFloat] = [8, 12, 16]
-        static let tileCornerRadius: CGFloat = 8
+        /// A cover in the grid, 4 like every cover (#418, rule 8).
+        static let tileCornerRadius: CGFloat = Theme.Radius.thumbnail
         // The cover size slider (#360) and the Collections card.
         /// The slider's width with its two glyphs, the hit height, the thumb's size, the track's thickness and the snap duration.
         static let sizeSliderWidth: CGFloat = 128
@@ -389,9 +393,9 @@ enum Theme {
     enum Import {
         /// The slim switch: each option's minimum tap height, and (for the play disc, until #414) the black under a tint.
         static let kindSwitchMinTarget: CGFloat = 44
-        /// A stacked switch is a rounded track, not a capsule, so its thumb stays inside; the thumb is
-        /// concentric, inset from the track by this much.
-        static let kindSwitchStackCorner: CGFloat = 22
+        /// A stacked switch is a rounded track, not a capsule, so its thumb stays inside; track and
+        /// thumb both use the floating-panel radius of the one shape scale (#418, rule 8).
+        static let kindSwitchStackCorner: CGFloat = Theme.Radius.dialog
         static let kindSwitchPadding: CGFloat = 3
         /// Send scrolls the record back to the sleeve over this long (docs/design.md "Make a record").
         static let sendScrollDuration: Double = 0.35
@@ -721,9 +725,10 @@ extension Theme {
         static let shelfCover: CGFloat = 132
         /// At accessibility text sizes.
         static let shelfCoverLarge: CGFloat = 112
-        static let shelfRadius: CGFloat = 12
+        /// Shelf and song covers are covers: 4, and the picked ring uses the same radius (#418).
+        static let shelfRadius: CGFloat = Theme.Radius.thumbnail
         static let songCover: CGFloat = 52
-        static let songRadius: CGFloat = 8
+        static let songRadius: CGFloat = Theme.Radius.thumbnail
         static let songMinHeight: CGFloat = 60
         static let crateCover: CGFloat = 52
         static let crateOverlap: CGFloat = 18

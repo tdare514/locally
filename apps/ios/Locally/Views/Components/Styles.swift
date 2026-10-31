@@ -218,6 +218,24 @@ extension View {
             .foregroundStyle(Theme.accent)
     }
 
+    /// A page's eyebrow ("Your collection", "Local library", "Your music"): the `eyebrow()` text on the
+    /// Mac's backing, a capsule in the page `bg` colour (10 pt across, 2 pt down), so `accent` text
+    /// keeps 5.25:1 (#1E7DF0 on #000000) over a moving backdrop or a pale cover's wash instead of the
+    /// 2.3 to 2.8:1 it measured bare (#418, rule 11). The leading -10 pt lines the text up with the
+    /// title under it, as the Mac's `-ml-2.5` does.
+    func pageEyebrow() -> some View {
+        eyebrow()
+            .eyebrowBacking()
+    }
+
+    /// The page-eyebrow capsule on its own, for an eyebrow line that holds more than one run of text.
+    func eyebrowBacking() -> some View {
+        padding(.horizontal, Theme.Spacing.eyebrowBackingX)
+            .padding(.vertical, Theme.Spacing.eyebrowBackingY)
+            .background(Capsule().fill(Theme.background))
+            .padding(.leading, -Theme.Spacing.eyebrowBackingX)
+    }
+
     /// The field-label text style (e.g. "Title"): 13 pt semibold in sentence
     /// case, no tracking, muted colour (#418, rule 11).
     func fieldLabelStyle() -> some View {

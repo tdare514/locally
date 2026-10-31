@@ -115,7 +115,7 @@ struct CollectionsView: View {
             : AnyLayout(HStackLayout(alignment: .center))
         return layout {
             VStack(alignment: .leading, spacing: 4) {
-                Text(Copy.Collections.pageEyebrow).eyebrow()
+                Text(Copy.Collections.pageEyebrow).pageEyebrow()
                 Text(Copy.Collections.title)
                     .themeFont(.pageTitle)
                     .foregroundStyle(Theme.primaryText)

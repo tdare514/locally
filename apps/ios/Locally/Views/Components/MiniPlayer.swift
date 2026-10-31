@@ -99,7 +99,7 @@ struct MiniPlayerBar: View {
             }
         }
         .frame(width: coverSide, height: coverSide)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.thumbnail, style: .continuous))
         .accessibilityHidden(true)
     }
 
