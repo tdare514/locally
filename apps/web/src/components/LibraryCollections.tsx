@@ -22,6 +22,10 @@ const BACK_SHADOW = "0 3px 5px rgb(0 0 0 / 0.4)";
 
 /** The surface the card, its loading placeholder and nothing else share: the Settings card's quiet recipe (rule 5). */
 const SURFACE = "rounded-xl border border-white/[0.08] bg-white/[0.06]";
+/** The frame the card and its loading placeholder share, so both are the same height: the 60 px sleeve stack sets it
+ * (60 + 24 padding + 2 border = 86), and the text is held under 60 (a 20 px title and two 18 px subtitle lines) so a
+ * wrapped subtitle never makes the card taller than the placeholder. */
+const FRAME = `relative isolate flex min-h-20 w-full items-center gap-3.5 px-3.5 py-3 ${SURFACE}`;
 
 /**
  * The Library's one Collections card (#420, C24), the iPhone's card on the Mac: the first three collections' sleeves
@@ -66,7 +70,13 @@ export function CollectionsCard({
   onOpen: () => void;
 }) {
   // Same height and surface as the card, so nothing below moves when the collections arrive.
-  if (!loaded) return <div aria-hidden="true" className={`min-h-20 w-full ${SURFACE}`} />;
+  if (!loaded) {
+    return (
+      <div aria-hidden="true" className={FRAME}>
+        <span className="block shrink-0" style={{ width: SLEEVE + PEEK, height: STACK_HEIGHT }} />
+      </div>
+    );
+  }
   if (failed && collections.length === 0) {
     return <p className="px-1 text-sm text-text-muted">{COLLECTIONS_COPY.failedToLoad}</p>;
   }
@@ -76,7 +86,7 @@ export function CollectionsCard({
       type="button"
       onClick={onOpen}
       aria-label={collections.length === 0 ? "Collections" : `Collections, ${subtitle}`}
-      className={`relative isolate flex min-h-20 w-full items-center gap-3.5 px-3.5 py-3 text-left outline-none transition-[scale,opacity,background-color] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-white/[0.08] focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.98] active:opacity-[0.85] motion-reduce:active:scale-100 ${SURFACE}`}
+      className={`${FRAME} text-left outline-none transition-[scale,opacity,background-color] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-white/[0.08] focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.98] active:opacity-[0.85] motion-reduce:active:scale-100`}
     >
       {/* The cover's colour washing in from the left: 40 % at the edge, clear by 70 % of the width, under the content. */}
       <span
@@ -86,8 +96,8 @@ export function CollectionsCard({
       />
       <Sleeves collections={collections} releases={releases} color={color} />
       <span className="min-w-0 flex-1">
-        <span className="block text-[15px] font-semibold text-text">Collections</span>
-        <span className="line-clamp-2 block text-[13px] text-text-muted">{subtitle}</span>
+        <span className="block text-[15px] font-semibold leading-5 text-text">Collections</span>
+        <span className="line-clamp-2 text-[13px] leading-[18px] text-text-muted">{subtitle}</span>
       </span>
       <ChevronRightIcon aria-hidden="true" className="size-[18px] shrink-0 text-text-muted" />
     </button>
