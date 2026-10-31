@@ -30,9 +30,21 @@ import { watchCloudPlays } from "../lib/cloud-plays-refresh";
 import { libraryWidthClass } from "../lib/library-view-prefs";
 import { useLibraryWidth } from "../lib/use-library-width";
 import { IS_DEMO } from "../lib/demo";
+import AmbientBackdrop from "./AmbientBackdrop";
 import Field from "./Field";
+import {
+  CalendarIcon,
+  CloudDownIcon,
+  LibraryIcon,
+  MusicNoteIcon,
+  NowPlayingIcon,
+  PlayIcon,
+  SettingsIcon,
+  UploadCloudIcon,
+} from "./Icons";
 import KnobSwitch from "./KnobSwitch";
 import LibraryMoveControl from "./LibraryMoveControl";
+import { SettingsBlock, SettingsRow, SettingsSection } from "./SettingsGroup";
 import SpotifyFoldersCard from "./SpotifyFoldersCard";
 import { HAS_SPOTIFY_CONNECTION } from "./sidebar/flags";
 
@@ -102,11 +114,19 @@ function CloudPlaysRow({
     setAnnounced(cloudPlaysAnnouncement(lines.state));
   }
   return (
-    <>
-      <div className="flex items-center justify-between gap-4">
-        <span id="cloud-plays-label" className="text-sm text-text-muted">
-          {CLOUD_PLAYS_LABEL}
-        </span>
+    <SettingsRow
+      icon={CloudDownIcon}
+      title={CLOUD_PLAYS_LABEL}
+      titleId="cloud-plays-label"
+      note={
+        <>
+          <p id="cloud-plays-help" className="text-xs text-text-muted">
+            {lines.line}
+          </p>
+          {lines.quiet && <p className="text-xs text-text-muted">{lines.quiet}</p>}
+        </>
+      }
+      trailing={
         <KnobSwitch
           checked={lines.on}
           onChange={onToggle}
@@ -114,22 +134,17 @@ function CloudPlaysRow({
           labelledBy="cloud-plays-label"
           describedBy="cloud-plays-help"
         />
-      </div>
-      <div className="flex items-center justify-between gap-4">
-        <p id="cloud-plays-help" className="text-xs text-text-dim">
-          {lines.line}
-        </p>
-        {lines.reconnect && (
-          <button type="button" onClick={onReconnect} disabled={busy} className="btn-ink">
-            Reconnect
-          </button>
-        )}
-      </div>
-      {lines.quiet && <p className="text-xs text-text-dim">{lines.quiet}</p>}
+      }
+    >
+      {lines.reconnect && (
+        <button type="button" onClick={onReconnect} disabled={busy} className="btn-ink -ml-3">
+          Reconnect
+        </button>
+      )}
       <p role="status" aria-live="polite" className="sr-only">
         {announced}
       </p>
-    </>
+    </SettingsRow>
   );
 }
 
@@ -542,6 +557,7 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
 
   return (
     <div className={`flex flex-col gap-8 pb-16 ${libraryWidthClass(libraryWidth)}`}>
+      <AmbientBackdrop palette={null} />
       <div>
         <p className="text-sm font-semibold text-accent">
           Local library
@@ -549,223 +565,26 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
         <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">Settings</h1>
       </div>
 
-      {/* Two columns from lg, each card at its natural height (CSS columns), one column below. */}
+      {/* Two columns from lg (CSS columns), each section at its natural height, one column below. A section is
+          a title, one card of rows and an optional footnote (#416), and never splits across the columns. */}
       <div className="lg:columns-2 lg:gap-x-8 [&>*]:mb-8 [&>*]:break-inside-avoid [&>*:last-child]:mb-0">
-      <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6">
-        <p className="text-sm font-bold text-text">Library folder</p>
-        <fieldset disabled={IS_DEMO} className="m-0 min-w-0 border-0 p-0">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="flex-1">
-            <Field
-              label="Path"
-              value={libraryDir}
-              onChange={setLibraryDir}
-              placeholder={`~/Music/${BRAND_FOLDER_NAME}`}
-              disabled={loading}
-            />
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving || loading}
-              className="btn-save"
-            >
-              {saving ? "Saving…" : "Save"}
-            </button>
-            <button
-              type="button"
-              onClick={handleReveal}
-              className="btn-ink"
-            >
-              Show in Finder
-            </button>
-          </div>
-        </div>
-        </fieldset>
-        <LibraryMoveControl onToast={onToast} onMoved={setLibraryDir} />
-      </section>
-
-      <SpotifyFoldersCard onToast={onToast} onCheck={onCheckSpotifyFolders} />
-
-      <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6">
-        <p className="text-sm font-bold text-text">Library</p>
-        <div className="flex items-center justify-between gap-4">
-          <span id="library-width-label" className="text-sm text-text-muted">
-            Library width
-          </span>
-          <div role="group" aria-labelledby="library-width-label" className="btn-seg">
-            <span aria-hidden className="btn-seg-dot">
-              <span />
-            </span>
-            {(
-              [
-                { value: "full", label: "Full width" },
-                { value: "comfortable", label: "Comfortable" },
-              ] as const
-            ).map(({ value, label }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => changeLibraryWidth(value)}
-                aria-pressed={libraryWidth === value}
-                className="btn-seg-opt"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6">
-        <p className="text-sm font-bold text-text">Plays</p>
-        <fieldset disabled={IS_DEMO} className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
-          <div className="flex items-center justify-between gap-4">
-            <span id="track-plays-label" className="text-sm text-text-muted">
-              Count my plays
-            </span>
-            <KnobSwitch
-              checked={trackPlays}
-              onChange={handleToggleTrackPlays}
-              disabled={loading || savingTrackPlays}
-              labelledBy="track-plays-label"
-            />
-          </div>
-          <p className="text-xs text-text-dim">
-            {cloudActive
-              ? "Counts a Locally track once it has played 30 seconds in Spotify or in Locally on this Mac, or in Spotify on any of your devices, even when this Mac is off."
-              : otherDevicesOn
-              ? "Counts a Locally track once it has played 30 seconds in Spotify or in Locally on this Mac, or in Spotify on any of your devices."
-              : showOtherDevicesRow
-                ? "Counts a Locally track once it has played 30 seconds in Spotify or in Locally on this Mac, or in Spotify on another device while Spotify is open here."
-                : "Counts a Locally track once it has played 30 seconds in Spotify or in Locally on this Mac, and plays on your other devices while Spotify is open here."}
-          </p>
-          {showOtherDevicesRow && (
-            <>
-              <div className="flex items-center justify-between gap-4">
-                <span id="count-other-devices-label" className="text-sm text-text-muted">
-                  Count plays on my other devices
-                </span>
-                <KnobSwitch
-                  checked={countOtherDevices}
-                  onChange={handleToggleCountOtherDevices}
-                  disabled={loading || savingOtherDevices}
-                  labelledBy="count-other-devices-label"
-                />
-              </div>
-              <p className="text-xs text-text-dim">
-                Counts what you play on your phone and other computers through your Spotify account, while
-                Locally is running on this Mac and the Mac is awake. Plays while the Mac sleeps aren&apos;t counted.
-              </p>
-            </>
-          )}
-          {trackPlays && playsStatus === "spotify-not-running" && playsSource === "this-mac" && (
-            <p className="text-sm text-text-muted">Spotify isn&apos;t running.</p>
-          )}
-          {trackPlays && playsFallingBack && (
-            <p className="text-sm text-text-muted">
-              Can&apos;t reach your Spotify account right now, so only this Mac&apos;s plays count until it&apos;s back.
-            </p>
-          )}
-          {trackPlays && playsStatus === "permission-denied" && (
-            <p className="text-sm text-danger">
-              Locally isn&apos;t allowed to see what Spotify is playing. Allow it in System Settings ▸ Privacy &amp; Security ▸ Automation.
-            </p>
-          )}
-        </fieldset>
-      </section>
-
-      {spotify && (
-        <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6">
-          <p className="text-sm font-bold text-text">Spotify</p>
-          {spotify.connected ? (
-            <>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-sm text-text-muted">Connected as {spotify.displayName}</span>
-                <button
-                  type="button"
-                  onClick={handleDisconnectSpotify}
-                  disabled={spotifyBusy}
-                  className="btn-ink"
-                >
-                  Disconnect
-                </button>
-              </div>
-              <p className="text-xs text-text-dim">
-                To remove Locally&apos;s access completely, remove it in your{" "}
-                <a
-                  href="https://www.spotify.com/account/apps/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline"
-                >
-                  Spotify account
-                </a>
-                .
-              </p>
-            </>
-          ) : spotifyPending ? (
-            <>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-sm text-text-muted">Waiting for Spotify in your browser…</span>
-                <button
-                  type="button"
-                  onClick={handleDisconnectSpotify}
-                  disabled={spotifyBusy}
-                  className="btn-ink"
-                >
-                  Cancel
-                </button>
-              </div>
-              {spotifyAuthorizeUrl && (
-                <p className="text-xs text-text-dim">
-                  Nothing opened?{" "}
-                  <a href={spotifyAuthorizeUrl} target="_blank" rel="noopener noreferrer" className="underline">
-                    Open the Spotify sign-in page
-                  </a>
-                  .
-                </p>
-              )}
-            </>
-          ) : (
-            <>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-sm text-text-muted">Not connected on this Mac</span>
-                <button
-                  type="button"
-                  onClick={handleConnectSpotify}
-                  disabled={spotifyBusy}
-                  className="btn-save"
-                >
-                  Connect Spotify
-                </button>
-              </div>
-              <p className="text-xs text-text-dim">
-                Read-only: Locally can see your playlists and what is playing. It can&apos;t change anything.
-              </p>
-            </>
-          )}
-          {cloud && <CloudPlaysRow status={cloud} busy={cloudBusy} onToggle={handleToggleCloud} onReconnect={startCloudLink} />}
-          {(spotifyStartError || spotify.error) && (
-            <p className="text-sm text-danger">{spotifyStartError ?? spotify.error}</p>
-          )}
-        </section>
-      )}
-
-      <section id="account" className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6">
-        <div>
-          <p className="text-sm font-bold text-text">Sync with your phone</p>
-          <p className="mt-1 text-sm text-text-muted">
+      <SettingsSection
+        id="account"
+        title="Account"
+        prominent
+        disabled={IS_DEMO}
+        footnote="A library that already existed on both this Mac and your phone before you signed in is treated as two separate libraries — each side's songs sync as they are, so a song tagged on both shows up twice."
+      >
+        <SettingsBlock className="flex flex-col gap-2">
+          <p className="text-sm text-text-muted">
             Songs you tag here show up on your phone, and songs your phone tags show up here for
             you to send to Spotify.
           </p>
-        </div>
-        {IS_DEMO && <p className="text-sm text-text-muted">Sync isn&apos;t available in the demo.</p>}
-        <fieldset disabled={IS_DEMO} className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0">
+          {IS_DEMO && <p className="text-sm text-text-muted">Sync isn&apos;t available in the demo.</p>}
+        </SettingsBlock>
 
         {!signedIn && (
-          <div className="flex flex-col gap-4">
+          <SettingsBlock className="flex flex-col gap-4">
             <div className="max-w-xs">
               <Field
                 label="Service URL"
@@ -835,42 +654,66 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
                 </div>
               </div>
             )}
-          </div>
+          </SettingsBlock>
         )}
 
         {signedIn && syncStatus && (
-          <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <p className="text-sm font-medium text-text-muted">
-                  Signed in as
-                </p>
-                <p className="mt-1 text-sm text-text">{syncStatus.email}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-text-muted">
-                  This device
-                </p>
-                <p className="mt-1 text-sm text-text">{syncStatus.deviceName ?? "This Mac"}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-text-muted">
-                  Storage used
-                </p>
-                <p className="mt-1 text-sm text-text">
-                  {syncStatus.quota
-                    ? `${formatQuota(syncStatus.quota.usedBytes)} of ${formatQuota(syncStatus.quota.limitBytes)}`
-                    : "—"}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-text-muted">
-                  Last synced
-                </p>
-                <p className="mt-1 text-sm text-text">{formatLastSync(syncStatus.lastRunAt)}</p>
-              </div>
-            </div>
+          <>
+            <SettingsRow icon={UploadCloudIcon} title="Signed in as" value={syncStatus.email} />
+            <SettingsRow icon={SettingsIcon} title="This device" value={syncStatus.deviceName ?? "This Mac"} />
+          </>
+        )}
+      </SettingsSection>
 
+      <SettingsSection title="Library folder" disabled={IS_DEMO}>
+        <SettingsBlock className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <Field
+                label="Path"
+                value={libraryDir}
+                onChange={setLibraryDir}
+                placeholder={`~/Music/${BRAND_FOLDER_NAME}`}
+                disabled={loading}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || loading}
+                className="btn-save"
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={handleReveal}
+                className="btn-ink"
+              >
+                Show in Finder
+              </button>
+            </div>
+          </div>
+          <LibraryMoveControl onToast={onToast} onMoved={setLibraryDir} />
+        </SettingsBlock>
+      </SettingsSection>
+
+      <SpotifyFoldersCard onToast={onToast} onCheck={onCheckSpotifyFolders} />
+
+      {signedIn && syncStatus && (
+        <SettingsSection title="Sync" disabled={IS_DEMO}>
+          <SettingsRow
+            icon={CloudDownIcon}
+            title="Storage used"
+            value={
+              syncStatus.quota
+                ? `${formatQuota(syncStatus.quota.usedBytes)} of ${formatQuota(syncStatus.quota.limitBytes)}`
+                : "—"
+            }
+          />
+          <SettingsRow icon={CalendarIcon} title="Last synced" value={formatLastSync(syncStatus.lastRunAt)} />
+          <SettingsBlock className="flex flex-col gap-4">
             {syncStatus.lastError && (
               <p className="text-xs text-danger">{syncStatus.lastError}</p>
             )}
@@ -930,50 +773,232 @@ export default function SettingsView({ onToast, syncStatus, onSyncStatusChange, 
                 Delete sync account…
               </button>
             )}
-          </div>
-        )}
-
-        <p className="text-xs text-text-dim">
-          A library that already existed on both this Mac and your phone before you signed in is
-          treated as two separate libraries — each side&apos;s songs sync as they are, so a song
-          tagged on both shows up twice.
-        </p>
-        </fieldset>
-      </section>
+          </SettingsBlock>
+        </SettingsSection>
+      )}
 
       {signedIn && !IS_DEMO && <SharedByYou onToast={onToast} />}
 
-      <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6">
-        <p className="text-sm font-semibold text-text">Connect to Spotify</p>
-        {spotifyWatching !== null && (
-          <p className={`text-sm ${spotifyWatching ? "text-accent" : "text-text-muted"}`}>
-            {spotifyWatching
-              ? "Spotify is watching your library folder."
-              : "Spotify isn't watching your library folder yet."}
-          </p>
-        )}
-        <ol className="flex flex-col gap-2 text-sm text-text-muted">
-          {STEPS.map((step, i) => (
-            <li key={i} className="flex gap-3">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-elevated text-xs font-semibold text-text">
-                {i + 1}
+      <SettingsSection title="Library">
+        <SettingsRow
+          icon={LibraryIcon}
+          title="Library width"
+          titleId="library-width-label"
+          trailing={
+            <div role="group" aria-labelledby="library-width-label" className="btn-seg">
+              <span aria-hidden className="btn-seg-dot">
+                <span />
               </span>
-              <span>{step}</span>
-            </li>
-          ))}
-        </ol>
-      </section>
+              {(
+                [
+                  { value: "full", label: "Full width" },
+                  { value: "comfortable", label: "Comfortable" },
+                ] as const
+              ).map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => changeLibraryWidth(value)}
+                  aria-pressed={libraryWidth === value}
+                  className="btn-seg-opt"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          }
+        />
+      </SettingsSection>
 
-      <section className="flex flex-col gap-2 rounded-xl border border-border bg-card p-6 text-sm text-text-muted">
-        <p>
-          Spotify caches local-file metadata. After editing an existing track here,{" "}
-          <strong className="text-text">restart Spotify</strong> to see the changes.
-        </p>
-        <p>
-          Non-mp3 files are converted to 320&nbsp;kbps mp3 on import, because Spotify&apos;s
-          Local Files only reads mp3 (and mp4/m4a) files.
-        </p>
-      </section>
+      <SettingsSection title="Connect to Spotify">
+        <SettingsBlock className="flex flex-col gap-3">
+          {spotifyWatching !== null && (
+            <p className={`text-sm ${spotifyWatching ? "text-accent" : "text-text-muted"}`}>
+              {spotifyWatching
+                ? "Spotify is watching your library folder."
+                : "Spotify isn't watching your library folder yet."}
+            </p>
+          )}
+          <ol className="flex flex-col gap-2 text-sm text-text-muted">
+            {STEPS.map((step, i) => (
+              <li key={i} className="flex gap-3">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-elevated text-xs font-semibold text-text">
+                  {i + 1}
+                </span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
+        </SettingsBlock>
+      </SettingsSection>
+
+      {spotify && (
+        <SettingsSection
+          title="Spotify"
+          footnote={
+            spotify.connected ? (
+              <>
+                To remove Locally&apos;s access completely, remove it in your{" "}
+                <a
+                  href="https://www.spotify.com/account/apps/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  Spotify account
+                </a>
+                .
+              </>
+            ) : spotifyPending ? (
+              spotifyAuthorizeUrl && (
+                <>
+                  Nothing opened?{" "}
+                  <a href={spotifyAuthorizeUrl} target="_blank" rel="noopener noreferrer" className="underline">
+                    Open the Spotify sign-in page
+                  </a>
+                  .
+                </>
+              )
+            ) : (
+              "Read-only: Locally can see your playlists and what is playing. It can't change anything."
+            )
+          }
+        >
+          {spotify.connected ? (
+            <SettingsRow
+              icon={MusicNoteIcon}
+              title={<>Connected as {spotify.displayName}</>}
+              trailing={
+                <button
+                  type="button"
+                  onClick={handleDisconnectSpotify}
+                  disabled={spotifyBusy}
+                  className="btn-ink"
+                >
+                  Disconnect
+                </button>
+              }
+            />
+          ) : spotifyPending ? (
+            <SettingsRow
+              icon={MusicNoteIcon}
+              title="Waiting for Spotify in your browser…"
+              trailing={
+                <button
+                  type="button"
+                  onClick={handleDisconnectSpotify}
+                  disabled={spotifyBusy}
+                  className="btn-ink"
+                >
+                  Cancel
+                </button>
+              }
+            />
+          ) : (
+            <SettingsRow
+              icon={MusicNoteIcon}
+              title="Not connected on this Mac"
+              trailing={
+                <button
+                  type="button"
+                  onClick={handleConnectSpotify}
+                  disabled={spotifyBusy}
+                  className="btn-save"
+                >
+                  Connect Spotify
+                </button>
+              }
+            />
+          )}
+          {cloud && <CloudPlaysRow status={cloud} busy={cloudBusy} onToggle={handleToggleCloud} onReconnect={startCloudLink} />}
+          {(spotifyStartError || spotify.error) && (
+            <SettingsBlock>
+              <p className="text-sm text-danger">{spotifyStartError ?? spotify.error}</p>
+            </SettingsBlock>
+          )}
+        </SettingsSection>
+      )}
+
+      <SettingsSection
+        title="Plays"
+        disabled={IS_DEMO}
+        footnote={
+          cloudActive
+            ? "Counts a Locally track once it has played 30 seconds in Spotify or in Locally on this Mac, or in Spotify on any of your devices, even when this Mac is off."
+            : otherDevicesOn
+            ? "Counts a Locally track once it has played 30 seconds in Spotify or in Locally on this Mac, or in Spotify on any of your devices."
+            : showOtherDevicesRow
+              ? "Counts a Locally track once it has played 30 seconds in Spotify or in Locally on this Mac, or in Spotify on another device while Spotify is open here."
+              : "Counts a Locally track once it has played 30 seconds in Spotify or in Locally on this Mac, and plays on your other devices while Spotify is open here."
+        }
+      >
+        <SettingsRow
+          icon={PlayIcon}
+          title="Count my plays"
+          titleId="track-plays-label"
+          trailing={
+            <KnobSwitch
+              checked={trackPlays}
+              onChange={handleToggleTrackPlays}
+              disabled={loading || savingTrackPlays}
+              labelledBy="track-plays-label"
+            />
+          }
+        />
+        {showOtherDevicesRow && (
+          <SettingsRow
+            icon={NowPlayingIcon}
+            title="Count plays on my other devices"
+            titleId="count-other-devices-label"
+            note={
+              <p className="text-xs text-text-muted">
+                Counts what you play on your phone and other computers through your Spotify account, while
+                Locally is running on this Mac and the Mac is awake. Plays while the Mac sleeps aren&apos;t counted.
+              </p>
+            }
+            trailing={
+              <KnobSwitch
+                checked={countOtherDevices}
+                onChange={handleToggleCountOtherDevices}
+                disabled={loading || savingOtherDevices}
+                labelledBy="count-other-devices-label"
+              />
+            }
+          />
+        )}
+        {trackPlays && playsStatus === "spotify-not-running" && playsSource === "this-mac" && (
+          <SettingsBlock>
+            <p className="text-sm text-text-muted">Spotify isn&apos;t running.</p>
+          </SettingsBlock>
+        )}
+        {trackPlays && playsFallingBack && (
+          <SettingsBlock>
+            <p className="text-sm text-text-muted">
+              Can&apos;t reach your Spotify account right now, so only this Mac&apos;s plays count until it&apos;s back.
+            </p>
+          </SettingsBlock>
+        )}
+        {trackPlays && playsStatus === "permission-denied" && (
+          <SettingsBlock>
+            <p className="text-sm text-danger">
+              Locally isn&apos;t allowed to see what Spotify is playing. Allow it in System Settings ▸ Privacy &amp; Security ▸ Automation.
+            </p>
+          </SettingsBlock>
+        )}
+      </SettingsSection>
+
+      <SettingsSection title="About">
+        <SettingsBlock className="flex flex-col gap-2 text-sm text-text-muted">
+          <p>
+            Spotify caches local-file metadata. After editing an existing track here,{" "}
+            <strong className="text-text">restart Spotify</strong> to see the changes.
+          </p>
+          <p>
+            Non-mp3 files are converted to 320&nbsp;kbps mp3 on import, because Spotify&apos;s
+            Local Files only reads mp3 (and mp4/m4a) files.
+          </p>
+        </SettingsBlock>
+      </SettingsSection>
       </div>
     </div>
   );

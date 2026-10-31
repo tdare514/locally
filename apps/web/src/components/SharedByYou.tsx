@@ -5,6 +5,7 @@ import { coverUrl, getSentShares, revokeShare } from "../lib/api-client";
 import { COPIES_STAY, expiryLabel, sentShareState, sharedWithLabel } from "../lib/share-copy";
 import type { SentShare } from "../shared/shares";
 import { MusicNoteIcon } from "./Icons";
+import { SettingsBlock, SettingsSection } from "./SettingsGroup";
 
 interface SharedByYouProps {
   onToast: (kind: "success" | "error", text: string) => void;
@@ -72,10 +73,8 @@ export default function SharedByYou({ onToast }: SharedByYouProps) {
   }
 
   return (
-    <section id="shared-by-you" aria-labelledby="shared-by-you-heading" className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6">
-      <p id="shared-by-you-heading" className="text-sm font-bold text-text">
-        Shared by you
-      </p>
+    <SettingsSection id="shared-by-you" title="Shared by you" titleId="shared-by-you-heading">
+      <SettingsBlock className="flex flex-col gap-3">
       {!loaded && <p className="text-sm text-text-muted">Loading…</p>}
       {loaded && failed && shares.length === 0 && (
         <p role="status" className="text-sm text-text-muted">
@@ -168,7 +167,8 @@ export default function SharedByYou({ onToast }: SharedByYouProps) {
           {loadingMore ? "Loading…" : "Show older shares"}
         </button>
       )}
-    </section>
+      </SettingsBlock>
+    </SettingsSection>
   );
 }
 
