@@ -83,7 +83,7 @@ export default function CollectionsView({ releases, selectedId, onSelect, onAddT
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0 max-w-full">
           <div className="pr-[calc(var(--tray-size)+0.75rem)] lg:pr-0">
-            <p className="-ml-2.5 inline-block rounded-full bg-bg px-2.5 py-0.5 text-sm font-semibold text-accent">Your music</p>
+            <p className="text-sm font-semibold text-text-muted">Your music</p>
             <h1 className="mt-1 text-4xl font-bold tracking-[-0.02em] text-text">Collections</h1>
           </div>
           {loaded && collections.length > 0 && (

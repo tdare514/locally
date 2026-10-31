@@ -37,7 +37,6 @@ import {
 import { useLibraryWidth } from "../lib/use-library-width";
 import BulkEditDialog from "./BulkEditDialog";
 import LibrarySortMenu from "./LibrarySortMenu";
-import { useCollections } from "./CollectionsContext";
 import AddToCollection from "./AddToCollection";
 import LibraryCollections from "./LibraryCollections";
 import type { ArtistEntry } from "../lib/artist-index";
@@ -90,8 +89,8 @@ interface LibraryViewProps {
   onImport: (kind?: ReleaseKind) => void;
   /** Refresh the library after a bulk action. */
   onBulkDone: () => Promise<unknown> | void;
-  /** Open a collection on the Collections page (#349). */
-  onOpenCollection: (id: string) => void;
+  /** Open the Collections page (#420): the Library's one Collections card. */
+  onOpenCollections: () => void;
   onToast: (kind: "success" | "error", text: string) => void;
   /** The cover that should tint the ambient space, or null when there is none. */
   onAmbientCoverChange: (url: string | null) => void;
@@ -113,7 +112,7 @@ export default function LibraryView({
   onSelectArtist,
   onImport,
   onBulkDone,
-  onOpenCollection,
+  onOpenCollections,
   onToast,
   onAmbientCoverChange,
   artistIndex,
@@ -196,8 +195,6 @@ export default function LibraryView({
   // Folding unmounts a section's rows and unfolding mounts new ones, so observation is rebuilt on every fold change.
   const singlesOpen = isSectionOpen(folds.singles, query);
   const albumsOpen = isSectionOpen(folds.albums, query);
-  const collectionsOpen = isSectionOpen(folds.collections, query);
-  const collectionCount = useCollections()?.collections.length ?? 0;
   useEffect(() => {
     const root = rootRef.current;
     if (!root || typeof IntersectionObserver === "undefined") return;
@@ -541,20 +538,7 @@ export default function LibraryView({
         </div>
       )}
 
-      {!artistsView && (
-        <section className="flex flex-col gap-2">
-          <SectionHeader
-            label="Collections"
-            count={collectionCount}
-            bodyId="library-collections"
-            open={collectionsOpen}
-            onToggleOpen={() => toggleFold("collections")}
-          />
-          <div id="library-collections" hidden={!collectionsOpen} className={collectionsOpen ? "section-fade" : undefined}>
-            {collectionsOpen && <LibraryCollections releases={releases} onOpen={onOpenCollection} />}
-          </div>
-        </section>
-      )}
+      {!artistsView && <LibraryCollections releases={releases} onOpen={onOpenCollections} />}
 
       {!artistsView && singles.length > 0 && (
         <SectionComponent

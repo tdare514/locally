@@ -196,6 +196,11 @@ export function trackCountLabel(n: number): string {
   return `${n} ${n === 1 ? "track" : "tracks"}`;
 }
 
+/** "1 collection" / "3 collections": the Library card's subtitle (#420). */
+export function collectionCountLabel(n: number): string {
+  return `${n} ${n === 1 ? "collection" : "collections"}`;
+}
+
 /** `items` with `additions` appended, skipping any already there (the same release or track item twice is refused by the API). */
 export function addItems(items: readonly CollectionItem[], additions: readonly KnownItem[]): { items: CollectionItem[]; added: number } {
   const have = new Set(items.map(itemKey).filter((k): k is string => k !== null));
@@ -239,7 +244,7 @@ export function filterCollections<T extends { name: string }>(collections: reado
   });
 }
 
-/** The wording for a collection page and its Library row (plan "States and wording"). */
+/** The wording for a collection page and its Library card (plan "States and wording"). */
 export const COLLECTIONS_COPY = {
   none: "Make your first collection: a mixtape of any tracks and releases.",
   emptyQueue: "Nothing here yet. Add tracks from any release or track row.",
