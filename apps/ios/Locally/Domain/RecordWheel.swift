@@ -4,8 +4,10 @@ import Foundation
 /// of the Mac's `record-player.ts` (#351), the same order, the same ends and the same window of rows. Pure: no UI,
 /// so the geometry, the window and the snapping are tested without a screen.
 
-/// The wheel's dial: a 48 pt sleeve, 64 pt between level rows at the front, each step 0.87 of the last. The hub
-/// (the playing record) sits on the left edge, so `cx` is 0 and rows ride the right half of the dial.
+/// The wheel's dial: a 48 pt sleeve, 76 pt between level rows at the front, each step 0.87 of the last. The hub
+/// (the playing record) is tucked off the left edge (`Theme.Immersive.wheelCentreX`, #444), so `cx` is that centre and
+/// rows ride the right of the dial. The radius and the step are chosen so neighbouring sleeves keep 8 pt apart
+/// through the rows at full strength (the front three each side).
 struct WheelGeometry: Equatable {
     var base: Double
     var row: Double
@@ -13,10 +15,10 @@ struct WheelGeometry: Equatable {
     var radius: Double
     var cx: Double
 
-    static let phone = WheelGeometry(base: 48, row: 64, ratio: 0.87, radius: 182, cx: 0)
+    static let phone = WheelGeometry(base: 48, row: 76, ratio: 0.87, radius: 240, cx: Double(Theme.Immersive.wheelCentreX))
 }
 
-/// Where a row sits on the dial: its centre from the dial's centre height (`y`) and the hub's centre (`x`).
+/// Where a row sits on the dial: its centre from the dial's centre height (`y`) and the wheel's leading edge (`x`).
 struct RowPose: Equatable {
     var x: Double
     var y: Double
@@ -76,6 +78,14 @@ enum RecordWheel {
         let opacity = fadeOpacity(angle)
         if opacity <= 0 { return nil }
         return RowPose(x: g.cx + g.radius * cos(angle), y: g.radius * sin(angle), scale: pow(g.ratio, x), opacity: opacity, angle: angle)
+    }
+
+    /// How much of a row shows in a wheel `height` tall (#444): the share of its sleeve inside the frame, squared. A row
+    /// turning past the top or bottom edge fades as it goes, so the frame never cuts one to a sliver at rest.
+    static func edgeOpacity(_ pose: RowPose, height: Double, _ g: WheelGeometry = .phone) -> Double {
+        let half = g.base / 2 * pose.scale
+        let share = min(1, max(0, (height / 2 - (abs(pose.y) - half)) / (2 * half)))
+        return share * share
     }
 
     /// JavaScript's `Math.round`: halves go up, so the iPhone and the Mac agree on which row is in front.

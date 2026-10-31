@@ -7,6 +7,8 @@ struct StatsPeriodPill: View {
     /// The period's name ("This week", "Last month") and its dates ("18 to 24 Oct"), shown together in the pill.
     let title: String
     let detail: String
+    /// False where the dates show beside the pill instead (the Stats controls row, #444); VoiceOver still reads them.
+    var showsDetail = true
     let tint: Color
     @Binding var isPresented: Bool
     let onSelect: (StatsPeriodKind) -> Void
@@ -25,10 +27,12 @@ struct StatsPeriodPill: View {
                     Text(title)
                         .font(Theme.ScaledFont.subheadline.weight(.semibold))
                         .contentTransition(.opacity)
-                    Text(detail)
-                        .font(.footnote)
-                        .foregroundStyle(Color.white.opacity(0.85))
-                        .contentTransition(.opacity)
+                    if showsDetail {
+                        Text(detail)
+                            .font(.footnote)
+                            .foregroundStyle(Color.white.opacity(0.85))
+                            .contentTransition(.opacity)
+                    }
                 }
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)

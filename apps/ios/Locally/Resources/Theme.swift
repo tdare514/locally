@@ -201,9 +201,7 @@ enum Theme {
         /// Where the layout toggle and sort stop growing, so the three-way toggle fits a 320 pt screen.
         static let toggleIconMaxSize: CGFloat = 35
         static let toggleButtonMaxSize: CGFloat = 84
-        /// The eyebrow keeps clear of the header's cloud: its 44 pt hit area plus a gap beside it,
-        /// or the cloud's row above it when it doesn't fit beside.
-        static let cloudClearance: CGFloat = 52
+        /// The header's cloud row: its 44 pt hit area, kept clear above the title while a cloud shows.
         static let cloudRowHeight: CGFloat = 44
         /// The empty state's Locally-to-Spotify diagram: the chevron between the tiles, and the Spotify tile's note.
         static let diagramChevronSize: CGFloat = 13
@@ -276,6 +274,8 @@ enum Theme {
         static var panelFill: Color { .white.opacity(panelFillOpacity) }
         static var panelStroke: Color { .white.opacity(panelStrokeOpacity) }
         static let discColor = Color(red: 0x11 / 255, green: 0x11 / 255, blue: 0x11 / 255)
+        /// The Picture disc switch's swatch (#444): accent to pink, corner to corner (a stand-in for the cover).
+        static let pictureSwatchColors = [Theme.accent, Color(red: 0xF0 / 255, green: 0x4E / 255, blue: 0x98 / 255)]
         /// `.record-face` shadow `0 24px 48px -18px`, approximated (SwiftUI has no spread).
         static let discShadowOpacity: Double = 0.6
         static let discShadowRadius: CGFloat = 20
@@ -380,6 +380,9 @@ enum Theme {
         /// The hub's radius (the dark platter rim included), and the rim's width.
         static let hubRadius: CGFloat = 154
         static let hubRimWidth: CGFloat = 8
+        /// The wheel's dial centre from its leading edge (#444): the hub is tucked so 0.6 of its radius, 30 percent of its
+        /// diameter, shows. The ring, the rows, the accent notch and the drag column all ride this one centre.
+        static let wheelCentreX: CGFloat = -0.4 * hubRadius
         /// The dark scrim over the page's cover wash, so grey text stays at 4.5:1 on a pale cover.
         static let playerScrimOpacity: Double = 0.45
         /// The switch's dot fading in under the chosen word.

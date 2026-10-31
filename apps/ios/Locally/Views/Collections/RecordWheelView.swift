@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// The Collections record player's wheel (#352): rows on the right half of a dial whose hub, the playing record, sits on
-/// the left edge. Rows stay level, each step round is 0.87 of the one before, and they fade past about 50 degrees from
-/// the front. Only the window of rows near the front is built (`RecordWheel.windowIndexes`), so 200 collections cost
+/// The Collections record player's wheel (#352): rows on the right of a dial whose hub, the playing record, is tucked
+/// off the left edge so about 30 percent of it shows (`Theme.Immersive.wheelCentreX`, #444). Rows stay level, each step
+/// round is 0.87 of the one before, and they fade past about 50 degrees from the front. Only the window of rows near the front is built (`RecordWheel.windowIndexes`), so 200 collections cost
 /// the same as 20. Drag state lives here, in `@State`.
 ///
 /// A vertical drag that starts on the wheel turns it and snaps to the nearest row on release (a flick uses the
@@ -29,13 +29,19 @@ struct RecordWheelView: View {
     @State private var target: Int
     @State private var dragStart: Double?
 
-    static let height: CGFloat = 340
-    /// The cover rows' column: from just left of the sleeves to the trailing edge, a little taller than the rows. Only this
-    /// turns the wheel; the hub and the space around it scroll the page.
-    private static let columnLeading: CGFloat = 120
-    private static let columnHeight: CGFloat = 300
+    /// Tall enough for the front three rows each side, whole (the third's far edge is at about 184 pt from the middle).
+    static let height: CGFloat = 376
+    /// The dial's centre from the leading edge, and the rows' radius round it: the hub, ring, rows, notch and drag column
+    /// all follow `Theme.Immersive.wheelCentreX` and `WheelGeometry.phone`.
+    private static let centreX = Theme.Immersive.wheelCentreX
+    private static let rowRadius = CGFloat(WheelGeometry.phone.radius)
+    /// The cover rows' column: from just left of the front sleeve to the trailing edge, a little taller than the rows. Only
+    /// this turns the wheel; the hub and the space around it scroll the page.
+    private static let columnLeading: CGFloat = centreX + rowRadius - CGFloat(WheelGeometry.phone.base) / 2 - 38
+    private static let columnHeight: CGFloat = 336
     private static let pitch = WheelGeometry.phone.row
-    private static let ringRadius: CGFloat = 214
+    /// The ring is drawn just outside the rows' sleeves.
+    private static let ringRadius: CGFloat = rowRadius + 32
     private static let trailingMargin: CGFloat = 16
 
     init(
@@ -126,9 +132,9 @@ struct RecordWheelView: View {
                 .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
                 .frame(width: Self.ringRadius * 2, height: Self.ringRadius * 2)
                 .mask { Self.ringFade }
-                .offset(x: -Self.ringRadius)
+                .offset(x: Self.centreX - Self.ringRadius)
             HubRecordView(releaseID: hubReleaseID, style: style, isSpinning: spins)
-                .offset(x: -Theme.Immersive.hubRadius)
+                .offset(x: Self.centreX - Theme.Immersive.hubRadius)
             ZStack(alignment: .leading) {
                 Color.clear
                     .frame(width: max(0, width - Self.columnLeading), height: Self.columnHeight)
@@ -144,7 +150,7 @@ struct RecordWheelView: View {
             Capsule()
                 .fill(Theme.accent)
                 .frame(width: 14, height: 3)
-                .offset(x: Self.ringRadius - 7)
+                .offset(x: Self.centreX + Self.ringRadius - 7)
         }
     }
 
@@ -226,7 +232,7 @@ private struct WheelRows: View, Animatable {
                     ) { onSelect(entry.index) }
                         .scaleEffect(pose.scale, anchor: .leading)
                         .offset(x: pose.x - 24 * pose.scale, y: pose.y)
-                        .opacity(pose.opacity)
+                        .opacity(pose.opacity * RecordWheel.edgeOpacity(pose, height: Double(RecordWheelView.height)))
                 }
             }
         }
