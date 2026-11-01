@@ -329,8 +329,10 @@ struct LibraryHeaderTests {
 
     @Test func aNewWeekAsksAtOnceEvenInsideTheWindow() async {
         let r = real()
-        // Sunday 23:58 UTC, then 00:01 on the Monday: three minutes on, a different week.
-        r.clock.date = thursday.addingTimeInterval(3 * 86_400 + 11 * 3_600 + 58 * 60)
+        // Sunday 23:58 UTC, then 00:01 on the Monday: three minutes on, a different week. One typed constant
+        // (3 days, 11 h 58 min after Thursday noon), as the literal sum is too slow to type-check on CI.
+        let toSundayLate: TimeInterval = 302_280
+        r.clock.date = thursday.addingTimeInterval(toSundayLate)
         let header = r.header()
         await header.read(releases: library)
         r.clock.advance(3 * 60)
