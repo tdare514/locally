@@ -240,7 +240,6 @@ enum Copy {
     /// The Artists view and the artist page (#288).
     enum Artists {
         static let title = "Artists"
-        static func noMatches(_ query: String) -> String { "No artists match \u{201C}\(query)\u{201D}." }
         /// The shortened artist line's tail (#361): "A & 2 more", "A, feat. B & 1 more".
         static func andMore(_ n: Int) -> String { "\(n) more" }
         static func releases(_ n: Int) -> String { n == 1 ? "1 release" : "\(n) releases" }

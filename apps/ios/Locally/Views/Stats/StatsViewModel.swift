@@ -96,6 +96,11 @@ final class StatsViewModel {
         defaults.set(kind.rawValue, forKey: requestedPeriodKey)
     }
 
+    /// Whether a period has been requested and not yet taken: the Stats tab shows its root page when it has.
+    static func hasRequestedPeriod(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.string(forKey: requestedPeriodKey) != nil
+    }
+
     /// Moves to a requested period, if there is one, and clears the request.
     private func takeRequestedPeriod() {
         guard let raw = defaults.string(forKey: Self.requestedPeriodKey) else { return }

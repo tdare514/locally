@@ -3,9 +3,11 @@ import SwiftUI
 
 /// #446: the real Library over the sample library, sample collections and sample plays, for the header's states: the
 /// three cards loaded, loading (the week's read held back, so the placeholders show), with no plays this week (the
-/// cards are gone and the shelf moves up) and with the search open on a query. Nothing here signs in or syncs.
+/// cards are gone and the shelf moves up) and with the search open on a query. "library-header-tabs" is the Library and
+/// the Stats tab in one tab bar, for checking by hand that "This week" opens Stats at its root. Nothing here signs in
+/// or syncs.
 struct LibraryHeaderGallery: View {
-    static let names = ["library-header", "library-header-loading", "library-header-no-plays", "library-header-search"]
+    static let names = ["library-header", "library-header-loading", "library-header-no-plays", "library-header-search", "library-header-tabs"]
 
     let name: String
     @State private var container: AppContainer
@@ -24,13 +26,27 @@ struct LibraryHeaderGallery: View {
     }
 
     var body: some View {
-        IconsGallery.environment(
-            LibraryView(selectedTab: $tab, requestedImportKind: $importKind, librarySearchRequest: $search), container
-        )
+        IconsGallery.environment(content, container)
         .task {
             guard name == "library-header-search" else { return }
             try? await Task.sleep(for: .milliseconds(600))
             search = "okoro"
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if name == "library-header-tabs" {
+            TabView(selection: $tab) {
+                LibraryView(selectedTab: $tab, requestedImportKind: $importKind, librarySearchRequest: $search)
+                    .tabItem { Label(Copy.Library.title, image: "Icon/Library") }
+                    .tag(RootView.Tab.library)
+                StatsTab(selectedTab: $tab, librarySearchRequest: $search)
+                    .tabItem { Label(Copy.Stats.tabLabel, image: "Icon/Stats") }
+                    .tag(RootView.Tab.stats)
+            }
+        } else {
+            LibraryView(selectedTab: $tab, requestedImportKind: $importKind, librarySearchRequest: $search)
         }
     }
 }

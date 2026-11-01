@@ -15,7 +15,12 @@ struct LibraryWeek: Equatable {
 
 /// The Library header's cards. They read the play summary for the same week the Stats tab opens on, through the
 /// same `PlayStatsReading`, so the service's 5-minute cache and shared in-flight request serve both: opening the
-/// Library and then Stats is one request. Never forced, never polled: the Library asks when it loads.
+/// Library and then Stats is one request. Never forced, never polled, and the *attempts* are throttled, whatever they
+/// came to (the service answers a failed refresh with its stale cache as `.ok`, so an outcome says nothing about
+/// whether a request was spent): the Library, which reloads on every appear, import and sync pull, asks only for a
+/// first read, a new week, another account, or once `SyncPlayStatsService.freshSeconds` have passed since the last ask.
+/// In between it re-ranks the last summary over the releases it is given, so a deleted release leaves the cards
+/// without a request.
 @MainActor
 @Observable
 final class LibraryHeaderModel {
@@ -33,12 +38,28 @@ final class LibraryHeaderModel {
     @ObservationIgnored private let calendar: Calendar
     @ObservationIgnored private let now: () -> Date
     @ObservationIgnored private var generation = 0
-    /// When a read last ended with nothing to show for a reason other than being signed out: no new request until
-    /// the cache window has passed, so a Library that keeps appearing can't spend the phone's request budget.
-    @ObservationIgnored private var lastEmptyAt: Date?
 
-    init(stats: PlayStatsReading, calendar: Calendar = .current, now: @escaping () -> Date = Date.init) {
+    /// The last ask of the service: when, for which days and for which account. Recorded before the service is awaited.
+    private struct Ask {
+        var at: Date
+        var range: DayRange
+        var account: String?
+    }
+
+    @ObservationIgnored private var lastAsk: Ask?
+    /// The last `.ok` summary, re-ranked while no new ask is due. Dropped by anything else the service answers.
+    @ObservationIgnored private var kept: PlaysSummary?
+    /// The releases of the latest `read`, so a read that finishes after a newer one ranks over the newer library.
+    @ObservationIgnored private var latestReleases: [Release] = []
+    /// Who is signed in, as a key that can be compared: the device id, nil when signed out. Never the token itself.
+    @ObservationIgnored private let account: () -> String?
+
+    init(
+        stats: PlayStatsReading, account: @escaping () -> String?, calendar: Calendar = .current,
+        now: @escaping () -> Date = Date.init
+    ) {
         self.stats = stats
+        self.account = account
         self.calendar = calendar
         self.now = now
     }
@@ -48,26 +69,32 @@ final class LibraryHeaderModel {
         PlayPeriods.selectionRange(PeriodSelection(kind: .week, back: 0), today: today, firstDay: firstDay)
     }
 
-    /// Reads this week's summary and builds the cards from it over `releases`.
+    /// Builds the cards over `releases` from this week's summary, asking the service only when an ask is due (see the
+    /// type's note); otherwise from the summary kept from the last ask.
     func read(releases: [Release]) async {
+        latestReleases = releases
         let current = now()
-        if let lastEmptyAt, current.timeIntervalSince(lastEmptyAt) < SyncPlayStatsService.freshSeconds { return }
-        generation += 1
-        let mine = generation
         let today = PlayPeriods.localDayString(current, calendar: calendar)
         let firstDay = PlayPeriods.isoFirstDay(fromAppleFirstWeekday: calendar.firstWeekday)
         let range = Self.weekRange(today: today, firstDay: firstDay)
+        let who = account()
+        if let ask = lastAsk, ask.range == range, ask.account == who,
+           current.timeIntervalSince(ask.at) < SyncPlayStatsService.freshSeconds {
+            // Inside the window: no request. A read still under way will rank over `latestReleases` when it ends.
+            if let kept { phase = Self.week(from: kept, releases: releases).map(Phase.week) ?? .hidden }
+            return
+        }
+        lastAsk = Ask(at: current, range: range, account: who)
+        generation += 1
+        let mine = generation
         let outcome = await stats.summary(from: range.from, to: range.to, force: false)
         guard mine == generation else { return }
         switch outcome {
         case .ok(let summary):
-            lastEmptyAt = nil
-            phase = Self.week(from: summary, releases: releases).map(Phase.week) ?? .hidden
-        case .signedOut:
-            lastEmptyAt = nil
-            phase = .hidden
-        case .failed, .busy:
-            lastEmptyAt = now()
+            kept = summary
+            phase = Self.week(from: summary, releases: latestReleases).map(Phase.week) ?? .hidden
+        case .signedOut, .failed, .busy:
+            kept = nil
             phase = .hidden
         }
     }

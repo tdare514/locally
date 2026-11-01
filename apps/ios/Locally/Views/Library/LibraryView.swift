@@ -13,8 +13,9 @@ import SwiftUI
 ///
 /// Under the "All music" title (#446): three cards from this week's plays (`LibraryHeaderCards`, hidden when there is
 /// nothing to show), the Collections shelf, then a right-aligned icon toolbar: search, sort, filter and the layout
-/// switch. The search icon swaps the cards, shelf and toolbar for a full-width field with Cancel, and the results are
-/// one list with Single or Album in each row's subtitle.
+/// switch. The search icon opens a full-width field with Cancel in a scroll view of its own over the home one, which
+/// stays built and where it was scrolled, so Cancel finds the Library as it was left. Search works the same from every
+/// layout, Artists included, and the results are one list with Single or Album in each row's subtitle.
 struct LibraryView: View {
     @Environment(\.appContainer) private var container
     @Environment(\.playback) private var playback
@@ -38,6 +39,8 @@ struct LibraryView: View {
     /// Whether the full-width search field has replaced the cards, shelf and toolbar (#446). Not persisted.
     @State private var isSearching = false
     @FocusState private var searchFocused: Bool
+    /// VoiceOver's focus on the search icon, which Cancel returns it to.
+    @AccessibilityFocusState private var searchButtonFocused: Bool
 
     @AppStorage(LibraryViewPrefs.layoutKey) private var layout: LibraryLayout = .default
     @AppStorage(LibraryViewPrefs.sortKey) private var sort: LibrarySortOption = .default
@@ -118,7 +121,7 @@ struct LibraryView: View {
     /// The filter in force: a stored genre nobody has any more counts as All (#446).
     private var activeFilter: LibraryFilter { filter.resolved(among: filterOptions) }
     /// `releases` narrowed by the filter; the sections and the sky follow this. The Artists view has no filter (its
-    /// list is every artist) and the search box filters artist names there, so every release stays.
+    /// list is every artist), so every release stays.
     private var matching: [Release] { layout == .artists ? releases : activeFilter.apply(releases) }
     /// Singles and Albums are each ordered by the sort menu.
     private var sortedMatching: [Release] { LibrarySort.sorted(matching, by: sort) }
@@ -130,7 +133,7 @@ struct LibraryView: View {
     private var results: [Release] { hasQuery ? LibrarySort.sorted(LibrarySearch.filter(releases, query: query), by: sort) : [] }
 
     /// Display order: the search's results while searching, else singles, then albums.
-    private var displayOrder: [Release] { isSearching && layout != .artists ? results : singles + albums }
+    private var displayOrder: [Release] { isSearching ? results : singles + albums }
 
     /// The release whose cover colours the sky.
     private var skyID: Release.ID? {
@@ -184,49 +187,47 @@ struct LibraryView: View {
                 } else {
                     LibrarySky(palette: skyPalette, motion: motion)
 
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            header
-                            if layout == .artists {
-                                artistsContent
-                            } else if isSearching {
-                                searchResults
-                            } else {
-                                if matching.isEmpty {
-                                    noMatchesText(Copy.Library.noFilterMatches)
-                                }
-                                if !singles.isEmpty {
-                                    section(label: Copy.Library.singlesSection, items: singles, collapsed: $singlesCollapsed)
-                                }
-                                if !singles.isEmpty, !albums.isEmpty {
-                                    sectionDivider
-                                }
-                                if !albums.isEmpty {
-                                    section(label: Copy.Library.albumsSection, items: albums, collapsed: $albumsCollapsed)
-                                }
+                    // The home content stays built, and where it was scrolled, under the search: Cancel finds it as
+                    // it was left. Out of sight, out of reach and out of VoiceOver's while the search is open.
+                    libraryScroll {
+                        header
+                        if layout == .artists {
+                            artistsContent
+                        } else {
+                            if matching.isEmpty {
+                                noMatchesText(Copy.Library.noFilterMatches)
                             }
-                        }
-                        .padding(.horizontal, Theme.Spacing.listPagePadding)
-                        .padding(.top, 12)
-                        .padding(.bottom, 24)
-                        .background {
-                            GeometryReader { geo in
-                                Color.clear.preference(
-                                    key: LibraryScrollOffsetKey.self,
-                                    value: -geo.frame(in: .named(Self.scrollSpace)).minY
-                                )
+                            if !singles.isEmpty {
+                                section(label: Copy.Library.singlesSection, items: singles, collapsed: $singlesCollapsed)
+                            }
+                            if !singles.isEmpty, !albums.isEmpty {
+                                sectionDivider
+                            }
+                            if !albums.isEmpty {
+                                section(label: Copy.Library.albumsSection, items: albums, collapsed: $albumsCollapsed)
                             }
                         }
                     }
-                    .scrollDismissesKeyboard(.immediately)
-                    .coordinateSpace(name: Self.scrollSpace)
-                    .onPreferenceChange(LibraryScrollOffsetKey.self) { offset in
-                        motion.offset = offset
-                        if pressedID != nil,
-                           abs(offset - pressOffset) > Theme.Library.pressedSkyReleaseDistance {
-                            pressedID = nil
+                    .opacity(isSearching ? 0 : 1)
+                    .allowsHitTesting(!isSearching)
+                    .accessibilityHidden(isSearching)
+
+                    if isSearching {
+                        libraryScroll {
+                            titleRow(showsDevices: true)
+                            searchBar
+                            searchResults
                         }
                     }
+                }
+            }
+            // Whichever scroll view is last in the stack reports: the search's while it is open, then the home one's
+            // again when it closes, so the sky follows the content in view.
+            .onPreferenceChange(LibraryScrollOffsetKey.self) { offset in
+                motion.offset = offset
+                if pressedID != nil,
+                   abs(offset - pressOffset) > Theme.Library.pressedSkyReleaseDistance {
+                    pressedID = nil
                 }
             }
             .onChange(of: pendingCount) { _, count in
@@ -309,15 +310,34 @@ struct LibraryView: View {
         .environment(\.openSong, { path.append($0) })
     }
 
-    /// The Artists view: A to Z in letter groups, filtered by the search box.
+    /// The Artists view: A to Z in letter groups. Search is the same from here as from the other views (#446).
     @ViewBuilder
     private var artistsContent: some View {
-        let groups = catalog.groups(query: query)
-        if groups.isEmpty {
-            noMatchesText(Copy.Artists.noMatches(query))
-        } else if let artistCovers {
-            ArtistsListView(groups: groups, source: artistCovers)
+        if let artistCovers {
+            ArtistsListView(groups: catalog.groups(), source: artistCovers)
         }
+    }
+
+    /// A screen of the Library: a scroll view in the 16 pt gutters that reports how far it has scrolled to the sky.
+    private func libraryScroll<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                content()
+            }
+            .padding(.horizontal, Theme.Spacing.listPagePadding)
+            .padding(.top, 12)
+            .padding(.bottom, 24)
+            .background {
+                GeometryReader { geo in
+                    Color.clear.preference(
+                        key: LibraryScrollOffsetKey.self,
+                        value: -geo.frame(in: .named(Self.scrollSpace)).minY
+                    )
+                }
+            }
+        }
+        .scrollDismissesKeyboard(.immediately)
+        .coordinateSpace(name: Self.scrollSpace)
     }
 
     private func noMatchesText(_ text: String) -> some View {
@@ -334,26 +354,25 @@ struct LibraryView: View {
         selectedTab = .importSong
     }
 
-    /// The title row, then either the search bar or (#446) the week's cards, the Collections shelf and the toolbar.
+    /// The title row, then (#446) the week's cards, the Collections shelf and the toolbar. While the search is open this
+    /// is the hidden layer under it, so the cloud (which anchors the tray) is the search layer's.
     @ViewBuilder
     private var header: some View {
-        titleRow
-        if isSearching {
-            searchBar
-        } else {
-            weekCards
-            if let collections {
-                CollectionsShelf(
-                    model: collections, onOpen: { path.append(CollectionRoute(id: $0)) },
-                    onSeeAll: { path.append(CollectionsRoute()) }, onNew: { builder = .new }
-                )
-            }
-            toolbar
+        titleRow(showsDevices: !isSearching)
+        weekCards
+        if let collections {
+            CollectionsShelf(
+                model: collections, onOpen: { path.append(CollectionRoute(id: $0)) },
+                onSeeAll: { path.append(CollectionsRoute()) }, onNew: { builder = .new }
+            )
         }
+        toolbar
     }
 
+    /// "All music" and the track count, with the cloud over the trailing corner when `showsDevices`; the home layer and
+    /// the search layer each draw the row, and only the one in view draws the cloud.
     @ViewBuilder
-    private var titleRow: some View {
+    private func titleRow(showsDevices: Bool) -> some View {
         // At accessibility sizes the track count drops under the title instead of squeezing it.
         let headerLayout = dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
@@ -381,7 +400,7 @@ struct LibraryView: View {
         .overlay(alignment: .topTrailing) {
             // Top of the visible 40 pt glass level with the header's top; the 44 pt hit area
             // ends at the 16 pt gutter, so the badge inside it never crosses.
-            devicesButton.offset(y: -2)
+            if showsDevices { devicesButton.offset(y: -2) }
         }
     }
 
@@ -580,9 +599,12 @@ struct LibraryView: View {
         .overlay(Capsule().stroke(Theme.Immersive.panelStroke, lineWidth: 1))
     }
 
-    /// Opens the full-width field with the keyboard up. Under Reduce Motion it swaps without an animation.
+    /// Opens the full-width field with the keyboard up. Under Reduce Motion it swaps without an animation. With the
+    /// search already open (a ⌘F press) it only keeps the focus in the field.
     private func openSearch() {
-        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { isSearching = true }
+        if !isSearching {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { isSearching = true }
+        }
         // The field is made by the change above; it takes focus on the next turn.
         Task { @MainActor in
             await Task.yield()
@@ -590,12 +612,17 @@ struct LibraryView: View {
         }
     }
 
-    /// Cancel: clears the query and brings the cards, shelf and toolbar back.
+    /// Cancel: clears the query, drops the keyboard and uncovers the Library, which was never taken down. VoiceOver goes
+    /// back to the search icon once the Library is reachable again.
     private func closeSearch() {
         searchFocused = false
         withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
             isSearching = false
             query = ""
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(300))
+            searchButtonFocused = true
         }
     }
 
@@ -610,7 +637,8 @@ struct LibraryView: View {
                     .themeFont(.meta)
                     .foregroundStyle(Theme.secondaryText)
                     .padding(.horizontal, 4)
-                listPanel(results, showsKind: true)
+                // The sky follows the home rows only: these come and go with the search.
+                listPanel(results, showsKind: true, tracksSky: false)
             }
         }
     }
@@ -629,6 +657,7 @@ struct LibraryView: View {
         .buttonStyle(IconButtonStyle())
         .keyboardShortcut("f", modifiers: .command)
         .accessibilityLabel(Copy.Library.searchLabel)
+        .accessibilityFocused($searchButtonFocused)
     }
 
     /// Search, then sort and filter (neither applies to the Artists view, always A to Z).
@@ -782,7 +811,7 @@ struct LibraryView: View {
 
     /// Rows in a translucent panel over the sky, separated by a 1 pt `panelStroke`. The rows are built as they
     /// scroll in (#423); the sky still counts every row of an open section as shown, as it did when all were built.
-    private func listPanel(_ items: [Release], showsKind: Bool = false) -> some View {
+    private func listPanel(_ items: [Release], showsKind: Bool = false, tracksSky: Bool = true) -> some View {
         let shape = RoundedRectangle(cornerRadius: Theme.Library.listPanelCornerRadius, style: .continuous)
         let ids = items.map(\.id)
         return LazyVStack(spacing: 0) {
@@ -796,12 +825,13 @@ struct LibraryView: View {
                 }
             }
         }
-        .onAppear { visibleIDs.formUnion(ids) }
+        .onAppear { if tracksSky { visibleIDs.formUnion(ids) } }
         .onChange(of: ids) { old, new in
+            guard tracksSky else { return }
             visibleIDs.subtract(old)
             visibleIDs.formUnion(new)
         }
-        .onDisappear { visibleIDs.subtract(ids) }
+        .onDisappear { if tracksSky { visibleIDs.subtract(ids) } }
         .background(shape.fill(Theme.Immersive.panelFill))
         .clipShape(shape)
         .overlay(shape.stroke(Theme.Immersive.panelStroke, lineWidth: 1))
@@ -928,7 +958,13 @@ struct LibraryView: View {
         defer { PerfSignpost.end(.libraryLoad) }
         if collections == nil { collections = container.makeCollectionsModel() }
         collections?.reload()
-        if headerModel == nil { headerModel = LibraryHeaderModel(stats: container.playStats) }
+        if headerModel == nil {
+            // The account key is the device id while signed in, nil when signed out; never the token.
+            let account = container.syncAccount
+            headerModel = LibraryHeaderModel(
+                stats: container.playStats, account: { account.deviceToken == nil ? nil : account.deviceId }
+            )
+        }
         do {
             releases = try container.library.all().sorted { $0.updatedAt > $1.updatedAt }
             filterOptions = LibraryFilter.options(for: releases)

@@ -4,7 +4,8 @@ import SwiftUI
 /// Most played (the week's top track) and Top artist (a round avatar from the artist's newest cover). Each is one
 /// button with one spoken label. Equal width in a row; at accessibility text sizes they stack as full-width rows.
 /// Cards are `panelFill` on a `panelStroke` hairline at radius 12: no glow, tint or shadow, and no medals (rank is the
-/// word on the card).
+/// word on the card). `isPlaceholder` draws the same views as still shapes with their content hidden but measured, which
+/// is how `LibraryHeaderCardsPlaceholder` keeps to the loaded cards' size at every text size.
 struct LibraryHeaderCards: View {
     let week: LibraryWeek
     /// The release Most played opens, and the one whose cover draws the artist's avatar.
@@ -15,6 +16,8 @@ struct LibraryHeaderCards: View {
     var onThisWeek: () -> Void
     var onTrack: () -> Void
     var onArtist: () -> Void
+    /// Skeleton fill, content hidden but still taking its space, nothing to press.
+    var isPlaceholder = false
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.displayScale) private var displayScale
@@ -105,14 +108,16 @@ struct LibraryHeaderCards: View {
                     .lineLimit(1)
                 content()
             }
+            .opacity(isPlaceholder ? 0 : 1)
             .padding(Theme.Library.headerCardPadding)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .frame(minHeight: cardMinHeight)
-            .background(shape.fill(Theme.Immersive.panelFill))
+            .background(shape.fill(isPlaceholder ? Theme.skeletonFill : Theme.Immersive.panelFill))
             .overlay(shape.stroke(Theme.Immersive.panelStroke, lineWidth: 1))
             .contentShape(shape)
         }
         .buttonStyle(LibraryCardStyle())
+        .allowsHitTesting(!isPlaceholder)
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isButton)
@@ -145,26 +150,31 @@ private struct LibraryCardStyle: ButtonStyle {
     }
 }
 
-/// The cards' place while the week is read: three still shapes, shown after 300 ms (docs/design.md rule 10), the
-/// same size as the loaded cards.
+/// The cards' place while the week is read: the loaded cards' own views (a three-digit figure, a two-line title, a
+/// cover box of the real size) as still shapes with the content hidden, shown after 300 ms (docs/design.md rule 10).
+/// They are the same size as the loaded cards at every text size because they are the same layout.
 struct LibraryHeaderCardsPlaceholder: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ScaledMetric(relativeTo: .body) private var scaledMinHeight = Theme.Library.headerCardMinHeight
-    private var cardMinHeight: CGFloat { min(scaledMinHeight, Theme.Library.headerCardMaxMinHeight) }
-
     var body: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(spacing: Theme.Library.headerCardGap))
-            : AnyLayout(HStackLayout(spacing: Theme.Library.headerCardGap))
         DelayedSkeleton(label: Copy.Library.weekLoading) {
-            layout {
-                ForEach(0..<3, id: \.self) { _ in
-                    let shape = RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-                    shape.fill(Theme.skeletonFill)
-                        .frame(maxWidth: .infinity, minHeight: cardMinHeight)
-                        .overlay(shape.stroke(Theme.Immersive.panelStroke, lineWidth: 1))
-                }
-            }
+            LibraryHeaderCards(
+                week: .sample, trackRelease: nil, artistRelease: nil, coverCache: nil, coverGeneration: 0,
+                onThisWeek: {}, onTrack: {}, onArtist: {}, isPlaceholder: true
+            )
         }
+    }
+}
+
+private extension LibraryWeek {
+    /// What the placeholder lays out: never seen, only measured.
+    static let sample = LibraryWeek(
+        total: 888, trackCount: 88, topTrack: item("Sample title\nSample title"), topArtist: item("Sample artist\nSample artist"),
+        artistKey: "sample"
+    )
+
+    private static func item(_ title: String) -> StatItem {
+        StatItem(
+            id: "sample", rank: 1, title: title, subtitle: "", plays: 88, lastPlayedDay: nil, releaseId: nil, trackId: nil,
+            coverPath: nil, medal: nil
+        )
     }
 }

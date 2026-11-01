@@ -41,7 +41,7 @@ struct LibraryHeaderTests {
     private func make(_ result: PlayStatsRead, clock: TestClock = TestClock()) -> (model: LibraryHeaderModel, stats: FakePlayStats, clock: TestClock) {
         clock.date = thursday
         let stats = FakePlayStats(result: result)
-        return (LibraryHeaderModel(stats: stats, calendar: utcMonday, now: { clock.date }), stats, clock)
+        return (LibraryHeaderModel(stats: stats, account: { "device-1" }, calendar: utcMonday, now: { clock.date }), stats, clock)
     }
 
     private func week(_ tracks: [PlayCount], allTime: [PlayCount] = []) -> PlayStatsRead {
@@ -123,6 +123,7 @@ struct LibraryHeaderTests {
     @Test func theLibraryNeverForcesARead() async {
         let m = make(week([count(1, 11, 5, day: "2026-10-14")]))
         await m.model.read(releases: library)
+        m.clock.advance(SyncPlayStatsService.freshSeconds + 1)
         await m.model.read(releases: library)
         #expect(m.stats.calls.count == 2)
         #expect(m.stats.calls.allSatisfy { !$0.force })
@@ -138,11 +139,39 @@ struct LibraryHeaderTests {
         #expect(m.stats.calls.count == 2)
     }
 
-    @Test func signedOutIsAskedEveryTimeBecauseItCostsNoRequest() async {
-        let m = make(.signedOut)
-        await m.model.read(releases: library)
-        await m.model.read(releases: library)
-        #expect(m.stats.calls.count == 2)
+    @Test func signedOutIsNotAskedAgainInsideTheWindowButSigningInAsksAtOnce() async {
+        let clock = TestClock()
+        clock.date = thursday
+        let stats = FakePlayStats(result: .signedOut)
+        let who = Box<String?>(nil)
+        let model = LibraryHeaderModel(stats: stats, account: { who.value }, calendar: utcMonday, now: { clock.date })
+        await model.read(releases: library)
+        await model.read(releases: library)
+        #expect(stats.calls.count == 1)
+        #expect(model.phase == .hidden)
+        who.value = "device-1"
+        stats.result = week([count(1, 11, 5, day: "2026-10-14")])
+        await model.read(releases: library)
+        #expect(stats.calls.count == 2)
+        #expect(model.phase != .hidden)
+    }
+
+    @Test func aFailureDropsTheKeptSummaryAndHidesTheCards() async {
+        let clock = TestClock()
+        clock.date = thursday
+        let stats = FakePlayStats(result: week([count(1, 11, 5, day: "2026-10-14")]))
+        let who = Box<String?>("device-1")
+        let model = LibraryHeaderModel(stats: stats, account: { who.value }, calendar: utcMonday, now: { clock.date })
+        await model.read(releases: library)
+        #expect(model.phase != .hidden)
+        clock.advance(SyncPlayStatsService.freshSeconds + 1)
+        stats.result = .failed
+        await model.read(releases: library)
+        #expect(model.phase == .hidden)
+        // Still inside the window of the failed ask: nothing kept to show again.
+        await model.read(releases: library)
+        #expect(stats.calls.count == 2)
+        #expect(model.phase == .hidden)
     }
 
     @Test func theLibraryAsksForTheSameDaysTheStatsTabAsksFor() async {
@@ -158,12 +187,29 @@ struct LibraryHeaderTests {
         #expect(stats.range == DayRange(from: "2026-10-12", to: "2026-10-15"))
     }
 
+    /// A value a closure under test can read and the test can change.
+    private final class Box<Value> {
+        var value: Value
+        init(_ value: Value) { self.value = value }
+    }
+
     /// The real service over a counting API: what the Library asks, the Stats tab's week is served from.
+    @MainActor
     private struct Real {
         let service: SyncPlayStatsService
         let api: FakeSyncApi
         let clock: TestClock
         let defaults: UserDefaults
+        let account: InMemorySyncAccountStore
+
+        /// A header as the Library makes it: the account key is the device id while signed in, never the token.
+        func header() -> LibraryHeaderModel {
+            let store = account
+            return LibraryHeaderModel(
+                stats: service, account: { store.deviceToken == nil ? nil : store.deviceId }, calendar: utcMonday,
+                now: { clock.date }
+            )
+        }
     }
 
     private func real() -> Real {
@@ -178,7 +224,10 @@ struct LibraryHeaderTests {
         let clock = TestClock()
         clock.date = thursday
         let defaults = UserDefaults(suiteName: UUID().uuidString)!
-        return Real(service: SyncPlayStatsService(api: api, account: account, now: { clock.date }, defaults: defaults), api: api, clock: clock, defaults: defaults)
+        return Real(
+            service: SyncPlayStatsService(api: api, account: account, now: { clock.date }, defaults: defaults),
+            api: api, clock: clock, defaults: defaults, account: account
+        )
     }
 
     private func statsModel(_ r: Real) -> StatsViewModel {
@@ -190,7 +239,7 @@ struct LibraryHeaderTests {
 
     @Test func openingTheLibraryThenStatsInsideTheCacheWindowIsOneRequest() async {
         let r = real()
-        let header = LibraryHeaderModel(stats: r.service, calendar: utcMonday, now: { r.clock.date })
+        let header = r.header()
         await header.read(releases: library)
         let stats = statsModel(r)
         await stats.read()
@@ -205,7 +254,7 @@ struct LibraryHeaderTests {
     @Test func openingStatsThenTheLibraryIsOneRequestToo() async {
         let r = real()
         await statsModel(r).read()
-        let header = LibraryHeaderModel(stats: r.service, calendar: utcMonday, now: { r.clock.date })
+        let header = r.header()
         await header.read(releases: library)
         #expect(r.api.playsSummaryCalls.count == 1)
         #expect(header.phase != .hidden)
@@ -215,7 +264,7 @@ struct LibraryHeaderTests {
         let r = real()
         let latch = Latch()
         r.api.playsSummaryGate = { await latch.wait() }
-        let header = LibraryHeaderModel(stats: r.service, calendar: utcMonday, now: { r.clock.date })
+        let header = r.header()
         let stats = statsModel(r)
         let first = Task { await header.read(releases: self.library) }
         let second = Task { await stats.read() }
@@ -229,11 +278,97 @@ struct LibraryHeaderTests {
 
     @Test func afterTheCacheWindowTheNextOpenAsksAgain() async {
         let r = real()
-        let header = LibraryHeaderModel(stats: r.service, calendar: utcMonday, now: { r.clock.date })
+        let header = r.header()
         await header.read(releases: library)
         r.clock.advance(SyncPlayStatsService.freshSeconds + 1)
         await header.read(releases: library)
         #expect(r.api.playsSummaryCalls.count == 2)
+    }
+
+    // MARK: Attempts are throttled, whatever they came to (Codex round 1, P1)
+
+    @Test func reloadsInsideTheWindowAfterASuccessAreOneRequest() async {
+        let r = real()
+        let header = r.header()
+        for _ in 0..<6 {
+            await header.read(releases: library)
+            r.clock.advance(30)
+        }
+        #expect(r.api.playsSummaryCalls.count == 1)
+        #expect(header.phase != .hidden)
+    }
+
+    @Test func aStaleCacheAnsweringOkAfterAFailedRefreshIsNotAskedForAgainEveryReload() async {
+        let r = real()
+        // The first call succeeds; every later one fails, so the service falls back to its stale cache as `.ok`.
+        let page = SyncPlaysSummaryPage(
+            tracks: [SyncPeriodPlays(trackId: sampleLower(11), releaseId: sampleLower(1), plays: 5, lastPlayedDay: "2026-10-14")],
+            allTime: [], nextCursor: nil
+        )
+        r.api.playsSummaryScript = [.success(page), .failure(SyncApiError.unreachable("offline"))]
+        let header = r.header()
+        await header.read(releases: library)
+        #expect(r.api.playsSummaryCalls.count == 1)
+        // Six minutes on: the cache is stale, the header asks, the API fails, the service still answers `.ok`.
+        r.clock.advance(6 * 60)
+        await header.read(releases: library)
+        #expect(r.api.playsSummaryCalls.count == 2)
+        #expect(header.phase != .hidden)
+        // Five reloads in the next five minutes spend nothing.
+        for _ in 0..<5 {
+            r.clock.advance(50)
+            await header.read(releases: library)
+        }
+        #expect(r.api.playsSummaryCalls.count == 2)
+        #expect(header.phase != .hidden)
+        // Past that window it asks once more.
+        r.clock.advance(SyncPlayStatsService.freshSeconds)
+        await header.read(releases: library)
+        #expect(r.api.playsSummaryCalls.count == 3)
+    }
+
+    @Test func aNewWeekAsksAtOnceEvenInsideTheWindow() async {
+        let r = real()
+        // Sunday 23:58 UTC, then 00:01 on the Monday: three minutes on, a different week.
+        r.clock.date = thursday.addingTimeInterval(3 * 86_400 + 11 * 3_600 + 58 * 60)
+        let header = r.header()
+        await header.read(releases: library)
+        r.clock.advance(3 * 60)
+        await header.read(releases: library)
+        #expect(r.api.playsSummaryCalls.count == 2)
+        #expect(r.api.playsSummaryCalls.first?.from == "2026-10-12")
+        #expect(r.api.playsSummaryCalls.last?.from == "2026-10-19")
+    }
+
+    @Test func anotherAccountAsksAtOnceEvenInsideTheWindow() async {
+        let r = real()
+        let header = r.header()
+        await header.read(releases: library)
+        r.account.save(email: "b@example.com", deviceToken: "token-2", deviceId: "device-2")
+        r.clock.advance(60)
+        await header.read(releases: library)
+        #expect(r.api.playsSummaryCalls.count == 2)
+    }
+
+    @Test func aReloadInsideTheWindowReranksWithoutARequestWhenAReleaseIsGone() async {
+        let r = real()
+        r.api.playsSummaryScript = [.success(SyncPlaysSummaryPage(
+            tracks: [
+                SyncPeriodPlays(trackId: sampleLower(11), releaseId: sampleLower(1), plays: 5, lastPlayedDay: "2026-10-14"),
+                SyncPeriodPlays(trackId: sampleLower(21), releaseId: sampleLower(2), plays: 2, lastPlayedDay: "2026-10-15"),
+            ],
+            allTime: [], nextCursor: nil
+        ))]
+        let header = r.header()
+        await header.read(releases: library)
+        guard case .week(let before) = header.phase else { Issue.record("expected the week, got \(header.phase)"); return }
+        #expect(before.topTrack.title == "Night Bus 11")
+        r.clock.advance(60)
+        await header.read(releases: library.filter { $0.id != sampleUUID(1) })
+        guard case .week(let after) = header.phase else { Issue.record("expected the week, got \(header.phase)"); return }
+        #expect(after.topTrack.title == "Lanterns 21")
+        #expect(after.total == 2)
+        #expect(r.api.playsSummaryCalls.count == 1)
     }
 }
 
@@ -258,6 +393,20 @@ struct StatsRequestedPeriodTests {
         #expect(model.displayed == model.period)
         #expect(m.defaults.string(forKey: StatsViewModel.requestedPeriodKey) == nil)
         #expect(m.defaults.string(forKey: StatsViewModel.periodKey) == "week")
+    }
+
+    @Test func aRequestIsPendingUntilTheModelTakesIt() async {
+        let m = models(period: .month)
+        #expect(!StatsViewModel.hasRequestedPeriod(in: m.defaults))
+        StatsViewModel.requestPeriod(.week, in: m.defaults)
+        #expect(StatsViewModel.hasRequestedPeriod(in: m.defaults))
+        let model = make(m)
+        #expect(!StatsViewModel.hasRequestedPeriod(in: m.defaults))
+        // A page that already exists takes it on its read, which is what the tab switch starts.
+        StatsViewModel.requestPeriod(.week, in: m.defaults)
+        #expect(StatsViewModel.hasRequestedPeriod(in: m.defaults))
+        await model.read()
+        #expect(!StatsViewModel.hasRequestedPeriod(in: m.defaults))
     }
 
     @Test func aPageThatAlreadyExistsFollowsTheRequestOnItsNextRead() async {
