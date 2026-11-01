@@ -4,7 +4,7 @@ import SwiftUI
 /// asset catalog (24-unit viewBox, stroke 2, round caps). Where the owner chose to keep an SF Symbol
 /// (the music note, `photo.badge.plus`, trash, checkmarks, seals, folder, iphone, photo,
 /// `rectangle.stack.fill`, `paperplane.fill` and system menus) nothing here replaces it; the gear,
-/// the list and grid glyphs, the transport glyphs and sort are drawn since #412, and the three-bar
+/// the list and grid glyphs, the transport glyphs and sort are drawn since #412 (and filter, #446), and the three-bar
 /// now-playing mark is shared with the Mac since #414.
 ///
 /// Used like `Image(systemName:)`: it takes the foreground style, and scales with Dynamic Type from
@@ -30,6 +30,7 @@ struct LocallyIcon: View {
         case grid = "Icon/Grid"
         case list = "Icon/List"
         case sort = "Icon/Sort"
+        case filter = "Icon/Filter"
         case nowPlaying = "Icon/NowPlaying"
     }
 

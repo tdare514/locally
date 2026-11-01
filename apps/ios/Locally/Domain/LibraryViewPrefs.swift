@@ -61,6 +61,8 @@ enum CoverSize: Int, CaseIterable {
 enum LibraryViewPrefs {
     static let layoutKey = "locally.library.layout"
     static let sortKey = "locally.library.sort"
+    /// The filter (#446): All, Singles, Albums or a genre.
+    static let filterKey = "locally.library.filter"
     /// The size choice moved to a new key in #360, when the three sizes were remapped.
     static let coverSizeKey = "locally.library.coverSize2"
     static let legacyCoverSizeKey = "locally.library.coverSize"

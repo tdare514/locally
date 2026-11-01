@@ -148,6 +148,14 @@ struct StatsView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active, isTabSelected { Task { await model.read() } }
         }
+        .onChange(of: selectedTab) { _, tab in
+            // The Library's This week card asked for the week (#446): show the page itself, not a release or artist
+            // page left open here, and read through the model, which takes the request. Not forced: the week the
+            // Library just read is served from the service's cache or its request in flight.
+            guard tab == .stats, StatsViewModel.hasRequestedPeriod() else { return }
+            path = NavigationPath()
+            Task { await model.read() }
+        }
         .onChange(of: fanKey) { _, _ in armed = nil }
         .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange).receive(on: DispatchQueue.main)) { _ in
             isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
