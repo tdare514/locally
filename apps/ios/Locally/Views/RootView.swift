@@ -30,8 +30,12 @@ struct RootView: View {
     /// The one-time line after the move into the brand folder (#335); nil once dismissed.
     @State private var migrationNotice: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
-    enum Tab: Int {
+    /// The sidebar starts open: a split view can launch collapsed in portrait.
+    @State private var columnVisibility = NavigationSplitViewVisibility.all
+
+    enum Tab: Int, Hashable {
         case library = 0, importSong = 1, settings = 2, stats = 3
     }
 
@@ -49,11 +53,66 @@ struct RootView: View {
         .animation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.35), value: migrationNotice)
     }
 
+    /// `selectedTab` stays the single source of truth; a nil selection leaves it unchanged.
+    private var sidebarSelection: Binding<Tab?> {
+        Binding(get: { selectedTab }, set: { if let tab = $0 { selectedTab = tab } })
+    }
+
+    /// Wide screens (iPad, Mac): a sidebar instead of the tab bar. Each child owns its `NavigationStack`.
+    private var splitView: some View {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            List(selection: sidebarSelection) {
+                Label(Copy.Library.title, image: "Icon/Library").tag(Tab.library)
+                Label(Copy.Import.title, image: "Icon/Plus").tag(Tab.importSong)
+                Label(Copy.Stats.tabLabel, image: "Icon/Stats").tag(Tab.stats)
+                Label(Copy.Settings.title, image: "Icon/Settings").tag(Tab.settings)
+            }
+            .navigationTitle("Locally")
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
+            .tint(Theme.accent)
+        } detail: {
+            switch selectedTab {
+            case .library:
+                LibraryView(selectedTab: $selectedTab, requestedImportKind: $requestedImportKind, librarySearchRequest: $librarySearchRequest)
+                    .miniPlayerInset()
+                    .environment(\.isTabSelected, true)
+            case .importSong:
+                ImportView(requestedKind: $requestedImportKind)
+                    .miniPlayerInset()
+                    .environment(\.isTabSelected, true)
+            case .stats:
+                StatsTab(selectedTab: $selectedTab, librarySearchRequest: $librarySearchRequest)
+                    .miniPlayerInset()
+                    .environment(\.isTabSelected, true)
+            case .settings:
+                SettingsView()
+                    .miniPlayerInset()
+                    .environment(\.isTabSelected, true)
+            }
+        }
+        .navigationSplitViewStyle(.balanced)
+        .tint(Theme.accent)
+        .environment(\.miniPlayerHasTabAccessory, false)
+        .environment(\.openSettingsTab, { selectedTab = .settings })
+        .onChange(of: playback?.startErrorCount) { _, _ in
+            if let message = playback?.startError { AccessibilityNotification.Announcement(message).post() }
+        }
+        .onChange(of: playback?.openReleaseRequest) { _, id in
+            if id != nil { selectedTab = .library }
+        }
+        .onChange(of: playback?.openCollectionRequest) { _, id in
+            if id != nil { selectedTab = .library }
+        }
+    }
+
     @ViewBuilder
     private var tabsOrOnboarding: some View {
         Group {
             if !folderStatus.isConnected || !hasFinishedOnboarding {
                 OnboardingView { hasFinishedOnboarding = true }
+            } else if sizeClass == .regular {
+                splitView
             } else {
                 TabView(selection: $selectedTab) {
                     LibraryView(selectedTab: $selectedTab, requestedImportKind: $requestedImportKind, librarySearchRequest: $librarySearchRequest)

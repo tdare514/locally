@@ -42,6 +42,7 @@ struct OnboardingView: View {
 
                 actionButton
             }
+            .readableWidth()
             .padding(Theme.Spacing.pagePadding)
         }
         .fileImporter(isPresented: $isPresentingFolderPicker, allowedContentTypes: [.folder]) { result in

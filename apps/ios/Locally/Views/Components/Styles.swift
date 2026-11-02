@@ -271,6 +271,7 @@ private struct StickyFooter<Footer: View>: ViewModifier {
         content.safeAreaInset(edge: .bottom, spacing: 0) {
             if isPresented {
                 VStack(spacing: 0) { footer() }
+                    .readableWidth()
                     .padding(.horizontal, Theme.Spacing.pagePadding)
                     .padding(.top, 12)
                     .padding(.bottom, 16)
@@ -300,6 +301,11 @@ private struct StickyFooter<Footer: View>: ViewModifier {
 }
 
 extension View {
+    /// Caps page content at a readable width on iPad and Mac; no effect on iPhone widths.
+    func readableWidth(_ max: CGFloat = 680) -> some View {
+        frame(maxWidth: max).frame(maxWidth: .infinity)
+    }
+
     /// Wraps this view (typically a `ScrollView` or `List`) with a sticky
     /// bottom bar holding `footer`'s content — see `StickyFooter`.
     /// `isPresented` false draws nothing and takes no height.

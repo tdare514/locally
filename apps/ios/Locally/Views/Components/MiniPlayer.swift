@@ -152,8 +152,21 @@ private struct BarChrome: ViewModifier {
 
 /// Puts the mini player above the tab bar as a bottom inset, so the content's insets grow by its height.
 /// Applied to each tab's root view: a tab's bottom safe area already sits above the tab bar.
+/// False inside `RootView`'s split view (iPad, Mac), which has no tab bar accessory slot (#448).
+private struct MiniPlayerHasTabAccessoryKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
+extension EnvironmentValues {
+    var miniPlayerHasTabAccessory: Bool {
+        get { self[MiniPlayerHasTabAccessoryKey.self] }
+        set { self[MiniPlayerHasTabAccessoryKey.self] = newValue }
+    }
+}
+
 struct MiniPlayerInset: ViewModifier {
     @Environment(\.playback) private var playback
+    @Environment(\.miniPlayerHasTabAccessory) private var hasTabAccessory
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -162,7 +175,7 @@ struct MiniPlayerInset: ViewModifier {
     func body(content: Content) -> some View {
         let showing = playback?.hasQueue ?? false
         // The accessory is a fixed-height capsule, so the accessibility sizes use the inset bar, which grows.
-        let inAccessory = MiniPlayerPlacement.usesTabAccessory && !dynamicTypeSize.isAccessibilitySize
+        let inAccessory = hasTabAccessory && MiniPlayerPlacement.usesTabAccessory && !dynamicTypeSize.isAccessibilitySize
         return inset(content, showing: showing, inAccessory: inAccessory)
     }
 

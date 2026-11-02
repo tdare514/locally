@@ -158,6 +158,7 @@ Mac library work (#7); the Sep 27 security backlog (#12) is closed on both apps.
 - Play events (#395, step 1b of #368, spec in `spec/sync.md`; deployed 25 Oct after the owner reviewed migration 0013 before merge): `PUT /v1/plays/events` upserts up to 500 events per request per (account, id), `listenedMs` as max(stored, sent), other fields fixed by the first write, ignoring another device's id and releases that aren't the user's live ones, 120 requests an hour per user; `GET /v1/plays/events` pages newest first, 500 a page, with an opaque cursor and the device of each event; `GET /v1/plays/summary` gains `lastPlayedAt`, `listenedMs` and `events` on `tracks[]` and `allTime[]`; events are kept 400 days, deleted with their release's files and with the account (a trigger backs it up); the cloud sampler writes them for the plays it counts, raising `listenedMs` in 30 s steps (#396)
 
 ## In progress
+- iPhone app on iPad and Mac (#448): iPad device family, a sidebar split view on wide screens, readable page widths, and a Designed-for-iPad Mac build (`LSRequiresIPhoneOS`, signed with the team) that launches on Apple silicon; the iPad layout is not yet seen on a device or simulator past onboarding
 - Security review of apps/api (#20): findings fixed 28 Sep; auth rate limits now live in the shared libSQL database, so they hold across Vercel instances
 
 ## Known issues

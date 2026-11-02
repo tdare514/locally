@@ -324,6 +324,7 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: 16) {
                 content()
             }
+            .readableWidth()
             .padding(.horizontal, Theme.Spacing.listPagePadding)
             .padding(.top, 12)
             .padding(.bottom, 24)

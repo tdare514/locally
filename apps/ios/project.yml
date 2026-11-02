@@ -33,11 +33,19 @@ targets:
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Line"
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: YES
     info:
       path: Locally/Info.plist
       properties:
         UISupportsDocumentBrowser: false
+        # Marks the bundle as an iOS app so macOS runs it as Designed for iPad (#448).
+        LSRequiresIPhoneOS: true
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         LSSupportsOpeningDocumentsInPlace: true
         UIFileSharingEnabled: true
         # Playback in Locally continues on the lock screen and in the background (#336).
@@ -89,7 +97,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tdare.locally.share
         SWIFT_VERSION: "5.10"
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: YES
         SKIP_INSTALL: YES
     info:
       path: LocallyShare/Info.plist

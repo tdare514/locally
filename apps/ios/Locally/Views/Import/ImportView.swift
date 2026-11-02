@@ -89,6 +89,7 @@ struct ImportView: View {
                     }
                     flow
                 }
+                .readableWidth()
             }
             // Waiting songs surface as a floating toast rather than a block in
             // the layout, so the form never shifts and the note reads as a
