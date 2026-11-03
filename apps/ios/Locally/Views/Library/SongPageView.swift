@@ -60,7 +60,7 @@ struct SongPageView: View {
                         hero(model)
                         panel(model)
                     }
-                    .frame(maxWidth: .infinity)
+                    .readableColumn()
                 }
                 .ignoresSafeArea(edges: .bottom)
                 .defaultScrollAnchor(startsAtEnd ? .bottom : .top)

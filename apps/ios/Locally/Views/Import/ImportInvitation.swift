@@ -19,7 +19,7 @@ struct ImportInvitation: View {
         GeometryReader { geo in
             ScrollView {
                 content
-                    .frame(maxWidth: .infinity)
+                    .readableColumn()
                     .frame(minHeight: geo.size.height)
             }
             .scrollBounceBehavior(.basedOnSize)

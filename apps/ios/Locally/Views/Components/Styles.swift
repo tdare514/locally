@@ -308,6 +308,44 @@ extension View {
     }
 }
 
+extension View {
+    /// Centres this content in a `Theme.Spacing.readableWidth` column on a wide screen (iPad, #448).
+    /// An iPhone is narrower than the column, so nothing changes there. Apply it to a page's content,
+    /// never to its full-bleed backdrop. `alignment` places narrower content inside the column
+    /// (`.leading` for a left-aligned section in a leading stack).
+    func readableColumn(alignment: HorizontalAlignment = .center) -> some View {
+        frame(maxWidth: Theme.Spacing.readableWidth, alignment: Alignment(horizontal: alignment, vertical: .center))
+            .frame(maxWidth: .infinity)
+    }
+
+    /// The same as `readableColumn()` at `Theme.Spacing.wideWidth`, for grids and the sleeve fan.
+    func wideColumn(alignment: HorizontalAlignment = .center) -> some View {
+        frame(maxWidth: Theme.Spacing.wideWidth, alignment: Alignment(horizontal: alignment, vertical: .center))
+            .frame(maxWidth: .infinity)
+    }
+
+    /// `readableColumn()` for a `List`: the List keeps the whole width (so it scrolls anywhere and its
+    /// backdrop is untouched) and its rows are inset to a centred column. Narrower than the column,
+    /// the added padding is 0, so an iPhone is unchanged.
+    func readableListColumn(maxWidth: CGFloat = Theme.Spacing.readableWidth) -> some View {
+        modifier(ReadableListColumn(maxWidth: maxWidth))
+    }
+}
+
+/// Pads a list's safe area on each side by however much it is wider than `maxWidth` (#448).
+private struct ReadableListColumn: ViewModifier {
+    let maxWidth: CGFloat
+    @State private var sideInset: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        content
+            .safeAreaPadding(.horizontal, sideInset)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                max(0, (proxy.size.width - maxWidth) / 2)
+            } action: { sideInset = $0 }
+    }
+}
+
 // MARK: - File row
 
 /// One track/audio file row, used by the album builder and the release

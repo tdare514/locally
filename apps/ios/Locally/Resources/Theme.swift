@@ -123,6 +123,10 @@ enum Theme {
         static let primaryButtonMinHeight: CGFloat = 48
         /// The smallest touch target (docs/design.md "Design rules (30 Oct 2026)", rule 11): a compact main button, an icon button, one switch option.
         static let minTarget: CGFloat = 44
+        /// A page's content column on a wide screen (iPad, #448); wider than any iPhone, so a phone is unchanged.
+        static let readableWidth: CGFloat = 680
+        /// The Library's and Stats' wider column for grids and the sleeve fan on a wide screen (#448).
+        static let wideWidth: CGFloat = 1000
     }
 
     /// The sticky footer's fade (docs/design.md "Sticky footer CTA (mobile)").

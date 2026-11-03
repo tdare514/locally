@@ -106,6 +106,7 @@ struct CollectionDetailView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .readableListColumn()
         .environment(\.defaultMinListRowHeight, 44)
         .task {
             #if DEBUG

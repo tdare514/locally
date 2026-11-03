@@ -129,6 +129,8 @@ extension View {
     /// `isLast`), and a disc heading next to a row counts as the edge of its run.
     func importTrackRow(isFirst: Bool, isLast: Bool) -> some View {
         alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
+            // Ends at the row, not the list's edge, so it stays inside the iPad's readable column (#448).
+            .alignmentGuide(.listRowSeparatorTrailing) { $0[.trailing] }
             .listRowBackground(PanelRowBackground(edge: .middle))
             .listRowSeparator(isFirst ? .hidden : .visible, edges: .top)
             .listRowSeparator(isLast ? .hidden : .visible, edges: .bottom)

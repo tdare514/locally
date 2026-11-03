@@ -96,14 +96,15 @@ struct StatsView: View {
                 ZStack {
                     backdrop
                     ScrollView {
-                        let room = max(geo.size.width - Theme.Stats.gutter * 2, 0)
+                        // The page is a wide column on an iPad (#448), so the fan and the grid fit it.
+                        let room = max(min(geo.size.width, Theme.Spacing.wideWidth) - Theme.Stats.gutter * 2, 0)
                         VStack(alignment: .leading, spacing: 20) {
                             content(room: room)
                         }
                         .padding(.horizontal, Theme.Stats.gutter)
                         .padding(.top, Self.edgeFade)
                         .padding(.bottom, Self.edgeFade + 40)
-                        .frame(maxWidth: .infinity)
+                        .wideColumn()
                         // A tap on nothing puts a lifted sleeve back.
                         .background { Color.clear.contentShape(Rectangle()).onTapGesture { armed = nil } }
                     }
@@ -231,9 +232,10 @@ struct StatsView: View {
             if model.phase != .signedOut { historyButton }
         }
         .padding(.horizontal, 6)
+        .readableColumn(alignment: .leading)
 
         if model.phase == .signedOut {
-            signedOutCard
+            signedOutCard.readableColumn(alignment: .leading)
         } else {
             if model.showsControls {
                 // The controls sit right under the title, as on the Mac, so a sentence that arrives, grows or
@@ -242,6 +244,7 @@ struct StatsView: View {
                     controlsRow
                     stepperRow
                 }
+                .readableColumn(alignment: .leading)
                 .task {
                     guard openPeriodOnAppear else { return }
                     try? await Task.sleep(for: .seconds(1.5))
@@ -250,6 +253,7 @@ struct StatsView: View {
                 if !model.digest.isEmpty {
                     digestText(model.digest)
                         .foregroundStyle(Theme.primaryText.opacity(0.88))
+                        .readableColumn(alignment: .leading)
                 }
             }
             Group {
@@ -261,11 +265,11 @@ struct StatsView: View {
                 case .quiet, .signedOut:
                     EmptyView()
                 case .noPlays:
-                    messageCard(Copy.Stats.noPlays)
+                    messageCard(Copy.Stats.noPlays).readableColumn(alignment: .leading)
                 case .failed:
-                    messageCard(Copy.Stats.failed)
+                    messageCard(Copy.Stats.failed).readableColumn(alignment: .leading)
                 case .busy:
-                    messageCard(Copy.Stats.busy)
+                    messageCard(Copy.Stats.busy).readableColumn(alignment: .leading)
                 }
             }
             .opacity(model.isRefreshing ? 0.6 : 1)
@@ -277,6 +281,7 @@ struct StatsView: View {
                     .foregroundStyle(Theme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 6)
+                    .readableColumn(alignment: .leading)
             }
         }
     }
@@ -459,6 +464,9 @@ struct StatsView: View {
                     )
                 }
             }
+            // The list reads in the page's column; the grid keeps the wide one (#448).
+            .frame(maxWidth: model.layout == .list ? Theme.Spacing.readableWidth : Theme.Spacing.wideWidth, alignment: .leading)
+            .frame(maxWidth: .infinity)
             .trackActionSheets(trackSheets)
             .id("list-\(model.layout.rawValue)-\(model.tab.rawValue)-\(model.displayed.kind.rawValue)-\(model.displayed.back)")
         }

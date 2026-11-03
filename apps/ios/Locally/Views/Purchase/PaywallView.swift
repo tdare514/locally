@@ -61,6 +61,7 @@ struct PaywallView: View {
 
                 Spacer()
             }
+            .readableColumn()
             .padding(Theme.Spacing.pagePadding)
             .scrollsWhenCrowded()
             .frame(maxWidth: .infinity)
