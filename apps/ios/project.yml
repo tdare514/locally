@@ -33,7 +33,7 @@ targets:
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Line"
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
     info:
       path: Locally/Info.plist
       properties:
@@ -50,6 +50,12 @@ targets:
         # NSLocalNetworkUsageDescription and NSAppTransportSecurity are added
         # for Debug only, by the postBuildScripts step below.
         UILaunchScreen: {}
+        # iPad runs in every orientation and in Split View and Slide Over (#448).
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         CFBundleDisplayName: Locally
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
@@ -89,7 +95,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tdare.locally.share
         SWIFT_VERSION: "5.10"
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
         SKIP_INSTALL: YES
     info:
       path: LocallyShare/Info.plist

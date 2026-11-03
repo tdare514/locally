@@ -157,6 +157,7 @@ struct CollectionBuilderView: View {
                     library
                 }
                 .padding(.bottom, 12)
+                .readableColumn()
             }
             .scrollDismissesKeyboard(.immediately)
         }

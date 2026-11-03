@@ -138,6 +138,7 @@ struct ReleaseDetailView: View {
             .listSectionSpacing(.custom(Theme.Spacing.editorSectionGap))
             .environment(\.defaultMinListRowHeight, 0)
             .scrollContentBackground(.hidden)
+            .readableListColumn()
             .task { await highlightTrack(in: model, proxy: proxy) }
             .onDisappear { clearHighlight() }
             .task(id: editScrollTrackID) { await scrollToEditedTrack(in: model, proxy: proxy) }

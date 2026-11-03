@@ -47,6 +47,7 @@ struct ImportSingleView: View {
                 .panelListSection()
             }
             .importRecordList(driver: context.driver)
+            .readableListColumn()
             // Typing mid-beat skips it too (a tag prefill from a picked file is not typing).
             .onChange(of: [model.title, model.artist, model.releaseDateText, model.genre] + model.featuring + [model.featuringDraft]) { _, _ in
                 if !model.isLoadingTags { context.driver.skip() }
@@ -57,24 +58,28 @@ struct ImportSingleView: View {
                 }
             }
             .stickyFooter {
-                // A failed send's message sits just above Send, where the tap was: Send scrolls the
-                // record back to the sleeve, so a row at the end of the list would be out of view.
-                if let errorMessage = model.errorMessage {
-                    ImportSendError(message: errorMessage)
-                }
-                Button(action: context.onSend) {
-                    HStack(spacing: 8) {
-                        // A busy button keeps its label and swaps its icon for a spinner (rule 10).
-                        if model.isSending {
-                            ProgressView()
-                        } else {
-                            Image(systemName: "paperplane.fill").accessibilityHidden(true)
-                        }
-                        Text(Copy.Import.send)
+                // In the page's column on a wide screen (#448).
+                VStack(spacing: 0) {
+                    // A failed send's message sits just above Send, where the tap was: Send scrolls the
+                    // record back to the sleeve, so a row at the end of the list would be out of view.
+                    if let errorMessage = model.errorMessage {
+                        ImportSendError(message: errorMessage)
                     }
+                    Button(action: context.onSend) {
+                        HStack(spacing: 8) {
+                            // A busy button keeps its label and swaps its icon for a spinner (rule 10).
+                            if model.isSending {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "paperplane.fill").accessibilityHidden(true)
+                            }
+                            Text(Copy.Import.send)
+                        }
+                    }
+                    .buttonStyle(MainButtonStyle())
+                    .disabled(!model.canSend || context.isSendHeld)
                 }
-                .buttonStyle(MainButtonStyle())
-                .disabled(!model.canSend || context.isSendHeld)
+                .readableColumn()
             }
         }
     }

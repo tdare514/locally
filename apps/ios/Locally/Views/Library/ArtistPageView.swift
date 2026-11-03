@@ -53,6 +53,7 @@ struct ArtistPageView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 32)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .readableColumn()
             }
             .scrollIndicators(.hidden)
         }

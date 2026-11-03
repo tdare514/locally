@@ -53,8 +53,9 @@ struct ImportSentCard: View {
                     .opacity(isShown ? Theme.Import.sentDimOpacity : 0)
                     .animation(.easeOut(duration: leaving ? Theme.Import.sentCloseDuration : Theme.Import.sentDimDuration), value: isShown)
                     .accessibilityHidden(true)
-                card(maxHeight: geometry.size.height * Theme.Import.sentCardMaxHeightRatio, width: geometry.size.width)
+                card(maxHeight: geometry.size.height * Theme.Import.sentCardMaxHeightRatio, width: min(geometry.size.width, Theme.Spacing.readableWidth))
                     .padding(.horizontal, Theme.Import.sentCardEdgeInset)
+                    .readableColumn()
                     .padding(.bottom, Theme.Import.sentCardEdgeInset)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

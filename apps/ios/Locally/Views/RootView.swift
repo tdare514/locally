@@ -55,44 +55,35 @@ struct RootView: View {
             if !folderStatus.isConnected || !hasFinishedOnboarding {
                 OnboardingView { hasFinishedOnboarding = true }
             } else {
-                TabView(selection: $selectedTab) {
-                    LibraryView(selectedTab: $selectedTab, requestedImportKind: $requestedImportKind, librarySearchRequest: $librarySearchRequest)
-                        .miniPlayerInset()
-                        .environment(\.isTabSelected, selectedTab == .library)
-                        .tabItem { Label(Copy.Library.title, image: "Icon/Library") }
-                        .tag(Tab.library)
-
-                    ImportView(requestedKind: $requestedImportKind)
-                        .miniPlayerInset()
-                        .environment(\.isTabSelected, selectedTab == .importSong)
-                        .tabItem { Label(Copy.Import.title, image: "Icon/Plus") }
-                        .tag(Tab.importSong)
-
-                    StatsTab(selectedTab: $selectedTab, librarySearchRequest: $librarySearchRequest)
-                        .miniPlayerInset()
-                        .environment(\.isTabSelected, selectedTab == .stats)
-                        .tabItem { Label(Copy.Stats.tabLabel, image: "Icon/Stats") }
-                        .tag(Tab.stats)
-
-                    SettingsView()
-                        .miniPlayerInset()
-                        .environment(\.isTabSelected, selectedTab == .settings)
-                        .tabItem { Label(Copy.Settings.title, image: "Icon/Settings") }
-                        .tag(Tab.settings)
-                }
-                .tint(Theme.accent)
-                .miniPlayerAccessory(playback)
-                .environment(\.openSettingsTab, { selectedTab = .settings })
-                // A start error is announced once, even when the same text comes round again.
-                .onChange(of: playback?.startErrorCount) { _, _ in
-                    if let message = playback?.startError { AccessibilityNotification.Announcement(message).post() }
-                }
-                // The mini player's bar opens its release in the Library.
-                .onChange(of: playback?.openReleaseRequest) { _, id in
-                    if id != nil { selectedTab = .library }
-                }
-                .onChange(of: playback?.openCollectionRequest) { _, id in
-                    if id != nil { selectedTab = .library }
+                if #available(iOS 18.0, *) {
+                    // iPad gets the system top tab bar that can turn into a sidebar (#448);
+                    // an iPhone still shows the bottom tab bar.
+                    sharedTabModifiers(
+                        TabView(selection: $selectedTab) {
+                            SwiftUI.Tab(Copy.Library.title, image: "Icon/Library", value: Tab.library) { libraryTab }
+                            SwiftUI.Tab(Copy.Import.title, image: "Icon/Plus", value: Tab.importSong) { importTab }
+                            SwiftUI.Tab(Copy.Stats.tabLabel, image: "Icon/Stats", value: Tab.stats) { statsTab }
+                            SwiftUI.Tab(Copy.Settings.title, image: "Icon/Settings", value: Tab.settings) { settingsTab }
+                        }
+                        .tabViewStyle(.sidebarAdaptable)
+                    )
+                } else {
+                    sharedTabModifiers(
+                        TabView(selection: $selectedTab) {
+                            libraryTab
+                                .tabItem { Label(Copy.Library.title, image: "Icon/Library") }
+                                .tag(Tab.library)
+                            importTab
+                                .tabItem { Label(Copy.Import.title, image: "Icon/Plus") }
+                                .tag(Tab.importSong)
+                            statsTab
+                                .tabItem { Label(Copy.Stats.tabLabel, image: "Icon/Stats") }
+                                .tag(Tab.stats)
+                            settingsTab
+                                .tabItem { Label(Copy.Settings.title, image: "Icon/Settings") }
+                                .tag(Tab.settings)
+                        }
+                    )
                 }
             }
         }
@@ -126,6 +117,56 @@ struct RootView: View {
             }
             if newPhase == .background { container?.playback.flushListened() }
         }
+    }
+}
+
+extension RootView {
+    // Each tab's content, shared by the iOS 18 `Tab` path and the iOS 17 `.tabItem` path.
+    @ViewBuilder
+    private var libraryTab: some View {
+        LibraryView(selectedTab: $selectedTab, requestedImportKind: $requestedImportKind, librarySearchRequest: $librarySearchRequest)
+            .miniPlayerInset()
+            .environment(\.isTabSelected, selectedTab == .library)
+    }
+
+    @ViewBuilder
+    private var importTab: some View {
+        ImportView(requestedKind: $requestedImportKind)
+            .miniPlayerInset()
+            .environment(\.isTabSelected, selectedTab == .importSong)
+    }
+
+    @ViewBuilder
+    private var statsTab: some View {
+        StatsTab(selectedTab: $selectedTab, librarySearchRequest: $librarySearchRequest)
+            .miniPlayerInset()
+            .environment(\.isTabSelected, selectedTab == .stats)
+    }
+
+    @ViewBuilder
+    private var settingsTab: some View {
+        SettingsView()
+            .miniPlayerInset()
+            .environment(\.isTabSelected, selectedTab == .settings)
+    }
+
+    /// The modifiers both tab view paths share, attached once.
+    private func sharedTabModifiers(_ tabs: some View) -> some View {
+        tabs
+            .tint(Theme.accent)
+            .miniPlayerAccessory(playback)
+            .environment(\.openSettingsTab, { selectedTab = .settings })
+            // A start error is announced once, even when the same text comes round again.
+            .onChange(of: playback?.startErrorCount) { _, _ in
+                if let message = playback?.startError { AccessibilityNotification.Announcement(message).post() }
+            }
+            // The mini player's bar opens its release in the Library.
+            .onChange(of: playback?.openReleaseRequest) { _, id in
+                if id != nil { selectedTab = .library }
+            }
+            .onChange(of: playback?.openCollectionRequest) { _, id in
+                if id != nil { selectedTab = .library }
+            }
     }
 }
 

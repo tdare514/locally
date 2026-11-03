@@ -79,10 +79,12 @@ struct HistoryView: View {
                     content(chosen)
                 }
                 .padding(.bottom, 32)
+                .readableColumn(alignment: .leading)
             }
             .refreshable { await model.load(force: true) }
         }
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        // The page's column, not the window, on an iPad (#448).
+        .onGeometryChange(for: CGFloat.self) { min($0.size.width, Theme.Spacing.readableWidth) } action: { width = $0 }
         .task {
             await model.load()
             model.rebuild()

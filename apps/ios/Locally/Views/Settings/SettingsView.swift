@@ -76,7 +76,7 @@ struct SettingsView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, Self.edgeFade)
                     .padding(.bottom, Self.edgeFade + 40)
-                    .frame(maxWidth: .infinity)
+                    .readableColumn()
                 }
                 .scrollIndicators(.hidden)
                 .mask(edgeMask(bottom: min(max(Self.edgeFade, geo.safeAreaInsets.bottom), Self.maxBottomFade)))

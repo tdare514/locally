@@ -79,6 +79,7 @@ struct AlbumBuilderView: View {
                 .panelListSection()
             }
             .importRecordList(driver: context.driver)
+            .readableListColumn()
             .sheet(isPresented: Binding(get: { featuringIndex != nil }, set: { if !$0 { model.featuringRowID = nil } })) {
                 if let id = model.featuringRowID, let index = featuringIndex {
                     FeaturingSheet(trackTitle: model.rows[index].title, names: featuringBinding(id)) { model.featuringRowID = nil }
@@ -94,31 +95,35 @@ struct AlbumBuilderView: View {
                 }
             }
             .stickyFooter {
-                // A failed send's message sits just above Send, where the tap was: Send scrolls the
-                // record back to the sleeve, so a row at the end of the list would be out of view.
-                if let errorMessage = model.errorMessage {
-                    ImportSendError(message: errorMessage)
-                }
-                Button(action: context.onSend) {
-                    VStack(spacing: 4) {
-                        // A busy button keeps its label and swaps its icon for a spinner (rule 10).
-                        HStack(spacing: 8) {
-                            if model.isSending {
-                                ProgressView()
-                            } else {
-                                Image(systemName: "paperplane.fill").accessibilityHidden(true)
-                            }
-                            Text(Copy.Import.send)
-                        }
-                        if model.isSending {
-                            Text(Copy.Import.taggingProgress(done: model.progressDone, total: model.progressTotal))
-                                .themeFont(.rowSubtitle)
-                        }
+                // In the page's column on a wide screen (#448).
+                VStack(spacing: 0) {
+                    // A failed send's message sits just above Send, where the tap was: Send scrolls the
+                    // record back to the sleeve, so a row at the end of the list would be out of view.
+                    if let errorMessage = model.errorMessage {
+                        ImportSendError(message: errorMessage)
                     }
-                    .frame(maxWidth: .infinity)
+                    Button(action: context.onSend) {
+                        VStack(spacing: 4) {
+                            // A busy button keeps its label and swaps its icon for a spinner (rule 10).
+                            HStack(spacing: 8) {
+                                if model.isSending {
+                                    ProgressView()
+                                } else {
+                                    Image(systemName: "paperplane.fill").accessibilityHidden(true)
+                                }
+                                Text(Copy.Import.send)
+                            }
+                            if model.isSending {
+                                Text(Copy.Import.taggingProgress(done: model.progressDone, total: model.progressTotal))
+                                    .themeFont(.rowSubtitle)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(MainButtonStyle())
+                    .disabled(!model.canSend || context.isSendHeld)
                 }
-                .buttonStyle(MainButtonStyle())
-                .disabled(!model.canSend || context.isSendHeld)
+                .readableColumn()
             }
         }
     }

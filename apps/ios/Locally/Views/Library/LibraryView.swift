@@ -327,6 +327,8 @@ struct LibraryView: View {
             .padding(.horizontal, Theme.Spacing.listPagePadding)
             .padding(.top, 12)
             .padding(.bottom, 24)
+            // Rows, cards, the toolbar and the cover grid fill up to the wide column on an iPad (#448).
+            .wideColumn(alignment: .leading)
             .background {
                 GeometryReader { geo in
                     Color.clear.preference(
