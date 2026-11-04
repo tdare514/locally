@@ -23,8 +23,11 @@ export const POST = withObservability("/v1/auth/code", async (request, obs) => {
     throw new RateLimitError("Too many code requests. Try again later.");
   }
 
-  const code = await services.auth.issueCode(email);
+  // Invite-only (#186): an uninvited email with no account gets the same response as everyone else, with no
+  // code stored and no mail sent. Never log or echo which case this was, and never log the email.
+  const code = await services.auth.requestCode(email);
   runAfterResponse(async () => {
+    if (code === null) return;
     try {
       await services.auth.sendCode(email, code);
     } catch (err) {

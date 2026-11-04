@@ -29,11 +29,23 @@ export const authCodes = sqliteTable("auth_codes", {
   emailIdx: index("auth_codes_email_idx").on(table.email),
 }));
 
+/**
+ * Invite list for `POST /v1/auth/code` (#186, `docs/plans/137-hosted-web.md`): an email with no account gets a
+ * code only if it is here with `used_at` null. `email` is stored normalised (trimmed, lowercased). `used_at` is set
+ * when the invited person signs in. Managed by `npm run invite`; there is no admin UI.
+ */
+export const invites = sqliteTable("invites", {
+  email: text("email").primaryKey(),
+  invitedBy: text("invited_by").notNull(),
+  createdAt: integer("created_at").notNull(),
+  usedAt: integer("used_at"),
+});
+
 export const devices = sqliteTable("devices", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
   name: text("name").notNull(),
-  platform: text("platform", { enum: ["mac", "ios", "cloud"] }).notNull(),
+  platform: text("platform", { enum: ["mac", "ios", "web", "cloud"] }).notNull(),
   tokenHash: text("token_hash").notNull(),
   createdAt: integer("created_at").notNull(),
   lastSeenAt: integer("last_seen_at").notNull(),

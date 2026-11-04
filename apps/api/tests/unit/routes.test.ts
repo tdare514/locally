@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { createTestServices, type TestServices } from "../support/testServices";
+import { createTestServices, inviteForTest, type TestServices } from "../support/testServices";
 import { makeReleaseRecord } from "../support/fixtures";
 
 let testServices: TestServices;
@@ -31,6 +31,7 @@ function jsonRequest(url: string, method: string, body?: unknown, token?: string
 }
 
 async function signIn(email: string, deviceName = "Toby's MacBook"): Promise<{ token: string; userId: string; deviceId: string }> {
+  await inviteForTest(testServices, email);
   const codeRes = await authCodeRoute.POST(jsonRequest("http://localhost/v1/auth/code", "POST", { email }));
   expect(codeRes.status).toBe(200);
   // Email send is deferred (#31); flush the fallback microtask so FakeMailer has the code.
@@ -56,6 +57,7 @@ describe("routes (through the exported handler functions, no server)", () => {
   });
 
   it("POST /v1/auth/verify rejects a wrong code with 401", async () => {
+    await inviteForTest(testServices, "wrong-code@example.com");
     await authCodeRoute.POST(jsonRequest("http://localhost/v1/auth/code", "POST", { email: "wrong-code@example.com" }));
     await new Promise<void>((r) => queueMicrotask(() => r()));
     const res = await authVerifyRoute.POST(
@@ -269,6 +271,7 @@ describe("routes (through the exported handler functions, no server)", () => {
     const email = "many-devices-route@example.com";
     let lastToken = "";
     for (let i = 0; i < 51; i++) {
+      await inviteForTest(testServices, email);
       const codeRes = await authCodeRoute.POST(jsonRequest("http://localhost/v1/auth/code", "POST", { email }));
       expect(codeRes.status).toBe(200);
       await new Promise<void>((r) => queueMicrotask(() => r()));

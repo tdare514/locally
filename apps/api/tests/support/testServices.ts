@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createDb, migrateDb } from "../../src/db/client";
+import { invites } from "../../src/db/schema";
 import { AccountService } from "../../src/server/account/AccountService";
 import { AuthService } from "../../src/server/auth/AuthService";
 import { CleanupService } from "../../src/server/cleanup/CleanupService";
@@ -117,4 +118,12 @@ export async function createTestServices(): Promise<TestServices> {
 
 export async function cleanupTestServices(services: TestServices): Promise<void> {
   await fs.rm(services.fileStoreDir, { recursive: true, force: true });
+}
+
+/** Invite an email so `POST /v1/auth/code` will issue it a code (#186). Route tests call this before signing in. */
+export async function inviteForTest(services: Services, email: string): Promise<void> {
+  await services.db
+    .insert(invites)
+    .values({ email: email.trim().toLowerCase(), invitedBy: "test", createdAt: Date.now(), usedAt: null })
+    .onConflictDoNothing();
 }

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { cleanupTestServices, createTestServices, type TestServices } from "../support/testServices";
+import { cleanupTestServices, createTestServices, inviteForTest, type TestServices } from "../support/testServices";
 import { makeReleaseRecord } from "../support/fixtures";
 
 let testServices: TestServices;
@@ -31,6 +31,7 @@ function jsonRequest(url: string, method: string, body?: unknown, token?: string
 
 /** Signing in again with the same email adds another device to the same account. */
 async function signIn(email: string): Promise<{ token: string; userId: string; deviceId: string }> {
+  await inviteForTest(testServices, email);
   const codeRes = await authCodeRoute.POST(jsonRequest("http://localhost/v1/auth/code", "POST", { email }));
   expect(codeRes.status).toBe(200);
   await new Promise<void>((r) => queueMicrotask(() => r()));

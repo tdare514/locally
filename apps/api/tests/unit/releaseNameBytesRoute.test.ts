@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { createTestServices, type TestServices } from "../support/testServices";
+import { createTestServices, inviteForTest, type TestServices } from "../support/testServices";
 import { makeReleaseRecord } from "../support/fixtures";
 
 let testServices: TestServices;
@@ -21,6 +21,7 @@ function jsonRequest(url: string, method: string, body: unknown, token?: string)
 }
 
 async function signIn(email: string): Promise<{ token: string; userId: string }> {
+  await inviteForTest(testServices, email);
   await authCodeRoute.POST(jsonRequest("http://localhost/v1/auth/code", "POST", { email }));
   await new Promise<void>((r) => queueMicrotask(() => r()));
   const code = testServices.mailer.codeFor(email);

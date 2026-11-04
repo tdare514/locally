@@ -42,11 +42,12 @@ export const emailSchema = z
   .email("Must be a valid email address")
   .max(320);
 
-export const platformSchema = z.enum(["mac", "ios"]);
+/** `"web"` (#186): the hosted browser app, as a record `origin` and a device `platform`. Shipped clients read it as "another device" (#185). */
+export const platformSchema = z.enum(["mac", "ios", "web"]);
 export type Platform = z.infer<typeof platformSchema>;
 /**
  * What the `devices.platform` column can hold. `"cloud"` is the sampler's own device (#303, #306): it is never
- * accepted from a client (`platformSchema` stays `mac | ios`), only read back in play lists.
+ * accepted from a client (`platformSchema` is `mac | ios | web`), only read back in play lists.
  */
 export type DevicePlatform = Platform | "cloud";
 

@@ -64,6 +64,21 @@ In production (`FILE_STORE=blob`), file URLs come straight from Vercel Blob
 and `PUBLIC_BASE_URL` no longer affects them, only remaining relevant for a
 handful of internal display purposes.
 
+## Invites (invite-only sign-up)
+
+`POST /v1/auth/code` sends a code only to an email that already has an account or has an unused invite
+(#186); everyone else gets the same `{ "ok": true }` and no mail. Manage the list by hand, against the database
+named by `DATABASE_URL` / `TURSO_DATABASE_URL` (the local dev file by default):
+
+```bash
+npm run invite -- add a@b.c       # invite (or re-arm a used invite)
+npm run invite -- list            # email, unused/used, who invited, when
+npm run invite -- remove a@b.c
+```
+
+Emails are trimmed and lowercased exactly as the auth route does. For production, run it with the production
+database URL and token in the environment. Invites can't receive codes until the mail domain is verified (#58).
+
 ## Environment variables
 
 See `.env.example` for the full list with descriptions. Every one of them
