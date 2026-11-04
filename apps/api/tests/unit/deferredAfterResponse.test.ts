@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { createTestServices, type TestServices } from "../support/testServices";
+import { createTestServices, inviteForTest, type TestServices } from "../support/testServices";
 import { makeReleaseRecord } from "../support/fixtures";
 import { setAfterResponseRunner } from "../../src/server/http/afterResponse";
 import { LocalFileStore } from "../../src/server/files/LocalFileStore";
@@ -59,6 +59,7 @@ describe("deferred work off the request path (#31)", () => {
     });
 
     try {
+      await inviteForTest(testServices, email);
       const res = await authCodeRoute.POST(jsonRequest("http://localhost/v1/auth/code", "POST", { email }));
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ ok: true });

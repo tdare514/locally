@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { devices } from "../../src/db/schema";
-import { createTestServices, type TestServices } from "../support/testServices";
+import { createTestServices, inviteForTest, type TestServices } from "../support/testServices";
 import { makeReleaseRecord } from "../support/fixtures";
 
 let testServices: TestServices;
@@ -47,14 +47,15 @@ function jsonRequest(url: string, method: string, body?: unknown, token?: string
   });
 }
 
-async function signIn(email: string, deviceName = "Device"): Promise<{ token: string; userId: string; deviceId: string }> {
+async function signIn(email: string, deviceName = "Device", platform: "mac" | "ios" | "web" = "mac"): Promise<{ token: string; userId: string; deviceId: string }> {
+  await inviteForTest(testServices, email);
   const codeRes = await authCodeRoute.POST(jsonRequest("http://localhost/v1/auth/code", "POST", { email }));
   expect(codeRes.status).toBe(200);
   await new Promise<void>((r) => queueMicrotask(() => r()));
 
   const code = testServices.mailer.codeFor(email);
   const verifyRes = await authVerifyRoute.POST(
-    jsonRequest("http://localhost/v1/auth/verify", "POST", { email, code, deviceName, platform: "mac" })
+    jsonRequest("http://localhost/v1/auth/verify", "POST", { email, code, deviceName, platform })
   );
   expect(verifyRes.status).toBe(200);
   const body = (await verifyRes.json()) as { token: string; user: { id: string }; device: { id: string } };
@@ -68,7 +69,7 @@ describe("cross-user isolation", () => {
 
   it("keeps every route scoped to the authenticated user's own data", async () => {
     const alice = await signIn("alice-iso@example.com", "Alice's Mac");
-    const bob = await signIn("bob-iso@example.com", "Bob's iPhone");
+    const bob = await signIn("bob-iso@example.com", "Bob in Chrome", "web");
 
     const record = makeReleaseRecord();
     const track = record.tracks[0]!;

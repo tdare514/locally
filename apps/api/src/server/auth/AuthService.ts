@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
-import { and, asc, desc, eq, isNotNull, isNull, ne, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, ne, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../../db/client";
-import { authCodes, devices, users } from "../../db/schema";
+import { authCodes, devices, invites, users } from "../../db/schema";
 import { DEFAULT_STORAGE_LIMIT_BYTES } from "../../db/schema";
 import { NotFoundError, UnauthorizedError } from "../../shared/errors";
 import type { DevicePlatform, DeviceSummary, Platform } from "../../shared/types";
@@ -107,6 +107,39 @@ export class AuthService {
     return code;
   }
 
+  /**
+   * The invite-only entry point of `POST /v1/auth/code` (#186). An email that already has an account, or has an
+   * unused invite, gets a stored code (returned for the route to send); any other email gets `null` and nothing
+   * is stored. Both outcomes run the same two lookups, the same two writes (the decoy's match no row and insert
+   * none), and one code hash, so neither the response nor its timing says which one happened. Only the mail,
+   * sent after the response, differs.
+   */
+  async requestCode(email: string): Promise<string | null> {
+    const [[user], [invite]] = await Promise.all([
+      this.db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1),
+      this.db
+        .select({ email: invites.email })
+        .from(invites)
+        .where(and(eq(invites.email, email), isNull(invites.usedAt)))
+        .limit(1),
+    ]);
+    if (user || invite) return this.issueCode(email);
+    await this.issueDecoy(email);
+    return null;
+  }
+
+  /** The statements of `issueCode`, shaped the same but matching and inserting no row. Stores nothing. */
+  private async issueDecoy(email: string): Promise<void> {
+    const now = this.now();
+    await this.db
+      .update(authCodes)
+      .set({ consumedAt: now })
+      .where(and(eq(authCodes.email, email), isNull(authCodes.consumedAt), sql`0`));
+    const codeHash = this.hashCode(randomCode());
+    await this.db.run(sql`insert into auth_codes (id, email, code_hash, created_at, expires_at, attempts, consumed_at)
+      select ${crypto.randomUUID()}, ${email}, ${codeHash}, ${now}, ${now + CODE_TTL_MS}, 0, null where 0`);
+  }
+
   /** Deliver a code issued by `issueCode`. Failures are the caller's to log. */
   async sendCode(email: string, code: string): Promise<void> {
     await this.mailer.sendCode(email, code);
@@ -160,6 +193,11 @@ export class AuthService {
     }
 
     const user = await this.getOrCreateUser(input.email);
+    // The invite is spent by the sign-in it allowed (#186). An email with an account never needs one.
+    await this.db
+      .update(invites)
+      .set({ usedAt: this.now() })
+      .where(and(eq(invites.email, input.email), isNull(invites.usedAt)));
 
     const token = crypto.randomBytes(TOKEN_BYTES).toString("base64url");
     const tokenHash = this.hashToken(token);

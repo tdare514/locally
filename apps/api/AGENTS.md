@@ -32,6 +32,7 @@ src/server/
   files/         FileStore interface (incl. listKeys), Local/VercelBlob impls, ReleaseFilesService
   quota/         QuotaService: usage vs per-account limit
   shares/        ShareService (shares, reshares, links, public routes' logic), store-only zip writer, HTML page
+  invites/       InviteService: the invite list behind `npm run invite` (invite-only sign-up, #186)
   plays/         PlaysService: per-device play counts, live releases of the user only
   mail/          Mailer interface, Console/Resend impls
   ratelimit/     RateLimiter interface; DbRateLimiter (libSQL-backed, shared across instances)

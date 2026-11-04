@@ -8,11 +8,10 @@ const fixtureFiles = readdirSync(fixturesDir).filter((name) => name.endsWith(".j
 
 /**
  * Valid for the Mac and the iPhone, which must read a release from a client they have never heard
- * of as "another device" (#185). The API rejects them on purpose until #186 lets `origin: "web"`
- * in, so they are not in the "accepts" loop; the test below pins the rejection so that change has
- * to move them here deliberately.
+ * of as "another device" (#185). The API accepts `origin: "web"` since #186 but still refuses any
+ * other unknown origin, so the unknown-origin fixture is client-only and pinned as rejected here.
  */
-const CLIENT_ONLY_FIXTURES = ["valid-album-origin-web.json", "valid-single-origin-unknown.json"];
+const CLIENT_ONLY_FIXTURES = ["valid-single-origin-unknown.json"];
 
 function loadFixture(name: string): unknown {
   return JSON.parse(readFileSync(`${fixturesDir}${name}`, "utf8"));
@@ -41,7 +40,13 @@ describe("sync fixtures", () => {
     },
   );
 
-  it.each(CLIENT_ONLY_FIXTURES)("rejects %s (client-only until #186)", (name) => {
+  it("accepts origin web (#186)", () => {
+    const record = loadFixture("valid-album-origin-web.json") as { origin: string };
+    expect(record.origin).toBe("web");
+    expect(releaseRecordSchema.safeParse(record).success).toBe(true);
+  });
+
+  it.each(CLIENT_ONLY_FIXTURES)("rejects %s (an origin the API does not know)", (name) => {
     expect(fixtureFiles).toContain(name);
     const result = releaseRecordSchema.safeParse(loadFixture(name));
     expect(result.success).toBe(false);
