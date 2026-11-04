@@ -21,6 +21,16 @@ enum LocalId {
         return "\(prefix)\(encodeSegment(artist)):\(encodeSegment(album)):\(encodeSegment(title)):\(seconds)"
     }
 
+    /// Splits an id into what names the song (everything before the length) and its whole seconds.
+    /// Nil for a string that is not a local id. Tags never contain a bare colon (it is encoded), so the last colon is the length's.
+    static func split(_ id: String) -> (identity: String, seconds: Int)? {
+        guard id.hasPrefix(prefix), let colon = id.lastIndex(of: ":") else { return nil }
+        guard let seconds = Int(id[id.index(after: colon)...]) else { return nil }
+        let identity = String(id[id.startIndex..<colon])
+        guard identity.count > prefix.count else { return nil }
+        return (identity, seconds)
+    }
+
     private static let hex = Array("0123456789ABCDEF")
 
     private static func isUnreserved(_ byte: UInt8) -> Bool {

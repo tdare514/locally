@@ -124,7 +124,7 @@ struct ReleaseDetailView: View {
                     }
                     trackRows(model, proxy: proxy)
                     if model.hasPlays { playsFootnote.panelRow(.middle) }
-                    if model.isAdopted { adoptedNote.panelRow(.middle) }
+                    if model.isAdopted { adoptedNote(model).panelRow(.middle) }
                     if isAlbum { playlistGuide(model).panelRow(.middle) }
                     messages(model)
                     if model.isEditing {
@@ -421,7 +421,7 @@ struct ReleaseDetailView: View {
         }
         .clearRow(top: 8, bottom: 0)
         if model.hasPlays { playsFootnote.clearRow(top: 12, bottom: 0) }
-        if model.isAdopted { adoptedNote.clearRow(top: 8, bottom: 0) }
+        if model.isAdopted { adoptedNote(model).clearRow(top: 8, bottom: 0) }
         if model.kind == .album { playlistGuide(model).clearRow(top: 8, bottom: 0) }
         viewMessages(model)
     }
@@ -591,9 +591,9 @@ struct ReleaseDetailView: View {
             .foregroundStyle(Theme.textDim)
     }
 
-    /// Says where an adopted release's files are: they never come to this phone.
-    private var adoptedNote: some View {
-        Text(Copy.Detail.adoptedNote)
+    /// Says where an adopted release's files are: the Mac's never come to this phone, this phone's stay where they are.
+    private func adoptedNote(_ model: ReleaseDetailViewModel) -> some View {
+        Text(model.adoptedNoteText)
             .themeFont(.dropZoneHint)
             .foregroundStyle(Theme.textDim)
     }

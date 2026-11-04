@@ -239,9 +239,15 @@ final class PlaybackService {
         return min(max(elapsed / duration, 0), 1)
     }
 
-    /// Only a release whose files are on this phone plays: not an adopted (details-only) one.
+    /// Only a release with files on this phone plays: not an adopted (details-only) one, unless some of its
+    /// tracks are linked to files in this phone's Spotify folder (#332); those tracks play, the rest are skipped.
     static func canPlay(_ release: Release) -> Bool {
-        !release.isAdopted && !release.tracks.isEmpty
+        release.tracks.contains { release.holdsAudio($0) }
+    }
+
+    /// True when `trackID` is a track of `release` whose audio is on this phone.
+    static func canPlay(_ release: Release, trackID: UUID) -> Bool {
+        release.tracks.first { $0.id == trackID }.map { release.holdsAudio($0) } ?? false
     }
 
     /// Disc, then track, as the release page lists them.
@@ -253,7 +259,7 @@ final class PlaybackService {
 
     /// What tapping a row's number does, or nil when the row has no play button.
     func playAction(release: Release, trackID: UUID) -> (() -> Void)? {
-        guard Self.canPlay(release), release.tracks.contains(where: { $0.id == trackID }) else { return nil }
+        guard Self.canPlay(release, trackID: trackID) else { return nil }
         return { [weak self] in self?.tapRow(release: release, trackID: trackID) }
     }
 
@@ -275,7 +281,7 @@ final class PlaybackService {
     /// Queues the track and the rest of the release, and plays from the track.
     func play(release: Release, startingAt trackID: UUID) {
         guard Self.canPlay(release) else { return }
-        let ordered = Self.playOrder(release)
+        let ordered = Self.playOrder(release).filter { release.holdsAudio($0) }
         guard let start = ordered.firstIndex(where: { $0.id == trackID }) else { return }
         play(
             items: ordered[start...].map { QueueItem(releaseId: release.id, trackId: $0.id) },
@@ -290,8 +296,8 @@ final class PlaybackService {
         let byID = Dictionary(newReleases.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let playableOffsets = items.indices.filter { offset in
             let item = items[offset]
-            guard let release = byID[item.releaseId], Self.canPlay(release) else { return false }
-            return release.tracks.contains { $0.id == item.trackId }
+            guard let release = byID[item.releaseId] else { return false }
+            return Self.canPlay(release, trackID: item.trackId)
         }
         let playable = playableOffsets.map { items[$0] }
         let start = playableOffsets.firstIndex { $0 >= index } ?? 0
@@ -337,8 +343,8 @@ final class PlaybackService {
     private func enqueue(_ items: [QueueItem], releases newReleases: [Release], atEnd: Bool) -> QueueAddOutcome {
         let byID = Dictionary(newReleases.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let playable = items.filter { item in
-            guard let release = byID[item.releaseId], Self.canPlay(release) else { return false }
-            return release.tracks.contains { $0.id == item.trackId }
+            guard let release = byID[item.releaseId] else { return false }
+            return Self.canPlay(release, trackID: item.trackId)
         }
         let leftOut = items.count - playable.count
         guard let first = playable.first else { return QueueAddOutcome(added: 0, leftOut: leftOut, started: false) }

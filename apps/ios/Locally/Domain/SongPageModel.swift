@@ -87,15 +87,17 @@ struct SongPageModel: Equatable, Sendable {
     let formatName: String
     let sizeText: String?
     let isAdopted: Bool
+    /// This song's audio is on this phone: always for Locally's own releases, and for an adopted one linked to a file here (#332).
+    let holdsAudio: Bool
 
     /// Only a song whose file is on this phone can be edited here (adopted songs are details only until #285/#332).
     /// Played never: the plays were read and the total is 0. An unknown date with a positive total is not this.
     var neverPlayed: Bool { playsTotal == 0 && lastPlayedText == nil }
     var canEdit: Bool { !isAdopted }
-    var canPlay: Bool { !isAdopted }
+    var canPlay: Bool { holdsAudio }
     /// A song of the user's own can be shared; the file is not on the server for an adopted one.
     var canShare: Bool { !isAdopted }
-    var location: String { isAdopted ? Copy.SongPage.onYourMac : Copy.SongPage.onThisPhone }
+    var location: String { holdsAudio ? Copy.SongPage.onThisPhone : Copy.SongPage.onYourMac }
     var trackText: String { Copy.SongPage.ofTotal(trackNumber, trackCount) }
     var discText: String? {
         guard let discNumber, let discCount else { return nil }
@@ -143,6 +145,7 @@ struct SongPageModel: Equatable, Sendable {
         let ext = Self.pathExtension(track.filePath).isEmpty ? Self.pathExtension(track.originalName) : Self.pathExtension(track.filePath)
         formatName = Self.formatName(forExtension: ext)
         isAdopted = release.isAdopted
+        holdsAudio = release.holdsAudio(track)
         sizeText = release.isAdopted ? Copy.SongPage.sizeUnknown : fileSize.map(Self.sizeText(bytes:))
     }
 

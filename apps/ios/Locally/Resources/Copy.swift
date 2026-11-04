@@ -17,6 +17,53 @@ enum Copy {
         static func detail(_ text: String) -> String { "Details: \(text)" }
     }
 
+    /// Finding the music already in the phone's own Spotify folder (#332).
+    enum Adopt {
+        static let settingsSection = "Music already on this phone"
+        static let settingsRow = "Find music in your Spotify folder"
+        static let settingsFootnote = "Looks through your Spotify folder for songs you didn't add with Locally, so they show up and play here. Nothing in the folder is changed."
+        static let eyebrow = "Spotify folder"
+        static let title = "Music in your Spotify folder"
+        static let scanning = "Looking through your Spotify folder…"
+        static func progress(done: Int, total: Int) -> String { "Reading song \(min(done + 1, max(total, 1))) of \(total)" }
+        static let emptyTitle = "Nothing new to add"
+        static let emptyBody = "Everything Locally can read in your Spotify folder is already in your library."
+        static let onMac = "Already on your Mac"
+        static let onMacHint = "Adding it lets this phone play it. It stays one release."
+        static func addCount(_ count: Int) -> String { count == 1 ? "Add 1 release" : "Add \(count) releases" }
+        static let adding = "Adding…"
+        static let notNow = "Not now"
+        static let close = "Close"
+        static let tryAgain = "Try again"
+        static let scanFailed = "Couldn't look through your Spotify folder."
+        static func summary(releases: Int, songs: Int) -> String {
+            let r = releases == 1 ? "1 release" : "\(releases) releases"
+            let t = songs == 1 ? "1 song" : "\(songs) songs"
+            return "\(r), \(t)"
+        }
+        static func skipped(_ count: Int) -> String {
+            count == 1 ? "1 file Locally can't read was left out." : "\(count) files Locally can't read were left out."
+        }
+        static func songCount(_ count: Int) -> String { count == 1 ? "1 song" : "\(count) songs" }
+        static let rowSelected = "Included"
+        static let rowNotSelected = "Not included"
+        static let readOnlyNote = "Added music is read only: Locally never edits, moves or deletes these files."
+        static func doneTitle(_ outcome: AdoptOutcome) -> String {
+            let total = outcome.added + outcome.linked
+            return total == 1 ? "Added 1 release" : "Added \(total) releases"
+        }
+        static func doneBody(_ outcome: AdoptOutcome) -> String {
+            var parts: [String] = []
+            if outcome.linked > 0 {
+                parts.append(outcome.linked == 1 ? "1 is already on your Mac and now plays here too." : "\(outcome.linked) are already on your Mac and now play here too.")
+            }
+            if !outcome.failed.isEmpty {
+                parts.append("Couldn't add: \(outcome.failed.joined(separator: ", ")).")
+            }
+            return parts.joined(separator: " ")
+        }
+    }
+
     enum Onboarding {
         static let welcomeTitle = "Welcome to Locally"
         static let welcomeBody = "Add your own songs to Spotify with the cover and details you choose. This app is independent and is not made by or connected to Spotify."
@@ -511,6 +558,7 @@ enum Copy {
         static let playsAcrossDevices = "Plays are counted across all your devices."
         /// Shown on an adopted release's page: its files stay on the Mac.
         static let adoptedNote = "In your Mac's Spotify folder"
+        static let adoptedHereNote = "In your Spotify folder"
         static let saveChanges = "Save changes"
         static let saving = "Saving…"
         static let replaceCover = "Replace cover"

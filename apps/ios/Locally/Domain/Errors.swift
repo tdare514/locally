@@ -25,6 +25,8 @@ enum LocallyError: LocalizedError {
     case pathOutsideFolder
     /// StoreKit couldn't complete a purchase, restore, or product load.
     case purchaseFailed(String)
+    /// A write was asked of an adopted release (#332): its files are the user's own and are never changed.
+    case adoptedReadOnly(String)
 
     var errorDescription: String? {
         switch self {
@@ -46,6 +48,8 @@ enum LocallyError: LocalizedError {
             return "That file isn't inside Spotify's folder."
         case .purchaseFailed(let detail):
             return "Couldn't complete that purchase. \(detail)"
+        case .adoptedReadOnly(let title):
+            return "\"\(title)\" was found in your Spotify folder, so Locally only reads it. Its files are never changed."
         }
     }
 }

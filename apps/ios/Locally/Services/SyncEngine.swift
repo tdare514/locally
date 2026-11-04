@@ -435,7 +435,7 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
 
     nonisolated func pushAfterChange(_ release: Release) {
         Task { @MainActor [weak self] in
-            guard let self, self.isSignedIn, !release.isAdopted else { return }
+            guard let self, self.isSignedIn, release.ownsSyncRecord else { return }
             self.enqueue(release.id, .push)
             await self.drainOutbox()
         }
@@ -484,7 +484,7 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
     /// Existing callers (tests, `verify`'s implicit back-fill via
     /// `reconcile`) still call this directly.
     func push(_ release: Release) async {
-        guard isSignedIn, !release.isAdopted else { return }
+        guard isSignedIn, release.ownsSyncRecord else { return }
         enqueue(release.id, .push)
         await drainOutbox()
     }
@@ -756,8 +756,9 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
             try? outbox.remove(id, ifOperation: .push)
             return
         }
-        // This phone doesn't own an adopted release: never push it.
-        if release.isAdopted {
+        // This phone doesn't own a release adopted on the Mac: never push it. One it adopted itself is pushed,
+        // details and cover only (#332).
+        if !release.ownsSyncRecord {
             try? outbox.remove(id, ifOperation: .push)
             return
         }
@@ -785,7 +786,10 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
     private func pushInternal(_ release: Release) async throws {
         // Sizes and uploads read the track files inside Spotify's folder, which
         // needs the folder's security scope open for the whole push.
-        try await coordinator.withTrackFiles(of: release) { files in
+        try await coordinator.withTrackFiles(of: release) { allFiles in
+            // An adopted release uploads its cover only; its audio is where the user keeps it. Only the tracks
+            // linked to a file here have a size to report.
+            let files = release.isAdopted ? allFiles.filter { $0.track.spotifyPath != nil } : allFiles
             var fileBytes: [UUID: Int] = [:]
             for entry in files { fileBytes[entry.track.id] = Self.fileSize(at: entry.url) }
             var record = release.toSyncRecord(origin: "ios", originDevice: deviceName(), fileBytes: fileBytes)
@@ -815,7 +819,7 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
                 try await api.putRelease(record)
             }
 
-            let uploaded = try await uploadFiles(release: release, record: record, files: files, cover: cover)
+            let uploaded = try await uploadFiles(release: release, record: record, files: release.isAdopted ? [] : files, cover: cover)
             markPushed(release, at: record.updatedAt, uploaded: uploaded)
         }
     }
@@ -1111,7 +1115,7 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
                     Self.log.info("Missing-files list names release \(entry.id, privacy: .public), which this phone doesn't have; leaving it.")
                     continue
                 }
-                if local.isAdopted { continue }
+                if !local.ownsSyncRecord { continue }
                 if requeueMissingFiles(of: local, names: Set(entry.missing)) { queued += 1 }
             }
         }
@@ -1416,7 +1420,7 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
     /// already-queued `.push`) sitting in the outbox.
     private func backfillUnpushed() async {
         guard let localReleases = localReleases() else { return }
-        for release in localReleases where !release.isAdopted && needsPush(release) {
+        for release in localReleases where release.ownsSyncRecord && needsPush(release) {
             enqueue(release.id, .push)
         }
     }
@@ -1428,7 +1432,8 @@ final class SyncEngine: ReleaseSyncHook, CollectionSyncHook {
     /// The names a push of `release` uploads: each track's file name plus
     /// `coverName` (the name `coverUpload(for:)` resolves) when there is one.
     static func expectedUploadNames(of release: Release, coverName: String?) -> Set<String> {
-        var names = Set(release.tracks.map { ($0.filePath as NSString).lastPathComponent })
+        // An adopted release uploads its cover only (#332).
+        var names: Set<String> = release.isAdopted ? [] : Set(release.tracks.map { ($0.filePath as NSString).lastPathComponent })
         if let coverName { names.insert(coverName) }
         return names
     }

@@ -297,7 +297,7 @@ enum CollectionQueue {
     }
 
     private static func row(_ index: Int, _ release: Release, _ track: Track) -> Row {
-        Row(itemIndex: index, releaseID: release.id, trackID: track.id, title: track.title, artist: release.artist, durationSec: track.durationSec, isHeld: !release.isAdopted)
+        Row(itemIndex: index, releaseID: release.id, trackID: track.id, title: track.title, artist: release.artist, durationSec: track.durationSec, isHeld: release.holdsAudio(track))
     }
 }
 

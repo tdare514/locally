@@ -382,6 +382,8 @@ extension Release {
             createdAt: createdAt,
             updatedAt: updatedAt,
             deleted: false,
+            // A release this phone adopted pushes details only; the Mac's own adopted releases never get here.
+            source: isAdopted ? .adopted : nil,
             sharedFrom: sharedFrom
         )
     }

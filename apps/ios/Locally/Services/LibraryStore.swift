@@ -67,8 +67,11 @@ final class ReleaseRecord {
     /// for rows written before it existed, so SwiftData's lightweight migration adds them).
     var sharedFromShareId: String?
     var sharedFromAllowReshare: Bool?
+    /// `Release.adoptedHere`; nil for every other release and for rows written before it existed (an optional
+    /// attribute, so SwiftData's lightweight migration adds it).
+    var adoptedHere: Bool?
 
-    init(id: UUID, kindRaw: String, title: String, artist: String, year: String?, releaseDate: String? = nil, genre: String?, coverPath: String?, folderPath: String, tracksData: Data, createdAt: Date, updatedAt: Date, syncedUpdatedAt: Date? = nil, uploadedFileNamesData: Data? = nil, sourceRaw: String? = nil, sharedFromShareId: String? = nil, sharedFromAllowReshare: Bool? = nil) {
+    init(id: UUID, kindRaw: String, title: String, artist: String, year: String?, releaseDate: String? = nil, genre: String?, coverPath: String?, folderPath: String, tracksData: Data, createdAt: Date, updatedAt: Date, syncedUpdatedAt: Date? = nil, uploadedFileNamesData: Data? = nil, sourceRaw: String? = nil, sharedFromShareId: String? = nil, sharedFromAllowReshare: Bool? = nil, adoptedHere: Bool? = nil) {
         self.id = id
         self.kindRaw = kindRaw
         self.title = title
@@ -86,6 +89,7 @@ final class ReleaseRecord {
         self.sourceRaw = sourceRaw
         self.sharedFromShareId = sharedFromShareId
         self.sharedFromAllowReshare = sharedFromAllowReshare
+        self.adoptedHere = adoptedHere
     }
 }
 
@@ -188,6 +192,7 @@ final class SwiftDataLibraryStore: LibraryStore {
             existing.sourceRaw = release.source?.rawValue
             existing.sharedFromShareId = release.sharedFrom?.shareId
             existing.sharedFromAllowReshare = release.sharedFrom?.allowReshare
+            existing.adoptedHere = release.adoptedHereRaw
         } else {
             guard insertIfMissing else { return false }
             let record = ReleaseRecord(
@@ -207,7 +212,8 @@ final class SwiftDataLibraryStore: LibraryStore {
                 uploadedFileNamesData: uploadedFileNamesData,
                 sourceRaw: release.source?.rawValue,
                 sharedFromShareId: release.sharedFrom?.shareId,
-                sharedFromAllowReshare: release.sharedFrom?.allowReshare
+                sharedFromAllowReshare: release.sharedFrom?.allowReshare,
+                adoptedHere: release.adoptedHereRaw
             )
             context.insert(record)
         }
@@ -242,7 +248,8 @@ final class SwiftDataLibraryStore: LibraryStore {
             source: record.sourceRaw.flatMap(ReleaseSource.init(rawValue:)),
             sharedFrom: record.sharedFromShareId.flatMap { id in
                 record.sharedFromAllowReshare.map { SharedFrom(shareId: id, allowReshare: $0) }
-            }
+            },
+            adoptedHere: record.adoptedHere == true
         )
     }
 }

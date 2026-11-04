@@ -227,6 +227,7 @@ final class ReleaseCoordinator {
         guard let existing = releases.first(where: { $0.id == id }) else {
             throw LocallyError.libraryFailed("Couldn't find that release.")
         }
+        try existing.assertWritable()
 
         var tracks = orderedTracks(existing.tracks, order: changes.trackOrder)
         for index in tracks.indices {
@@ -400,6 +401,7 @@ final class ReleaseCoordinator {
         guard let existing = releases.first(where: { $0.id == releaseId }) else {
             throw LocallyError.libraryFailed("Couldn't find that release.")
         }
+        try existing.assertWritable()
 
         var newCoverPath = existing.coverPath
         if let newCoverData {
@@ -718,6 +720,12 @@ final class ReleaseCoordinator {
         }
         let existing = try library.all().first { $0.id == releaseId }
         var coverPath = existing?.coverPath
+        // What this phone knows about the audio survives a newer record: tracks stay linked to their files here,
+        // and a release this phone adopted keeps its record and its upload bookkeeping.
+        let linkedPaths: [UUID: String] = Dictionary(
+            (existing?.tracks ?? []).compactMap { track in track.spotifyPath.map { (track.id, $0) } },
+            uniquingKeysWith: { first, _ in first }
+        )
         if let coverData {
             coverPath = try? coverStore.save(coverData, for: releaseId)
         }
@@ -740,14 +748,16 @@ final class ReleaseCoordinator {
                     filePath: syncTrack.file,
                     originalName: syncTrack.file,
                     durationSec: syncTrack.durationSec,
-                    localId: syncTrack.localId
+                    localId: syncTrack.localId,
+                    spotifyPath: UUID(uuidString: syncTrack.id).flatMap { linkedPaths[$0] }
                 )
             },
             createdAt: existing?.createdAt ?? record.createdAt,
             updatedAt: record.updatedAt,
             syncedUpdatedAt: record.updatedAt,
-            uploadedFileNames: [],
-            source: .adopted
+            uploadedFileNames: existing?.adoptedHere == true ? existing?.uploadedFileNames ?? [] : [],
+            source: .adopted,
+            adoptedHere: existing?.adoptedHere ?? false
         )
         do {
             try library.upsert(release)
@@ -784,12 +794,17 @@ final class ReleaseCoordinator {
         return ReleaseLayout().isInside(folder: folderURL, path: url.path) ? url : nil
     }
 
-    /// The track's file as it is reachable now. The stored path is absolute,
+    /// The track's file as it is reachable now. An adopted track's is its `spotifyPath` under the folder. Otherwise
+    /// the stored path is absolute,
     /// but Spotify's container moves when Spotify is reinstalled, so when
     /// that path no longer exists the file is looked up by name inside the
     /// currently connected folder (the app never renames files, so the name
     /// is stable). The caller still runs the inside-folder guard on the result.
     static func resolvedFileURL(for track: Track, in folderURL: URL) -> URL {
+        // An adopted track is wherever the user keeps it, stored relative to the folder (#332).
+        if let relative = track.spotifyPath {
+            return folderURL.appendingPathComponent(relative)
+        }
         if FileManager.default.fileExists(atPath: track.filePath) {
             return URL(fileURLWithPath: track.filePath)
         }
