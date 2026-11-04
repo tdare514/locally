@@ -606,6 +606,7 @@ struct AdoptOfferTests {
 
 // MARK: - Playback of partly linked releases
 
+@MainActor
 struct LinkedPlaybackTests {
     @Test func onlyTheLinkedTracksOfAnAdoptedReleasePlay() {
         var release = macAdopted(songs: [("Intro", 100), ("Drive", 200)])
