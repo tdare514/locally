@@ -51,4 +51,4 @@ C18 (empty states) is covered by 409, 411, 417 and 418. C13 and C25 stay as they
   come from 425.
 - **Last:** 426 rewrites `docs/design.md` once the build issues have landed. Until then, each
   issue edits only its own component's entry in `docs/design.md`.
-- Every visible change goes through `/codex-review` before its PR merges. Stage explicit paths.
+- Every visible change gets a design review before its PR merges. Stage explicit paths.

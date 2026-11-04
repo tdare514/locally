@@ -198,7 +198,7 @@ Recorded on #339 (comment of 23 Oct).
 - **The queue:** Side A and Side B columns on the Mac (one column on the iPhone); the current track carries the #324
   now-playing glyph in the accent colour.
 - **Colour:** the page takes the front record's cover colours, as the release page does.
-- **Motion budget** (`~/.claude/design/motion.md`, the house record easing):
+- **Motion budget** (`docs/motion.md`, the house record easing):
   - the wheel turning and snapping, animated only while it moves;
   - the record onto the platter and the tonearm's swing;
   - the hovering cover rising in;
