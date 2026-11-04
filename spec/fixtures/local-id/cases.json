@@ -1,0 +1,138 @@
+[
+  {
+    "name": "plain ascii",
+    "artist": "Artist",
+    "album": "Album",
+    "title": "Title",
+    "durationSec": 200,
+    "expected": "spotify:local:Artist:Album:Title:200"
+  },
+  {
+    "name": "spaces become plus",
+    "artist": "Neon Harbor",
+    "album": "Night Drive Vol 2",
+    "title": "Slow Burn Again",
+    "durationSec": 215,
+    "expected": "spotify:local:Neon+Harbor:Night+Drive+Vol+2:Slow+Burn+Again:215"
+  },
+  {
+    "name": "literal plus is percent-encoded",
+    "artist": "A+B",
+    "album": "C++ Sessions",
+    "title": "1+1=2",
+    "durationSec": 61,
+    "expected": "spotify:local:A%2BB:C%2B%2B+Sessions:1%2B1%3D2:61"
+  },
+  {
+    "name": "unicode accents",
+    "artist": "Beyoncé",
+    "album": "Café del Mar",
+    "title": "Señorita",
+    "durationSec": 187,
+    "expected": "spotify:local:Beyonc%C3%A9:Caf%C3%A9+del+Mar:Se%C3%B1orita:187"
+  },
+  {
+    "name": "unicode cjk and emoji",
+    "artist": "宇多田ヒカル",
+    "album": "初恋",
+    "title": "First Love 🎵",
+    "durationSec": 258,
+    "expected": "spotify:local:%E5%AE%87%E5%A4%9A%E7%94%B0%E3%83%92%E3%82%AB%E3%83%AB:%E5%88%9D%E6%81%8B:First+Love+%F0%9F%8E%B5:258"
+  },
+  {
+    "name": "decomposed accent is not normalised",
+    "artist": "Café",
+    "album": "Album",
+    "title": "Title",
+    "durationSec": 100,
+    "expected": "spotify:local:Cafe%CC%81:Album:Title:100"
+  },
+  {
+    "name": "empty album",
+    "artist": "Artist",
+    "album": "",
+    "title": "Single Song",
+    "durationSec": 180,
+    "expected": "spotify:local:Artist::Single+Song:180"
+  },
+  {
+    "name": "empty artist and album",
+    "artist": "",
+    "album": "",
+    "title": "Untitled",
+    "durationSec": 42,
+    "expected": "spotify:local:::Untitled:42"
+  },
+  {
+    "name": "reserved characters",
+    "artist": "AC/DC",
+    "album": "Back & Forth: Live?",
+    "title": "Rock #1 100% \"Loud\"",
+    "durationSec": 300,
+    "expected": "spotify:local:AC%2FDC:Back+%26+Forth%3A+Live%3F:Rock+%231+100%25+%22Loud%22:300"
+  },
+  {
+    "name": "characters encodeURIComponent keeps",
+    "artist": "A!B",
+    "album": "(C)",
+    "title": "it's *~ok*",
+    "durationSec": 90,
+    "expected": "spotify:local:A!B:(C):it's+*~ok*:90"
+  },
+  {
+    "name": "colon in title",
+    "artist": "Artist",
+    "album": "Album",
+    "title": "Part 1: The Start",
+    "durationSec": 120,
+    "expected": "spotify:local:Artist:Album:Part+1%3A+The+Start:120"
+  },
+  {
+    "name": "length floors fractions",
+    "artist": "Artist",
+    "album": "Album",
+    "title": "Title",
+    "durationSec": 59.999,
+    "expected": "spotify:local:Artist:Album:Title:59"
+  },
+  {
+    "name": "length just over a second",
+    "artist": "Artist",
+    "album": "Album",
+    "title": "Title",
+    "durationSec": 1.5,
+    "expected": "spotify:local:Artist:Album:Title:1"
+  },
+  {
+    "name": "length under one second",
+    "artist": "Artist",
+    "album": "Album",
+    "title": "Title",
+    "durationSec": 0.4,
+    "expected": "spotify:local:Artist:Album:Title:0"
+  },
+  {
+    "name": "length zero",
+    "artist": "Artist",
+    "album": "Album",
+    "title": "Title",
+    "durationSec": 0,
+    "expected": "spotify:local:Artist:Album:Title:0"
+  },
+  {
+    "name": "negative length clamps to zero",
+    "artist": "Artist",
+    "album": "Album",
+    "title": "Title",
+    "durationSec": -3.2,
+    "expected": "spotify:local:Artist:Album:Title:0"
+  },
+  {
+    "name": "long track",
+    "artist": "Artist",
+    "album": "Album",
+    "title": "Title",
+    "durationSec": 3725.75,
+    "expected": "spotify:local:Artist:Album:Title:3725"
+  }
+]
