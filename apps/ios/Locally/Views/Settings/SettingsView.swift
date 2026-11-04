@@ -15,6 +15,7 @@ struct SettingsView: View {
 
     @State private var isPresentingFolderPicker = false
     @State private var isPresentingPaywall = false
+    @State private var isPresentingAdopt = false
     @State private var errorMessage: String?
 
     private static var edgeFade: CGFloat { 22 }
@@ -44,6 +45,10 @@ struct SettingsView: View {
                         SettingsHeroCard()
 
                         GlassSection(title: Copy.Settings.folderSection) { folderCard }
+
+                        if folderStatus.isConnected {
+                            GlassSection(title: Copy.Adopt.settingsSection, footnote: Copy.Adopt.settingsFootnote) { adoptCard }
+                        }
 
                         SyncSettingsSection()
 
@@ -91,6 +96,9 @@ struct SettingsView: View {
         .sheet(isPresented: $isPresentingPaywall) {
             PaywallView()
         }
+        .sheet(isPresented: $isPresentingAdopt) {
+            AdoptReviewView()
+        }
     }
 
     // MARK: Cards
@@ -130,6 +138,18 @@ struct SettingsView: View {
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
             }
+        }
+    }
+
+    /// Looks through the Spotify folder for music Locally didn't add, on request only (#332).
+    private var adoptCard: some View {
+        GlassCard {
+            Button {
+                isPresentingAdopt = true
+            } label: {
+                GlassRow(symbol: "magnifyingglass", tint: Theme.Tint.teal, title: Copy.Adopt.settingsRow, chevron: true)
+            }
+            .buttonStyle(SoftPressStyle())
         }
     }
 

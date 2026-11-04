@@ -22,7 +22,7 @@ Shared, app-independent material:
 - `docs/research/` — background research notes (e.g. playlists).
 - `scripts/` — `make-app-icons.py`, `make-listener-icons.py`, `make-brand-marks.py` render the
   icon and brand assets (Python 3 + librsvg's `rsvg-convert`); `make-fixtures.sh` builds test
-  fixtures.
+  fixtures; `clean-worktrees.sh` sweeps idle, fully pushed worktrees.
 
 ## Global invariants (apply in every app)
 
@@ -46,6 +46,13 @@ Shared, app-independent material:
   the same change when your work makes it stale.
 - Several sessions may work in this checkout at once. Stage only the files you changed with
   explicit `git add <path>`; never stage, stash, clean, or delete untracked paths you did not create.
+- **Clean up your worktree.** When your work is committed and pushed and you won't resume it,
+  remove the worktree you made (`git worktree remove <path>`). Leftovers are swept by
+  `scripts/clean-worktrees.sh`, which runs at every Claude session start (`.claude/settings.json`)
+  and removes only worktrees that are clean, fully pushed, not locked and idle for 7 days or more;
+  anything with uncommitted or unpushed work is always kept, and branches are never deleted.
+  By hand it is a dry run; `--apply` removes, `--days N` changes the idle threshold. To keep an
+  idle worktree, `git worktree lock <path>`.
 - A feature that spans more than one app gets a plan in `docs/plans/<issue>-<name>.md` before
   implementation: contract changes, compatibility, security implications, affected components,
   tests. Implement from the plan in a fresh session; do not redesign the approved contract there.

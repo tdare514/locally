@@ -19,6 +19,12 @@ struct Track: Identifiable, Codable, Hashable {
     /// `spotify:local:...` id of an adopted file, from the synced record. Never set or changed on the
     /// iPhone; nil for tracks made here.
     var localId: String?
+    /// Where an adopted track's file sits on this phone, relative to the Spotify folder
+    /// (`Synced files/Album/01 Intro.mp3`, #332). Set only by adopting the phone's own Spotify
+    /// folder or by linking to a release adopted on another device; nil for tracks made here
+    /// (their `filePath` is the file) and for adopted tracks whose audio is not on this phone.
+    /// Read only: the file is never written, moved or deleted.
+    var spotifyPath: String?
 
     init(
         id: UUID = UUID(),
@@ -28,7 +34,8 @@ struct Track: Identifiable, Codable, Hashable {
         filePath: String,
         originalName: String,
         durationSec: Double? = nil,
-        localId: String? = nil
+        localId: String? = nil,
+        spotifyPath: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -38,6 +45,7 @@ struct Track: Identifiable, Codable, Hashable {
         self.originalName = originalName
         self.durationSec = durationSec
         self.localId = localId
+        self.spotifyPath = spotifyPath
     }
 }
 
@@ -92,8 +100,33 @@ struct Release: Identifiable, Codable, Hashable {
     /// share's reshare route, and only when it allowed it.
     var sharedFrom: SharedFrom?
 
-    /// True for a details-only release this phone does not own.
+    /// True when this phone adopted the release from its own Spotify folder (#332), so this phone owns
+    /// the record: it pushes it (cover only) and nothing else does. False for a release adopted on the
+    /// Mac, even once its tracks are linked to files here.
+    var adoptedHere: Bool {
+        get { adoptedHereRaw == true }
+        set { adoptedHereRaw = newValue ? true : nil }
+    }
+    /// Stored form of `adoptedHere`: optional so a release encoded before it existed still decodes.
+    var adoptedHereRaw: Bool?
+
+    /// True for an adopted release: details only, read-only, never re-tagged, moved or deleted on disk.
     var isAdopted: Bool { source == .adopted }
+
+    /// True when this phone writes the release's sync record: Locally's own releases and the ones it adopted.
+    var ownsSyncRecord: Bool { !isAdopted || adoptedHere }
+
+    /// True when `track`'s audio is on this phone: always for Locally's own releases, and for an adopted
+    /// one only once it is linked to a file in the Spotify folder.
+    func holdsAudio(_ track: Track) -> Bool {
+        isAdopted ? track.spotifyPath != nil : true
+    }
+
+    /// Throws before any write to an adopted release. Called first on every path that re-tags, replaces a cover,
+    /// moves or deletes a release's files, as the Mac's `assertWritable` is (#245).
+    func assertWritable() throws {
+        if isAdopted { throw LocallyError.adoptedReadOnly(title) }
+    }
 
     /// The release date at its own precision (#221). Every write of a date goes through here, so `year` and
     /// `releaseDate` are set together and cannot drift.
@@ -121,7 +154,8 @@ struct Release: Identifiable, Codable, Hashable {
         syncedUpdatedAt: Date? = nil,
         uploadedFileNames: [String] = [],
         source: ReleaseSource? = nil,
-        sharedFrom: SharedFrom? = nil
+        sharedFrom: SharedFrom? = nil,
+        adoptedHere: Bool = false
     ) {
         self.id = id
         self.kind = kind
@@ -139,6 +173,7 @@ struct Release: Identifiable, Codable, Hashable {
         self.uploadedFileNames = uploadedFileNames
         self.source = source
         self.sharedFrom = sharedFrom
+        self.adoptedHereRaw = adoptedHere ? true : nil
     }
 }
 

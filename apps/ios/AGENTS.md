@@ -17,6 +17,9 @@ Locally/
   Domain/                # Release/Track/AlbumDraft/TagSet models, LocallyError, Entitlements
     ReleaseLayout.swift   # pure: sanitizeSegment, fileName, isInside, isPlainFileName
     SyncRecord.swift       # SyncDateFormat + wire types SyncTrack/SyncRecord shared with apps/web
+    LocalId.swift          # the spotify:local: encoder, a port of the Mac's (spec/fixtures/local-id/)
+    AdoptGrouping.swift    # pure: scanned files to proposed releases, as the Mac's AdoptScanner groups them
+    AdoptMatching.swift    # pure: does a proposed release match one already synced (localId)
   Services/              # FileImporter, Transcoder, TagWriter (+M4A/ID3), SpotifyFolder,
                           # LibraryStore, CoverStore, InboxStore, PurchaseService
     SyncAccount.swift      # protocol SyncAccountStore: baseURL/email/deviceToken/deviceId/lastVersion,
@@ -24,9 +27,11 @@ Locally/
     SyncApi.swift           # wire types + protocol SyncApi/HttpSyncApi: verify, releases page, uploads
     SyncEngine.swift         # ReleaseSyncHook + SyncStatus + @MainActor SyncEngine: reconcile, push, accept
     SyncOutbox.swift         # persistent push/delete queue (SwiftData), drained by SyncEngine (#19)
+    SpotifyFolderScanner.swift # read-only walk of the Spotify folder for music Locally didn't add (#332): skips Locally/, hidden entries and tracked paths
+    SpotifyAdopter.swift       # review + adopt (details only, read only, paths relative to the folder) or link to a release synced from another device by localId
     ReconcileScheduler.swift # the engine-owned 30s foreground reconcile timer
   Coordinator/            # ReleaseCoordinator — sequences stage → transcode → tag → move → index for
-                          # import/update/delete; the only place that calls SpotifyFolderAccess
+                          # import/update/delete; calls SpotifyFolderAccess, as does SpotifyAdopter (read only)
   Views/                  # Onboarding, Import (single + album), Library, Settings, Purchase, Components
   Resources/              # Copy.swift (user-facing strings), Theme.swift (palette), Assets.xcassets
 LocallyShare/             # "Send to Locally" share extension — ShareViewController only, no SwiftUI

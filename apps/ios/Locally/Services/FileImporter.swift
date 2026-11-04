@@ -130,7 +130,7 @@ final class LocalFileImporter: FileImporter {
 
     /// The track or disc number an item carries: TRCK/TPOS as text (`2/3`), trkn/disk as the
     /// raw iTunes data. Nil for any other item, or one whose value doesn't parse.
-    private static func numberPair(of item: AVMetadataItem) async -> (isDisc: Bool, number: Int, total: Int?)? {
+    static func numberPair(of item: AVMetadataItem) async -> (isDisc: Bool, number: Int, total: Int?)? {
         switch item.identifier {
         case AVMetadataIdentifier.id3MetadataTrackNumber, AVMetadataIdentifier.id3MetadataPartOfASet:
             guard let text = try? await item.load(.stringValue), let pair = DiscNumbering.parsePair(text) else { return nil }

@@ -13,6 +13,9 @@ struct RootView: View {
     /// stored, so the user actually sees the "Connected" confirmation.
     @State private var hasFinishedOnboarding = false
 
+    /// The one-time offer to look through the Spotify folder, made right after onboarding (#332).
+    @State private var isOfferingAdopt = false
+
     /// The selected tab index, shared with `LibraryView` so its "Add a song"
     /// actions can switch to the Import tab (the `TabView` has no other
     /// shared selection to hook into). Library is tab 0: it is the home of
@@ -53,7 +56,13 @@ struct RootView: View {
     private var tabsOrOnboarding: some View {
         Group {
             if !folderStatus.isConnected || !hasFinishedOnboarding {
-                OnboardingView { hasFinishedOnboarding = true }
+                OnboardingView {
+                    hasFinishedOnboarding = true
+                    if AdoptOffer.shouldOffer() {
+                        AdoptOffer.markOffered()
+                        isOfferingAdopt = true
+                    }
+                }
             } else {
                 if #available(iOS 18.0, *) {
                     // iPad gets the system top tab bar that can turn into a sidebar (#448);
@@ -88,6 +97,9 @@ struct RootView: View {
             }
         }
         .background(Theme.background)
+        .sheet(isPresented: $isOfferingAdopt) {
+            AdoptReviewView()
+        }
         .task(id: folderStatus.isConnected) {
             guard folderStatus.isConnected, let container else { return }
             if let moved = await container.coordinator.migrateIntoBrandFolder(), moved > 0 {

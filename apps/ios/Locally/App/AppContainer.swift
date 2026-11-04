@@ -51,6 +51,8 @@ final class AppContainer {
     let collections: CollectionStore
     /// The app-wide player (#336); its audio pieces are created on first play.
     let playback: PlaybackService
+    /// Finds music already in the phone's Spotify folder and adopts it, read only (#332).
+    let adopter: SpotifyAdopter
 
     /// What Settings and the Import tab bind to for sync — same object as
     /// `syncEngine.status`, exposed here so views don't need to reach
@@ -73,7 +75,8 @@ final class AppContainer {
         playCounts: PlayCountStoring? = nil,
         playEvents: PlayEventStoring? = nil,
         collections: CollectionStore? = nil,
-        playHistory: PlayHistoryReading? = nil
+        playHistory: PlayHistoryReading? = nil,
+        adopter: SpotifyAdopter? = nil
     ) {
         self.collections = collections ?? SwiftDataCollectionStore(context: modelContainer.mainContext)
         self.folder = folder
@@ -95,6 +98,8 @@ final class AppContainer {
         self.folderStatus = FolderStatus(isConnected: folder.isConnected)
         self.purchaseStatus = PurchaseStatus(isFullUnlocked: purchase.isFullUnlocked)
         coordinator.syncHook = syncEngine
+        self.adopter = adopter ?? SpotifyAdopter(folder: folder, library: library, coverStore: coverStore)
+        self.adopter.syncHook = syncEngine
     }
 
     /// Marks the folder connected after a successful `SpotifyFolderAccess.connect`,

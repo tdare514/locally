@@ -324,6 +324,10 @@ final class ReleaseDetailViewModel {
     var hasPlays: Bool { !playTotals.isEmpty }
     /// An adopted release is details only: view mode, never edited here.
     var isAdopted: Bool { release.isAdopted }
+    /// Where an adopted release's files are: in the Spotify folder here once linked (#332), else on the Mac.
+    var adoptedNoteText: String {
+        release.tracks.contains { $0.spotifyPath != nil } ? Copy.Detail.adoptedHereNote : Copy.Detail.adoptedNote
+    }
 
     /// The disc heading to show above each row, or nil for none (see `DiscNumbering.headings`).
     var discHeadings: [Int?] {
