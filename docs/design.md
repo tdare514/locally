@@ -63,7 +63,7 @@ ceremonies are the emotive parts, and they stay. Controls stay calm so those par
 9. **Motion explains, then gets out of the way.** Movement says where something came from or
    that it was saved (the sleeve tucking in, a toast rising, a sheet sliding up). No ambient
    motion on controls, no looping highlight, and every effect has a still version under Reduce
-   Motion. Read `~/.claude/design/motion.md` before adding any.
+   Motion. Read `docs/motion.md` before adding any.
 10. **Loading should be invisible where it can be.** Make pages fast first, so most of them
     need no placeholder (sweep pick C19: lag and slow pages matter more than the placeholders). Where
     a wait is real, show still skeletons shaped like the content, after 300 ms, never shimmering,
